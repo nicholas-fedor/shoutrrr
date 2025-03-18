@@ -198,10 +198,11 @@ func Run(cmd *cobra.Command, _ []string) {
 
 	fmt.Println()
 
-	generatedURL := serviceConfig.GetURL().String()
+	maskedURL := maskSensitiveURL(serviceSchema, serviceConfig.GetURL().String())
+
 	if showSensitive {
-		fmt.Println("URL:", generatedURL)
+		fmt.Println("URL:", serviceConfig.GetURL().String())
 	} else {
-		fmt.Println("URL:", maskSensitiveURL(serviceSchema, generatedURL))
+		fmt.Println("URL:", maskedURL)
 	}
 }
