@@ -61,50 +61,68 @@ func maskSensitiveURL(serviceSchema, urlStr string) string {
 
 	switch serviceSchema {
 	case "discord", "slack", "teams":
-		// Webhook-based services store tokens in the username field.
-		if u.User != nil {
-			u.User = url.User("REDACTED")
-		}
+		maskUser(u, "REDACTED")
 	case "smtp":
-		// SMTP URLs include username and password in the userinfo.
-		if u.User != nil {
-			u.User = url.UserPassword(u.User.Username(), "REDACTED")
-		}
+		maskSMTPUser(u)
 	case "pushover":
-		// Pushover uses token and user query parameters.
-		q := u.Query()
-		if q.Get("token") != "" {
-			q.Set("token", "REDACTED")
-		}
-
-		if q.Get("user") != "" {
-			q.Set("user", "REDACTED")
-		}
-
-		u.RawQuery = q.Encode()
+		maskPushoverQuery(u)
 	case "gotify":
-		// Gotify uses a token query parameter.
-		q := u.Query()
-		if q.Get("token") != "" {
-			q.Set("token", "REDACTED")
-		}
-
-		u.RawQuery = q.Encode()
+		maskGotifyQuery(u)
 	default:
-		// Generic masking for unrecognized services: redact userinfo and all query parameters.
-		if u.User != nil {
-			u.User = url.User("REDACTED")
-		}
-
-		q := u.Query()
-		for key := range q {
-			q.Set(key, "REDACTED")
-		}
-
-		u.RawQuery = q.Encode()
+		maskGeneric(u)
 	}
 
 	return u.String()
+}
+
+// maskUser redacts the username in a URL, replacing it with a placeholder.
+func maskUser(u *url.URL, placeholder string) {
+	if u.User != nil {
+		u.User = url.User(placeholder)
+	}
+}
+
+// maskSMTPUser redacts the password in an SMTP URL, preserving the username.
+func maskSMTPUser(u *url.URL) {
+	if u.User != nil {
+		u.User = url.UserPassword(u.User.Username(), "REDACTED")
+	}
+}
+
+// maskPushoverQuery redacts token and user query parameters in a Pushover URL.
+func maskPushoverQuery(u *url.URL) {
+	q := u.Query()
+	if q.Get("token") != "" {
+		q.Set("token", "REDACTED")
+	}
+
+	if q.Get("user") != "" {
+		q.Set("user", "REDACTED")
+	}
+
+	u.RawQuery = q.Encode()
+}
+
+// maskGotifyQuery redacts the token query parameter in a Gotify URL.
+func maskGotifyQuery(u *url.URL) {
+	q := u.Query()
+	if q.Get("token") != "" {
+		q.Set("token", "REDACTED")
+	}
+
+	u.RawQuery = q.Encode()
+}
+
+// maskGeneric redacts userinfo and all query parameters for unrecognized services.
+func maskGeneric(u *url.URL) {
+	maskUser(u, "REDACTED")
+
+	q := u.Query()
+	for key := range q {
+		q.Set(key, "REDACTED")
+	}
+
+	u.RawQuery = q.Encode()
 }
 
 // Run executes the generate command, producing a notification service URL.
