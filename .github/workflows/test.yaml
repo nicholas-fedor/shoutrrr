@@ -3,6 +3,9 @@ name: Run tests and upload coverage
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run tests and collect coverage
