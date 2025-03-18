@@ -3,6 +3,7 @@ package verify
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/nicholas-fedor/shoutrrr/internal/util"
@@ -35,7 +36,7 @@ func Run(cmd *cobra.Command, _ []string) {
 
 	service, err := sr.Locate(URL)
 	if err != nil {
-		fmt.Printf("error verifying URL: %s\n", err)
+		fmt.Printf("error verifying URL: %s\n", sanitizeError(err))
 		os.Exit(1)
 	}
 
@@ -43,4 +44,19 @@ func Run(cmd *cobra.Command, _ []string) {
 	configNode := format.GetConfigFormat(config)
 
 	_, _ = fmt.Fprint(color.Output, format.ColorFormatTree(configNode, true))
+}
+
+// sanitizeError removes sensitive details from an error message.
+func sanitizeError(err error) string {
+	errStr := err.Error()
+	// Check for common error patterns without exposing URL details
+	if strings.Contains(errStr, "unknown service") {
+		return "service not recognized"
+	}
+
+	if strings.Contains(errStr, "parse") || strings.Contains(errStr, "invalid") {
+		return "invalid URL format"
+	}
+	// Fallback for other errors
+	return "unable to process URL"
 }
