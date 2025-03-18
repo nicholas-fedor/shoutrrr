@@ -3,6 +3,7 @@ package generate
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -13,11 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// MaximumNArgs defines the maximum number of positional arguments allowed.
 const MaximumNArgs = 2
 
+// serviceRouter manages the creation of notification services.
 var serviceRouter router.ServiceRouter
 
-// Cmd is used to generate a notification service URL from user input.
+// Cmd represents the Cobra command for generating notification service URLs.
 var Cmd = &cobra.Command{
 	Use:    "generate",
 	Short:  "Generates a notification service URL from user input",
@@ -26,6 +29,8 @@ var Cmd = &cobra.Command{
 	Args:   cobra.MaximumNArgs(MaximumNArgs),
 }
 
+// loadArgsFromAltSources populates command flags from positional arguments if provided.
+// It sets the "service" flag from the first argument and "generator" from the second.
 func loadArgsFromAltSources(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		_ = cmd.Flags().Set("service", args[0])
@@ -36,17 +41,75 @@ func loadArgsFromAltSources(cmd *cobra.Command, args []string) {
 	}
 }
 
+// init initializes the command flags for the generate command.
 func init() {
 	serviceRouter = router.ServiceRouter{}
 
-	Cmd.Flags().StringP("service", "s", "", "The notification service to generate a URL for")
-
-	Cmd.Flags().StringP("generator", "g", "basic", "The generator to use")
-
-	Cmd.Flags().StringArrayP("property", "p", []string{}, "Configuration property in key=value format")
+	Cmd.Flags().StringP("service", "s", "", "Notification service to generate a URL for (e.g., discord, smtp)")
+	Cmd.Flags().StringP("generator", "g", "basic", "Generator to use (e.g., basic, or service-specific)")
+	Cmd.Flags().StringArrayP("property", "p", []string{}, "Configuration property in key=value format (e.g., token=abc123)")
+	Cmd.Flags().BoolP("show-sensitive", "x", false, "Show sensitive data in the generated URL (default: masked)")
 }
 
-// Run the generate command.
+// maskSensitiveURL masks sensitive parts of a Shoutrrr URL based on the service schema.
+// It redacts credentials like tokens, passwords, or user keys, tailoring the masking to specific services.
+func maskSensitiveURL(serviceSchema, urlStr string) string {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr // Return original URL if parsing fails
+	}
+
+	switch serviceSchema {
+	case "discord", "slack", "teams":
+		// Webhook-based services store tokens in the username field.
+		if u.User != nil {
+			u.User = url.User("REDACTED")
+		}
+	case "smtp":
+		// SMTP URLs include username and password in the userinfo.
+		if u.User != nil {
+			u.User = url.UserPassword(u.User.Username(), "REDACTED")
+		}
+	case "pushover":
+		// Pushover uses token and user query parameters.
+		q := u.Query()
+		if q.Get("token") != "" {
+			q.Set("token", "REDACTED")
+		}
+
+		if q.Get("user") != "" {
+			q.Set("user", "REDACTED")
+		}
+
+		u.RawQuery = q.Encode()
+	case "gotify":
+		// Gotify uses a token query parameter.
+		q := u.Query()
+		if q.Get("token") != "" {
+			q.Set("token", "REDACTED")
+		}
+
+		u.RawQuery = q.Encode()
+	default:
+		// Generic masking for unrecognized services: redact userinfo and all query parameters.
+		if u.User != nil {
+			u.User = url.User("REDACTED")
+		}
+
+		q := u.Query()
+		for key := range q {
+			q.Set(key, "REDACTED")
+		}
+
+		u.RawQuery = q.Encode()
+	}
+
+	return u.String()
+}
+
+// Run executes the generate command, producing a notification service URL.
+// It validates inputs, generates the URL using the specified service and generator,
+// and outputs it, masking sensitive data unless --show-sensitive is set.
 func Run(cmd *cobra.Command, _ []string) {
 	var service types.Service
 
@@ -55,7 +118,9 @@ func Run(cmd *cobra.Command, _ []string) {
 	serviceSchema, _ := cmd.Flags().GetString("service")
 	generatorName, _ := cmd.Flags().GetString("generator")
 	propertyFlags, _ := cmd.Flags().GetStringArray("property")
+	showSensitive, _ := cmd.Flags().GetBool("show-sensitive")
 
+	// Parse properties into a key-value map.
 	props := make(map[string]string, len(propertyFlags))
 
 	for _, prop := range propertyFlags {
@@ -70,9 +135,10 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	if len(propertyFlags) > 0 {
-		fmt.Println()
+		fmt.Println() // Add spacing after property warnings
 	}
 
+	// Validate and create the service.
 	if serviceSchema == "" {
 		err = errors.New("no service specified")
 	} else {
@@ -86,45 +152,43 @@ func Run(cmd *cobra.Command, _ []string) {
 	if service == nil {
 		services := serviceRouter.ListServices()
 		serviceList := strings.Join(services, ", ")
-
-		cmd.SetUsageTemplate(cmd.UsageTemplate() + "\nAvailable services: \n  " + serviceList + "\n")
-
+		cmd.SetUsageTemplate(cmd.UsageTemplate() + "\nAvailable services:\n  " + serviceList + "\n")
 		_ = cmd.Usage()
 
 		os.Exit(1)
 	}
 
+	// Determine the generator to use.
 	var generator types.Generator
 
 	generatorFlag := cmd.Flags().Lookup("generator")
-
 	if !generatorFlag.Changed {
-		// try to use the service default generator if one exists
+		// Use the service-specific default generator if available and no explicit generator is set.
 		generator, _ = generators.NewGenerator(serviceSchema)
 	}
 
 	if generator != nil {
 		generatorName = serviceSchema
 	} else {
-		generator, err = generators.NewGenerator(generatorName)
-	}
+		var genErr error
 
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		generator, genErr = generators.NewGenerator(generatorName)
+		if genErr != nil {
+			fmt.Printf("Error: %s\n", genErr)
+		}
 	}
 
 	if generator == nil {
 		generatorList := strings.Join(generators.ListGenerators(), ", ")
-
-		cmd.SetUsageTemplate(cmd.UsageTemplate() + "\nAvailable generators: \n  " + generatorList + "\n")
-
+		cmd.SetUsageTemplate(cmd.UsageTemplate() + "\nAvailable generators:\n  " + generatorList + "\n")
 		_ = cmd.Usage()
 
 		os.Exit(1)
 	}
 
+	// Generate and display the URL.
 	_, _ = fmt.Fprint(color.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
-	_, _ = fmt.Fprintln(color.Output, " using", color.HiMagentaString(generatorName), "generator")
+	_, _ = fmt.Fprintln(color.Output, " using ", color.HiMagentaString(generatorName), " generator")
 
 	serviceConfig, err := generator.Generate(service, props, cmd.Flags().Args())
 	if err != nil {
@@ -133,5 +197,11 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	fmt.Println()
-	fmt.Println("URL:", serviceConfig.GetURL().String())
+
+	generatedURL := serviceConfig.GetURL().String()
+	if showSensitive {
+		fmt.Println("URL:", generatedURL)
+	} else {
+		fmt.Println("URL:", maskSensitiveURL(serviceSchema, generatedURL))
+	}
 }
