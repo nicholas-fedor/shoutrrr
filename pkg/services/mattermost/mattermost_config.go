@@ -76,7 +76,7 @@ func (config *Config) parsePath(url *url.URL) error {
 	path := strings.Split(strings.Trim(url.Path, "/"), "/")
 	isDummy := url.String() == "mattermost://dummy@dummy.com"
 
-	if !isDummy && (len(path) < 1 || (len(path) == 1 && path[0] == "")) {
+	if !isDummy && (len(path) < 1 || path[0] == "") {
 		return errors.New(string(NotEnoughArguments))
 	}
 
