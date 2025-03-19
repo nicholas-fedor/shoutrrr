@@ -128,7 +128,71 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(config.GetURL().String()).To(gomega.Equal("mattermost://watchtower@home.lan:8065/token/channel?disabletls=Yes"))
 			})
 		})
+		ginkgo.Describe("initializing with DisableTLS", func() {
+			ginkgo.BeforeEach(func() {
+				httpmock.Activate()
+			})
+			ginkgo.AfterEach(func() {
+				httpmock.DeactivateAndReset()
+			})
+			ginkgo.It("should use plain HTTP transport when DisableTLS is true", func() {
+				mattermostURL, _ := url.Parse("mattermost://user@host:8080/token?disabletls=yes")
+				service := &Service{}
+				err := service.Initialize(mattermostURL, testutils.TestLogger())
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.RegisterResponder("POST", "http://host:8080/hooks/token", httpmock.NewStringResponder(200, ""))
+
+				err = service.Send("Test message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(buildURL(service.Config)).To(gomega.Equal("http://host:8080/hooks/token"))
+			})
+		})
+
+		ginkgo.Describe("sending the payload", func() {
+			var err error
+			ginkgo.BeforeEach(func() {
+				httpmock.Activate()
+			})
+			ginkgo.AfterEach(func() {
+				httpmock.DeactivateAndReset()
+			})
+			ginkgo.It("should not report an error if the server accepts the payload", func() {
+				config := Config{
+					Host:  "mattermost.host",
+					Token: "token",
+				}
+				serviceURL := config.GetURL()
+				service := Service{}
+				err = service.Initialize(serviceURL, nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.NewStringResponder(200, ""))
+				err = service.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("should return an error if the server rejects the payload", func() {
+				config := Config{
+					Host:  "mattermost.host",
+					Token: "token",
+				}
+				serviceURL := config.GetURL()
+				service := Service{}
+				err = service.Initialize(serviceURL, nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.NewStringResponder(403, "Forbidden"))
+				err = service.Send("Message", nil)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("failed to send notification to service"))
+				resp := httpmock.NewStringResponse(403, "Forbidden")
+				resp.Status = "403 Forbidden"
+				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.ResponderFromResponse(resp))
+			})
+		})
 	})
+
 	ginkgo.When("generating a config object", func() {
 		ginkgo.It("should not set icon", func() {
 			slackURL, _ := url.Parse("mattermost://AAAAAAAAA/BBBBBBBBB")
