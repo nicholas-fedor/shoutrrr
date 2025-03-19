@@ -2,21 +2,27 @@ package mattermost
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // Service sends notifications to a pre-configured channel or user.
 type Service struct {
 	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient *http.Client
+}
+
+// GetHTTPClient returns the service's HTTP client for testing purposes.
+func (service *Service) GetHTTPClient() *http.Client {
+	return service.httpClient
 }
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
@@ -25,7 +31,23 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
-	return service.Config.setURL(&service.pkr, configURL)
+	err := service.Config.setURL(&service.pkr, configURL)
+	if err != nil {
+		return err
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: service.Config.DisableTLS,
+		},
+	}
+	if service.Config.DisableTLS {
+		transport.TLSClientConfig = nil // Plain HTTP
+	}
+
+	service.httpClient = &http.Client{Transport: transport}
+
+	return nil
 }
 
 // GetID returns the service identifier.
@@ -44,7 +66,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	json, _ := CreateJSONPayload(config, message, params)
 
-	res, err := http.Post(apiURL, "application/json", bytes.NewReader(json))
+	res, err := service.httpClient.Post(apiURL, "application/json", bytes.NewReader(json))
 	if err != nil {
 		return err
 	}
@@ -53,10 +75,15 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("failed to send notification to service, response status code %s", res.Status)
 	}
 
-	return err
+	return nil
 }
 
 // Builds the actual URL the request should go to.
 func buildURL(config *Config) string {
-	return fmt.Sprintf("https://%s/hooks/%s", config.Host, config.Token)
+	scheme := "https"
+	if config.DisableTLS {
+		scheme = "http"
+	}
+
+	return fmt.Sprintf("%s://%s/hooks/%s", scheme, config.Host, config.Token)
 }

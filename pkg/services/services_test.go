@@ -9,7 +9,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
@@ -77,9 +76,6 @@ var _ = ginkgo.Describe("services", func() {
 		})
 
 		for key, configURL := range serviceURLs {
-
-			// necessary to ensure the correct value is passed to the closure
-
 			serviceRouter, _ = router.New(logger)
 
 			ginkgo.It("should not throw an error for "+key, func() {
@@ -90,19 +86,22 @@ var _ = ginkgo.Describe("services", func() {
 					ginkgo.Skip("not supported")
 				}
 
+				service, err := serviceRouter.Locate(configURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				httpmock.Activate()
-				// Always return an "OK" result, as the http request isn't what is under test
+				if mockService, ok := service.(testutils.MockClientService); ok {
+					httpmock.ActivateNonDefault(mockService.GetHTTPClient())
+				}
+
 				respStatus := http.StatusOK
 				if key == "discord" || key == "ifttt" {
 					respStatus = http.StatusNoContent
 				}
-				httpmock.RegisterNoResponder(httpmock.NewStringResponder(respStatus, serviceResponses[key]))
-
-				service, err := serviceRouter.Locate(configURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				if mockService, ok := service.(testutils.MockClientService); ok {
-					httpmock.ActivateNonDefault(mockService.GetHTTPClient())
+				if key == "mattermost" {
+					httpmock.RegisterResponder("POST", "https://example.com/hooks/token", httpmock.NewStringResponder(http.StatusOK, ""))
+				} else {
+					httpmock.RegisterNoResponder(httpmock.NewStringResponder(respStatus, serviceResponses[key]))
 				}
 
 				err = service.Send("test", (*types.Params)(&map[string]string{
@@ -111,6 +110,24 @@ var _ = ginkgo.Describe("services", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 
+			if key == "mattermost" {
+				ginkgo.It("should not throw an error for "+key+" with DisableTLS", func() {
+					modifiedURL := configURL + "?disabletls=yes"
+					service, err := serviceRouter.Locate(modifiedURL)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+					httpmock.Activate()
+					if mockService, ok := service.(testutils.MockClientService); ok {
+						httpmock.ActivateNonDefault(mockService.GetHTTPClient())
+					}
+					httpmock.RegisterResponder("POST", "http://example.com/hooks/token", httpmock.NewStringResponder(http.StatusOK, ""))
+
+					err = service.Send("test", (*types.Params)(&map[string]string{
+						"title": "test title",
+					}))
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				})
+			}
 		}
 	})
 })

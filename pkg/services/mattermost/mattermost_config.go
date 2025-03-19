@@ -13,12 +13,13 @@ import (
 // Config object holding all information.
 type Config struct {
 	standard.EnumlessConfig
-	UserName string `desc:"Override webhook user"    optional:""                                                              url:"user"`
-	Icon     string `default:""                      desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url" optional:""`
-	Title    string `default:""                      desc:"Notification title, optionally set by the sender (not used)"       key:"title"`
-	Channel  string `desc:"Override webhook channel" optional:""                                                              url:"path2"`
-	Host     string `desc:"Mattermost server host"   url:"host,port"`
-	Token    string `desc:"Webhook token"            url:"path1"`
+	UserName   string `desc:"Override webhook user"    optional:""                                                              url:"user"`
+	Icon       string `default:""                      desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url" optional:""`
+	Title      string `default:""                      desc:"Notification title, optionally set by the sender (not used)"       key:"title"`
+	Channel    string `desc:"Override webhook channel" optional:""                                                              url:"path2"`
+	Host       string `desc:"Mattermost server host"   url:"host,port"`
+	Token      string `desc:"Webhook token"            url:"path1"`
+	DisableTLS bool   `default:"No"                    key:"disabletls"`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -52,18 +53,18 @@ func (config *Config) SetURL(url *url.URL) error {
 	return config.setURL(&resolver, url)
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	config.Host = serviceURL.Hostname()
-	config.UserName = serviceURL.User.Username()
-	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	config.Host = url.Host
+	config.UserName = url.User.Username()
+	path := strings.Split(strings.Trim(url.Path, "/"), "/")
 
-	for key, vals := range serviceURL.Query() {
+	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return err
 		}
 	}
 
-	if serviceURL.String() != "mattermost://dummy@dummy.com" {
+	if url.String() != "mattermost://dummy@dummy.com" {
 		if len(path) == 0 || (len(path) == 1 && path[0] == "") {
 			return errors.New(string(NotEnoughArguments))
 		}
@@ -91,9 +92,9 @@ const (
 )
 
 // CreateConfigFromURL to use within the mattermost service.
-func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
+func CreateConfigFromURL(url *url.URL) (*Config, error) {
 	config := Config{}
-	err := config.SetURL(serviceURL)
+	err := config.SetURL(url)
 
 	return &config, err
 }
