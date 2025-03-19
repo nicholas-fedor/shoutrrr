@@ -53,10 +53,14 @@ func (config *Config) SetURL(url *url.URL) error {
 	return config.setURL(&resolver, url)
 }
 
+// setURL updates a ServiceConfig from a URL representation of its field values.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	config.Host = url.Host
 	config.UserName = url.User.Username()
-	path := strings.Split(strings.Trim(url.Path, "/"), "/")
+
+	if err := config.parsePath(url); err != nil {
+		return err
+	}
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
@@ -64,6 +68,12 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		}
 	}
 
+	return nil
+}
+
+// parsePath extracts Token and Channel from the URL path and validates arguments.
+func (config *Config) parsePath(url *url.URL) error {
+	path := strings.Split(strings.Trim(url.Path, "/"), "/")
 	if url.String() != "mattermost://dummy@dummy.com" {
 		if len(path) == 0 || (len(path) == 1 && path[0] == "") {
 			return errors.New(string(NotEnoughArguments))

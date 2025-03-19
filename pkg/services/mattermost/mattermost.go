@@ -36,13 +36,18 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		return err
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: service.Config.DisableTLS,
-		},
-	}
+	var transport *http.Transport
 	if service.Config.DisableTLS {
-		transport.TLSClientConfig = nil // Plain HTTP
+		transport = &http.Transport{
+			TLSClientConfig: nil, // Plain HTTP
+		}
+	} else {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,            // Explicitly safe when TLS is enabled
+				MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
+			},
+		}
 	}
 
 	service.httpClient = &http.Client{Transport: transport}
