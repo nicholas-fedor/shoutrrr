@@ -74,13 +74,13 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 // parsePath extracts Token and Channel from the URL path and validates arguments.
 func (config *Config) parsePath(url *url.URL) error {
 	path := strings.Split(strings.Trim(url.Path, "/"), "/")
-	if url.String() != "mattermost://dummy@dummy.com" {
-		if len(path) == 0 || (len(path) == 1 && path[0] == "") {
-			return errors.New(string(NotEnoughArguments))
-		}
+	isDummy := url.String() == "mattermost://dummy@dummy.com"
+
+	if !isDummy && (len(path) < 1 || (len(path) == 1 && path[0] == "")) {
+		return errors.New(string(NotEnoughArguments))
 	}
 
-	if len(path) >= 1 && path[0] != "" {
+	if len(path) > 0 && path[0] != "" {
 		config.Token = path[0]
 	}
 
