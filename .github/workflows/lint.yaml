@@ -25,7 +25,6 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@9938e103f8065deff3f289d9e975270d5541b866
         with:
-          version: v1.64.5
           args: --timeout=5m --config= # Use default linter settings
 
       - name: Format Go code
