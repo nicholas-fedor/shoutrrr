@@ -8,6 +8,7 @@ import (
 const (
 	UUID4Length        = 36
 	HashLength         = 32
+	RegexWebhookDomain = `\.webhook\.office\.com`
 	WebhookDomain      = ".webhook.office.com"
 	ExpectedComponents = 7 // 1 match + 6 captures
 	Path               = "webhookb2"
@@ -17,7 +18,7 @@ const (
 // parseAndVerifyWebhookURL extracts and validates webhook components from a URL.
 func parseAndVerifyWebhookURL(webhookURL string) ([5]string, error) {
 	pattern, err := regexp.Compile(
-		`https://([^.]+)` + WebhookDomain + `/` + Path + `/([0-9a-f-]{36})@([0-9a-f-]{36})/` + ProviderName + `/([0-9a-f]{32})/([0-9a-f-]{36})/([^/]+)`,
+		`https://([a-zA-Z0-9-]+)` + RegexWebhookDomain + `/` + Path + `/([0-9a-f-]{36})@([0-9a-f-]{36})/` + ProviderName + `/([0-9a-f]{32})/([0-9a-f-]{36})/([^/]+)`,
 	)
 	if err != nil {
 		return [5]string{}, err
