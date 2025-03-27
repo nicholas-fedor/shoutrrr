@@ -150,6 +150,16 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "serverleader",
+      "name": "Carlos Savcic",
+      "avatar_url": "https://avatars.githubusercontent.com/u/34089?v=4",
+      "profile": "https://github.com/serverleader",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -157,5 +167,7 @@
   "projectOwner": "nicholas-fedor",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "skipCi": true
+  "skipCi": true,
+  "commitType": "docs",
+  "commitConvention": "angular"
 }
