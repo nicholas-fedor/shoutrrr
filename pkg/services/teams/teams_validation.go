@@ -39,7 +39,7 @@ func ValidateWebhookURL(url string) error {
 // ParseAndVerifyWebhookURL extracts and validates webhook components from a URL.
 func ParseAndVerifyWebhookURL(webhookURL string) ([5]string, error) {
 	pattern := regexp.MustCompile(
-		`https://([a-zA-Z0-9-]+)` + WebhookDomain + `/` + Path + `/([0-9a-f-]{36})@([0-9a-f-]{36})/` + ProviderName + `/([0-9a-f]{32})/([0-9a-f-]{36})/([^/]+)`,
+		`([a-zA-Z0-9-\.]+)` + WebhookDomain + `/` + Path + `/([0-9a-f-]{36})@([0-9a-f-]{36})/` + ProviderName + `/([0-9a-f]{32})/([0-9a-f-]{36})/([^/]+)`,
 	)
 
 	groups := pattern.FindStringSubmatch(webhookURL)
