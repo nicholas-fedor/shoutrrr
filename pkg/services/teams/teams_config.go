@@ -42,10 +42,12 @@ func (config *Config) WebhookParts() [5]string {
 
 // SetFromWebhookURL updates the Config from a Teams webhook URL.
 func (config *Config) SetFromWebhookURL(webhookURL string) error {
-	orgPattern := regexp.MustCompile(`([a-zA-Z0-9-\.]+)` + WebhookDomain + `/`)
+	orgPattern := regexp.MustCompile(
+		`https://([a-zA-Z0-9-\.]+)` + WebhookDomain + `/` + Path + `/([0-9a-f\-]{36})@([0-9a-f\-]{36})/` + ProviderName + `/([0-9a-f]{32})/([0-9a-f\-]{36})/([^/]+)`,
+	)
 
 	orgGroups := orgPattern.FindStringSubmatch(webhookURL)
-	if len(orgGroups) != ExpectedOrgMatches {
+	if len(orgGroups) != ExpectedComponents {
 		return ErrInvalidWebhookFormat
 	}
 

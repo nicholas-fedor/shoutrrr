@@ -13,9 +13,9 @@ import (
 
 const (
 	extraIDValue     = "V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05"
-	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
+	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
 	scopedDomainHost = "test.webhook.office.com"
-	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
+	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
 	scopedURLBase    = testURLBase + "?host=" + scopedDomainHost
 )
 
@@ -34,7 +34,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 			config.setFromWebhookParts([5]string{
 				"11111111-4444-4444-8444-cccccccccccc",
 				"22222222-4444-4444-8444-cccccccccccc",
-				"33333333012222222222333333333344",
+				"33333301222222222233333333333344",
 				"44444444-4444-4444-8444-cccccccccccc",
 				extraIDValue,
 			})
@@ -165,7 +165,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				gomega.Expect(config.Group).To(gomega.Equal("11111111-4444-4444-8444-cccccccccccc"))
 				gomega.Expect(config.Tenant).
 					To(gomega.Equal("22222222-4444-4444-8444-cccccccccccc"))
-				gomega.Expect(config.AltID).To(gomega.Equal("33333333012222222222333333333344"))
+				gomega.Expect(config.AltID).To(gomega.Equal("33333301222222222233333333333344"))
 				gomega.Expect(config.GroupOwner).
 					To(gomega.Equal("44444444-4444-4444-8444-cccccccccccc"))
 				gomega.Expect(config.ExtraID).To(gomega.Equal(extraIDValue))
@@ -176,7 +176,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 
 			ginkgo.It("should reject URLs missing the extraID", func() {
 				config := &Config{}
-				urlStr := "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc?host=test.webhook.office.com"
+				urlStr := "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc?host=test.webhook.office.com"
 				parsedURL, err := url.Parse(urlStr)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -200,7 +200,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				config := &Config{
 					Group:      "11111111-4444-4444-8444-cccccccccccc",
 					Tenant:     "22222222-4444-4444-8444-cccccccccccc",
-					AltID:      "33333333012222222222333333333344",
+					AltID:      "33333301222222222233333333333344",
 					GroupOwner: "44444444-4444-4444-8444-cccccccccccc",
 					ExtraID:    extraIDValue,
 					Title:      "Test",
@@ -220,7 +220,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				parts := [5]string{
 					"11111111-4444-4444-8444-cccccccccccc",
 					"22222222-4444-4444-8444-cccccccccccc",
-					"33333333012222222222333333333344",
+					"33333301222222222233333333333344",
 					"44444444-4444-4444-8444-cccccccccccc",
 					extraIDValue,
 				}
@@ -249,7 +249,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				gomega.Expect(parts).To(gomega.Equal([5]string{
 					"11111111-4444-4444-8444-cccccccccccc",
 					"22222222-4444-4444-8444-cccccccccccc",
-					"33333333012222222222333333333344",
+					"33333301222222222233333333333344",
 					"44444444-4444-4444-8444-cccccccccccc",
 					extraIDValue,
 				}))
