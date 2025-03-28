@@ -4,6 +4,8 @@ package xouath2
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -198,7 +200,18 @@ func oauth2GeneratorGmail(credFile string) (*smtp.Config, error) {
 func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 
-	fmt.Fprintf(os.Stdout, "Visit the following URL to authenticate:\n%s\n\n", conf.AuthCodeURL(""))
+	// Generate a random state value
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return nil, fmt.Errorf("generating random state: %w", err)
+	}
+	state := base64.URLEncoding.EncodeToString(stateBytes)
+
+	fmt.Fprintf(
+		os.Stdout,
+		"Visit the following URL to authenticate:\n%s\n\n",
+		conf.AuthCodeURL(state),
+	)
 
 	var verCode string
 
