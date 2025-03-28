@@ -31,15 +31,15 @@ func (ef EnumFormatter) Print(e int) string {
 }
 
 // Parse takes an enum mapped string and returns it's int representation or EnumInvalid (-1).
-func (ef EnumFormatter) Parse(s string) int {
-	target := strings.ToLower(s)
+func (ef EnumFormatter) Parse(mappedString string) int {
+	target := strings.ToLower(mappedString)
 	for index, name := range ef.names {
 		if target == strings.ToLower(name) {
 			return index
 		}
 	}
 
-	if index, found := ef.aliases[s]; found {
+	if index, found := ef.aliases[mappedString]; found {
 		return index
 	}
 

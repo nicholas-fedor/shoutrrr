@@ -36,7 +36,7 @@ func (service *Service) doSend(data types.Params) error {
 	if tpl, found := service.GetTemplate("message"); found {
 		wc := &strings.Builder{}
 		if err := tpl.Execute(wc, data); err != nil {
-			return fmt.Errorf("failed to write template to log: %s", err)
+			return fmt.Errorf("failed to write template to log: %w", err)
 		}
 
 		msg = wc.String()
@@ -49,7 +49,7 @@ func (service *Service) doSend(data types.Params) error {
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
 func (service *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 
 	return nil

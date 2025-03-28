@@ -1,6 +1,7 @@
 package generic
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -8,22 +9,28 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Config for use within the generic service.
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme               = "generic"
+	DefaultWebhookScheme = "https"
+)
+
+// Config holds settings for the generic notification service.
 type Config struct {
 	standard.EnumlessConfig
 	webhookURL    *url.URL
 	headers       map[string]string
 	extraData     map[string]string
-	ContentType   string `default:"application/json"                                desc:"The value of the Content-Type header"            key:"contenttype"`
-	DisableTLS    bool   `default:"No"                                              key:"disabletls"`
-	Template      string `desc:"The template used for creating the request payload" key:"template"                                         optional:""`
-	Title         string `default:""                                                key:"title"`
-	TitleKey      string `default:"title"                                           desc:"The key that will be used for the title value"   key:"titlekey"`
-	MessageKey    string `default:"message"                                         desc:"The key that will be used for the message value" key:"messagekey"`
-	RequestMethod string `default:"POST"                                            key:"method"`
+	ContentType   string `default:"application/json" desc:"The value of the Content-Type header"               key:"contenttype"`
+	DisableTLS    bool   `default:"No"                                                                         key:"disabletls"`
+	Template      string `                           desc:"The template used for creating the request payload" key:"template"    optional:""`
+	Title         string `default:""                                                                           key:"title"`
+	TitleKey      string `default:"title"            desc:"The key that will be used for the title value"      key:"titlekey"`
+	MessageKey    string `default:"message"          desc:"The key that will be used for the message value"    key:"messagekey"`
+	RequestMethod string `default:"POST"                                                                       key:"method"`
 }
 
-// DefaultConfig creates a PropKeyResolver and uses it to populate the default values of a new Config, returning both.
+// DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	config := &Config{}
 	pkr := format.NewPropKeyResolver(config)
@@ -32,15 +39,12 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 	return config, pkr
 }
 
-// ConfigFromWebhookURL creates a new Config from a parsed Webhook URL.
+// ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
 func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, error) {
 	config, pkr := DefaultConfig()
 
-	// Process webhook URL query parameters, preserving custom params
 	webhookQuery := webhookURL.Query()
-	// First strip custom headers and extra data
 	headers, extraData := stripCustomQueryValues(webhookQuery)
-	// Then process remaining query parameters as potential escaped config params
 	escapedQuery := url.Values{}
 
 	for key, values := range webhookQuery {
@@ -48,13 +52,12 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 			escapedQuery.Set(format.EscapeKey(key), values[0])
 		}
 	}
-	// Apply escaped config parameters
+
 	_, err := format.SetConfigPropsFromQuery(&pkr, escapedQuery)
 	if err != nil {
-		return nil, pkr, err
+		return nil, pkr, fmt.Errorf("setting config properties from query: %w", err)
 	}
 
-	// Restore original query parameters for the webhook URL
 	webhookURL.RawQuery = webhookQuery.Encode()
 	config.webhookURL = &webhookURL
 	config.headers = headers
@@ -64,26 +67,26 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 	return config, pkr, nil
 }
 
-// WebhookURL returns a url.URL that is synchronized with the config props.
+// WebhookURL returns the configured webhook URL, adjusted for TLS settings.
 func (config *Config) WebhookURL() *url.URL {
 	webhookURL := *config.webhookURL
 	webhookURL.Scheme = DefaultWebhookScheme
 
 	if config.DisableTLS {
-		webhookURL.Scheme = webhookURL.Scheme[:4]
+		webhookURL.Scheme = "http" // Truncate to "http" if TLS is disabled
 	}
 
 	return &webhookURL
 }
 
-// GetURL returns a URL representation of its current field values.
+// GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of its field values.
+// SetURL updates the configuration from a service URL.
 func (config *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
@@ -108,7 +111,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 
 	customQuery, err := format.SetConfigPropsFromQuery(resolver, serviceQuery)
 	if err != nil {
-		return err
+		return fmt.Errorf("setting config properties from service URL query: %w", err)
 	}
 
 	webhookURL.RawQuery = customQuery.Encode()
@@ -118,10 +121,3 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 
 	return nil
 }
-
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "generic"
-	// DefaultWebhookScheme is the scheme used for webhook URLs unless overridden.
-	DefaultWebhookScheme = "https"
-)

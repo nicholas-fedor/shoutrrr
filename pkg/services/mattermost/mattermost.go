@@ -2,17 +2,28 @@ package mattermost
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Service sends notifications to a pre-configured channel or user.
+// defaultHTTPTimeout is the default timeout for HTTP requests.
+const defaultHTTPTimeout = 10 * time.Second
+
+// ErrSendFailed indicates that the notification failed due to an unexpected response status code.
+var ErrSendFailed = errors.New(
+	"failed to send notification to service, response status code unexpected",
+)
+
+// Service sends notifications to a pre-configured Mattermost channel or user.
 type Service struct {
 	standard.Standard
 	Config     *Config
@@ -25,9 +36,9 @@ func (service *Service) GetHTTPClient() *http.Client {
 	return service.httpClient
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
@@ -60,30 +71,41 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// Send a notification message to Mattermost.
+// Send delivers a notification message to Mattermost.
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config
 	apiURL := buildURL(config)
 
 	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return err
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	json, _ := CreateJSONPayload(config, message, params)
 
-	res, err := service.httpClient.Post(apiURL, "application/json", bytes.NewReader(json))
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(json))
 	if err != nil {
-		return err
+		return fmt.Errorf("creating POST request: %w", err)
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := service.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
+	}
+	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to send notification to service, response status code %s", res.Status)
+		return fmt.Errorf("%w: %s", ErrSendFailed, res.Status)
 	}
 
 	return nil
 }
 
-// Builds the actual URL the request should go to.
+// buildURL constructs the API URL for Mattermost based on the Config.
 func buildURL(config *Config) string {
 	scheme := "https"
 	if config.DisableTLS {

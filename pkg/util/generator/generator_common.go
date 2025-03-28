@@ -9,12 +9,19 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var errInvalidFormat = errors.New("invalid format")
+// errInvalidFormat indicates an invalid user input format.
+var (
+	errInvalidFormat     = errors.New("invalid format")
+	errRequired          = errors.New("field is required")
+	errNotANumber        = errors.New("not a number")
+	errInvalidBoolFormat = errors.New("answer must be yes or no")
+)
 
-// ValidateFormat is a validation wrapper turning false bool results into errors.
+// ValidateFormat wraps a boolean validator to return an error on false results.
 func ValidateFormat(validator func(string) bool) func(string) error {
 	return func(answer string) error {
 		if validator(answer) {
@@ -25,9 +32,7 @@ func ValidateFormat(validator func(string) bool) func(string) error {
 	}
 }
 
-var errRequired = errors.New("field is required")
-
-// Required is a validator that checks whether the input contains any characters.
+// Required validates that the input contains at least one character.
 func Required(answer string) error {
 	if answer == "" {
 		return errRequired
@@ -36,7 +41,7 @@ func Required(answer string) error {
 	return nil
 }
 
-// UserDialog is an abstraction for question/answer based user interaction.
+// UserDialog facilitates question/answer-based user interaction.
 type UserDialog struct {
 	reader  io.Reader
 	writer  io.Writer
@@ -58,20 +63,22 @@ func NewUserDialog(reader io.Reader, writer io.Writer, props map[string]string) 
 	}
 }
 
-// Write message to user.
+// Write sends a message to the user.
 func (ud *UserDialog) Write(message string, v ...any) {
 	if _, err := fmt.Fprintf(ud.writer, message, v...); err != nil {
-		fmt.Printf("failed to write to output: %v", err)
+		_, _ = fmt.Fprint(ud.writer, "failed to write to output: ", err, "\n")
 	}
 }
 
-// Writelnf writes a message to the user that completes a line.
+// Writelnf writes a formatted message to the user, completing a line.
 func (ud *UserDialog) Writelnf(format string, v ...any) {
 	ud.Write(format+"\n", v...)
 }
 
-// Query writes the prompt to the user and returns the regex groups if it matches the validator pattern.
-func (ud *UserDialog) Query(prompt string, validator *regexp.Regexp, key string) (groups []string) {
+// Query prompts the user and returns regex groups if the input matches the validator pattern.
+func (ud *UserDialog) Query(prompt string, validator *regexp.Regexp, key string) []string {
+	var groups []string
+
 	ud.QueryString(prompt, ValidateFormat(func(answer string) bool {
 		groups = validator.FindStringSubmatch(answer)
 
@@ -81,8 +88,15 @@ func (ud *UserDialog) Query(prompt string, validator *regexp.Regexp, key string)
 	return groups
 }
 
-// QueryAll is a version of Query that can return multiple matches.
-func (ud *UserDialog) QueryAll(prompt string, validator *regexp.Regexp, key string, maxMatches int) (matches [][]string) {
+// QueryAll prompts the user and returns multiple regex matches up to maxMatches.
+func (ud *UserDialog) QueryAll(
+	prompt string,
+	validator *regexp.Regexp,
+	key string,
+	maxMatches int,
+) [][]string {
+	var matches [][]string
+
 	ud.QueryString(prompt, ValidateFormat(func(answer string) bool {
 		matches = validator.FindAllStringSubmatch(answer, maxMatches)
 
@@ -92,12 +106,10 @@ func (ud *UserDialog) QueryAll(prompt string, validator *regexp.Regexp, key stri
 	return matches
 }
 
-// QueryString writes the prompt to the user and returns the answer if it passes the validator function.
+// QueryString prompts the user and returns the answer if it passes the validator.
 func (ud *UserDialog) QueryString(prompt string, validator func(string) error, key string) string {
 	if validator == nil {
-		validator = func(string) error {
-			return nil
-		}
+		validator = func(string) error { return nil }
 	}
 
 	answer, foundProp := ud.props[key]
@@ -125,8 +137,7 @@ func (ud *UserDialog) QueryString(prompt string, validator func(string) error, k
 
 				continue
 			}
-
-			// Input closed, so let's just return an empty string
+			// Input closed, return an empty string
 			return ""
 		}
 
@@ -145,8 +156,12 @@ func (ud *UserDialog) QueryString(prompt string, validator func(string) error, k
 	}
 }
 
-// QueryStringPattern is a version of QueryString taking a regular expression pattern as the validator.
-func (ud *UserDialog) QueryStringPattern(prompt string, validator *regexp.Regexp, key string) (answer string) {
+// QueryStringPattern prompts the user and returns the answer if it matches the regex pattern.
+func (ud *UserDialog) QueryStringPattern(
+	prompt string,
+	validator *regexp.Regexp,
+	key string,
+) string {
 	if validator == nil {
 		panic("validator cannot be nil")
 	}
@@ -160,14 +175,16 @@ func (ud *UserDialog) QueryStringPattern(prompt string, validator *regexp.Regexp
 	}, key)
 }
 
-// QueryInt writes the prompt to the user and returns the answer if it can be parsed as an integer.
-func (ud *UserDialog) QueryInt(prompt string, key string, bitSize int) (value int64) {
+// QueryInt prompts the user and returns the answer as an integer if parseable.
+func (ud *UserDialog) QueryInt(prompt string, key string, bitSize int) int64 {
 	validator := regexp.MustCompile(`^((0x|#)([0-9a-fA-F]+))|(-?[0-9]+)$`)
+
+	var value int64
 
 	ud.QueryString(prompt, func(answer string) error {
 		groups := validator.FindStringSubmatch(answer)
 		if len(groups) < 1 {
-			return errors.New("not a number")
+			return errNotANumber
 		}
 
 		number := groups[0]
@@ -180,16 +197,22 @@ func (ud *UserDialog) QueryInt(prompt string, key string, bitSize int) (value in
 		}
 
 		var err error
-		value, err = strconv.ParseInt(number, base, bitSize)
 
-		return err
+		value, err = strconv.ParseInt(number, base, bitSize)
+		if err != nil {
+			return fmt.Errorf("parsing integer from %q: %w", answer, err)
+		}
+
+		return nil
 	}, key)
 
 	return value
 }
 
-// QueryBool writes the prompt to the user and returns the answer if it can be parsed as a boolean.
-func (ud *UserDialog) QueryBool(prompt string, key string) (value bool) {
+// QueryBool prompts the user and returns the answer as a boolean if parseable.
+func (ud *UserDialog) QueryBool(prompt string, key string) bool {
+	var value bool
+
 	ud.QueryString(prompt, func(answer string) error {
 		parsed, ok := format.ParseBool(answer, false)
 		if ok {
@@ -198,7 +221,12 @@ func (ud *UserDialog) QueryBool(prompt string, key string) (value bool) {
 			return nil
 		}
 
-		return fmt.Errorf("answer using %v or %v", format.ColorizeTrue("yes"), format.ColorizeFalse("no"))
+		return fmt.Errorf(
+			"%w: use %v or %v",
+			errInvalidBoolFormat,
+			format.ColorizeTrue("yes"),
+			format.ColorizeFalse("no"),
+		)
 	}, key)
 
 	return value

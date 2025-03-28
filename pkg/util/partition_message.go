@@ -6,14 +6,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// ellipsis is the suffix appended to truncated strings.
 const ellipsis = " [...]"
 
-// PartitionMessage splits a string into chunks that is at most chunkSize runes,
-// it will search the last distance runes for a whitespace to make the split appear nicer.
-// It will keep adding chunks until it reaches maxCount chunks,
-// or if the total amount of runes in the chunks reach maxTotal.
-// The chunks are returned together with the number of omitted runes (that did not fit into the chunks).
-func PartitionMessage(input string, limits types.MessageLimit, distance int) (items []types.MessageItem, omitted int) {
+// PartitionMessage splits a string into chunks of at most chunkSize runes.
+// It searches the last distance runes for a whitespace to improve readability,
+// adding chunks until reaching maxCount or maxTotal runes, returning the chunks
+// and the number of omitted runes.
+func PartitionMessage(
+	input string,
+	limits types.MessageLimit,
+	distance int,
+) ([]types.MessageItem, int) {
+	items := make([]types.MessageItem, 0, limits.ChunkCount-1)
 	runes := []rune(input)
 	chunkOffset := 0
 	maxTotal := Min(len(runes), limits.TotalChunkSize)
@@ -21,12 +26,10 @@ func PartitionMessage(input string, limits types.MessageLimit, distance int) (it
 
 	if len(input) == 0 {
 		// If the message is empty, return an empty array
-		omitted = 0
-
-		return items, omitted
+		return items, 0
 	}
 
-	for i := 0; i < maxCount; i++ {
+	for range maxCount {
 		// If no suitable split point is found, use the chunkSize
 		chunkEnd := chunkOffset + limits.ChunkSize
 		// ... and start next chunk directly after this one
@@ -37,7 +40,7 @@ func PartitionMessage(input string, limits types.MessageLimit, distance int) (it
 			chunkEnd = maxTotal
 			nextChunkStart = maxTotal
 		} else {
-			for r := 0; r < distance; r++ {
+			for r := range distance {
 				rp := chunkEnd - r
 				if runes[rp] == '\n' || runes[rp] == ' ' {
 					// Suitable split point found
@@ -63,7 +66,7 @@ func PartitionMessage(input string, limits types.MessageLimit, distance int) (it
 	return items, len(runes) - chunkOffset
 }
 
-// Ellipsis returns a string that is at most maxLength characters with a ellipsis appended if the input was longer.
+// Ellipsis truncates a string to maxLength characters, appending an ellipsis if needed.
 func Ellipsis(text string, maxLength int) string {
 	if len(text) > maxLength {
 		text = text[:maxLength-len(ellipsis)] + ellipsis
@@ -72,12 +75,11 @@ func Ellipsis(text string, maxLength int) string {
 	return text
 }
 
-// MessageItemsFromLines creates a set of MessageItems that is compatible with the supplied limits.
-func MessageItemsFromLines(plain string, limits types.MessageLimit) (batches [][]types.MessageItem) {
+// MessageItemsFromLines creates MessageItem batches compatible with the given limits.
+func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.MessageItem {
 	maxCount := limits.ChunkCount
-
 	lines := strings.Split(plain, "\n")
-	batches = make([][]types.MessageItem, 0)
+	batches := make([][]types.MessageItem, 0)
 	items := make([]types.MessageItem, 0, Min(maxCount, len(lines)))
 
 	totalLength := 0

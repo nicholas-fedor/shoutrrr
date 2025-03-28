@@ -17,7 +17,7 @@ func URLMust(rawURL string) *url.URL {
 
 // JSONRespondMust creates a httpmock.Responder with the given response
 // as the body, and fails the test if it cannot be created.
-func JSONRespondMust(code int, response interface{}) httpmock.Responder {
+func JSONRespondMust(code int, response any) httpmock.Responder {
 	responder, err := httpmock.NewJsonResponder(code, response)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred(), "invalid test response struct")
 

@@ -2,12 +2,16 @@ package mattermost
 
 import (
 	"encoding/json"
+	"fmt" // Add this import
 	"regexp"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// JSON payload for mattermost notifications.
+// iconURLPattern matches URLs starting with http or https for icon detection.
+var iconURLPattern = regexp.MustCompile(`https?://`)
+
+// JSON represents the payload structure for Mattermost notifications.
 type JSON struct {
 	Text      string `json:"text"`
 	UserName  string `json:"username,omitempty"`
@@ -15,8 +19,6 @@ type JSON struct {
 	IconEmoji string `json:"icon_emoji,omitempty"`
 	IconURL   string `json:"icon_url,omitempty"`
 }
-
-var iconURLPattern = regexp.MustCompile(`https?://`)
 
 // SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
 func (j *JSON) SetIcon(icon string) {
@@ -32,7 +34,7 @@ func (j *JSON) SetIcon(icon string) {
 	}
 }
 
-// CreateJSONPayload for usage with the mattermost service.
+// CreateJSONPayload generates a JSON payload for the Mattermost service.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
 	payload := JSON{
 		Text:     message,
@@ -52,5 +54,10 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 
 	payload.SetIcon(config.Icon)
 
-	return json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling Mattermost payload to JSON: %w", err)
+	}
+
+	return payloadBytes, nil
 }

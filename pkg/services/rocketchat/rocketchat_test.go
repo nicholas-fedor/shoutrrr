@@ -9,10 +9,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 var (
@@ -41,7 +42,9 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 		ginkgo.When("initializing with a valid URL", func() {
 			ginkgo.It("should set logger and config without error", func() {
 				service := &Service{}
-				testURL, _ := url.Parse("rocketchat://testUser@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/#testChannel")
+				testURL, _ := url.Parse(
+					"rocketchat://testUser@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/#testChannel",
+				)
 				err := service.Initialize(testURL, testutils.TestLogger())
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.Config).NotTo(gomega.BeNil())
@@ -59,7 +62,9 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 				testURL, _ := url.Parse("rocketchat://rocketchat.my-domain.com") // Missing tokens
 				err := service.Initialize(testURL, testutils.TestLogger())
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.Equal(NotEnoughArguments))
+				gomega.Expect(err).
+					To(gomega.Equal(ErrNotEnoughArguments))
+				// Updated to use the error variable
 			})
 		})
 	})
@@ -94,7 +99,7 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 				Config: &Config{},
 				Client: client, // Assign the custom client here
 			}
-			service.Logger.SetLogger(testutils.TestLogger())
+			service.SetLogger(testutils.TestLogger())
 		})
 
 		ginkgo.AfterEach(func() {
@@ -105,9 +110,11 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 
 		ginkgo.When("sending a message to a mock server with success", func() {
 			ginkgo.It("should return no error", func() {
-				mockServer.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				})
+				mockServer.Config.Handler = http.HandlerFunc(
+					func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				)
 				mockURL, _ := url.Parse(mockServer.URL)
 				service.Config.Host = mockURL.Hostname()
 				service.Config.Port = mockURL.Port()
@@ -121,10 +128,12 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 
 		ginkgo.When("sending a message to a mock server with failure", func() {
 			ginkgo.It("should return an error with status code and body", func() {
-				mockServer.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusBadRequest)
-					w.Write([]byte("bad request"))
-				})
+				mockServer.Config.Handler = http.HandlerFunc(
+					func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusBadRequest)
+						w.Write([]byte("bad request"))
+					},
+				)
 				mockURL, _ := url.Parse(mockServer.URL)
 				service.Config.Host = mockURL.Hostname()
 				service.Config.Port = mockURL.Port()
@@ -133,7 +142,8 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 
 				err := service.Send("test message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("notification failed: 400 bad request"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("notification failed: 400 bad request"))
 			})
 		})
 
@@ -146,15 +156,17 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 
 				err := service.Send("test message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("error while posting to URL"))
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("posting to URL"))
 			})
 		})
 
 		ginkgo.When("sending a message with params overriding username and channel", func() {
 			ginkgo.It("should use params values in the payload", func() {
-				mockServer.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				})
+				mockServer.Config.Handler = http.HandlerFunc(
+					func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				)
 				mockURL, _ := url.Parse(mockServer.URL)
 				service.Config.Host = mockURL.Hostname()
 				service.Config.Port = mockURL.Port()
@@ -186,7 +198,8 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 					TokenB: testTokenB,
 				}
 				url := config.GetURL()
-				gomega.Expect(url.String()).To(gomega.Equal("rocketchat://rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB))
+				gomega.Expect(url.String()).
+					To(gomega.Equal("rocketchat://rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB))
 			})
 		})
 
@@ -198,14 +211,17 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 					TokenB: testTokenB,
 				}
 				url := config.GetURL()
-				gomega.Expect(url.String()).To(gomega.Equal("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB))
+				gomega.Expect(url.String()).
+					To(gomega.Equal("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB))
 			})
 		})
 
 		ginkgo.When("setting URL with a channel starting with @", func() {
 			ginkgo.It("should set channel without adding #", func() {
 				config := &Config{}
-				testURL, _ := url.Parse("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/@user")
+				testURL, _ := url.Parse(
+					"rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/@user",
+				)
 				err := config.SetURL(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(config.Channel).To(gomega.Equal("@user"))
@@ -215,7 +231,9 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 		ginkgo.When("setting URL with a regular channel without fragment", func() {
 			ginkgo.It("should prepend # to the channel", func() {
 				config := &Config{}
-				testURL, _ := url.Parse("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/general")
+				testURL, _ := url.Parse(
+					"rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/general",
+				)
 				err := config.SetURL(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(config.Channel).To(gomega.Equal("#general"))

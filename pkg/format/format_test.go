@@ -6,12 +6,11 @@ import (
 	"testing"
 
 	"github.com/fatih/color"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 func TestFormat(t *testing.T) {
@@ -47,10 +46,10 @@ var _ = ginkgo.Describe("the format package", func() {
 			})
 			ginkgo.It("should return the default if no value matches", func() {
 				parsed, ok := ParseBool("bad", true)
-				gomega.Expect(parsed).To(gomega.Equal(true))
+				gomega.Expect(parsed).To(gomega.BeTrue())
 				gomega.Expect(ok).To(gomega.BeFalse())
 				parsed, ok = ParseBool("values", false)
-				gomega.Expect(parsed).To(gomega.Equal(false))
+				gomega.Expect(parsed).To(gomega.BeFalse())
 				gomega.Expect(ok).To(gomega.BeFalse())
 			})
 		})
@@ -79,13 +78,13 @@ var _ = ginkgo.Describe("the format package", func() {
 })
 
 type testStruct struct {
-	Signed          int `default:"0" key:"signed"`
+	Signed          int `default:"0"        key:"signed"`
 	Unsigned        uint
 	Str             string `default:"notempty" key:"str"`
 	StrSlice        []string
 	StrArray        [3]string
 	Sub             subStruct
-	TestEnum        int `default:"None" key:"testenum"`
+	TestEnum        int `default:"None"     key:"testenum"`
 	SubProp         subPropStruct
 	SubSlice        []subStruct
 	SubPropSlice    []subPropStruct

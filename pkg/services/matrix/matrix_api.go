@@ -74,7 +74,7 @@ type identifier struct {
 	User string         `json:"user,omitempty"`
 }
 
-func newUserIdentifier(user string) (id *identifier) {
+func newUserIdentifier(user string) *identifier {
 	return &identifier{
 		Type: idTypeUser,
 		User: user,

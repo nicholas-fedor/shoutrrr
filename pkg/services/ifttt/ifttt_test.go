@@ -2,6 +2,7 @@ package ifttt_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -10,11 +11,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/ifttt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 // TestIFTTT runs the Ginkgo test suite for the IFTTT package.
@@ -95,20 +97,27 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
-		ginkgo.It("does not return an error if webhook ID and at least one event are given", func() {
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		ginkgo.It(
+			"does not return an error if webhook ID and at least one event are given",
+			func() {
+				serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1")
+				err := service.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			},
+		)
 		ginkgo.It("returns an error if titlevalue is invalid", func() { // Line 78
 			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&titlevalue=4")
 			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.MatchError("invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported"))
+			gomega.Expect(err).
+				To(gomega.MatchError("invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported"))
 		})
 		ginkgo.It("returns an error if titlevalue equals messagevalue", func() { // Line 82
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&messagevalue=2&titlevalue=2")
+			serviceURL := testutils.URLMust(
+				"ifttt://dummyID/?events=event1&messagevalue=2&titlevalue=2",
+			)
 			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.MatchError("titlevalue cannot use the same number as messagevalue"))
+			gomega.Expect(err).
+				To(gomega.MatchError("titlevalue cannot use the same number as messagevalue"))
 		})
 	})
 
@@ -128,7 +137,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 		ginkgo.When("given values", func() {
 			ginkgo.It("returns an URL with all values", func() {
-				configURL := testutils.URLMust("ifttt://dummyID/?events=event1&value1=v1&value2=v2&value3=v3")
+				configURL := testutils.URLMust(
+					"ifttt://dummyID/?events=event1&value1=v1&value2=v2&value3=v3",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				resultURL := service.Config.GetURL().String()
@@ -137,12 +148,13 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 	})
 
-	ginkgo.When("sending a message", func() {
+	ginkgo.Describe("sending a message", func() {
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 			service = &ifttt.Service{}
 			service.SetLogger(logger)
 		})
+
 		ginkgo.AfterEach(func() {
 			httpmock.DeactivateAndReset()
 		})
@@ -180,7 +192,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 		ginkgo.DescribeTable("sets message to correct value field based on messagevalue",
 			func(messageValue int, expectedField string) { // Lines 30, 32, 34
-				configURL := testutils.URLMust(fmt.Sprintf("ifttt://dummy/?events=event1&messagevalue=%d", messageValue))
+				configURL := testutils.URLMust(
+					fmt.Sprintf("ifttt://dummy/?events=event1&messagevalue=%d", messageValue),
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
@@ -244,7 +258,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("overrides payload values with params", func() { // Lines 17, 21, 25
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1&value1=a&value2=b&value3=c&messagevalue=2")
+			configURL := testutils.URLMust(
+				"ifttt://dummy/?events=event1&value1=a&value2=b&value3=c&messagevalue=2",
+			)
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.RegisterResponder(
@@ -271,10 +287,11 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			err = service.Send("hello", &params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
-		ginkgo.It("fails with multiple events when one errors", func() { // Line 82
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1%2Cevent2")
+		ginkgo.It("should fail with multiple events when one errors", func() {
+			configURL := testutils.URLMust("ifttt://dummy/?events=event1,event2")
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 			httpmock.RegisterResponder(
 				"POST",
 				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
@@ -283,22 +300,30 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			httpmock.RegisterResponder(
 				"POST",
 				"https://maker.ifttt.com/trigger/event2/with/key/dummy",
-				httpmock.NewStringResponder(404, ""),
+				httpmock.NewStringResponder(404, "Not Found"),
 			)
-			err = service.Send("hello", nil)
-			gomega.Expect(err).To(gomega.MatchError("failed to send IFTTT event \"event2\": got response status code 404"))
+
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).To(gomega.MatchError(
+				`failed to send IFTTT event: event "event2": got unexpected response status code: 404`,
+			))
 		})
-		ginkgo.It("fails with network error", func() { // Line 95
+
+		ginkgo.It("should fail with network error", func() {
 			configURL := testutils.URLMust("ifttt://dummy/?events=event1")
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 			httpmock.RegisterResponder(
 				"POST",
 				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-				httpmock.NewErrorResponder(fmt.Errorf("network failure")),
+				httpmock.NewErrorResponder(errors.New("network failure")),
 			)
-			err = service.Send("hello", nil)
-			gomega.Expect(err).To(gomega.MatchError("failed to send IFTTT event \"event1\": Post \"https://maker.ifttt.com/trigger/event1/with/key/dummy\": network failure"))
+
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).To(gomega.MatchError(
+				`failed to send IFTTT event: event "event1": sending HTTP request to IFTTT webhook: Post "https://maker.ifttt.com/trigger/event1/with/key/dummy": network failure`,
+			))
 		})
 	})
 })

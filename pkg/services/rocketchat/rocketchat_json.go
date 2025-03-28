@@ -2,18 +2,19 @@ package rocketchat
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// JSON used within the Rocket.chat service.
+// JSON represents the payload structure for the Rocket.Chat service.
 type JSON struct {
 	Text     string `json:"text"`
 	UserName string `json:"username,omitempty"`
 	Channel  string `json:"channel,omitempty"`
 }
 
-// CreateJSONPayload compatible with the rocket.chat webhook api.
+// CreateJSONPayload generates a JSON payload compatible with the Rocket.Chat webhook API.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
 	payload := JSON{
 		Text:     message,
@@ -31,5 +32,10 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		}
 	}
 
-	return json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling Rocket.Chat payload to JSON: %w", err)
+	}
+
+	return payloadBytes, nil
 }

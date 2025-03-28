@@ -1,7 +1,6 @@
 package teams
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -12,9 +11,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Scheme is the identifier for the Teams service protocol.
+const Scheme = "teams"
+
+// Config constants.
 const (
-	Scheme   = "teams"
-	dummyURL = "teams://dummy@dummy.com"
+	DummyURL           = "teams://dummy@dummy.com" // Default placeholder URL
+	ExpectedOrgMatches = 2                         // Full match plus organization domain capture group
+	MinPathComponents  = 3                         // Minimum required path components: AltID, GroupOwner, ExtraID
 )
 
 // Config represents the configuration for the Teams service.
@@ -38,45 +42,50 @@ func (config *Config) WebhookParts() [5]string {
 
 // SetFromWebhookURL updates the Config from a Teams webhook URL.
 func (config *Config) SetFromWebhookURL(webhookURL string) error {
-	orgPattern, err := regexp.Compile(`https://([a-zA-Z0-9-]+)` + RegexWebhookDomain + `/`)
-	if err == nil {
-		orgGroups := orgPattern.FindStringSubmatch(webhookURL)
-		if len(orgGroups) == 2 {
-			config.Host = orgGroups[1] + WebhookDomain
-		} else {
-			return fmt.Errorf("invalid webhook URL format - must contain organization domain")
-		}
+	orgPattern := regexp.MustCompile(`https://([a-zA-Z0-9-]+)` + WebhookDomain + `/`)
+
+	orgGroups := orgPattern.FindStringSubmatch(webhookURL)
+	if len(orgGroups) != ExpectedOrgMatches {
+		return ErrInvalidWebhookFormat
 	}
-	parts, err := parseAndVerifyWebhookURL(webhookURL)
+
+	config.Host = orgGroups[1] + WebhookDomain
+
+	parts, err := ParseAndVerifyWebhookURL(webhookURL)
 	if err != nil {
 		return err
 	}
+
 	config.setFromWebhookParts(parts)
+
 	return nil
 }
 
 // ConfigFromWebhookURL creates a new Config from a parsed Teams webhook URL.
 func ConfigFromWebhookURL(webhookURL url.URL) (*Config, error) {
-	webhookURL.RawQuery = "" // Clear query params
-	config := &Config{
-		Host: webhookURL.Host,
-	}
+	webhookURL.RawQuery = ""
+	config := &Config{Host: webhookURL.Host}
+
 	if err := config.SetFromWebhookURL(webhookURL.String()); err != nil {
 		return nil, err
 	}
+
 	return config, nil
 }
 
 // GetURL constructs a URL from the Config fields.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
+
 	return config.getURL(&resolver)
 }
 
+// getURL constructs a URL using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	if config.Host == "" {
-		return nil // Host is required
+		return nil
 	}
+
 	return &url.URL{
 		User:     url.User(config.Group),
 		Host:     config.Tenant,
@@ -89,6 +98,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // SetURL updates the Config from a URL.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
+
 	return config.setURL(&resolver, url)
 }
 
@@ -100,6 +110,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	if err != nil {
 		return err
 	}
+
 	config.setFromWebhookParts(parts)
 
 	if err := config.setQueryParams(resolver, url.Query()); err != nil {
@@ -107,17 +118,16 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	if config.Host == "" {
-		return fmt.Errorf("missing required host parameter (organization.webhook.office.com)")
+		return ErrMissingHostParameter
 	}
+
 	return nil
 }
 
 // parseURLParts extracts and validates webhook components from a URL.
-// It handles path splitting and verification, returning the parts as an array.
-// Returns an error if the URL format is invalid or components fail verification.
 func parseURLParts(url *url.URL) ([5]string, error) {
 	var parts [5]string
-	if url.String() == dummyURL {
+	if url.String() == DummyURL {
 		return parts, nil
 	}
 
@@ -125,8 +135,9 @@ func parseURLParts(url *url.URL) ([5]string, error) {
 	if pathParts[0] == "" {
 		pathParts = pathParts[1:]
 	}
-	if len(pathParts) < 3 {
-		return parts, errors.New("invalid URL format: missing extraId component")
+
+	if len(pathParts) < MinPathComponents {
+		return parts, ErrMissingExtraIDComponent
 	}
 
 	parts = [5]string{
@@ -139,6 +150,7 @@ func parseURLParts(url *url.URL) ([5]string, error) {
 	if err := verifyWebhookParts(parts); err != nil {
 		return parts, fmt.Errorf("invalid URL format: %w", err)
 	}
+
 	return parts, nil
 }
 
@@ -160,14 +172,23 @@ func (config *Config) setQueryParams(resolver types.ConfigQueryResolver, query u
 			case "title":
 				config.Title = vals[0]
 			}
+
 			if err := resolver.Set(key, vals[0]); err != nil {
-				return err
+				return fmt.Errorf(
+					"%w: key=%q, value=%q: %w",
+					ErrSetParameterFailed,
+					key,
+					vals[0],
+					err,
+				)
 			}
 		}
 	}
+
 	return nil
 }
 
+// setFromWebhookParts sets Config fields from webhook parts.
 func (config *Config) setFromWebhookParts(parts [5]string) {
 	config.Group = parts[0]
 	config.Tenant = parts[1]

@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// MessageLevel is used to denote the urgency of a message item.
-type MessageLevel uint8
-
 const (
 	// Unknown is the default message level.
 	Unknown MessageLevel = iota
@@ -32,13 +29,8 @@ var messageLevelStrings = [MessageLevelCount]string{
 	"Error",
 }
 
-func (level MessageLevel) String() string {
-	if level >= messageLevelCount {
-		return messageLevelStrings[0]
-	}
-
-	return messageLevelStrings[level]
-}
+// MessageLevel is used to denote the urgency of a message item.
+type MessageLevel uint8
 
 // MessageItem is an entry in a notification being sent by a service.
 type MessageItem struct {
@@ -46,6 +38,14 @@ type MessageItem struct {
 	Timestamp time.Time
 	Level     MessageLevel
 	Fields    []Field
+}
+
+func (level MessageLevel) String() string {
+	if level >= messageLevelCount {
+		return messageLevelStrings[0]
+	}
+
+	return messageLevelStrings[level]
 }
 
 // WithField appends the key/value pair to the message items fields.

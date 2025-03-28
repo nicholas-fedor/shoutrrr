@@ -2,24 +2,26 @@ package ifttt
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// ValueFieldOne represents the Value1 field in the IFTTT payload.
 const (
 	ValueFieldOne   = 1 // Represents Value1 field
 	ValueFieldTwo   = 2 // Represents Value2 field
 	ValueFieldThree = 3 // Represents Value3 field
 )
 
-// jsonPayload is the actual notification payload.
+// jsonPayload represents the notification payload sent to the IFTTT webhook API.
 type jsonPayload struct {
 	Value1 string `json:"value1"`
 	Value2 string `json:"value2"`
 	Value3 string `json:"value3"`
 }
 
-// createJSONToSend creates a jsonPayload payload to be sent to the IFTTT webhook API.
+// createJSONToSend generates a JSON payload for the IFTTT webhook API.
 func createJSONToSend(config *Config, message string, params *types.Params) ([]byte, error) {
 	payload := jsonPayload{
 		Value1: config.Value1,
@@ -50,5 +52,10 @@ func createJSONToSend(config *Config, message string, params *types.Params) ([]b
 		payload.Value3 = message
 	}
 
-	return json.Marshal(payload)
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling IFTTT payload to JSON: %w", err)
+	}
+
+	return jsonBytes, nil
 }

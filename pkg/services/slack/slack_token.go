@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ types.ConfigProp = &Token{}
+const webhookBase = "https://hooks.slack.com/services/"
 
 // Token type identifiers.
 const (
@@ -28,61 +29,6 @@ const (
 	Part3Length          = 24 // Expected length of part 3 in token
 )
 
-// Token is a Slack API token or a Slack webhook token.
-type Token struct {
-	raw string
-}
-
-// SetFromProp implements the types.ConfigProp interface.
-func (token *Token) SetFromProp(propValue string) error {
-	if len(propValue) < MinTokenLength {
-		return ErrorInvalidToken
-	}
-
-	match := tokenPattern.FindStringSubmatch(propValue)
-	if match == nil || len(match) != tokenMatchCount {
-		return ErrorInvalidToken
-	}
-
-	typeIdentifier := match[tokenMatchType]
-	if typeIdentifier == "" {
-		typeIdentifier = HookTokenIdentifier
-	}
-
-	token.raw = fmt.Sprintf("%s:%s-%s-%s",
-		typeIdentifier, match[tokenMatchPart1], match[tokenMatchPart2], match[tokenMatchPart3])
-
-	if match[tokenMatchSep1] != match[tokenMatchSep2] {
-		return ErrorMismatchedTokenSeparators
-	}
-
-	return nil
-}
-
-// GetPropValue implements the types.ConfigProp interface.
-func (token *Token) GetPropValue() (string, error) {
-	if token == nil {
-		return "", nil
-	}
-
-	return token.raw, nil
-}
-
-// TypeIdentifier returns the type identifier of the token.
-func (token Token) TypeIdentifier() string {
-	return token.raw[:TypeIdentifierLength]
-}
-
-// ParseToken parses and normalizes a token string.
-func ParseToken(str string) (*Token, error) {
-	token := &Token{}
-	if err := token.SetFromProp(str); err != nil {
-		return nil, err
-	}
-
-	return token, nil
-}
-
 // Token match group indices.
 const (
 	tokenMatchFull  = iota // Full match
@@ -96,8 +42,71 @@ const (
 )
 
 var tokenPattern = regexp.MustCompile(
-	`(?:(?P<type>xox.|hook)[-:]|:?)(?P<p1>[A-Z0-9]{` + fmt.Sprint(Part1Length) + `,})(?P<s1>[-/,])(?P<p2>[A-Z0-9]{` + fmt.Sprint(Part2Length) + `,})(?P<s2>[-/,])(?P<p3>[A-Za-z0-9]{` + fmt.Sprint(Part3Length) + `,})`,
+	`(?:(?P<type>xox.|hook)[-:]|:?)(?P<p1>[A-Z0-9]{` + strconv.Itoa(
+		Part1Length,
+	) + `,})(?P<s1>[-/,])(?P<p2>[A-Z0-9]{` + strconv.Itoa(
+		Part2Length,
+	) + `,})(?P<s2>[-/,])(?P<p3>[A-Za-z0-9]{` + strconv.Itoa(
+		Part3Length,
+	) + `,})`,
 )
+
+var _ types.ConfigProp = &Token{}
+
+// Token is a Slack API token or a Slack webhook token.
+type Token struct {
+	raw string
+}
+
+// SetFromProp sets the token from a property value, implementing the types.ConfigProp interface.
+func (token *Token) SetFromProp(propValue string) error {
+	if len(propValue) < MinTokenLength {
+		return ErrInvalidToken
+	}
+
+	match := tokenPattern.FindStringSubmatch(propValue)
+	if match == nil || len(match) != tokenMatchCount {
+		return ErrInvalidToken
+	}
+
+	typeIdentifier := match[tokenMatchType]
+	if typeIdentifier == "" {
+		typeIdentifier = HookTokenIdentifier
+	}
+
+	token.raw = fmt.Sprintf("%s:%s-%s-%s",
+		typeIdentifier, match[tokenMatchPart1], match[tokenMatchPart2], match[tokenMatchPart3])
+
+	if match[tokenMatchSep1] != match[tokenMatchSep2] {
+		return ErrMismatchedTokenSeparators
+	}
+
+	return nil
+}
+
+// GetPropValue returns the token as a property value, implementing the types.ConfigProp interface.
+func (token *Token) GetPropValue() (string, error) {
+	if token == nil {
+		return "", nil
+	}
+
+	return token.raw, nil
+}
+
+// TypeIdentifier returns the type identifier of the token.
+func (token *Token) TypeIdentifier() string {
+	return token.raw[:TypeIdentifierLength]
+}
+
+// ParseToken parses and normalizes a token string.
+func ParseToken(str string) (*Token, error) {
+	token := &Token{}
+	if err := token.SetFromProp(str); err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
 
 // String returns the token in normalized format with dashes (-) as separator.
 func (token *Token) String() string {
@@ -114,13 +123,11 @@ func (token *Token) IsAPIToken() bool {
 	return token.TypeIdentifier() != HookTokenIdentifier
 }
 
-const webhookBase = "https://hooks.slack.com/services/"
-
-// WebhookURL returns the corresponding Webhook URL for the Token.
-func (token Token) WebhookURL() string {
-	sb := strings.Builder{}
-	sb.WriteString(webhookBase)
-	sb.Grow(len(token.raw) - TypeIdentifierOffset)
+// WebhookURL returns the corresponding Webhook URL for the token.
+func (token *Token) WebhookURL() string {
+	stringBuilder := strings.Builder{}
+	stringBuilder.WriteString(webhookBase)
+	stringBuilder.Grow(len(token.raw) - TypeIdentifierOffset)
 
 	for i := TypeIdentifierOffset; i < len(token.raw); i++ {
 		c := token.raw[i]
@@ -128,20 +135,20 @@ func (token Token) WebhookURL() string {
 			c = '/'
 		}
 
-		sb.WriteByte(c)
+		stringBuilder.WriteByte(c)
 	}
 
-	return sb.String()
+	return stringBuilder.String()
 }
 
-// Authorization returns the corresponding `Authorization` HTTP header value for the Token.
+// Authorization returns the corresponding `Authorization` HTTP header value for the token.
 func (token *Token) Authorization() string {
-	sb := strings.Builder{}
-	sb.WriteString("Bearer ")
-	sb.Grow(len(token.raw))
-	sb.WriteString(token.raw[:TypeIdentifierLength])
-	sb.WriteRune('-')
-	sb.WriteString(token.raw[TypeIdentifierOffset:])
+	stringBuilder := strings.Builder{}
+	stringBuilder.WriteString("Bearer ")
+	stringBuilder.Grow(len(token.raw))
+	stringBuilder.WriteString(token.raw[:TypeIdentifierLength])
+	stringBuilder.WriteRune('-')
+	stringBuilder.WriteString(token.raw[TypeIdentifierOffset:])
 
-	return sb.String()
+	return stringBuilder.String()
 }

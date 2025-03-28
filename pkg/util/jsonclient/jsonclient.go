@@ -2,44 +2,59 @@ package jsonclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 )
 
-// ContentType is the default mime type for JSON.
+// ContentType defines the default MIME type for JSON requests.
 const ContentType = "application/json"
 
-// HTTPClientErrorThreshold is the status code threshold for client errors (400+).
+// HTTPClientErrorThreshold specifies the status code threshold for client errors (400+).
 const HTTPClientErrorThreshold = 400
 
-// DefaultClient is the singleton instance of jsonclient using http.DefaultClient.
+// ErrUnexpectedStatus indicates an unexpected HTTP response status.
+var (
+	ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
+)
+
+// DefaultClient provides a singleton JSON client using http.DefaultClient.
 var DefaultClient = NewClient()
 
-// Get fetches url using GET and unmarshals into the passed response using DefaultClient.
-func Get(url string, response interface{}) error {
-	return DefaultClient.Get(url, response)
-}
-
-// Post sends request as JSON and unmarshals the response JSON into the supplied struct using DefaultClient.
-func Post(url string, request interface{}, response interface{}) error {
-	return DefaultClient.Post(url, request, response)
-}
-
-// Client is a JSON wrapper around http.Client.
+// Client wraps http.Client for JSON operations.
 type client struct {
 	httpClient *http.Client
 	headers    http.Header
 	indent     string
 }
 
-// NewClient returns a new JSON Client using the default http.Client.
+// Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
+func Get(url string, response any) error {
+	if err := DefaultClient.Get(url, response); err != nil {
+		return fmt.Errorf("getting JSON from %q: %w", url, err)
+	}
+
+	return nil
+}
+
+// Post sends a request as JSON and unmarshals the response into the provided object using DefaultClient.
+func Post(url string, request any, response any) error {
+	if err := DefaultClient.Post(url, request, response); err != nil {
+		return fmt.Errorf("posting JSON to %q: %w", url, err)
+	}
+
+	return nil
+}
+
+// NewClient creates a new JSON client using the default http.Client.
 func NewClient() Client {
 	return NewWithHTTPClient(http.DefaultClient)
 }
 
-// NewWithHTTPClient returns a new JSON Client using the specified http.Client.
+// NewWithHTTPClient creates a new JSON client using the specified http.Client.
 func NewWithHTTPClient(httpClient *http.Client) Client {
 	return &client{
 		httpClient: httpClient,
@@ -49,71 +64,85 @@ func NewWithHTTPClient(httpClient *http.Client) Client {
 	}
 }
 
-// Headers return the default headers for requests.
+// Headers returns the default headers for requests.
 func (c *client) Headers() http.Header {
 	return c.headers
 }
 
-// Get fetches url using GET and unmarshals into the passed response.
-func (c *client) Get(url string, response interface{}) error {
-	res, err := c.httpClient.Get(url)
+// Get fetches a URL using GET and unmarshals the response into the provided object.
+func (c *client) Get(url string, response any) error {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
-		return err
-	}
-
-	return parseResponse(res, response)
-}
-
-// Post sends request as JSON and unmarshals the response JSON into the supplied struct.
-func (c *client) Post(url string, request interface{}, response interface{}) error {
-	var err error
-
-	var body []byte
-
-	if strReq, ok := request.(string); ok {
-		// If the request is a string, just pass it through without serializing
-		body = []byte(strReq)
-	} else {
-		body, err = json.MarshalIndent(request, "", c.indent)
-		if err != nil {
-			return fmt.Errorf("error creating payload: %w", err)
-		}
-	}
-
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
+		return fmt.Errorf("creating GET request for %q: %w", url, err)
 	}
 
 	for key, val := range c.headers {
 		req.Header.Set(key, val[0])
 	}
 
-	var res *http.Response
-
-	res, err = c.httpClient.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error sending payload: %w", err)
+		return fmt.Errorf("executing GET request to %q: %w", url, err)
 	}
 
 	return parseResponse(res, response)
 }
 
-func (c *client) ErrorResponse(err error, response interface{}) bool {
-	jerr, isJsonError := err.(Error)
-	if !isJsonError {
-		return false
+// Post sends a request as JSON and unmarshals the response into the provided object.
+func (c *client) Post(url string, request any, response any) error {
+	var err error
+
+	var body []byte
+
+	if strReq, ok := request.(string); ok {
+		// If the request is a string, pass it through without serializing
+		body = []byte(strReq)
+	} else {
+		body, err = json.MarshalIndent(request, "", c.indent)
+		if err != nil {
+			return fmt.Errorf("marshaling request to JSON: %w", err)
+		}
 	}
 
-	return json.Unmarshal([]byte(jerr.Body), response) == nil
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		url,
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("creating POST request for %q: %w", url, err)
+	}
+
+	for key, val := range c.headers {
+		req.Header.Set(key, val[0])
+	}
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending POST request to %q: %w", url, err)
+	}
+
+	return parseResponse(res, response)
 }
 
-func parseResponse(res *http.Response, response interface{}) error {
+// ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
+func (c *client) ErrorResponse(err error, response any) bool {
+	var errMsg Error
+	if errors.As(err, &errMsg) {
+		return json.Unmarshal([]byte(errMsg.Body), response) == nil
+	}
+
+	return false
+}
+
+// parseResponse parses the HTTP response and unmarshals it into the provided object.
+func parseResponse(res *http.Response, response any) error {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 
 	if res.StatusCode >= HTTPClientErrorThreshold {
-		err = fmt.Errorf("got HTTP %v", res.Status)
+		err = fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 	}
 
 	if err == nil {

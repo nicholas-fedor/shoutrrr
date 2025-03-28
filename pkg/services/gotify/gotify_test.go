@@ -2,18 +2,19 @@ package gotify_test
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"log"
 	"net/url"
 	"os"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/gotify"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 // Test constants.
@@ -81,7 +82,9 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 		ginkgo.When("TLS is disabled", func() {
 			ginkgo.It("uses http scheme", func() {
-				configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?disabletls=yes")
+				configURL := testutils.URLMust(
+					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?disabletls=yes",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
@@ -101,16 +104,19 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError("invalid gotify token \"short\""))
+				gomega.Expect(err).To(gomega.MatchError("invalid gotify token: \"short\""))
 			})
 		})
 		ginkgo.When("the token has an invalid prefix", func() {
 			ginkgo.It("reports an error during send", func() {
-				configURL := testutils.URLMust("gotify://my.gotify.tld/Chwbsdyhwwgarxd") // Starts with 'C', not 'A'
+				configURL := testutils.URLMust(
+					"gotify://my.gotify.tld/Chwbsdyhwwgarxd",
+				) // Starts with 'C', not 'A'
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError("invalid gotify token \"Chwbsdyhwwgarxd\""))
+				gomega.Expect(err).
+					To(gomega.MatchError("invalid gotify token: \"Chwbsdyhwwgarxd\""))
 			})
 		})
 		ginkgo.It("is identical after de-/serialization with path", func() {
@@ -153,7 +159,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.MatchError("invalid gotify token \"Aaa.bbb.ccc.dd!\""))
+			gomega.Expect(err).To(gomega.MatchError("invalid gotify token: \"Aaa.bbb.ccc.dd!\""))
 		})
 	})
 
@@ -175,7 +181,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
-					testutils.JSONRespondMust(200, map[string]interface{}{
+					testutils.JSONRespondMust(200, map[string]any{
 						"id":       float64(1),
 						"appid":    float64(1),
 						"message":  "Message",
@@ -187,27 +193,32 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
-			ginkgo.It("reports an error if the server rejects the payload with an error response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(401, map[string]interface{}{
-						"error":            "Unauthorized",
-						"errorCode":        float64(401),
-						"errorDescription": "you need to provide a valid access token or user credentials to access this api",
-					}),
-				)
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError("server respondend with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
-			})
+			ginkgo.It(
+				"reports an error if the server rejects the payload with an error response",
+				func() {
+					httpmock.RegisterResponder(
+						"POST",
+						TargetURL,
+						testutils.JSONRespondMust(401, map[string]any{
+							"error":            "Unauthorized",
+							"errorCode":        float64(401),
+							"errorDescription": "you need to provide a valid access token or user credentials to access this api",
+						}),
+					)
+					err := service.Send("Message", nil)
+					gomega.Expect(err).
+						To(gomega.MatchError("server respondend with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
+				},
+			)
 			ginkgo.It("reports an error if sending fails with a network error", func() {
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
-					httpmock.NewErrorResponder(fmt.Errorf("network failure")),
+					httpmock.NewErrorResponder(errors.New("network failure")),
 				)
 				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError("failed to send notification to Gotify: error sending payload: Post \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": network failure"))
+				gomega.Expect(err).
+					To(gomega.MatchError("failed to send notification to Gotify: sending POST request to \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": Post \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": network failure"))
 			})
 			ginkgo.It("logs an error if params update fails", func() {
 				var logBuffer bytes.Buffer
@@ -215,7 +226,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
-					testutils.JSONRespondMust(200, map[string]interface{}{
+					testutils.JSONRespondMust(200, map[string]any{
 						"id":       float64(1),
 						"appid":    float64(1),
 						"message":  "Message",
@@ -227,7 +238,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				params := types.Params{"priority": "invalid"}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(logBuffer.String()).To(gomega.ContainSubstring("Failed to update params"))
+				gomega.Expect(logBuffer.String()).
+					To(gomega.ContainSubstring("Failed to update params"))
 			})
 		})
 	})

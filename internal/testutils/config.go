@@ -3,10 +3,10 @@ package testutils
 import (
 	"net/url"
 
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
-	"github.com/onsi/gomega"
 )
 
 // TestConfigGetInvalidQueryValue tests whether the config returns
@@ -21,7 +21,8 @@ func TestConfigGetInvalidQueryValue(config types.ServiceConfig) {
 // an error when a URL with an invalid query value is parsed.
 func TestConfigSetInvalidQueryValue(config types.ServiceConfig, rawInvalidURL string) {
 	invalidURL, err := url.Parse(rawInvalidURL)
-	gomega.ExpectWithOffset(1, err).ToNot(gomega.HaveOccurred(), "the test URL did not parse correctly")
+	gomega.ExpectWithOffset(1, err).
+		ToNot(gomega.HaveOccurred(), "the test URL did not parse correctly")
 
 	err = config.SetURL(invalidURL)
 	gomega.ExpectWithOffset(1, err).To(gomega.HaveOccurred())

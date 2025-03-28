@@ -91,11 +91,38 @@ func (n *ContainerNode) TokenType() NodeTokenType {
 
 // Update updates the items to match the provided value.
 func (n *ContainerNode) Update(tv reflect.Value) {
-	switch n.FieldInfo.Type.Kind() {
+	switch n.Type.Kind() {
 	case reflect.Array, reflect.Slice:
 		n.updateArrayNode(tv)
 	case reflect.Map:
 		n.updateMapNode(tv)
+	case reflect.Invalid,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.Interface,
+		reflect.Pointer,
+		reflect.String,
+		reflect.Struct,
+		reflect.UnsafePointer:
+		// No-op for unsupported kinds
+	default:
+		// No-op for any remaining kinds
 	}
 }
 
@@ -115,12 +142,11 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 	}
 }
 
-func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) (node *ContainerNode) {
-	node = &ContainerNode{
+func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
+	node := &ContainerNode{
 		FieldInfo:    fieldInfo,
 		MaxKeyLength: 0,
 	}
-
 	node.updateArrayNode(arrayValue)
 
 	return node
@@ -133,7 +159,7 @@ func sortNodeItems(nodeItems []Node) {
 }
 
 func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
-	base := n.FieldInfo.Base
+	base := n.Base
 	if base == 0 {
 		base = BaseDecimalLen
 	}
@@ -161,18 +187,17 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 	n.MaxKeyLength = maxKeyLength
 }
 
-func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) (node *ContainerNode) {
+func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	if mapValue.Kind() == reflect.Ptr {
 		mapValue = mapValue.Elem()
 	}
 
-	node = &ContainerNode{
+	node := &ContainerNode{
 		FieldInfo: fieldInfo,
 	}
-
 	node.updateMapNode(mapValue)
 
-	return
+	return node
 }
 
 func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
@@ -181,57 +206,73 @@ func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 		return getArrayNode(fieldVal, fieldInfo)
 	case reflect.Map:
 		return getMapNode(fieldVal, fieldInfo)
+	case reflect.Invalid,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.Interface,
+		reflect.Pointer,
+		reflect.String,
+		reflect.Struct,
+		reflect.UnsafePointer:
+		return getValueNode(fieldVal, fieldInfo)
 	default:
 		return getValueNode(fieldVal, fieldInfo)
 	}
 }
 
-func getRootNode(v interface{}) *ContainerNode {
-	structValue := reflect.ValueOf(v)
+func getRootNode(value any) *ContainerNode {
+	structValue := reflect.ValueOf(value)
 	if structValue.Kind() == reflect.Ptr {
 		structValue = structValue.Elem()
 	}
 
-	fieldInfo := &FieldInfo{
-		Type: structValue.Type(),
-	}
+	structType := structValue.Type()
 
 	enums := map[string]types.EnumFormatter{}
-	if enummer, isEnummer := v.(types.Enummer); isEnummer {
+	if enummer, isEnummer := value.(types.Enummer); isEnummer {
 		enums = enummer.Enums()
 	}
 
-	infoFields := getStructFieldInfo(fieldInfo.Type, enums)
-
-	numFields := len(infoFields)
-	nodeItems := make([]Node, numFields)
+	infoFields := getStructFieldInfo(structType, enums)
+	nodeItems := make([]Node, 0, len(infoFields))
 	maxKeyLength := 0
-	fieldOffset := 0
 
-	for i := range infoFields {
-		field := infoFields[i]
-
-		for isHiddenField(fieldInfo.Type.Field(fieldOffset + i)) {
-			// The current field is Anonymous and not present in the FieldInfo slice
-			fieldOffset++
+	for _, fieldInfo := range infoFields {
+		fieldValue := structValue.FieldByName(fieldInfo.Name)
+		if !fieldValue.IsValid() {
+			fieldValue = reflect.Zero(fieldInfo.Type)
 		}
 
-		fieldValue := structValue.Field(fieldOffset + i)
-
-		nodeItems[i] = getNode(fieldValue, &field)
-		maxKeyLength = util.Max(len(field.Name), maxKeyLength)
+		nodeItems = append(nodeItems, getNode(fieldValue, &fieldInfo))
+		maxKeyLength = util.Max(len(fieldInfo.Name), maxKeyLength)
 	}
 
 	sortNodeItems(nodeItems)
 
 	return &ContainerNode{
-		FieldInfo:    fieldInfo,
+		FieldInfo:    &FieldInfo{Type: structType},
 		Items:        nodeItems,
 		MaxKeyLength: maxKeyLength,
 	}
 }
 
-func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) (node *ValueNode) {
+func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	value, tokenType := getValueNodeValue(fieldVal, fieldInfo)
 
 	return &ValueNode{
@@ -280,15 +321,25 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 		}
 
 		return "<ERR>", ErrorToken
+	case reflect.Invalid,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.Interface,
+		reflect.UnsafePointer:
+		return fmt.Sprintf("<?%s>", kind.String()), UnknownToken
+	default:
+		return fmt.Sprintf("<?%s>", kind.String()), UnknownToken
 	}
-
-	// Unsupported value
-	return fmt.Sprintf("<?%s>", kind.String()), UnknownToken
 }
 
 func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) string {
-	itemSep := fieldInfo.ItemSeparator
-	sliceLen := fieldValue.Len()
+	itemSeparator := fieldInfo.ItemSeparator
+	sliceLength := fieldValue.Len()
 
 	var mapKeys []reflect.Value
 	if fieldInfo.Type.Kind() == reflect.Map {
@@ -298,21 +349,21 @@ func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) str
 		})
 	}
 
-	sb := strings.Builder{}
+	stringBuilder := strings.Builder{}
 
 	var itemFieldInfo *FieldInfo
 
-	for i := range sliceLen {
+	for i := range sliceLength {
 		var itemValue reflect.Value
 
 		if i > 0 {
-			sb.WriteRune(itemSep)
+			stringBuilder.WriteRune(itemSeparator)
 		}
 
 		if mapKeys != nil {
 			mapKey := mapKeys[i]
-			sb.WriteString(mapKey.String())
-			sb.WriteRune(':')
+			stringBuilder.WriteString(mapKey.String())
+			stringBuilder.WriteRune(':')
 
 			itemValue = fieldValue.MapIndex(mapKey)
 		} else {
@@ -332,8 +383,8 @@ func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) str
 		}
 
 		strVal, _ := getValueNodeValue(itemValue, itemFieldInfo)
-		sb.WriteString(strVal)
+		stringBuilder.WriteString(strVal)
 	}
 
-	return sb.String()
+	return stringBuilder.String()
 }

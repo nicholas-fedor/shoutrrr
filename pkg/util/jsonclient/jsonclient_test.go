@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 func TestJSONClient(t *testing.T) {
@@ -32,7 +33,8 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			res := &mockResponse{}
 			err := client.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
-			gomega.Expect(err).To(gomega.MatchError("invalid character 'i' looking for beginning of value"))
+			gomega.Expect(err).
+				To(gomega.MatchError("invalid character 'i' looking for beginning of value"))
 			gomega.Expect(res.Status).To(gomega.BeEmpty())
 		})
 	})
@@ -49,7 +51,9 @@ var _ = ginkgo.Describe("JSONClient", func() {
 	})
 
 	ginkgo.It("should deserialize GET response", func() {
-		server.AppendHandlers(ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "OK"}))
+		server.AppendHandlers(
+			ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "OK"}),
+		)
 		res := &mockResponse{}
 		err := client.Get(server.URL(), res)
 		gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -59,7 +63,9 @@ var _ = ginkgo.Describe("JSONClient", func() {
 
 	ginkgo.Describe("Top-level Functions", func() {
 		ginkgo.It("should handle GET via DefaultClient", func() {
-			server.AppendHandlers(ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "Default OK"}))
+			server.AppendHandlers(
+				ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "Default OK"}),
+			)
 			res := &mockResponse{}
 			err := jsonclient.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -89,8 +95,11 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			server.AppendHandlers(ghttp.CombineHandlers(
 				ghttp.VerifyRequest("POST", "/"),
 				ghttp.VerifyJSONRepresenting(&req),
-				ghttp.RespondWithJSONEncoded(http.StatusOK, &mockResponse{Status: "That's Numberwang!"})),
-			)
+				ghttp.RespondWithJSONEncoded(
+					http.StatusOK,
+					&mockResponse{Status: "That's Numberwang!"},
+				),
+			))
 			err := client.Post(server.URL(), req, res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -101,14 +110,15 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			server.AppendHandlers(ghttp.RespondWith(http.StatusNotFound, "Not found!"))
 			err := client.Post(server.URL(), &mockRequest{}, &mockResponse{})
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
-			gomega.Expect(err).To(gomega.MatchError("got HTTP 404 Not Found"))
+			gomega.Expect(err).To(gomega.MatchError("got unexpected HTTP status: 404 Not Found"))
 		})
 
 		ginkgo.It("should return error on invalid request", func() {
 			server.AppendHandlers(ghttp.VerifyRequest("POST", "/"))
 			err := client.Post(server.URL(), func() {}, &mockResponse{})
-			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(0))
-			gomega.Expect(err).To(gomega.MatchError("error creating payload: json: unsupported type: func()"))
+			gomega.Expect(server.ReceivedRequests()).Should(gomega.BeEmpty())
+			gomega.Expect(err).
+				To(gomega.MatchError("marshaling request to JSON: json: unsupported type: func()"))
 		})
 
 		ginkgo.It("should return error on invalid response type", func() {
@@ -119,7 +129,8 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			)
 			err := client.Post(server.URL(), nil, &[]bool{})
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
-			gomega.Expect(err).To(gomega.MatchError("json: cannot unmarshal object into Go value of type []bool"))
+			gomega.Expect(err).
+				To(gomega.MatchError("json: cannot unmarshal object into Go value of type []bool"))
 			gomega.Expect(jsonclient.ErrorBody(err)).To(gomega.MatchJSON(`{"Status":"cool skirt"}`))
 		})
 
@@ -140,22 +151,22 @@ var _ = ginkgo.Describe("JSONClient", func() {
 		ginkgo.It("should return error when NewRequest fails", func() {
 			err := client.Post("://invalid-url", &mockRequest{}, &mockResponse{})
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("error creating request"))
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("parse"))
+			gomega.Expect(err.Error()).
+				To(gomega.ContainSubstring("creating POST request for \"://invalid-url\": parse \"://invalid-url\": missing protocol scheme"))
 		})
 
 		ginkgo.It("should return error when http.Client.Do fails", func() {
 			brokenClient := jsonclient.NewWithHTTPClient(&http.Client{
 				Transport: &http.Transport{
-					Dial: func(network, addr string) (net.Conn, error) {
+					Dial: func(_, _ string) (net.Conn, error) {
 						return nil, errors.New("forced network error")
 					},
 				},
 			})
 			err := brokenClient.Post(server.URL(), &mockRequest{}, &mockResponse{})
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("error sending payload"))
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("forced network error"))
+			gomega.Expect(err.Error()).
+				To(gomega.ContainSubstring("sending POST request to \"" + server.URL() + "\": Post \"" + server.URL() + "\": forced network error"))
 		})
 
 		ginkgo.It("should set multiple custom headers in request", func() {
@@ -174,8 +185,11 @@ var _ = ginkgo.Describe("JSONClient", func() {
 					"X-Another-Header": []string{"AnotherValue"},
 				}),
 				ghttp.VerifyJSONRepresenting(&req),
-				ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "Headers Worked"})),
-			)
+				ghttp.RespondWithJSONEncoded(
+					http.StatusOK,
+					mockResponse{Status: "Headers Worked"},
+				),
+			))
 			err := customClient.Post(server.URL(), req, res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -235,7 +249,8 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			res := &mockResponse{}
 			err := client.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
-			gomega.Expect(err).To(gomega.MatchError("invalid character 'b' looking for beginning of value"))
+			gomega.Expect(err).
+				To(gomega.MatchError("invalid character 'b' looking for beginning of value"))
 			gomega.Expect(res.Status).To(gomega.BeEmpty())
 		})
 
@@ -253,7 +268,8 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			res := &mockResponse{}
 			err := brokenClient.Get(server.URL(), res)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("got HTTP 400"))
+			gomega.Expect(err.Error()).
+				To(gomega.ContainSubstring("got unexpected HTTP status: 400 Bad Request"))
 			gomega.Expect(jsonclient.ErrorBody(err)).To(gomega.Equal(""))
 		})
 	})
@@ -274,15 +290,16 @@ var _ = ginkgo.Describe("Error", func() {
 	ginkgo.Describe("ErrorBody", func() {
 		ginkgo.When("passed a non-json error", func() {
 			ginkgo.It("should return an empty string", func() {
-				gomega.Expect(jsonclient.ErrorBody(errors.New("unrelated error"))).To(gomega.BeEmpty())
+				gomega.Expect(jsonclient.ErrorBody(errors.New("unrelated error"))).
+					To(gomega.BeEmpty())
 			})
 		})
 
 		ginkgo.When("passed a jsonclient.Error", func() {
 			ginkgo.It("should return the request body from that error", func() {
 				errorBody := `{"error": "bad user"}`
-				jsonError := jsonclient.Error{Body: errorBody}
-				gomega.Expect(jsonclient.ErrorBody(jsonError)).To(gomega.MatchJSON(errorBody))
+				jsonErr := jsonclient.Error{Body: errorBody}
+				gomega.Expect(jsonclient.ErrorBody(jsonErr)).To(gomega.MatchJSON(errorBody))
 			})
 		})
 	})
@@ -296,28 +313,19 @@ type mockRequest struct {
 	Number int
 }
 
-// brokenConn simulates a connection that fails on ReadAll.
-type brokenConn struct {
-	net.Conn
-}
-
-func (bc *brokenConn) Read(b []byte) (n int, err error) {
-	return 0, errors.New("simulated read failure")
-}
-
 // mockTransport returns a predefined response.
 type mockTransport struct {
 	response *http.Response
 }
 
-func (mt *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (mt *mockTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return mt.response, nil
 }
 
 // failingReader simulates an io.Reader that fails on Read.
 type failingReader struct{}
 
-func (fr *failingReader) Read(p []byte) (n int, err error) {
+func (fr *failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("simulated read failure")
 }
 

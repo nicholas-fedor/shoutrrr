@@ -2,33 +2,43 @@ package join
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Config for the Pushover notification service service.
+// Scheme identifies this service in configuration URLs.
+const Scheme = "join"
+
+// ErrDevicesMissing indicates that no devices are specified in the configuration.
+var (
+	ErrDevicesMissing = errors.New("devices missing from config URL")
+	ErrAPIKeyMissing  = errors.New("API key missing from config URL")
+)
+
+// Config holds settings for the Join notification service.
 type Config struct {
 	APIKey  string   `url:"pass"`
-	Devices []string `desc:"Comma separated list of device IDs" key:"devices"`
-	Title   string   `desc:"If set creates a notification"      key:"title"   optional:""`
-	Icon    string   `desc:"Icon URL"                           key:"icon"    optional:""`
+	Devices []string `           desc:"Comma separated list of device IDs" key:"devices"`
+	Title   string   `           desc:"If set creates a notification"      key:"title"   optional:""`
+	Icon    string   `           desc:"Icon URL"                           key:"icon"    optional:""`
 }
 
-// Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
+// Enums returns the fields that should use an EnumFormatter for their values.
 func (config *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
-// GetURL returns a URL representation of it's current field values.
+// GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of it's field values.
+// SetURL updates the configuration from a URL representation.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
@@ -51,22 +61,19 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
 	}
 
 	if url.String() != "join://dummy@dummy.com" {
 		if len(config.Devices) < 1 {
-			return errors.New(string(DevicesMissing))
+			return ErrDevicesMissing
 		}
 
 		if len(config.APIKey) < 1 {
-			return errors.New(string(APIKeyMissing))
+			return ErrAPIKeyMissing
 		}
 	}
 
 	return nil
 }
-
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "join"

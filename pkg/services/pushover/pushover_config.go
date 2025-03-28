@@ -2,19 +2,29 @@ package pushover
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Config for the Pushover notification service service.
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "pushover"
+
+// Static errors for configuration validation.
+var (
+	ErrUserMissing  = errors.New("user missing from config URL")
+	ErrTokenMissing = errors.New("token missing from config URL")
+)
+
+// Config for the Pushover notification service.
 type Config struct {
 	Token    string   `desc:"API Token/Key" url:"pass"`
 	User     string   `desc:"User Key"      url:"host"`
-	Devices  []string `key:"devices"        optional:""`
-	Priority int8     `default:"0"          key:"priority"`
-	Title    string   `key:"title"          optional:""`
+	Devices  []string `                                key:"devices"  optional:""`
+	Priority int8     `                                key:"priority"             default:"0"`
+	Title    string   `                                key:"title"    optional:""`
 }
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
@@ -26,22 +36,17 @@ func (config *Config) Enums() map[string]types.EnumFormatter {
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
-	return &url.URL{
-		User:       url.UserPassword("Token", config.Token),
-		Host:       config.User,
-		Scheme:     Scheme,
-		ForceQuery: true,
-		RawQuery:   format.BuildQuery(&resolver), // Pass pointer to resolver
-	}
+	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of its field values.
+// SetURL updates the Config from a URL representation of its field values.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.setURL(&resolver, url)
 }
 
+// setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	password, _ := url.User.Password()
 	config.User = url.Host
@@ -49,22 +54,30 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
 	if url.String() != "pushover://dummy@dummy.com" {
 		if len(config.User) < 1 {
-			return errors.New(string(UserMissing))
+			return ErrUserMissing
 		}
 
 		if len(config.Token) < 1 {
-			return errors.New(string(TokenMissing))
+			return ErrTokenMissing
 		}
 	}
 
 	return nil
 }
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "pushover"
+// getURL constructs a URL from the Config's fields using the provided resolver.
+func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	return &url.URL{
+		User:       url.UserPassword("Token", config.Token),
+		Host:       config.User,
+		Scheme:     Scheme,
+		ForceQuery: true,
+		RawQuery:   format.BuildQuery(resolver),
+	}
+}

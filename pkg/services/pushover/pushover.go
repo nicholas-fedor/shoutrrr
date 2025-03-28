@@ -1,35 +1,43 @@
 package pushover
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// hookURL is the Pushover API endpoint for sending messages.
 const (
-	hookURL     = "https://api.pushover.net/1/messages.json"
-	contentType = "application/x-www-form-urlencoded"
+	hookURL            = "https://api.pushover.net/1/messages.json"
+	contentType        = "application/x-www-form-urlencoded"
+	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 )
 
-// Service providing the notification service Pushover.
+// ErrSendFailed indicates a failure in sending the notification to a Pushover device.
+var ErrSendFailed = errors.New("failed to send notification to pushover device")
+
+// Service provides the Pushover notification service.
 type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
+	Client *http.Client
 }
 
-// Send a notification message to Pushover.
+// Send delivers a notification message to Pushover.
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config
 	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return err
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	device := strings.Join(config.Devices, ",")
@@ -40,6 +48,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
+// sendToDevice sends a notification to a specific Pushover device.
 func (service *Service) sendToDevice(device string, message string, config *Config) error {
 	data := url.Values{}
 	data.Set("device", device)
@@ -55,26 +64,42 @@ func (service *Service) sendToDevice(device string, message string, config *Conf
 		data.Set("priority", strconv.FormatInt(int64(config.Priority), 10))
 	}
 
-	res, err := http.Post(
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
 		hookURL,
-		contentType,
-		strings.NewReader(data.Encode()))
+		strings.NewReader(data.Encode()),
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating request: %w", err)
 	}
 
+	req.Header.Set("Content-Type", contentType)
+
+	res, err := service.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending request to Pushover API: %w", err)
+	}
+	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to send notification to pushover device %q, response status %q", device, res.Status)
+		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, device, res.Status)
 	}
 
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
+	service.Client = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
 
 	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
 		return err

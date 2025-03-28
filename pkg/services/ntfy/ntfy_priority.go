@@ -14,17 +14,6 @@ const (
 	PriorityMax     priority = 5
 )
 
-type priority int
-
-type priorityVals struct {
-	Min     priority
-	Low     priority
-	Default priority
-	High    priority
-	Max     priority
-	Enum    types.EnumFormatter
-}
-
 // Priority defines the notification priority levels.
 var Priority = &priorityVals{
 	Min:     PriorityMin,
@@ -48,6 +37,17 @@ var Priority = &priorityVals{
 			"5":      int(PriorityMax),
 			"urgent": int(PriorityMax),
 		}),
+}
+
+type priority int
+
+type priorityVals struct {
+	Min     priority
+	Low     priority
+	Default priority
+	High    priority
+	Max     priority
+	Enum    types.EnumFormatter
 }
 
 func (p priority) String() string {

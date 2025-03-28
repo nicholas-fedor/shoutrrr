@@ -19,33 +19,34 @@ const (
 	KeySeparatorLength     = 2  // Length of the ": " separator after a key in containers
 )
 
-// ConsoleTreeRenderer renders a ContainerNode tree into a ansi-colored console string.
+// ConsoleTreeRenderer renders a ContainerNode tree into an ansi-colored console string.
 type ConsoleTreeRenderer struct {
 	WithValues bool
 }
 
-// RenderTree renders a ContainerNode tree into a ansi-colored console string.
+// RenderTree renders a ContainerNode tree into an ansi-colored console string.
 func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
-	sb := strings.Builder{}
+	stringBuilder := strings.Builder{}
 
 	for _, node := range root.Items {
 		fieldKey := node.Field().Name
-		sb.WriteString(fieldKey)
+		stringBuilder.WriteString(fieldKey)
 
 		for i := len(fieldKey); i <= root.MaxKeyLength; i++ {
-			sb.WriteRune(' ')
+			stringBuilder.WriteRune(' ')
 		}
 
-		valueLen := 0
+		var valueLen int // Initialize without assignment; set later
+
 		preLen := DefaultValueOffset // Default spacing before the description when no values are rendered
 
 		field := node.Field()
 
 		if r.WithValues {
 			preLen = ValueOffset // Adjusts the spacing when values are included
-			valueLen = r.writeNodeValue(&sb, node)
+			valueLen = r.writeNodeValue(&stringBuilder, node)
 		} else {
-			// Since no values was supplied, let's substitute the value with the type
+			// Since no values were supplied, substitute the value with the type
 			typeName := field.Type.String()
 
 			// If the value is an enum type, providing the name is a bit pointless
@@ -55,45 +56,54 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 			}
 
 			valueLen = len(typeName)
-			sb.WriteString(color.CyanString(typeName))
+			stringBuilder.WriteString(color.CyanString(typeName))
 		}
 
-		sb.WriteString(strings.Repeat(" ", util.Max(preLen-valueLen, 1)))
-		sb.WriteString(ColorizeDesc(field.Description))
-		sb.WriteString(strings.Repeat(" ", util.Max(DescriptionColumnWidth-len(field.Description), 1)))
+		stringBuilder.WriteString(strings.Repeat(" ", util.Max(preLen-valueLen, 1)))
+		stringBuilder.WriteString(ColorizeDesc(field.Description))
+		stringBuilder.WriteString(
+			strings.Repeat(" ", util.Max(DescriptionColumnWidth-len(field.Description), 1)),
+		)
 
 		if len(field.URLParts) > 0 && field.URLParts[0] != URLQuery {
-			sb.WriteString(" <URL: ")
+			stringBuilder.WriteString(" <URL: ")
 
 			for i, part := range field.URLParts {
 				if i > 0 {
-					sb.WriteString(", ")
+					stringBuilder.WriteString(", ")
 				}
 
 				if part > URLPath {
 					part = URLPath
 				}
 
-				sb.WriteString(ColorizeEnum(part))
+				stringBuilder.WriteString(ColorizeEnum(part))
 			}
 
-			sb.WriteString(">")
+			stringBuilder.WriteString(">")
 		}
 
 		if len(field.Template) > 0 {
-			sb.WriteString(fmt.Sprintf(" <Template: %s>", ColorizeString(field.Template)))
+			stringBuilder.WriteString(
+				fmt.Sprintf(" <Template: %s>", ColorizeString(field.Template)),
+			)
 		}
 
 		if len(field.DefaultValue) > 0 {
-			sb.WriteString(fmt.Sprintf(" <Default: %s>", ColorizeValue(field.DefaultValue, field.EnumFormatter != nil)))
+			stringBuilder.WriteString(
+				fmt.Sprintf(
+					" <Default: %s>",
+					ColorizeValue(field.DefaultValue, field.EnumFormatter != nil),
+				),
+			)
 		}
 
 		if field.Required {
-			sb.WriteString(fmt.Sprintf(" <%s>", ColorizeFalse("Required")))
+			stringBuilder.WriteString(fmt.Sprintf(" <%s>", ColorizeFalse("Required")))
 		}
 
 		if len(field.Keys) > 1 {
-			sb.WriteString(" <Aliases: ")
+			stringBuilder.WriteString(" <Aliases: ")
 
 			for i, key := range field.Keys {
 				if i == 0 {
@@ -102,87 +112,89 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 				}
 
 				if i > 1 {
-					sb.WriteString(", ")
+					stringBuilder.WriteString(", ")
 				}
 
-				sb.WriteString(ColorizeString(key))
+				stringBuilder.WriteString(ColorizeString(key))
 			}
 
-			sb.WriteString(">")
+			stringBuilder.WriteString(">")
 		}
 
 		if field.EnumFormatter != nil {
-			sb.WriteString(ColorizeContainer(" ["))
+			stringBuilder.WriteString(ColorizeContainer(" ["))
 
 			for i, name := range field.EnumFormatter.Names() {
 				if i != 0 {
-					sb.WriteString(", ")
+					stringBuilder.WriteString(", ")
 				}
 
-				sb.WriteString(ColorizeEnum(name))
+				stringBuilder.WriteString(ColorizeEnum(name))
 			}
 
-			sb.WriteString(ColorizeContainer("]"))
+			stringBuilder.WriteString(ColorizeContainer("]"))
 		}
 
-		sb.WriteRune('\n')
+		stringBuilder.WriteRune('\n')
 	}
 
-	return sb.String()
+	return stringBuilder.String()
 }
 
-func (r ConsoleTreeRenderer) writeNodeValue(sb *strings.Builder, node Node) int {
+func (r ConsoleTreeRenderer) writeNodeValue(stringBuilder *strings.Builder, node Node) int {
 	if contNode, isContainer := node.(*ContainerNode); isContainer {
-		return r.writeContainer(sb, contNode)
+		return r.writeContainer(stringBuilder, contNode)
 	}
 
 	if valNode, isValue := node.(*ValueNode); isValue {
-		sb.WriteString(ColorizeToken(valNode.Value, valNode.tokenType))
+		stringBuilder.WriteString(ColorizeToken(valNode.Value, valNode.tokenType))
 
 		return len(valNode.Value)
 	}
 
-	sb.WriteRune('?')
+	stringBuilder.WriteRune('?')
 
 	return 1
 }
 
-func (r ConsoleTreeRenderer) writeContainer(sb *strings.Builder, node *ContainerNode) int {
+func (r ConsoleTreeRenderer) writeContainer(
+	stringBuilder *strings.Builder,
+	node *ContainerNode,
+) int {
 	kind := node.Type.Kind()
-
 	hasKeys := !util.IsCollection(kind)
 
 	totalLen := ContainerBracketLength // Length of the opening and closing brackets ({ } or [ ])
 
 	if hasKeys {
-		sb.WriteString("{ ")
+		stringBuilder.WriteString("{ ")
 	} else {
-		sb.WriteString("[ ")
+		stringBuilder.WriteString("[ ")
 	}
 
 	for i, itemNode := range node.Items {
 		if i != 0 {
-			sb.WriteString(", ")
+			stringBuilder.WriteString(", ")
 
-			totalLen += KeySeparatorLength // This accounts for the : separator between keys and values in containers
+			totalLen += KeySeparatorLength // Accounts for the : separator between keys and values in containers
 		}
 
 		if hasKeys {
 			itemKey := itemNode.Field().Name
-			sb.WriteString(itemKey)
-			sb.WriteString(": ")
+			stringBuilder.WriteString(itemKey)
+			stringBuilder.WriteString(": ")
 
 			totalLen += len(itemKey) + ItemSeparatorLength
 		}
 
-		valLen := r.writeNodeValue(sb, itemNode)
+		valLen := r.writeNodeValue(stringBuilder, itemNode)
 		totalLen += valLen
 	}
 
 	if hasKeys {
-		sb.WriteString(" }")
+		stringBuilder.WriteString(" }")
 	} else {
-		sb.WriteString(" ]")
+		stringBuilder.WriteString(" ]")
 	}
 
 	return totalLen

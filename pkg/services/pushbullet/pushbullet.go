@@ -1,6 +1,7 @@
 package pushbullet
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -10,8 +11,17 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// Constants.
 const (
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
+)
+
+// Static errors for push validation.
+var (
+	ErrUnexpectedResponseType = errors.New("unexpected response type, expected note")
+	ErrResponseBodyMismatch   = errors.New("response body mismatch")
+	ErrResponseTitleMismatch  = errors.New("response title mismatch")
+	ErrPushNotActive          = errors.New("push notification is not active")
 )
 
 // Service providing Pushbullet as a notification service.
@@ -24,7 +34,7 @@ type Service struct {
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 
 	service.Config = &Config{
 		Title: "Shoutrrr notification", // Explicitly set default
@@ -50,7 +60,7 @@ func (service *Service) GetID() string {
 func (service *Service) Send(message string, params *types.Params) error {
 	config := *service.Config
 	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return err
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	for _, target := range config.Targets {
@@ -62,13 +72,14 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
+// doSend sends a push notification to a specific target and validates the response.
 func doSend(config *Config, target string, message string, client jsonclient.Client) error {
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 
 	response := PushResponse{}
 	if err := client.Post(pushesEndpoint, push, &response); err != nil {
-		errorResponse := &ErrorResponse{}
+		errorResponse := &ResponseError{}
 		if client.ErrorResponse(err, errorResponse) {
 			return fmt.Errorf("API error: %w", errorResponse)
 		}
@@ -78,19 +89,29 @@ func doSend(config *Config, target string, message string, client jsonclient.Cli
 
 	// Validate response fields
 	if response.Type != "note" {
-		return fmt.Errorf("unexpected response type: got %s, expected note", response.Type)
+		return fmt.Errorf("%w: got %s", ErrUnexpectedResponseType, response.Type)
 	}
 
 	if response.Body != message {
-		return fmt.Errorf("response body mismatch: got %s, expected %s", response.Body, message)
+		return fmt.Errorf(
+			"%w: got %s, expected %s",
+			ErrResponseBodyMismatch,
+			response.Body,
+			message,
+		)
 	}
 
 	if response.Title != config.Title {
-		return fmt.Errorf("response title mismatch: got %s, expected %s", response.Title, config.Title)
+		return fmt.Errorf(
+			"%w: got %s, expected %s",
+			ErrResponseTitleMismatch,
+			response.Title,
+			config.Title,
+		)
 	}
 
 	if !response.Active {
-		return fmt.Errorf("push notification is not active")
+		return ErrPushNotActive
 	}
 
 	return nil

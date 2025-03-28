@@ -12,6 +12,6 @@ func (testEnummer) Enums() map[string]t.EnumFormatter {
 	}
 }
 
-func testRenderTree(r TreeRenderer, v interface{}) string {
+func testRenderTree(r TreeRenderer, v any) string {
 	return r.RenderTree(getRootNode(v), "mock")
 }

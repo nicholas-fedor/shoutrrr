@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -12,12 +13,12 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	User       string   `desc:"Username or empty when using access token" optional:""      url:"user"`
-	Password   string   `desc:"Password or access token"                  url:"password"`
-	DisableTLS bool     `default:"No"                                     key:"disableTLS"`
-	Host       string   `url:"host"`
-	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs"  key:"rooms,room" optional:""`
-	Title      string   `default:""                                       key:"title"`
+	User       string   `desc:"Username or empty when using access token" optional:"" url:"user"`
+	Password   string   `desc:"Password or access token"                              url:"password"`
+	DisableTLS bool     `                                                                            default:"No" key:"disableTLS"`
+	Host       string   `                                                             url:"host"`
+	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs"  optional:""                             key:"rooms,room"`
+	Title      string   `                                                                            default:""   key:"title"`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -52,7 +53,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) 
 
 	for key, vals := range configURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 

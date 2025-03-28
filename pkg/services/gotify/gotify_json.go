@@ -16,12 +16,12 @@ type messageResponse struct {
 	Date  string `json:"date"`
 }
 
-type errorResponse struct {
+type responseError struct {
 	Name        string `json:"error"`
 	Code        uint64 `json:"errorCode"`
 	Description string `json:"errorDescription"`
 }
 
-func (er *errorResponse) Error() string {
+func (er *responseError) Error() string {
 	return fmt.Sprintf("server respondend with %v (%v): %v", er.Name, er.Code, er.Description)
 }

@@ -47,7 +47,11 @@ const (
 	FailHandshake
 )
 
-func fail(failureID failures.FailureID, err error, v ...any) failure {
+type failure interface {
+	failures.Failure
+}
+
+func fail(failureID failures.FailureID, err error, args ...any) failure {
 	var msg string
 
 	switch failureID {
@@ -96,9 +100,5 @@ func fail(failureID failures.FailureID, err error, v ...any) failure {
 		msg = "an unknown error occurred"
 	}
 
-	return failures.Wrap(msg, failureID, err, v...)
-}
-
-type failure interface {
-	failures.Failure
+	return failures.Wrap(msg, failureID, err, args...)
 }

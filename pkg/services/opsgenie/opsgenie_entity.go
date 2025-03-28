@@ -1,16 +1,29 @@
 package opsgenie
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
+// EntityPartsCount is the expected number of parts in an entity string (type:identifier).
 const (
 	EntityPartsCount = 2 // Expected number of parts in an entity string (type:identifier)
 )
 
-// { "username":"trinity@opsgenie.com", "type":"user" }.
+// ErrInvalidEntityFormat indicates that the entity string does not have two elements separated by a colon.
+var (
+	ErrInvalidEntityFormat = errors.New(
+		"invalid entity, should have two elements separated by colon",
+	)
+	ErrInvalidEntityIDName   = errors.New("invalid entity, cannot parse id/name")
+	ErrUnexpectedEntityType  = errors.New("invalid entity, unexpected entity type")
+	ErrMissingEntityIdentity = errors.New("invalid entity, should have either ID, name or username")
+)
+
+// Entity represents an OpsGenie entity (e.g., user, team) with type and identifier.
+// Example JSON: { "username":"trinity@opsgenie.com", "type":"user" }.
 type Entity struct {
 	Type     string `json:"type"`
 	ID       string `json:"id,omitempty"`
@@ -18,12 +31,12 @@ type Entity struct {
 	Username string `json:"username,omitempty"`
 }
 
-// SetFromProp deserializes an entity.
+// SetFromProp deserializes an entity from a string in the format "type:identifier".
 func (e *Entity) SetFromProp(propValue string) error {
 	elements := strings.Split(propValue, ":")
 
 	if len(elements) != EntityPartsCount {
-		return fmt.Errorf("invalid entity, should have two elments separated by colon: %q", propValue)
+		return fmt.Errorf("%w: %q", ErrInvalidEntityFormat, propValue)
 	}
 
 	e.Type = elements[0]
@@ -31,40 +44,50 @@ func (e *Entity) SetFromProp(propValue string) error {
 
 	isID, err := isOpsGenieID(identifier)
 	if err != nil {
-		return fmt.Errorf("invalid entity, cannot parse id/name: %q", identifier)
+		return fmt.Errorf("%w: %q", ErrInvalidEntityIDName, identifier)
 	}
 
-	if isID {
+	switch {
+	case isID:
 		e.ID = identifier
-	} else if e.Type == "team" {
+	case e.Type == "team":
 		e.Name = identifier
-	} else if e.Type == "user" {
+	case e.Type == "user":
 		e.Username = identifier
-	} else {
-		return fmt.Errorf("invalid entity, unexpected entity type: %q", e.Type)
+	default:
+		return fmt.Errorf("%w: %q", ErrUnexpectedEntityType, e.Type)
 	}
 
 	return nil
 }
 
-// GetPropValue serializes an entity.
+// GetPropValue serializes an entity back into a string in the format "type:identifier".
 func (e *Entity) GetPropValue() (string, error) {
-	identifier := ""
+	var identifier string
 
-	if e.ID != "" {
+	switch {
+	case e.ID != "":
 		identifier = e.ID
-	} else if e.Name != "" {
+	case e.Name != "":
 		identifier = e.Name
-	} else if e.Username != "" {
+	case e.Username != "":
 		identifier = e.Username
-	} else {
-		return "", fmt.Errorf("invalid entity, should have either ID, name or username")
+	default:
+		return "", ErrMissingEntityIdentity
 	}
 
 	return fmt.Sprintf("%s:%s", e.Type, identifier), nil
 }
 
-// Detects OpsGenie IDs in the form 4513b7ea-3b91-438f-b7e4-e3e54af9147c.
+// isOpsGenieID checks if a string matches the OpsGenie ID format (e.g., 4513b7ea-3b91-438f-b7e4-e3e54af9147c).
 func isOpsGenieID(str string) (bool, error) {
-	return regexp.MatchString(`^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$`, str)
+	matched, err := regexp.MatchString(
+		`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
+		str,
+	)
+	if err != nil {
+		return false, fmt.Errorf("matching OpsGenie ID format for %q: %w", str, err)
+	}
+
+	return matched, nil
 }

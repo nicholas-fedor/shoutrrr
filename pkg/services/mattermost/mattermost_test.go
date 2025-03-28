@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 var (
@@ -34,7 +35,8 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				return
 			}
 			serviceURL, _ := url.Parse(envMattermostURL.String())
-			gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).To(gomega.Succeed())
+			gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).
+				To(gomega.Succeed())
 			err := service.Send(
 				"this is an integration test",
 				nil,
@@ -44,7 +46,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 	})
 	ginkgo.Describe("the mattermost config", func() {
 		ginkgo.When("generating a config object", func() {
-			mattermostURL, _ := url.Parse("mattermost://mattermost.my-domain.com/thisshouldbeanapitoken")
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
 			ginkgo.It("should not have caused an error", func() {
@@ -70,7 +74,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 		})
 		ginkgo.When("generating a config object with username only", func() {
-			mattermostURL, _ := url.Parse("mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken")
+			mattermostURL, _ := url.Parse(
+				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
 			ginkgo.It("should not have caused an error", func() {
@@ -84,7 +90,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 		})
 		ginkgo.When("generating a config object with channel only", func() {
-			mattermostURL, _ := url.Parse("mattermost://mattermost.my-domain.com/thisshouldbeanapitoken/testChannel")
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
+			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
 			ginkgo.It("should not hav caused an error", func() {
@@ -98,7 +106,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 		})
 		ginkgo.When("generating a config object with channel an userName", func() {
-			mattermostURL, _ := url.Parse("mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel")
+			mattermostURL, _ := url.Parse(
+				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
+			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
 			ginkgo.It("should not hav caused an error", func() {
@@ -112,7 +122,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 		})
 		ginkgo.When("using DisableTLS and port", func() {
-			mattermostURL, _ := url.Parse("mattermost://watchtower@home.lan:8065/token/channel?disabletls=yes")
+			mattermostURL, _ := url.Parse(
+				"mattermost://watchtower@home.lan:8065/token/channel?disabletls=yes",
+			)
 			config := &Config{}
 			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
 			ginkgo.It("should preserve host with port", func() {
@@ -125,7 +137,8 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(buildURL(config)).To(gomega.Equal("http://home.lan:8065/hooks/token"))
 			})
 			ginkgo.It("should serialize back correctly", func() {
-				gomega.Expect(config.GetURL().String()).To(gomega.Equal("mattermost://watchtower@home.lan:8065/token/channel?disabletls=Yes"))
+				gomega.Expect(config.GetURL().String()).
+					To(gomega.Equal("mattermost://watchtower@home.lan:8065/token/channel?disabletls=Yes"))
 			})
 		})
 		ginkgo.Describe("initializing with DisableTLS", func() {
@@ -142,11 +155,16 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				httpmock.ActivateNonDefault(service.httpClient)
-				httpmock.RegisterResponder("POST", "http://host:8080/hooks/token", httpmock.NewStringResponder(200, ""))
+				httpmock.RegisterResponder(
+					"POST",
+					"http://host:8080/hooks/token",
+					httpmock.NewStringResponder(200, ""),
+				)
 
 				err = service.Send("Test message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(buildURL(service.Config)).To(gomega.Equal("http://host:8080/hooks/token"))
+				gomega.Expect(buildURL(service.Config)).
+					To(gomega.Equal("http://host:8080/hooks/token"))
 			})
 		})
 
@@ -168,7 +186,11 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				err = service.Initialize(serviceURL, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.ActivateNonDefault(service.httpClient)
-				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.NewStringResponder(200, ""))
+				httpmock.RegisterResponder(
+					"POST",
+					"https://mattermost.host/hooks/token",
+					httpmock.NewStringResponder(200, ""),
+				)
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -182,13 +204,22 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				err = service.Initialize(serviceURL, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.ActivateNonDefault(service.httpClient)
-				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.NewStringResponder(403, "Forbidden"))
+				httpmock.RegisterResponder(
+					"POST",
+					"https://mattermost.host/hooks/token",
+					httpmock.NewStringResponder(403, "Forbidden"),
+				)
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("failed to send notification to service"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("failed to send notification to service"))
 				resp := httpmock.NewStringResponse(403, "Forbidden")
 				resp.Status = "403 Forbidden"
-				httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.ResponderFromResponse(resp))
+				httpmock.RegisterResponder(
+					"POST",
+					"https://mattermost.host/hooks/token",
+					httpmock.ResponderFromResponse(resp),
+				)
 			})
 		})
 	})
@@ -217,11 +248,14 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
 				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
 			})
-			ginkgo.It("should set IconEmoji when the configured icon does not look like an URL", func() {
-				payload.SetIcon("tanabata_tree")
-				gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
-				gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-			})
+			ginkgo.It(
+				"should set IconEmoji when the configured icon does not look like an URL",
+				func() {
+					payload.SetIcon("tanabata_tree")
+					gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
+					gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
+				},
+			)
 			ginkgo.It("should clear both fields when icon is empty", func() {
 				payload.SetIcon("")
 				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
@@ -231,12 +265,15 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 	})
 	ginkgo.Describe("Sending messages", func() {
 		ginkgo.When("sending a message completely without parameters", func() {
-			mattermostURL, _ := url.Parse("mattermost://mattermost.my-domain.com/thisshouldbeanapitoken")
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
 			config := &Config{}
 			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
 			ginkgo.It("should generate the correct url to call", func() {
 				generatedURL := buildURL(config)
-				gomega.Expect(generatedURL).To(gomega.Equal("https://mattermost.my-domain.com/hooks/thisshouldbeanapitoken"))
+				gomega.Expect(generatedURL).
+					To(gomega.Equal("https://mattermost.my-domain.com/hooks/thisshouldbeanapitoken"))
 			})
 			ginkgo.It("should generate the correct JSON body", func() {
 				json, err := CreateJSONPayload(config, "this is a message", nil)
@@ -245,26 +282,40 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 		})
 		ginkgo.When("sending a message with pre set username and channel", func() {
-			mattermostURL, _ := url.Parse("mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel")
+			mattermostURL, _ := url.Parse(
+				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
+			)
 			config := &Config{}
 			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
 			ginkgo.It("should generate the correct JSON body", func() {
 				json, err := CreateJSONPayload(config, "this is a message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"testUserName\",\"channel\":\"testChannel\"}"))
+				gomega.Expect(string(json)).
+					To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"testUserName\",\"channel\":\"testChannel\"}"))
 			})
 		})
-		ginkgo.When("sending a message with pre set username and channel but overwriting them with parameters", func() {
-			mattermostURL, _ := url.Parse("mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel")
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should generate the correct JSON body", func() {
-				params := (*types.Params)(&map[string]string{"username": "overwriteUserName", "channel": "overwriteChannel"})
-				json, err := CreateJSONPayload(config, "this is a message", params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"overwriteUserName\",\"channel\":\"overwriteChannel\"}"))
-			})
-		})
+		ginkgo.When(
+			"sending a message with pre set username and channel but overwriting them with parameters",
+			func() {
+				mattermostURL, _ := url.Parse(
+					"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
+				)
+				config := &Config{}
+				gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+				ginkgo.It("should generate the correct JSON body", func() {
+					params := (*types.Params)(
+						&map[string]string{
+							"username": "overwriteUserName",
+							"channel":  "overwriteChannel",
+						},
+					)
+					json, err := CreateJSONPayload(config, "this is a message", params)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(string(json)).
+						To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"overwriteUserName\",\"channel\":\"overwriteChannel\"}"))
+				})
+			},
+		)
 	})
 
 	ginkgo.When("parsing the configuration URL", func() {
@@ -286,13 +337,17 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 		})
 		ginkgo.When("given a url with title prop", func() {
 			ginkgo.It("should not throw an error", func() {
-				serviceURL := testutils.URLMust(`mattermost://user@mockserver/atoken?icon=https%3A%2F%2Fexample%2Fsomething.png`)
+				serviceURL := testutils.URLMust(
+					`mattermost://user@mockserver/atoken?icon=https%3A%2F%2Fexample%2Fsomething.png`,
+				)
 				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
 			})
 		})
 		ginkgo.When("given a url with all fields and props", func() {
 			ginkgo.It("should not throw an error", func() {
-				serviceURL := testutils.URLMust(`mattermost://user@mockserver/atoken/achannel?icon=https%3A%2F%2Fexample%2Fsomething.png`)
+				serviceURL := testutils.URLMust(
+					`mattermost://user@mockserver/atoken/achannel?icon=https%3A%2F%2Fexample%2Fsomething.png`,
+				)
 				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
 			})
 		})
@@ -314,7 +369,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
 
 				outputURL := config.GetURL()
-				fmt.Println(outputURL.String(), testURL)
+				fmt.Fprint(ginkgo.GinkgoWriter, outputURL.String(), " ", testURL, "\n")
 
 				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
 			})
@@ -340,7 +395,11 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.ActivateNonDefault(service.httpClient)
 
-			httpmock.RegisterResponder("POST", "https://mattermost.host/hooks/token", httpmock.NewStringResponder(200, ``))
+			httpmock.RegisterResponder(
+				"POST",
+				"https://mattermost.host/hooks/token",
+				httpmock.NewStringResponder(200, ``),
+			)
 
 			err = service.Send("Message", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -367,7 +426,8 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			})
 			ginkgo.It("should implement basic service API methods correctly", func() {
 				serviceURL := testutils.URLMust("mattermost://mockhost/mocktoken")
-				gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).To(gomega.Succeed())
+				gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).
+					To(gomega.Succeed())
 				testutils.TestServiceSetInvalidParamValue(service, "foo", "bar")
 			})
 		})

@@ -13,22 +13,33 @@ type MarkdownTreeRenderer struct {
 	PropsEmptyMessage string
 }
 
+// Constants for dynamic path segment offsets.
+const (
+	PathOffset1 = 1
+	PathOffset2 = 2
+	PathOffset3 = 3
+)
+
 // RenderTree renders a ContainerNode tree into a markdown documentation string.
 func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) string {
-	sb := strings.Builder{}
+	stringBuilder := strings.Builder{}
 
 	queryFields := make([]*FieldInfo, 0, len(root.Items))
-	urlFields := make([]*FieldInfo, URLPath+1)
+	urlFields := make([]*FieldInfo, 0, len(root.Items)) // Zero length, capacity for all fields
+	dynamicURLFields := make([]*FieldInfo, 0, len(root.Items))
 
 	for _, node := range root.Items {
 		field := node.Field()
 		for _, urlPart := range field.URLParts {
-			if urlPart == URLQuery {
+			switch urlPart {
+			case URLQuery:
 				queryFields = append(queryFields, field)
-			} else if urlPart > URLPath {
+			case URLPath + PathOffset1,
+				URLPath + PathOffset2,
+				URLPath + PathOffset3:
+				dynamicURLFields = append(dynamicURLFields, field)
+			case URLUser, URLPassword, URLHost, URLPort, URLPath:
 				urlFields = append(urlFields, field)
-			} else {
-				urlFields[urlPart] = field
 			}
 		}
 
@@ -37,39 +48,11 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 		}
 	}
 
-	r.writeURLFields(&sb, urlFields, scheme)
+	// Append dynamic fields to urlFields
+	urlFields = append(urlFields, dynamicURLFields...)
 
-	sort.SliceStable(queryFields, func(i, j int) bool {
-		return queryFields[i].Required && !queryFields[j].Required
-	})
-
-	r.writeHeader(&sb, "Query/Param Props")
-
-	if len(queryFields) > 0 {
-		sb.WriteString(r.PropsDescription)
-	} else {
-		sb.WriteString(r.PropsEmptyMessage)
-	}
-
-	sb.WriteRune('\n')
-
-	for _, field := range queryFields {
-		r.writeFieldPrimary(&sb, field)
-		r.writeFieldExtras(&sb, field)
-		sb.WriteRune('\n')
-	}
-
-	return sb.String()
-}
-
-func (r MarkdownTreeRenderer) writeURLFields(sb *strings.Builder, urlFields []*FieldInfo, scheme string) {
-	fieldsPrinted := make(map[string]bool)
-
+	// Sort by primary URLPart
 	sort.SliceStable(urlFields, func(i, j int) bool {
-		if urlFields[i] == nil || urlFields[j] == nil {
-			return false
-		}
-
 		urlPartA := URLQuery
 		if len(urlFields[i].URLParts) > 0 {
 			urlPartA = urlFields[i].URLParts[0]
@@ -83,72 +66,122 @@ func (r MarkdownTreeRenderer) writeURLFields(sb *strings.Builder, urlFields []*F
 		return urlPartA < urlPartB
 	})
 
-	r.writeHeader(sb, "URL Fields")
+	r.writeURLFields(&stringBuilder, urlFields, scheme)
+
+	sort.SliceStable(queryFields, func(i, j int) bool {
+		return queryFields[i].Required && !queryFields[j].Required
+	})
+
+	r.writeHeader(&stringBuilder, "Query/Param Props")
+
+	if len(queryFields) > 0 {
+		stringBuilder.WriteString(r.PropsDescription)
+	} else {
+		stringBuilder.WriteString(r.PropsEmptyMessage)
+	}
+
+	stringBuilder.WriteRune('\n')
+
+	for _, field := range queryFields {
+		r.writeFieldPrimary(&stringBuilder, field)
+		r.writeFieldExtras(&stringBuilder, field)
+		stringBuilder.WriteRune('\n')
+	}
+
+	return stringBuilder.String()
+}
+
+func (r MarkdownTreeRenderer) writeURLFields(
+	stringBuilder *strings.Builder,
+	urlFields []*FieldInfo,
+	scheme string,
+) {
+	fieldsPrinted := make(map[string]bool)
+
+	r.writeHeader(stringBuilder, "URL Fields")
 
 	for _, field := range urlFields {
 		if field == nil || fieldsPrinted[field.Name] {
 			continue
 		}
 
-		r.writeFieldPrimary(sb, field)
+		r.writeFieldPrimary(stringBuilder, field)
 
-		sb.WriteString("  URL part: <code class=\"service-url\">")
+		stringBuilder.WriteString("  URL part: <code class=\"service-url\">")
+		stringBuilder.WriteString(scheme)
+		stringBuilder.WriteString("://")
 
-		for i, uf := range urlFields {
-			urlPart := URLPart(i)
-			if urlPart == URLQuery {
-				sb.WriteString(scheme)
-				sb.WriteString("://")
+		// Check for presence of URLUser or URLPassword
+		hasUser := false
+		hasPassword := false
+		maxPart := URLUser // Track the highest URLPart used
 
-				continue
-			}
-
-			if uf == nil {
-				if urlPart == URLPath {
-					sb.WriteRune(urlPart.Suffix())
-				} else if urlPart == URLHost {
-					// Host cannot be empty
-					if urlFields[URLPassword] != nil || urlFields[URLUser] != nil {
-						sb.WriteRune(URLPassword.Suffix())
+		for _, f := range urlFields {
+			if f != nil {
+				for _, part := range f.URLParts {
+					switch part {
+					case URLQuery, URLHost, URLPort, URLPath: // No-op for these cases
+					case URLUser:
+						hasUser = true
+					case URLPassword:
+						hasPassword = true
 					}
 
-					sb.WriteString(scheme)
+					if part > maxPart {
+						maxPart = part
+					}
 				}
-
-				continue
-			} else if urlPart == URLHost && urlFields[URLUser] == nil && urlFields[URLPassword] == nil {
-			} else if urlPart > URLUser {
-				lastPart := urlPart - 1
-				sb.WriteRune(lastPart.Suffix())
-			}
-
-			if field.IsURLPart(urlPart) {
-				sb.WriteString("<strong>")
-			}
-
-			slug := strings.ToLower(uf.Name)
-
-			// Hard coded override for host:port 😓
-			if slug == "host" && urlPart == URLPort {
-				slug = "port"
-			}
-
-			sb.WriteString(slug)
-
-			if field.IsURLPart(urlPart) {
-				sb.WriteString("</strong>")
 			}
 		}
 
-		sb.WriteString("</code>  \n")
+		// Build URL with this field highlighted
+		for i := URLUser; i <= URLPath+PathOffset3; i++ {
+			urlPart := i
+			for _, fieldInfo := range urlFields {
+				if fieldInfo != nil && fieldInfo.IsURLPart(urlPart) {
+					if i > URLUser {
+						lastPart := i - 1
+						if lastPart == URLPassword && (hasUser || hasPassword) {
+							stringBuilder.WriteRune(
+								lastPart.Suffix(),
+							) // ':' only if credentials present
+						} else if lastPart != URLPassword {
+							stringBuilder.WriteRune(lastPart.Suffix()) // '/' or '@'
+						}
+					}
+
+					slug := strings.ToLower(fieldInfo.Name)
+					if slug == "host" && urlPart == URLPort {
+						slug = "port"
+					}
+
+					if fieldInfo == field {
+						stringBuilder.WriteString("<strong>")
+						stringBuilder.WriteString(slug)
+						stringBuilder.WriteString("</strong>")
+					} else {
+						stringBuilder.WriteString(slug)
+					}
+
+					break
+				}
+			}
+		}
+
+		// Add trailing '/' if no dynamic path segments follow
+		if maxPart < URLPath+PathOffset1 {
+			stringBuilder.WriteRune('/')
+		}
+
+		stringBuilder.WriteString("</code>  \n")
 
 		fieldsPrinted[field.Name] = true
 	}
 }
 
-func (MarkdownTreeRenderer) writeFieldExtras(sb *strings.Builder, field *FieldInfo) {
+func (MarkdownTreeRenderer) writeFieldExtras(stringBuilder *strings.Builder, field *FieldInfo) {
 	if len(field.Keys) > 1 {
-		sb.WriteString("  Aliases: `")
+		stringBuilder.WriteString("  Aliases: `")
 
 		for i, key := range field.Keys {
 			if i == 0 {
@@ -157,70 +190,70 @@ func (MarkdownTreeRenderer) writeFieldExtras(sb *strings.Builder, field *FieldIn
 			}
 
 			if i > 1 {
-				sb.WriteString("`, `")
+				stringBuilder.WriteString("`, `")
 			}
 
-			sb.WriteString(key)
+			stringBuilder.WriteString(key)
 		}
 
-		sb.WriteString("`  \n")
+		stringBuilder.WriteString("`  \n")
 	}
 
 	if field.EnumFormatter != nil {
-		sb.WriteString("  Possible values: `")
+		stringBuilder.WriteString("  Possible values: `")
 
 		for i, name := range field.EnumFormatter.Names() {
 			if i != 0 {
-				sb.WriteString("`, `")
+				stringBuilder.WriteString("`, `")
 			}
 
-			sb.WriteString(name)
+			stringBuilder.WriteString(name)
 		}
 
-		sb.WriteString("`  \n")
+		stringBuilder.WriteString("`  \n")
 	}
 }
 
-func (MarkdownTreeRenderer) writeFieldPrimary(sb *strings.Builder, field *FieldInfo) {
+func (MarkdownTreeRenderer) writeFieldPrimary(stringBuilder *strings.Builder, field *FieldInfo) {
 	fieldKey := field.Name
 
-	sb.WriteString("*  __")
-	sb.WriteString(fieldKey)
-	sb.WriteString("__")
+	stringBuilder.WriteString("*  __")
+	stringBuilder.WriteString(fieldKey)
+	stringBuilder.WriteString("__")
 
 	if field.Description != "" {
-		sb.WriteString(" - ")
-		sb.WriteString(field.Description)
+		stringBuilder.WriteString(" - ")
+		stringBuilder.WriteString(field.Description)
 	}
 
 	if field.Required {
-		sb.WriteString(" (**Required**)  \n")
+		stringBuilder.WriteString(" (**Required**)  \n")
 	} else {
-		sb.WriteString("  \n  Default: ")
+		stringBuilder.WriteString("  \n  Default: ")
 
 		if field.DefaultValue == "" {
-			sb.WriteString("*empty*")
+			stringBuilder.WriteString("*empty*")
 		} else {
 			if field.Type.Kind() == reflect.Bool {
 				defaultValue, _ := ParseBool(field.DefaultValue, false)
 				if defaultValue {
-					sb.WriteString("✔ ")
+					stringBuilder.WriteString("✔ ")
 				} else {
-					sb.WriteString("❌ ")
+					stringBuilder.WriteString("❌ ")
 				}
 			}
 
-			sb.WriteRune('`')
-			sb.WriteString(field.DefaultValue)
-			sb.WriteRune('`')
+			stringBuilder.WriteRune('`')
+			stringBuilder.WriteString(field.DefaultValue)
+			stringBuilder.WriteRune('`')
 		}
 
-		sb.WriteString("  \n")
+		stringBuilder.WriteString("  \n")
 	}
 }
 
-func (r MarkdownTreeRenderer) writeHeader(sb *strings.Builder, text string) {
-	sb.WriteString(r.HeaderPrefix)
-	sb.WriteString(text)
-	sb.WriteString("\n\n")
+func (r MarkdownTreeRenderer) writeHeader(stringBuilder *strings.Builder, text string) {
+	stringBuilder.WriteString(r.HeaderPrefix)
+	stringBuilder.WriteString(text)
+	stringBuilder.WriteString("\n\n")
 }

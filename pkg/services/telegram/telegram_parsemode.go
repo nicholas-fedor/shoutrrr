@@ -5,22 +5,12 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-type parseMode int
-
 const (
 	ParseModeNone       parseMode = iota // 0
 	ParseModeMarkdown                    // 1
 	ParseModeHTML                        // 2
 	ParseModeMarkdownV2                  // 3
 )
-
-type parseModeVals struct {
-	None       parseMode
-	Markdown   parseMode
-	HTML       parseMode
-	MarkdownV2 parseMode
-	Enum       types.EnumFormatter
-}
 
 // ParseModes is an enum helper for parseMode.
 var ParseModes = &parseModeVals{
@@ -35,6 +25,16 @@ var ParseModes = &parseModeVals{
 			"HTML",
 			"MarkdownV2",
 		}),
+}
+
+type parseMode int
+
+type parseModeVals struct {
+	None       parseMode
+	Markdown   parseMode
+	HTML       parseMode
+	MarkdownV2 parseMode
+	Enum       types.EnumFormatter
 }
 
 func (pm parseMode) String() string {

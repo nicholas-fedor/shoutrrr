@@ -4,12 +4,12 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 func TestTestUtils(t *testing.T) {
@@ -21,7 +21,7 @@ func TestTestUtils(t *testing.T) {
 var _ = ginkgo.Describe("the testutils package", func() {
 	ginkgo.When("calling function TestLogger", func() {
 		ginkgo.It("should not return nil", func() {
-			gomega.Expect(testutils.TestLogger()).NotTo(gomega.Equal(nil))
+			gomega.Expect(testutils.TestLogger()).NotTo(gomega.BeNil())
 		})
 		ginkgo.It(`should have the prefix "[Test] "`, func() {
 			gomega.Expect(testutils.TestLogger().Prefix()).To(gomega.Equal("[Test] "))
@@ -39,7 +39,9 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		ginkgo.Describe("JSONRespondMust", func() {
 			ginkgo.It("should panic when an invalid struct is passed", func() {
 				notAValidJSONSource := func() {}
-				failures := gomega.InterceptGomegaFailures(func() { testutils.JSONRespondMust(200, notAValidJSONSource) })
+				failures := gomega.InterceptGomegaFailures(
+					func() { testutils.JSONRespondMust(200, notAValidJSONSource) },
+				)
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
 		})
@@ -118,7 +120,7 @@ type dummyConfig struct {
 }
 
 func (dc *dummyConfig) GetURL() *url.URL           { return &url.URL{} }
-func (dc *dummyConfig) SetURL(u *url.URL) error    { return nil }
+func (dc *dummyConfig) SetURL(_ *url.URL) error    { return nil }
 func (dc *dummyConfig) Get(string) (string, error) { return "", nil }
 func (dc *dummyConfig) Set(string, string) error   { return nil }
 func (dc *dummyConfig) QueryFields() []string      { return []string{} }

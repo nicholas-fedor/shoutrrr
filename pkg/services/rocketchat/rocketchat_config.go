@@ -9,57 +9,63 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
-// Config for the rocket.chat service.
-type Config struct {
-	standard.EnumlessConfig
-	UserName string `optional:"" url:"user"`
-	Host     string `url:"host"`
-	Port     string `url:"port"`
-	TokenA   string `url:"path1"`
-	Channel  string `url:"path3"`
-	TokenB   string `url:"path2"`
-}
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "rocketchat"
 
 // Constants for URL path length checks.
 const (
-	Scheme             = "rocketchat"
-	NotEnoughArguments = "the apiURL does not include enough arguments"
-	MinPathParts       = 3 // Minimum number of path parts required (including empty first slash)
-	TokenBIndex        = 2 // Index for TokenB in path
-	ChannelIndex       = 3 // Index for Channel in path
+	MinPathParts = 3 // Minimum number of path parts required (including empty first slash)
+	TokenBIndex  = 2 // Index for TokenB in path
+	ChannelIndex = 3 // Index for Channel in path
 )
 
-// GetURL returns a URL representation of its current field values.
+// Static errors for configuration validation.
+var (
+	ErrNotEnoughArguments = errors.New("the apiURL does not include enough arguments")
+)
+
+// Config for the Rocket.Chat service.
+type Config struct {
+	standard.EnumlessConfig
+	UserName string `optional:"" url:"user"`
+	Host     string `            url:"host"`
+	Port     string `            url:"port"`
+	TokenA   string `            url:"path1"`
+	Channel  string `            url:"path3"`
+	TokenB   string `            url:"path2"`
+}
+
+// GetURL returns a URL representation of the Config's current field values.
 func (config *Config) GetURL() *url.URL {
 	host := config.Host
 	if config.Port != "" {
 		host = fmt.Sprintf("%s:%s", config.Host, config.Port)
 	}
 
-	u := &url.URL{
+	url := &url.URL{
 		Host:       host,
 		Path:       fmt.Sprintf("%s/%s", config.TokenA, config.TokenB),
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
 
-	return u
+	return url
 }
 
-// SetURL updates a ServiceConfig from a URL representation of its field values.
+// SetURL updates the Config from a URL representation of its field values.
 func (config *Config) SetURL(serviceURL *url.URL) error {
-	UserName := serviceURL.User.Username()
+	userName := serviceURL.User.Username()
 	host := serviceURL.Hostname()
 
 	path := strings.Split(serviceURL.Path, "/")
 	if serviceURL.String() != "rocketchat://dummy@dummy.com" {
 		if len(path) < MinPathParts {
-			return errors.New(NotEnoughArguments)
+			return ErrNotEnoughArguments
 		}
 	}
 
 	config.Port = serviceURL.Port()
-	config.UserName = UserName
+	config.UserName = userName
 	config.Host = host
 
 	if len(path) > 1 {
@@ -71,11 +77,12 @@ func (config *Config) SetURL(serviceURL *url.URL) error {
 	}
 
 	if len(path) > ChannelIndex {
-		if serviceURL.Fragment != "" {
+		switch {
+		case serviceURL.Fragment != "":
 			config.Channel = "#" + serviceURL.Fragment
-		} else if !strings.HasPrefix(path[ChannelIndex], "@") {
+		case !strings.HasPrefix(path[ChannelIndex], "@"):
 			config.Channel = "#" + path[ChannelIndex]
-		} else {
+		default:
 			config.Channel = path[ChannelIndex]
 		}
 	}

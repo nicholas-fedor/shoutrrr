@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -9,10 +10,13 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
+// Scheme identifies this service in configuration URLs.
 const Scheme = "matrix"
 
-// Service providing Matrix as a notification service.
+// ErrClientNotInitialized indicates that the client is not initialized for sending messages.
+var ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
+
+// Service sends notifications via the Matrix protocol.
 type Service struct {
 	standard.Standard
 	Config *Config
@@ -20,7 +24,7 @@ type Service struct {
 	pkr    format.PropKeyResolver
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -42,20 +46,20 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	return nil
 }
 
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Send notification.
+// Send delivers a notification message to Matrix rooms.
 func (s *Service) Send(message string, params *types.Params) error {
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return err
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	if s.client == nil {
-		return fmt.Errorf("client not initialized; cannot send message")
+		return ErrClientNotInitialized
 	}
 
 	errors := s.client.sendMessage(message, s.Config.Rooms)
@@ -64,7 +68,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 			s.Logf("error sending message: %w", err)
 		}
 
-		return fmt.Errorf("%v error(s) sending message, with initial error: %v", len(errors), errors[0])
+		return fmt.Errorf(
+			"%v error(s) sending message, with initial error: %w",
+			len(errors),
+			errors[0],
+		)
 	}
 
 	return nil

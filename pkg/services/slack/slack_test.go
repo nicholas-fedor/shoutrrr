@@ -10,12 +10,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/slack"
-
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/slack"
 )
 
 const (
@@ -63,24 +63,36 @@ var _ = ginkgo.Describe("the slack service", func() {
 
 	ginkgo.When("given a token with a malformed part", func() {
 		ginkgo.It("should return an error if part A is not 9 letters", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://lol@12345678/123456789/123456789123456789123456")
+			expectErrorMessageGivenURL(
+				slack.ErrInvalidToken,
+				"slack://lol@12345678/123456789/123456789123456789123456",
+			)
 		})
 		ginkgo.It("should return an error if part B is not 9 letters", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://lol@123456789/12345678/123456789123456789123456")
+			expectErrorMessageGivenURL(
+				slack.ErrInvalidToken,
+				"slack://lol@123456789/12345678/123456789123456789123456",
+			)
 		})
 		ginkgo.It("should return an error if part C is not 24 letters", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://123456789/123456789/12345678912345678912345")
+			expectErrorMessageGivenURL(
+				slack.ErrInvalidToken,
+				"slack://123456789/123456789/12345678912345678912345",
+			)
 		})
 	})
 	ginkgo.When("given a token missing a part", func() {
 		ginkgo.It("should return an error if the missing part is A", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://lol@/123456789/123456789123456789123456")
+			expectErrorMessageGivenURL(
+				slack.ErrInvalidToken,
+				"slack://lol@/123456789/123456789123456789123456",
+			)
 		})
 		ginkgo.It("should return an error if the missing part is B", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://lol@123456789//123456789")
+			expectErrorMessageGivenURL(slack.ErrInvalidToken, "slack://lol@123456789//123456789")
 		})
 		ginkgo.It("should return an error if the missing part is C", func() {
-			expectErrorMessageGivenURL(slack.ErrorInvalidToken, "slack://lol@123456789/123456789/")
+			expectErrorMessageGivenURL(slack.ErrInvalidToken, "slack://lol@123456789/123456789/")
 		})
 	})
 	ginkgo.Describe("the slack config", func() {
@@ -99,7 +111,9 @@ var _ = ginkgo.Describe("the slack service", func() {
 			})
 		})
 		ginkgo.When("the URL contains an invalid property", func() {
-			testURL := testutils.URLMust("slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?bass=dirty")
+			testURL := testutils.URLMust(
+				"slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?bass=dirty",
+			)
 			err := (&slack.Config{}).SetURL(testURL)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
@@ -114,15 +128,20 @@ var _ = ginkgo.Describe("the slack service", func() {
 			gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
 		})
 		ginkgo.When("generating a config object", func() {
-			ginkgo.It("should use the default botname if the argument list contains three strings", func() {
-				slackURL, _ := url.Parse("slack://AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
-				config, configError := slack.CreateConfigFromURL(slackURL)
+			ginkgo.It(
+				"should use the default botname if the argument list contains three strings",
+				func() {
+					slackURL, _ := url.Parse("slack://AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
+					config, configError := slack.CreateConfigFromURL(slackURL)
 
-				gomega.Expect(configError).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.BotName).To(gomega.BeEmpty())
-			})
+					gomega.Expect(configError).NotTo(gomega.HaveOccurred())
+					gomega.Expect(config.BotName).To(gomega.BeEmpty())
+				},
+			)
 			ginkgo.It("should set the botname if the argument list is three", func() {
-				slackURL, _ := url.Parse("slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
+				slackURL, _ := url.Parse(
+					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
+				)
 				config, configError := slack.CreateConfigFromURL(slackURL)
 
 				gomega.Expect(configError).NotTo(gomega.HaveOccurred())
@@ -140,11 +159,14 @@ var _ = ginkgo.Describe("the slack service", func() {
 				token := tokenMust("AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
 				gomega.Expect(token.WebhookURL()).To(gomega.Equal(TestWebhookURL))
 			})
-			ginkgo.It("should return a valid authorization header value for the given token", func() {
-				token := tokenMust("xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
-				expected := "Bearer xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456"
-				gomega.Expect(token.Authorization()).To(gomega.Equal(expected))
-			})
+			ginkgo.It(
+				"should return a valid authorization header value for the given token",
+				func() {
+					token := tokenMust("xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
+					expected := "Bearer xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456"
+					gomega.Expect(token.Authorization()).To(gomega.Equal(expected))
+				},
+			)
 		})
 	})
 
@@ -156,11 +178,14 @@ var _ = ginkgo.Describe("the slack service", func() {
 				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
 				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
 			})
-			ginkgo.It("should set IconEmoji when the configured icon does not look like an URL", func() {
-				payload.SetIcon("tanabata_tree")
-				gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
-				gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-			})
+			ginkgo.It(
+				"should set IconEmoji when the configured icon does not look like an URL",
+				func() {
+					payload.SetIcon("tanabata_tree")
+					gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
+					gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
+				},
+			)
 			ginkgo.It("should clear both fields when icon is empty", func() {
 				payload.SetIcon("")
 				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
@@ -177,7 +202,14 @@ var _ = ginkgo.Describe("the slack service", func() {
 				payload := slack.CreateJSONPayload(&config, sb.String()).(slack.MessagePayload)
 				atts := payload.Attachments
 
-				fmt.Printf("\nLines: %d, Last: %#v\n", len(atts), atts[len(atts)-1])
+				fmt.Fprint(
+					ginkgo.GinkgoWriter,
+					"\nLines: ",
+					len(atts),
+					" Last: ",
+					atts[len(atts)-1],
+					"\n",
+				)
 
 				gomega.Expect(atts).To(gomega.HaveLen(100))
 				gomega.Expect(atts[len(atts)-1].Text).To(gomega.ContainSubstring("Line 110"))
@@ -203,21 +235,33 @@ var _ = ginkgo.Describe("the slack service", func() {
 			})
 
 			ginkgo.It("should not report an error if the server accepts the payload", func() {
-				serviceURL, _ := url.Parse("slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
+				serviceURL, _ := url.Parse(
+					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
+				)
 				err = service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-				httpmock.RegisterResponder("POST", TestWebhookURL, httpmock.NewStringResponder(200, ""))
+				httpmock.RegisterResponder(
+					"POST",
+					TestWebhookURL,
+					httpmock.NewStringResponder(200, ""),
+				)
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-				serviceURL, _ := url.Parse("slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
+				serviceURL, _ := url.Parse(
+					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
+				)
 				err = service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-				httpmock.RegisterResponder("POST", TestWebhookURL, httpmock.NewErrorResponder(errors.New("dummy error")))
+				httpmock.RegisterResponder(
+					"POST",
+					TestWebhookURL,
+					httpmock.NewErrorResponder(errors.New("dummy error")),
+				)
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -233,27 +277,39 @@ var _ = ginkgo.Describe("the slack service", func() {
 			})
 
 			ginkgo.It("should not report an error if the server accepts the payload", func() {
-				serviceURL := testutils.URLMust("slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789")
+				serviceURL := testutils.URLMust(
+					"slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789",
+				)
 				err = service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				targetURL := "https://slack.com/api/chat.postMessage"
-				httpmock.RegisterResponder("POST", targetURL, testutils.JSONRespondMust(200, slack.APIResponse{
-					Ok: true,
-				}))
+				httpmock.RegisterResponder(
+					"POST",
+					targetURL,
+					testutils.JSONRespondMust(200, slack.APIResponse{
+						Ok: true,
+					}),
+				)
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-				serviceURL := testutils.URLMust("slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789")
+				serviceURL := testutils.URLMust(
+					"slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789",
+				)
 				err = service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				targetURL := "https://slack.com/api/chat.postMessage"
-				httpmock.RegisterResponder("POST", targetURL, testutils.JSONRespondMust(200, slack.APIResponse{
-					Error: "someone turned off the internet",
-				}))
+				httpmock.RegisterResponder(
+					"POST",
+					targetURL,
+					testutils.JSONRespondMust(200, slack.APIResponse{
+						Error: "someone turned off the internet",
+					}),
+				)
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())

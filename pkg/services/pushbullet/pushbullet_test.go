@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/pushbullet"
-
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/pushbullet"
 )
 
 func TestPushbullet(t *testing.T) {
@@ -58,7 +58,9 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 			})
 
 			ginkgo.It("should set the device from path", func() {
-				pushbulletURL, _ := url.Parse("pushbullet://tokentokentokentokentokentokentoke/test")
+				pushbulletURL, _ := url.Parse(
+					"pushbullet://tokentokentokentokentokentokentoke/test",
+				)
 				config := pushbullet.Config{}
 				err := config.SetURL(pushbulletURL)
 
@@ -68,7 +70,9 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 			})
 
 			ginkgo.It("should set the channel from path", func() {
-				pushbulletURL, _ := url.Parse("pushbullet://tokentokentokentokentokentokentoke/foo#bar")
+				pushbulletURL, _ := url.Parse(
+					"pushbullet://tokentokentokentokentokentokentoke/foo#bar",
+				)
 				config := pushbullet.Config{}
 				err := config.SetURL(pushbulletURL)
 
@@ -130,7 +134,7 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			response := pushbullet.PushResponse{
@@ -147,17 +151,21 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 
 		ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			httpmock.RegisterResponder("POST", targetURL, httpmock.NewErrorResponder(errors.New("")))
+			httpmock.RegisterResponder(
+				"POST",
+				targetURL,
+				httpmock.NewErrorResponder(errors.New("")),
+			)
 
 			err = service.Send("Message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("should return an error if the response type is incorrect", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			response := pushbullet.PushResponse{
@@ -175,7 +183,7 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 
 		ginkgo.It("should return an error if the response body does not match", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			response := pushbullet.PushResponse{
@@ -193,7 +201,7 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 
 		ginkgo.It("should return an error if the response title does not match", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			response := pushbullet.PushResponse{
@@ -211,7 +219,7 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 
 		ginkgo.It("should return an error if the push is not active", func() {
-			err = initService("pushbullet://tokentokentokentokentokentokentoke/test")
+			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			response := pushbullet.PushResponse{
@@ -225,13 +233,15 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 
 			err = service.Send("Message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("push notification is not active"))
+			gomega.Expect(err.Error()).
+				To(gomega.ContainSubstring("push notification is not active"))
 		})
 	})
 })
 
-func initService(rawURL string) error {
-	serviceURL, err := url.Parse(rawURL)
+// initService initializes the service with a fixed test configuration.
+func initService() error {
+	serviceURL, err := url.Parse("pushbullet://tokentokentokentokentokentokentoke/test")
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	return service.Initialize(serviceURL, testutils.TestLogger())

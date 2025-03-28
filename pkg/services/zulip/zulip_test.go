@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 func TestZulip(t *testing.T) {
@@ -54,7 +55,6 @@ func createZulipURL(botMail, botKey, host, stream, topic string) *url.URL {
 var _ = ginkgo.Describe("the zulip service", func() {
 	ginkgo.When("running integration tests", func() {
 		ginkgo.It("should not error out", func() {
-			// Covers zulip.go:32-52 (Send), zulip.go:55-63 (Initialize), zulip.go:65-78 (doSend partially)
 			if envZulipURL.String() == "" {
 				return
 			}
@@ -68,12 +68,16 @@ var _ = ginkgo.Describe("the zulip service", func() {
 
 	ginkgo.When("given a service url with missing parts", func() {
 		ginkgo.It("should return an error if bot mail is missing", func() {
-			// Covers zulip_config.go:55-58 (setURL BotMail check), zulip_errors.go:15 (MissingBotMail)
-			zulipURL := createZulipURL("", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
-			expectErrorMessageGivenURL(MissingBotMail, zulipURL)
+			zulipURL := createZulipURL(
+				"",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"bar",
+			)
+			expectErrorMessageGivenURL("bot mail missing from config URL", zulipURL)
 		})
 		ginkgo.It("should return an error if api key is missing", func() {
-			// Covers zulip_config.go:60-63 (setURL BotKey check), zulip_errors.go:13 (MissingAPIKey)
 			zulipURL := &url.URL{
 				Scheme: "zulip",
 				User:   url.User("bot-name@zulipchat.com"),
@@ -83,26 +87,52 @@ var _ = ginkgo.Describe("the zulip service", func() {
 					"topic":  []string{"bar"},
 				}.Encode(),
 			}
-			expectErrorMessageGivenURL(MissingAPIKey, zulipURL)
+			expectErrorMessageGivenURL("API key missing from config URL", zulipURL)
 		})
 		ginkgo.It("should return an error if host is missing", func() {
-			// Covers zulip_config.go:65-68 (setURL Host check), zulip_errors.go:14 (MissingHost)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "", "foo", "bar")
-			expectErrorMessageGivenURL(MissingHost, zulipURL)
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"",
+				"foo",
+				"bar",
+			)
+			expectErrorMessageGivenURL("host missing from config URL", zulipURL)
 		})
 	})
 	ginkgo.When("given a valid service url is provided", func() {
 		ginkgo.It("should not return an error", func() {
-			// Covers zulip.go:55-63 (Initialize), zulip_config.go:49-72 (SetURL success case)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"bar",
+			)
+			err := service.Initialize(zulipURL, testutils.TestLogger())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+		ginkgo.It("should not return an error with a different bot key", func() {
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"differentkey123456789",
+				"example.zulipchat.com",
+				"foo",
+				"bar",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})
 	ginkgo.When("sending a message", func() {
 		ginkgo.It("should error if topic exceeds max length", func() {
-			// Covers zulip.go:43-45 (topic length validation), zulip_errors.go:16 (TopicTooLong)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -110,22 +140,44 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			params := &types.Params{"topic": longTopic}
 			err = service.Send("test message", params)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring(fmt.Sprintf(string(TopicTooLong), topicMaxLength, len([]rune(longTopic)))))
+			gomega.Expect(err.Error()).To(gomega.Equal(
+				fmt.Sprintf(
+					"topic exceeds max length: %d characters, got %d",
+					topicMaxLength,
+					len([]rune(longTopic)),
+				),
+			))
 		})
 		ginkgo.It("should error if message exceeds max size", func() {
-			// Covers zulip.go:47-50 (message size validation)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"bar",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			longMessage := strings.Repeat("a", contentMaxSize+1) // 10001 bytes
 			err = service.Send(longMessage, nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.Equal(fmt.Sprintf("message exceeds max size (%d bytes): was %d bytes", contentMaxSize, len(longMessage))))
+			gomega.Expect(err.Error()).To(gomega.Equal(
+				fmt.Sprintf(
+					"message exceeds max size: %d bytes, got %d bytes",
+					contentMaxSize,
+					len(longMessage),
+				),
+			))
 		})
 		ginkgo.It("should override stream from params", func() {
-			// Covers zulip.go:38-39 (Stream override from params)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "original", "")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"original",
+				"",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -138,13 +190,22 @@ var _ = ginkgo.Describe("the zulip service", func() {
 				Host:    "example.zulipchat.com",
 				Stream:  "newstream",
 			})
-			httpmock.RegisterResponder("POST", apiURL, httpmock.NewStringResponder(http.StatusOK, ""))
+			httpmock.RegisterResponder(
+				"POST",
+				apiURL,
+				httpmock.NewStringResponder(http.StatusOK, ""),
+			)
 			err = service.Send("test message", params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("should override topic from params", func() {
-			// Covers zulip.go:41-42 (Topic override from params)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "original")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"original",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -159,27 +220,42 @@ var _ = ginkgo.Describe("the zulip service", func() {
 				Topic:   "newtopic",
 			}
 			apiURL := service.getAPIURL(config)
-			httpmock.RegisterResponder("POST", apiURL, func(req *http.Request) (*http.Response, error) {
-				gomega.Expect(req.FormValue("topic")).To(gomega.Equal("newtopic"))
+			httpmock.RegisterResponder(
+				"POST",
+				apiURL,
+				func(req *http.Request) (*http.Response, error) {
+					gomega.Expect(req.FormValue("topic")).To(gomega.Equal("newtopic"))
 
-				return httpmock.NewStringResponse(http.StatusOK, ""), nil
-			})
+					return httpmock.NewStringResponse(http.StatusOK, ""), nil
+				},
+			)
 			err = service.Send("test message", params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("should handle HTTP errors", func() {
-			// Covers zulip.go:71-75 (doSend HTTP error handling)
-			zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
+			zulipURL := createZulipURL(
+				"bot-name@zulipchat.com",
+				"correcthorsebatterystable",
+				"example.zulipchat.com",
+				"foo",
+				"bar",
+			)
 			err := service.Initialize(zulipURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.Activate()
 			defer httpmock.DeactivateAndReset()
 			apiURL := service.getAPIURL(service.Config)
-			httpmock.RegisterResponder("POST", apiURL, httpmock.NewStringResponder(http.StatusBadRequest, "Bad Request"))
+			httpmock.RegisterResponder(
+				"POST",
+				apiURL,
+				httpmock.NewStringResponder(http.StatusBadRequest, "Bad Request"),
+			)
 			err = service.Send("test message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("response status code 400"))
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring(
+				"failed to send zulip message: response status code unexpected: 400",
+			))
 		})
 	})
 	ginkgo.Describe("the zulip config", func() {
@@ -212,7 +288,13 @@ var _ = ginkgo.Describe("the zulip service", func() {
 		ginkgo.When("generating a config object", func() {
 			ginkgo.It("should generate a correct config object using CreateConfigFromURL", func() {
 				// Covers zulip_config.go:92-98 (CreateConfigFromURL), zulip_config.go:49-72 (setURL)
-				zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
+				zulipURL := createZulipURL(
+					"bot-name@zulipchat.com",
+					"correcthorsebatterystable",
+					"example.zulipchat.com",
+					"foo",
+					"bar",
+				)
 				serviceConfig, err := CreateConfigFromURL(zulipURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -228,7 +310,13 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			ginkgo.It("should update config correctly using SetURL", func() {
 				// Covers zulip_config.go:27-29 (SetURL), zulip_config.go:49-72 (setURL)
 				config := &Config{} // Start with empty config
-				zulipURL := createZulipURL("bot-name@zulipchat.com", "correcthorsebatterystable", "example.zulipchat.com", "foo", "bar")
+				zulipURL := createZulipURL(
+					"bot-name@zulipchat.com",
+					"correcthorsebatterystable",
+					"example.zulipchat.com",
+					"foo",
+					"bar",
+				)
 				err := config.SetURL(zulipURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -253,7 +341,8 @@ var _ = ginkgo.Describe("the zulip service", func() {
 					Topic:   "bar",
 				}
 				url := config.GetURL()
-				gomega.Expect(url.String()).To(gomega.Equal("zulip://bot-name%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo&topic=bar"))
+				gomega.Expect(url.String()).
+					To(gomega.Equal("zulip://bot-name%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo&topic=bar"))
 			})
 		})
 		ginkgo.When("given a config object with stream but without topic", func() {
@@ -266,7 +355,8 @@ var _ = ginkgo.Describe("the zulip service", func() {
 					Stream:  "foo",
 				}
 				url := config.GetURL()
-				gomega.Expect(url.String()).To(gomega.Equal("zulip://bot-name%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo"))
+				gomega.Expect(url.String()).
+					To(gomega.Equal("zulip://bot-name%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo"))
 			})
 		})
 	})

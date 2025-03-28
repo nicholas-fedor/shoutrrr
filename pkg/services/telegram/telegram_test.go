@@ -9,9 +9,10 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 )
 
 func TestTelegram(t *testing.T) {
@@ -53,9 +54,9 @@ var _ = ginkgo.Describe("the telegram service", func() {
 					return
 				}
 				hundredChars := "this string is exactly (to the letter) a hundred characters long which will make the send func error"
-				serviceURL, _ := url.Parse("telegram://12345:mock-token/?chats=channel-1")
+				serviceURL, _ := url.Parse("telegram://12345:mock-token@telegram/?chats=channel-1")
 				builder := strings.Builder{}
-				for i := 0; i < 42; i++ {
+				for range 42 {
 					builder.WriteString(hundredChars)
 				}
 
@@ -70,7 +71,9 @@ var _ = ginkgo.Describe("the telegram service", func() {
 				return
 			}
 			ginkgo.It("should generate a 401", func() {
-				serviceURL, _ := url.Parse("telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram/?chats=channel-id")
+				serviceURL, _ := url.Parse(
+					"telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram/?chats=channel-id",
+				)
 				message := "this is a perfectly valid Message"
 
 				err := telegram.Initialize(serviceURL, logger)
@@ -99,14 +102,16 @@ var _ = ginkgo.Describe("the telegram service", func() {
 				var err error
 
 				ginkgo.BeforeEach(func() {
-					serviceURL, _ := url.Parse("telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+					serviceURL, _ := url.Parse(
+						"telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3",
+					)
 					err = telegram.Initialize(serviceURL, logger)
 					config = telegram.GetConfig()
 				})
 
 				ginkgo.It("should create a config object", func() {
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config != nil).To(gomega.BeTrue())
+					gomega.Expect(config).ToNot(gomega.BeNil())
 				})
 				ginkgo.It("should create a config object containing the API Token", func() {
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -133,7 +138,9 @@ var _ = ginkgo.Describe("the telegram service", func() {
 			httpmock.DeactivateAndReset()
 		})
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, _ := url.Parse("telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+			serviceURL, _ := url.Parse(
+				"telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3",
+			)
 			err = telegram.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -151,7 +158,10 @@ var _ = ginkgo.Describe("the telegram service", func() {
 
 		config := telegram.GetConfig()
 		testutils.TestConfigGetInvalidQueryValue(config)
-		testutils.TestConfigSetInvalidQueryValue(config, "telegram://12345:mock-token@telegram/?chats=channel-1&foo=bar")
+		testutils.TestConfigSetInvalidQueryValue(
+			config,
+			"telegram://12345:mock-token@telegram/?chats=channel-1&foo=bar",
+		)
 		testutils.TestConfigGetEnumsCount(config, 1)
 		testutils.TestConfigGetFieldsCount(config, 6)
 	})
@@ -168,10 +178,10 @@ func expectErrorAndEmptyObject(telegram *Service, rawURL string, logger *log.Log
 
 	config := telegram.GetConfig()
 	gomega.Expect(config.Token).To(gomega.BeEmpty())
-	gomega.Expect(len(config.Chats)).To(gomega.BeZero())
+	gomega.Expect(config.Chats).To(gomega.BeEmpty())
 }
 
 func setupResponder(endpoint string, token string, code int, body string) {
-	targetUrl := fmt.Sprintf("https://api.telegram.org/bot%s/%s", token, endpoint)
-	httpmock.RegisterResponder("POST", targetUrl, httpmock.NewStringResponder(code, body))
+	targetURL := fmt.Sprintf("https://api.telegram.org/bot%s/%s", token, endpoint)
+	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, body))
 }

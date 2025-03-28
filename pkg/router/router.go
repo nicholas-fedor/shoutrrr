@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -11,6 +12,17 @@ import (
 
 // DefaultTimeout is the default duration for service operation timeouts.
 const DefaultTimeout = 10 * time.Second
+
+var (
+	ErrNoSenders              = errors.New("error sending message: no senders")
+	ErrServiceTimeout         = errors.New("failed to send: timed out")
+	ErrCustomURLsNotSupported = errors.New("custom URLs are not supported by service")
+	ErrUnknownService         = errors.New("unknown service")
+	ErrParseURLFailed         = errors.New("failed to parse URL")
+	ErrSendFailed             = errors.New("failed to send message")
+	ErrCustomURLConversion    = errors.New("failed to convert custom URL")
+	ErrInitializeFailed       = errors.New("failed to initialize service")
+)
 
 // ServiceRouter is responsible for routing a message to a specific notification service using the notification URL.
 type ServiceRouter struct {
@@ -29,7 +41,7 @@ func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) 
 
 	for _, serviceURL := range serviceURLs {
 		if err := router.AddService(serviceURL); err != nil {
-			return nil, fmt.Errorf("error initializing router services: %s", err)
+			return nil, fmt.Errorf("error initializing router services: %w", err)
 		}
 	}
 
@@ -49,7 +61,7 @@ func (router *ServiceRouter) AddService(serviceURL string) error {
 // Send sends the specified message using the routers underlying services.
 func (router *ServiceRouter) Send(message string, params *types.Params) []error {
 	if router == nil {
-		return []error{fmt.Errorf("error sending message: no senders")}
+		return []error{ErrNoSenders}
 	}
 
 	serviceCount := len(router.services)
@@ -66,7 +78,7 @@ func (router *ServiceRouter) Send(message string, params *types.Params) []error 
 // SendItems sends the specified message items using the routers underlying services.
 func (router *ServiceRouter) SendItems(items []types.MessageItem, params types.Params) []error {
 	if router == nil {
-		return []error{fmt.Errorf("error sending message: no senders")}
+		return []error{ErrNoSenders}
 	}
 
 	// Fallback using old API for now
@@ -101,7 +113,7 @@ func (router *ServiceRouter) SendAsync(message string, params *types.Params) cha
 	}
 
 	go func() {
-		for i := 0; i < serviceCount; i++ {
+		for range serviceCount {
 			errors <- <-proxy
 		}
 
@@ -111,7 +123,13 @@ func (router *ServiceRouter) SendAsync(message string, params *types.Params) cha
 	return errors
 }
 
-func sendToService(service types.Service, results chan error, timeout time.Duration, message string, params types.Params) {
+func sendToService(
+	service types.Service,
+	results chan error,
+	timeout time.Duration,
+	message string,
+	params types.Params,
+) {
 	result := make(chan error)
 
 	serviceID := service.GetID()
@@ -122,7 +140,7 @@ func sendToService(service types.Service, results chan error, timeout time.Durat
 	case res := <-result:
 		results <- res
 	case <-time.After(timeout):
-		results <- fmt.Errorf("failed to send using %v: timed out", serviceID)
+		results <- fmt.Errorf("%w: using %v", ErrServiceTimeout, serviceID)
 	}
 }
 
@@ -154,7 +172,7 @@ func (router *ServiceRouter) SetLogger(logger types.StdLogger) {
 func (router *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, error) {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
-		return "", &url.URL{}, err
+		return "", &url.URL{}, fmt.Errorf("%s: %w", rawURL, ErrParseURLFailed)
 	}
 
 	scheme := serviceURL.Scheme
@@ -174,7 +192,11 @@ func (router *ServiceRouter) Route(rawURL string, message string) error {
 		return err
 	}
 
-	return service.Send(message, nil)
+	if err := service.Send(message, nil); err != nil {
+		return fmt.Errorf("%s: %w", service.GetID(), ErrSendFailed)
+	}
+
+	return nil
 }
 
 func (router *ServiceRouter) initService(rawURL string) (types.Service, error) {
@@ -193,12 +215,12 @@ func (router *ServiceRouter) initService(rawURL string) (types.Service, error) {
 
 		customURLService, ok := service.(types.CustomURLService)
 		if !ok {
-			return nil, fmt.Errorf("custom URLs are not supported by '%s' service", scheme)
+			return nil, fmt.Errorf("%w: '%s' service", ErrCustomURLsNotSupported, scheme)
 		}
 
 		configURL, err = customURLService.GetConfigURLFromCustom(configURL)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", configURL.String(), ErrCustomURLConversion)
 		}
 
 		router.log("Converted service URL:", configURL.String())
@@ -206,7 +228,7 @@ func (router *ServiceRouter) initService(rawURL string) (types.Service, error) {
 
 	err = service.Initialize(configURL, router.logger)
 	if err != nil {
-		return service, err
+		return service, fmt.Errorf("%s: %w", scheme, ErrInitializeFailed)
 	}
 
 	return service, nil
@@ -221,7 +243,7 @@ func (*ServiceRouter) NewService(serviceScheme string) (types.Service, error) {
 func newService(serviceScheme string) (types.Service, error) {
 	serviceFactory, valid := serviceMap[strings.ToLower(serviceScheme)]
 	if !valid {
-		return nil, fmt.Errorf("unknown service %q", serviceScheme)
+		return nil, fmt.Errorf("%w: %q", ErrUnknownService, serviceScheme)
 	}
 
 	return serviceFactory(), nil

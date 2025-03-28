@@ -5,8 +5,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-type authType int
-
 const (
 	AuthNone    authType = iota // 0
 	AuthPlain                   // 1
@@ -14,15 +12,6 @@ const (
 	AuthUnknown                 // 3
 	AuthOAuth2                  // 4
 )
-
-type authTypeVals struct {
-	None    authType
-	Plain   authType
-	CRAMMD5 authType
-	Unknown authType
-	OAuth2  authType
-	Enum    types.EnumFormatter
-}
 
 // AuthTypes is the enum helper for populating the Auth field.
 var AuthTypes = &authTypeVals{
@@ -39,6 +28,17 @@ var AuthTypes = &authTypeVals{
 			"Unknown",
 			"OAuth2",
 		}),
+}
+
+type authType int
+
+type authTypeVals struct {
+	None    authType
+	Plain   authType
+	CRAMMD5 authType
+	Unknown authType
+	OAuth2  authType
+	Enum    types.EnumFormatter
 }
 
 func (at authType) String() string {

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/failures"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 )
 
 // TestFailures runs the Ginkgo test suite for the failures package.
@@ -24,8 +25,8 @@ var _ = ginkgo.Describe("the failure package", func() {
 	// Common test fixtures
 	var (
 		testID      failures.FailureID = 42                             // Consistent ID for testing
-		testMessage string             = "test failure occurred"        // Sample error message
-		wrappedErr  error              = errors.New("underlying error") // Sample wrapped error
+		testMessage                    = "test failure occurred"        // Sample error message
+		wrappedErr                     = errors.New("underlying error") // Sample wrapped error
 	)
 
 	ginkgo.Describe("Wrap function", func() {
@@ -34,7 +35,7 @@ var _ = ginkgo.Describe("the failure package", func() {
 				failure := failures.Wrap(testMessage, testID, nil)
 				gomega.Expect(failure.Error()).To(gomega.Equal(testMessage))
 				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.BeNil())
+				gomega.Expect(failure.Unwrap()).To(gomega.Succeed())
 			})
 		})
 
@@ -89,7 +90,7 @@ var _ = ginkgo.Describe("the failure package", func() {
 			})
 			ginkgo.It("returns nil when no wrapped error exists", func() {
 				failureNoWrap := failures.Wrap(testMessage, testID, nil)
-				gomega.Expect(failureNoWrap.Unwrap()).To(gomega.BeNil())
+				gomega.Expect(failureNoWrap.Unwrap()).To(gomega.Succeed())
 			})
 		})
 
@@ -128,7 +129,7 @@ var _ = ginkgo.Describe("the failure package", func() {
 				failure := failures.Wrap(testMessage, testID, nil)
 				gomega.Expect(failure.Error()).To(gomega.Equal(testMessage))
 				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.BeNil())
+				gomega.Expect(failure.Unwrap()).To(gomega.Succeed())
 			})
 		})
 

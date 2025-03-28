@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
+// TestDiscord runs the Discord service test suite using Ginkgo.
 func TestDiscord(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Shoutrrr Discord Suite")
@@ -46,10 +47,7 @@ var _ = ginkgo.Describe("the discord service", func() {
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Send(
-				"this is an integration test",
-				nil,
-			)
+			err = service.Send("this is an integration test", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})
@@ -59,13 +57,12 @@ var _ = ginkgo.Describe("the discord service", func() {
 			gomega.Expect(impl).ToNot(gomega.BeNil())
 		})
 		ginkgo.It("returns the correct service identifier", func() {
-			// No initialization needed since GetID is static
 			gomega.Expect(service.GetID()).To(gomega.Equal("discord"))
 		})
 	})
 	ginkgo.Describe("creating a config", func() {
-		ginkgo.When("given an url and a message", func() {
-			ginkgo.It("should return an error if no arguments where supplied", func() {
+		ginkgo.When("given a URL and a message", func() {
+			ginkgo.It("should return an error if no arguments are supplied", func() {
 				serviceURL, _ := url.Parse("discord://")
 				err := service.Initialize(serviceURL, nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -112,7 +109,6 @@ var _ = ginkgo.Describe("the discord service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
 
 				outputURL := config.GetURL()
-
 				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
 			})
 		})
@@ -121,7 +117,6 @@ var _ = ginkgo.Describe("the discord service", func() {
 		ginkgo.When("given a blank message", func() {
 			ginkgo.When("split lines is enabled", func() {
 				ginkgo.It("should return an error", func() {
-					// batches := CreateItemsFromPlain("", true)
 					items := []types.MessageItem{}
 					gomega.Expect(items).To(gomega.BeEmpty())
 					_, err := discord.CreatePayloadFromItems(items, "title", dummyColors)
@@ -140,34 +135,29 @@ var _ = ginkgo.Describe("the discord service", func() {
 		})
 		ginkgo.When("given a message that exceeds the max length", func() {
 			ginkgo.It("should return a payload with chunked messages", func() {
-				payload, err := buildPayloadFromHundreds(42, false, "Title", dummyColors)
+				payload, err := buildPayloadFromHundreds(42, "Title", dummyColors)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 				items := payload.Embeds
-
 				gomega.Expect(items).To(gomega.HaveLen(3))
-
 				gomega.Expect(items[0].Content).To(gomega.HaveLen(1994))
 				gomega.Expect(items[1].Content).To(gomega.HaveLen(1999))
 				gomega.Expect(items[2].Content).To(gomega.HaveLen(205))
 			})
 			ginkgo.It("omit characters above total max", func() {
-				payload, err := buildPayloadFromHundreds(62, false, "", dummyColors)
+				payload, err := buildPayloadFromHundreds(62, "", dummyColors)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 				items := payload.Embeds
-
 				gomega.Expect(items).To(gomega.HaveLen(4))
 				gomega.Expect(items[0].Content).To(gomega.HaveLen(1994))
 				gomega.Expect(items[1].Content).To(gomega.HaveLen(1999))
-				gomega.Expect(len(items[2].Content)).To(gomega.Equal(1999))
-				gomega.Expect(len(items[3].Content)).To(gomega.Equal(5))
-
-				// gomega.Expect(meta.Footer.Text).To(ContainSubstring("200"))
+				gomega.Expect(items[2].Content).To(gomega.HaveLen(1999))
+				gomega.Expect(items[3].Content).To(gomega.HaveLen(5))
 			})
 			ginkgo.When("no title is supplied and content fits", func() {
 				ginkgo.It("should return a payload without a meta chunk", func() {
-					payload, err := buildPayloadFromHundreds(42, false, "", dummyColors)
+					payload, err := buildPayloadFromHundreds(42, "", dummyColors)
 					gomega.Expect(err).ToNot(gomega.HaveOccurred())
 					gomega.Expect(payload.Embeds[0].Footer).To(gomega.BeNil())
 					gomega.Expect(payload.Embeds[0].Title).To(gomega.BeEmpty())
@@ -175,12 +165,11 @@ var _ = ginkgo.Describe("the discord service", func() {
 			})
 			ginkgo.When("title is supplied, but content fits", func() {
 				ginkgo.It("should return a payload with a meta chunk", func() {
-					payload, err := buildPayloadFromHundreds(42, false, "Title", dummyColors)
+					payload, err := buildPayloadFromHundreds(42, "Title", dummyColors)
 					gomega.Expect(err).ToNot(gomega.HaveOccurred())
 					gomega.Expect(payload.Embeds[0].Title).ToNot(gomega.BeEmpty())
 				})
 			})
-
 			ginkgo.It("rich test 1", func() {
 				testTime, _ := time.Parse(time.RFC3339, time.RFC3339)
 				items := []types.MessageItem{
@@ -194,7 +183,6 @@ var _ = ginkgo.Describe("the discord service", func() {
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 				item := payload.Embeds[0]
-
 				gomega.Expect(payload.Embeds).To(gomega.HaveLen(1))
 				gomega.Expect(item.Footer.Text).To(gomega.Equal(types.Warning.String()))
 				gomega.Expect(item.Title).To(gomega.Equal("Title"))
@@ -202,7 +190,6 @@ var _ = ginkgo.Describe("the discord service", func() {
 			})
 		})
 	})
-
 	ginkgo.Describe("sending the payload", func() {
 		dummyConfig := discord.Config{
 			WebhookID: "1",
@@ -220,17 +207,16 @@ var _ = ginkgo.Describe("the discord service", func() {
 			httpmock.DeactivateAndReset()
 		})
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			setupResponder(&dummyConfig, 204, "")
-
+			setupResponder(&dummyConfig, 204)
 			gomega.Expect(service.Send("Message", nil)).To(gomega.Succeed())
 		})
 		ginkgo.It("should report an error if the server response is not OK", func() {
-			setupResponder(&dummyConfig, 400, "")
+			setupResponder(&dummyConfig, 400)
 			gomega.Expect(service.Initialize(dummyConfig.GetURL(), logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("Message", nil)).NotTo(gomega.Succeed())
 		})
 		ginkgo.It("should report an error if the message is empty", func() {
-			setupResponder(&dummyConfig, 204, "")
+			setupResponder(&dummyConfig, 204)
 			gomega.Expect(service.Initialize(dummyConfig.GetURL(), logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("", nil)).NotTo(gomega.Succeed())
 		})
@@ -238,7 +224,7 @@ var _ = ginkgo.Describe("the discord service", func() {
 			ginkgo.It("should report an error if the server response is not OK", func() {
 				config := dummyConfig
 				config.JSON = true
-				setupResponder(&config, 400, "")
+				setupResponder(&config, 400)
 				gomega.Expect(service.Initialize(config.GetURL(), logger)).To(gomega.Succeed())
 				gomega.Expect(service.Send("Message", nil)).NotTo(gomega.Succeed())
 			})
@@ -246,21 +232,30 @@ var _ = ginkgo.Describe("the discord service", func() {
 	})
 })
 
-func buildPayloadFromHundreds(hundreds int, split bool, title string, colors [types.MessageLevelCount]uint) (discord.WebhookPayload, error) {
+// buildPayloadFromHundreds creates a Discord webhook payload from a repeated 100-character string.
+func buildPayloadFromHundreds(
+	hundreds int,
+	title string,
+	colors [types.MessageLevelCount]uint,
+) (discord.WebhookPayload, error) {
 	hundredChars := "this string is exactly (to the letter) a hundred characters long which will make the send func error"
 	builder := strings.Builder{}
 
-	for i := 0; i < hundreds; i++ {
+	for range hundreds {
 		builder.WriteString(hundredChars)
 	}
 
-	batches := discord.CreateItemsFromPlain(builder.String(), split)
+	batches := discord.CreateItemsFromPlain(
+		builder.String(),
+		false,
+	) // SplitLines is always false in these tests
 	items := batches[0]
 
 	return discord.CreatePayloadFromItems(items, title, colors)
 }
 
-func setupResponder(config *discord.Config, code int, body string) {
+// setupResponder configures an HTTP mock responder for a Discord webhook URL with the given status code.
+func setupResponder(config *discord.Config, code int) {
 	targetURL := discord.CreateAPIURLFromConfig(config)
-	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, body))
+	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, ""))
 }

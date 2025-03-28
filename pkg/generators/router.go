@@ -1,26 +1,29 @@
 package generators
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/basic"
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xouath2"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/telegram"
-	t "github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var generatorMap = map[string]func() t.Generator{
-	"basic":    func() t.Generator { return &basic.Generator{} },
-	"oauth2":   func() t.Generator { return &xouath2.Generator{} },
-	"telegram": func() t.Generator { return &telegram.Generator{} },
+var ErrUnknownGenerator = errors.New("unknown generator")
+
+var generatorMap = map[string]func() types.Generator{
+	"basic":    func() types.Generator { return &basic.Generator{} },
+	"oauth2":   func() types.Generator { return &xouath2.Generator{} },
+	"telegram": func() types.Generator { return &telegram.Generator{} },
 }
 
 // NewGenerator creates an instance of the generator that corresponds to the provided identifier.
-func NewGenerator(identifier string) (t.Generator, error) {
+func NewGenerator(identifier string) (types.Generator, error) {
 	generatorFactory, valid := generatorMap[strings.ToLower(identifier)]
 	if !valid {
-		return nil, fmt.Errorf("unknown generator %q", identifier)
+		return nil, fmt.Errorf("%w: %q", ErrUnknownGenerator, identifier)
 	}
 
 	return generatorFactory(), nil

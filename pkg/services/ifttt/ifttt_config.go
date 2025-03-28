@@ -2,6 +2,7 @@ package ifttt
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -10,38 +11,47 @@ import (
 )
 
 const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "ifttt"
-
-	// Config constants for IFTTT webhook values.
-	DefaultMessageValue = 2 // Default value field (1-3) for the notification message.
-	DisabledValue       = 0 // Value to disable title assignment.
-	MinValueField       = 1 // Minimum valid value field (Value1).
-	MaxValueField       = 3 // Maximum valid value field (Value3).
-	MinLength           = 1 // Minimum length for required fields like Events and WebHookID.
+	Scheme              = "ifttt" // Scheme identifies this service in configuration URLs.
+	DefaultMessageValue = 2       // Default value field (1-3) for the notification message
+	DisabledValue       = 0       // Value to disable title assignment
+	MinValueField       = 1       // Minimum valid value field (Value1)
+	MaxValueField       = 3       // Maximum valid value field (Value3)
+	MinLength           = 1       // Minimum length for required fields like Events and WebHookID
 )
 
-// Config is the configuration needed to send IFTTT notifications.
+var (
+	ErrInvalidMessageValue = errors.New(
+		"invalid value for messagevalue: only values 1-3 are supported",
+	)
+	ErrInvalidTitleValue = errors.New(
+		"invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported",
+	)
+	ErrTitleMessageConflict = errors.New("titlevalue cannot use the same number as messagevalue")
+	ErrMissingEvents        = errors.New("events missing from config URL")
+	ErrMissingWebhookID     = errors.New("webhook ID missing from config URL")
+)
+
+// Config holds settings for the IFTTT notification service.
 type Config struct {
 	standard.EnumlessConfig
 	WebHookID         string   `required:"true" url:"host"`
-	Events            []string `key:"events"    required:"true"`
-	Value1            string   `key:"value1"    optional:""`
-	Value2            string   `key:"value2"    optional:""`
-	Value3            string   `key:"value3"    optional:""`
-	UseMessageAsValue uint8    `default:"2"     desc:"Sets the corresponding value field to the notification message" key:"messagevalue"`
-	UseTitleAsValue   uint8    `default:"0"     desc:"Sets the corresponding value field to the notification title"   key:"titlevalue"`
-	Title             string   `default:""      desc:"Notification title, optionally set by the sender"               key:"title"`
+	Events            []string `required:"true"            key:"events"`
+	Value1            string   `                           key:"value1"       optional:""`
+	Value2            string   `                           key:"value2"       optional:""`
+	Value3            string   `                           key:"value3"       optional:""`
+	UseMessageAsValue uint8    `                           key:"messagevalue"             default:"2" desc:"Sets the corresponding value field to the notification message"`
+	UseTitleAsValue   uint8    `                           key:"titlevalue"               default:"0" desc:"Sets the corresponding value field to the notification title"`
+	Title             string   `                           key:"title"                    default:""  desc:"Notification title, optionally set by the sender"`
 }
 
-// GetURL returns a URL representation of its current field values.
+// GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of its field values.
+// SetURL updates the configuration from a URL representation.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
@@ -66,29 +76,30 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
 	}
 
 	if config.UseMessageAsValue > MaxValueField || config.UseMessageAsValue < MinValueField {
-		return errors.New("invalid value for messagevalue: only values 1-3 are supported")
+		return ErrInvalidMessageValue
 	}
 
 	if config.UseTitleAsValue > MaxValueField {
-		return errors.New("invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported")
+		return ErrInvalidTitleValue
 	}
 
-	if config.UseTitleAsValue != DisabledValue && config.UseTitleAsValue == config.UseMessageAsValue {
-		return errors.New("titlevalue cannot use the same number as messagevalue")
+	if config.UseTitleAsValue != DisabledValue &&
+		config.UseTitleAsValue == config.UseMessageAsValue {
+		return ErrTitleMessageConflict
 	}
 
 	if url.String() != "ifttt://dummy@dummy.com" {
 		if len(config.Events) < MinLength {
-			return errors.New("events missing from config URL")
+			return ErrMissingEvents
 		}
 
 		if len(config.WebHookID) < MinLength {
-			return errors.New("webhook ID missing from config URL")
+			return ErrMissingWebhookID
 		}
 	}
 

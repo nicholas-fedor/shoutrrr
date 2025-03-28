@@ -34,51 +34,10 @@ type messageResponse struct {
 	Result *Message `json:"result"`
 }
 
-func createSendMessagePayload(message string, channel string, config *Config) SendMessagePayload {
-	var threadID *int = nil
-
-	chatID, thread, ok := strings.Cut(channel, ":")
-	if ok {
-		if parsed, err := strconv.Atoi(thread); err == nil {
-			threadID = &parsed
-		}
-	}
-
-	payload := SendMessagePayload{
-		Text:                message,
-		ID:                  chatID,
-		MessageThreadID:     threadID,
-		DisableNotification: !config.Notification,
-		DisablePreview:      !config.Preview,
-	}
-
-	parseMode := config.ParseMode
-	if config.ParseMode == ParseModes.None && config.Title != "" {
-		parseMode = ParseModes.HTML
-		// no parse mode has been provided, treat message as unescaped HTML
-		message = html.EscapeString(message)
-	}
-
-	if parseMode != ParseModes.None {
-		payload.ParseMode = parseMode.String()
-	}
-
-	// only HTML parse mode is supported for titles
-	if parseMode == ParseModes.HTML {
-		payload.Text = fmt.Sprintf("<b>%v</b>\n%v", html.EscapeString(config.Title), message)
-	}
-
-	return payload
-}
-
-type errorResponse struct {
+type responseError struct {
 	OK          bool   `json:"ok"`
 	ErrorCode   int    `json:"error_code"`
 	Description string `json:"description"`
-}
-
-func (e *errorResponse) Error() string {
-	return e.Description
 }
 
 type userResponse struct {
@@ -155,13 +114,13 @@ type Update struct {
 	// API fields that are not used by the client has been commented out
 
 	//// 	Optional. New incoming shipping query. Only for invoices with flexible price
-	//ShippingQuery	`json:"shipping_query"`
+	// ShippingQuery	`json:"shipping_query"`
 	//// 	Optional. New incoming pre-checkout query. Contains full information about checkout
-	//PreCheckoutQuery	`json:"pre_checkout_query"`
+	// PreCheckoutQuery	`json:"pre_checkout_query"`
 	//// 	Optional. New poll state. Bots receive only updates about stopped polls and polls, which are sent by the bot
-	//Poll	`json:"poll"`
+	// Poll	`json:"poll"`
 	//// 	Optional. A User changed their answer in a non-anonymous poll. Bots receive new votes only in polls that were sent by the bot itself.
-	//Poll_answer	PollAnswer `json:"poll_answer"`
+	// Poll_answer	PollAnswer `json:"poll_answer"`
 
 	ChatMemberUpdate *ChatMemberUpdate `json:"my_chat_member"`
 }
@@ -172,15 +131,6 @@ type Chat struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	Username string `json:"username"`
-}
-
-// Name returns the name of the channel based on its type.
-func (c *Chat) Name() string {
-	if c.Type == "private" || c.Type == "channel" && c.Username != "" {
-		return "@" + c.Username
-	}
-
-	return c.Title
 }
 
 type inlineKey struct {
@@ -231,4 +181,54 @@ type ChatMember struct {
 	Status string `json:"status"`
 	// Information about the user
 	User *User `json:"user"`
+}
+
+func (e *responseError) Error() string {
+	return e.Description
+}
+
+// Name returns the name of the channel based on its type.
+func (c *Chat) Name() string {
+	if c.Type == "private" || c.Type == "channel" && c.Username != "" {
+		return "@" + c.Username
+	}
+
+	return c.Title
+}
+
+func createSendMessagePayload(message string, channel string, config *Config) SendMessagePayload {
+	var threadID *int
+
+	chatID, thread, ok := strings.Cut(channel, ":")
+	if ok {
+		if parsed, err := strconv.Atoi(thread); err == nil {
+			threadID = &parsed
+		}
+	}
+
+	payload := SendMessagePayload{
+		Text:                message,
+		ID:                  chatID,
+		MessageThreadID:     threadID,
+		DisableNotification: !config.Notification,
+		DisablePreview:      !config.Preview,
+	}
+
+	parseMode := config.ParseMode
+	if config.ParseMode == ParseModes.None && config.Title != "" {
+		parseMode = ParseModes.HTML
+		// no parse mode has been provided, treat message as unescaped HTML
+		message = html.EscapeString(message)
+	}
+
+	if parseMode != ParseModes.None {
+		payload.ParseMode = parseMode.String()
+	}
+
+	// only HTML parse mode is supported for titles
+	if parseMode == ParseModes.HTML {
+		payload.Text = fmt.Sprintf("<b>%v</b>\n%v", html.EscapeString(config.Title), message)
+	}
+
+	return payload
 }

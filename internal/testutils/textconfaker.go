@@ -27,11 +27,11 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 	conv := ""
 	inSequence := false
 	input := strings.Split(tcf.GetInput(), tcf.delim)
-	ri := 0
+	responseIndex := 0
 
 	if includeGreeting {
 		conv += fmt.Sprintf("    %-55s << %-50s\n", "(server greeting)", tcf.responses[0])
-		ri = 1
+		responseIndex = 1
 	}
 
 	for i, query := range input {
@@ -40,8 +40,8 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		}
 
 		resp := ""
-		if len(tcf.responses) > ri && !inSequence {
-			resp = tcf.responses[ri]
+		if len(tcf.responses) > responseIndex && !inSequence {
+			resp = tcf.responses[responseIndex]
 		}
 
 		if query == "" && resp == "" && i == len(input)-1 {
@@ -51,13 +51,13 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		conv += fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp)
 
 		for len(resp) > 3 && resp[3] == '-' {
-			ri++
-			resp = tcf.responses[ri]
+			responseIndex++
+			resp = tcf.responses[responseIndex]
 			conv += fmt.Sprintf("         %50s << %-50s\n", " ", resp)
 		}
 
 		if !inSequence {
-			ri++
+			responseIndex++
 		}
 
 		if len(resp) > 0 && resp[0] == '3' {

@@ -11,9 +11,11 @@ import (
 // URLPart is an indicator as to what part of an URL a field is serialized to.
 type URLPart int
 
-// Suffix returns the separator between the URLPart and it's subsequent part.
+// Suffix returns the separator between the URLPart and its subsequent part.
 func (u URLPart) Suffix() rune {
 	switch u {
+	case URLQuery:
+		return '/'
 	case URLUser:
 		return ':'
 	case URLPassword:
@@ -21,9 +23,9 @@ func (u URLPart) Suffix() rune {
 	case URLHost:
 		return ':'
 	case URLPort:
-		fallthrough
+		return '/'
 	case URLPath:
-		fallthrough
+		return '/'
 	default:
 		return '/'
 	}
@@ -40,9 +42,9 @@ const (
 )
 
 // ParseURLPart returns the URLPart that matches the supplied string.
-func ParseURLPart(s string) URLPart {
-	s = strings.ToLower(s)
-	switch s {
+func ParseURLPart(inputString string) URLPart {
+	lowerString := strings.ToLower(inputString)
+	switch lowerString {
 	case "user":
 		return URLUser
 	case "pass", "password":
@@ -58,13 +60,13 @@ func ParseURLPart(s string) URLPart {
 	}
 
 	// Handle dynamic path segments (e.g., "path2", "path3", etc.).
-	if strings.HasPrefix(s, "path") && len(s) > 4 {
-		if num, err := strconv.Atoi(s[4:]); err == nil && num >= 2 {
+	if strings.HasPrefix(lowerString, "path") && len(lowerString) > 4 {
+		if num, err := strconv.Atoi(lowerString[4:]); err == nil && num >= 2 {
 			return URLPath + URLPart(num-1) // Offset from URLPath; "path2" -> URLPath+1
 		}
 	}
 
-	log.Printf("invalid URLPart: %s, defaulting to URLQuery", s)
+	log.Printf("invalid URLPart: %s, defaulting to URLQuery", lowerString)
 
 	return URLQuery
 }

@@ -34,14 +34,17 @@ var _ = ginkgo.Describe("Query Formatter", func() {
 	})
 	ginkgo.Describe("Setting prop values from query", func() {
 		ginkgo.When("a custom query key conflicts with a config property key", func() {
-			ginkgo.It("should set the config prop from the regular and return the custom one unescaped", func() {
-				ts.Str = "service"
-				serviceQuery := url.Values{"__str": {"custom"}, "str": {"service"}}
-				query, err := SetConfigPropsFromQuery(&pkr, serviceQuery)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(ts.Str).To(gomega.Equal("service"))
-				gomega.Expect(query.Get("str")).To(gomega.Equal("custom"))
-			})
+			ginkgo.It(
+				"should set the config prop from the regular and return the custom one unescaped",
+				func() {
+					ts.Str = "service"
+					serviceQuery := url.Values{"__str": {"custom"}, "str": {"service"}}
+					query, err := SetConfigPropsFromQuery(&pkr, serviceQuery)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(ts.Str).To(gomega.Equal("service"))
+					gomega.Expect(query.Get("str")).To(gomega.Equal("custom"))
+				},
+			)
 		})
 	})
 })

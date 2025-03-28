@@ -3,9 +3,11 @@ package discord
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -13,14 +15,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-// Service providing Discord as a notification service.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-}
-
-// Message limit constants.
 const (
 	ChunkSize      = 2000 // Maximum size of a single message chunk
 	TotalChunkSize = 6000 // Maximum total size of all chunks
@@ -29,19 +23,38 @@ const (
 	HooksBaseURL   = "https://discord.com/api/webhooks"
 )
 
+var (
+	ErrUnknownAPIError  = errors.New("unknown error from Discord API")
+	ErrUnexpectedStatus = errors.New("unexpected response status code")
+	ErrInvalidURLPrefix = errors.New("URL must start with Discord webhook base URL")
+	ErrInvalidWebhookID = errors.New("invalid webhook ID")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrEmptyURL         = errors.New("empty URL provided")
+	ErrMalformedURL     = errors.New("malformed URL: missing webhook ID or token")
+)
+
 var limits = types.MessageLimit{
 	ChunkSize:      ChunkSize,
 	TotalChunkSize: TotalChunkSize,
 	ChunkCount:     ChunkCount,
 }
 
-// Send a notification message to discord.
+// Service implements a Discord notification service.
+type Service struct {
+	standard.Standard
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
+// Send delivers a notification message to Discord.
 func (service *Service) Send(message string, params *types.Params) error {
 	var firstErr error
 
 	if service.Config.JSON {
 		postURL := CreateAPIURLFromConfig(service.Config)
-		firstErr = doSend([]byte(message), postURL)
+		if err := doSend([]byte(message), postURL); err != nil {
+			return fmt.Errorf("sending JSON message: %w", err)
+		}
 	} else {
 		batches := CreateItemsFromPlain(message, service.Config.SplitLines)
 		for _, items := range batches {
@@ -56,40 +69,34 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	if firstErr != nil {
-		return fmt.Errorf("failed to send discord notification: %v", firstErr)
+		return fmt.Errorf("failed to send discord notification: %w", firstErr)
 	}
 
 	return nil
 }
 
-// SendItems sends items with additional meta data and richer appearance.
+// SendItems delivers message items with enhanced metadata and formatting to Discord.
 func (service *Service) SendItems(items []types.MessageItem, params *types.Params) error {
 	return service.sendItems(items, params)
 }
 
 func (service *Service) sendItems(items []types.MessageItem, params *types.Params) error {
-	var err error
-
 	config := *service.Config
-	if err = service.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return err
+	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	var payload WebhookPayload
-
-	payload, err = CreatePayloadFromItems(items, config.Title, config.LevelColors())
+	payload, err := CreatePayloadFromItems(items, config.Title, config.LevelColors())
 	if err != nil {
-		return err
+		return fmt.Errorf("creating payload: %w", err)
 	}
 
 	payload.Username = config.Username
 	payload.AvatarURL = config.Avatar
 
-	var payloadBytes []byte
-
-	payloadBytes, err = json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
 	postURL := CreateAPIURLFromConfig(&config)
@@ -97,8 +104,10 @@ func (service *Service) sendItems(items []types.MessageItem, params *types.Param
 	return doSend(payloadBytes, postURL)
 }
 
-// CreateItemsFromPlain creates a set of MessageItems that is compatible with Discords webhook payload.
-func CreateItemsFromPlain(plain string, splitLines bool) (batches [][]types.MessageItem) {
+// CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
+func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
+	var batches [][]types.MessageItem
+
 	if splitLines {
 		return util.MessageItemsFromLines(plain, limits)
 	}
@@ -114,50 +123,82 @@ func CreateItemsFromPlain(plain string, splitLines bool) (batches [][]types.Mess
 		plain = plain[len(plain)-omitted:]
 	}
 
-	return
+	return batches
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
-		return err
+		return fmt.Errorf("setting default properties: %w", err)
 	}
 
 	if err := service.Config.SetURL(configURL); err != nil {
-		return err
+		return fmt.Errorf("setting config URL: %w", err)
 	}
 
 	return nil
 }
 
-// GetID returns the service identifier.
+// GetID provides the identifier for this service.
 func (service *Service) GetID() string {
 	return Scheme
 }
 
-// CreateAPIURLFromConfig takes a discord config object and creates a post url.
+// CreateAPIURLFromConfig builds a POST URL from the Discord configuration.
 func CreateAPIURLFromConfig(config *Config) string {
-	return fmt.Sprintf(
-		"%s/%s/%s",
-		HooksBaseURL,
-		config.WebhookID,
-		config.Token)
+	if config.WebhookID == "" || config.Token == "" {
+		return "" // Invalid cases are caught in doSend
+	}
+	// Trim whitespace to prevent malformed URLs
+	webhookID := strings.TrimSpace(config.WebhookID)
+	token := strings.TrimSpace(config.Token)
+
+	return fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
 }
 
+// doSend executes an HTTP POST request to deliver the payload to Discord.
+//
+//nolint:gosec,noctx
 func doSend(payload []byte, postURL string) error {
-	res, err := http.Post(postURL, "application/json", bytes.NewBuffer(payload))
-
-	if res == nil && err == nil {
-		err = fmt.Errorf("unknown error")
+	if postURL == "" {
+		return ErrEmptyURL
 	}
 
-	if err == nil && res.StatusCode != http.StatusNoContent {
-		err = fmt.Errorf("response status code %s", res.Status)
+	parsedURL, err := url.ParseRequestURI(postURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	return err
+	if !strings.HasPrefix(parsedURL.String(), HooksBaseURL) {
+		return ErrInvalidURLPrefix
+	}
+
+	parts := strings.Split(strings.TrimPrefix(postURL, HooksBaseURL+"/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return ErrMalformedURL
+	}
+
+	webhookID := strings.TrimSpace(parts[0])
+	token := strings.TrimSpace(parts[1])
+	safeURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+
+	res, err := http.Post(safeURL, "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		return fmt.Errorf("making HTTP POST request: %w", err)
+	}
+
+	if res == nil {
+		return ErrUnknownAPIError
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
+	}
+
+	return nil
 }

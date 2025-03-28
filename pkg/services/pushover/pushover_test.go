@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/pushover"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 const hookURL = "https://api.pushover.net/1/messages.json"
@@ -171,7 +171,11 @@ var _ = ginkgo.Describe("the pushover config", func() {
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			httpmock.RegisterResponder("POST", hookURL, httpmock.NewErrorResponder(errors.New("dummy error")))
+			httpmock.RegisterResponder(
+				"POST",
+				hookURL,
+				httpmock.NewErrorResponder(errors.New("dummy error")),
+			)
 
 			err = service.Send("Message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())

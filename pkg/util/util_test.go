@@ -90,9 +90,13 @@ var _ = ginkgo.Describe("the util package", func() {
 
 	ginkgo.When("calling function DocsURL", func() {
 		ginkgo.It("should return the expected URL", func() {
-			expectedBase := fmt.Sprintf(`https://nicholas-fedor.github.io/shoutrrr/%s/`, meta.DocsVersion)
+			expectedBase := fmt.Sprintf(
+				`https://nicholas-fedor.github.io/shoutrrr/%s/`,
+				meta.DocsVersion,
+			)
 			gomega.Expect(util.DocsURL(``)).To(gomega.Equal(expectedBase))
-			gomega.Expect(util.DocsURL(`services/logger`)).To(gomega.Equal(expectedBase + `services/logger`))
+			gomega.Expect(util.DocsURL(`services/logger`)).
+				To(gomega.Equal(expectedBase + `services/logger`))
 		})
 		ginkgo.It("should strip the leading slash from the path", func() {
 			gomega.Expect(util.DocsURL(`/foo`)).To(gomega.Equal(util.DocsURL(`foo`)))

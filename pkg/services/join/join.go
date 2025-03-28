@@ -1,30 +1,35 @@
 package join
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 const (
+	// hookURL defines the Join API endpoint for sending push notifications.
 	hookURL     = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
 	contentType = "text/plain"
 )
 
-// Service providing the notification service Pushover.
+// ErrSendFailed indicates a failure to send a notification to Join devices.
+var ErrSendFailed = errors.New("failed to send notification to join devices")
+
+// Service sends notifications to Join devices.
 type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
 }
 
-// Send a notification message to Pushover.
+// Send delivers a notification message to Join devices.
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config
 
@@ -47,12 +52,12 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return service.sendToDevices(devices, message, title, icon)
 }
 
-func (service *Service) sendToDevices(devices string, message string, title string, icon string) error {
+func (service *Service) sendToDevices(devices, message, title, icon string) error {
 	config := service.Config
 
 	apiURL, err := url.Parse(hookURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing Join API URL: %w", err)
 	}
 
 	data := url.Values{}
@@ -70,24 +75,34 @@ func (service *Service) sendToDevices(devices string, message string, title stri
 
 	apiURL.RawQuery = data.Encode()
 
-	res, err := http.Post(
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
 		apiURL.String(),
-		contentType,
-		nil)
+		nil,
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating HTTP request: %w", err)
 	}
 
+	req.Header.Set("Content-Type", contentType)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending HTTP request to Join: %w", err)
+	}
+	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to send notification to join devices %q, response status %q", devices, res.Status)
+		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, devices, res.Status)
 	}
 
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
@@ -98,7 +113,7 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	return nil
 }
 
-// GetID returns the service identifier.
+// GetID returns the identifier for this service.
 func (service *Service) GetID() string {
 	return Scheme
 }

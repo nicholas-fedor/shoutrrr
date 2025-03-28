@@ -17,28 +17,32 @@ const (
 )
 
 func normalizedHeaderKey(key string) string {
-	sb := strings.Builder{}
-	sb.Grow(len(key) * HeaderCapacityFactor)
+	stringBuilder := strings.Builder{}
+	stringBuilder.Grow(len(key) * HeaderCapacityFactor)
 
 	for i, c := range key {
 		if UppercaseA <= c && c <= UppercaseZ {
 			// Char is uppercase
 			if i > 0 && key[i-1] != DashChar {
 				// Add missing dash
-				sb.WriteRune(DashChar)
+				stringBuilder.WriteRune(DashChar)
 			}
 		} else if i == 0 || key[i-1] == DashChar {
 			// First char, or previous was dash
 			c -= CaseOffset
 		}
 
-		sb.WriteRune(c)
+		stringBuilder.WriteRune(c)
 	}
 
-	return sb.String()
+	return stringBuilder.String()
 }
 
-func appendCustomQueryValues(query url.Values, headers map[string]string, extraData map[string]string) {
+func appendCustomQueryValues(
+	query url.Values,
+	headers map[string]string,
+	extraData map[string]string,
+) {
 	for key, value := range headers {
 		query.Set(string(HeaderPrefixChar)+key, value)
 	}
@@ -48,17 +52,18 @@ func appendCustomQueryValues(query url.Values, headers map[string]string, extraD
 	}
 }
 
-func stripCustomQueryValues(query url.Values) (headers, extraData map[string]string) {
-	headers = make(map[string]string)
-	extraData = make(map[string]string)
+func stripCustomQueryValues(query url.Values) (map[string]string, map[string]string) {
+	headers := make(map[string]string)
+	extraData := make(map[string]string)
 
 	for key, values := range query {
-		if key[0] == HeaderPrefixChar {
+		switch key[0] {
+		case HeaderPrefixChar:
 			headerKey := normalizedHeaderKey(key[1:])
 			headers[headerKey] = values[0]
-		} else if key[0] == ExtraPrefixChar {
+		case ExtraPrefixChar:
 			extraData[key[1:]] = values[0]
-		} else {
+		default:
 			continue
 		}
 

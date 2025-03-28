@@ -1,7 +1,7 @@
 package googlechat_test
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/googlechat"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 // TestGooglechat runs the Ginkgo test suite for the Google Chat package.
@@ -74,7 +75,9 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 			service.SetLogger(logger)
 		})
 		ginkgo.It("builds a valid Google Chat Incoming Webhook URL", func() {
-			configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+			configURL := testutils.URLMust(
+				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+			)
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(configURL.String()))
@@ -87,12 +90,16 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(testURL))
 		})
 		ginkgo.It("returns an error if key is present but empty", func() {
-			configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=&token=baz")
+			configURL := testutils.URLMust(
+				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=&token=baz",
+			)
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).To(gomega.MatchError("missing field 'key'"))
 		})
 		ginkgo.It("returns an error if token is present but empty", func() {
-			configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=")
+			configURL := testutils.URLMust(
+				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=",
+			)
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).To(gomega.MatchError("missing field 'token'"))
 		})
@@ -109,7 +116,9 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 		})
 		ginkgo.When("sending via webhook URL", func() {
 			ginkgo.It("does not report an error if the server accepts the payload", func() {
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
@@ -121,7 +130,9 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("reports an error if the server rejects the payload", func() {
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
@@ -133,7 +144,9 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 			ginkgo.It("marshals the payload correctly with the message", func() {
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
@@ -151,7 +164,9 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("sends the POST request with correct URL and content type", func() {
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
@@ -159,7 +174,8 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
 					func(req *http.Request) (*http.Response, error) {
 						gomega.Expect(req.Method).To(gomega.Equal("POST"))
-						gomega.Expect(req.Header.Get("Content-Type")).To(gomega.Equal("application/json"))
+						gomega.Expect(req.Header.Get("Content-Type")).
+							To(gomega.Equal("application/json"))
 
 						return httpmock.NewStringResponse(200, ""), nil
 					},
@@ -168,13 +184,13 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("returns marshal error if JSON marshaling fails", func() {
-				// Note: Cannot directly force json.Marshal to fail with current simple string struct
-				// This test assumes a future change might make JSON unmarshalable
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				// Note: Current JSON struct (string) can't fail marshaling naturally
+				// This test is a placeholder for future complex payload changes
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// Simulate marshal failure indirectly (requires package change or reflection, skipped here)
-				// For now, test happy path and note limitation
 				httpmock.RegisterResponder(
 					"POST",
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
@@ -182,19 +198,22 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				)
 				err = service.Send("Valid Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// Placeholder: If JSON struct changes, add test for unmarshalable input here
 			})
 			ginkgo.It("returns formatted error if HTTP POST fails", func() {
-				configURL := testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz")
+				configURL := testutils.URLMust(
+					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
+				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
 					"POST",
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					httpmock.NewErrorResponder(fmt.Errorf("network failure")),
+					httpmock.NewErrorResponder(errors.New("network failure")),
 				)
 				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError("failed to send notification to Google Chat: Post \"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz\": network failure"))
+				gomega.Expect(err).To(gomega.MatchError(
+					"sending notification to Google Chat: Post \"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz\": network failure",
+				))
 			})
 		})
 	})

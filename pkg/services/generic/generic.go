@@ -2,7 +2,9 @@ package generic
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,19 +16,26 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Constants for the generic service.
+// JSONTemplate identifies the JSON format for webhook payloads.
 const (
-	JSONTemplate = "JSON" // Template identifier for JSON format
+	JSONTemplate = "JSON"
 )
 
-// Service providing a generic notification service.
+// ErrSendFailed indicates a failure to send a notification to the generic webhook.
+var (
+	ErrSendFailed        = errors.New("failed to send notification to generic webhook")
+	ErrUnexpectedStatus  = errors.New("server returned unexpected response status code")
+	ErrTemplateNotLoaded = errors.New("template has not been loaded")
+)
+
+// Service implements a generic notification service for custom webhooks.
 type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
 }
 
-// Send a notification message to a generic webhook endpoint.
+// Send delivers a notification message to a generic webhook endpoint.
 func (service *Service) Send(message string, paramsPtr *types.Params) error {
 	config := *service.Config
 
@@ -41,19 +50,17 @@ func (service *Service) Send(message string, paramsPtr *types.Params) error {
 		service.Logf("Failed to update params: %v", err)
 	}
 
-	// Create a mutable copy of the passed params
 	sendParams := createSendParams(&config, params, message)
-
 	if err := service.doSend(&config, sendParams); err != nil {
-		return fmt.Errorf("an error occurred while sending notification to generic webhook: %s", err.Error())
+		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
 
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 
 	config, pkr := DefaultConfig()
 	service.Config = config
@@ -62,13 +69,13 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	return service.Config.setURL(&service.pkr, configURL)
 }
 
-// GetID returns the service identifier.
+// GetID returns the identifier for this service.
 func (service *Service) GetID() string {
 	return Scheme
 }
 
-// GetConfigURLFromCustom creates a regular service URL from one with a custom host.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (serviceURL *url.URL, err error) {
+// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	webhookURL := *customURL
 	if strings.HasPrefix(webhookURL.Scheme, Scheme) {
 		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
@@ -82,6 +89,7 @@ func (*Service) GetConfigURLFromCustom(customURL *url.URL) (serviceURL *url.URL,
 	return config.getURL(&pkr), nil
 }
 
+// doSend executes the HTTP request to send a notification to the webhook.
 func (service *Service) doSend(config *Config, params types.Params) error {
 	postURL := config.WebhookURL().String()
 
@@ -90,34 +98,41 @@ func (service *Service) doSend(config *Config, params types.Params) error {
 		return err
 	}
 
-	req, err := http.NewRequest(config.RequestMethod, postURL, payload)
-	if err == nil {
-		req.Header.Set("Content-Type", config.ContentType)
-		req.Header.Set("Accept", config.ContentType)
+	ctx := context.Background()
 
-		for key, value := range config.headers {
-			req.Header.Set(key, value)
-		}
+	req, err := http.NewRequestWithContext(ctx, config.RequestMethod, postURL, payload)
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
+	}
 
-		var res *http.Response
+	req.Header.Set("Content-Type", config.ContentType)
+	req.Header.Set("Accept", config.ContentType)
 
-		res, err = http.DefaultClient.Do(req)
-		if res != nil && res.Body != nil {
-			defer res.Body.Close()
+	for key, value := range config.headers {
+		req.Header.Set(key, value)
+	}
 
-			if body, errRead := io.ReadAll(res.Body); errRead == nil {
-				service.Log("Server response: ", string(body))
-			}
-		}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending HTTP request: %w", err)
+	}
 
-		if err == nil && res.StatusCode >= http.StatusMultipleChoices {
-			err = fmt.Errorf("server returned response status code %s", res.Status)
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+
+		if body, err := io.ReadAll(res.Body); err == nil {
+			service.Log("Server response: ", string(body))
 		}
 	}
 
-	return err
+	if res.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
+	}
+
+	return nil
 }
 
+// GetPayload prepares the request payload based on the configured template.
 func (service *Service) GetPayload(config *Config, params types.Params) (io.Reader, error) {
 	switch config.Template {
 	case "":
@@ -129,7 +144,7 @@ func (service *Service) GetPayload(config *Config, params types.Params) (io.Read
 
 		jsonBytes, err := json.Marshal(params)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("marshaling params to JSON: %w", err)
 		}
 
 		return bytes.NewBuffer(jsonBytes), nil
@@ -137,15 +152,18 @@ func (service *Service) GetPayload(config *Config, params types.Params) (io.Read
 
 	tpl, found := service.GetTemplate(config.Template)
 	if !found {
-		return nil, fmt.Errorf("template %q has not been loaded", config.Template)
+		return nil, fmt.Errorf("%w: %q", ErrTemplateNotLoaded, config.Template)
 	}
 
 	bb := &bytes.Buffer{}
-	err := tpl.Execute(bb, params)
+	if err := tpl.Execute(bb, params); err != nil {
+		return nil, fmt.Errorf("executing template %q: %w", config.Template, err)
+	}
 
-	return bb, err
+	return bb, nil
 }
 
+// createSendParams constructs parameters for sending a notification.
 func createSendParams(config *Config, params types.Params, message string) types.Params {
 	sendParams := types.Params{}
 

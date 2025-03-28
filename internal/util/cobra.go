@@ -25,7 +25,7 @@ func LoadFlagsFromAltSources(cmd *cobra.Command, args []string) {
 
 		// If the URL has been set in ENV, default the message to read from stdin.
 		if msg, _ := flags.GetString("message"); msg == "" {
-			flags.Set("message", "-")
+			_ = flags.Set("message", "-")
 		}
 	}
 }

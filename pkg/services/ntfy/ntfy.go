@@ -1,4 +1,3 @@
-// Package ntfy implements Ntfy as a shoutrrr service
 package ntfy
 
 import (
@@ -14,19 +13,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// Service sends notifications Ntfy.
+// Service sends notifications to Ntfy.
 type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
 }
 
-// Send a notification message to Ntfy.
+// Send delivers a notification message to Ntfy.
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config
 
 	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return err
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	if err := service.sendAPI(config, message); err != nil {
@@ -36,9 +35,9 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
@@ -52,6 +51,7 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
+// sendAPI sends a notification to the Ntfy API.
 func (service *Service) sendAPI(config *Config, message string) error {
 	response := apiResponse{}
 	request := message
@@ -85,12 +85,13 @@ func (service *Service) sendAPI(config *Config, message string) error {
 			return &response
 		}
 
-		return err
+		return fmt.Errorf("posting to Ntfy API: %w", err)
 	}
 
 	return nil
 }
 
+// addHeaderIfNotEmpty adds a header to the request if the value is non-empty.
 func addHeaderIfNotEmpty(headers *http.Header, key string, value string) {
 	if value != "" {
 		headers.Add(key, value)

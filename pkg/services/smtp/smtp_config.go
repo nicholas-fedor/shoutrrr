@@ -12,37 +12,47 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "smtp"
+
+// Static errors for configuration validation.
+var (
+	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
+	ErrToAddressMissing   = errors.New("toAddress missing from config URL")
+)
+
 // Config is the configuration needed to send e-mail notifications over SMTP.
 type Config struct {
-	Host        string    `desc:"SMTP server hostname or IP address"                   url:"Host"`
-	Username    string    `default:""                                                  desc:"SMTP server username"                                                                                            url:"User"`
-	Password    string    `default:""                                                  desc:"SMTP server password or hash (for OAuth2)"                                                                       url:"Pass"`
-	Port        uint16    `default:"25"                                                desc:"SMTP server port, common ones are 25, 465, 587 or 2525"                                                          url:"Port"`
-	FromAddress string    `desc:"E-mail address that the mail are sent from"           key:"fromaddress,from"`
-	FromName    string    `desc:"Name of the sender"                                   key:"fromname"                                                                                                         optional:"yes"`
-	ToAddresses []string  `desc:"List of recipient e-mails separated by \",\" (comma)" key:"toaddresses,to"`
-	Subject     string    `default:"Shoutrrr Notification"                             desc:"The subject of the sent mail"                                                                                    key:"subject,title"`
-	Auth        authType  `default:"Unknown"                                           desc:"SMTP authentication method"                                                                                      key:"auth"`
-	Encryption  encMethod `default:"Auto"                                              desc:"Encryption method"                                                                                               key:"encryption"`
-	UseStartTLS bool      `default:"Yes"                                               desc:"Whether to use StartTLS encryption"                                                                              key:"usestarttls,starttls"`
-	UseHTML     bool      `default:"No"                                                desc:"Whether the message being sent is in HTML"                                                                       key:"usehtml"`
-	ClientHost  string    `default:"localhost"                                         desc:"The client host name sent to the SMTP server during HELLO phase. If set to \"auto\" it will use the OS hostname" key:"clienthost"`
+	Host        string    `desc:"SMTP server hostname or IP address"                     url:"Host"`
+	Username    string    `desc:"SMTP server username"                                   url:"User" default:""`
+	Password    string    `desc:"SMTP server password or hash (for OAuth2)"              url:"Pass" default:""`
+	Port        uint16    `desc:"SMTP server port, common ones are 25, 465, 587 or 2525" url:"Port" default:"25"`
+	FromAddress string    `desc:"E-mail address that the mail are sent from"                                                        key:"fromaddress,from"`
+	FromName    string    `desc:"Name of the sender"                                                                                key:"fromname"             optional:"yes"`
+	ToAddresses []string  `desc:"List of recipient e-mails"                                                                         key:"toaddresses,to"`
+	Subject     string    `desc:"The subject of the sent mail"                                      default:"Shoutrrr Notification" key:"subject,title"`
+	Auth        authType  `desc:"SMTP authentication method"                                        default:"Unknown"               key:"auth"`
+	Encryption  encMethod `desc:"Encryption method"                                                 default:"Auto"                  key:"encryption"`
+	UseStartTLS bool      `desc:"Whether to use StartTLS encryption"                                default:"Yes"                   key:"usestarttls,starttls"`
+	UseHTML     bool      `desc:"Whether the message being sent is in HTML"                         default:"No"                    key:"usehtml"`
+	ClientHost  string    `desc:"SMTP client hostname"                                              default:"localhost"             key:"clienthost"`
 }
 
-// GetURL returns a URL representation of it's current field values.
+// GetURL returns a URL representation of its current field values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of it's field values.
+// SetURL updates a ServiceConfig from a URL representation of its field values.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.setURL(&resolver, url)
 }
 
+// getURL constructs a URL from the Config's fields using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		User:       util.URLUserPassword(config.Username, config.Password),
@@ -54,6 +64,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	password, _ := url.User.Password()
 	config.Username = url.User.Username()
@@ -66,17 +77,17 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
 	if url.String() != "smtp://dummy@dummy.com" {
 		if len(config.FromAddress) < 1 {
-			return errors.New("fromAddress missing from config URL")
+			return ErrFromAddressMissing
 		}
 
 		if len(config.ToAddresses) < 1 {
-			return errors.New("toAddress missing from config URL")
+			return ErrToAddressMissing
 		}
 	}
 
@@ -101,12 +112,9 @@ func (config *Config) FixEmailTags() {
 }
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
-func (config Config) Enums() map[string]types.EnumFormatter {
+func (config *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"Auth":       AuthTypes.Enum,
 		"Encryption": EncMethods.Enum,
 	}
 }
-
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "smtp"

@@ -1,14 +1,17 @@
 package smtp
 
 import (
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/smtp"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -16,10 +19,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// DefaultSMTPPort is the standard port for SMTP communication.
-const DefaultSMTPPort = 25
+const (
+	contentHTML      = "text/html; charset=\"UTF-8\""
+	contentPlain     = "text/plain; charset=\"UTF-8\""
+	contentMultipart = "multipart/alternative; boundary=%s"
+	DefaultSMTPPort  = 25 // DefaultSMTPPort is the standard port for SMTP communication.
+	boundaryByteLen  = 8  // boundaryByteLen is the number of bytes for the multipart boundary.
+)
 
-// Service sends notifications to a given e-mail addresses via SMTP.
+// ErrNoAuth is a sentinel error indicating no authentication is required.
+var ErrNoAuth = errors.New("no authentication required")
+
+// Service sends notifications to given email addresses via SMTP.
 type Service struct {
 	standard.Standard
 	standard.Templater
@@ -28,15 +39,9 @@ type Service struct {
 	propKeyResolver   format.PropKeyResolver
 }
 
-const (
-	contentHTML      = "text/html; charset=\"UTF-8\""
-	contentPlain     = "text/plain; charset=\"UTF-8\""
-	contentMultipart = "multipart/alternative; boundary=%s"
-)
-
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{
 		Port:        DefaultSMTPPort,
 		ToAddresses: nil,
@@ -72,7 +77,7 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// Send a notification message to e-mail recipients.
+// Send sends a notification message to email recipients.
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config.Clone()
 	if err := service.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
@@ -87,16 +92,18 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return service.doSend(client, message, &config)
 }
 
+// getClientConnection establishes a connection to the SMTP server using the provided configuration.
 func getClientConnection(config *Config) (*smtp.Client, error) {
 	var conn net.Conn
 
 	var err error
 
-	addr := net.JoinHostPort(config.Host, fmt.Sprintf("%d", config.Port))
+	addr := net.JoinHostPort(config.Host, strconv.FormatUint(uint64(config.Port), 10))
 
 	if useImplicitTLS(config.Encryption, config.Port) {
 		conn, err = tls.Dial("tcp", addr, &tls.Config{
 			ServerName: config.Host,
+			MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
 		})
 	} else {
 		conn, err = net.Dial("tcp", addr)
@@ -114,6 +121,7 @@ func getClientConnection(config *Config) (*smtp.Client, error) {
 	return client, nil
 }
 
+// doSend sends an email message using the provided SMTP client and configuration.
 func (service *Service) doSend(client *smtp.Client, message string, config *Config) failure {
 	config.FixEmailTags()
 
@@ -124,15 +132,23 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 	}
 
 	if config.UseHTML {
-		service.multipartBoundary = fmt.Sprintf("%x", rand.Int63())
+		b := make([]byte, boundaryByteLen)
+		if _, err := rand.Read(b); err != nil {
+			return fail(FailUnknown, err) // Fallback error for rare case
+		}
+
+		service.multipartBoundary = hex.EncodeToString(b)
 	}
 
 	if config.UseStartTLS && !useImplicitTLS(config.Encryption, config.Port) {
 		if supported, _ := client.Extension("StartTLS"); !supported {
-			service.Logf("Warning: StartTLS enabled, but server did not report support for it. Connection is NOT encrypted")
+			service.Logf(
+				"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted",
+			)
 		} else {
 			if err := client.StartTLS(&tls.Config{
 				ServerName: config.Host,
+				MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
 			}
@@ -165,6 +181,7 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 	return nil
 }
 
+// resolveClientHost determines the client hostname to use in the SMTP handshake.
 func (service *Service) resolveClientHost(config *Config) string {
 	if config.ClientHost != "auto" {
 		return config.ClientHost
@@ -180,22 +197,33 @@ func (service *Service) resolveClientHost(config *Config) string {
 	return hostname
 }
 
+// getAuth returns the appropriate SMTP authentication mechanism based on the configuration.
+//
+//nolint:exhaustive,nilnil
 func (service *Service) getAuth(config *Config) (smtp.Auth, failure) {
 	switch config.Auth {
 	case AuthTypes.None:
-		return nil, nil
+		return nil, nil // No auth required, proceed without error
 	case AuthTypes.Plain:
 		return smtp.PlainAuth("", config.Username, config.Password, config.Host), nil
 	case AuthTypes.CRAMMD5:
 		return smtp.CRAMMD5Auth(config.Username, config.Password), nil
 	case AuthTypes.OAuth2:
 		return OAuth2Auth(config.Username, config.Password), nil
+	case AuthTypes.Unknown:
+		return nil, fail(FailAuthType, nil, config.Auth.String())
 	default:
 		return nil, fail(FailAuthType, nil, config.Auth.String())
 	}
 }
 
-func (service *Service) sendToRecipient(client *smtp.Client, toAddress string, config *Config, message string) failure {
+// sendToRecipient sends an email to a single recipient using the provided SMTP client.
+func (service *Service) sendToRecipient(
+	client *smtp.Client,
+	toAddress string,
+	config *Config,
+	message string,
+) failure {
 	// Set the sender and recipient first
 	if err := client.Mail(config.FromAddress); err != nil {
 		return fail(FailSetSender, err)
@@ -206,33 +234,34 @@ func (service *Service) sendToRecipient(client *smtp.Client, toAddress string, c
 	}
 
 	// Send the email body.
-	wc, err := client.Data()
+	writeCloser, err := client.Data()
 	if err != nil {
 		return fail(FailOpenDataStream, err)
 	}
 
-	if err := writeHeaders(wc, service.getHeaders(toAddress, config.Subject)); err != nil {
+	if err := writeHeaders(writeCloser, service.getHeaders(toAddress, config.Subject)); err != nil {
 		return err
 	}
 
 	var ferr failure
 	if config.UseHTML {
-		ferr = service.writeMultipartMessage(wc, message)
+		ferr = service.writeMultipartMessage(writeCloser, message)
 	} else {
-		ferr = service.writeMessagePart(wc, message, "plain")
+		ferr = service.writeMessagePart(writeCloser, message, "plain")
 	}
 
 	if ferr != nil {
 		return ferr
 	}
 
-	if err = wc.Close(); err != nil {
+	if err = writeCloser.Close(); err != nil {
 		return fail(FailCloseDataStream, err)
 	}
 
 	return nil
 }
 
+// getHeaders constructs email headers for the SMTP message.
 func (service *Service) getHeaders(toAddress string, subject string) map[string]string {
 	conf := service.Config
 
@@ -253,40 +282,46 @@ func (service *Service) getHeaders(toAddress string, subject string) map[string]
 	}
 }
 
-func (service *Service) writeMultipartMessage(wc io.WriteCloser, message string) failure {
-	if err := writeMultipartHeader(wc, service.multipartBoundary, contentPlain); err != nil {
+// writeMultipartMessage writes a multipart email message to the provided writer.
+func (service *Service) writeMultipartMessage(writeCloser io.WriteCloser, message string) failure {
+	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, contentPlain); err != nil {
 		return fail(FailPlainHeader, err)
 	}
 
-	if err := service.writeMessagePart(wc, message, "plain"); err != nil {
+	if err := service.writeMessagePart(writeCloser, message, "plain"); err != nil {
 		return err
 	}
 
-	if err := writeMultipartHeader(wc, service.multipartBoundary, contentHTML); err != nil {
+	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, contentHTML); err != nil {
 		return fail(FailHTMLHeader, err)
 	}
 
-	if err := service.writeMessagePart(wc, message, "HTML"); err != nil {
+	if err := service.writeMessagePart(writeCloser, message, "HTML"); err != nil {
 		return err
 	}
 
-	if err := writeMultipartHeader(wc, service.multipartBoundary, ""); err != nil {
+	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, ""); err != nil {
 		return fail(FailMultiEndHeader, err)
 	}
 
 	return nil
 }
 
-func (service *Service) writeMessagePart(wc io.WriteCloser, message string, template string) failure {
+// writeMessagePart writes a single part of an email message using the specified template.
+func (service *Service) writeMessagePart(
+	writeCloser io.WriteCloser,
+	message string,
+	template string,
+) failure {
 	if tpl, found := service.GetTemplate(template); found {
 		data := make(map[string]string)
 		data["message"] = message
 
-		if err := tpl.Execute(wc, data); err != nil {
+		if err := tpl.Execute(writeCloser, data); err != nil {
 			return fail(FailMessageTemplate, err)
 		}
 	} else {
-		if _, err := fmt.Fprint(wc, message); err != nil {
+		if _, err := fmt.Fprint(writeCloser, message); err != nil {
 			return fail(FailMessageRaw, err)
 		}
 	}
@@ -294,33 +329,35 @@ func (service *Service) writeMessagePart(wc io.WriteCloser, message string, temp
 	return nil
 }
 
-func writeMultipartHeader(wc io.WriteCloser, boundary string, contentType string) error {
+// writeMultipartHeader writes a multipart boundary header to the provided writer.
+func writeMultipartHeader(writeCloser io.WriteCloser, boundary string, contentType string) error {
 	suffix := "\n"
 	if len(contentType) < 1 {
 		suffix = "--"
 	}
 
-	if _, err := fmt.Fprintf(wc, "\n\n--%s%s", boundary, suffix); err != nil {
-		return err
+	if _, err := fmt.Fprintf(writeCloser, "\n\n--%s%s", boundary, suffix); err != nil {
+		return fmt.Errorf("writing multipart boundary: %w", err)
 	}
 
 	if len(contentType) > 0 {
-		if _, err := fmt.Fprintf(wc, "Content-Type: %s\n\n", contentType); err != nil {
-			return err
+		if _, err := fmt.Fprintf(writeCloser, "Content-Type: %s\n\n", contentType); err != nil {
+			return fmt.Errorf("writing content type header: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func writeHeaders(wc io.WriteCloser, headers map[string]string) failure {
+// writeHeaders writes email headers to the provided writer.
+func writeHeaders(writeCloser io.WriteCloser, headers map[string]string) failure {
 	for key, val := range headers {
-		if _, err := fmt.Fprintf(wc, "%s: %s\n", key, val); err != nil {
+		if _, err := fmt.Fprintf(writeCloser, "%s: %s\n", key, val); err != nil {
 			return fail(FailWriteHeaders, err)
 		}
 	}
 
-	_, err := fmt.Fprintln(wc)
+	_, err := fmt.Fprintln(writeCloser)
 	if err != nil {
 		return fail(FailWriteHeaders, err)
 	}

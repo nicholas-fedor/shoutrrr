@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/join"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 func TestJoin(t *testing.T) {
@@ -110,10 +110,13 @@ var _ = ginkgo.Describe("the join config", func() {
 	})
 
 	ginkgo.When("listing the query fields", func() {
-		ginkgo.It("should return the keys \"devices\", \"icon\", \"title\" in alphabetical order", func() {
-			fields := pkr.QueryFields()
-			gomega.Expect(fields).To(gomega.Equal([]string{"devices", "icon", "title"}))
-		})
+		ginkgo.It(
+			"should return the keys \"devices\", \"icon\", \"title\" in alphabetical order",
+			func() {
+				fields := pkr.QueryFields()
+				gomega.Expect(fields).To(gomega.Equal([]string{"devices", "icon", "title"}))
+			},
+		)
 	})
 
 	ginkgo.When("parsing the configuration URL", func() {

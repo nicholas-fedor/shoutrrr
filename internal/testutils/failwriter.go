@@ -1,9 +1,12 @@
 package testutils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
+
+var ErrWriteLimitReached = errors.New("reached write limit")
 
 type failWriter struct {
 	writeLimit int
@@ -16,13 +19,13 @@ func (fw *failWriter) Close() error {
 }
 
 // Write returns an error if the write limit has been reached.
-func (fw *failWriter) Write(p []byte) (int, error) {
+func (fw *failWriter) Write(data []byte) (int, error) {
 	fw.writeCount++
 	if fw.writeCount > fw.writeLimit {
-		return 0, fmt.Errorf("reached write limit %d", fw.writeLimit)
+		return 0, fmt.Errorf("%w: %d", ErrWriteLimitReached, fw.writeLimit)
 	}
 
-	return len(p), nil
+	return len(data), nil
 }
 
 // CreateFailWriter returns a io.WriteCloser that returns an error after the amount of writes indicated by writeLimit.

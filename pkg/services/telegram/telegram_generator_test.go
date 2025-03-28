@@ -26,17 +26,17 @@ var (
 )
 
 func mockTyped(a ...any) {
-	_, _ = fmt.Fprint(userOut, a...)
-	_, _ = fmt.Fprint(userOut, "\n")
+	fmt.Fprint(userOut, a...)
+	fmt.Fprint(userOut, "\n")
 }
 
 func dumpBuffers() {
 	for _, line := range strings.Split(string(userIn.Contents()), "\n") {
-		println(">", line)
+		fmt.Fprint(ginkgo.GinkgoWriter, "> ", line, "\n")
 	}
 
 	for _, line := range strings.Split(string(userOut.Contents()), "\n") {
-		println("<", line)
+		fmt.Fprint(ginkgo.GinkgoWriter, "< ", line, "\n")
 	}
 }
 
@@ -62,39 +62,47 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 
 		resultChannel := make(chan string, 1)
 
-		httpmock.RegisterResponder("GET", mockAPI(`getMe`), httpmock.NewJsonResponderOrPanic(200, &struct {
-			OK     bool
-			Result *telegram.User
-		}{
-			true, &telegram.User{
-				ID:       1,
-				IsBot:    true,
-				Username: "mockbot",
-			},
-		}))
+		httpmock.RegisterResponder(
+			"GET",
+			mockAPI(`getMe`),
+			httpmock.NewJsonResponderOrPanic(200, &struct {
+				OK     bool
+				Result *telegram.User
+			}{
+				true, &telegram.User{
+					ID:       1,
+					IsBot:    true,
+					Username: "mockbot",
+				},
+			}),
+		)
 
-		httpmock.RegisterResponder("POST", mockAPI(`getUpdates`), httpmock.NewJsonResponderOrPanic(200, &struct {
-			OK     bool
-			Result []telegram.Update
-		}{
-			true,
-			[]telegram.Update{
-				{
-					ChatMemberUpdate: &telegram.ChatMemberUpdate{
-						Chat:          &telegram.Chat{Type: `channel`, Title: `mockChannel`},
-						OldChatMember: &telegram.ChatMember{Status: `kicked`},
-						NewChatMember: &telegram.ChatMember{Status: `administrator`},
+		httpmock.RegisterResponder(
+			"POST",
+			mockAPI(`getUpdates`),
+			httpmock.NewJsonResponderOrPanic(200, &struct {
+				OK     bool
+				Result []telegram.Update
+			}{
+				true,
+				[]telegram.Update{
+					{
+						ChatMemberUpdate: &telegram.ChatMemberUpdate{
+							Chat:          &telegram.Chat{Type: `channel`, Title: `mockChannel`},
+							OldChatMember: &telegram.ChatMember{Status: `kicked`},
+							NewChatMember: &telegram.ChatMember{Status: `administrator`},
+						},
+					},
+					{
+						Message: &telegram.Message{
+							Text: "hi!",
+							From: &telegram.User{Username: `mockUser`},
+							Chat: &telegram.Chat{Type: `private`, ID: 667, Username: `mockUser`},
+						},
 					},
 				},
-				{
-					Message: &telegram.Message{
-						Text: "hi!",
-						From: &telegram.User{Username: `mockUser`},
-						Chat: &telegram.Chat{Type: `private`, ID: 667, Username: `mockUser`},
-					},
-				},
-			},
-		}))
+			}),
+		)
 
 		go func() {
 			defer ginkgo.GinkgoRecover()
@@ -110,11 +118,14 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 		mockTyped(mockToken)
 		mockTyped(`no`)
 
-		gomega.Eventually(userIn).Should(gbytes.Say(`Got a bot chat member update for mockChannel, status was changed from kicked to administrator`))
-		gomega.Eventually(userIn).Should(gbytes.Say(`Got 1 chat ID\(s\) so far\. Want to add some more\?`))
+		gomega.Eventually(userIn).
+			Should(gbytes.Say(`Got a bot chat member update for mockChannel, status was changed from kicked to administrator`))
+		gomega.Eventually(userIn).
+			Should(gbytes.Say(`Got 1 chat ID\(s\) so far\. Want to add some more\?`))
 		gomega.Eventually(userIn).Should(gbytes.Say(`Selected chats:`))
 		gomega.Eventually(userIn).Should(gbytes.Say(`667 \(private\) @mockUser`))
 
-		gomega.Eventually(resultChannel).Should(gomega.Receive(gomega.Equal(`telegram://0:MockToken@telegram?chats=667&preview=No`)))
+		gomega.Eventually(resultChannel).
+			Should(gomega.Receive(gomega.Equal(`telegram://0:MockToken@telegram?chats=667&preview=No`)))
 	})
 })

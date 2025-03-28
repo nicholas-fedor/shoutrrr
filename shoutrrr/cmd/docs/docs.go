@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/spf13/cobra"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/shoutrrr/cmd"
 )
 
@@ -25,7 +25,9 @@ var Cmd = &cobra.Command{
 	Run:   Run,
 	Args: func(cmd *cobra.Command, args []string) error {
 		serviceList := strings.Join(services, ", ")
-		cmd.SetUsageTemplate(cmd.UsageTemplate() + "\nAvailable services: \n  " + serviceList + "\n")
+		cmd.SetUsageTemplate(
+			cmd.UsageTemplate() + "\nAvailable services: \n  " + serviceList + "\n",
+		)
 
 		return cobra.MinimumNArgs(1)(cmd, args)
 	},
@@ -41,7 +43,7 @@ func Run(cmd *cobra.Command, args []string) {
 	res := printDocs(format, args)
 
 	if res.ExitCode != 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "%s", res.Message)
+		fmt.Fprintf(os.Stderr, "%s", res.Message)
 	}
 
 	os.Exit(res.ExitCode)
@@ -71,14 +73,14 @@ func printDocs(docFormat string, services []string) cmd.Result {
 			return cmd.InvalidUsage("failed to init service: " + err.Error())
 		}
 		// Initialize the service to populate Config
-		dummyURL, _ := url.Parse(fmt.Sprintf("%s://dummy@dummy.com", scheme))
+		dummyURL, _ := url.Parse(scheme + "://dummy@dummy.com")
 		if err := service.Initialize(dummyURL, logger); err != nil {
 			return cmd.InvalidUsage(fmt.Sprintf("failed to initialize service %q: %v", scheme, err))
 		}
 
 		config := format.GetServiceConfig(service)
 		configNode := format.GetConfigFormat(config)
-		fmt.Println(renderer.RenderTree(configNode, scheme))
+		fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme), "\n")
 	}
 
 	return cmd.Success

@@ -1,7 +1,7 @@
 package discord
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -11,6 +11,9 @@ import (
 const (
 	MaxEmbeds = 9
 )
+
+// Static error definition.
+var ErrEmptyMessage = errors.New("message is empty")
 
 // WebhookPayload is the webhook endpoint payload.
 type WebhookPayload struct {
@@ -35,9 +38,13 @@ type embedFooter struct {
 }
 
 // CreatePayloadFromItems creates a JSON payload to be sent to the discord webhook API.
-func CreatePayloadFromItems(items []types.MessageItem, title string, colors [types.MessageLevelCount]uint) (WebhookPayload, error) {
+func CreatePayloadFromItems(
+	items []types.MessageItem,
+	title string,
+	colors [types.MessageLevelCount]uint,
+) (WebhookPayload, error) {
 	if len(items) < 1 {
-		return WebhookPayload{}, fmt.Errorf("message is empty")
+		return WebhookPayload{}, ErrEmptyMessage
 	}
 
 	itemCount := util.Min(MaxEmbeds, len(items))
@@ -50,22 +57,22 @@ func CreatePayloadFromItems(items []types.MessageItem, title string, colors [typ
 			color = colors[item.Level]
 		}
 
-		ei := embedItem{
+		embeddedItem := embedItem{
 			Content: item.Text,
 			Color:   color,
 		}
 
 		if item.Level != types.Unknown {
-			ei.Footer = &embedFooter{
+			embeddedItem.Footer = &embedFooter{
 				Text: item.Level.String(),
 			}
 		}
 
 		if !item.Timestamp.IsZero() {
-			ei.Timestamp = item.Timestamp.UTC().Format(time.RFC3339)
+			embeddedItem.Timestamp = item.Timestamp.UTC().Format(time.RFC3339)
 		}
 
-		embeds = append(embeds, ei)
+		embeds = append(embeds, embeddedItem)
 	}
 
 	// This should not happen, but it's better to leave the index check before dereferencing the array

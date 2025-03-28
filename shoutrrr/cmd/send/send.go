@@ -1,6 +1,7 @@
 package send
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -17,12 +18,13 @@ import (
 	cli "github.com/nicholas-fedor/shoutrrr/shoutrrr/cmd"
 )
 
+// MaximumNArgs defines the maximum number of arguments accepted by the command.
 const (
 	MaximumNArgs     = 2
 	MaxMessageLength = 100
 )
 
-// Cmd sends a notification using a service url.
+// Cmd sends a notification using a service URL.
 var Cmd = &cobra.Command{
 	Use:    "send",
 	Short:  "Send a notification using a service url",
@@ -33,13 +35,12 @@ var Cmd = &cobra.Command{
 
 func init() {
 	Cmd.Flags().BoolP("verbose", "v", false, "")
-
 	Cmd.Flags().StringArrayP("url", "u", []string{}, "The notification url")
 	_ = Cmd.MarkFlagRequired("url")
+	Cmd.Flags().
+		StringP("message", "m", "", "The message to send to the notification url, or - to read message from stdin")
 
-	Cmd.Flags().StringP("message", "m", "", "The message to send to the notification url, or - to read message from stdin")
 	_ = Cmd.MarkFlagRequired("message")
-
 	Cmd.Flags().StringP("title", "t", "", "The title used for services that support it")
 }
 
@@ -59,16 +60,16 @@ func run(cmd *cobra.Command) error {
 	if message == "-" {
 		logf("Reading from STDIN...")
 
-		sb := strings.Builder{}
+		stringBuilder := strings.Builder{}
 
-		count, err := io.Copy(&sb, os.Stdin)
+		count, err := io.Copy(&stringBuilder, os.Stdin)
 		if err != nil {
 			return fmt.Errorf("failed to read message from stdin: %w", err)
 		}
 
 		logf("Read %d byte(s)", count)
 
-		message = sb.String()
+		message = stringBuilder.String()
 	}
 
 	var logger *log.Logger
@@ -95,34 +96,35 @@ func run(cmd *cobra.Command) error {
 		logger = util.DiscardLogger
 	}
 
-	sr, err := router.New(logger, urls...)
+	serviceRouter, err := router.New(logger, urls...)
 	if err != nil {
 		return cli.ConfigurationError(fmt.Sprintf("error invoking send: %s", err))
-	} else {
-		params := make(types.Params)
-		if title != "" {
-			params["title"] = title
+	}
+
+	params := make(types.Params)
+	if title != "" {
+		params["title"] = title
+	}
+
+	errs := serviceRouter.SendAsync(message, &params)
+	for err := range errs {
+		if err != nil {
+			return cli.TaskUnavailable(err.Error())
 		}
 
-		errs := sr.SendAsync(message, &params)
-		for err := range errs {
-			if err != nil {
-				return cli.TaskUnavailable(err.Error())
-			}
-
-			logf("Notification sent")
-		}
+		logf("Notification sent")
 	}
 
 	return nil
 }
 
-// Run the send command.
+// Run executes the send command and handles its result.
 func Run(cmd *cobra.Command, _ []string) error {
 	err := run(cmd)
 	if err != nil {
-		if result, ok := err.(cli.Result); ok && result.ExitCode != cli.ExUsage {
-			// If the error is not related to the CLI usage, report error and exit to not invoke cobra error output
+		var result cli.Result
+		if errors.As(err, &result) && result.ExitCode != cli.ExUsage {
+			// If the error is not related to CLI usage, report error and exit to avoid cobra error output
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(result.ExitCode)
 		}

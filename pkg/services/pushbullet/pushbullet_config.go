@@ -7,44 +7,42 @@ import (
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	// Scheme is the scheme part of the service configuration URL.
-	Scheme = "pushbullet"
+// Scheme is the scheme part of the service configuration URL.
+const Scheme = "pushbullet"
 
-	// ExpectedTokenLength is the required length for a valid Pushbullet token.
-	ExpectedTokenLength = 34
-)
+// ExpectedTokenLength is the required length for a valid Pushbullet token.
+const ExpectedTokenLength = 34
 
-// ErrorTokenIncorrectSize is the error returned when the token size is incorrect.
-var ErrorTokenIncorrectSize = errors.New("token has incorrect size")
+// ErrTokenIncorrectSize indicates that the token has an incorrect size.
+var ErrTokenIncorrectSize = errors.New("token has incorrect size")
 
-// Config ...
+// Config holds the configuration for the Pushbullet service.
 type Config struct {
 	standard.EnumlessConfig
 	Targets []string `url:"path"`
 	Token   string   `url:"host"`
-	Title   string   `default:"Shoutrrr notification" key:"title"`
+	Title   string   `           default:"Shoutrrr notification" key:"title"`
 }
 
-// GetURL returns a URL representation of its current field values.
+// GetURL returns a URL representation of the Config's current field values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of its field values.
+// SetURL updates the Config from a URL representation of its field values.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.setURL(&resolver, url)
 }
 
+// getURL constructs a URL from the Config's fields using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Host:       config.Token,
@@ -55,6 +53,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	path := url.Path
 	if len(path) > 0 && path[0] == '/' {
@@ -62,7 +61,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	if url.Fragment != "" {
-		path += fmt.Sprintf("/#%s", url.Fragment)
+		path += "/#" + url.Fragment
 	}
 
 	targets := strings.Split(path, "/")
@@ -79,16 +78,17 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
 	return nil
 }
 
+// validateToken checks if the token meets the expected length requirement.
 func validateToken(token string) error {
 	if len(token) != ExpectedTokenLength {
-		return ErrorTokenIncorrectSize
+		return ErrTokenIncorrectSize
 	}
 
 	return nil

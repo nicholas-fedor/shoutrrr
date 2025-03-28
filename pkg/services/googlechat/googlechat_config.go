@@ -9,6 +9,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+const (
+	Scheme = "googlechat"
+)
+
+// Static error definitions.
+var (
+	ErrMissingKey   = errors.New("missing field 'key'")
+	ErrMissingToken = errors.New("missing field 'token'")
+)
+
 type Config struct {
 	standard.EnumlessConfig
 	Host  string `default:"chat.googleapis.com"`
@@ -39,11 +49,11 @@ func (config *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) e
 
 	// Only enforce if explicitly provided but empty
 	if query.Has("key") && config.Key == "" {
-		return errors.New("missing field 'key'")
+		return ErrMissingKey
 	}
 
 	if query.Has("token") && config.Token == "" {
-		return errors.New("missing field 'token'")
+		return ErrMissingToken
 	}
 
 	return nil
@@ -61,7 +71,3 @@ func (config *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 		Scheme:   Scheme,
 	}
 }
-
-const (
-	Scheme = "googlechat"
-)

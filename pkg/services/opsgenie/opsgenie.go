@@ -2,41 +2,53 @@ package opsgenie
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// alertEndpointTemplate is the OpsGenie API endpoint template for sending alerts.
 const (
 	alertEndpointTemplate = "https://%s:%d/v2/alerts"
-	MaxMessageLength      = 130 // Maximum length of the alert message field in OpsGenie
-	httpSuccessMax        = 299 // Maximum HTTP status code for a successful response
+	MaxMessageLength      = 130              // MaxMessageLength is the maximum length of the alert message field in OpsGenie.
+	httpSuccessMax        = 299              // httpSuccessMax is the maximum HTTP status code for a successful response.
+	defaultHTTPTimeout    = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 )
 
-// Service providing OpsGenie as a notification service.
+// ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
+var ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected HTTP status code")
+
+// Service provides OpsGenie as a notification service.
 type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
 }
 
+// sendAlert sends an alert to OpsGenie using the specified URL and API key.
 func (service *Service) sendAlert(url string, apiKey string, payload AlertPayload) error {
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
 	}
 
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
-	req, err := http.NewRequest(http.MethodPost, url, jsonBuffer)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating HTTP request: %w", err)
 	}
 
 	req.Header.Add("Authorization", "GenieKey "+apiKey)
@@ -44,7 +56,7 @@ func (service *Service) sendAlert(url string, apiKey string, payload AlertPayloa
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send notification to OpsGenie: %s", err)
+		return fmt.Errorf("failed to send notification to OpsGenie: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -52,18 +64,23 @@ func (service *Service) sendAlert(url string, apiKey string, payload AlertPayloa
 	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("OpsGenie notification returned %d HTTP status code. Cannot read body: %s", resp.StatusCode, err)
+			return fmt.Errorf(
+				"%w: %d, cannot read body: %w",
+				ErrUnexpectedStatus,
+				resp.StatusCode,
+				err,
+			)
 		}
 
-		return fmt.Errorf("OpsGenie notification returned %d HTTP status code: %s", resp.StatusCode, body)
+		return fmt.Errorf("%w: %d - %s", ErrUnexpectedStatus, resp.StatusCode, body)
 	}
 
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
@@ -75,7 +92,7 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// Send a notification message to OpsGenie
+// Send delivers a notification message to OpsGenie.
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
 func (service *Service) Send(message string, params *types.Params) error {
 	config := service.Config
@@ -89,7 +106,11 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return service.sendAlert(endpointURL, config.APIKey, payload)
 }
 
-func (service *Service) newAlertPayload(message string, params *types.Params) (AlertPayload, error) {
+// newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
+func (service *Service) newAlertPayload(
+	message string,
+	params *types.Params,
+) (AlertPayload, error) {
 	if params == nil {
 		params = &types.Params{}
 	}
@@ -98,7 +119,7 @@ func (service *Service) newAlertPayload(message string, params *types.Params) (A
 	payloadFields := *service.Config
 
 	if err := service.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
-		return AlertPayload{}, err
+		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
 	}
 
 	// Use `Message` for the title if available, or if the message is too long
@@ -116,7 +137,7 @@ func (service *Service) newAlertPayload(message string, params *types.Params) (A
 	}
 
 	if payloadFields.Description != "" && description != "" {
-		description = description + "\n"
+		description += "\n"
 	}
 
 	result := AlertPayload{

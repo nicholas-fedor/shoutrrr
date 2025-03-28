@@ -10,6 +10,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+var (
+	ErrInvalidConfigKey    = errors.New("not a valid config key")
+	ErrInvalidValueForType = errors.New("invalid value for type")
+)
+
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
 	confValue reflect.Value
@@ -27,6 +32,10 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 
 	for _, item := range items {
 		field := *item.Field()
+		if len(field.Keys) == 0 {
+			continue // Skip fields without explicit 'key' tags
+		}
+
 		for _, key := range field.Keys {
 			key = strings.ToLower(key)
 			if key != "" {
@@ -61,10 +70,10 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 		return GetConfigFieldString(pkr.confValue, field)
 	}
 
-	return "", fmt.Errorf("%v is not a valid config key", key)
+	return "", fmt.Errorf("%w: %v", ErrInvalidConfigKey, key)
 }
 
-// Set sets the value of it's bound struct's property, tagged with the corresponding key.
+// Set sets the value of its bound struct's property, tagged with the corresponding key.
 func (pkr *PropKeyResolver) Set(key string, value string) error {
 	return pkr.set(pkr.confValue, key, value)
 }
@@ -74,19 +83,24 @@ func (pkr *PropKeyResolver) set(target reflect.Value, key string, value string) 
 	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
 		valid, err := SetConfigField(target, field, value)
 		if !valid && err == nil {
-			return errors.New("invalid value for type")
+			return ErrInvalidValueForType
 		}
 
 		return err
 	}
 
-	return fmt.Errorf("%v is not a valid config key %v", key, pkr.keys)
+	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
 }
 
-// UpdateConfigFromParams mutates the provided config, updating the values from it's corresponding params
+// UpdateConfigFromParams mutates the provided config, updating the values from its corresponding params.
 // If the provided config is nil, the internal config will be updated instead.
-// The error returned is the first error that occurred, subsequent errors are just discarded.
-func (pkr *PropKeyResolver) UpdateConfigFromParams(config types.ServiceConfig, params *types.Params) (firstError error) {
+// The error returned is the first error that occurred; subsequent errors are discarded.
+func (pkr *PropKeyResolver) UpdateConfigFromParams(
+	config types.ServiceConfig,
+	params *types.Params,
+) error {
+	var firstError error
+
 	confValue := pkr.configValueOrInternal(config)
 
 	if params != nil {
@@ -97,13 +111,15 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(config types.ServiceConfig, p
 		}
 	}
 
-	return
+	return firstError
 }
 
-// SetDefaultProps mutates the provided config, setting the tagged fields with their default values
+// SetDefaultProps mutates the provided config, setting the tagged fields with their default values.
 // If the provided config is nil, the internal config will be updated instead.
-// The error returned is the first error that occurred, subsequent errors are just discarded.
-func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) (firstError error) {
+// The error returned is the first error that occurred; subsequent errors are discarded.
+func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
+	var firstError error
+
 	confValue := pkr.configValueOrInternal(config)
 	for key, info := range pkr.keyFields {
 		if err := pkr.set(confValue, key, info.DefaultValue); err != nil && firstError == nil {
@@ -111,10 +127,10 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) (firstEr
 		}
 	}
 
-	return
+	return firstError
 }
 
-// Bind is called to create a new instance of the PropKeyResolver, with he internal config reference
+// Bind creates a new instance of the PropKeyResolver with the internal config reference
 // set to the provided config. This should only be used for configs of the same type.
 func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
 	bound := *pkr
@@ -123,6 +139,7 @@ func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
 	return bound
 }
 
+// GetConfigQueryResolver returns the ConfigQueryResolver interface for the config if it implements it,
 // otherwise it creates and returns a PropKeyResolver that implements it.
 func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolver {
 	var resolver types.ConfigQueryResolver

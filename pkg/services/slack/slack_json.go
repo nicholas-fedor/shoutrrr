@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+// Constants for Slack API limits.
+const (
+	MaxAttachments = 100 // Maximum number of attachments allowed by Slack API
+)
+
+var iconURLPattern = regexp.MustCompile(`https?://`)
+
 // MessagePayload used within the Slack service.
 type MessagePayload struct {
 	Text        string       `json:"text"`
@@ -15,22 +22,6 @@ type MessagePayload struct {
 	Channel     string       `json:"channel,omitempty"`
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	IconURL     string       `json:"icon_url,omitempty"`
-}
-
-var iconURLPattern = regexp.MustCompile(`https?://`)
-
-// SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
-func (p *MessagePayload) SetIcon(icon string) {
-	p.IconURL = ""
-	p.IconEmoji = ""
-
-	if icon != "" {
-		if iconURLPattern.MatchString(icon) {
-			p.IconURL = icon
-		} else {
-			p.IconEmoji = icon
-		}
-	}
 }
 
 type block struct {
@@ -69,13 +60,8 @@ type APIResponse struct {
 	} `json:"response_metadata"`
 }
 
-// Constants for Slack API limits.
-const (
-	MaxAttachments = 100 // Maximum number of attachments allowed by Slack API
-)
-
 // CreateJSONPayload compatible with the slack post message API.
-func CreateJSONPayload(config *Config, message string) interface{} {
+func CreateJSONPayload(config *Config, message string) any {
 	lines := strings.Split(message, "\n")
 	// Pre-allocate atts with a capacity of min(len(lines), MaxAttachments)
 	atts := make([]attachment, 0, minInt(len(lines), MaxAttachments))
@@ -113,6 +99,20 @@ func CreateJSONPayload(config *Config, message string) interface{} {
 	}
 
 	return payload
+}
+
+// SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
+func (p *MessagePayload) SetIcon(icon string) {
+	p.IconURL = ""
+	p.IconEmoji = ""
+
+	if icon != "" {
+		if iconURLPattern.MatchString(icon) {
+			p.IconURL = icon
+		} else {
+			p.IconEmoji = icon
+		}
+	}
 }
 
 // minInt returns the smaller of two integers.

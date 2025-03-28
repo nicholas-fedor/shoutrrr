@@ -115,9 +115,6 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 There is nothing to set!
 `[1:] // Remove initial newline
 
-			//_ = actual == expected
-			//println()
-			//println(actual)
 			gomega.Expect(actual).To(gomega.Equal(expected))
 		})
 	})

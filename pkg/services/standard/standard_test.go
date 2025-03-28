@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
 func TestStandard(t *testing.T) {
@@ -138,7 +139,8 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 				err := errors.New("invalid URL")
 				failure := Failure(FailParseURL, err)
 				gomega.Expect(failure.ID()).To(gomega.Equal(FailParseURL))
-				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("error parsing Service URL"))
+				gomega.Expect(failure.Error()).
+					To(gomega.ContainSubstring("error parsing Service URL"))
 				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("invalid URL"))
 			})
 		})
@@ -147,7 +149,8 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 				err := errors.New("something went wrong")
 				failure := Failure(FailUnknown, err)
 				gomega.Expect(failure.ID()).To(gomega.Equal(FailUnknown))
-				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("an unknown error occurred"))
+				gomega.Expect(failure.Error()).
+					To(gomega.ContainSubstring("an unknown error occurred"))
 				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("something went wrong"))
 			})
 		})
@@ -156,7 +159,8 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 				err := errors.New("unrecognized error")
 				failure := Failure(failures.FailureID(999), err) // Arbitrary unknown ID
 				gomega.Expect(failure.ID()).To(gomega.Equal(failures.FailureID(999)))
-				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("an unknown error occurred"))
+				gomega.Expect(failure.Error()).
+					To(gomega.ContainSubstring("an unknown error occurred"))
 				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("unrecognized error"))
 			})
 		})
@@ -164,7 +168,8 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 			ginkgo.It("should include formatted arguments in the error", func() {
 				err := errors.New("base error")
 				failure := Failure(FailParseURL, err, "extra info: %s", "details")
-				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("error parsing Service URL extra info: details"))
+				gomega.Expect(failure.Error()).
+					To(gomega.ContainSubstring("error parsing Service URL extra info: details"))
 				gomega.Expect(failure.Error()).To(gomega.ContainSubstring("base error"))
 			})
 		})

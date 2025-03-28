@@ -1,9 +1,10 @@
 package format_test
 
 import (
-	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
 var _ = ginkgo.Describe("URLPart", func() {

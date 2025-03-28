@@ -1,31 +1,45 @@
 package zulip
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Service sends notifications to a pre-configured channel or user.
-type Service struct {
-	standard.Standard
-	Config *Config
-}
-
+// contentMaxSize defines the maximum allowed message size in bytes.
 const (
 	contentMaxSize = 10000 // bytes
 	topicMaxLength = 60    // characters
 )
 
-// Send a notification message to Zulip.
+// ErrTopicTooLong indicates the topic exceeds the maximum allowed length.
+var (
+	ErrTopicTooLong          = errors.New("topic exceeds max length")
+	ErrMessageTooLong        = errors.New("message exceeds max size")
+	ErrResponseStatusFailure = errors.New("response status code unexpected")
+	ErrInvalidHost           = errors.New("invalid host format")
+)
+
+// hostValidator ensures the host is a valid hostname or domain.
+var hostValidator = regexp.MustCompile(
+	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`,
+)
+
+// Service sends notifications to a pre-configured Zulip channel or user.
+type Service struct {
+	standard.Standard
+	Config *Config
+}
+
+// Send delivers a notification message to Zulip.
 func (service *Service) Send(message string, params *types.Params) error {
-	// Clone the config because we might modify stream and/or
-	// topic with values from the parameters and they should only
-	// change this Send().
+	// Clone the config to avoid modifying the original for this send operation.
 	config := service.Config.Clone()
 
 	if params != nil {
@@ -39,23 +53,26 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	topicLength := len([]rune(config.Topic))
-
 	if topicLength > topicMaxLength {
-		return fmt.Errorf(string(TopicTooLong), topicMaxLength, topicLength)
+		return fmt.Errorf("%w: %d characters, got %d", ErrTopicTooLong, topicMaxLength, topicLength)
 	}
 
 	messageSize := len(message)
-
 	if messageSize > contentMaxSize {
-		return fmt.Errorf("message exceeds max size (%d bytes): was %d bytes", contentMaxSize, messageSize)
+		return fmt.Errorf(
+			"%w: %d bytes, got %d bytes",
+			ErrMessageTooLong,
+			contentMaxSize,
+			messageSize,
+		)
 	}
 
 	return service.doSend(config, message)
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 
 	if err := service.Config.setURL(nil, configURL); err != nil {
@@ -65,27 +82,43 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	return nil
 }
 
-// GetID returns the service identifier.
+// GetID returns the identifier for this service.
 func (service *Service) GetID() string {
 	return Scheme
 }
 
+// doSend sends the notification to Zulip using the configured API URL.
+//
+//nolint:gosec,noctx // Ignoring G107: Potential HTTP request made with variable url
 func (service *Service) doSend(config *Config, message string) error {
 	apiURL := service.getAPIURL(config)
-	payload := CreatePayload(config, message)
-	res, err := http.Post(apiURL, "application/x-www-form-urlencoded", strings.NewReader(payload.Encode()))
 
-	if err == nil && res.StatusCode != http.StatusOK {
-		err = fmt.Errorf("response status code %s", res.Status)
+	// Validate the host to mitigate SSRF risks
+	if !hostValidator.MatchString(config.Host) {
+		return fmt.Errorf("%w: %q", ErrInvalidHost, config.Host)
 	}
 
+	payload := CreatePayload(config, message)
+
+	res, err := http.Post(
+		apiURL,
+		"application/x-www-form-urlencoded",
+		strings.NewReader(payload.Encode()),
+	)
+	if err == nil && res.StatusCode != http.StatusOK {
+		err = fmt.Errorf("%w: %s", ErrResponseStatusFailure, res.Status)
+	}
+
+	defer res.Body.Close()
+
 	if err != nil {
-		return fmt.Errorf("failed to send zulip message: %s", err)
+		return fmt.Errorf("failed to send zulip message: %w", err)
 	}
 
 	return nil
 }
 
+// getAPIURL constructs the API URL for Zulip based on the Config.
 func (service *Service) getAPIURL(config *Config) string {
 	return (&url.URL{
 		User:   url.UserPassword(config.BotMail, config.BotKey),

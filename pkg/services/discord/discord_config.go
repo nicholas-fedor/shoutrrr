@@ -2,6 +2,7 @@ package discord
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -9,25 +10,36 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Config is the configuration needed to send discord notifications.
+// Scheme defines the protocol identifier for this service's configuration URL.
+const Scheme = "discord"
+
+// Static error definitions.
+var (
+	ErrIllegalURLArgument = errors.New("illegal argument in config URL")
+	ErrMissingWebhookID   = errors.New("webhook ID missing from config URL")
+	ErrMissingToken       = errors.New("token missing from config URL")
+)
+
+// Config holds the settings required for sending Discord notifications.
 type Config struct {
 	standard.EnumlessConfig
 	WebhookID  string `url:"host"`
 	Token      string `url:"user"`
-	Title      string `default:""    key:"title"`
-	Username   string `default:""    desc:"Override the webhook default username"                                                            key:"username"`
-	Avatar     string `default:""    desc:"Override the webhook default avatar with specified URL"                                           key:"avatar,avatarurl"`
-	Color      uint   `base:"16"     default:"0x50D9ff"                                                                                      desc:"The color of the left border for plain messages"   key:"color"`
-	ColorError uint   `base:"16"     default:"0xd60510"                                                                                      desc:"The color of the left border for error messages"   key:"colorError"`
-	ColorWarn  uint   `base:"16"     default:"0xffc441"                                                                                      desc:"The color of the left border for warning messages" key:"colorWarn"`
-	ColorInfo  uint   `base:"16"     default:"0x2488ff"                                                                                      desc:"The color of the left border for info messages"    key:"colorInfo"`
-	ColorDebug uint   `base:"16"     default:"0x7b00ab"                                                                                      desc:"The color of the left border for debug messages"   key:"colorDebug"`
-	SplitLines bool   `default:"Yes" desc:"Whether to send each line as a separate embedded item"                                            key:"splitLines"`
-	JSON       bool   `default:"No"  desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field" key:"json"`
+	Title      string `           default:""         key:"title"`
+	Username   string `           default:""         key:"username"         desc:"Override the webhook default username"`
+	Avatar     string `           default:""         key:"avatar,avatarurl" desc:"Override the webhook default avatar with specified URL"`
+	Color      uint   `           default:"0x50D9ff" key:"color"            desc:"The color of the left border for plain messages"                                                  base:"16"`
+	ColorError uint   `           default:"0xd60510" key:"colorError"       desc:"The color of the left border for error messages"                                                  base:"16"`
+	ColorWarn  uint   `           default:"0xffc441" key:"colorWarn"        desc:"The color of the left border for warning messages"                                                base:"16"`
+	ColorInfo  uint   `           default:"0x2488ff" key:"colorInfo"        desc:"The color of the left border for info messages"                                                   base:"16"`
+	ColorDebug uint   `           default:"0x7b00ab" key:"colorDebug"       desc:"The color of the left border for debug messages"                                                  base:"16"`
+	SplitLines bool   `           default:"Yes"      key:"splitLines"       desc:"Whether to send each line as a separate embedded item"`
+	JSON       bool   `           default:"No"       key:"json"             desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field"`
 }
 
-// LevelColors returns an array of colors with a MessageLevel index.
-func (config *Config) LevelColors() (colors [types.MessageLevelCount]uint) {
+// LevelColors returns an array of colors indexed by MessageLevel.
+func (config *Config) LevelColors() [types.MessageLevelCount]uint {
+	var colors [types.MessageLevelCount]uint
 	colors[types.Unknown] = config.Color
 	colors[types.Error] = config.ColorError
 	colors[types.Warning] = config.ColorWarn
@@ -37,22 +49,23 @@ func (config *Config) LevelColors() (colors [types.MessageLevelCount]uint) {
 	return colors
 }
 
-// GetURL returns a URL representation of it's current field values.
+// GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.getURL(&resolver)
 }
 
-// SetURL updates a ServiceConfig from a URL representation of it's field values.
+// SetURL updates the configuration from a URL representation.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.setURL(&resolver, url)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) (u *url.URL) {
-	u = &url.URL{
+// getURL constructs a URL from configuration using the provided resolver.
+func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	url := &url.URL{
 		User:       url.User(config.Token),
 		Host:       config.WebhookID,
 		Scheme:     Scheme,
@@ -61,13 +74,13 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) (u *url.URL) {
 	}
 
 	if config.JSON {
-		u.Path = "/raw"
+		url.Path = "/raw"
 	}
 
-	return u
+	return url
 }
 
-// SetURL updates a ServiceConfig from a URL representation of it's field values.
+// setURL updates the configuration from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	config.WebhookID = url.Host
 	config.Token = url.User.Username()
@@ -76,29 +89,24 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		switch url.Path {
 		case "/raw":
 			config.JSON = true
-
-			break
 		default:
-			return errors.New("illegal argument in config URL")
+			return ErrIllegalURLArgument
 		}
 	}
 
 	if config.WebhookID == "" {
-		return errors.New("webhook ID missing from config URL")
+		return ErrMissingWebhookID
 	}
 
 	if len(config.Token) < 1 {
-		return errors.New("token missing from config URL")
+		return ErrMissingToken
 	}
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting config value for key %s: %w", key, err)
 		}
 	}
 
 	return nil
 }
-
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "discord"

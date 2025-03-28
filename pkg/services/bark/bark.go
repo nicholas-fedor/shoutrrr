@@ -1,6 +1,7 @@
 package bark
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,19 +12,25 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+var (
+	ErrFailedAPIRequest   = errors.New("failed to make API request")
+	ErrUnexpectedStatus   = errors.New("unexpected status code")
+	ErrUpdateParamsFailed = errors.New("failed to update config from params")
+)
+
 // Service sends notifications to Bark.
 type Service struct {
 	standard.Standard
-	Config *Config // Changed from 'config' to 'Config'
+	Config *Config
 	pkr    format.PropKeyResolver
 }
 
-// Send a notification message to Bark.
+// Send transmits a notification message to Bark.
 func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config // Update reference
+	config := service.Config
 
 	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
 	}
 
 	if err := service.sendAPI(config, message); err != nil {
@@ -33,18 +40,18 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize sets up the Service with configuration from configURL and assigns a logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
-	service.Config = &Config{}                              // Update reference
-	service.pkr = format.NewPropKeyResolver(service.Config) // Update reference
+	service.SetLogger(logger)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
 
-	_ = service.pkr.SetDefaultProps(service.Config) // Update reference
+	_ = service.pkr.SetDefaultProps(service.Config)
 
-	return service.Config.setURL(&service.pkr, configURL) // Update reference
+	return service.Config.setURL(&service.pkr, configURL)
 }
 
-// GetID returns the service identifier.
+// GetID returns the identifier for the Bark service.
 func (service *Service) GetID() string {
 	return Scheme
 }
@@ -67,15 +74,18 @@ func (service *Service) sendAPI(config *Config, message string) error {
 
 	if err := jsonClient.Post(config.GetAPIURL("push"), &request, &response); err != nil {
 		if jsonClient.ErrorResponse(err, &response) {
-			// apiResponse implements Error
 			return &response
 		}
 
-		return err
+		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, err)
 	}
 
 	if response.Code != http.StatusOK {
-		return fmt.Errorf("unknown error")
+		if response.Message != "" {
+			return &response
+		}
+
+		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, response.Code)
 	}
 
 	return nil

@@ -1,9 +1,10 @@
 package format
 
 import (
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 var _ = ginkgo.Describe("Prop Key Resolver", func() {
@@ -30,7 +31,10 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 			ginkgo.It("should process the other keys", func() {
-				_ = pkr.UpdateConfigFromParams(nil, &types.Params{"signed": "1", "b": "c", "str": "val"})
+				_ = pkr.UpdateConfigFromParams(
+					nil,
+					&types.Params{"signed": "1", "b": "c", "str": "val"},
+				)
 				gomega.Expect(ts.Signed).To(gomega.Equal(1))
 				gomega.Expect(ts.Str).To(gomega.Equal("val"))
 			})

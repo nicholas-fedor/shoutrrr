@@ -1,39 +1,56 @@
 package shoutrrr
 
 import (
+	"fmt"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// defaultRouter manages the creation and routing of notification services.
 var defaultRouter = router.ServiceRouter{}
 
-// SetLogger sets the logger that the services will use to write progress logs.
+// SetLogger configures the logger for all services in the default router.
 func SetLogger(logger types.StdLogger) {
 	defaultRouter.SetLogger(logger)
 }
 
-// Send notifications using a supplied url and message.
+// Send delivers a notification message using the specified URL.
 func Send(rawURL string, message string) error {
 	service, err := defaultRouter.Locate(rawURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("locating service for URL %q: %w", rawURL, err)
 	}
 
-	return service.Send(message, &types.Params{})
+	if err := service.Send(message, &types.Params{}); err != nil {
+		return fmt.Errorf("sending message via service at %q: %w", rawURL, err)
+	}
+
+	return nil
 }
 
-// CreateSender returns a notification sender configured according to the supplied URL.
+// CreateSender constructs a new service router for the given URLs without a logger.
 func CreateSender(rawURLs ...string) (*router.ServiceRouter, error) {
-	return router.New(nil, rawURLs...)
+	sr, err := router.New(nil, rawURLs...)
+	if err != nil {
+		return nil, fmt.Errorf("creating sender for URLs %v: %w", rawURLs, err)
+	}
+
+	return sr, nil
 }
 
-// to send to the services indicated by the supplied URLs.
+// NewSender constructs a new service router with a logger for the given URLs.
 func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRouter, error) {
-	return router.New(logger, serviceURLs...)
+	sr, err := router.New(logger, serviceURLs...)
+	if err != nil {
+		return nil, fmt.Errorf("creating sender with logger for URLs %v: %w", serviceURLs, err)
+	}
+
+	return sr, nil
 }
 
-// Version returns the shoutrrr version.
+// Version returns the current shoutrrr version.
 func Version() string {
 	return meta.Version
 }

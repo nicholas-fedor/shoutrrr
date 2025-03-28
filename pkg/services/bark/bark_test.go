@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/bark"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/bark"
 )
 
 // TestBark runs the Ginkgo test suite for the bark package.
@@ -48,7 +49,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 
 			configURL := testutils.URLMust(envBarkURL.String())
 			gomega.Expect(service.Initialize(configURL, logger)).To(gomega.Succeed())
-			gomega.Expect(service.Send("This is an integration test message", nil)).To(gomega.Succeed())
+			gomega.Expect(service.Send("This is an integration test message", nil)).
+				To(gomega.Succeed())
 		})
 	})
 
@@ -57,7 +59,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 			ginkgo.It("constructs the expected URL for various path formats", func() {
 				gomega.Expect(getAPIForPath("path")).To(gomega.Equal("https://host/path/endpoint"))
 				gomega.Expect(getAPIForPath("/path")).To(gomega.Equal("https://host/path/endpoint"))
-				gomega.Expect(getAPIForPath("/path/")).To(gomega.Equal("https://host/path/endpoint"))
+				gomega.Expect(getAPIForPath("/path/")).
+					To(gomega.Equal("https://host/path/endpoint"))
 				gomega.Expect(getAPIForPath("path/")).To(gomega.Equal("https://host/path/endpoint"))
 				gomega.Expect(getAPIForPath("/")).To(gomega.Equal("https://host/endpoint"))
 				gomega.Expect(getAPIForPath("")).To(gomega.Equal("https://host/endpoint"))
@@ -80,7 +83,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 			ginkgo.It("preserves all fields after de-/serialization", func() {
 				testURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&group=GROUP&scheme=http&title=TITLE&url=URL"
 				config := &bark.Config{}
-				gomega.Expect(config.SetURL(testutils.URLMust(testURL))).To(gomega.Succeed(), "verifying")
+				gomega.Expect(config.SetURL(testutils.URLMust(testURL))).
+					To(gomega.Succeed(), "verifying")
 				gomega.Expect(config.GetURL().String()).To(gomega.Equal(testURL))
 			})
 		})
@@ -139,7 +143,10 @@ var _ = ginkgo.Describe("the bark service", func() {
 		ginkgo.Describe("the service config", func() {
 			ginkgo.It("implements basic service config API methods correctly", func() {
 				testutils.TestConfigGetInvalidQueryValue(&bark.Config{})
-				testutils.TestConfigSetInvalidQueryValue(&bark.Config{}, "bark://:mock-device@host/?foo=bar")
+				testutils.TestConfigSetInvalidQueryValue(
+					&bark.Config{},
+					"bark://:mock-device@host/?foo=bar",
+				)
 				testutils.TestConfigSetDefaultValues(&bark.Config{})
 				testutils.TestConfigGetEnumsCount(&bark.Config{}, 0)
 				testutils.TestConfigGetFieldsCount(&bark.Config{}, 9)

@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -8,16 +9,21 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "slack"
+)
+
 // Config for the slack service.
 type Config struct {
 	standard.EnumlessConfig
-	BotName  string `desc:"Bot name"                                                            key:"botname,username"                                                   optional:"uses bot default"`
-	Icon     string `default:""                                                                 desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url"  optional:""`
-	Token    Token  `desc:"API Bot token"                                                       url:"user,pass"`
-	Color    string `desc:"Message left-hand border color"                                      key:"color"                                                              optional:"default border color"`
-	Title    string `desc:"Prepended text above the message"                                    key:"title"                                                              optional:"omitted"`
-	Channel  string `desc:"Channel to send messages to in Cxxxxxxxxxx format"                   url:"host"`
-	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                                                          optional:""`
+	BotName  string `desc:"Bot name"                                                            key:"botname,username"         optional:"uses bot default"`
+	Icon     string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)"   key:"icon,icon_emoji,icon_url" optional:""                     default:""`
+	Token    Token  `desc:"API Bot token"                                                                                                                                 url:"user,pass"`
+	Color    string `desc:"Message left-hand border color"                                      key:"color"                    optional:"default border color"`
+	Title    string `desc:"Prepended text above the message"                                    key:"title"                    optional:"omitted"`
+	Channel  string `desc:"Channel to send messages to in Cxxxxxxxxxx format"                                                                                             url:"host"`
+	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                optional:""`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -69,17 +75,12 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return err
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
 	return nil
 }
-
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "slack"
-)
 
 // CreateConfigFromURL to use within the slack service.
 func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {

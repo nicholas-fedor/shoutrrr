@@ -5,7 +5,7 @@ type ErrorMessage string
 
 const (
 	// APIKeyMissing should be used when a config URL is missing a token.
-	APIKeyMissing ErrorMessage = "API key missing from config URL"
+	APIKeyMissing ErrorMessage = "API key missing from config URL" //nolint:gosec // false positive
 
 	// DevicesMissing should be used when a config URL is missing devices.
 	DevicesMissing ErrorMessage = "devices missing from config URL"

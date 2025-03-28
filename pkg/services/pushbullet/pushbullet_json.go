@@ -4,6 +4,8 @@ import (
 	"regexp"
 )
 
+var emailPattern = regexp.MustCompile(`.*@.*\..*`)
+
 // PushRequest ...
 type PushRequest struct {
 	Type  string `json:"type"`
@@ -34,7 +36,7 @@ type PushResponse struct {
 	Type                    string  `json:"type"`
 }
 
-type ErrorResponse struct {
+type ResponseError struct {
 	ErrorData struct {
 		Cat     string `json:"cat"`
 		Message string `json:"message"`
@@ -42,9 +44,7 @@ type ErrorResponse struct {
 	} `json:"error"`
 }
 
-var emailPattern = regexp.MustCompile(`.*@.*\..*`)
-
-func (err *ErrorResponse) Error() string {
+func (err *ResponseError) Error() string {
 	return err.ErrorData.Message
 }
 

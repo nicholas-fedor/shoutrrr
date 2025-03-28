@@ -2,6 +2,7 @@ package gotify
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,13 +15,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// Constants for magic numbers.
 const (
-	HTTP_TIMEOUT_SECONDS = 10
-	TOKEN_LENGTH         = 15
+	// HTTPTimeout defines the HTTP client timeout in seconds.
+	HTTPTimeout = 10
+	TokenLength = 15
+	// TokenChars specifies the valid characters for a Gotify token.
+	TokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
 )
 
-// Service providing Gotify as a notification service.
+// ErrInvalidToken indicates an invalid Gotify token format or content.
+var ErrInvalidToken = errors.New("invalid gotify token")
+
+// Service implements a Gotify notification service.
 type Service struct {
 	standard.Standard
 	Config     *Config
@@ -29,50 +35,55 @@ type Service struct {
 	client     jsonclient.Client
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize configures the service with a URL and logger.
+//
+//nolint:gosec
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{
 		Title: "Shoutrrr notification",
 	}
 	service.pkr = format.NewPropKeyResolver(service.Config)
+
 	err := service.Config.SetURL(configURL)
+	if err != nil {
+		return err
+	}
 
 	service.httpClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				// If DisableTLS is specified, we might still need to disable TLS verification
-				// since the default configuration of Gotify redirects HTTP to HTTPS
-				// Note that this cannot be overridden using params, only using the config URL
+				// InsecureSkipVerify disables TLS certificate verification when true.
+				// This is set to Config.DisableTLS to support HTTP or self-signed certificate setups,
+				// but it reduces security by allowing potential man-in-the-middle attacks.
 				InsecureSkipVerify: service.Config.DisableTLS,
 			},
 		},
-		Timeout: HTTP_TIMEOUT_SECONDS * time.Second,
+		Timeout: HTTPTimeout * time.Second,
 	}
+	if service.Config.DisableTLS {
+		service.Log("Warning: TLS verification is disabled, making connections insecure")
+	}
+
 	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
 
-	return err
+	return nil
 }
 
-// GetID returns the service identifier.
+// GetID returns the identifier for this service.
 func (service *Service) GetID() string {
 	return Scheme
 }
 
-const tokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
-
-// The validation rules have been taken directly from the Gotify source code.
-// These will have to be adapted in case of a change:
-// https://github.com/gotify/server/blob/ad157a138b4985086c484a7aabfc2deada5a33dd/auth/token.go#L8
+// isTokenValid checks if a Gotify token meets length and character requirements.
+// Rules are based on Gotify's token validation logic.
 func isTokenValid(token string) bool {
-	if len(token) != TOKEN_LENGTH {
-		return false
-	} else if token[0] != 'A' {
+	if len(token) != TokenLength || token[0] != 'A' {
 		return false
 	}
 
 	for _, c := range token {
-		if !strings.ContainsRune(tokenChars, c) {
+		if !strings.ContainsRune(TokenChars, c) {
 			return false
 		}
 	}
@@ -80,21 +91,22 @@ func isTokenValid(token string) bool {
 	return true
 }
 
+// buildURL constructs the Gotify API URL with scheme, host, path, and token.
 func buildURL(config *Config) (string, error) {
 	token := config.Token
 	if !isTokenValid(token) {
-		return "", fmt.Errorf("invalid gotify token %q", token)
+		return "", fmt.Errorf("%w: %q", ErrInvalidToken, token)
 	}
 
 	scheme := "https"
 	if config.DisableTLS {
-		scheme = scheme[:4]
+		scheme = "http" // Use HTTP if TLS is disabled
 	}
 
 	return fmt.Sprintf("%s://%s%s/message?token=%s", scheme, config.Host, config.Path, token), nil
 }
 
-// Send a notification message to Gotify.
+// Send delivers a notification message to Gotify.
 func (service *Service) Send(message string, params *types.Params) error {
 	if params == nil {
 		params = &types.Params{}
@@ -119,18 +131,18 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	err = service.client.Post(postURL, request, response)
 	if err != nil {
-		errorRes := &errorResponse{}
+		errorRes := &responseError{}
 		if service.client.ErrorResponse(err, errorRes) {
 			return errorRes
 		}
 
-		return fmt.Errorf("failed to send notification to Gotify: %s", err)
+		return fmt.Errorf("failed to send notification to Gotify: %w", err)
 	}
 
 	return nil
 }
 
-// GetHTTPClient is only supposed to be used for mocking the httpclient when testing.
+// GetHTTPClient returns the HTTP client for testing purposes.
 func (service *Service) GetHTTPClient() *http.Client {
 	return service.httpClient
 }

@@ -12,15 +12,16 @@ import (
 )
 
 const (
-	extraIdValue     = "V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05"
-	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIdValue
+	extraIDValue     = "V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05"
+	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
 	scopedDomainHost = "test.webhook.office.com"
-	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIdValue
+	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
 	scopedURLBase    = testURLBase + "?host=" + scopedDomainHost
 )
 
 var logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
 
+// TestTeams runs the test suite for the Teams package.
 func TestTeams(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Shoutrrr Teams Suite")
@@ -35,7 +36,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				"22222222-4444-4444-8444-cccccccccccc",
 				"33333333012222222222333333333344",
 				"44444444-4444-4444-8444-cccccccccccc",
-				extraIdValue,
+				extraIDValue,
 			})
 			apiURL := BuildWebhookURL(
 				scopedDomainHost,
@@ -47,7 +48,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 			)
 			gomega.Expect(apiURL).To(gomega.Equal(scopedWebhookURL))
 
-			parts, err := parseAndVerifyWebhookURL(apiURL)
+			parts, err := ParseAndVerifyWebhookURL(apiURL)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(parts).To(gomega.Equal(config.WebhookParts()))
 		})
@@ -167,7 +168,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				gomega.Expect(config.AltID).To(gomega.Equal("33333333012222222222333333333344"))
 				gomega.Expect(config.GroupOwner).
 					To(gomega.Equal("44444444-4444-4444-8444-cccccccccccc"))
-				gomega.Expect(config.ExtraID).To(gomega.Equal(extraIdValue))
+				gomega.Expect(config.ExtraID).To(gomega.Equal(extraIDValue))
 				gomega.Expect(config.Title).To(gomega.Equal("Test"))
 				gomega.Expect(config.Color).To(gomega.Equal("red"))
 				gomega.Expect(config.Host).To(gomega.Equal("test.webhook.office.com"))
@@ -201,7 +202,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 					Tenant:     "22222222-4444-4444-8444-cccccccccccc",
 					AltID:      "33333333012222222222333333333344",
 					GroupOwner: "44444444-4444-4444-8444-cccccccccccc",
-					ExtraID:    extraIdValue,
+					ExtraID:    extraIDValue,
 					Title:      "Test",
 					Color:      "red",
 					Host:       "test.webhook.office.com",
@@ -221,7 +222,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 					"22222222-4444-4444-8444-cccccccccccc",
 					"33333333012222222222333333333344",
 					"44444444-4444-4444-8444-cccccccccccc",
-					extraIdValue,
+					extraIDValue,
 				}
 				err := verifyWebhookParts(parts)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -233,7 +234,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 					"22222222-4444-4444-8444-cccccccccccc",
 					"33333333012222222222333333333344",
 					"44444444-4444-4444-8444-cccccccccccc",
-					extraIdValue,
+					extraIDValue,
 				}
 				err := verifyWebhookParts(parts)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -243,20 +244,20 @@ var _ = ginkgo.Describe("the teams service", func() {
 		ginkgo.Describe("parseAndVerifyWebhookURL", func() {
 			ginkgo.It("should correctly parse valid webhook URL", func() {
 				webhookURL := scopedWebhookURL
-				parts, err := parseAndVerifyWebhookURL(webhookURL)
+				parts, err := ParseAndVerifyWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(parts).To(gomega.Equal([5]string{
 					"11111111-4444-4444-8444-cccccccccccc",
 					"22222222-4444-4444-8444-cccccccccccc",
 					"33333333012222222222333333333344",
 					"44444444-4444-4444-8444-cccccccccccc",
-					extraIdValue,
+					extraIDValue,
 				}))
 			})
 
 			ginkgo.It("should reject invalid webhook URL", func() {
 				webhookURL := "https://teams.microsoft.com/invalid/webhook/url"
-				_, err := parseAndVerifyWebhookURL(webhookURL)
+				_, err := ParseAndVerifyWebhookURL(webhookURL)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 		})

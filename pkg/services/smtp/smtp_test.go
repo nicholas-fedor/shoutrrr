@@ -9,15 +9,16 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
+	gomegaTypes "github.com/onsi/gomega/types"
+
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	gomegaTypes "github.com/onsi/gomega/types"
 )
 
 var tt *testing.T
@@ -82,24 +83,30 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				ginkgo.It("should return the os hostname", func() {
 					hostname, err := os.Hostname()
 					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-					gomega.Expect(service.resolveClientHost(&Config{ClientHost: "auto"})).To(gomega.Equal(hostname))
+					gomega.Expect(service.resolveClientHost(&Config{ClientHost: "auto"})).
+						To(gomega.Equal(hostname))
 				})
 			})
 			ginkgo.When("clienthost is set to a custom value", func() {
 				ginkgo.It("should return that value", func() {
-					gomega.Expect(service.resolveClientHost(&Config{ClientHost: "computah"})).To(gomega.Equal("computah"))
+					gomega.Expect(service.resolveClientHost(&Config{ClientHost: "computah"})).
+						To(gomega.Equal("computah"))
 				})
 			})
 		})
 		ginkgo.When("fromAddress is missing", func() {
 			ginkgo.It("should return an error", func() {
-				testURL := testutils.URLMust("smtp://user:password@example.com:2225/?toAddresses=rec1@example.com,rec2@example.com")
+				testURL := testutils.URLMust(
+					"smtp://user:password@example.com:2225/?toAddresses=rec1@example.com,rec2@example.com",
+				)
 				gomega.Expect((&Config{}).SetURL(testURL)).ToNot(gomega.Succeed())
 			})
 		})
 		ginkgo.When("toAddresses are missing", func() {
 			ginkgo.It("should return an error", func() {
-				testURL := testutils.URLMust("smtp://user:password@example.com:2225/?fromAddress=sender@example.com")
+				testURL := testutils.URLMust(
+					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com",
+				)
 				gomega.Expect((&Config{}).SetURL(testURL)).NotTo(gomega.Succeed())
 			})
 		})
@@ -145,7 +152,8 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 		ginkgo.When("an invalid param is passed", func() {
 			ginkgo.It("should fail to send messages", func() {
 				service := Service{Config: &Config{}}
-				gomega.Expect(service.Send("test message", &types.Params{"invalid": "value"})).To(matchFailure(FailApplySendParams))
+				gomega.Expect(service.Send("test message", &types.Params{"invalid": "value"})).
+					To(matchFailure(FailApplySendParams))
 			})
 		})
 	})
@@ -333,7 +341,10 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 
 		ginkgo.When("server communication fails", func() {
 			ginkgo.It("should fail when initial handshake is not accepted", func() {
-				testURL := modifyURL(BaseNoAuthURL, map[string]string{"useStartTLS": "yes", "clienthost": "spammer"})
+				testURL := modifyURL(
+					BaseNoAuthURL,
+					map[string]string{"useStartTLS": "yes", "clienthost": "spammer"},
+				)
 				err := testIntegration(testURL, []string{
 					"421 4.7.0 Try again later, closing connection. (EHLO) r20-20020a50d694000000b004588af8956dsm771862edi.9 - gsmtp",
 				}, "", "")
@@ -439,56 +450,64 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				gomega.Expect(err).To(matchFailure(FailOpenDataStream))
 			})
 
-			ginkgo.It("should fail when the server does not accept the data stream content", func() {
-				testURL := BaseNoAuthURL
-				err := testSendRecipient(testURL, []string{
-					"250 mx.google.com at your service",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"554 Such garbage!",
-				})
-				if msg, test := standard.IsTestSetupFailure(err); test {
-					ginkgo.Skip(msg)
+			ginkgo.It(
+				"should fail when the server does not accept the data stream content",
+				func() {
+					testURL := BaseNoAuthURL
+					err := testSendRecipient(testURL, []string{
+						"250 mx.google.com at your service",
+						"250 Sender OK",
+						"250 Receiver OK",
+						"354 Go ahead",
+						"554 Such garbage!",
+					})
+					if msg, test := standard.IsTestSetupFailure(err); test {
+						ginkgo.Skip(msg)
 
-					return
-				}
-				gomega.Expect(err).To(matchFailure(FailCloseDataStream))
-			})
+						return
+					}
+					gomega.Expect(err).To(matchFailure(FailCloseDataStream))
+				},
+			)
 
-			ginkgo.It("should fail when the server does not close the connection gracefully", func() {
-				testURL := BaseNoAuthURL
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"502 You can't quit, you're fired!",
-				}, "", "")
-				if msg, test := standard.IsTestSetupFailure(err); test {
-					ginkgo.Skip(msg)
+			ginkgo.It(
+				"should fail when the server does not close the connection gracefully",
+				func() {
+					testURL := BaseNoAuthURL
+					err := testIntegration(testURL, []string{
+						"250-mx.google.com at your service",
+						"250-SIZE 35651584",
+						"250-AUTH LOGIN PLAIN",
+						"250 8BITMIME",
+						"250 Sender OK",
+						"250 Receiver OK",
+						"354 Go ahead",
+						"250 Data OK",
+						"502 You can't quit, you're fired!",
+					}, "", "")
+					if msg, test := standard.IsTestSetupFailure(err); test {
+						ginkgo.Skip(msg)
 
-					return
-				}
-				gomega.Expect(err).To(matchFailure(FailClosingSession))
-			})
+						return
+					}
+					gomega.Expect(err).To(matchFailure(FailClosingSession))
+				},
+			)
 		})
 	})
 	ginkgo.When("writing headers and the output stream is closed", func() {
 		ginkgo.When("it's closed during header content", func() {
 			ginkgo.It("should fail with correct error", func() {
 				fw := testutils.CreateFailWriter(0)
-				gomega.Expect(writeHeaders(fw, map[string]string{"key": "value"})).To(matchFailure(FailWriteHeaders))
+				gomega.Expect(writeHeaders(fw, map[string]string{"key": "value"})).
+					To(matchFailure(FailWriteHeaders))
 			})
 		})
 		ginkgo.When("it's closed after header content", func() {
 			ginkgo.It("should fail with correct error", func() {
 				fw := testutils.CreateFailWriter(1)
-				gomega.Expect(writeHeaders(fw, map[string]string{"key": "value"})).To(matchFailure(FailWriteHeaders))
+				gomega.Expect(writeHeaders(fw, map[string]string{"key": "value"})).
+					To(matchFailure(FailWriteHeaders))
 			})
 		})
 	})
@@ -543,7 +562,13 @@ func testSendRecipient(testURL string, responses []string) failures.Failure {
 	return nil
 }
 
-func testIntegration(testURL string, responses []string, htmlTemplate string, plainTemplate string, expectRec ...string) failures.Failure {
+func testIntegration(
+	testURL string,
+	responses []string,
+	htmlTemplate string,
+	plainTemplate string,
+	expectRec ...string,
+) failures.Failure {
 	serviceURL, err := url.Parse(testURL)
 	if err != nil {
 		return standard.Failure(standard.FailParseURL, err)

@@ -52,14 +52,14 @@ func (f *failure) Is(target error) bool {
 // Wrap creates a new failure with the given message, ID, and optional wrapped error.
 // If variadic arguments are provided, they are used to format the message using fmt.Sprintf.
 // This supports Go’s error wrapping pattern while adding a unique ID for identification.
-func Wrap(message string, id FailureID, wrappedError error, v ...any) Failure {
+func Wrap(message string, failureID FailureID, wrappedError error, v ...any) Failure {
 	if len(v) > 0 {
 		message = fmt.Sprintf(message, v...)
 	}
 
 	return &failure{
 		message: message,
-		id:      id,
+		id:      failureID,
 		wrapped: wrappedError,
 	}
 }

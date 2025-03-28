@@ -29,7 +29,12 @@ func (c *Client) GetBotInfo() (*User, error) {
 }
 
 // GetUpdates retrieves the latest updates.
-func (c *Client) GetUpdates(offset int, limit int, timeout int, allowedUpdates []string) ([]Update, error) {
+func (c *Client) GetUpdates(
+	offset int,
+	limit int,
+	timeout int,
+	allowedUpdates []string,
+) ([]Update, error) {
 	request := &updatesRequest{
 		Offset:         offset,
 		Limit:          limit,
@@ -60,7 +65,7 @@ func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
 
 // GetErrorResponse retrieves the error message from a failed request.
 func GetErrorResponse(body string) error {
-	response := &errorResponse{}
+	response := &responseError{}
 	if err := json.Unmarshal([]byte(body), response); err == nil {
 		return response
 	}

@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -8,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 )
 
 func TestMatrix(t *testing.T) {
@@ -53,7 +54,9 @@ var _ = ginkgo.Describe("the matrix service", func() {
 			ginkgo.It("should not throw an error", func() {
 				// Tests matrix_config.go, not matrix_client.go directly
 				// Related to Config.SetURL, which feeds into client setup later
-				serviceURL := testutils.URLMust(`matrix://user:pass@mockserver?rooms=room1&title=Better%20Off%20Alone`)
+				serviceURL := testutils.URLMust(
+					`matrix://user:pass@mockserver?rooms=room1&title=Better%20Off%20Alone`,
+				)
 				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
 			})
 		})
@@ -72,7 +75,9 @@ var _ = ginkgo.Describe("the matrix service", func() {
 			ginkgo.It("should return an error", func() {
 				// Tests matrix_config.go, not matrix_client.go directly
 				// Ensures invalid params fail before reaching client
-				serviceURL := testutils.URLMust(`matrix://user:pass@mockserver?channels=room1,room2`)
+				serviceURL := testutils.URLMust(
+					`matrix://user:pass@mockserver?channels=room1,room2`,
+				)
 				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.HaveOccurred())
 			})
 		})
@@ -203,7 +208,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.Equal("none of the server login flows are supported: m.login.dummy"))
+				gomega.Expect(err.Error()).
+					To(gomega.Equal("none of the server login flows are supported: m.login.dummy"))
 			})
 		})
 
@@ -274,7 +280,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.client.apiPost("/test/path", make(chan int), nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("json: unsupported type: chan int"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("json: unsupported type: chan int"))
 			})
 		})
 
@@ -294,7 +301,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Test message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("failed to read response body"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("failed to read response body"))
 			})
 		})
 
@@ -385,7 +393,11 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.client.apiPost("/test/path", apiReqSend{MsgType: msgTypeText, Body: "test"}, nil)
+				err = service.client.apiPost(
+					"/test/path",
+					apiReqSend{MsgType: msgTypeText, Body: "test"},
+					nil,
+				)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring("simulated HTTP failure"))
 			})
@@ -404,7 +416,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.client.apiPost("/test/path", make(chan int), nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("json: unsupported type: chan int"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("json: unsupported type: chan int"))
 			})
 		})
 
@@ -420,7 +433,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.client.apiURL.RawQuery).To(gomega.Equal("access_token=token"))
 				service.client.useToken("newtoken")
-				gomega.Expect(service.client.apiURL.RawQuery).To(gomega.Equal("access_token=newtoken"))
+				gomega.Expect(service.client.apiURL.RawQuery).
+					To(gomega.Equal("access_token=newtoken"))
 			})
 		})
 
@@ -440,7 +454,8 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Test message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("failed to read response body"))
+				gomega.Expect(err.Error()).
+					To(gomega.ContainSubstring("failed to read response body"))
 			})
 		})
 
@@ -635,7 +650,7 @@ func setupMockRespondersBodyFail() {
 		httpmock.NewStringResponder(200, `{ "joined_rooms": [ "!room:mockserver" ] }`))
 
 	httpmock.RegisterResponder("POST", mockServer+fmt.Sprintf(apiSendMessage, "%21room:mockserver"),
-		httpmock.NewErrorResponder(fmt.Errorf("failed to read response body")))
+		httpmock.NewErrorResponder(errors.New("failed to read response body")))
 }
 
 // setupMockRespondersPostFail for testing line 204 and HTTP failure.
@@ -657,5 +672,5 @@ func setupMockRespondersPostFail() {
 	)
 
 	httpmock.RegisterResponder("POST", mockServer+"/test/path",
-		httpmock.NewErrorResponder(fmt.Errorf("simulated HTTP failure")))
+		httpmock.NewErrorResponder(errors.New("simulated HTTP failure")))
 }
