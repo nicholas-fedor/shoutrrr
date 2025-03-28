@@ -26,6 +26,8 @@ const (
 	GmailSMTPPortStartTLS uint16 = 587 // Gmail SMTP port with STARTTLS
 )
 
+const StateLength int = 16 // Length in bytes for OAuth 2.0 state randomness (128 bits)
+
 // Errors.
 var (
 	ErrReadFileFailed      = errors.New("failed to read file")
@@ -201,10 +203,11 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// Generate a random state value
-	stateBytes := make([]byte, 16)
+	stateBytes := make([]byte, StateLength)
 	if _, err := rand.Read(stateBytes); err != nil {
 		return nil, fmt.Errorf("generating random state: %w", err)
 	}
+
 	state := base64.URLEncoding.EncodeToString(stateBytes)
 
 	fmt.Fprintf(
