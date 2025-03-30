@@ -23,7 +23,7 @@ jobs:
         run: go mod download
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@dec74fa03096ff515422f71d18d41307cacde373
+        uses: golangci/golangci-lint-action@2968cc1a32340ead54c0a5817a5740910153fb02
         with:
           args: --timeout=5m --config= # Use default linter settings
 
