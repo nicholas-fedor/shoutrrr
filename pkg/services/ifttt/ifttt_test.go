@@ -305,7 +305,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 
 			err = service.Send("Test message", nil)
 			gomega.Expect(err).To(gomega.MatchError(
-				`failed to send IFTTT event: event "event2": got unexpected response status code: 404`,
+				`failed to send IFTTT event: event "event2": got unexpected response status code: 404 Not Found`,
 			))
 		})
 
