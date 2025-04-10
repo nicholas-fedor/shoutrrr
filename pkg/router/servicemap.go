@@ -8,6 +8,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/gotify"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/ifttt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/join"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/lark"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/logger"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/matrix"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/mattermost"
@@ -32,6 +33,7 @@ var serviceMap = map[string]func() types.Service{
 	"googlechat": func() types.Service { return &googlechat.Service{} },
 	"hangouts":   func() types.Service { return &googlechat.Service{} },
 	"ifttt":      func() types.Service { return &ifttt.Service{} },
+	"lark":       func() types.Service { return &lark.Service{} },
 	"join":       func() types.Service { return &join.Service{} },
 	"logger":     func() types.Service { return &logger.Service{} },
 	"matrix":     func() types.Service { return &matrix.Service{} },
