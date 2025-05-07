@@ -7,6 +7,9 @@ permissions:
   contents: write
   actions: read
 
+env:
+  GO_VERSION: 1.24.x
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@29694d72cd5e7ef3b09496b39f28a942af47737e
         with:
-          go-version: "1.24"
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Generate Service Config Docs
         run: |
