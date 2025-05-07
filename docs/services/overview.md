@@ -5,7 +5,7 @@ Click on the service for a more thorough explanation. <!-- @formatter:off -->
 | Service                           | URL format                                                                                                                                      |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Bark](./bark.md)                 | *bark://__`devicekey`__@__`host`__*                                                                                                             |
-| [Discord](./discord.md)           | *discord://__`token`__@__`id`__*                                                                                                                |
+| [Discord](./discord.md)           | *discord://__`token`__@__`id`__[?thread_id=__`threadid`__]*                                                                                                                |
 | [Email](./email.md)               | *smtp://__`username`__:__`password`__@__`host`__:__`port`__/?from=__`fromAddress`__&to=__`recipient1`__[,__`recipient2`__,...]*                 |
 | [Gotify](./gotify.md)             | *gotify://__`gotify-host`__/__`token`__*                                                                                                        |
 | [Google Chat](./googlechat.md)    | *googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz*                                                                     |
@@ -30,4 +30,3 @@ Click on the service for a more thorough explanation. <!-- @formatter:off -->
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Logger](./logger.md)             | Writes notification to a configured go `log.Logger`                                                                                             |
 | [Generic Webhook](./generic.md)   | Sends notifications directly to a webhook                                                                                                       |
-
