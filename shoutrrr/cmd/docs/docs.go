@@ -75,7 +75,9 @@ func printDocs(docFormat string, services []string) cmd.Result {
 		// Initialize the service to populate Config
 		dummyURL, _ := url.Parse(scheme + "://dummy@dummy.com")
 		if err := service.Initialize(dummyURL, logger); err != nil {
-			return cmd.InvalidUsage(fmt.Sprintf("failed to initialize service %q: %v", scheme, err))
+			return cmd.InvalidUsage(
+				fmt.Sprintf("failed to initialize service %q: %v\n", scheme, err),
+			)
 		}
 
 		config := format.GetServiceConfig(service)

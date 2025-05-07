@@ -88,14 +88,14 @@ var _ = ginkgo.Describe("Lark Test", func() {
 					data[i] = "0123456789"
 				}
 				message := strings.Join(data, "")
-				service := Service{config: &Config{Host: larkHost, Path: "token"}}
+				service := Service{Config: &Config{Host: larkHost, Path: "token"}}
 				gomega.Expect(service.Send(message, nil)).To(gomega.MatchError(ErrLargeMessage))
 			})
 		})
 
 		ginkgo.When("an invalid param is passed", func() {
 			ginkgo.It("should fail to send messages", func() {
-				service := Service{config: &Config{Host: larkHost, Path: "token"}}
+				service := Service{Config: &Config{Host: larkHost, Path: "token"}}
 				gomega.Expect(
 					service.Send("test message", &types.Params{"invalid": "value"}),
 				).To(gomega.MatchError(gomega.ContainSubstring("not a valid config key: invalid")))

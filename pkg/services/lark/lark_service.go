@@ -50,7 +50,7 @@ var httpClient = &http.Client{Timeout: defaultTime}
 // Service sends notifications to Lark.
 type Service struct {
 	standard.Standard
-	config *Config
+	Config *Config
 	pkr    format.PropKeyResolver
 }
 
@@ -60,7 +60,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return ErrLargeMessage
 	}
 
-	config := *service.config
+	config := *service.Config
 	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating params: %w", err)
 	}
@@ -79,10 +79,10 @@ func (service *Service) Send(message string, params *types.Params) error {
 // Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	service.SetLogger(logger)
-	service.config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.config)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
 
-	return service.config.SetURL(configURL)
+	return service.Config.SetURL(configURL)
 }
 
 // GetID returns the service identifier.
@@ -174,8 +174,8 @@ func (service *Service) handleResponse(resp *http.Response) error {
 
 	service.Logf(
 		"Notification sent successfully to %s/%s",
-		service.config.Host,
-		service.config.Path,
+		service.Config.Host,
+		service.Config.Path,
 	)
 
 	return nil

@@ -55,15 +55,18 @@ func (config *Config) SetURL(url *url.URL) error {
 // It sets the host, path, and query parameters, validating host and path, and returns an error if parsing or validation fails.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	config.Host = url.Host
-	// Use default host if none provided (e.g., during documentation generation)
-	if config.Host == "" {
+	// Handle documentation generation or empty host
+	if config.Host == "" || (url.User != nil && url.User.Username() == "dummy") {
 		config.Host = "open.larksuite.com"
 	} else if config.Host != larkHost && config.Host != feishuHost {
 		return ErrInvalidHost
 	}
 
 	config.Path = strings.Trim(url.Path, "/")
-	if config.Path == "" {
+	// Handle documentation generation with empty path
+	if config.Path == "" && (url.User != nil && url.User.Username() == "dummy") {
+		config.Path = "token"
+	} else if config.Path == "" {
 		return ErrNoPath
 	}
 
