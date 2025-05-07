@@ -119,7 +119,10 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		return err
 	}
 
-	if config.Host == "" {
+	// Allow dummy URL during documentation generation
+	if config.Host == "" && (url.User != nil && url.User.Username() == "dummy") {
+		config.Host = "dummy.webhook.office.com"
+	} else if config.Host == "" {
 		return ErrMissingHostParameter
 	}
 
