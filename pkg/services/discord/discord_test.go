@@ -14,6 +14,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -110,6 +111,57 @@ var _ = ginkgo.Describe("the discord service", func() {
 
 				outputURL := config.GetURL()
 				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
+			})
+			ginkgo.It("should include thread_id in URL after de-/serialization", func() {
+				testURL := "discord://token@channel?color=0x50d9ff&thread_id=123456789&title=Test+Title"
+
+				url, err := url.Parse(testURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
+
+				config := &discord.Config{}
+				resolver := format.NewPropKeyResolver(config)
+				err = resolver.SetDefaultProps(config)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "setting defaults")
+				err = config.SetURL(url)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
+				gomega.Expect(config.ThreadID).To(gomega.Equal("123456789"))
+
+				outputURL := config.GetURL()
+				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
+			})
+			ginkgo.It("should handle thread_id with whitespace correctly", func() {
+				testURL := "discord://token@channel?color=0x50d9ff&thread_id=%20%20123456789%20%20&title=Test+Title"
+				expectedThreadID := "123456789"
+
+				url, err := url.Parse(testURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
+
+				config := &discord.Config{}
+				resolver := format.NewPropKeyResolver(config)
+				err = resolver.SetDefaultProps(config)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "setting defaults")
+				err = config.SetURL(url)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
+				gomega.Expect(config.ThreadID).To(gomega.Equal(expectedThreadID))
+				gomega.Expect(config.GetURL().Query().Get("thread_id")).
+					To(gomega.Equal(expectedThreadID))
+				gomega.Expect(config.GetURL().String()).
+					To(gomega.Equal("discord://token@channel?color=0x50d9ff&thread_id=123456789&title=Test+Title"))
+			})
+			ginkgo.It("should not include thread_id in URL when empty", func() {
+				config := &discord.Config{}
+				resolver := format.NewPropKeyResolver(config)
+				err := resolver.SetDefaultProps(config)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "setting defaults")
+
+				serviceURL, _ := url.Parse("discord://token@channel?title=Test+Title")
+				err = config.SetURL(serviceURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "setting URL")
+
+				outputURL := config.GetURL()
+				gomega.Expect(outputURL.Query().Get("thread_id")).To(gomega.BeEmpty())
+				gomega.Expect(outputURL.String()).
+					To(gomega.Equal("discord://token@channel?color=0x50d9ff&title=Test+Title"))
 			})
 		})
 	})
@@ -228,6 +280,25 @@ var _ = ginkgo.Describe("the discord service", func() {
 				gomega.Expect(service.Initialize(config.GetURL(), logger)).To(gomega.Succeed())
 				gomega.Expect(service.Send("Message", nil)).NotTo(gomega.Succeed())
 			})
+		})
+		ginkgo.It("should trim whitespace from thread_id in API URL", func() {
+			config := discord.Config{
+				WebhookID: "1",
+				Token:     "dummyToken",
+				ThreadID:  "  123456789  ",
+			}
+			service := discord.Service{}
+			err := service.Initialize(config.GetURL(), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			setupResponder(&config, 204)
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			// Verify the API URL used in the HTTP request
+			targetURL := discord.CreateAPIURLFromConfig(&config)
+			gomega.Expect(targetURL).
+				To(gomega.Equal("https://discord.com/api/webhooks/1/dummyToken?thread_id=123456789"))
 		})
 	})
 })

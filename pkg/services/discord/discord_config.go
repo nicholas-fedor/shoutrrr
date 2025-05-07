@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -35,6 +36,7 @@ type Config struct {
 	ColorDebug uint   `           default:"0x7b00ab" key:"colorDebug"       desc:"The color of the left border for debug messages"                                                  base:"16"`
 	SplitLines bool   `           default:"Yes"      key:"splitLines"       desc:"Whether to send each line as a separate embedded item"`
 	JSON       bool   `           default:"No"       key:"json"             desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field"`
+	ThreadID   string `           default:""         key:"thread_id"        desc:"The thread ID to send the message to"`
 }
 
 // LevelColors returns an array of colors indexed by MessageLevel.
@@ -103,6 +105,13 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	for key, vals := range url.Query() {
+		if key == "thread_id" {
+			// Trim whitespace from thread_id
+			config.ThreadID = strings.TrimSpace(vals[0])
+
+			continue
+		}
+
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config value for key %s: %w", key, err)
 		}

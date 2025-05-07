@@ -157,7 +157,17 @@ func CreateAPIURLFromConfig(config *Config) string {
 	webhookID := strings.TrimSpace(config.WebhookID)
 	token := strings.TrimSpace(config.Token)
 
-	return fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+	baseURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+
+	if config.ThreadID != "" {
+		// Append thread_id as a query parameter
+		query := url.Values{}
+		query.Set("thread_id", strings.TrimSpace(config.ThreadID))
+
+		return baseURL + "?" + query.Encode()
+	}
+
+	return baseURL
 }
 
 // doSend executes an HTTP POST request to deliver the payload to Discord.
