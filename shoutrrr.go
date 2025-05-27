@@ -50,7 +50,7 @@ func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRo
 	return sr, nil
 }
 
-// Version returns the current shoutrrr version.
+// Version returns the current Shoutrrr version.
 func Version() string {
-	return meta.Version
+	return meta.GetVersion()
 }

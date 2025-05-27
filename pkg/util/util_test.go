@@ -92,7 +92,7 @@ var _ = ginkgo.Describe("the util package", func() {
 		ginkgo.It("should return the expected URL", func() {
 			expectedBase := fmt.Sprintf(
 				`https://nicholas-fedor.github.io/shoutrrr/%s/`,
-				meta.DocsVersion,
+				meta.GetVersion(),
 			)
 			gomega.Expect(util.DocsURL(``)).To(gomega.Equal(expectedBase))
 			gomega.Expect(util.DocsURL(`services/logger`)).

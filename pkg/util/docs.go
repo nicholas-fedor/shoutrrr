@@ -14,5 +14,11 @@ func DocsURL(path string) string {
 		path = path[1:]
 	}
 
-	return fmt.Sprintf("https://nicholas-fedor.github.io/shoutrrr/%s/%s", meta.DocsVersion, path)
+	// Use commit for dev builds, version for releases
+	version := meta.GetVersion()
+	if version == "unknown" || version == "dev" {
+		version = meta.GetCommit()
+	}
+
+	return fmt.Sprintf("https://nicholas-fedor.github.io/shoutrrr/%s/%s", version, path)
 }
