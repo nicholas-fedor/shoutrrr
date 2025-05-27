@@ -28,6 +28,7 @@ jobs:
     uses: ./.github/workflows/build.yaml
     secrets: inherit
     needs:
+      - lint
       - test
     with:
       snapshot: true
