@@ -25,13 +25,7 @@ jobs:
     needs:
       - test
 
-  renew-docs:
-    name: Refresh pkg.go.dev
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Pull new module version
-        uses: nicholas-fedor/go-proxy-pull-action@ad5d0f8b44e5478055cf78227eb300d2b02786f2
-        with:
-          goproxy: https://proxy.golang.org
-          import_path: github.com/nicholas-fedor/shoutrrr
+  update-go-docs:
+    uses: ./.github/workflows/update-go-docs.yaml
+    needs:
+      - build
