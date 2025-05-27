@@ -12,7 +12,10 @@ builds:
       - arm
       - arm64
     ldflags:
-      - -s -w -X github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{ .Version }}
+      - -s -w
+      - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{ .Version }}
+      - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Commit={{.Commit}}
+      - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Date={{.Date}}
 
 archives:
   - id: default # Unique ID for this archive configuration
