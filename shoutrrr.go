@@ -52,5 +52,5 @@ func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRo
 
 // Version returns the current Shoutrrr version.
 func Version() string {
-	return meta.GetVersion()
+	return meta.Version
 }
