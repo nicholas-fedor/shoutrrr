@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,12 +26,7 @@ func init() {
 	cobraCmd.AddCommand(send.Cmd)
 	cobraCmd.AddCommand(docs.Cmd)
 
-	cobraCmd.Version = fmt.Sprintf(
-		"%s (Built on %s from Git SHA %s)",
-		meta.GetVersion(),
-		meta.GetDate(),
-		meta.GetCommit(),
-	)
+	cobraCmd.Version = meta.GetMetaStr()
 }
 
 func main() {

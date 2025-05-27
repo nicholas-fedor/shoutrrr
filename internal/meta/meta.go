@@ -1,15 +1,17 @@
 package meta
 
 import (
+	"fmt"
 	"runtime/debug"
 	"time"
 )
 
 // Constants for repeated string values.
 const (
-	devVersion   = "dev"
-	unknownValue = "unknown"
-	trueValue    = "true"
+	devVersion      = "dev"
+	unknownValue    = "unknown"
+	trueValue       = "true"
+	commitSHALength = 7 // Length to shorten Git commit SHA
 )
 
 // These values are populated by GoReleaser during release builds.
@@ -27,6 +29,19 @@ type Info struct {
 	Version string
 	Commit  string
 	Date    string
+}
+
+// GetMetaStr returns the formatted version string, including commit info only if available.
+func GetMetaStr() string {
+	version := GetVersion()
+	date := GetDate()
+	commit := GetCommit()
+
+	if commit == unknownValue {
+		return fmt.Sprintf("%s (Built on %s)", version, date)
+	}
+
+	return fmt.Sprintf("%s (Built on %s from Git SHA %s)", version, date, commit)
 }
 
 // GetVersion returns the version string, using debug.ReadBuildInfo for source builds
@@ -68,32 +83,30 @@ func GetVersion() string {
 // GetCommit returns the commit SHA, using debug.ReadBuildInfo for source builds
 // or GoReleaser variables for release builds.
 func GetCommit() string {
-	commit := Commit
+	// Return Commit if set by GoReleaser (non-empty and not "unknown")
+	if Commit != unknownValue && Commit != "" {
+		if len(Commit) >= commitSHALength {
+			return Commit[:commitSHALength]
+		}
 
-	// If building from source (not GoReleaser), try to get commit from debug.ReadBuildInfo
-	if commit == unknownValue || commit == "" {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			for _, setting := range info.Settings {
-				if setting.Key == "vcs.revision" {
-					commit = setting.Value
+		return Commit
+	}
 
-					break
+	// Try to get commit from debug.ReadBuildInfo for source builds
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" && setting.Value != "" {
+				if len(setting.Value) >= commitSHALength {
+					return setting.Value[:commitSHALength]
 				}
+
+				return setting.Value
 			}
 		}
 	}
 
-	// Shorten commit to 7 characters if it's a valid SHA
-	if len(commit) >= 7 && commit != unknownValue {
-		return commit[:7]
-	}
-
-	// Fallback default if still unset
-	if commit == "" {
-		return unknownValue
-	}
-
-	return commit
+	// Fallback to unknown if no commit is found
+	return unknownValue
 }
 
 // GetDate returns the build or commit date, using debug.ReadBuildInfo for source builds
@@ -112,21 +125,19 @@ func GetDate() string {
 				}
 			}
 		}
-	} else {
-		// Shorten date if provided by GoReleaser
-		if date != "" && date != unknownValue {
-			if t, err := time.Parse(time.RFC3339, date); err == nil {
-				return t.Format("2006-01-02") // Shorten to YYYY-MM-DD
-			}
+		// Fallback to current date if no VCS time is available
+		return time.Now().UTC().Format("2006-01-02")
+	}
+
+	// Shorten date if provided by GoReleaser
+	if date != "" && date != unknownValue {
+		if t, err := time.Parse(time.RFC3339, date); err == nil {
+			return t.Format("2006-01-02") // Shorten to YYYY-MM-DD
 		}
 	}
 
-	// Fallback default if still unset
-	if date == "" {
-		return unknownValue
-	}
-
-	return date
+	// Fallback to current date if date is invalid
+	return time.Now().UTC().Format("2006-01-02")
 }
 
 // GetMetaInfo returns version information by combining GetVersion, GetCommit, and GetDate.

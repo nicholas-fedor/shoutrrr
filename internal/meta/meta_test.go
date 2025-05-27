@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func TestGetVersionInfo(t *testing.T) {
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
-				Date:    unknownValue,
+				Date:    time.Now().UTC().Format("2006-01-02"),
 			},
 			partialMatch: true,
 		},
@@ -51,7 +52,7 @@ func TestGetVersionInfo(t *testing.T) {
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
-				Date:    unknownValue,
+				Date:    time.Now().UTC().Format("2006-01-02"),
 			},
 		},
 		{
@@ -64,7 +65,7 @@ func TestGetVersionInfo(t *testing.T) {
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
-				Date:    unknownValue,
+				Date:    time.Now().UTC().Format("2006-01-02"),
 			},
 		},
 	}
@@ -84,8 +85,9 @@ func TestGetVersionInfo(t *testing.T) {
 					t.Errorf("Commit = %q, want %q", info.Commit, tt.expect.Commit)
 				}
 
-				if info.Date != tt.expect.Date {
-					t.Errorf("Date = %q, want %q", info.Date, tt.expect.Date)
+				// Validate Date format (YYYY-MM-DD) instead of exact match
+				if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`).MatchString(info.Date) {
+					t.Errorf("Date = %q, want valid YYYY-MM-DD format", info.Date)
 				}
 			} else if info.Version != tt.expect.Version && !strings.Contains(info.Version, "+dirty") {
 				t.Errorf("Version = %q, want %q or dirty variant", info.Version, tt.expect.Version)
@@ -147,14 +149,18 @@ func TestGetVersionInfo_VCSData(t *testing.T) {
 					t.Errorf("Date = %q, want %q", info.Date, expectedDate)
 				}
 			} else {
-				t.Logf("vcs.time %q is invalid; date should remain %q", vcsTime, unknownValue)
+				t.Logf("vcs.time %q is invalid; date should be in YYYY-MM-DD format", vcsTime)
 
-				if info.Date != unknownValue {
-					t.Errorf("Expected date %q, got %q for invalid vcs.time", unknownValue, info.Date)
+				if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`).MatchString(info.Date) {
+					t.Errorf("Date = %q, want valid YYYY-MM-DD format", info.Date)
 				}
 			}
 		} else {
-			t.Logf("No vcs.time found; ensure repository has commit timestamps to cover date assignment")
+			t.Logf("No vcs.time found; date should be in YYYY-MM-DD format")
+
+			if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`).MatchString(info.Date) {
+				t.Errorf("Date = %q, want valid YYYY-MM-DD format", info.Date)
+			}
 		}
 
 		if vcsModified == trueValue && info.Version != unknownValue {
@@ -179,8 +185,56 @@ func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
 
 	info := GetMetaInfo()
 
-	if info.Date == "" || info.Date != unknownValue {
-		t.Errorf("Expected date to be %q, got %q", unknownValue, info.Date)
+	if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`).MatchString(info.Date) {
+		t.Errorf("Date = %q, want valid YYYY-MM-DD format", info.Date)
+	}
+}
+
+func TestGetMetaStr(t *testing.T) {
+	tests := []struct {
+		name    string
+		setVars func()
+		expect  string
+	}{
+		{
+			name: "With commit (GoReleaser build)",
+			setVars: func() {
+				Version = "0.8.10"
+				Commit = "a6fcf77abcdef"
+				Date = "2025-05-27T00:00:00Z"
+			},
+			expect: "v0.8.10 (Built on 2025-05-27 from Git SHA a6fcf77)",
+		},
+		{
+			name: "Without commit (go install build)",
+			setVars: func() {
+				Version = "0.8.10"
+				Commit = unknownValue
+				Date = unknownValue
+			},
+			expect: "v0.8.10 (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
+		},
+		{
+			name: "Invalid version",
+			setVars: func() {
+				Version = "v"
+				Commit = unknownValue
+				Date = unknownValue
+			},
+			expect: "unknown (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setVars()
+
+			result := GetMetaStr()
+			if !strings.HasPrefix(result, strings.Split(tt.expect, " (")[0]) ||
+				!regexp.MustCompile(`\d{4}-\d{2}-\d{2}`).MatchString(result) {
+				t.Errorf("GetMetaStr() = %q, want format like %q", result, tt.expect)
+			}
+		})
 	}
 }
 
