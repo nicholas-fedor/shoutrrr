@@ -76,6 +76,7 @@ func GetCommit() string {
 			for _, setting := range info.Settings {
 				if setting.Key == "vcs.revision" {
 					commit = setting.Value
+
 					break
 				}
 			}
@@ -144,5 +145,6 @@ func contains(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }
