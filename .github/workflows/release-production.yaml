@@ -26,7 +26,19 @@ jobs:
       - lint
       - test
 
+  generate-manifests:
+    uses: ./.github/workflows/generate-manifests.yaml
+    needs:
+      - build
+    secrets: inherit
+    permissions:
+      packages: write
+      contents: read
+      attestations: write
+      id-token: write
+
   update-go-docs:
     uses: ./.github/workflows/update-go-docs.yaml
     needs:
       - build
+      - generate-manifests
