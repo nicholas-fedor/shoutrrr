@@ -22,13 +22,13 @@ jobs:
 
       - name: Create and push Docker manifests
         env:
-          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           GHCR_USER: ${{ secrets.BOT_USERNAME }}
           GHCR_TOKEN: ${{ secrets.BOT_GHCR_PAT }}
         run: |
           # Login to Docker Hub and GHCR (redundant but ensures manifest push works)
-          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
+          echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USER" --password-stdin
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
           # Get the tag without the 'v' prefix
