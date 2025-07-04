@@ -42,6 +42,7 @@ type Config struct {
 // LevelColors returns an array of colors indexed by MessageLevel.
 func (config *Config) LevelColors() [types.MessageLevelCount]uint {
 	var colors [types.MessageLevelCount]uint
+
 	colors[types.Unknown] = config.Color
 	colors[types.Error] = config.ColorError
 	colors[types.Warning] = config.ColorWarn

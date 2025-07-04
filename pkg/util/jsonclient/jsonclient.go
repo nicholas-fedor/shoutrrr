@@ -139,6 +139,7 @@ func (c *client) ErrorResponse(err error, response any) bool {
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
 func parseResponse(res *http.Response, response any) error {
 	defer res.Body.Close()
+
 	body, err := io.ReadAll(res.Body)
 
 	if res.StatusCode >= HTTPClientErrorThreshold {

@@ -34,7 +34,6 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 		}
 
 		value, err := cqr.Get(key)
-
 		if err != nil || isPkr && pkr.IsDefault(key, value) {
 			continue
 		}

@@ -40,8 +40,8 @@ func init() {
 
 func Run(cmd *cobra.Command, args []string) {
 	format, _ := cmd.Flags().GetString("format")
-	res := printDocs(format, args)
 
+	res := printDocs(format, args)
 	if res.ExitCode != 0 {
 		fmt.Fprintf(os.Stderr, "%s", res.Message)
 	}

@@ -124,6 +124,7 @@ func (service *Service) sendWebhook(config *Config, payload any) error {
 	}
 
 	defer res.Body.Close()
+
 	resBytes, _ := io.ReadAll(res.Body)
 	response := string(resBytes)
 

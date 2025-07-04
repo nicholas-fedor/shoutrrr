@@ -149,6 +149,7 @@ func ExampleServiceRouter_Enqueue() {
 	}
 
 	defer sr.Flush(nil)
+
 	sr.Enqueue("hello")
 	sr.Enqueue("world")
 	// Output:

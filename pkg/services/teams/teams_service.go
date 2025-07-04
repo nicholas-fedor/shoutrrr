@@ -53,6 +53,7 @@ func (service *Service) GetID() string {
 // GetConfigURLFromCustom converts a custom URL to a service URL.
 func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	webhookURLStr := strings.TrimPrefix(customURL.String(), "teams+")
+
 	tempURL, err := url.Parse(webhookURLStr)
 	if err != nil {
 		return nil, fmt.Errorf("parsing custom URL %q: %w", webhookURLStr, err)
