@@ -1,6 +1,8 @@
 package smtp
 
-import "github.com/nicholas-fedor/shoutrrr/internal/failures"
+import (
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+)
 
 const (
 	// FailUnknown is the default FailureID.
@@ -47,10 +49,14 @@ const (
 	FailHandshake
 )
 
+// failure is an interface for SMTP-specific errors, implementing failures.Failure
+// to provide detailed error messages and IDs for debugging within the shoutrrr framework.
 type failure interface {
 	failures.Failure
 }
 
+// fail creates an SMTP-specific failure with a descriptive message and ID,
+// wrapping the provided error and optional arguments for additional context.
 func fail(failureID failures.FailureID, err error, args ...any) failure {
 	var msg string
 
@@ -68,7 +74,7 @@ func fail(failureID failures.FailureID, err error, args ...any) failure {
 	case FailAuthType:
 		msg = "invalid authorization method '%s'"
 	case FailSendRecipient:
-		msg = "error sending message to recipient"
+		msg = "error sending message to recipient %q"
 	case FailClosingSession:
 		msg = "error closing session"
 	case FailPlainHeader:

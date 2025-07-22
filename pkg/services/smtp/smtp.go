@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -29,6 +31,11 @@ const (
 
 // ErrNoAuth is a sentinel error indicating no authentication is required.
 var ErrNoAuth = errors.New("no authentication required")
+
+// Static errors for SMTP operations.
+var (
+	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
+)
 
 // Service sends notifications to given email addresses via SMTP.
 type Service struct {
@@ -84,7 +91,10 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return fail(FailApplySendParams, err)
 	}
 
-	client, err := getClientConnection(service.Config)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+	defer cancel()
+
+	client, err := getClientConnection(ctx, service.Config)
 	if err != nil {
 		return fail(FailGetSMTPClient, err)
 	}
@@ -93,20 +103,25 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // getClientConnection establishes a connection to the SMTP server using the provided configuration.
-func getClientConnection(config *Config) (*smtp.Client, error) {
-	var conn net.Conn
-
-	var err error
+func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, error) {
+	var (
+		conn net.Conn
+		err  error
+	)
 
 	addr := net.JoinHostPort(config.Host, strconv.FormatUint(uint64(config.Port), 10))
 
 	if useImplicitTLS(config.Encryption, config.Port) {
-		conn, err = tls.Dial("tcp", addr, &tls.Config{
-			ServerName: config.Host,
-			MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
-		})
+		dialer := &tls.Dialer{
+			Config: &tls.Config{
+				ServerName: config.Host,
+				MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
+			},
+		}
+		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	} else {
-		conn, err = net.Dial("tcp", addr)
+		dialer := &net.Dialer{}
+		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}
 
 	if err != nil {
@@ -142,13 +157,18 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 
 	if config.UseStartTLS && !useImplicitTLS(config.Encryption, config.Port) {
 		if supported, _ := client.Extension("StartTLS"); !supported {
+			if config.RequireStartTLS {
+				return fail(FailEnableStartTLS, ErrServerNoStartTLS)
+			}
+
 			service.Logf(
 				"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted",
 			)
 		} else {
 			if err := client.StartTLS(&tls.Config{
 				ServerName: config.Host,
-				MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
+				MinVersion: tls.VersionTLS12,
+				MaxVersion: tls.VersionTLS13,
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
 			}
@@ -163,19 +183,30 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 		}
 	}
 
+	var errs []error
+
 	for _, toAddress := range config.ToAddresses {
-		err := service.sendToRecipient(client, toAddress, config, message)
-		if err != nil {
-			return fail(FailSendRecipient, err)
+		if err := service.sendToRecipient(client, toAddress, config, message); err != nil {
+			errs = append(errs, fail(FailSendRecipient, err, toAddress))
+			service.Logf("Failed to send to %q: %v", toAddress, err)
+
+			continue
 		}
 
-		service.Logf("Mail successfully sent to \"%s\"!\n", toAddress)
+		service.Logf("Mail successfully sent to %q!", toAddress)
 	}
 
 	// Send the QUIT command and close the connection.
-	err := client.Quit()
-	if err != nil {
-		return fail(FailClosingSession, err)
+	if err := client.Quit(); err != nil {
+		errs = append(errs, fail(FailClosingSession, err))
+	}
+
+	if len(errs) > 0 {
+		return failures.Wrap(
+			"failed to send to some recipients",
+			FailSendRecipient,
+			errors.Join(errs...),
+		)
 	}
 
 	return nil
@@ -315,13 +346,18 @@ func (service *Service) writeMessagePart(
 ) failure {
 	if tpl, found := service.GetTemplate(template); found {
 		data := make(map[string]string)
-		data["message"] = message
 
+		data["message"] = message
 		if err := tpl.Execute(writeCloser, data); err != nil {
 			return fail(FailMessageTemplate, err)
 		}
 	} else {
-		if _, err := fmt.Fprint(writeCloser, message); err != nil {
+		content := message
+		if template == "HTML" {
+			content = fmt.Sprintf("<pre>%s</pre>", message)
+		}
+
+		if _, err := fmt.Fprint(writeCloser, content); err != nil {
 			return fail(FailMessageRaw, err)
 		}
 	}
