@@ -7,7 +7,7 @@ require (
 	github.com/jarcoal/httpmock v1.4.0
 	github.com/mattn/go-colorable v0.1.14
 	github.com/onsi/ginkgo/v2 v2.23.4
-	github.com/onsi/gomega v1.37.0
+	github.com/onsi/gomega v1.38.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	golang.org/x/oauth2 v0.30.0
