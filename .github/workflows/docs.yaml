@@ -34,7 +34,7 @@ jobs:
           ./generate-service-config-docs.sh
 
       - name: Setup Python
-        uses: actions/setup-python@03bb6152f4f691b9d64579a1bd791904a083c452
+        uses: actions/setup-python@fbeb884f69f0ac1c0257302f62aa524c2824b649
         with:
           python-version: "3.13.5"
           cache: "pip"
