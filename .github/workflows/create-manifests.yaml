@@ -1,0 +1,88 @@
+name: Create Docker Manifests
+
+on:
+  workflow_call:
+    inputs:
+      build-type:
+        description: "Type of build (prod or dev)"
+        required: true
+        type: string
+      version:
+        description: "Version tag for production builds (ignored for dev)"
+        required: false
+        type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          fetch-depth: 0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@3d100841f68d4548bf57e52eb27bd33ec5069f55
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@3d100841f68d4548bf57e52eb27bd33ec5069f55
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Create Docker manifests for dev
+        if: ${{ inputs.build-type == 'dev' }}
+        run: |
+          docker buildx imagetools create -t nickfedor/shoutrrr:latest-dev \
+            nickfedor/shoutrrr:amd64-dev \
+            nickfedor/shoutrrr:i386-dev \
+            nickfedor/shoutrrr:armhf-dev \
+            nickfedor/shoutrrr:arm64v8-dev \
+            nickfedor/shoutrrr:riscv64-dev
+          docker buildx imagetools create -t ghcr.io/nicholas-fedor/shoutrrr:latest-dev \
+            ghcr.io/nicholas-fedor/shoutrrr:amd64-dev \
+            ghcr.io/nicholas-fedor/shoutrrr:i386-dev \
+            ghcr.io/nicholas-fedor/shoutrrr:armhf-dev \
+            ghcr.io/nicholas-fedor/shoutrrr:arm64v8-dev \
+            ghcr.io/nicholas-fedor/shoutrrr:riscv64-dev
+
+      - name: Create Docker manifests for prod
+        if: ${{ inputs.build-type == 'prod' }}
+        run: |
+          docker buildx imagetools create -t nickfedor/shoutrrr:${{ inputs.version }} \
+            nickfedor/shoutrrr:amd64-${{ inputs.version }} \
+            nickfedor/shoutrrr:i386-${{ inputs.version }} \
+            nickfedor/shoutrrr:armhf-${{ inputs.version }} \
+            nickfedor/shoutrrr:arm64v8-${{ inputs.version }} \
+            nickfedor/shoutrrr:riscv64-${{ inputs.version }}
+          docker buildx imagetools create -t nickfedor/shoutrrr:latest \
+            nickfedor/shoutrrr:amd64-latest \
+            nickfedor/shoutrrr:i386-latest \
+            nickfedor/shoutrrr:armhf-latest \
+            nickfedor/shoutrrr:arm64v8-latest \
+            nickfedor/shoutrrr:riscv64-latest
+          docker buildx imagetools create -t ghcr.io/nicholas-fedor/shoutrrr:${{ inputs.version }} \
+            ghcr.io/nicholas-fedor/shoutrrr:amd64-${{ inputs.version }} \
+            ghcr.io/nicholas-fedor/shoutrrr:i386-${{ inputs.version }} \
+            ghcr.io/nicholas-fedor/shoutrrr:armhf-${{ inputs.version }} \
+            ghcr.io/nicholas-fedor/shoutrrr:arm64v8-${{ inputs.version }} \
+            ghcr.io/nicholas-fedor/shoutrrr:riscv64-${{ inputs.version }}
+          docker buildx imagetools create -t ghcr.io/nicholas-fedor/shoutrrr:latest \
+            ghcr.io/nicholas-fedor/shoutrrr:amd64-latest \
+            ghcr.io/nicholas-fedor/shoutrrr:i386-latest \
+            ghcr.io/nicholas-fedor/shoutrrr:armhf-latest \
+            ghcr.io/nicholas-fedor/shoutrrr:arm64v8-latest \
+            ghcr.io/nicholas-fedor/shoutrrr:riscv64-latest

@@ -3,19 +3,21 @@ name: Pull Request
 on:
   workflow_dispatch: {}
   pull_request:
-    paths-ignore:
-      - "docs/*"
-      - ".github/*"
-
-permissions:
-  contents: read
-  packages: write
-  attestations: write
-  id-token: write
+    paths:
+      - internal/**
+      - pkg/**
+      - shoutrrr/**
+      - go.mod
+      - go.sum
+      - shoutrrr.go
 
 jobs:
   lint:
-    uses: ./.github/workflows/lint.yaml
+    uses: ./.github/workflows/lint-go.yaml
+    permissions:
+      contents: read
 
   test:
     uses: ./.github/workflows/test.yaml
+    permissions:
+      contents: read

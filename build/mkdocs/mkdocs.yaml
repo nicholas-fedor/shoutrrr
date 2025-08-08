@@ -1,0 +1,188 @@
+# Project Information: https://www.mkdocs.org/user-guide/configuration/#project-information
+site_name: Shoutrrr
+site_url: https://nicholas-fedor.github.io/shoutrrr/
+repo_name: nicholas-fedor/shoutrrr
+repo_url: https://github.com/nicholas-fedor/shoutrrr/
+# Path from repo_url to the docs directory for direct editing links, set to main branch.
+edit_uri: edit/main/docs/
+# Description for meta tags in HTML header.
+site_description: Documentation for Shoutrrr, a notification library for gophers and their furry friends. Heavily inspired by caronc/apprise.
+# Author name for meta tags in HTML header.
+site_author: Nicholas Fedor
+# Copyright information displayed in the documentation footer (Material theme).
+copyright: Copyright © 2025 Nicholas Fedor
+
+# Theme Configuration: https://www.mkdocs.org/user-guide/configuration/#theme
+theme:
+  name: "material"
+  # Custom color scheme for the Material theme, defined in custom CSS or overrides.
+  palette:
+    scheme: shoutrrr
+  # Logo image for the site header, relative to docs_dir.
+  logo: assets/media/shoutrrr-180px.png
+  # Git icon for the site header.
+  icon:
+    repo: fontawesome/brands/github
+  # Favicon for the site, relative to docs_dir.
+  favicon: assets/media/favicon.ico
+  # Directory for custom theme overrides, e.g., partials or main.html.
+  custom_dir: ../../docs/overrides
+  # Material theme features for enhanced navigation and usability.
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tooltips
+    - content.tabs.link
+    - navigation.top
+
+# Extra Configuration: Passed to templates for flexibility.
+extra:
+  # Version provider for the mike plugin to handle versioned documentation.
+  version:
+    provider: mike
+  # Disables the "Made with MkDocs" generator text in the footer.
+  generator: false
+  # Social links displayed as icons in the footer (Material theme).
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nicholas-fedor/shoutrrr
+
+# Extra CSS: Stylesheets included by the theme, relative to docs_dir.
+extra_css:
+  - assets/styles/theme.css
+  - assets/styles/extra.css
+
+# Markdown Extensions: https://www.mkdocs.org/user-guide/configuration/#markdown_extensions
+# Custom formatting extensions beyond default meta, toc, tables, and fenced_code.
+markdown_extensions:
+  - toc:
+      # Enables permalinks for table of contents headings.
+      permalink: true
+      # Separator for permalinks in table of contents.
+      separator: "_"
+  # Enables admonition blocks (e.g., note, warning).
+  - admonition
+  # Enables collapsible details blocks.
+  - pymdownx.details
+  # Enables code highlighting for fenced code blocks.
+  - pymdownx.highlight
+  # Enables inline code highlighting.
+  - pymdownx.inlinehilite
+  # Enables nested fenced code blocks.
+  - pymdownx.superfences
+  # Enables text highlighting with == or !! markers.
+  - pymdownx.mark
+  # Enables snippet inclusion with path validation.
+  - pymdownx.snippets:
+      # Toggle to disabled for local development
+      check_paths: true
+  # Enables tabbed content blocks for examples or comparisons.
+  - pymdownx.tabbed:
+      alternate_style: true
+  # Enables task lists with checkboxes.
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  # Enables attribute lists for adding classes or IDs to Markdown elements.
+  - attr_list
+  # Enables footnote references in Markdown.
+  - footnotes
+
+# Navigation: https://www.mkdocs.org/user-guide/configuration/#nav
+# Site structure with paths relative to docs_dir.
+nav:
+  - Home: index.md
+  - Installation: installation/index.md
+  - Usage:
+      - Overview: usage/index.md
+      - CLI:
+          - Overview: usage/cli/index.md
+          - Commands:
+              - Completion: usage/cli/completion/index.md
+              - Docs: usage/cli/docs/index.md
+              - Generate: usage/cli/generate/index.md
+              - Help: usage/cli/help/index.md
+              - Send: usage/cli/send/index.md
+              - Verify: usage/cli/verify/index.md
+      - Docker: usage/docker/index.md
+      - GitHub Action: usage/github-action/index.md
+      - Go Package: usage/go-package/index.md
+  - Services:
+      - Overview: services/overview.md
+      - Messaging:
+          - Discord: services/discord/index.md
+          - Google Chat: services/googlechat/index.md
+          - Hangouts: services/hangouts/index.md
+          - Lark: services/lark/index.md
+          - Matrix: services/matrix/index.md
+          - Mattermost: services/mattermost/index.md
+          - Rocketchat: services/rocketchat/index.md
+          - Slack: services/slack/index.md
+          - Teams: services/teams/index.md
+          - Telegram: services/telegram/index.md
+          - Zulip Chat: services/zulip/index.md
+      - Webhooks:
+          - Generic Webhook: services/generic/index.md
+          - IFTTT: services/ifttt/index.md
+      - Push Notifications:
+          - Bark: services/bark/index.md
+          - Gotify: services/gotify/index.md
+          - Join: services/join/index.md
+          - Ntfy: services/ntfy/index.md
+          - Pushbullet: services/pushbullet/index.md
+          - Pushover: services/pushover/index.md
+      - Other:
+          - Email: services/email/index.md
+          - Logger: services/logger/index.md
+          - OpsGenie: services/opsgenie/index.md
+  - Guides:
+      - Configuring Slack: guides/slack/index.md
+      - Proxy Setup: guides/proxy/index.md
+  - Examples:
+      - Home Assistant: examples/home-assistant/index.md
+
+# Plugins: https://www.mkdocs.org/user-guide/configuration/#plugins
+# Additional functionality for the site build.
+plugins:
+  # Enables search functionality with lunr.js.
+  - search
+  # Enables versioned documentation with version selector.
+  - mike:
+      version_selector: true
+      css_dir: css
+  # Displays last updated dates on pages, formatted as time ago.
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+
+# Build Directories: https://www.mkdocs.org/user-guide/configuration/#build-directories
+# Default directories for documentation source and output.
+docs_dir: ../../docs
+site_dir: ../../site
+
+# Validation: https://www.mkdocs.org/user-guide/configuration/#validation
+# Strictness settings for link validation during builds.
+validation:
+  nav:
+    # Warns if files in docs_dir are not in nav.
+    omitted_files: warn
+    # Warns if absolute links are used in nav.
+    absolute_links: warn
+  links:
+    # Warns if linked files are not found.
+    not_found: warn
+    # Warns if anchors in links do not exist.
+    anchors: warn
+    # Treats absolute links as relative to docs_dir for validation.
+    absolute_links: relative_to_docs
+    # Warns if relative links are unrecognized.
+    unrecognized_links: warn
+
+# Live Reloading: https://www.mkdocs.org/user-guide/configuration/#live-reloading
+# Directories to watch for changes during mkdocs serve.
+watch:
+  - ../../docs

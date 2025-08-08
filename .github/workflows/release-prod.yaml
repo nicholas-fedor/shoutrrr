@@ -1,4 +1,4 @@
-name: Release Development
+name: Release Production
 
 on:
   # Manual runs with option of dry-run (for testing CI pipeline)
@@ -9,19 +9,10 @@ on:
         required: false
         default: false
         type: boolean
-  # Pushes to main with changes to code paths
+  # Tag pushes (e.g., v1.2.3)
   push:
-    # On main branch pushes
-    branches:
-      - main
-    # Watches shoutrrr, internal, pkg, shoutrrr.go, and Go modules
-    paths:
-      - shoutrrr/**
-      - internal/**
-      - pkg/**
-      - shoutrrr.go
-      - go.mod
-      - go.sum
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # Semantic version tags
 
 jobs:
   # Run Go tests and upload coverage
@@ -40,7 +31,7 @@ jobs:
       attestations: write # For generating provenance and SBOMs
       id-token: write # For OIDC auth to Docker Hub and GHCR
     with:
-      build-type: dev # Development snapshot release
+      build-type: prod # Production release.
       dry-run: ${{ fromJson(inputs.dry-run || 'false') }} # String to boolean, defaults false
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }} # Docker Hub username
@@ -58,4 +49,15 @@ jobs:
     uses: ./.github/workflows/create-manifests.yaml
     secrets: inherit
     with:
-      build-type: dev # Tags images as latest-dev
+      build-type: prod # Tags images with version and latest
+      version: ${{ github.ref_name }} # Tag name (e.g., v1.2.3)
+
+  # Update pkg.go.dev
+  update-go-docs:
+    # Runs after all jobs
+    needs: [test, build, manifest]
+    # Skips in dry-run
+    if: ${{ !fromJson(inputs.dry-run || 'false') }}
+    permissions:
+      contents: read # For code checkout
+    uses: ./.github/workflows/update-go-docs.yaml

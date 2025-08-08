@@ -6,7 +6,7 @@
 *.dll
 *.so
 *.dylib
-/shoutrrr/shoutrrr
+shoutrrr
 *.snap
 
 # Test binary, build with `go test -c`
@@ -24,5 +24,5 @@ report.json
 coverage.txt
 *.coverprofile
 dist
-site
+site/
 docs/services/*/config.md
