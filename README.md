@@ -2,7 +2,7 @@
 <div align="center">
 
 <a href="https://github.com/nicholas-fedor/shoutrrr">
-    <img src="https://raw.githubusercontent.com/nicholas-fedor/shoutrrr/main/docs/shoutrrr-logotype.png" width="450" />
+    <img src="https://raw.githubusercontent.com/nicholas-fedor/shoutrrr/refs/heads/main/docs/assets/media/shoutrrr-logotype.svg" width="450" />
 </a>
 
 # Shoutrrr
