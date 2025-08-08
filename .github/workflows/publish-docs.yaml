@@ -43,16 +43,16 @@ jobs:
           ./scripts/generate-service-config-docs.sh
 
       - name: Setup Python
-        uses: actions/setup-python@3c6f142cc0036d53007e92fa1e327564a4cfb7aa
+        uses: actions/setup-python@9322b3ca74000aeb2c01eb777b646334015ddd72
         with:
-          python-version: "3.13.5"
+          python-version: "3.13.6"
           cache: "pip"
           cache-dependency-path: |
             docs-requirements.txt
 
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
 
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
           key: mkdocs-material-${{ env.cache_id }}
           path: .cache
