@@ -27,13 +27,13 @@ The following scripts install the latest release binary to the user's `$HOME/go/
 === "Linux (amd64)"
 
     ```bash title="Linux (amd64) Installation"
-    curl -L $(curl -s https://api.github.com/repos/nicholas-fedor/shoutrrr/releases/latest | grep -o -E "https://.*linux_amd64.*\.tar\.gz") | tar -xz -C $HOME/go/bin shoutrrr
+    mkdir -p $HOME/go/bin && curl -L $(curl -s https://api.github.com/repos/nicholas-fedor/shoutrrr/releases/latest | grep -o 'https://[^"]*linux_amd64[^"]*\.tar\.gz') | tar -xz --strip-components=1 -C $HOME/go/bin shoutrrr
     ```
 
 === "macOS (amd64)"
 
     ```bash title="macOS (amd64) Installation"
-    curl -L $(curl -s https://api.github.com/repos/nicholas-fedor/shoutrrr/releases/latest | grep -o -E "https://.*darwin_amd64.*\.tar\.gz") | tar -xz -C $HOME/go/bin shoutrrr
+    mkdir -p $HOME/go/bin && curl -L $(curl -s https://api.github.com/repos/nicholas-fedor/shoutrrr/releases/latest | grep -o 'https://[^"]*darwin_amd64[^"]*\.tar\.gz') | tar -xz --strip-components=1 -C $HOME/go/bin shoutrrr
     ```
 <!-- markdownlint-restore -->
 !!! Note
