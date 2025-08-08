@@ -76,8 +76,8 @@ Install the latest release binary to `$HOME/go/bin` (ensure it's in your `PATH`)
   curl -L $(curl -s https://api.github.com/repos/nicholas-fedor/shoutrrr/releases/latest | grep -o -E "https://.*darwin_amd64.*\.tar\.gz") | tar -xz -C $HOME/go/bin shoutrrr
   ```
 
-!!! Note
-    Visit the [releases page](https://github.com/nicholas-fedor/shoutrrr/releases) for other architectures (e.g., arm, arm64, i386, riscv64).
+> [!Note]
+> Visit the [releases page](https://github.com/nicholas-fedor/shoutrrr/releases) for other architectures (e.g., arm, arm64, i386, riscv64).
 
 ### Container Images
 
@@ -93,8 +93,8 @@ Install the latest release binary to `$HOME/go/bin` (ensure it's in your `PATH`)
   docker pull ghcr.io/nicholas-fedor/shoutrrr:latest
   ```
 
-!!! Note
-    Tags: `latest` (stable), `vX.Y.Z` (specific version), `latest-dev` (development), platform-specific (e.g., `amd64-latest`).
+> [!Note]
+> Tags: `latest` (stable), `vX.Y.Z` (specific version), `latest-dev` (development), platform-specific (e.g., `amd64-latest`).
 
 ### Go Package
 
@@ -140,7 +140,7 @@ docker run --rm nickfedor/shoutrrr:latest send --url "slack://hook:T00000000-B00
 
 ### GitHub Action Usage
 
-See installation example above.
+See installation example [above](#github-action).
 
 ### Use as a Package
 
