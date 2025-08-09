@@ -6,7 +6,7 @@ The `generate` command creates a notification service URL by guiding the user th
 
 ## Usage
 
-```bash
+```bash title="Generate Command Syntax"
 shoutrrr generate [FLAGS] <SERVICE> [GENERATOR]
 ```
 
