@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: govulncheck
-        uses: nicholas-fedor/govulncheck-action@d15b9b7e247f7e24f8eac990f0076400b5c22dfa
+        uses: nicholas-fedor/govulncheck-action@18621287ab2dd9caa1fd7eb489cdb2e4dc9d826e
         with:
           output-format: sarif
           output-file: ${{ env.OUTPUT_FILE }}
