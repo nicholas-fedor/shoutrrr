@@ -12,8 +12,8 @@ FROM scratch
 
 ARG BASE_IMAGE
 
-LABEL "org.opencontainers.image.url"="https://nicholas-fedor.github.io/shoutrrr/" \
-    "org.opencontainers.image.documentation"="https://nicholas-fedor.github.io/shoutrrr/" \
+LABEL "org.opencontainers.image.url"="https://shoutrrr.nickfedor.com/" \
+    "org.opencontainers.image.documentation"="https://shoutrrr.nickfedor.com/" \
     "org.opencontainers.image.source"="https://github.com/nicholas-fedor/shoutrrr" \
     "org.opencontainers.image.licenses"="MIT" \
     "org.opencontainers.image.title"="Shoutrrr" \

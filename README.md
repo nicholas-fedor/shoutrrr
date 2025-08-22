@@ -44,7 +44,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 
 ## Full Documentation
 
-Visit the project's [GitHub Page](https://nicholas-fedor.github.io/shoutrrr) for full documentation.
+Visit the project's [GitHub Page](https://shoutrrr.nickfedor.com) for full documentation.
 
 ## Installation
 
