@@ -6,7 +6,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mattn/go-colorable v0.1.14
-	github.com/onsi/ginkgo/v2 v2.25.2
+	github.com/onsi/ginkgo/v2 v2.25.3
 	github.com/onsi/gomega v1.38.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.20.1
