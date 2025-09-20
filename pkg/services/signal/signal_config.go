@@ -64,15 +64,10 @@ func (config *Config) SetURL(url *url.URL) error {
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	scheme := Scheme
-	if config.DisableTLS {
-		scheme = "signals" // Use signals for non-TLS
-	}
-
 	recipients := strings.Join(config.Recipients, "/")
 
 	result := &url.URL{
-		Scheme:   scheme,
+		Scheme:   Scheme,
 		Host:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 		Path:     fmt.Sprintf("/%s/%s", config.Source, recipients),
 		RawQuery: format.BuildQuery(resolver),
@@ -118,8 +113,6 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 	if err := config.parseQuery(resolver, serviceURL); err != nil {
 		return err
 	}
-
-	config.setTLS(serviceURL)
 
 	return nil
 }
@@ -191,11 +184,6 @@ func (config *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL 
 	}
 
 	return nil
-}
-
-// setTLS configures TLS settings based on the URL scheme.
-func (config *Config) setTLS(serviceURL *url.URL) {
-	config.DisableTLS = serviceURL.Scheme == "signals"
 }
 
 // isValidPhoneNumber checks if the string is a valid phone number.

@@ -105,15 +105,17 @@ var _ = ginkgo.Describe("the signal service", func() {
 			})
 
 			ginkgo.When("parsing TLS settings", func() {
-				ginkgo.It("should enable TLS for signal:// scheme", func() {
+				ginkgo.It("should enable TLS by default", func() {
 					serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
 					err := signal.Initialize(serviceURL, logger)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(signal.Config.DisableTLS).To(gomega.BeFalse())
 				})
 
-				ginkgo.It("should disable TLS for signals:// scheme", func() {
-					serviceURL, _ := url.Parse("signals://localhost:8080/+1234567890/+0987654321")
+				ginkgo.It("should disable TLS when disabletls=yes", func() {
+					serviceURL, _ := url.Parse(
+						"signal://localhost:8080/+1234567890/+0987654321?disabletls=yes",
+					)
 					err := signal.Initialize(serviceURL, logger)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(signal.Config.DisableTLS).To(gomega.BeTrue())

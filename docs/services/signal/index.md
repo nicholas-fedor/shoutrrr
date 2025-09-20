@@ -5,8 +5,6 @@
 !!! info ""
     signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]
 
-    signals://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]
-
 ## Setting up Signal API Server
 
 Signal notifications require a Signal API server that can send messages on behalf of a registered Signal account. These implementations are built on top of __[signal-cli](https://github.com/AsamK/signal-cli)__, the unofficial command-line interface for Signal (3.8k+ stars).
@@ -60,7 +58,7 @@ Recipients can be:
 ### TLS Configuration
 
 - Use `signal://` for HTTPS (default, recommended)
-- Use `signals://` for HTTP (insecure, for local testing only)
+- Use `signal://...?disabletls=yes` for HTTP (insecure, for local testing only)
 
 ## Examples
 
@@ -97,7 +95,7 @@ signal://localhost:8080/+1234567890/+0987654321?token=YOUR_API_TOKEN
 ### Using HTTP instead of HTTPS
 
 ```
-signals://localhost:8080/+1234567890/+0987654321
+signal://localhost:8080/+1234567890/+0987654321?disabletls=yes
 ```
 
 ## Attachments
