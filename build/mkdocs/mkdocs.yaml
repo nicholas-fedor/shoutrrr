@@ -121,9 +121,11 @@ nav:
           - Matrix: services/matrix/index.md
           - Mattermost: services/mattermost/index.md
           - Rocketchat: services/rocketchat/index.md
+          - Signal: services/signal/index.md
           - Slack: services/slack/index.md
           - Teams: services/teams/index.md
           - Telegram: services/telegram/index.md
+          - WeCom: services/wecom/index.md
           - Zulip Chat: services/zulip/index.md
       - Webhooks:
           - Generic Webhook: services/generic/index.md
