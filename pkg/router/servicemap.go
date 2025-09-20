@@ -21,6 +21,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/teams"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/telegram"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/wecom"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -47,5 +48,6 @@ var serviceMap = map[string]func() types.Service{
 	"smtp":       func() types.Service { return &smtp.Service{} },
 	"teams":      func() types.Service { return &teams.Service{} },
 	"telegram":   func() types.Service { return &telegram.Service{} },
+	"wecom":      func() types.Service { return &wecom.Service{} },
 	"zulip":      func() types.Service { return &zulip.Service{} },
 }
