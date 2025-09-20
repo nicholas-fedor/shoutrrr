@@ -17,6 +17,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/pushbullet"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/rocketchat"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/signal"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/slack"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/teams"
@@ -44,6 +45,7 @@ var serviceMap = map[string]func() types.Service{
 	"pushbullet": func() types.Service { return &pushbullet.Service{} },
 	"pushover":   func() types.Service { return &pushover.Service{} },
 	"rocketchat": func() types.Service { return &rocketchat.Service{} },
+	"signal":     func() types.Service { return &signal.Service{} },
 	"slack":      func() types.Service { return &slack.Service{} },
 	"smtp":       func() types.Service { return &smtp.Service{} },
 	"teams":      func() types.Service { return &teams.Service{} },
