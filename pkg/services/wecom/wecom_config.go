@@ -56,6 +56,13 @@ func (config *Config) SetURL(url *url.URL) error {
 
 // setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	// Handle dummy URL used for documentation generation
+	if url.String() == "wecom://dummy@dummy.com" {
+		config.Key = "dummy-webhook-key"
+
+		return nil
+	}
+
 	// Extract key from host
 	config.Key = url.Host
 

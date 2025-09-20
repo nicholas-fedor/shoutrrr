@@ -92,6 +92,17 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	// Handle dummy URL used for documentation generation
+	if serviceURL.String() == "signal://dummy@dummy.com" {
+		config.Host = "localhost"
+		config.Port = 8080
+		config.Source = "+1234567890"
+		config.Recipients = []string{"+0987654321"}
+		config.DisableTLS = false
+
+		return nil
+	}
+
 	if err := config.parseAuth(serviceURL); err != nil {
 		return err
 	}
