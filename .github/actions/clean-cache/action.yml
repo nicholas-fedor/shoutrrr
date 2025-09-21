@@ -1,6 +1,17 @@
 name: "Clean Cache"
 description: "Clean GitHub Actions cache for a PR branch"
 
+inputs:
+  gh-token:
+    description: "GitHub token for API access"
+    required: true
+  gh-repo:
+    description: "GitHub repository in owner/repo format"
+    required: true
+  branch:
+    description: "Branch reference to clean cache for"
+    required: true
+
 runs:
   using: "composite"
   steps:
