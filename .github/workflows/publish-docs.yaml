@@ -55,11 +55,9 @@ jobs:
           cache-dependency-path: |
             build/mkdocs/docs-requirements.txt
 
-      - run: echo "cache_id=$(date --utc '+%V')" >> "$GITHUB_ENV"
-
       - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
         with:
-          key: mkdocs-material-${{ env.cache_id }}
+          key: mkdocs-material-${{ hashFiles('build/mkdocs/docs-requirements.txt') }}
           path: .cache
           restore-keys: |
             mkdocs-material-

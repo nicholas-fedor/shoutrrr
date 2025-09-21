@@ -29,20 +29,13 @@ jobs:
         uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
         with:
           fetch-depth: 0
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@5b7b28b1cc417bbd34cd8c225a957c9ce9adf7f2
+      - name: Login to registries
+        uses: ./.github/actions/docker-login
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Login to GHCR
-        uses: docker/login-action@5b7b28b1cc417bbd34cd8c225a957c9ce9adf7f2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          ghcr-username: ${{ github.actor }}
+          ghcr-token: ${{ github.token }}
       - name: Create Docker manifests for dev
         if: ${{ inputs.build-type == 'dev' }}
         run: |
@@ -58,7 +51,6 @@ jobs:
             ghcr.io/nicholas-fedor/shoutrrr:armhf-dev \
             ghcr.io/nicholas-fedor/shoutrrr:arm64v8-dev \
             ghcr.io/nicholas-fedor/shoutrrr:riscv64-dev
-
       - name: Create Docker manifests for prod
         if: ${{ inputs.build-type == 'prod' }}
         run: |

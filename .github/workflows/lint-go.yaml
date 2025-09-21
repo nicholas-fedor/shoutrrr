@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-go@c0137caad775660c0844396c52da96e560aba63d
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: "**/go.sum"
 
       - name: Install dependencies
         run: go mod download

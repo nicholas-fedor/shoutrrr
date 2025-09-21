@@ -54,8 +54,8 @@ jobs:
 
   # Update pkg.go.dev
   update-go-docs:
-    # Runs after all jobs
-    needs: [test, build, manifest]
+    # Runs after build
+    needs: build
     # Skips in dry-run
     if: ${{ !fromJson(inputs.dry-run || 'false') }}
     permissions:

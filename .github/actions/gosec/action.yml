@@ -1,0 +1,16 @@
+name: "Golang Security Checker"
+description: "Run Gosec security scanner and upload SARIF report"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout Source
+      uses: ./.github/actions/checkout
+    - name: Run Gosec Security Scanner
+      uses: securego/gosec@506407e7dfe6979d514d362f0b2d2ea77f49f5c8
+      with:
+        args: "-no-fail -fmt sarif -out results.sarif -tests ./..."
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3
+      with:
+        sarif_file: results.sarif

@@ -1,0 +1,22 @@
+name: "govulncheck"
+description: "Run govulncheck vulnerability scanner and upload SARIF report"
+
+inputs:
+  go-version:
+    description: "Go version to use"
+    required: false
+    default: "1.25.x"
+
+runs:
+  using: "composite"
+  steps:
+    - id: govulncheck
+      uses: nicholas-fedor/govulncheck-action@1e9ef2cbd93abefcc8605e05f8c212aa90181f6f
+      with:
+        output-format: sarif
+        output-file: results.sarif
+        go-version-input: ${{ inputs.go-version }}
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3
+      with:
+        sarif_file: results.sarif

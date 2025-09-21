@@ -105,7 +105,7 @@ jobs:
         with:
           name: ${{ inputs.build-type }}-binary-sboms
           path: dist/*.sbom
-          if-no-files-found: warn
+          if-no-files-found: ignore
 
       - name: Generate artifact attestation # Generate attestations for prod builds.
         if: ${{ !inputs.dry-run && inputs.build-type == 'prod' }}

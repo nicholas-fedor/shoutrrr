@@ -1,7 +1,7 @@
 ---
 name: Run Security Checks
 on:
-  pull_request:
+  push:
     branches: [main]
     paths:
       - internal/**
@@ -10,8 +10,6 @@ on:
       - go.mod
       - go.sum
       - shoutrrr.go
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -27,31 +25,23 @@ jobs:
   gosec:
     name: Golang Security Checker
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      security-events: write
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@506407e7dfe6979d514d362f0b2d2ea77f49f5c8
-        with:
-          args: "-no-fail -fmt sarif -out results.sarif -tests ./..."
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3
-        with:
-          # Path to SARIF file relative to the root of the repository
-          sarif_file: results.sarif
+      - uses: ./.github/actions/gosec
 
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      security-events: write
     steps:
-      - id: govulncheck
-        uses: nicholas-fedor/govulncheck-action@1e9ef2cbd93abefcc8605e05f8c212aa90181f6f
+      - uses: ./.github/actions/govulncheck
         with:
-          output-format: sarif
-          output-file: ${{ env.OUTPUT_FILE }}
-          go-version-input: ${{ env.GO_VERSION }}
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3
-        with:
-          sarif_file: ${{ env.OUTPUT_FILE }}
+          go-version: ${{ env.GO_VERSION }}
