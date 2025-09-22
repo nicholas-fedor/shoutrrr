@@ -7,7 +7,7 @@ runs:
     - name: Checkout Source
       uses: ./.github/actions/checkout
     - name: Run Gosec Security Scanner
-      uses: securego/gosec@7b8713e2c9114d7db686be71c260e4e9f7ffc2e9
+      uses: securego/gosec@f9c52aac4b897c84070cb8c8ef0c0d2d2180d532
       with:
         args: "-no-fail -fmt sarif -out results.sarif -tests ./..."
     - name: Upload SARIF file
