@@ -14,6 +14,8 @@ jobs:
     if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - uses: ./.github/actions/clean-cache
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
