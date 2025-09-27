@@ -2,7 +2,7 @@
 
 ## Overview
 
-Guides for setting up the [Slack](../../services/slack/index.md) service, including obtaining tokens (Bot API or Webhook) and channel IDs. The Slack service supports customization options like bot name, icon, color, title, and threading.
+Guides for setting up the [Slack](../../services/chat/slack/index.md) service, including obtaining tokens (Bot API or Webhook) and channel IDs. The Slack service supports customization options like bot name, icon, color, title, and threading.
 
 ## Getting a Token
 
@@ -18,7 +18,7 @@ To send messages, use either a Bot API token (preferred for full features) or a 
    <figure><img alt="Copy OAuth token screenshot" src="app-api-copy-oauth-token.png" height="209" /></figure>
 <!-- markdownlint-restore -->
 !!! example
-    Given the API token `xoxb-123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N` and channel ID `C001CH4NN3L` (obtained via the [guide below](#getting-the-channel-id)), the Shoutrrr URL should look like:
+    Given the API token `xoxb-123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N` and channel ID `C001CH4NN3L` (obtained via the [Slack service docs](../../services/chat/slack/index.md#getting_the_channel_id)), the Shoutrrr URL should look like:
     ```url
     slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C001CH4NN3L
     ```

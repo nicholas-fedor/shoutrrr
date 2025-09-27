@@ -113,34 +113,35 @@ nav:
       - Go Package: usage/go-package/index.md
   - Services:
       - Overview: services/overview.md
-      - Messaging:
-          - Discord: services/discord/index.md
-          - Google Chat: services/googlechat/index.md
-          - Hangouts: services/hangouts/index.md
-          - Lark: services/lark/index.md
-          - Matrix: services/matrix/index.md
-          - Mattermost: services/mattermost/index.md
-          - Rocketchat: services/rocketchat/index.md
-          - Signal: services/signal/index.md
-          - Slack: services/slack/index.md
-          - Teams: services/teams/index.md
-          - Telegram: services/telegram/index.md
-          - WeCom: services/wecom/index.md
-          - Zulip Chat: services/zulip/index.md
-      - Webhooks:
-          - Generic Webhook: services/generic/index.md
-          - IFTTT: services/ifttt/index.md
-      - Push Notifications:
-          - Bark: services/bark/index.md
-          - Gotify: services/gotify/index.md
-          - Join: services/join/index.md
-          - Ntfy: services/ntfy/index.md
-          - Pushbullet: services/pushbullet/index.md
-          - Pushover: services/pushover/index.md
-      - Other:
-          - Email: services/email/index.md
-          - Logger: services/logger/index.md
-          - OpsGenie: services/opsgenie/index.md
+      - Chat and Messaging Platforms:
+          - Discord: services/chat/discord/index.md
+          - Google Chat: services/chat/googlechat/index.md
+          - Hangouts: services/chat/hangouts/index.md
+          - Lark: services/chat/lark/index.md
+          - Matrix: services/chat/matrix/index.md
+          - Mattermost: services/chat/mattermost/index.md
+          - Rocket.Chat: services/chat/rocketchat/index.md
+          - Signal: services/chat/signal/index.md
+          - Slack: services/chat/slack/index.md
+          - Teams: services/chat/teams/index.md
+          - Telegram: services/chat/telegram/index.md
+          - WeCom: services/chat/wecom/index.md
+          - Zulip: services/chat/zulip/index.md
+      - Push Notification Services:
+          - Bark: services/push/bark/index.md
+          - Gotify: services/push/gotify/index.md
+          - IFTTT: services/push/ifttt/index.md
+          - Join: services/push/join/index.md
+          - Ntfy: services/push/ntfy/index.md
+          - Pushbullet: services/push/pushbullet/index.md
+          - Pushover: services/push/pushover/index.md
+      - Incident and Alert Management:
+          - OpsGenie: services/incident/opsgenie/index.md
+      - Email Services:
+          - SMTP: services/email/smtp/index.md
+      - Specialized Services:
+          - Generic: services/specialized/generic/index.md
+          - Logger: services/specialized/logger/index.md
   - Guides:
       - Configuring Slack: guides/slack/index.md
       - Proxy Setup: guides/proxy/index.md
@@ -159,6 +160,7 @@ plugins:
   # Displays last updated dates on pages, formatted as time ago.
   - git-revision-date-localized:
       enable_creation_date: true
+      enable_git_follow: false
       type: timeago
 
 # Build Directories: https://www.mkdocs.org/user-guide/configuration/#build-directories

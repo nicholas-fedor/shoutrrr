@@ -25,4 +25,4 @@ coverage.txt
 *.coverprofile
 dist
 site/
-docs/services/*/config.md
+docs/services/*/*/config.md
