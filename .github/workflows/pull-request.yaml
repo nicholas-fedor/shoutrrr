@@ -32,6 +32,7 @@ jobs:
       pull-requests: read
       security-events: write
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/gosec
 
   govulncheck:
@@ -43,6 +44,7 @@ jobs:
       pull-requests: read
       security-events: write
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/govulncheck
         with:
           go-version: 1.25.x
