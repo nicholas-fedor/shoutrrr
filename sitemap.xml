@@ -2,258 +2,258 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://shoutrrr.nickfedor.com/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/examples/home-assistant/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/guides/proxy/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/guides/slack/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/installation/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/services/overview/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/bark/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/discord/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/bark/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/discord/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/discord/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/googlechat/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/discord/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/googlechat/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/email/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/hangouts/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/generic/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/lark/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/generic/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/lark/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/googlechat/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/matrix/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/googlechat/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/matrix/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/gotify/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/mattermost/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/gotify/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/mattermost/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/hangouts/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/rocketchat/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/ifttt/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/rocketchat/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/ifttt/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/signal/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/join/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/signal/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/join/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/slack/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/lark/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/slack/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/lark/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/teams/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/logger/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/teams/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/logger/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/telegram/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/matrix/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/telegram/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/matrix/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/wecom/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/mattermost/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/wecom/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/mattermost/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/zulip/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/ntfy/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/chat/zulip/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/ntfy/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/email/smtp/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/opsgenie/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/email/smtp/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/opsgenie/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/incident/opsgenie/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/pushbullet/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/incident/opsgenie/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/pushbullet/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/bark/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/pushover/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/bark/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/pushover/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/gotify/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/rocketchat/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/gotify/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/rocketchat/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/ifttt/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/signal/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/ifttt/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/signal/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/join/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/slack/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/join/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/slack/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/ntfy/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/smtp/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/ntfy/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/teams/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/pushbullet/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/teams/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/pushbullet/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/telegram/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/pushover/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/telegram/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/push/pushover/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/wecom/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/specialized/generic/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/wecom/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/specialized/generic/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/zulip/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/specialized/logger/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
-         <loc>https://shoutrrr.nickfedor.com/services/zulip/config/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <loc>https://shoutrrr.nickfedor.com/services/specialized/logger/config/</loc>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/completion/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/docs/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/generate/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/help/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/send/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/cli/verify/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/docker/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/github-action/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
     <url>
          <loc>https://shoutrrr.nickfedor.com/usage/go-package/</loc>
-         <lastmod>2025-09-20</lastmod>
+         <lastmod>2025-09-27</lastmod>
     </url>
 </urlset>
