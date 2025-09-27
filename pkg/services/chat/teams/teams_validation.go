@@ -9,7 +9,7 @@ import (
 const (
 	UUID4Length        = 36 // Length of a UUID4 identifier
 	HashLength         = 32 // Length of a hash identifier
-	WebhookDomain      = ".webhook.office.com"
+	WebhookDomain      = `\.webhook\.office\.com`
 	ExpectedComponents = 7 // Expected number of components in webhook URL (1 match + 6 captures)
 	Path               = "webhookb2"
 	ProviderName       = "IncomingWebhook"

@@ -51,7 +51,7 @@ func (config *Config) SetFromWebhookURL(webhookURL string) error {
 		return ErrInvalidWebhookFormat
 	}
 
-	config.Host = orgGroups[1] + WebhookDomain
+	config.Host = orgGroups[1] + ".webhook.office.com"
 
 	parts, err := ParseAndVerifyWebhookURL(webhookURL)
 	if err != nil {
