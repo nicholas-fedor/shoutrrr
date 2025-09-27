@@ -7,7 +7,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/basic"
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xouath2"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/telegram"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
