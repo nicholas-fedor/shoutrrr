@@ -43,8 +43,13 @@ theme:
 # Extra Configuration: Passed to templates for flexibility.
 extra:
   # Version provider for the mike plugin to handle versioned documentation.
+  # https://squidfunk.github.io/mkdocs-material/setup/setting-up-versioning/#versioning
   version:
     provider: mike
+    alias: true
+    default:
+      - latest
+      - dev
   # Disables the "Made with MkDocs" generator text in the footer.
   generator: false
   # Social links displayed as icons in the footer (Material theme).
