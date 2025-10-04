@@ -66,5 +66,26 @@ jobs:
         run: |
           pip install -r build/mkdocs/docs-requirements.txt
 
+      - name: Determine Mike Version and Aliases
+        id: mike
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "aliases=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and Deploy
-        run: mkdocs gh-deploy --force --verbose --config-file build/mkdocs/mkdocs.yaml
+        run: |
+          if [ -n "${{ steps.mike.outputs.aliases }}" ]; then
+            mike deploy \
+              --config-file build/mkdocs/mkdocs.yaml \
+              --push \
+              --update-aliases "${{ steps.mike.outputs.version }}" "${{ steps.mike.outputs.aliases }}"
+          else
+            mike deploy \
+              --config-file build/mkdocs/mkdocs.yaml \
+              --push \
+              "${{ steps.mike.outputs.version }}"
+          fi
