@@ -19,6 +19,11 @@
   ) !important; /* Fully opaque white for dark mode */
 }
 
+[data-md-color-scheme="shoutrrr"] .md-main,
+[data-md-color-scheme="shoutrrr"] .md-content {
+  background-color: var(--md-default-bg-color);
+}
+
 [data-md-color-scheme="shoutrrr"] .md-typeset h1 {
   --md-default-fg-color--light: hsl(
     0,
