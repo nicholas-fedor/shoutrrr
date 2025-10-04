@@ -6,11 +6,8 @@ on:
     branches: [main]
     paths:
       - docs/**
-  workflow_run:
-    workflows: ["Release Production"]
-    branches: [main]
-    types:
-      - completed
+  release:
+    types: [published]
 
 permissions:
   contents: write
