@@ -546,6 +546,7 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Port).To(gomega.Equal(uint16(DefaultSMTPPort)))
+			gomega.Expect(service.Config.Timeout).To(gomega.Equal(10 * time.Second))
 		})
 	})
 
