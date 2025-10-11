@@ -27,6 +27,7 @@ const (
 	contentMultipart = "multipart/alternative; boundary=%s"
 	DefaultSMTPPort  = 25 // DefaultSMTPPort is the standard port for SMTP communication.
 	boundaryByteLen  = 8  // boundaryByteLen is the number of bytes for the multipart boundary.
+	DefaultTimeout   = 10 // DefaultTimeout is the default timout in seconds
 )
 
 // ErrNoAuth is a sentinel error indicating no authentication is required.
@@ -58,7 +59,7 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		UseHTML:     false,
 		Encryption:  EncMethods.Auto,
 		ClientHost:  "localhost",
-		Timeout:     10 * time.Second,
+		Timeout:     DefaultTimeout * time.Second,
 	}
 
 	pkr := format.NewPropKeyResolver(service.Config)
