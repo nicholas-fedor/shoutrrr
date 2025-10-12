@@ -91,7 +91,7 @@ Shoutrrr is a Go library and is built with Go commands.
 The following commands assume that you are at the root level of your repo.
 
 ```bash
-./build/build.sh                       # compiles and packages a stand-alone executable
+./scripts/build.sh                     # compiles and packages a stand-alone executable
 go test ./... -v                       # runs tests with verbose output
 ./shoutrrr/shoutrrr                    # runs the application
 ```
