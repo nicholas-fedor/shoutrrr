@@ -19,7 +19,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 [![license](https://img.shields.io/github/license/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr/blob/main/LICENSE)
 [![Pulls from DockerHub](https://img.shields.io/docker/pulls/nickfedor/shoutrrr.svg)](https://hub.docker.com/r/nickfedor/shoutrrr)
 [![godoc](https://godoc.org/github.com/nicholas-fedor/shoutrrr?status.svg)](https://godoc.org/github.com/nicholas-fedor/shoutrrr) <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-16-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-17-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 </div>
 <!-- markdownlint-restore -->
@@ -236,6 +236,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- markdownlint-disable -->
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
 <table>
   <tbody>
     <tr>
@@ -259,9 +261,14 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://ring0.lol"><img src="https://avatars.githubusercontent.com/u/1893909?v=4?s=100" width="100px;" alt="Justin Steven"/><br /><sub><b>Justin Steven</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/issues?q=author%3Ajustinsteven" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/serverleader"><img src="https://avatars.githubusercontent.com/u/34089?v=4?s=100" width="100px;" alt="Carlos Savcic"/><br /><sub><b>Carlos Savcic</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=serverleader" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=serverleader" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/PythonGermany"><img src="https://avatars.githubusercontent.com/u/97847597?v=4?s=100" width="100px;" alt="PythonGermany"/><br /><sub><b>PythonGermany</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=PythonGermany" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 <!-- markdownlint-restore -->
 
