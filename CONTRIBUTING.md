@@ -146,3 +146,9 @@ Commit Message Structure:
 
 [optional footer(s)]
 ```
+
+## Commit Signing
+
+This project requires all commits to be signed in order for pull requests to be accepted.
+As Shoutrrr is a notification library that's leveraged by several open-source projects, this is simply a necessity.
+Refer to GitHub's documentation on getting it setup: https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits
