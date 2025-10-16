@@ -1,0 +1,40 @@
+[data-md-color-scheme="shoutrrr"] {
+  --md-primary-fg-color: hsl(193, 100%, 44%);
+  --md-primary-fg-color--light: hsl(193, 100%, 55%);
+  --md-primary-fg-color--dark: hsl(193, 76%, 33%);
+  --md-accent-fg-color: hsl(39, 84%, 44%);
+  --md-accent-fg-color--transparent: hsla(39, 84%, 58%, 0.1);
+  --md-typeset-a-color: var(--md-primary-fg-color--dark);
+  --md-default-fg-color--light: hsl(
+    0,
+    0%,
+    0%,
+    1
+  ) !important; /* Fully opaque black for light mode */
+  --md-default-fg-color--dark: hsl(
+    0,
+    0%,
+    100%,
+    1
+  ) !important; /* Fully opaque white for dark mode */
+}
+
+[data-md-color-scheme="shoutrrr"] .md-main,
+[data-md-color-scheme="shoutrrr"] .md-content {
+  background-color: var(--md-default-bg-color);
+}
+
+[data-md-color-scheme="shoutrrr"] .md-typeset h1 {
+  --md-default-fg-color--light: hsl(
+    0,
+    0%,
+    0%,
+    1
+  ) !important; /* Fully opaque black for light mode */
+  --md-default-fg-color--dark: hsl(
+    0,
+    0%,
+    100%,
+    1
+  ) !important; /* Fully opaque white for dark mode */
+}
