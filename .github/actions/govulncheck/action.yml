@@ -31,15 +31,15 @@ runs:
       shell: bash
       run: |
         cd main
-        govulncheck -format sarif -out ../main.sarif ./...
+        govulncheck -format sarif ./... > ../main.sarif
 
     - name: Run govulncheck
       shell: bash
       run: |
         if [ "${{ github.event_name }}" == "pull_request" ]; then
-          govulncheck -format sarif -baseline main.sarif -out results.sarif ./...
+          govulncheck -format sarif -baseline main.sarif ./... > results.sarif
         else
-          govulncheck -format sarif -out results.sarif ./...
+          govulncheck -format sarif ./... > results.sarif
         fi
 
     - name: Upload SARIF file
