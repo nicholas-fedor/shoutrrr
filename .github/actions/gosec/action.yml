@@ -31,12 +31,12 @@ runs:
       shell: bash
       run: |
         cd main
-        gosec -no-fail -fmt sarif -out ../main.sarif -tests ./...
+        gosec -no-fail -fmt sarif -out results.sarif -tests ./...
 
     - name: Run gosec on PR
       if: github.event_name == 'pull_request'
       shell: bash
-      run: gosec -no-fail -fmt sarif -baseline main.sarif -out results.sarif -tests ./...
+      run: gosec -no-fail -fmt sarif -out results.sarif -tests ./...
 
     - name: Run gosec on push
       if: github.event_name != 'pull_request'
