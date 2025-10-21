@@ -37,7 +37,7 @@ runs:
       shell: bash
       run: |
         if [ "${{ github.event_name }}" == "pull_request" ]; then
-          govulncheck -format sarif -baseline main.sarif ./... > results.sarif
+          govulncheck -format sarif ./... > results.sarif
         else
           govulncheck -format sarif ./... > results.sarif
         fi
