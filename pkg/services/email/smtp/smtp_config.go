@@ -38,6 +38,7 @@ type Config struct {
 	UseHTML         bool          `desc:"Whether the message being sent is in HTML"                         default:"No"                    key:"usehtml"`
 	ClientHost      string        `desc:"SMTP client hostname"                                              default:"localhost"             key:"clienthost"`
 	RequireStartTLS bool          `desc:"Fail if StartTLS is enabled but unsupported"                       default:"No"                    key:"requirestarttls"`
+	DisableTLS      bool          `desc:"Whether to disable TLS encryption"                                 default:"No"                    key:"disabletls"`
 	Timeout         time.Duration `desc:"Timeout for SMTP operations"                                       default:"10s"                   key:"timeout"`
 }
 
