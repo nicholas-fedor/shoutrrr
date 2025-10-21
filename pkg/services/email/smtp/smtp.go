@@ -173,9 +173,9 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 			)
 		} else {
 			if err := client.StartTLS(&tls.Config{
-				ServerName: config.Host,
-				MinVersion: tls.VersionTLS12,
-				MaxVersion: tls.VersionTLS13,
+				ServerName:         config.Host,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS13,
 				InsecureSkipVerify: config.DisableTLS,
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
