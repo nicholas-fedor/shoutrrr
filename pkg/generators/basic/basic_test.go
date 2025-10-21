@@ -11,7 +11,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/fatih/color"
+	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"

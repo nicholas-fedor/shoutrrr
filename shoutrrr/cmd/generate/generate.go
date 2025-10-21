@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
+	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/spf13/cobra"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators"

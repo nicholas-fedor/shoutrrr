@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fatih/color"
+	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )

@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/fatih/color"
+	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
