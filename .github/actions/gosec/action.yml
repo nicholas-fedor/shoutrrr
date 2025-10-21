@@ -31,17 +31,17 @@ runs:
       shell: bash
       run: |
         cd main
-        gosec -no-fail -fmt sarif -out results.sarif -tests ./...
+        gosec -no-fail -fmt sarif -out results.sarif -ai-api-key "" -tests ./...
 
     - name: Run gosec on PR
       if: github.event_name == 'pull_request'
       shell: bash
-      run: gosec -no-fail -fmt sarif -out results.sarif -tests ./...
+      run: gosec -no-fail -fmt sarif -out results.sarif -ai-api-key "" -tests ./...
 
     - name: Run gosec on push
       if: github.event_name != 'pull_request'
       shell: bash
-      run: gosec -no-fail -fmt sarif -out results.sarif -tests ./...
+      run: gosec -no-fail -fmt sarif -out results.sarif -ai-api-key "" -tests ./...
 
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
