@@ -33,7 +33,32 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - uses: ./.github/actions/gosec
+      - name: Checkout main branch
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          ref: "main"
+          fetch-depth: 0
+          path: "main"
+      - name: Run gosec on main
+        if: github.event_name == 'pull_request'
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
+      - name: Run gosec on PR
+        if: github.event_name == 'pull_request'
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
+      - name: Run gosec on push
+        if: github.event_name != 'pull_request'
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
+        with:
+          sarif_file: results.sarif
 
   govulncheck:
     name: govulncheck
