@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )

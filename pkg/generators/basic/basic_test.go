@@ -12,7 +12,6 @@ import (
 	"text/template"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )

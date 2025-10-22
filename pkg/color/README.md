@@ -1,16 +1,13 @@
 # color
 
-Color lets you use colorized outputs in terms of [ANSI Escape
-Codes](http://en.wikipedia.org/wiki/ANSI_escape_code#Colors) in Go (Golang). It
-has support for Windows too! The API can be used in several ways, pick one that
-suits you.
+Color lets you use colorized outputs in terms of [ANSI Escape Codes](http://en.wikipedia.org/wiki/ANSI_escape_code#Colors) in Go (Golang). It has support for Windows too! The API can be used in several ways, pick one that suits you.
 
-![Color](https://user-images.githubusercontent.com/438920/96832689-03b3e000-13f4-11eb-9803-46f4c4de3406.jpg)
+![Color](shoutrrr-color.jpg)
 
 ## Install
 
 ```bash
-go get github.com/fatih/color
+go get github.com/nicholas-fedor/shoutrrr/pkg/color@latest
 ```
 
 ## Examples
@@ -180,7 +177,7 @@ To output color in GitHub Actions (or other CI systems that support ANSI colors)
 
 ## Credits
 
-* [Fatih Arslan](https://github.com/fatih)
+* This was imported directly from [Fatih Arslan](https://github.com/fatih)'s [color](https://github.com/fatih/color) repository
 * Windows support via @mattn: [colorable](https://github.com/mattn/go-colorable)
 
 ## License
