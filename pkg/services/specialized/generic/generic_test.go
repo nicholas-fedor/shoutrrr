@@ -163,6 +163,41 @@ var _ = ginkgo.Describe("the generic service", func() {
 				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(expectedURL))
 			})
 		})
+		ginkgo.When("parsing from webhook URL", func() {
+			ginkgo.It("sets config properties from webhook URL query parameters", func() {
+				webhookURL := testutils.URLMust(
+					"https://example.com/webhook?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
+				)
+
+				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				// Verify config properties are set correctly
+				gomega.Expect(config.Template).To(gomega.Equal("json"))
+				gomega.Expect(config.ContentType).To(gomega.Equal("application/json"))
+				gomega.Expect(config.RequestMethod).To(gomega.Equal("POST"))
+				gomega.Expect(config.TitleKey).To(gomega.Equal("customtitle"))
+				gomega.Expect(config.MessageKey).To(gomega.Equal("custommessage"))
+
+				// Verify webhook URL has remaining query params (extra=param)
+				gomega.Expect(config.WebhookURL().RawQuery).To(gomega.Equal("extra=param"))
+			})
+
+			ginkgo.It("handles custom headers and extra data correctly", func() {
+				webhookURL := testutils.URLMust(
+					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
+				)
+
+				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				// Verify template is set
+				gomega.Expect(config.Template).To(gomega.Equal("json"))
+
+				// Verify webhook URL has no query params (all processed)
+				gomega.Expect(config.WebhookURL().RawQuery).To(gomega.Equal(""))
+			})
+		})
 	})
 
 	ginkgo.Describe("building the payload", func() {

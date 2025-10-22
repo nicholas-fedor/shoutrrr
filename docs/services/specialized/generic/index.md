@@ -23,6 +23,14 @@ would result in the additional header being added:
 Accept-Language: tlh-Piqd
 ```
 
+!!! example
+    ```url
+    generic://api.example.com/webhook?@Authorization=Bearer%20token123&@X-Custom=value
+    ```
+
+!!! note
+    Header names are normalized to HTTP header format (e.g., `acceptlanguage` becomes `Accept-Language`).
+
 ## JSON template
 
 By using the built in `JSON` template (`template=json`) you can create a generic JSON payload. The keys used for `title` and `message` can be overriden
@@ -34,6 +42,11 @@ by supplying the params/query values `titleKey` and `messageKey`.
         "title": "Oh no!",
         "message": "The thing happened and now there is stuff all over the area!"
     }
+    ```
+
+!!! example
+    ```url
+    generic://api.example.com/webhook?template=json
     ```
 
 ### Custom data fields
@@ -48,6 +61,11 @@ When using the JSON template, you can add additional key/value pairs to the JSON
         "message": "New map book available for purchase.",
         "projection": "retroazimuthal"
     }
+    ```
+
+!!! example
+    ```url
+    generic://webhook.example.com/alert?$source=shoutrrr
     ```
 
 ## Shortcut URL
@@ -67,6 +85,11 @@ generic+https://example.com/api/v1/postStuff
 !!! Note
     Any query variables added to the URL will be escaped so that they can be forwarded to the remote server. That means that you cannot use `?template=json` with the  `generic+https://`, just use `generic://` instead!
 
+!!! example
+    ```url
+    generic+https://example.com/api/v1/postStuff
+    ```
+
 ## Forwarded query variables
 
 All query variables that are not listed in the [Query/Param Props](#queryparam_props) section will be forwarded to the target endpoint.
@@ -75,6 +98,11 @@ If you need to pass a query variable that _is_ reserved, you can prefix it with 
 !!! Example
     The URL `generic+https://example.com/api/v1/postStuff?contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff` using the `Content-Type: text/plain` header.
     If instead escaped, `generic+https://example.com/api/v1/postStuff?_contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff?contenttype=text/plain` using the `Content-Type: application/json` header (as it's the default).
+
+!!! example
+    ```url
+    generic://webhook.example.com/alert?template=json&disabletls=yes&method=POST&titlekey=alert_title&messagekey=alert_message
+    ```
 
 ## URL Format
 
