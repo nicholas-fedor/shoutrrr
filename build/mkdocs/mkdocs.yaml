@@ -147,6 +147,7 @@ nav:
       - Specialized Services:
           - Generic: services/specialized/generic/index.md
           - Logger: services/specialized/logger/index.md
+          - Notifiarr: services/specialized/notifiarr/index.md
   - Guides:
       - Configuring Slack: guides/slack/index.md
       - Proxy Setup: guides/proxy/index.md
