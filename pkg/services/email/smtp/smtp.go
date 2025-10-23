@@ -93,6 +93,10 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return fail(FailApplySendParams, err)
 	}
 
+	if config.SkipTLSVerify {
+		service.Log("Warning: TLS verification is disabled, making connections insecure")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
@@ -116,8 +120,9 @@ func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, err
 	if useImplicitTLS(config.Encryption, config.Port) {
 		dialer := &tls.Dialer{
 			Config: &tls.Config{
-				ServerName: config.Host,
-				MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 or higher
+				ServerName:         config.Host,
+				MinVersion:         tls.VersionTLS12,     // Enforce TLS 1.2 or higher
+				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
 			},
 		}
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
@@ -168,9 +173,10 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 			)
 		} else {
 			if err := client.StartTLS(&tls.Config{
-				ServerName: config.Host,
-				MinVersion: tls.VersionTLS12,
-				MaxVersion: tls.VersionTLS13,
+				ServerName:         config.Host,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS13,
+				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
 			}

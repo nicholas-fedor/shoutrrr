@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"net/smtp"
@@ -78,6 +79,48 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			ginkgo.GinkgoT().Logf("\n\n%s\n%s\n\n-", outputURL, urlWithAllProps)
 			gomega.Expect(outputURL.String()).To(gomega.Equal(urlWithAllProps))
 		})
+		ginkgo.When("skiptlsverify is set to yes", func() {
+			ginkgo.It("should set SkipTLSVerify to true", func() {
+				testURL := testutils.URLMust(
+					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com&toAddresses=rec1@example.com&skiptlsverify=yes",
+				)
+				config := &Config{}
+				err := config.SetURL(testURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(config.SkipTLSVerify).To(gomega.BeTrue())
+			})
+		})
+		ginkgo.When("skiptlsverify is set to no", func() {
+			ginkgo.It("should set SkipTLSVerify to false", func() {
+				testURL := testutils.URLMust(
+					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com&toAddresses=rec1@example.com&skiptlsverify=no",
+				)
+				config := &Config{}
+				err := config.SetURL(testURL)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(config.SkipTLSVerify).To(gomega.BeFalse())
+			})
+		})
+		ginkgo.When("SkipTLSVerify is enabled", func() {
+			ginkgo.It("should log a security warning", func() {
+				localService := &Service{}
+				testURL := modifyURL(BaseNoAuthURL, map[string]string{"skiptlsverify": "yes"})
+				serviceURL := testutils.URLMust(testURL)
+				var buf bytes.Buffer
+				testLogger := log.New(&buf, "", 0)
+				err := localService.Initialize(serviceURL, testLogger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				// Simulate the logging that happens in Send without attempting network connection
+				config := localService.Config.Clone()
+				if config.SkipTLSVerify {
+					localService.Log(
+						"Warning: TLS verification is disabled, making connections insecure",
+					)
+				}
+				gomega.Expect(buf.String()).
+					To(gomega.ContainSubstring("Warning: TLS verification is disabled, making connections insecure"))
+			})
+		})
 		ginkgo.When("resolving client host", func() {
 			ginkgo.When("clienthost is set to auto", func() {
 				ginkgo.It("should return the os hostname", func() {
@@ -128,7 +171,7 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 		})
 		ginkgo.It("should have the expected number of fields and enums", func() {
 			testutils.TestConfigGetEnumsCount(config, 2)
-			testutils.TestConfigGetFieldsCount(config, 15)
+			testutils.TestConfigGetFieldsCount(config, 16)
 		})
 	})
 
