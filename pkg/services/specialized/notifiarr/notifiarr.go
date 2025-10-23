@@ -21,16 +21,29 @@ import (
 const (
 	// APIBaseURL is the base URL for Notifiarr API.
 	APIBaseURL = "https://notifiarr.com/api/v1/notification/passthrough"
+	// mentionTypeNone represents no mention type.
+	mentionTypeNone = 0
+	// mentionTypeUser represents a user mention type.
+	mentionTypeUser = 1
+	// mentionTypeRole represents a role mention type.
+	mentionTypeRole = 2
 )
 
-// Error definitions for the Notifiarr service.
+// ErrSendFailed indicates a failure to send a notification to Notifiarr.
 var (
-	ErrSendFailed       = errors.New("failed to send notification to Notifiarr")
+	ErrSendFailed = errors.New("failed to send notification to Notifiarr")
+	// ErrUnexpectedStatus indicates the server returned an unexpected response status code.
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
-	ErrInvalidAPIKey    = errors.New("invalid API key")
-	ErrEmptyMessage     = errors.New("message is empty")
-	ErrInvalidURL       = errors.New("invalid URL format")
+	// ErrInvalidAPIKey indicates an invalid API key was provided.
+	ErrInvalidAPIKey = errors.New("invalid API key")
+	// ErrEmptyMessage indicates the message is empty.
+	ErrEmptyMessage = errors.New("message is empty")
+	// ErrInvalidURL indicates an invalid URL format.
+	ErrInvalidURL = errors.New("invalid URL format")
+	// ErrInvalidChannelID indicates an invalid channel ID.
 	ErrInvalidChannelID = errors.New("invalid channel ID")
+	// ErrNoDiscordFields indicates no Discord fields are present.
+	ErrNoDiscordFields = errors.New("no Discord fields present")
 )
 
 // mentionRegex is a compiled regular expression for parsing Discord user/role mentions.
@@ -43,8 +56,24 @@ type Service struct {
 	pkr    format.PropKeyResolver
 }
 
+// presenceFlags holds boolean flags indicating presence of Discord fields.
+type presenceFlags struct {
+	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
+}
+
+// HasAny returns true if any of the boolean fields are true, false otherwise.
+func (pf presenceFlags) HasAny() bool {
+	return pf.channel || pf.color || pf.thumbnail || pf.image || pf.title || pf.icon ||
+		pf.content ||
+		pf.description ||
+		pf.footer ||
+		pf.fields ||
+		pf.mentions
+}
+
 // Send delivers a notification message to Notifiarr.
 func (service *Service) Send(message string, paramsPtr *types.Params) error {
+	// Check for empty message
 	if message == "" {
 		return ErrEmptyMessage
 	}
@@ -53,6 +82,7 @@ func (service *Service) Send(message string, paramsPtr *types.Params) error {
 	config := *service.Config
 
 	var params types.Params
+	// Handle nil params by creating empty map
 	if paramsPtr == nil {
 		params = types.Params{}
 	} else {
@@ -75,6 +105,7 @@ func (service *Service) Send(message string, paramsPtr *types.Params) error {
 		}
 	}
 
+	// Update config with filtered parameters
 	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
 		service.Logf("Failed to update params: %v", err)
 	}
@@ -95,14 +126,19 @@ func (service *Service) Send(message string, paramsPtr *types.Params) error {
 
 // Initialize configures the service with a URL and logger.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	// Set the logger for the service
 	service.SetLogger(logger)
+	// Initialize service config
 	service.Config = &Config{}
+	// Initialize property key resolver
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
+	// Set default properties
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
 	}
 
+	// Set URL and return any error
 	if err := service.Config.SetURL(configURL); err != nil {
 		return fmt.Errorf("setting config URL: %w", err)
 	}
@@ -173,30 +209,160 @@ func (service *Service) parseFields(fieldsStr string) ([]Field, error) {
 	return fields, nil
 }
 
+// parseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
+func parseMention(mention string) (int, int) {
+	if !strings.HasPrefix(mention, "<@") || !strings.HasSuffix(mention, ">") {
+		return mentionTypeNone, 0
+	}
+
+	idStr := mention[2 : len(mention)-1]
+	if strings.HasPrefix(idStr, "&") {
+		roleIDStr := idStr[1:]
+		if roleID, err := strconv.Atoi(roleIDStr); err == nil {
+			return mentionTypeRole, roleID
+		}
+	} else {
+		if userID, err := strconv.Atoi(idStr); err == nil {
+			return mentionTypeUser, userID
+		}
+	}
+
+	return mentionTypeNone, 0
+}
+
 // extractPingIDs extracts user and role IDs from mention strings.
 func (service *Service) extractPingIDs(mentions []string) (int, int) {
 	var pingUser, pingRole int
 
 	for _, mention := range mentions {
-		if strings.HasPrefix(mention, "<@") && strings.HasSuffix(mention, ">") {
-			// Remove <@ and >
-			idStr := mention[2 : len(mention)-1]
-			if strings.HasPrefix(idStr, "&") {
-				// Role mention: <@&123>
-				roleIDStr := idStr[1:]
-				if roleID, err := strconv.Atoi(roleIDStr); err == nil && pingRole == 0 {
-					pingRole = roleID
-				}
-			} else {
-				// User mention: <@123>
-				if userID, err := strconv.Atoi(idStr); err == nil && pingUser == 0 {
-					pingUser = userID
-				}
-			}
+		mentionType, id := parseMention(mention)
+		if mentionType == mentionTypeUser && pingUser == 0 {
+			pingUser = id
+		} else if mentionType == mentionTypeRole && pingRole == 0 {
+			pingRole = id
 		}
 	}
 
 	return pingUser, pingRole
+}
+
+// parseUpdateFlag parses the update parameter from params.
+func parseUpdateFlag(params types.Params) *bool {
+	if updateStr, exists := params["update"]; exists && updateStr != "" {
+		switch updateStr {
+		case "true":
+			return &[]bool{true}[0]
+		case "false":
+			return &[]bool{false}[0]
+		}
+	}
+
+	return nil
+}
+
+// buildNotificationData creates the notification data structure.
+func buildNotificationData(updatePtr *bool, config *Config, params types.Params) NotificationData {
+	return NotificationData{
+		Update: updatePtr,
+		Name:   config.Name,
+		Event:  params["id"],
+	}
+}
+
+// checkPresenceFlags determines which Discord fields are present.
+func checkPresenceFlags(
+	message string,
+	params types.Params,
+	config *Config,
+	service *Service,
+) presenceFlags {
+	return presenceFlags{
+		channel:     config.Channel != "",
+		color:       config.Color != "",
+		thumbnail:   config.Thumbnail != "",
+		image:       config.Image != "",
+		title:       params[types.TitleKey] != "",
+		icon:        params["icon"] != "",
+		content:     params["content"] != "",
+		description: message != "",
+		footer:      params["footer"] != "",
+		fields:      params["fields"] != "",
+		mentions:    len(service.parseMentions(message)) > 0,
+	}
+}
+
+// buildDiscordPayload constructs the Discord payload if any fields are present.
+func (service *Service) buildDiscordPayload(
+	flags presenceFlags,
+	message string,
+	params types.Params,
+	config *Config,
+) (*DiscordPayload, error) {
+	if !flags.HasAny() {
+		return nil, ErrNoDiscordFields
+	}
+
+	discord := &DiscordPayload{}
+
+	if flags.channel {
+		// Parse channel ID from config string to integer
+		channelID, err := service.parseChannelID(config.Channel)
+		if err != nil {
+			return nil, fmt.Errorf("parsing channel ID: %w", err)
+		}
+
+		discord.IDs = &IDPayload{Channel: channelID}
+	}
+
+	if flags.color {
+		// Assign color from config
+		discord.Color = config.Color
+	}
+
+	if flags.thumbnail || flags.image {
+		// Set thumbnail and image URLs from config
+		discord.Images = &ImagePayload{
+			Thumbnail: config.Thumbnail,
+			Image:     config.Image,
+		}
+	}
+
+	// Construct text payload with title, icon, content, description, and footer from params
+	textPayload := &TextPayload{
+		Title:       params[types.TitleKey],
+		Icon:        params["icon"],
+		Content:     params["content"],
+		Description: message,
+		Footer:      params["footer"],
+	}
+
+	if flags.fields {
+		// Parse JSON fields string into Field structs
+		fields, err := service.parseFields(params["fields"])
+		if err != nil {
+			return nil, fmt.Errorf("parsing fields: %w", err)
+		}
+
+		textPayload.Fields = fields
+	}
+
+	discord.Text = textPayload
+
+	if flags.mentions {
+		// Extract Discord mentions from message content
+		mentions := service.parseMentions(message)
+
+		// Extract user and role IDs for ping setup
+		pingUser, pingRole := service.extractPingIDs(mentions)
+		if pingUser > 0 || pingRole > 0 {
+			discord.Ping = &PingPayload{
+				PingUser: pingUser,
+				PingRole: pingRole,
+			}
+		}
+	}
+
+	return discord, nil
 }
 
 // createPayload creates the JSON payload for Notifiarr API.
@@ -205,108 +371,25 @@ func (service *Service) createPayload(
 	params types.Params,
 	config *Config,
 ) ([]byte, error) {
-	// Determine if this is an update based on the update parameter
-	var updatePtr *bool
+	// Parse the update parameter from params
+	updatePtr := parseUpdateFlag(params)
+	// Build the notification data structure
+	notificationData := buildNotificationData(updatePtr, config, params)
+	// Check presence flags for Discord fields
+	flags := checkPresenceFlags(message, params, config, service)
 
-	if updateStr, exists := params["update"]; exists && updateStr != "" {
-		switch updateStr {
-		case "true":
-			updatePtr = &[]bool{true}[0]
-		case "false":
-			updatePtr = &[]bool{false}[0]
-		}
-		// If updateStr is neither "true" nor "false", leave as nil
+	// Build the Discord payload if fields are present
+	discord, err := service.buildDiscordPayload(flags, message, params, config)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create the notification payload
 	notification := NotificationPayload{
-		Notification: NotificationData{
-			Update: updatePtr,    // Optional boolean for updating existing messages
-			Name:   config.Name,  // Required name of the custom app/script
-			Event:  params["id"], // Optional unique ID for this notification
-		},
+		Notification: notificationData,
+		Discord:      discord,
 	}
 
-	// Check if there are any Discord fields to include
-	hasChannel := config.Channel != ""
-	hasColor := config.Color != ""
-	hasThumbnail := config.Thumbnail != ""
-	hasImage := config.Image != ""
-	hasTitle := params[types.TitleKey] != ""
-	hasIcon := params["icon"] != ""
-	hasContent := params["content"] != ""
-	hasDescription := message != ""
-	hasFooter := params["footer"] != ""
-	hasFields := params["fields"] != ""
-	mentions := service.parseMentions(message)
-	hasMentions := len(mentions) > 0
-
-	if hasChannel || hasColor || hasThumbnail || hasImage || hasTitle || hasIcon || hasContent ||
-		hasDescription ||
-		hasFooter ||
-		hasFields ||
-		hasMentions {
-		notification.Discord = &DiscordPayload{}
-
-		// Add channel ID if configured
-		if hasChannel {
-			channelID, err := service.parseChannelID(config.Channel)
-			if err != nil {
-				return nil, fmt.Errorf("parsing channel ID: %w", err)
-			}
-
-			notification.Discord.IDs = &IDPayload{
-				Channel: channelID,
-			}
-		}
-
-		// Add color if configured
-		if hasColor {
-			notification.Discord.Color = config.Color
-		}
-
-		// Add images if configured
-		if hasThumbnail || hasImage {
-			notification.Discord.Images = &ImagePayload{
-				Thumbnail: config.Thumbnail,
-				Image:     config.Image,
-			}
-		}
-
-		// Add text content
-		textPayload := &TextPayload{
-			Title:       params[types.TitleKey],
-			Icon:        params["icon"],
-			Content:     params["content"],
-			Description: message,
-			Footer:      params["footer"],
-		}
-
-		// Parse fields if provided
-		if hasFields {
-			fields, err := service.parseFields(params["fields"])
-			if err != nil {
-				return nil, fmt.Errorf("parsing fields: %w", err)
-			}
-
-			textPayload.Fields = fields
-		}
-
-		notification.Discord.Text = textPayload
-
-		// Parse mentions from message content and add to ping
-		if hasMentions {
-			pingUser, pingRole := service.extractPingIDs(mentions)
-			if pingUser > 0 || pingRole > 0 {
-				notification.Discord.Ping = &PingPayload{
-					PingUser: pingUser,
-					PingRole: pingRole,
-				}
-			}
-		}
-	}
-
-	// Marshal to JSON
+	// Marshal the notification to JSON
 	payloadBytes, err := json.Marshal(notification)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
