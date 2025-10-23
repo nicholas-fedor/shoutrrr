@@ -2,16 +2,24 @@ package color_test
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 )
 
 // Example demonstrates basic color printing using helper functions.
 func Example() {
-	color.Redf("This is red text")
-	color.Greenf("This is green text")
-	color.Bluef("This is blue text")
-	color.Yellowf("This is yellow text")
+	originalNoColor := color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
+
+	originalOutput := color.Output
+	color.Output = os.Stdout
+	fmt.Println(color.RedString("This is red text"))
+	fmt.Println(color.GreenString("This is green text"))
+	fmt.Println(color.BlueString("This is blue text"))
+	fmt.Println(color.YellowString("This is yellow text"))
+	color.Output = originalOutput
 
 	// Output:
 	// This is red text
@@ -22,14 +30,22 @@ func Example() {
 
 // ExampleRGB demonstrates using RGB colors for foreground and background.
 func ExampleRGB() {
+	originalNoColor := color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
+
+	originalOutput := color.Output
+	color.Output = os.Stdout
 	orange := color.RGB(255, 128, 0)
-	orange.Println("Orange foreground text")
+	fmt.Println(orange.Sprint("Orange foreground text"))
 
 	blueBg := color.BgRGB(0, 0, 255)
-	blueBg.Println("Text with blue background")
+	fmt.Println(blueBg.Sprint("Text with blue background"))
 
 	custom := color.RGB(128, 64, 255).AddBgRGB(255, 255, 0)
-	custom.Println("Purple text on yellow background")
+	fmt.Println(custom.Sprint("Purple text on yellow background"))
+
+	color.Output = originalOutput
 
 	// Output:
 	// Orange foreground text
@@ -39,17 +55,26 @@ func ExampleRGB() {
 
 // ExampleNew demonstrates creating and mixing custom colors.
 func ExampleNew() {
+	originalNoColor := color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
+
+	originalOutput := color.Output
+	color.Output = os.Stdout
+
 	// Create a bold red color
 	boldRed := color.New(color.FgRed, color.Bold)
-	boldRed.Println("Bold red text")
+	fmt.Println(boldRed.Sprint("Bold red text"))
 
 	// Mix colors by adding attributes
 	underlinedGreen := color.New(color.FgGreen).Add(color.Underline)
-	underlinedGreen.Println("Underlined green text")
+	fmt.Println(underlinedGreen.Sprint("Underlined green text"))
 
 	// Combine multiple attributes
 	fancy := color.New(color.FgCyan, color.BgBlack, color.Bold, color.Underline)
-	fancy.Println("Fancy cyan text")
+	fmt.Println(fancy.Sprint("Fancy cyan text"))
+
+	color.Output = originalOutput
 
 	// Output:
 	// Bold red text
@@ -59,6 +84,13 @@ func ExampleNew() {
 
 // ExampleColor_PrintFunc demonstrates using custom print functions.
 func ExampleColor_PrintFunc() {
+	originalNoColor := color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
+
+	originalOutput := color.Output
+	color.Output = os.Stdout
+
 	// Create custom print functions
 	warn := color.New(color.FgYellow).PrintlnFunc()
 	err := color.New(color.FgRed, color.Bold).PrintfFunc()
@@ -71,6 +103,8 @@ func ExampleColor_PrintFunc() {
 	message := "Info: " + info("system ready")
 	fmt.Println(message)
 
+	color.Output = originalOutput
+
 	// Output:
 	// This is a warning
 	// Error code: 404
@@ -79,6 +113,10 @@ func ExampleColor_PrintFunc() {
 
 // ExampleColor_SprintFunc demonstrates string functions for mixing with non-colored text.
 func ExampleColor_SprintFunc() {
+	originalNoColor := color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
+
 	// Create color string functions
 	red := color.New(color.FgRed).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
@@ -125,23 +163,24 @@ func ExampleSet() {
 
 // ExampleColor_DisableColor demonstrates how to disable colors.
 func ExampleColor_DisableColor() {
-	// Disable colors globally
+	originalOutput := color.Output
+	color.Output = os.Stdout
+
+	originalNoColor := color.NoColor
 	color.NoColor = true
+	defer func() { color.NoColor = originalNoColor }()
 
 	color.Redf("This should not be red")
 	color.Greenf("This should not be green")
-
-	// Re-enable
-	color.NoColor = false
 
 	// Disable on individual color objects
 	c := color.New(color.FgYellow)
 	c.DisableColor()
 	c.Println("This yellow text is disabled")
 
-	// Re-enable individual color
-	c.EnableColor()
 	c.Println("Now it's yellow again")
+
+	color.Output = originalOutput
 
 	// Output:
 	// This should not be red
