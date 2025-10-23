@@ -5,7 +5,7 @@ supports receiving the message via a POST request.
 Usually, this requires customization on the receiving end to interpret the payload that it receives, and might
 not be a viable approach.
 
-Common examples for use with service providers can be found under [examples](../../examples/home-assistant/index.md).
+Common examples for use with service providers can be found under [examples](../../../examples/home-assistant/index.md).
 
 ## Custom headers
 
