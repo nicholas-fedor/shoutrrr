@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/mattn/go-colorable"
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 	// colors. For more control over each color block use the methods
 	// DisableColor() individually.
 	NoColor = noColorIsSet() || os.Getenv("TERM") == "dumb" ||
-		(!isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()))
+		(!term.IsTerminal(int(os.Stdout.Fd())))
 
 	// Output defines the standard output of the print functions. By default,
 	// os.Stdout is used.
