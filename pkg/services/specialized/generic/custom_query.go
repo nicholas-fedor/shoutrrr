@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Constants for character values and offsets.
+// Constants for character values and offsets used in header normalization and query parsing.
 const (
 	ExtraPrefixChar      = '$'       // Prefix for extra data in query parameters
 	HeaderPrefixChar     = '@'       // Prefix for header values in query parameters
@@ -16,19 +16,21 @@ const (
 	HeaderCapacityFactor = 2         // Estimated capacity multiplier for header string builder
 )
 
+// normalizedHeaderKey converts a header key to HTTP header format (e.g., "ContentType" -> "content-type").
 func normalizedHeaderKey(key string) string {
 	stringBuilder := strings.Builder{}
+	// Pre-allocate capacity for efficiency
 	stringBuilder.Grow(len(key) * HeaderCapacityFactor)
 
 	for i, c := range key {
 		if UppercaseA <= c && c <= UppercaseZ {
-			// Char is uppercase
+			// If character is uppercase
 			if i > 0 && key[i-1] != DashChar {
-				// Add missing dash
+				// Add dash before uppercase if not after dash
 				stringBuilder.WriteRune(DashChar)
 			}
 		} else if i == 0 || key[i-1] == DashChar {
-			// First char, or previous was dash
+			// First char or after dash: convert to lowercase
 			c -= CaseOffset
 		}
 
@@ -38,35 +40,43 @@ func normalizedHeaderKey(key string) string {
 	return stringBuilder.String()
 }
 
+// appendCustomQueryValues adds headers and extra data to URL query parameters with prefixes.
 func appendCustomQueryValues(
 	query url.Values,
 	headers map[string]string,
 	extraData map[string]string,
 ) {
 	for key, value := range headers {
+		// Add headers with @ prefix
 		query.Set(string(HeaderPrefixChar)+key, value)
 	}
 
 	for key, value := range extraData {
+		// Add extra data with $ prefix
 		query.Set(string(ExtraPrefixChar)+key, value)
 	}
 }
 
+// stripCustomQueryValues extracts headers and extra data from query parameters and removes them from the query.
 func stripCustomQueryValues(query url.Values) (map[string]string, map[string]string) {
+	// Map for extracted headers
 	headers := make(map[string]string)
+	// Map for extracted extra data
 	extraData := make(map[string]string)
 
 	for key, values := range query {
 		switch key[0] {
-		case HeaderPrefixChar:
+		case HeaderPrefixChar: // Header prefixed with @
+			// Normalize header key
 			headerKey := normalizedHeaderKey(key[1:])
 			headers[headerKey] = values[0]
-		case ExtraPrefixChar:
+		case ExtraPrefixChar: // Extra data prefixed with $
 			extraData[key[1:]] = values[0]
-		default:
+		default: // Skip non-prefixed keys
 			continue
 		}
 
+		// Remove the custom key from query
 		delete(query, key)
 	}
 

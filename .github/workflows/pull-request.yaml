@@ -42,17 +42,17 @@ jobs:
           path: "main"
       - name: Run gosec on main
         if: github.event_name == 'pull_request'
-        uses: securego/gosec@master
+        uses: securego/gosec@6be2b51fd78feca86af91f5186b7964d76cb1256 # v2.22.10
         with:
           args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
       - name: Run gosec on PR
         if: github.event_name == 'pull_request'
-        uses: securego/gosec@master
+        uses: securego/gosec@6be2b51fd78feca86af91f5186b7964d76cb1256 # v2.22.10
         with:
           args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
       - name: Run gosec on push
         if: github.event_name != 'pull_request'
-        uses: securego/gosec@master
+        uses: securego/gosec@6be2b51fd78feca86af91f5186b7964d76cb1256 # v2.22.10
         with:
           args: '-no-fail -fmt sarif -out results.sarif -tests -ai-api-provider="none" ./...'
       - name: Upload SARIF file
