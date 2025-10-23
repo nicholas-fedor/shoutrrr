@@ -8,7 +8,7 @@
 The Slack notification service uses either [Slack Webhooks](https://api.slack.com/messaging/webhooks) or the
 [Bot API](https://api.slack.com/methods/chat.postMessage) to send messages.
 
-See the [guides](../../guides/slack/index.md) for information on how to get your *token*.
+See the [guides](../../../guides/slack/index.md) for information on how to get your *token*.
 
 ## URL Format
 
