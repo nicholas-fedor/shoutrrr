@@ -12,13 +12,13 @@
         <meta name="author" content="Nicholas Fedor">
       
       
-        <link rel="canonical" href="https://shoutrrr.nickfedor.com/dev/services/chat/mattermost/">
+        <link rel="canonical" href="https://shoutrrr.nickfedor.com/dev/services/specialized/notifiarr/">
       
       
-        <link rel="prev" href="../matrix/">
+        <link rel="prev" href="../logger/">
       
       
-        <link rel="next" href="../rocketchat/">
+        <link rel="next" href="../../../guides/slack/">
       
       
       <link rel="icon" href="../../../assets/media/favicon.ico">
@@ -26,7 +26,7 @@
     
     
       
-        <title>Mattermost - Shoutrrr</title>
+        <title>Notifiarr - Shoutrrr</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#mattermost" class="md-skip">
+        <a href="#notifiarr" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Mattermost
+              Notifiarr
             
           </span>
         </div>
@@ -894,8 +894,6 @@
                 
   
   
-    
-  
   
   
     
@@ -911,11 +909,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
         
           
           <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
@@ -931,7 +931,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_2">
             <span class="md-nav__icon md-icon"></span>
             Chat and Messaging Platforms
@@ -945,7 +945,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../discord/" class="md-nav__link">
+      <a href="../../chat/discord/" class="md-nav__link">
         
   
   
@@ -968,7 +968,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../googlechat/" class="md-nav__link">
+      <a href="../../chat/googlechat/" class="md-nav__link">
         
   
   
@@ -991,7 +991,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hangouts/" class="md-nav__link">
+      <a href="../../chat/hangouts/" class="md-nav__link">
         
   
   
@@ -1014,7 +1014,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../lark/" class="md-nav__link">
+      <a href="../../chat/lark/" class="md-nav__link">
         
   
   
@@ -1037,7 +1037,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../matrix/" class="md-nav__link">
+      <a href="../../chat/matrix/" class="md-nav__link">
         
   
   
@@ -1057,32 +1057,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Mattermost
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../chat/mattermost/" class="md-nav__link">
         
   
   
@@ -1093,86 +1071,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#url_format" class="md-nav__link">
-    <span class="md-ellipsis">
-      URL Format
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="URL Format">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#url_fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      URL Fields
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#queryparam_props" class="md-nav__link">
-    <span class="md-ellipsis">
-      Query/Param Props
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#creating_a_webhook_in_mattermost" class="md-nav__link">
-    <span class="md-ellipsis">
-      Creating a Webhook in MatterMost
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional_url_configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      Additional URL configuration
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#passing_parameters_via_code" class="md-nav__link">
-    <span class="md-ellipsis">
-      Passing parameters via code
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1185,7 +1083,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rocketchat/" class="md-nav__link">
+      <a href="../../chat/rocketchat/" class="md-nav__link">
         
   
   
@@ -1208,7 +1106,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../signal/" class="md-nav__link">
+      <a href="../../chat/signal/" class="md-nav__link">
         
   
   
@@ -1231,7 +1129,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../slack/" class="md-nav__link">
+      <a href="../../chat/slack/" class="md-nav__link">
         
   
   
@@ -1254,7 +1152,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../teams/" class="md-nav__link">
+      <a href="../../chat/teams/" class="md-nav__link">
         
   
   
@@ -1277,7 +1175,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../telegram/" class="md-nav__link">
+      <a href="../../chat/telegram/" class="md-nav__link">
         
   
   
@@ -1300,7 +1198,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../wecom/" class="md-nav__link">
+      <a href="../../chat/wecom/" class="md-nav__link">
         
   
   
@@ -1323,7 +1221,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../zulip/" class="md-nav__link">
+      <a href="../../chat/zulip/" class="md-nav__link">
         
   
   
@@ -1726,8 +1624,10 @@
                 
   
   
+    
   
   
+  
     
     
     
@@ -1741,13 +1641,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" checked>
         
           
           <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="">
@@ -1763,7 +1661,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_6">
             <span class="md-nav__icon md-icon"></span>
             Specialized Services
@@ -1777,7 +1675,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../specialized/generic/" class="md-nav__link">
+      <a href="../generic/" class="md-nav__link">
         
   
   
@@ -1800,7 +1698,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../specialized/logger/" class="md-nav__link">
+      <a href="../logger/" class="md-nav__link">
         
   
   
@@ -1820,10 +1718,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../specialized/notifiarr/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Notifiarr
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1834,6 +1754,296 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration_options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration Options
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      URL Format
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="URL Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#complete_url_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete URL Format
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#url_fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      URL Fields
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryparam_props" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query/Param Props
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_notification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Notification
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_discord_channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Discord Channel
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_thumbnail_and_color" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Thumbnail and Color
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_thumbnail_and_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Thumbnail and Image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_user_mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with User Mentions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_custom_app_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Custom App Name
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_title" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Title
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api_documentation_reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      API Documentation Reference
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API Documentation Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      Request Format
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#payload_structure_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      Payload Structure Details
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Response
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common_issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Issues
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Issues">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#notifications_not_appearing_in_discord" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notifications not appearing in Discord
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invalid_color_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      Invalid color values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thumbnail_images_not_displaying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Thumbnail images not displaying
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image_not_displaying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Image not displaying
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging_tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging Tips
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2054,6 +2264,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#configuration_options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration Options
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#url_format" class="md-nav__link">
     <span class="md-ellipsis">
       URL Format
@@ -2062,6 +2281,15 @@
   
     <nav class="md-nav" aria-label="URL Format">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#complete_url_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete URL Format
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#url_fields" class="md-nav__link">
@@ -2087,29 +2315,221 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#creating_a_webhook_in_mattermost" class="md-nav__link">
+  <a href="#usage_examples" class="md-nav__link">
     <span class="md-ellipsis">
-      Creating a Webhook in MatterMost
+      Usage Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_notification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Notification
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#additional_url_configuration" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_discord_channel" class="md-nav__link">
     <span class="md-ellipsis">
-      Additional URL configuration
+      Notification with Discord Channel
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#passing_parameters_via_code" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_thumbnail_and_color" class="md-nav__link">
     <span class="md-ellipsis">
-      Passing parameters via code
+      Notification with Thumbnail and Color
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_thumbnail_and_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Thumbnail and Image
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_user_mentions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with User Mentions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_custom_app_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Custom App Name
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notification_with_title" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notification with Title
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api_documentation_reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      API Documentation Reference
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API Documentation Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      Request Format
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#payload_structure_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      Payload Structure Details
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Response
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common_issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Issues
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Issues">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#notifications_not_appearing_in_discord" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notifications not appearing in Discord
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invalid_color_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      Invalid color values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thumbnail_images_not_displaying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Thumbnail images not displaying
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image_not_displaying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Image not displaying
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging_tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging Tips
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2132,98 +2552,284 @@
   
 
 
-<h1 id="mattermost">MatterMost<a class="headerlink" href="#mattermost" title="Permanent link">&para;</a></h1>
+<h1 id="notifiarr">Notifiarr<a class="headerlink" href="#notifiarr" title="Permanent link">&para;</a></h1>
+<p>The Notifiarr service enables sending notifications through the Notifiarr API, which can forward notifications to various platforms including Discord.</p>
+<p>Notifiarr acts as a notification relay service, allowing you to send notifications to multiple destinations through a single API endpoint.
+It supports routing notifications to Discord channels and other configured services.</p>
+<h2 id="configuration_options">Configuration Options<a class="headerlink" href="#configuration_options" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+<th>Required</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apikey</code></td>
+<td>Your Notifiarr API key for authentication</td>
+<td>Yes</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>Name of the app/script for notifications</td>
+<td>No</td>
+<td>Shoutrrr</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td>Discord channel ID for Discord notifications</td>
+<td>No</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>thumbnail</code></td>
+<td>Thumbnail image URL for Discord notifications</td>
+<td>No</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>image</code></td>
+<td>Image URL for Discord notifications</td>
+<td>No</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td>Color for Discord embed (6-digit hex)</td>
+<td>No</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>mattermost://[<strong><code>username</code></strong>@]<strong><code>mattermost-host</code></strong>/<strong><code>token</code></strong>[/<strong><code>channel</code></strong>][?icon=<strong><code>smiley</code></strong>&amp;disabletls=<strong><code>yes</code></strong>]</p>
+<p>notifiarr://<strong><code>apikey</code></strong>?name=<strong><code>name</code></strong>&amp;channel=<strong><code>channel</code></strong>&amp;thumbnail=<strong><code>thumbnail</code></strong>&amp;image=<strong><code>image</code></strong>&amp;color=<strong><code>color</code></strong></p>
 </div>
-<h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
+<h3 id="complete_url_format">Complete URL Format<a class="headerlink" href="#complete_url_format" title="Permanent link">&para;</a></h3>
+<p>The full URL format supports all configuration parameters:</p>
+<div class="highlight"><pre><span></span><code>notifiarr://[apikey]?name=[app_name]&amp;channel=[channel_id]&amp;thumbnail=[thumbnail_url]&amp;image=[image_url]&amp;color=[color_value]
+</code></pre></div>
+<p><strong>Parameters:</strong></p>
 <ul>
-<li><strong>UserName</strong> - Override webhook user<br />
-  Default: <em>empty</em><br />
-  URL part: <code class="service-url">mattermost://<strong>username</strong>@host:port/token/channel</code>  </li>
-<li><strong>Host</strong> - Mattermost server host (<strong>Required</strong>)<br />
-  URL part: <code class="service-url">mattermost://username@<strong>host</strong>:<strong>port</strong>/token/channel</code>  </li>
-<li><strong>Token</strong> - Webhook token (<strong>Required</strong>)<br />
-  URL part: <code class="service-url">mattermost://username@host:port/<strong>token</strong>/channel</code>  </li>
-<li><strong>Channel</strong> - Override webhook channel<br />
-  Default: <em>empty</em><br />
-  URL part: <code class="service-url">mattermost://username@host:port/token/<strong>channel</strong></code>  </li>
+<li><code>apikey</code> (required): Your Notifiarr API key</li>
+<li><code>name</code> (optional): Name of the app/script for notifications (defaults to "Shoutrrr")</li>
+<li><code>channel</code> (optional): Discord channel ID for routing notifications (numeric string)</li>
+<li><code>thumbnail</code> (optional): Thumbnail image URL for Discord notifications</li>
+<li><code>image</code> (optional): Image URL for Discord notifications</li>
+<li><code>color</code> (optional): Color for Discord embed as 6-digit hex code (without # prefix) or color name</li>
 </ul>
+<h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument, or through the URL using<br />
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>DisableTLS</strong><br />
-  Default: ❌ <code>No</code>  </p>
+<p><strong>APIKey</strong> - The Notifiarr API key (<strong>Required</strong>)  </p>
 </li>
 <li>
-<p><strong>Icon</strong> - Use emoji or URL as icon (based on presence of http(s):// prefix)<br />
-  Default: <em>empty</em><br />
-  Aliases: <code>icon_emoji</code>, <code>icon_url</code>  </p>
+<p><strong>Channel</strong> - Discord channel ID for notifications<br />
+  Default: <em>empty</em>  </p>
 </li>
 <li>
-<p><strong>Title</strong> - Notification title, optionally set by the sender (not used)<br />
+<p><strong>Color</strong> - Color for Discord notifications<br />
+  Default: <em>empty</em>  </p>
+</li>
+<li>
+<p><strong>Image</strong> - Image URL for Discord notifications<br />
+  Default: <em>empty</em>  </p>
+</li>
+<li>
+<p><strong>Name</strong> - Name of the app/script for notifications<br />
+  Default: <em>empty</em>  </p>
+</li>
+<li>
+<p><strong>Thumbnail</strong> - Thumbnail URL for Discord notifications<br />
   Default: <em>empty</em>  </p>
 </li>
 </ul>
-<h2 id="creating_a_webhook_in_mattermost">Creating a Webhook in MatterMost<a class="headerlink" href="#creating_a_webhook_in_mattermost" title="Permanent link">&para;</a></h2>
-<ol>
-<li>
-<p>Open up the Integrations page by clicking on <em>Integrations</em> within the menu
-<img alt="Screenshot 1" src="1.PNG" /></p>
-</li>
-<li>
-<p>Click <em>Incoming Webhooks</em>
-<img alt="Screenshot 2" src="2.PNG" /></p>
-</li>
-<li>
-<p>Click <em>Add Incoming Webhook</em>
-<img alt="Screenshot 3" src="3.PNG" /></p>
-</li>
-<li>
-<p>Fill in the information for the webhook and click <em>Save</em>
-<img alt="Screenshot 4" src="4.PNG" /></p>
-</li>
-<li>
-<p>If you did everything correctly, MatterMost will give you the <em>URL</em> to your newly created webhook
-<img alt="Screenshot 5" src="5.PNG" /></p>
-</li>
-<li>
-<p>Format the service URL</p>
-</li>
-</ol>
-<div class="highlight"><pre><span></span><code>https://your-domain.com/hooks/bywsw8zt5jgpte3nm65qjiru6h
-                              └────────────────────────┘
-                                        token
-mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h
-                             └────────────────────────┘
-                                       token
+<h2 id="usage_examples">Usage Examples<a class="headerlink" href="#usage_examples" title="Permanent link">&para;</a></h2>
+<h3 id="basic_notification">Basic Notification<a class="headerlink" href="#basic_notification" title="Permanent link">&para;</a></h3>
+<p>Send a simple notification using your Notifiarr API key:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Basic Notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from Shoutrrr!&quot;</span>
 </code></pre></div>
-<h2 id="additional_url_configuration">Additional URL configuration<a class="headerlink" href="#additional_url_configuration" title="Permanent link">&para;</a></h2>
-<p>Mattermost provides functionality to post as another user or to another channel, compared to the webhook configuration.
-<br/>
-To do this, you can add a <em>user</em> and/or <em>channel</em> to the service URL.</p>
-<div class="highlight"><pre><span></span><code>mattermost://shoutrrrUser@your-domain.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrChannel
-             └──────────┘                 └────────────────────────┘ └─────────────┘
-                 user                               token                channel
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
-<h2 id="passing_parameters_via_code">Passing parameters via code<a class="headerlink" href="#passing_parameters_via_code" title="Permanent link">&para;</a></h2>
-<p>If you want to, you also have the possibility to pass parameters to the <code>send</code> function.
-<br/>
-The following example contains all parameters that are currently supported.</p>
-<div class="highlight"><pre><span></span><code>params := (*types.Params)(
- &amp;map[string]string{
-  &quot;username&quot;: &quot;overwriteUserName&quot;,
-  &quot;channel&quot;: &quot;overwriteChannel&quot;,
-        &quot;icon&quot;: &quot;overwriteIcon&quot;,
- },
-)
-
-service.Send(&quot;this is a message&quot;, params)
+</div>
+<h3 id="notification_with_discord_channel">Notification with Discord Channel<a class="headerlink" href="#notification_with_discord_channel" title="Permanent link">&para;</a></h3>
+<p>Send a notification that will be forwarded to a specific Discord channel:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send to Discord Channel</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Alert: System status changed&quot;</span>
 </code></pre></div>
-<p>This will overwrite any options, that you passed via URL.</p>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_thumbnail_and_color">Notification with Thumbnail and Color<a class="headerlink" href="#notification_with_thumbnail_and_color" title="Permanent link">&para;</a></h3>
+<p>Send a notification with custom thumbnail and color:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Color</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/alert.png&amp;color=FF0000&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Critical Alert&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Server is down!&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_image">Notification with Image<a class="headerlink" href="#notification_with_image" title="Permanent link">&para;</a></h3>
+<p>Send a notification with a custom image:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;image=https://example.com/chart.png&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Sales Report&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Monthly sales chart attached&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_thumbnail_and_image">Notification with Thumbnail and Image<a class="headerlink" href="#notification_with_thumbnail_and_image" title="Permanent link">&para;</a></h3>
+<p>Send a notification with both thumbnail and image:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/icon.png&amp;image=https://example.com/full-image.png&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Product Update&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;New product launch details&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_user_mentions">Notification with User Mentions<a class="headerlink" href="#notification_with_user_mentions" title="Permanent link">&para;</a></h3>
+<p>Send a notification that mentions specific Discord users (parsed from message content):</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with User Mentions</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hey &lt;@123456789&gt; and &lt;@987654321&gt;, the deployment is complete!&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_custom_app_name">Notification with Custom App Name<a class="headerlink" href="#notification_with_custom_app_name" title="Permanent link">&para;</a></h3>
+<p>Send a notification with a custom app name:</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with Custom App Name</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?name=MyApp&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from MyApp!&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h3 id="notification_with_title">Notification with Title<a class="headerlink" href="#notification_with_title" title="Permanent link">&para;</a></h3>
+<p>Send a notification with a custom title (appears in Discord embed):</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send Notification with Title</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;System Alert&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Disk space running low on server&quot;</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<h2 id="api_documentation_reference">API Documentation Reference<a class="headerlink" href="#api_documentation_reference" title="Permanent link">&para;</a></h2>
+<p>The Notifiarr service sends notifications to the Notifiarr API endpoint at <code>https://notifiarr.com/api/v1/notification/passthrough/{apikey}</code>.</p>
+<h3 id="request_format">Request Format<a class="headerlink" href="#request_format" title="Permanent link">&para;</a></h3>
+<p>The service sends a POST request with a JSON payload containing the notification data. The payload structure follows the official Notifiarr API specification:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;notification&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional event ID&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;update&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;discord&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;channel&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">123456789012345678</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;color&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional color (6-digit hex)&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;images&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;thumbnail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional thumbnail URL&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;image&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional image URL&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional notification title&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional icon URL&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional content text&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Your notification message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;footer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional footer text&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Field title&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Field content&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;inline&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;ping&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;pingUser&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">123456789</span><span class="p">,</span><span class="w"> </span><span class="mi">987654321</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;pingRole&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">111111111</span><span class="p">,</span><span class="w"> </span><span class="mi">222222222</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="payload_structure_details">Payload Structure Details<a class="headerlink" href="#payload_structure_details" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong><code>notification</code></strong> (required): Core notification metadata</li>
+<li><code>name</code>: Application identifier (configurable via <code>name</code> parameter, defaults to "Shoutrrr")</li>
+<li><code>event</code>: Optional unique event ID from the <code>id</code> parameter</li>
+<li>
+<p><code>update</code>: Boolean flag to update existing messages with the same ID (optional, defaults to null)</p>
+</li>
+<li>
+<p><strong><code>discord</code></strong> (optional): Discord-specific configuration (only included when channel is configured or other Discord fields are present)</p>
+</li>
+<li><code>ids.channel</code>: Discord channel ID (required when discord object is present)</li>
+<li><code>color</code>: Optional embed color as 6-digit hex code (without # prefix)</li>
+<li><code>images.thumbnail</code>: Optional thumbnail image URL</li>
+<li><code>images.image</code>: Optional image URL</li>
+<li><code>text.title</code>: Optional notification title from the <code>title</code> parameter</li>
+<li><code>text.icon</code>: Optional icon URL for the embed</li>
+<li><code>text.content</code>: Optional content text above the main message</li>
+<li><code>text.description</code>: The notification message content</li>
+<li><code>text.footer</code>: Optional footer text for the embed</li>
+<li><code>text.fields</code>: Optional array of field objects with title, text, and inline properties</li>
+<li><code>ping.pingUser</code>: Array of Discord user IDs to mention (parsed from <code>&lt;@123&gt;</code> mentions in message)</li>
+<li><code>ping.pingRole</code>: Array of Discord role IDs to mention (parsed from <code>&lt;@&amp;123&gt;</code> mentions in message)</li>
+</ul>
+<h3 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h3>
+<p>Successful requests return a 2xx status code. The service logs the server response for debugging purposes.</p>
+<h3 id="error_handling">Error Handling<a class="headerlink" href="#error_handling" title="Permanent link">&para;</a></h3>
+<p>The service handles various error conditions:</p>
+<ul>
+<li><strong>Empty Message</strong>: Returns an error if the message is empty</li>
+<li><strong>Invalid API Key</strong>: Server returns authentication errors</li>
+<li><strong>Network Issues</strong>: Connection timeouts or network failures</li>
+<li><strong>Server Errors</strong>: Unexpected HTTP status codes from the Notifiarr API</li>
+</ul>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="common_issues">Common Issues<a class="headerlink" href="#common_issues" title="Permanent link">&para;</a></h3>
+<h4 id="notifications_not_appearing_in_discord">Notifications not appearing in Discord<a class="headerlink" href="#notifications_not_appearing_in_discord" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Check Channel ID</strong>: Ensure the <code>channel</code> parameter contains a valid Discord channel ID (must be numeric)</li>
+<li><strong>Verify Permissions</strong>: Confirm that Notifiarr has permission to post in the specified channel</li>
+<li><strong>API Key Validity</strong>: Verify your Notifiarr API key is correct and active</li>
+<li><strong>Channel Configuration</strong>: Ensure the channel parameter is included in the URL when Discord notifications are desired</li>
+</ul>
+<h4 id="invalid_color_values">Invalid color values<a class="headerlink" href="#invalid_color_values" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Color Format</strong>: Colors must be provided as 6-digit hex codes (without # prefix) or valid color names</li>
+<li><strong>Example</strong>: Use <code>color=FF0000</code> for red, not <code>color=#FF0000</code> or <code>color=red</code></li>
+</ul>
+<h4 id="thumbnail_images_not_displaying">Thumbnail images not displaying<a class="headerlink" href="#thumbnail_images_not_displaying" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Valid URL</strong>: Ensure the thumbnail URL is a valid, publicly accessible HTTPS URL</li>
+<li><strong>Image Format</strong>: The URL should point directly to an image file (supported formats depend on Discord)</li>
+</ul>
+<h4 id="image_not_displaying">Image not displaying<a class="headerlink" href="#image_not_displaying" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Valid URL</strong>: Ensure the image URL is a valid, publicly accessible HTTPS URL</li>
+<li><strong>Image Format</strong>: The URL should point directly to an image file (supported formats depend on Discord)</li>
+<li><strong>Image Size</strong>: Large images may be resized or may not display properly in Discord</li>
+</ul>
+<h3 id="debugging_tips">Debugging Tips<a class="headerlink" href="#debugging_tips" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Enable verbose logging with <code>--debug</code> flag to see detailed request/response information</li>
+<li>Check Notifiarr server logs for additional error details</li>
+<li>Test with minimal configuration first, then add parameters incrementally</li>
+</ul>
+<p>For more information about <a href="https://notifiarr.com/">Notifiarr</a> and its capabilities, visit the <a href="https://notifiarr.wiki/">Notifiarr Wiki</a>.</p>
 
 
 
@@ -2246,7 +2852,7 @@ service.Send(&quot;this is a message&quot;, params)
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2025 07:26:16 UTC"><span class="timeago" datetime="2025-10-23T07:26:16+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2025 07:26:16 UTC">2025-10-23</span>
   </span>
 
     
@@ -2256,7 +2862,7 @@ service.Send(&quot;this is a message&quot;, params)
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2025 07:26:16 UTC"><span class="timeago" datetime="2025-10-23T07:26:16+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2025 07:26:16 UTC">2025-10-23</span>
   </span>
 
     
