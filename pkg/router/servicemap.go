@@ -24,6 +24,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/generic"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/logger"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/notifiarr"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -40,6 +41,7 @@ var serviceMap = map[string]func() types.Service{
 	"logger":     func() types.Service { return &logger.Service{} },
 	"matrix":     func() types.Service { return &matrix.Service{} },
 	"mattermost": func() types.Service { return &mattermost.Service{} },
+	"notifiarr":  func() types.Service { return &notifiarr.Service{} },
 	"ntfy":       func() types.Service { return &ntfy.Service{} },
 	"opsgenie":   func() types.Service { return &opsgenie.Service{} },
 	"pushbullet": func() types.Service { return &pushbullet.Service{} },

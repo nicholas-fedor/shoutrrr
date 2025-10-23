@@ -48,7 +48,8 @@ Click on the service for a more thorough explanation.
 
 ## Specialized Services
 
-| Service                                           | Description                                           |
-|---------------------------------------------------|-------------------------------------------------------|
-| [Logger](./specialized/logger/index.md)           | Writes a notification to a configured Go `log.Logger` |
-| [Generic Webhook](./specialized/generic/index.md) | Sends notifications directly to a webhook             |
+| Service                                           | Description                                                  |
+|---------------------------------------------------|--------------------------------------------------------------|
+| [Generic Webhook](./specialized/generic/index.md) | Sends notifications directly to a webhook                    |
+| [Logger](./specialized/logger/index.md)           | Writes a notification to a configured Go `log.Logger`        |
+| [Notifiarr](./specialized/notifiarr/index.md)     | Sends notifications to Notifiarr for media server management |
