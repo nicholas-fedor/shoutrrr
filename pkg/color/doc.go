@@ -5,20 +5,20 @@ that suits you.
 
 Use simple and default helper functions with predefined foreground colors:
 
-	color.Cyan("Prints text in cyan.")
+	color.Cyanf("Prints text in cyan.")
 
 	// a newline will be appended automatically
-	color.Blue("Prints %s in blue.", "text")
+	color.Bluef("Prints %s in blue.", "text")
 
 	// More default foreground colors..
-	color.Red("We have red")
-	color.Yellow("Yellow color too!")
-	color.Magenta("And many others ..")
+	color.Redf("We have red")
+	color.Yellowf("Yellow color too!")
+	color.Magentaf("And many others ..")
 
 	// Hi-intensity colors
-	color.HiGreen("Bright green color.")
-	color.HiBlack("Bright black means gray..")
-	color.HiWhite("Shiny white color!")
+	color.HiGreenf("Bright green color.")
+	color.HiBlackf("Bright black means gray..")
+	color.HiWhitef("Shiny white color!")
 
 However, there are times when custom color mixes are required. Below are some
 examples to create custom color objects and use the print functions of each
@@ -61,12 +61,12 @@ You can create PrintXxx functions to simplify even more:
 
 You can also FprintXxx functions to pass your own io.Writer:
 
-	blue := color.New(FgBlue).FprintfFunc()
+	blue := color.New(color.FgBlue).FprintfFunc()
 	blue(myWriter, "important notice: %s", stars)
 
 	// Mix up with multiple attributes
 	success := color.New(color.Bold, color.FgGreen).FprintlnFunc()
-	success(myWriter, don't forget this...")
+	success(myWriter, "don't forget this...")
 
 Or create SprintXxx functions to mix strings with other non-colorized strings:
 

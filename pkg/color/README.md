@@ -16,14 +16,14 @@ go get github.com/nicholas-fedor/shoutrrr/pkg/color@latest
 
 ```go
 // Print with default helper functions
-color.Cyan("Prints text in cyan.")
+color.Cyanf("Prints text in cyan.")
 
 // A newline will be appended automatically
-color.Blue("Prints %s in blue.", "text")
+color.Bluef("Prints %s in blue.", "text")
 
 // These are using the default foreground colors
-color.Red("We have red")
-color.Magenta("And many others ..")
+color.Redf("We have red")
+color.Magentaf("And many others ..")
 
 ```
 
