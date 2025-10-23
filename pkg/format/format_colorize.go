@@ -1,6 +1,6 @@
 package format
 
-import "github.com/fatih/color"
+import "github.com/nicholas-fedor/shoutrrr/pkg/color"
 
 // ColorizeDesc colorizes the input string as "Description".
 var ColorizeDesc = color.New(color.FgHiBlack).SprintFunc()
