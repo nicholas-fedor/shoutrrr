@@ -11,6 +11,7 @@ import (
 func Example() {
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	originalOutput := color.Output
@@ -32,6 +33,7 @@ func Example() {
 func ExampleRGB() {
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	originalOutput := color.Output
@@ -57,6 +59,7 @@ func ExampleRGB() {
 func ExampleNew() {
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	originalOutput := color.Output
@@ -86,6 +89,7 @@ func ExampleNew() {
 func ExampleColor_PrintFunc() {
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	originalOutput := color.Output
@@ -115,6 +119,7 @@ func ExampleColor_PrintFunc() {
 func ExampleColor_SprintFunc() {
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	// Create color string functions
@@ -168,6 +173,7 @@ func ExampleColor_DisableColor() {
 
 	originalNoColor := color.NoColor
 	color.NoColor = true
+
 	defer func() { color.NoColor = originalNoColor }()
 
 	color.Redf("This should not be red")
