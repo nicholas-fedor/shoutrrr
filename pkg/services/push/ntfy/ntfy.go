@@ -80,6 +80,7 @@ func (service *Service) sendAPI(config *Config, message string) error {
 	}
 
 	if err := jsonClient.Post(config.GetAPIURL(), request, &response); err != nil {
+		service.Logf("NTFY API request failed with error: %v", err)
 		if jsonClient.ErrorResponse(err, &response) {
 			// apiResponse implements Error
 			return &response
@@ -87,6 +88,8 @@ func (service *Service) sendAPI(config *Config, message string) error {
 
 		return fmt.Errorf("posting to Ntfy API: %w", err)
 	}
+
+	service.Logf("NTFY API request succeeded")
 
 	return nil
 }

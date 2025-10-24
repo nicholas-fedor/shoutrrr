@@ -2,7 +2,7 @@ package ntfy
 
 import (
 	"errors"
-	"fmt" // Add this import
+	"fmt"
 	"net/url"
 	"strings"
 
