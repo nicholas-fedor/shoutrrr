@@ -84,6 +84,7 @@ func (c *client) Get(url string, response any) error {
 	if err != nil {
 		return fmt.Errorf("executing GET request to %q: %w", url, err)
 	}
+	defer res.Body.Close()
 
 	return parseResponse(res, response)
 }
@@ -122,6 +123,7 @@ func (c *client) Post(url string, request any, response any) error {
 	if err != nil {
 		return fmt.Errorf("sending POST request to %q: %w", url, err)
 	}
+	defer res.Body.Close()
 
 	return parseResponse(res, response)
 }
@@ -138,8 +140,6 @@ func (c *client) ErrorResponse(err error, response any) bool {
 
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
 func parseResponse(res *http.Response, response any) error {
-	defer func() { _ = res.Body.Close() }()
-
 	body, err := io.ReadAll(res.Body)
 
 	if res.StatusCode >= HTTPClientErrorThreshold {

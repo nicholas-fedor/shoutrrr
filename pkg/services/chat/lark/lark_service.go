@@ -142,6 +142,7 @@ func (service *Service) sendRequest(postURL string, payload []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	return service.handleResponse(resp)

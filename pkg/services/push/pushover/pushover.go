@@ -83,6 +83,7 @@ func (service *Service) sendToDevice(device string, message string, config *Conf
 	if err != nil {
 		return fmt.Errorf("sending request to Pushover API: %w", err)
 	}
+
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
