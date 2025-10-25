@@ -142,6 +142,7 @@ func (service *Service) doSend(config *Config, message string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
+
 	defer func() { _ = res.Body.Close() }() // Move defer after error check
 
 	if res.StatusCode != http.StatusOK {

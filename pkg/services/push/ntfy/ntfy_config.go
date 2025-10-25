@@ -37,7 +37,7 @@ type Config struct {
 	Icon                   string   `                  desc:"URL to use as notification icon"                                                                  key:"icon"                                   optional:""`
 	Cache                  bool     `default:"yes"     desc:"Cache messages"                                                                                   key:"cache"`
 	Firebase               bool     `default:"yes"     desc:"Send to firebase"                                                                                 key:"firebase"`
-	DisableTLSVerification bool     `default:"no"      desc:"Disable TLS certificate verification"                                                              key:"disabletls"`
+	DisableTLSVerification bool     `default:"no"      desc:"Disable TLS certificate verification"                                                             key:"disabletls"`
 }
 
 // Enums returns the fields that use an EnumFormatter for their values.

@@ -96,6 +96,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
 	}
+
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {

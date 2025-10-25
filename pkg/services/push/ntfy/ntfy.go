@@ -15,6 +15,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// HTTPTimeout defines the HTTP client timeout in seconds.
+const HTTPTimeout = 10
+
 // Service sends notifications to ntfy.
 type Service struct {
 	standard.Standard
@@ -61,12 +64,13 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	}
 
 	service.httpClient = &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: HTTPTimeout * time.Second,
 	}
 
 	// Configure HTTP transport for TLS verification and enforce TLS 1.2
 	if service.Config.DisableTLSVerification {
 		service.httpClient.Transport = &http.Transport{
+			//nolint:gosec // TLS verification intentionally disabled
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,
@@ -77,8 +81,9 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
 			clonedTransport := defaultTransport.Clone()
 			if clonedTransport.TLSClientConfig == nil {
-				clonedTransport.TLSClientConfig = &tls.Config{}
+				clonedTransport.TLSClientConfig = &tls.Config{} //nolint:gosec // Using default minimum of TLS 1.2
 			}
+
 			clonedTransport.TLSClientConfig.MinVersion = tls.VersionTLS12
 			service.httpClient.Transport = clonedTransport
 			service.Log("Using cloned HTTP transport with TLS verification enabled and TLS 1.2 enforced")
