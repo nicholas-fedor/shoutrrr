@@ -91,7 +91,7 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to Join: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, devices, res.Status)

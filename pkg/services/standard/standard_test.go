@@ -72,7 +72,8 @@ var _ = ginkgo.Describe("the standard template implementation", func() {
 				return
 			}
 			fileName := file.Name()
-			defer os.Remove(fileName)
+			defer func() { _ = file.Close() }()
+			defer func() { _ = os.Remove(fileName) }()
 
 			_, err = io.WriteString(file, "template content")
 			if err != nil {

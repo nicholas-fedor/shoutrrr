@@ -150,7 +150,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	for _, prop := range propertyFlags {
 		parts := strings.Split(prop, "=")
 		if len(parts) != MaximumNArgs {
-			fmt.Fprint(
+			_, _ = fmt.Fprint(
 				color.Output,
 				"Invalid property key/value pair: ",
 				color.HiYellowString(prop),
@@ -164,7 +164,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	if len(propertyFlags) > 0 {
-		fmt.Fprint(color.Output, "\n") // Add spacing after property warnings
+		_, _ = fmt.Fprint(color.Output, "\n") // Add spacing after property warnings
 	}
 
 	// Validate and create the service.
@@ -175,7 +175,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	if err != nil {
-		fmt.Fprint(os.Stdout, "Error: ", err, "\n")
+		_, _ = fmt.Fprint(os.Stdout, "Error: ", err, "\n")
 	}
 
 	if service == nil {
@@ -203,7 +203,7 @@ func Run(cmd *cobra.Command, _ []string) {
 
 		generator, genErr = generators.NewGenerator(generatorName)
 		if genErr != nil {
-			fmt.Fprint(os.Stdout, "Error: ", genErr, "\n")
+			_, _ = fmt.Fprint(os.Stdout, "Error: ", genErr, "\n")
 		}
 	}
 
@@ -219,8 +219,8 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	// Generate and display the URL.
-	fmt.Fprint(color.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
-	fmt.Fprint(color.Output, " using ", color.HiMagentaString(generatorName), " generator\n")
+	_, _ = fmt.Fprint(color.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
+	_, _ = fmt.Fprint(color.Output, " using ", color.HiMagentaString(generatorName), " generator\n")
 
 	serviceConfig, err := generator.Generate(service, props, cmd.Flags().Args())
 	if err != nil {
@@ -228,13 +228,13 @@ func Run(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	fmt.Fprint(color.Output, "\n")
+	_, _ = fmt.Fprint(color.Output, "\n")
 
 	maskedURL := maskSensitiveURL(serviceSchema, serviceConfig.GetURL().String())
 
 	if showSensitive {
-		fmt.Fprint(os.Stdout, "URL: ", serviceConfig.GetURL().String(), "\n")
+		_, _ = fmt.Fprint(os.Stdout, "URL: ", serviceConfig.GetURL().String(), "\n")
 	} else {
-		fmt.Fprint(os.Stdout, "URL: ", maskedURL, "\n")
+		_, _ = fmt.Fprint(os.Stdout, "URL: ", maskedURL, "\n")
 	}
 }

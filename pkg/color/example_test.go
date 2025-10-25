@@ -182,9 +182,9 @@ func ExampleColor_DisableColor() {
 	// Disable on individual color objects
 	c := color.New(color.FgYellow)
 	c.DisableColor()
-	c.Println("This yellow text is disabled")
+	_, _ = c.Println("This yellow text is disabled")
 
-	c.Println("Now it's yellow again")
+	_, _ = c.Println("Now it's yellow again")
 
 	color.Output = originalOutput
 

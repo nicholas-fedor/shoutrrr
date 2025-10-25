@@ -96,7 +96,7 @@ func doSend(payload []byte, postURL string) error {
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to IFTTT webhook: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)

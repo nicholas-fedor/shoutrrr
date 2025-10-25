@@ -204,7 +204,7 @@ func TestGenerator_Generate(t *testing.T) {
 			defer func() {
 				os.Stdin = originalStdin
 
-				w.Close()
+				_ = w.Close()
 			}()
 
 			// Write input to the pipe
@@ -213,7 +213,7 @@ func TestGenerator_Generate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			w.Close()
+			_ = w.Close()
 
 			service := newMockServiceConfig()
 			color.NoColor = true

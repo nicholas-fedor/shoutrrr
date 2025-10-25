@@ -81,7 +81,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 		)
 	}
 
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		resBody, _ := io.ReadAll(res.Body)

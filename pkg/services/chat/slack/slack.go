@@ -123,7 +123,7 @@ func (service *Service) sendWebhook(config *Config, payload any) error {
 		return fmt.Errorf("failed to invoke webhook: %w", err)
 	}
 
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	resBytes, _ := io.ReadAll(res.Body)
 	response := string(resBytes)
