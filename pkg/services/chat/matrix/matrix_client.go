@@ -218,7 +218,7 @@ func (c *client) apiGet(path string, response any) error {
 		return fmt.Errorf("executing GET request: %w", err)
 	}
 
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -270,7 +270,7 @@ func (c *client) apiPost(path string, request any, response any) error {
 		return fmt.Errorf("executing POST request: %w", err)
 	}
 
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	body, err = io.ReadAll(res.Body)
 	if err != nil {

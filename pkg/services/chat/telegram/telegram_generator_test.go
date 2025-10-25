@@ -26,17 +26,16 @@ var (
 )
 
 func mockTyped(a ...any) {
-	fmt.Fprint(userOut, a...)
-	fmt.Fprint(userOut, "\n")
+	_, _ = fmt.Fprintf(userOut, "%v\n", fmt.Sprint(a...))
 }
 
 func dumpBuffers() {
-	for _, line := range strings.Split(string(userIn.Contents()), "\n") {
-		fmt.Fprint(ginkgo.GinkgoWriter, "> ", line, "\n")
+	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
+		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "> %s\n", line)
 	}
 
-	for _, line := range strings.Split(string(userOut.Contents()), "\n") {
-		fmt.Fprint(ginkgo.GinkgoWriter, "< ", line, "\n")
+	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
+		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "< %s\n", line)
 	}
 }
 

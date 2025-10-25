@@ -202,7 +202,7 @@ var _ = ginkgo.Describe("the slack service", func() {
 				payload := slack.CreateJSONPayload(&config, sb.String()).(slack.MessagePayload)
 				atts := payload.Attachments
 
-				fmt.Fprint(
+				_, _ = fmt.Fprint(
 					ginkgo.GinkgoWriter,
 					"\nLines: ",
 					len(atts),

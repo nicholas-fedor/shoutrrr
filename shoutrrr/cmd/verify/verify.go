@@ -37,14 +37,14 @@ func Run(cmd *cobra.Command, _ []string) {
 	service, err := serviceRouter.Locate(URL)
 	if err != nil {
 		wrappedErr := fmt.Errorf("locating service for URL: %w", err)
-		fmt.Fprint(os.Stdout, "error verifying URL: ", sanitizeError(wrappedErr), "\n")
+		_, _ = fmt.Fprint(os.Stdout, "error verifying URL: ", sanitizeError(wrappedErr), "\n")
 		os.Exit(1)
 	}
 
 	config := format.GetServiceConfig(service)
 	configNode := format.GetConfigFormat(config)
 
-	fmt.Fprint(color.Output, format.ColorFormatTree(configNode, true))
+	_, _ = fmt.Fprint(color.Output, format.ColorFormatTree(configNode, true))
 }
 
 // sanitizeError removes sensitive details from an error message.

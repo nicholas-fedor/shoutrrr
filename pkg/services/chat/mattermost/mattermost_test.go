@@ -369,7 +369,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
 
 				outputURL := config.GetURL()
-				fmt.Fprint(ginkgo.GinkgoWriter, outputURL.String(), " ", testURL, "\n")
+				_, _ = fmt.Fprint(ginkgo.GinkgoWriter, outputURL.String(), " ", testURL, "\n")
 
 				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
 			})

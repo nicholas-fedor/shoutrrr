@@ -82,7 +82,7 @@ func printDocs(docFormat string, services []string) cmd.Result {
 
 		config := format.GetServiceConfig(service)
 		configNode := format.GetConfigFormat(config)
-		fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme), "\n")
+		_, _ = fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme), "\n")
 	}
 
 	return cmd.Success
