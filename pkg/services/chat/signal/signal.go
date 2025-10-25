@@ -186,7 +186,7 @@ func (service *Service) sendRequest(req *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

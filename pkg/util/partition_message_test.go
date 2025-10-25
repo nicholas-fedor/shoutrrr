@@ -118,9 +118,9 @@ var _ = ginkgo.Describe("Partition Message", func() {
 					batches := testMessageItemsFromLines(21, limits, 2)
 
 					for b, chunks := range batches {
-						fmt.Fprintf(ginkgo.GinkgoWriter, "Batch #%v: (%v chunks)\n", b, len(chunks))
+						_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "Batch #%v: (%v chunks)\n", b, len(chunks))
 						for c, chunk := range chunks {
-							fmt.Fprintf(
+							_, _ = fmt.Fprintf(
 								ginkgo.GinkgoWriter,
 								" - Chunk #%v: (%v runes)\n",
 								c,

@@ -98,7 +98,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var clientID string
 
-	fmt.Fprint(os.Stdout, "ClientID: ")
+	_, _ = fmt.Fprint(os.Stdout, "ClientID: ")
 
 	if scanner.Scan() {
 		clientID = scanner.Text()
@@ -108,7 +108,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var clientSecret string
 
-	fmt.Fprint(os.Stdout, "ClientSecret: ")
+	_, _ = fmt.Fprint(os.Stdout, "ClientSecret: ")
 
 	if scanner.Scan() {
 		clientSecret = scanner.Text()
@@ -118,7 +118,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var authURL string
 
-	fmt.Fprint(os.Stdout, "AuthURL: ")
+	_, _ = fmt.Fprint(os.Stdout, "AuthURL: ")
 
 	if scanner.Scan() {
 		authURL = scanner.Text()
@@ -128,7 +128,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var tokenURL string
 
-	fmt.Fprint(os.Stdout, "TokenURL: ")
+	_, _ = fmt.Fprint(os.Stdout, "TokenURL: ")
 
 	if scanner.Scan() {
 		tokenURL = scanner.Text()
@@ -138,7 +138,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var redirectURL string
 
-	fmt.Fprint(os.Stdout, "RedirectURL: ")
+	_, _ = fmt.Fprint(os.Stdout, "RedirectURL: ")
 
 	if scanner.Scan() {
 		redirectURL = scanner.Text()
@@ -148,7 +148,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var scopes string
 
-	fmt.Fprint(os.Stdout, "Scopes: ")
+	_, _ = fmt.Fprint(os.Stdout, "Scopes: ")
 
 	if scanner.Scan() {
 		scopes = scanner.Text()
@@ -158,7 +158,7 @@ func oauth2Generator() (*smtp.Config, error) {
 
 	var hostname string
 
-	fmt.Fprint(os.Stdout, "SMTP Hostname: ")
+	_, _ = fmt.Fprint(os.Stdout, "SMTP Hostname: ")
 
 	if scanner.Scan() {
 		hostname = scanner.Text()
@@ -210,7 +210,7 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 
 	state := base64.URLEncoding.EncodeToString(stateBytes)
 
-	fmt.Fprintf(
+	_, _ = fmt.Fprintf(
 		os.Stdout,
 		"Visit the following URL to authenticate:\n%s\n\n",
 		conf.AuthCodeURL(state),
@@ -218,7 +218,7 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 
 	var verCode string
 
-	fmt.Fprint(os.Stdout, "Enter verification code: ")
+	_, _ = fmt.Fprint(os.Stdout, "Enter verification code: ")
 
 	if scanner.Scan() {
 		verCode = scanner.Text()
@@ -235,7 +235,7 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 
 	var sender string
 
-	fmt.Fprint(os.Stdout, "Enter sender e-mail: ")
+	_, _ = fmt.Fprint(os.Stdout, "Enter sender e-mail: ")
 
 	if scanner.Scan() {
 		sender = scanner.Text()

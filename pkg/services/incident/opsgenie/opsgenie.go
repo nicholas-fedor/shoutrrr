@@ -59,7 +59,7 @@ func (service *Service) sendAlert(url string, apiKey string, payload AlertPayloa
 		return fmt.Errorf("failed to send notification to OpsGenie: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {
 		body, err := io.ReadAll(resp.Body)

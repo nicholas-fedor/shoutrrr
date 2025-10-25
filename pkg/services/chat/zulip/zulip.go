@@ -109,7 +109,7 @@ func (service *Service) doSend(config *Config, message string) error {
 		err = fmt.Errorf("%w: %s", ErrResponseStatusFailure, res.Status)
 	}
 
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if err != nil {
 		return fmt.Errorf("failed to send zulip message: %w", err)

@@ -131,7 +131,7 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 				mockServer.Config.Handler = http.HandlerFunc(
 					func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusBadRequest)
-						w.Write([]byte("bad request"))
+						_, _ = w.Write([]byte("bad request"))
 					},
 				)
 				mockURL, _ := url.Parse(mockServer.URL)
