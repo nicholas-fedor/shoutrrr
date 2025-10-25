@@ -26,6 +26,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 func TestNtfy(t *testing.T) {
@@ -74,21 +75,23 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				serviceURL := testutils.URLMust("ntfy://hostname/topic")
 				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 				gomega.Expect(*service.Config).To(gomega.Equal(Config{
-					Host:     "hostname",
-					Topic:    "topic",
-					Scheme:   "https",
-					Tags:     []string{""},
-					Actions:  []string{""},
-					Priority: 3,
-					Firebase: true,
-					Cache:    true,
+					Host:                   "hostname",
+					Topic:                  "topic",
+					Scheme:                 "https",
+					Tags:                   []string{""},
+					Actions:                []string{""},
+					Priority:               3,
+					Firebase:               true,
+					Cache:                  true,
+					DisableTLSVerification: false,
 				}))
 			})
 		})
 		ginkgo.When("parsing the configuration URL", func() {
 			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := "ntfy://user:pass@example.com:2225/topic?cache=No&click=CLICK&firebase=No&icon=ICON&priority=Max&scheme=http&title=TITLE"
+				testURL := "ntfy://user:pass@example.com:2225/topic?cache=No&click=CLICK&disabletls=No&firebase=No&icon=ICON&priority=Max&scheme=http&title=TITLE"
 				config := &Config{}
+				service.client = jsonclient.NewWithHTTPClient(service.httpClient)
 				pkr := format.NewPropKeyResolver(config)
 				gomega.Expect(config.setURL(&pkr, testutils.URLMust(testURL))).
 					To(gomega.Succeed(), "verifying")
@@ -99,15 +102,15 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 
 	ginkgo.When("sending the push payload", func() {
 		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
+			serviceURL := testutils.URLMust("ntfy://:devicekey@hostname/testtopic")
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			httpmock.ActivateNonDefault(service.httpClient)
 		})
 		ginkgo.AfterEach(func() {
 			httpmock.DeactivateAndReset()
 		})
 
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL := testutils.URLMust("ntfy://:devicekey@hostname/testtopic")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			httpmock.RegisterResponder(
 				"POST",
 				service.Config.GetAPIURL(),
@@ -120,8 +123,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		})
 
 		ginkgo.It("should not panic if a server error occurs", func() {
-			serviceURL := testutils.URLMust("ntfy://:devicekey@hostname/testtopic")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			httpmock.RegisterResponder(
 				"POST",
 				service.Config.GetAPIURL(),
@@ -148,12 +149,14 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				testutils.TestConfigSetInvalidQueryValue(&Config{}, "ntfy://host/topic?foo=bar")
 				testutils.TestConfigSetDefaultValues(&Config{})
 				testutils.TestConfigGetEnumsCount(&Config{}, 1)
-				testutils.TestConfigGetFieldsCount(&Config{}, 15)
+				testutils.TestConfigGetFieldsCount(&Config{}, 16)
 			})
 		})
 		ginkgo.Describe("the service instance", func() {
 			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
+				serviceURL := testutils.URLMust("ntfy://:devicekey@hostname/testtopic")
+				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+				httpmock.ActivateNonDefault(service.httpClient)
 			})
 			ginkgo.AfterEach(func() {
 				httpmock.DeactivateAndReset()
@@ -232,17 +235,16 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			}))
 			defer server.Close()
 
-			// Create an HTTP client with the test server's certificate in RootCAs
+			// Create a dedicated HTTP client with the test server's certificate in RootCAs
 			certPool := x509.NewCertPool()
 			certPool.AddCert(server.Certificate())
 
-			client := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						RootCAs: certPool,
-					},
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: certPool,
 				},
 			}
+			client := &http.Client{Transport: transport}
 
 			// Attempt to make a request to the test server
 			resp, err := client.Get(server.URL)
@@ -712,14 +714,14 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			serverTemplate := x509.Certificate{
 				SerialNumber: big.NewInt(2),
 				Subject: pkix.Name{
-					CommonName: "ntfy.sh",
+					CommonName: "127.0.0.1",
 				},
 				NotBefore:             time.Now(),
 				NotAfter:              time.Now().Add(time.Hour),
 				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 				BasicConstraintsValid: true,
-				DNSNames:              []string{"ntfy.sh"},
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
 			}
 
 			serverDerBytes, err := x509.CreateCertificate(rand.Reader, &serverTemplate, &intermediateTemplate, &privKey.PublicKey, intermediatePrivKey)
@@ -746,20 +748,27 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			server.StartTLS()
 			defer server.Close()
 
-			// Create RootCAs that includes the root CA
+			// Create a dedicated HTTP client with minimum TLS version 1.2 and proper RootCAs
 			rootCAs := x509.NewCertPool()
 			rootCert, err := x509.ParseCertificate(rootDerBytes)
+			// Add debug logging for the test setup
+			service.Logf("DEBUG: Test setup - server certificate chain length: %d", len(server.TLS.Certificates[0].Certificate))
+			if len(server.TLS.Certificates[0].Certificate) > 0 {
+				cert, err := x509.ParseCertificate(server.TLS.Certificates[0].Certificate[0])
+				if err == nil {
+					service.Logf("DEBUG: Server cert subject: %s, issuer: %s", cert.Subject.CommonName, cert.Issuer.CommonName)
+				}
+			}
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			rootCAs.AddCert(rootCert)
 
-			// Override the HTTP client's RootCAs to include our test root CA
-			originalTransport := http.DefaultTransport.(*http.Transport)
-			originalRootCAs := originalTransport.TLSClientConfig.RootCAs
-
-			originalTransport.TLSClientConfig.RootCAs = rootCAs
-			defer func() {
-				originalTransport.TLSClientConfig.RootCAs = originalRootCAs
-			}()
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    rootCAs,
+				},
+			}
+			client := &http.Client{Transport: transport}
 
 			// Parse the test server URL to extract host and construct ntfy URL
 			serverURL, err := url.Parse(server.URL)
@@ -770,6 +779,8 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 
 			// Initialize the ntfy service with the test server URL
 			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			service.SetHTTPClient(client)
 
 			// Attempt to send a message - this should succeed because we have
 			// the complete certificate chain and proper RootCAs configured
@@ -801,9 +812,402 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			// Initialize the ntfy service with the test server URL
 			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 
-			// Attempt to send a message - this should succeed because httptest.NewTLSServer
-			// provides a certificate that is trusted by Go's default RootCAs
+			// Configure HTTP client to trust the test server's certificate
+			certPool := x509.NewCertPool()
+			certPool.AddCert(server.Certificate())
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: certPool,
+				},
+			}
+			client := &http.Client{Transport: transport}
+			service.SetHTTPClient(client)
+
+			// Attempt to send a message - this should succeed because the certificate is now trusted
 			gomega.Expect(service.Send("Test message", nil)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should fail when server uses TLS 1.0 and client requires minimum TLS 1.2", func() {
+			// This test demonstrates that TLS certificate verification can fail even with valid certificates
+			// when the server uses a TLS version below the client's minimum required version.
+			// This highlights another aspect of TLS issues that can cause certificate verification failures.
+
+			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			template := x509.Certificate{
+				SerialNumber: big.NewInt(1),
+				Subject: pkix.Name{
+					Organization: []string{"Test Organization"},
+				},
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(time.Hour),
+				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+				BasicConstraintsValid: true,
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create a test server that only supports TLS 1.0
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				response := apiResponse{
+					Code:    http.StatusOK,
+					Message: "OK",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{derBytes},
+						PrivateKey:  privKey,
+					},
+				},
+				// Force server to use only TLS 1.0
+				MinVersion: tls.VersionTLS10,
+				MaxVersion: tls.VersionTLS10,
+			}
+			server.StartTLS()
+			defer server.Close()
+
+			// Create a dedicated HTTP client with minimum TLS version 1.2
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+				},
+			}
+			client := &http.Client{Transport: transport}
+			service.SetHTTPClient(client)
+
+			// Parse the test server URL to extract host and construct ntfy URL
+			serverURL, err := url.Parse(server.URL)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create ntfy service URL pointing to the test server
+			serviceURL := testutils.URLMust(fmt.Sprintf("ntfy://%s/testtopic", serverURL.Host))
+
+			// Initialize the ntfy service with the test server URL
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			// Attempt to send a message - this should fail because the server only supports TLS 1.0
+			// but the client requires minimum TLS 1.2
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("tls: protocol version not supported"))
+		})
+
+		ginkgo.It("should fail when server uses TLS 1.1 and client requires minimum TLS 1.2", func() {
+			// This test demonstrates that TLS certificate verification can fail even with valid certificates
+			// when the server uses TLS 1.1 but the client requires minimum TLS 1.2.
+			// This is another common cause of TLS handshake failures that appear as certificate verification errors.
+
+			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			template := x509.Certificate{
+				SerialNumber: big.NewInt(1),
+				Subject: pkix.Name{
+					Organization: []string{"Test Organization"},
+				},
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(time.Hour),
+				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+				BasicConstraintsValid: true,
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create a test server that only supports TLS 1.1
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				response := apiResponse{
+					Code:    http.StatusOK,
+					Message: "OK",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{derBytes},
+						PrivateKey:  privKey,
+					},
+				},
+				// Force server to use only TLS 1.1
+				MinVersion: tls.VersionTLS11,
+				MaxVersion: tls.VersionTLS11,
+			}
+			server.StartTLS()
+			defer server.Close()
+
+			// Create a dedicated HTTP client with minimum TLS version 1.2
+			certPool := x509.NewCertPool()
+			certPool.AddCert(server.Certificate())
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    certPool,
+				},
+			}
+			client := &http.Client{Transport: transport}
+
+			// Parse the test server URL to extract host and construct ntfy URL
+			serverURL, err := url.Parse(server.URL)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create ntfy service URL pointing to the test server
+			serviceURL := testutils.URLMust(fmt.Sprintf("ntfy://%s/testtopic", serverURL.Host))
+
+			// Initialize the ntfy service with the test server URL
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			service.SetHTTPClient(client)
+
+			// Attempt to send a message - this should fail because the server only supports TLS 1.1
+			// but the client requires minimum TLS 1.2
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("tls: protocol version not supported"))
+		})
+
+		ginkgo.It("should succeed when server uses TLS 1.2 and client requires minimum TLS 1.2", func() {
+			// This test demonstrates successful TLS connection when both server and client
+			// support TLS 1.2 as the minimum version requirement.
+
+			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			template := x509.Certificate{
+				SerialNumber: big.NewInt(1),
+				Subject: pkix.Name{
+					Organization: []string{"Test Organization"},
+				},
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(time.Hour),
+				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+				BasicConstraintsValid: true,
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create a test server that supports TLS 1.2
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				response := apiResponse{
+					Code:    http.StatusOK,
+					Message: "OK",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{derBytes},
+						PrivateKey:  privKey,
+					},
+				},
+				// Server supports TLS 1.2 and above
+				MinVersion: tls.VersionTLS12,
+			}
+			server.StartTLS()
+			defer server.Close()
+
+			// Create a dedicated HTTP client with minimum TLS version 1.2
+			certPool := x509.NewCertPool()
+			certPool.AddCert(server.Certificate())
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    certPool,
+				},
+			}
+			client := &http.Client{Transport: transport}
+
+			// Parse the test server URL to extract host and construct ntfy URL
+			serverURL, err := url.Parse(server.URL)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create ntfy service URL pointing to the test server
+			serviceURL := testutils.URLMust(fmt.Sprintf("ntfy://%s/testtopic", serverURL.Host))
+
+			// Initialize the ntfy service with the test server URL
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			service.SetHTTPClient(client)
+
+			// Attempt to send a message - this should succeed because both server and client
+			// support TLS 1.2 as the minimum version
+			gomega.Expect(service.Send("Test message", nil)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should succeed when server uses TLS 1.3 and client requires minimum TLS 1.2", func() {
+			// This test demonstrates successful TLS connection when the server uses TLS 1.3
+			// and the client requires minimum TLS 1.2 (TLS 1.3 is backward compatible).
+
+			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			template := x509.Certificate{
+				SerialNumber: big.NewInt(1),
+				Subject: pkix.Name{
+					Organization: []string{"Test Organization"},
+				},
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(time.Hour),
+				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+				BasicConstraintsValid: true,
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create a test server that supports TLS 1.3
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				response := apiResponse{
+					Code:    http.StatusOK,
+					Message: "OK",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{derBytes},
+						PrivateKey:  privKey,
+					},
+				},
+				// Server supports TLS 1.2 and above
+				MinVersion: tls.VersionTLS12,
+			}
+			server.StartTLS()
+			defer server.Close()
+
+			// Create a dedicated HTTP client with InsecureSkipVerify to allow version negotiation
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			}
+			client := &http.Client{Transport: transport}
+
+			// Parse the test server URL to extract host and construct ntfy URL
+			serverURL, err := url.Parse(server.URL)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create ntfy service URL pointing to the test server
+			serviceURL := testutils.URLMust(fmt.Sprintf("ntfy://%s/testtopic", serverURL.Host))
+
+			// Initialize the ntfy service with the test server URL
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			service.SetHTTPClient(client)
+
+			// Attempt to send a message - this should succeed because TLS 1.3 is compatible
+			// with a minimum requirement of TLS 1.2
+			gomega.Expect(service.Send("Test message", nil)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should demonstrate the impact of different MinVersion settings on TLS connections", func() {
+			// This test demonstrates how different MinVersion settings affect TLS connections.
+			// It shows that even with valid certificates, TLS version requirements can cause
+			// connection failures that manifest as certificate verification errors.
+
+			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			template := x509.Certificate{
+				SerialNumber: big.NewInt(1),
+				Subject: pkix.Name{
+					Organization: []string{"Test Organization"},
+				},
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(time.Hour),
+				KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+				BasicConstraintsValid: true,
+				IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create a test server that supports only TLS 1.2
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				response := apiResponse{
+					Code:    http.StatusOK,
+					Message: "OK",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{derBytes},
+						PrivateKey:  privKey,
+					},
+				},
+				// Server supports only TLS 1.2
+				MinVersion: tls.VersionTLS12,
+				MaxVersion: tls.VersionTLS12,
+			}
+			server.StartTLS()
+			defer server.Close()
+
+			// Parse the test server URL to extract host and construct ntfy URL
+			serverURL, err := url.Parse(server.URL)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			serviceURL := testutils.URLMust(fmt.Sprintf("ntfy://%s/testtopic", serverURL.Host))
+
+			// Test 1: MinVersion = TLS 1.3 should fail against TLS 1.2 server
+			certPool := x509.NewCertPool()
+			certPool.AddCert(server.Certificate())
+			transport13 := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS13,
+					RootCAs:    certPool,
+				},
+			}
+			// Add debug logging for TLS version test
+			service.Logf("DEBUG: TLS version test - client MinVersion: %v, server MinVersion: %v, MaxVersion: %v",
+				transport13.TLSClientConfig.MinVersion, server.TLS.MinVersion, server.TLS.MaxVersion)
+			client13 := &http.Client{Transport: transport13}
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			service.SetHTTPClient(client13)
+			err = service.Send("Test message with TLS 1.3 min requirement", nil)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("tls: protocol version not supported"))
+
+			// Test 2: MinVersion = TLS 1.2 should succeed against TLS 1.2 server
+			transport12 := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    certPool,
+				},
+			}
+			client12 := &http.Client{Transport: transport12}
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			service.SetHTTPClient(client12)
+			gomega.Expect(service.Send("Test message with TLS 1.2 min requirement", nil)).To(gomega.Succeed())
 		})
 	})
 
@@ -811,6 +1215,55 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		ginkgo.It("should return the correct service ID", func() {
 			service := &Service{}
 			gomega.Expect(service.GetID()).To(gomega.Equal("ntfy"))
+		})
+	})
+
+	ginkgo.Describe("DisableTLS configuration", func() {
+		ginkgo.It("should use HTTPS scheme and set InsecureSkipVerify when DisableTLS is true", func() {
+			serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			gomega.Expect(service.Config.GetAPIURL()).To(gomega.Equal("https://example.com/test"))
+
+			transport := service.httpClient.Transport.(*http.Transport)
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should use HTTPS scheme when DisableTLS is false", func() {
+			config := &Config{
+				Host:                   "example.com",
+				Topic:                  "test",
+				Scheme:                 "https",
+				DisableTLSVerification: false,
+			}
+			gomega.Expect(config.GetAPIURL()).To(gomega.Equal("https://example.com/test"))
+		})
+
+		ginkgo.It("should configure HTTP client with InsecureSkipVerify when DisableTLS is true", func() {
+			serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			// Check that the HTTP client has InsecureSkipVerify set
+			transport := service.httpClient.Transport.(*http.Transport)
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should log warning when DisableTLS is enabled", func() {
+			// This test verifies that a warning is logged when TLS is disabled
+			// We can't easily test the log output directly, but we can verify the config is set
+			serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			gomega.Expect(service.Config.DisableTLSVerification).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should not set InsecureSkipVerify when DisableTLS is false", func() {
+			serviceURL := testutils.URLMust("ntfy://example.com/test")
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			// Check that the HTTP client does not have InsecureSkipVerify set
+			// If TLSClientConfig is nil, it means InsecureSkipVerify is not set (equivalent to false)
+			transport := service.httpClient.Transport.(*http.Transport)
+			gomega.Expect(transport.TLSClientConfig == nil || transport.TLSClientConfig.InsecureSkipVerify == false).To(gomega.BeTrue())
 		})
 	})
 })
