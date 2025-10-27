@@ -63,6 +63,7 @@ func (service *Service) Send(message string, _ *types.Params) error {
 	if err != nil {
 		return fmt.Errorf("sending notification to Google Chat: %w", err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

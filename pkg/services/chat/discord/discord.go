@@ -204,6 +204,7 @@ func doSend(payload []byte, postURL string) error {
 	if res == nil {
 		return ErrUnknownAPIError
 	}
+
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusNoContent {
