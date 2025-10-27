@@ -149,7 +149,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				testutils.TestConfigSetInvalidQueryValue(&Config{}, "ntfy://host/topic?foo=bar")
 				testutils.TestConfigSetDefaultValues(&Config{})
 				testutils.TestConfigGetEnumsCount(&Config{}, 1)
-				testutils.TestConfigGetFieldsCount(&Config{}, 18)
+				testutils.TestConfigGetFieldsCount(&Config{}, 16)
 			})
 		})
 		ginkgo.Describe("the service instance", func() {
@@ -450,7 +450,33 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			)
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
-			// Create server certificate signed by the old CA
+			// Generate a second CA (modern/Let's Encrypt-like)
+			caTemplateModern := x509.Certificate{
+				SerialNumber: big.NewInt(3),
+				Subject: pkix.Name{
+					CommonName:   "Let's Encrypt Authority X3",
+					Organization: []string{"Let's Encrypt"},
+				},
+				NotBefore:             time.Now().AddDate(-2, 0, 0), // 2 years ago
+				NotAfter:              time.Now().AddDate(5, 0, 0),
+				KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+				BasicConstraintsValid: true,
+				IsCA:                  true,
+			}
+
+			caPrivKeyModern, err := rsa.GenerateKey(rand.Reader, 2048)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			modernCaDerBytes, err := x509.CreateCertificate(
+				rand.Reader,
+				&caTemplateModern,
+				&caTemplateModern,
+				&caPrivKeyModern.PublicKey,
+				caPrivKeyModern,
+			)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+
+			// Create server certificate signed by the modern CA
 			serverTemplate := x509.Certificate{
 				SerialNumber: big.NewInt(2),
 				Subject: pkix.Name{
@@ -468,13 +494,13 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			serverDerBytes, err := x509.CreateCertificate(
 				rand.Reader,
 				&serverTemplate,
-				&caTemplate,
+				&caTemplateModern,
 				&privKey.PublicKey,
-				caPrivKey,
+				caPrivKeyModern,
 			)
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
-			// Create a test server with the certificate signed by old CA
+			// Create a test server with the certificate signed by modern CA
 			server := httptest.NewUnstartedServer(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					response := apiResponse{
@@ -489,10 +515,11 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			server.TLS = &tls.Config{
 				Certificates: []tls.Certificate{
 					{
-						Certificate: [][]byte{serverDerBytes, caDerBytes},
+						Certificate: [][]byte{serverDerBytes, modernCaDerBytes},
 						PrivateKey:  privKey,
 					},
 				},
+				MinVersion: tls.VersionTLS13,
 			}
 			server.StartTLS()
 			defer server.Close()
@@ -503,16 +530,14 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			outdatedRootCAs.AddCert(caCert)
 
-			// Override the HTTP client's RootCAs to use outdated ones
-			// This simulates the scenario where the system has old RootCAs
-			originalTransport := http.DefaultTransport.(*http.Transport)
-			originalRootCAs := originalTransport.TLSClientConfig.RootCAs
-
-			// Temporarily modify the default transport
-			originalTransport.TLSClientConfig.RootCAs = outdatedRootCAs
-			defer func() {
-				originalTransport.TLSClientConfig.RootCAs = originalRootCAs
-			}()
+			// Create a dedicated HTTP client with outdated RootCAs
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: outdatedRootCAs,
+				},
+			}
+			client := &http.Client{Transport: transport}
+			service.SetHTTPClient(client)
 
 			// Parse the test server URL to extract host and construct ntfy URL
 			serverURL, err := url.Parse(server.URL)
@@ -631,12 +656,13 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					{
 						Certificate: [][]byte{
 							serverDerBytes,
-							intermediateDerBytes,
-						}, // Include intermediate to avoid unused variable
+						},
 						PrivateKey: privKey,
 					},
 				},
 			}
+			// Reference intermediateDerBytes to avoid unused variable warning
+			_ = intermediateDerBytes
 			server.StartTLS()
 			defer server.Close()
 
@@ -646,14 +672,14 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			rootCAs.AddCert(rootCert)
 
-			// Override the HTTP client's RootCAs
-			originalTransport := http.DefaultTransport.(*http.Transport)
-			originalRootCAs := originalTransport.TLSClientConfig.RootCAs
-
-			originalTransport.TLSClientConfig.RootCAs = rootCAs
-			defer func() {
-				originalTransport.TLSClientConfig.RootCAs = originalRootCAs
-			}()
+			// Create a dedicated HTTP client with root CAs only
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: rootCAs,
+				},
+			}
+			client := &http.Client{Transport: transport}
+			service.SetHTTPClient(client)
 
 			// Parse the test server URL to extract host and construct ntfy URL
 			serverURL, err := url.Parse(server.URL)
@@ -1213,10 +1239,10 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		)
 
 		ginkgo.It(
-			"should succeed when server uses TLS 1.3 and client requires minimum TLS 1.2",
+			"should succeed when server supports TLS 1.2+ and client requires minimum TLS 1.2",
 			func() {
-				// This test demonstrates successful TLS connection when the server uses TLS 1.3
-				// and the client requires minimum TLS 1.2 (TLS 1.3 is backward compatible).
+				// This test demonstrates successful TLS connection when the server supports TLS 1.2+
+				// and the client requires minimum TLS 1.2 (TLS 1.3 is negotiated when available).
 
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
@@ -1243,7 +1269,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
-				// Create a test server that supports TLS 1.3
+				// Create a test server that supports TLS 1.2+
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						response := apiResponse{
@@ -1262,7 +1288,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							PrivateKey:  privKey,
 						},
 					},
-					// Server supports TLS 1.2 and above
+					// Server supports TLS 1.2 and above, negotiating to 1.3 when available
 					MinVersion: tls.VersionTLS12,
 				}
 				server.StartTLS()

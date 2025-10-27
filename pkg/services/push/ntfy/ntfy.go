@@ -2,6 +2,7 @@ package ntfy
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -78,20 +79,10 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		}
 		service.Log("Warning: TLS verification is disabled, making connections insecure")
 	} else {
-		if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
-			clonedTransport := defaultTransport.Clone()
-			if clonedTransport.TLSClientConfig == nil {
-				clonedTransport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-			} else {
-				clonedTransport.TLSClientConfig.MinVersion = tls.VersionTLS12
-			}
-
-			service.httpClient.Transport = clonedTransport
-			service.Log("Using cloned HTTP transport with TLS verification enabled and TLS 1.2 enforced")
-		} else {
-			service.httpClient.Transport = http.DefaultTransport
-			service.Log("Using default HTTP transport with TLS verification enabled")
+		service.httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		}
+		service.Log("Using custom HTTP transport with TLS verification enabled and TLS 1.2 enforced")
 	}
 
 	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
@@ -112,6 +103,7 @@ func (service *Service) sendAPI(config *Config, message string) error {
 	// Prepare request headers
 	headers := service.client.Headers()
 	headers.Del("Content-Type")
+	headers.Set("Content-Type", "text/plain; charset=utf-8")
 	headers.Set("User-Agent", "shoutrrr/"+meta.Version)
 	addHeaderIfNotEmpty(&headers, "Title", config.Title)
 	addHeaderIfNotEmpty(&headers, "Priority", config.Priority.String())
@@ -130,6 +122,14 @@ func (service *Service) sendAPI(config *Config, message string) error {
 
 	if !config.Firebase {
 		headers.Add("Firebase", "no")
+	}
+
+	// Add Basic Auth header if username and password are provided
+	if config.Username != "" && config.Password != "" {
+		headers.Set(
+			"Authorization",
+			"Basic "+base64.StdEncoding.EncodeToString([]byte(config.Username+":"+config.Password)),
+		)
 	}
 
 	// Send the HTTP request

@@ -68,16 +68,10 @@ func (config *Config) GetAPIURL() string {
 		path = "/" + path
 	}
 
-	var creds *url.Userinfo
-	if config.Password != "" {
-		creds = url.UserPassword(config.Username, config.Password)
-	}
-
 	apiURL := url.URL{
 		Scheme: config.Scheme,
 		Host:   config.Host,
 		Path:   path,
-		User:   creds,
 	}
 
 	return apiURL.String()
@@ -85,21 +79,35 @@ func (config *Config) GetAPIURL() string {
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	return &url.URL{
-		User:       url.UserPassword(config.Username, config.Password),
+	result := &url.URL{
 		Host:       config.Host,
 		Scheme:     Scheme,
 		ForceQuery: true,
 		Path:       config.Topic,
 		RawQuery:   format.BuildQuery(resolver),
 	}
+	if config.Username != "" {
+		if config.Password != "" {
+			result.User = url.UserPassword(config.Username, config.Password)
+		} else {
+			result.User = url.User(config.Username)
+		}
+	}
+
+	return result
 }
 
 // setURL updates the Config from a URL using the provided resolver.
 func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	password, _ := url.User.Password()
-	config.Password = password
-	config.Username = url.User.Username()
+	if url.User != nil {
+		password, _ := url.User.Password()
+		config.Password = password
+		config.Username = url.User.Username()
+	} else {
+		config.Password = ""
+		config.Username = ""
+	}
+
 	config.Host = url.Host
 	config.Topic = strings.TrimPrefix(url.Path, "/")
 
@@ -121,48 +129,5 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 // QueryFields returns the list of query parameter names for the Config struct.
 func (config *Config) QueryFields() []string {
-	return []string{
-		"host",
-		"path",
-		"password",
-		"user",
-		"title",
-		"scheme",
-		"tags",
-		"priority",
-		"actions",
-		"click",
-		"attach",
-		"filename",
-		"delay",
-		"email",
-		"icon",
-		"cache",
-		"firebase",
-		"disabletls",
-	}
-}
-
-// Get returns the value of a config property.
-func (config *Config) Get(key string) (string, error) {
-	pkr := format.NewPropKeyResolver(config)
-
-	val, err := pkr.Get(key)
-	if err != nil {
-		return "", fmt.Errorf("getting property %q: %w", key, err)
-	}
-
-	return val, nil
-}
-
-// Set sets the value of a config property.
-func (config *Config) Set(key string, value string) error {
-	pkr := format.NewPropKeyResolver(config)
-
-	err := pkr.Set(key, value)
-	if err != nil {
-		return fmt.Errorf("setting property %q to %q: %w", key, value, err)
-	}
-
-	return nil
+	return format.GetConfigQueryResolver(config).QueryFields()
 }
