@@ -79,11 +79,16 @@ func (config *Config) GetAPIURL() string {
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	path := config.Topic
+	if !strings.HasPrefix(config.Topic, "/") {
+		path = "/" + path
+	}
+
 	result := &url.URL{
 		Host:       config.Host,
 		Scheme:     Scheme,
 		ForceQuery: true,
-		Path:       config.Topic,
+		Path:       path,
 		RawQuery:   format.BuildQuery(resolver),
 	}
 	if config.Username != "" {

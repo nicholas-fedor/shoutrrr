@@ -124,8 +124,8 @@ func (service *Service) sendAPI(config *Config, message string) error {
 		headers.Add("Firebase", "no")
 	}
 
-	// Add Basic Auth header if username and password are provided
-	if config.Username != "" && config.Password != "" {
+	// Add Basic Auth header if username or password is provided
+	if config.Username != "" || config.Password != "" {
 		headers.Set(
 			"Authorization",
 			"Basic "+base64.StdEncoding.EncodeToString([]byte(config.Username+":"+config.Password)),
