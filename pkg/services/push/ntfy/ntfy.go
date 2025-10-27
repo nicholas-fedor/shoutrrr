@@ -81,10 +81,11 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
 			clonedTransport := defaultTransport.Clone()
 			if clonedTransport.TLSClientConfig == nil {
-				clonedTransport.TLSClientConfig = &tls.Config{} //nolint:gosec // Using default minimum of TLS 1.2
+				clonedTransport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+			} else {
+				clonedTransport.TLSClientConfig.MinVersion = tls.VersionTLS12
 			}
 
-			clonedTransport.TLSClientConfig.MinVersion = tls.VersionTLS12
 			service.httpClient.Transport = clonedTransport
 			service.Log("Using cloned HTTP transport with TLS verification enabled and TLS 1.2 enforced")
 		} else {

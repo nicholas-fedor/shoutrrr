@@ -73,10 +73,8 @@ func (config *Config) GetAPIURL() string {
 		creds = url.UserPassword(config.Username, config.Password)
 	}
 
-	scheme := config.Scheme
-
 	apiURL := url.URL{
-		Scheme: scheme,
+		Scheme: config.Scheme,
 		Host:   config.Host,
 		Path:   path,
 		User:   creds,
@@ -116,6 +114,54 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		if config.Topic == "" {
 			return ErrTopicRequired
 		}
+	}
+
+	return nil
+}
+
+// QueryFields returns the list of query parameter names for the Config struct.
+func (config *Config) QueryFields() []string {
+	return []string{
+		"host",
+		"path",
+		"password",
+		"user",
+		"title",
+		"scheme",
+		"tags",
+		"priority",
+		"actions",
+		"click",
+		"attach",
+		"filename",
+		"delay",
+		"email",
+		"icon",
+		"cache",
+		"firebase",
+		"disabletls",
+	}
+}
+
+// Get returns the value of a config property.
+func (config *Config) Get(key string) (string, error) {
+	pkr := format.NewPropKeyResolver(config)
+
+	val, err := pkr.Get(key)
+	if err != nil {
+		return "", fmt.Errorf("getting property %q: %w", key, err)
+	}
+
+	return val, nil
+}
+
+// Set sets the value of a config property.
+func (config *Config) Set(key string, value string) error {
+	pkr := format.NewPropKeyResolver(config)
+
+	err := pkr.Set(key, value)
+	if err != nil {
+		return fmt.Errorf("setting property %q to %q: %w", key, value, err)
 	}
 
 	return nil

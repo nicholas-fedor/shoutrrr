@@ -149,7 +149,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				testutils.TestConfigSetInvalidQueryValue(&Config{}, "ntfy://host/topic?foo=bar")
 				testutils.TestConfigSetDefaultValues(&Config{})
 				testutils.TestConfigGetEnumsCount(&Config{}, 1)
-				testutils.TestConfigGetFieldsCount(&Config{}, 16)
+				testutils.TestConfigGetFieldsCount(&Config{}, 18)
 			})
 		})
 		ginkgo.Describe("the service instance", func() {
