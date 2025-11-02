@@ -15,6 +15,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/incident/opsgenie"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/incident/pagerduty"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/gotify"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ifttt"
@@ -44,6 +45,7 @@ var serviceMap = map[string]func() types.Service{
 	"notifiarr":  func() types.Service { return &notifiarr.Service{} },
 	"ntfy":       func() types.Service { return &ntfy.Service{} },
 	"opsgenie":   func() types.Service { return &opsgenie.Service{} },
+	"pagerduty":  func() types.Service { return &pagerduty.Service{} },
 	"pushbullet": func() types.Service { return &pushbullet.Service{} },
 	"pushover":   func() types.Service { return &pushover.Service{} },
 	"rocketchat": func() types.Service { return &rocketchat.Service{} },
