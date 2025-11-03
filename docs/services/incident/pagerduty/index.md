@@ -712,16 +712,19 @@ shoutrrr send -u "$URL" -m "$MESSAGE"
 ### Incident Management
 
 #### Use Appropriate Severity Levels
+
 - Reserve `critical` for issues requiring immediate attention
 - Use `error` for actual problems, `warning` for potential issues
 - Use `info` sparingly for informational events
 
 #### Provide Meaningful Source Identifiers
+
 - Use consistent, descriptive source names
 - Include environment information (e.g., `prod-web-01`, `staging-db`)
 - Avoid generic sources like "unknown" or "default"
 
 #### Include Rich Context
+
 - Always provide `client` and `client_url` for traceability
 - Use `details` for structured data that can be queried
 - Add relevant `contexts` to help responders
@@ -729,16 +732,19 @@ shoutrrr send -u "$URL" -m "$MESSAGE"
 ### Operational Considerations
 
 #### Rate Limiting Awareness
+
 - Monitor your API usage to avoid hitting limits
 - Implement queuing for high-volume scenarios
 - Use exponential backoff for retries
 
-#### Error Handling
+#### Error Handling Considerations
+
 - Always check for errors when sending notifications
 - Implement proper logging for debugging
 - Handle rate limiting gracefully
 
 #### Security
+
 - Store integration keys securely (environment variables, secrets management)
 - Rotate keys periodically
 - Use least-privilege access
@@ -746,16 +752,19 @@ shoutrrr send -u "$URL" -m "$MESSAGE"
 ### Integration Patterns
 
 #### Monitoring System Integration
+
 - Map monitoring severity levels to PagerDuty severities
 - Include monitoring system links in `client_url`
 - Use consistent `source` naming conventions
 
 #### CI/CD Pipeline Integration
+
 - Trigger incidents for deployment failures
 - Include build links and commit information
 - Use appropriate severity based on environment
 
 #### Application Integration
+
 - Include error codes, stack traces in `details`
 - Provide links to logs and monitoring
 - Use structured logging for better incident data
@@ -763,16 +772,19 @@ shoutrrr send -u "$URL" -m "$MESSAGE"
 ### Maintenance
 
 #### Regular Testing
+
 - Test integrations regularly to ensure they work
 - Verify integration keys are valid
 - Test different severity levels and parameters
 
 #### Documentation
+
 - Document your PagerDuty integrations
 - Maintain runbooks for common incident types
 - Keep contact information current
 
 #### Monitoring
+
 - Monitor PagerDuty integration health
 - Set up alerts for integration failures
 - Review incident response times and effectiveness
