@@ -397,13 +397,13 @@ The PagerDuty service returns standard HTTP status codes. Handle these appropria
 !!! tip "JSON Parameter Encoding"
     When passing complex parameters like `details` or `contexts` in URLs, ensure proper JSON encoding:
 
-    Correct:
+    **Correct:**
 
     ```bash
     details={"key":"value"}
     ```
 
-    Incorrect - missing quotes:
+    **Incorrect - missing quotes:**
 
     ```bash
     details={key:value}

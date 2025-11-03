@@ -37,6 +37,12 @@ var (
 		"invalid context type: must be one of 'link' or 'image'",
 	)
 
+	// errMissingHrefForLinkContext is returned when a link context is missing the href field.
+	errMissingHrefForLinkContext = errors.New("missing href for link context")
+
+	// errMissingSrcForImageContext is returned when an image context is missing the src field.
+	errMissingSrcForImageContext = errors.New("missing src for image context")
+
 	// errServiceNotInitialized is returned when the service has not been properly initialized.
 	errServiceNotInitialized = errors.New("service not properly initialized: httpClient is nil")
 

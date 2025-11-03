@@ -20,6 +20,9 @@ const (
 	eventEndpointTemplate = "https://%s:%d/v2/enqueue"
 	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
+
+	contextTypeLink  = "link"
+	contextTypeImage = "image"
 )
 
 // Service provides PagerDuty as a notification service.
@@ -60,10 +63,8 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 		return errServiceNotInitialized
 	}
 
-	client := service.httpClient
-
 	// Send the HTTP request to PagerDuty
-	resp, err := client.Do(req)
+	resp, err := service.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
 	}
@@ -291,10 +292,18 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	// First, attempt to parse as JSON array
 	var result []PagerDutyContext //nolint:prealloc // length is unknown for JSON case
 	if err := json.Unmarshal([]byte(contextsStr), &result); err == nil {
-		// Validate Type field for each context in JSON format
+		// Validate Type field and required fields for each context in JSON format
 		for _, ctx := range result {
-			if ctx.Type != "link" && ctx.Type != "image" {
+			if ctx.Type != contextTypeLink && ctx.Type != contextTypeImage {
 				return nil, fmt.Errorf("%w: found %q", errInvalidContextType, ctx.Type)
+			}
+
+			if ctx.Type == contextTypeLink && ctx.Href == "" {
+				return nil, fmt.Errorf("%w: %+v", errMissingHrefForLinkContext, ctx)
+			}
+
+			if ctx.Type == contextTypeImage && ctx.Src == "" {
+				return nil, fmt.Errorf("%w: %+v", errMissingSrcForImageContext, ctx)
 			}
 		}
 
