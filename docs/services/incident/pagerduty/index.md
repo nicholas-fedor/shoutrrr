@@ -30,19 +30,19 @@ pagerduty://[host[:port]]/integration-key[?query-parameters]
 
 !!! example "Default configuration"
     ```url
-    pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889
+    pagerduty:///eb243592faa24ba2a5511afdf565c889
     ```
     Uses default host (`events.pagerduty.com`) and port (`443`)
 
 !!! example "Custom host"
     ```url
-    pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889
+    pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889
     ```
     Explicitly specifies the PagerDuty Events API host
 
 !!! example "With parameters"
     ```url
-    pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=critical&source=production-db
+    pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&source=production-db
     ```
     Includes severity and source parameters
 
@@ -175,54 +175,54 @@ The `contexts` parameter accepts a JSON array of context objects. Each context m
 
 !!! example "Simple alert"
     ```url
-    pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889
+    pagerduty:///eb243592faa24ba2a5511afdf565c889
     ```
     ```bash
-    shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889' -m 'Database connection lost'
+    shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889' -m 'Database connection lost'
     ```
 
 !!! example "Critical incident with source"
     ```url
-    pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=critical&source=prod-db-01
+    pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&source=prod-db-01
     ```
     ```bash
-    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=critical&source=prod-db-01' -m 'Production database is unresponsive'
+    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&source=prod-db-01' -m 'Production database is unresponsive'
     ```
 
 ### Incident Management Workflow
 
 !!! example "Acknowledge incident"
     ```url
-    pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=acknowledge
+    pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge
     ```
     ```bash
-    shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=acknowledge' -m 'Engineer has acknowledged the incident and is investigating'
+    shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge' -m 'Engineer has acknowledged the incident and is investigating'
     ```
 
 !!! example "Resolve incident"
     ```url
-    pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=resolve
+    pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve
     ```
     ```bash
-    shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=resolve' -m 'Database connection restored, incident resolved'
+    shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve' -m 'Database connection restored, incident resolved'
     ```
 
 ### Advanced Examples
 
 !!! example "With custom details"
     ```url
-    pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=warning&source=monitoring&details={"component":"api","version":"1.2.3","response_time":"5.2s"}
+    pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&source=monitoring&details={"component":"api","version":"1.2.3","response_time":"5.2s"}
     ```
     ```bash
-    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=warning&source=monitoring&details={"component":"api","version":"1.2.3","response_time":"5.2s"}' -m 'API response time degraded'
+    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&source=monitoring&details={"component":"api","version":"1.2.3","response_time":"5.2s"}' -m 'API response time degraded'
     ```
 
 !!! example "With contexts and client info"
     ```url
-    pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&client=jenkins&client_url=https://ci.example.com/job/123
+    pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&client=jenkins&client_url=https://ci.example.com/job/123
     ```
     ```bash
-    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"}]&client=jenkins&client_url=https://ci.example.com/job/123' -m 'CI/CD pipeline failed'
+    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"}]&client=jenkins&client_url=https://ci.example.com/job/123' -m 'CI/CD pipeline failed'
     ```
 
 ## Event Actions
@@ -435,7 +435,7 @@ import (
 )
 
 func main() {
-    url := "pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889"
+    url := "pagerduty:///eb243592faa24ba2a5511afdf565c889"
     
     err := shoutrrr.Send(url, "Database connection failed")
     if err != nil {
@@ -456,7 +456,7 @@ import (
 )
 
 func main() {
-    url := "pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889"
+    url := "pagerduty:///eb243592faa24ba2a5511afdf565c889"
     
     // Trigger critical incident
     params := &types.Params{
@@ -488,7 +488,7 @@ import (
 )
 
 func handleIncident() {
-    baseURL := "pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889"
+    baseURL := "pagerduty:///eb243592faa24ba2a5511afdf565c889"
     
     // 1. Trigger incident
     triggerParams := &types.Params{
@@ -545,7 +545,7 @@ import (
 )
 
 func sendRichIncident() {
-    url := "pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889"
+    url := "pagerduty:///eb243592faa24ba2a5511afdf565c889"
     
     params := &types.Params{
         "severity": "error",
@@ -608,7 +608,7 @@ type AlertData struct {
 }
 
 func sendMonitoringAlert(data AlertData) error {
-    url := "pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889"
+    url := "pagerduty:///eb243592faa24ba2a5511afdf565c889"
     
     // Convert details to JSON string
     detailsJSON, err := json.Marshal(data.Details)
@@ -636,13 +636,13 @@ func sendMonitoringAlert(data AlertData) error {
 Send a simple alert:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889' -m 'Server is down'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889' -m 'Server is down'
 ```
 
 Send with severity:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?severity=critical' -m 'Production outage detected'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?severity=critical' -m 'Production outage detected'
 ```
 
 ### Incident Lifecycle Management
@@ -650,19 +650,19 @@ shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?severity=cr
 Trigger incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=trigger&severity=critical&source=web-app' -m 'Application crashed'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=trigger&severity=critical&source=web-app' -m 'Application crashed'
 ```
 
 Acknowledge incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=acknowledge' -m 'DevOps team is investigating'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge' -m 'DevOps team is investigating'
 ```
 
 Resolve incident:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=resolve' -m 'Application restarted successfully'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve' -m 'Application restarted successfully'
 ```
 
 ### Advanced Parameters
@@ -670,19 +670,19 @@ shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?action=reso
 With custom details:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?details={"component":"database","error":"connection_failed"}' -m 'Database connectivity issue'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?details={"component":"database","error":"connection_failed"}' -m 'Database connectivity issue'
 ```
 
 With contexts:
 
 ```bash
-shoutrrr send -u 'pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889?contexts=[{"type":"link","href":"https://monitoring.example.com","text":"Monitoring Dashboard"}]' -m 'High CPU usage detected'
+shoutrrr send -u 'pagerduty:///eb243592faa24ba2a5511afdf565c889?contexts=[{"type":"link","href":"https://monitoring.example.com","text":"Monitoring Dashboard"}]' -m 'High CPU usage detected'
 ```
 
 Full configuration:
 
 ```bash
-shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592-faa2-4ba2-a551q-1afdf565c889?severity=warning&source=load-balancer&client=prometheus&client_url=https://prometheus.example.com/alerts' -m 'Load balancer health check failing'
+shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&source=load-balancer&client=prometheus&client_url=https://prometheus.example.com/alerts' -m 'Load balancer health check failing'
 ```
 
 ### Integration with Scripts
@@ -692,7 +692,7 @@ Example script for PagerDuty alerts:
 ```bash
 #!/bin/bash
 
-INTEGRATION_KEY="eb243592-faa2-4ba2-a551q-1afdf565c889"
+INTEGRATION_KEY="eb243592faa24ba2a5511afdf565c889"
 SEVERITY="${1:-error}"
 SOURCE="${2:-unknown}"
 MESSAGE="$3"
