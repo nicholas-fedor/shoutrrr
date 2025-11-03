@@ -15,6 +15,7 @@ import (
 func Example() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -51,6 +52,7 @@ func Example() {
 func Example_eventID() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -92,6 +94,7 @@ func Example_eventID() {
 func Example_discordMentions() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -130,6 +133,7 @@ func Example_discordMentions() {
 func Example_imageThumbnail() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -166,6 +170,7 @@ func Example_imageThumbnail() {
 func Example_colorCustomization() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -202,6 +207,7 @@ func Example_colorCustomization() {
 func Example_urlParameterConfiguration() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -240,6 +246,7 @@ func Example_urlParameterConfiguration() {
 func Example_imageAndThumbnail() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response
@@ -278,6 +285,7 @@ func Example_imageAndThumbnail() {
 func Example_advancedTextFields() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful Notifiarr API response

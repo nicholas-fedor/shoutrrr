@@ -34,6 +34,8 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		responseIndex = 1
 	}
 
+	var convSb37 strings.Builder
+
 	for i, query := range input {
 		if query == "." {
 			inSequence = false
@@ -48,13 +50,17 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			break
 		}
 
-		conv += fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp)
+		convSb37.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
+
+		var convSb53 strings.Builder
 
 		for len(resp) > 3 && resp[3] == '-' {
 			responseIndex++
 			resp = tcf.responses[responseIndex]
-			conv += fmt.Sprintf("         %50s << %-50s\n", " ", resp)
+			convSb53.WriteString(fmt.Sprintf("         %50s << %-50s\n", " ", resp))
 		}
+
+		conv += convSb53.String()
 
 		if !inSequence {
 			responseIndex++
@@ -64,6 +70,8 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			inSequence = true
 		}
 	}
+
+	conv += convSb37.String()
 
 	return conv
 }

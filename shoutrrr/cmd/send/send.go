@@ -126,6 +126,7 @@ func Run(cmd *cobra.Command, _ []string) error {
 		if errors.As(err, &result) && result.ExitCode != cli.ExUsage {
 			// If the error is not related to CLI usage, report error and exit to avoid cobra error output
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+
 			os.Exit(result.ExitCode)
 		}
 	}

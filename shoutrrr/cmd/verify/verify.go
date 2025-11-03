@@ -38,6 +38,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	if err != nil {
 		wrappedErr := fmt.Errorf("locating service for URL: %w", err)
 		_, _ = fmt.Fprint(os.Stdout, "error verifying URL: ", sanitizeError(wrappedErr), "\n")
+
 		os.Exit(1)
 	}
 

@@ -16,6 +16,7 @@ import (
 func Example() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful webhook response
@@ -49,6 +50,7 @@ func Example() {
 func ExampleJSONTemplate() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful webhook response that accepts any JSON payload
@@ -84,6 +86,7 @@ func ExampleJSONTemplate() {
 func Example_customHeaders() {
 	// Activate HTTP mocking for the example
 	httpmock.Activate()
+
 	defer httpmock.DeactivateAndReset()
 
 	// Mock a successful webhook response that checks for custom header
