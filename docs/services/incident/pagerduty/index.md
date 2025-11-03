@@ -14,7 +14,7 @@ Follow to official [PagerDuty documentation](https://support.pagerduty.com/main/
 The host is always `events.pagerduty.com`, so you do not need to explicitly specify it, however you can provide one if
 you prefer, or if there is a need to override the default.
 
-```
+```text
 pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889
              └───────────────────────────────────┘
                        integration key
