@@ -384,7 +384,7 @@ var _ = ginkgo.Describe("parseContexts function", func() {
 		ginkgo.It("should skip text contexts", func() {
 			contexts, err := parseContexts("text:Some description")
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(0))
+			gomega.Expect(contexts).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should parse multiple contexts correctly", func() {
