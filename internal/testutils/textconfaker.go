@@ -34,7 +34,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		responseIndex = 1
 	}
 
-	var convSb37 strings.Builder
+	var convBuilder strings.Builder
 
 	for i, query := range input {
 		if query == "." {
@@ -50,7 +50,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			break
 		}
 
-		convSb37.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
+		convBuilder.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
 
 		var convSb53 strings.Builder
 
@@ -71,7 +71,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		}
 	}
 
-	conv += convSb37.String()
+	conv += convBuilder.String()
 
 	return conv
 }

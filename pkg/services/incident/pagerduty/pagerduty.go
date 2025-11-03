@@ -165,7 +165,7 @@ func (service *Service) newEventPayload(
 	if payloadFields.Details != "" {
 		var details any
 		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil {
-			return EventPayload{}, fmt.Errorf("failed to unmarshal details: %w", err)
+			return EventPayload{}, fmt.Errorf("failed to unmarshal details %q: %w", payloadFields.Details, err)
 		}
 
 		result.Details = details
