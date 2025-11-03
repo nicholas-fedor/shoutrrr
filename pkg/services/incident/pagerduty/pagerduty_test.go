@@ -2,7 +2,6 @@ package pagerduty
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,6 +44,8 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 		service *Service
 		// just a mock logger
 		mockLogger *log.Logger
+		// test-scoped HTTP client that trusts the mock server's certificate
+		mockHTTPClient *http.Client
 	)
 
 	ginkgo.BeforeEach(func() {
@@ -58,10 +59,8 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 		}
 		mockServer = httptest.NewTLSServer(http.HandlerFunc(httpHandler))
 
-		// Our mock server doesn't have a valid cert
-		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
+		// Create a test-scoped HTTP client that trusts the mock server's self-signed certificate
+		mockHTTPClient = mockServer.Client()
 
 		// Determine the host and port of our mock http server
 		mockServerURL, err := url.Parse(mockServer.URL)
@@ -93,6 +92,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 			service = &Service{}
 			err = service.Initialize(serviceURL, mockLogger)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			service.SetHTTPClient(mockHTTPClient)
 		})
 
 		ginkgo.When("sending a simple alert", func() {
@@ -133,6 +133,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 				service = &Service{}
 				err = service.Initialize(serviceURL, mockLogger)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				service.SetHTTPClient(mockHTTPClient)
 			})
 
 			ginkgo.When("sending a message longer than 1024 characters", func() {
@@ -187,6 +188,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 				service = &Service{}
 				err = service.Initialize(serviceURL, mockLogger)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				service.SetHTTPClient(mockHTTPClient)
 			})
 
 			ginkgo.When("HTTP client has a timeout", func() {
@@ -207,7 +209,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 			ginkgo.BeforeEach(func() {
 				serviceURL, err := url.Parse(
 					fmt.Sprintf(
-						"pagerduty://%s/%s?client=my-monitor&clienturl=https://example.com&details=additional+info",
+						"pagerduty://%s/%s?client=my-monitor&client_url=https://example.com&details=%%7B%%22key%%22%%3A%%22value%%22%%7D",
 						net.JoinHostPort(mockHost, mockPort),
 						mockIntegrationKey,
 					),
@@ -217,6 +219,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 				service = &Service{}
 				err = service.Initialize(serviceURL, mockLogger)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				service.SetHTTPClient(mockHTTPClient)
 			})
 
 			ginkgo.When("sending with optional fields", func() {
@@ -229,7 +232,8 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 						gomega.Expect(payload.Client).To(gomega.Equal("my-monitor"))
 						gomega.Expect(payload.ClientURL).To(gomega.Equal("https://example.com"))
-						gomega.Expect(payload.Details).To(gomega.Equal("additional info"))
+						gomega.Expect(payload.Details).
+							To(gomega.Equal(map[string]any{"key": "value"}))
 					}
 
 					err := service.Send("test message", &types.Params{})
@@ -252,6 +256,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 				service = &Service{}
 				err = service.Initialize(serviceURL, mockLogger)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				service.SetHTTPClient(mockHTTPClient)
 			})
 
 			ginkgo.When("sending with contexts", func() {
@@ -295,8 +300,9 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 				err = service.Initialize(serviceURL, mockLogger)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-				// Set a custom HTTP client
-				customClient := &http.Client{Timeout: 10 * time.Second}
+				// Set a custom HTTP client with timeout, based on the mock client for TLS trust
+				customClient := mockServer.Client()
+				customClient.Timeout = 10 * time.Second
 				service.SetHTTPClient(customClient)
 			})
 
@@ -329,6 +335,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 			service = &Service{}
 			err = service.Initialize(serviceURL, mockLogger)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			service.SetHTTPClient(mockHTTPClient)
 		})
 
 		ginkgo.When("sending a simple alert", func() {

@@ -84,16 +84,8 @@ Follow these steps to set up PagerDuty integration:
 !!! tip "Integration Key Security"
     Keep your integration key secure. It acts as an authentication token for sending events to PagerDuty.
 
-### Alternative: Using PagerDuty API Key
-
-For advanced use cases requiring API key authentication instead of integration keys:
-
-1. Go to **Account Settings** → **API Access**
-2. Create a new API key with appropriate permissions
-3. Use the API key in place of the integration key in your URL
-
-!!! note "Integration Key vs API Key"
-    Integration keys are service-specific and recommended for most use cases. API keys provide broader access and should be used cautiously.
+!!! note "Only Integration Keys Supported"
+    This service only accepts PagerDuty service integration keys (32 hexadecimal characters matching `/^[a-fA-F0-9]{32}$/`). API keys are not supported and will result in an invalid integration key error.
 
 ## Parameters
 

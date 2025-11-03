@@ -163,7 +163,12 @@ func (service *Service) newEventPayload(
 
 	// Add optional fields if provided
 	if payloadFields.Details != "" {
-		result.Details = payloadFields.Details
+		var details any
+		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil {
+			return EventPayload{}, fmt.Errorf("failed to unmarshal details: %w", err)
+		}
+
+		result.Details = details
 	}
 
 	if payloadFields.Client != "" {
@@ -194,8 +199,10 @@ func (service *Service) setDefaults() error {
 	return nil
 }
 
-// parseContexts parses a string format like "type:src,type2:src2" into []PagerDutyContext.
-// It supports the following formats:
+// parseContexts parses contexts from either a JSON array format or legacy comma-separated string format.
+// It first attempts to unmarshal the input as a JSON array of PagerDutyContext objects.
+// If JSON unmarshaling fails, it falls back to parsing the legacy string format like "type:src,type2:src2".
+// Legacy format supports:
 // - "link:http://example.com" -> {Type: "link", Href: "http://example.com"}
 // - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}
 // - "text:Some description" -> {Type: "text", Text: "Some description"}.
@@ -204,9 +211,16 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 		return nil, nil
 	}
 
+	// First, attempt to parse as JSON array
+	var result []PagerDutyContext //nolint:prealloc // length is unknown for JSON case
+	if err := json.Unmarshal([]byte(contextsStr), &result); err == nil {
+		return result, nil
+	}
+
+	// Fall back to legacy comma-separated parsing
 	// Split the input string by commas to get individual context entries
 	contexts := strings.Split(contextsStr, ",")
-	result := make([]PagerDutyContext, 0, len(contexts))
+	result = make([]PagerDutyContext, 0, len(contexts))
 
 	for _, ctx := range contexts {
 		// Trim whitespace from each context entry
