@@ -288,5 +288,9 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 
 ## Related Project(s)
 
-- [Watchtower](https://github.com/nicholas-fedor/watchtower) - Automate Docker container image updates
-- [Shoutrrr GitHub Action](https://github.com/nicholas-fedor/shoutrrr-action) - Notifications using Shoutrrr in GitHub Actions
+- [Watchtower](https://github.com/nicholas-fedor/watchtower) - Automate Docker container image updates.
+- [Shoutrrr GitHub Action](https://github.com/nicholas-fedor/shoutrrr-action) - Notifications using Shoutrrr in GitHub Actions.
+- [Bezel](https://github.com/henrygd/beszel) - A lightweight server monitoring platform that includes Docker statistics, historical data, and alert functions.
+- [WatchYourLAN](https://github.com/aceberg/WatchYourLAN) - Lightweight network IP scanner with web GUI.
+- [docker-volume-backup](https://github.com/offen/docker-volume-backup) - Backup Docker volumes locally or to any S3, WebDAV, Azure Blob Storage, Dropbox, Google Drive or SSH compatible storage.
+- [BirdNET-Go](https://github.com/tphakala/birdnet-go) - An AI solution for continuous avian monitoring and identification.
