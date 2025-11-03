@@ -267,15 +267,12 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 						var payload EventPayload
 						err := json.Unmarshal([]byte(body), &payload)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-						gomega.Expect(payload.Contexts).To(gomega.HaveLen(3))
+						gomega.Expect(payload.Contexts).To(gomega.HaveLen(2))
 						gomega.Expect(
 							payload.Contexts[0],
 						).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
 						gomega.Expect(
 							payload.Contexts[1],
-						).To(gomega.Equal(PagerDutyContext{Type: "text", Text: "Additional context"}))
-						gomega.Expect(
-							payload.Contexts[2],
 						).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
 					}
 
@@ -384,12 +381,10 @@ var _ = ginkgo.Describe("parseContexts function", func() {
 			).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
 		})
 
-		ginkgo.It("should parse text contexts correctly", func() {
+		ginkgo.It("should skip text contexts", func() {
 			contexts, err := parseContexts("text:Some description")
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(1))
-			gomega.Expect(contexts[0]).
-				To(gomega.Equal(PagerDutyContext{Type: "text", Text: "Some description"}))
+			gomega.Expect(contexts).To(gomega.HaveLen(0))
 		})
 
 		ginkgo.It("should parse multiple contexts correctly", func() {
@@ -397,15 +392,12 @@ var _ = ginkgo.Describe("parseContexts function", func() {
 				"link:http://example.com,text:Additional context,image:http://example.com/img.png",
 			)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(3))
+			gomega.Expect(contexts).To(gomega.HaveLen(2))
 			gomega.Expect(
 				contexts[0],
 			).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
 			gomega.Expect(
 				contexts[1],
-			).To(gomega.Equal(PagerDutyContext{Type: "text", Text: "Additional context"}))
-			gomega.Expect(
-				contexts[2],
 			).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
 		})
 
@@ -418,12 +410,10 @@ var _ = ginkgo.Describe("parseContexts function", func() {
 		ginkgo.It("should skip empty contexts", func() {
 			contexts, err := parseContexts("link:http://example.com,,text:Some text")
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(2))
+			gomega.Expect(contexts).To(gomega.HaveLen(1))
 			gomega.Expect(
 				contexts[0],
 			).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
-			gomega.Expect(contexts[1]).
-				To(gomega.Equal(PagerDutyContext{Type: "text", Text: "Some text"}))
 		})
 	})
 

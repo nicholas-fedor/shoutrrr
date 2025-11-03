@@ -31,4 +31,9 @@ var (
 	errInvalidEventAction = errors.New(
 		"invalid event action: must be one of 'trigger', 'acknowledge', or 'resolve'",
 	)
+
+	// errInvalidContextType is returned when a context type is not one of the allowed values for JSON format.
+	errInvalidContextType = errors.New(
+		"invalid context type: must be one of 'link' or 'image'",
+	)
 )

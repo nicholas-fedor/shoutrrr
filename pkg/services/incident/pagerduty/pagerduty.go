@@ -283,8 +283,7 @@ func (service *Service) setDefaults() error {
 // If JSON unmarshaling fails, it falls back to parsing the legacy string format like "type:src,type2:src2".
 // Legacy format supports:
 // - "link:http://example.com" -> {Type: "link", Href: "http://example.com"}
-// - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}
-// - "text:Some description" -> {Type: "text", Text: "Some description"}.
+// - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}.
 func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	if contextsStr == "" {
 		return nil, nil
@@ -293,6 +292,13 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	// First, attempt to parse as JSON array
 	var result []PagerDutyContext //nolint:prealloc // length is unknown for JSON case
 	if err := json.Unmarshal([]byte(contextsStr), &result); err == nil {
+		// Validate Type field for each context in JSON format
+		for _, ctx := range result {
+			if ctx.Type != "link" && ctx.Type != "image" {
+				return nil, fmt.Errorf("%w: found %q", errInvalidContextType, ctx.Type)
+			}
+		}
+
 		return result, nil
 	}
 
@@ -336,8 +342,8 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 			// Create an image context with src
 			context = PagerDutyContext{Type: "image", Src: value}
 		case "text":
-			// Create a text context with text
-			context = PagerDutyContext{Type: "text", Text: value}
+			// Skip text contexts
+			continue
 		default:
 			return nil, fmt.Errorf(
 				"%w: unsupported context type %q",
