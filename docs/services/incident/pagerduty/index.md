@@ -336,7 +336,7 @@ PagerDuty supports incident grouping based on custom details. Use consistent det
 
 The PagerDuty Events API v2 enforces rate limits to ensure system stability:
 
-- **300 requests per minute** per integration key
+- **120 events per minute** per integration key (higher ceilings available on AIOps/enterprise tiers)
 - Rate limits are enforced per integration key, not per service
 - Exceeding limits returns HTTP 429 (Too Many Requests)
 
@@ -694,7 +694,7 @@ if [ -z "$MESSAGE" ]; then
     exit 1
 fi
 
-URL="pagerduty:///integration-key?severity=$SEVERITY&source=$SOURCE"
+URL="pagerduty:///$INTEGRATION_KEY?severity=$SEVERITY&source=$SOURCE"
 
 shoutrrr send -u "$URL" -m "$MESSAGE"
 ```
