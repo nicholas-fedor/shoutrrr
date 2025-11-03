@@ -169,6 +169,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "noelob",
+      "name": "Noel O'Brien",
+      "avatar_url": "https://avatars.githubusercontent.com/u/643338?v=4",
+      "profile": "https://github.com/noelob",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
