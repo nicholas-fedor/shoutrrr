@@ -2,60 +2,86 @@ package pagerduty
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"io"
-	"net/http"
-	"net/url"
 )
 
 const (
 	eventEndpointTemplate = "https://%s:%d/v2/enqueue"
+	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
 )
 
-// Service providing PagerDuty as a notification service
+// errPagerDutyNotificationFailed is returned when PagerDuty returns a non-2xx status code.
+var errPagerDutyNotificationFailed = errors.New("PagerDuty notification failed")
+
+// Service provides PagerDuty as a notification service.
 type Service struct {
 	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient *http.Client
 }
 
-func (service *Service) sendAlert(url string, payload EventPayload) error {
+// SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
+// requiring proxies, custom TLS configurations, etc.
+func (service *Service) SetHTTPClient(client *http.Client) {
+	service.httpClient = client
+}
+
+// sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
+func (service *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
+	// Marshal the payload into JSON format
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
-	req, err := http.NewRequest("POST", url, jsonBuffer)
+	// Create a new HTTP POST request with the JSON body
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
+
+	// Set the Content-Type header to application/json
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+
+	// Use the custom HTTP client if provided, otherwise use the default
+	client := service.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	// Send the HTTP request to PagerDuty
+	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send notification to PagerDuty: %s", err)
+		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Check if the response status indicates success (2xx)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("PagerDuty notification returned %d HTTP status code. Cannot read body: %s", resp.StatusCode, err)
-		}
-		return fmt.Errorf("PagerDuty notification returned %d HTTP status code: %s", resp.StatusCode, body)
+		return fmt.Errorf("%w: %d", errPagerDutyNotificationFailed, resp.StatusCode)
 	}
 
 	return nil
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service
+// Initialize loads ServiceConfig from configURL and sets logger for this Service.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.Logger.SetLogger(logger)
+	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
@@ -63,7 +89,16 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		return err
 	}
 
-	return service.Config.setURL(&service.pkr, configURL)
+	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+		return err
+	}
+
+	// Initialize HTTP client with timeout
+	service.httpClient = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	return nil
 }
 
 // GetID returns the service identifier.
@@ -74,6 +109,16 @@ func (service *Service) GetID() string {
 // Send a notification message to PagerDuty
 // See: https://developer.pagerduty.com/docs/events-api-v2-overview
 func (service *Service) Send(message string, params *types.Params) error {
+	return service.SendWithContext(context.Background(), message, params)
+}
+
+// SendWithContext sends a notification message to PagerDuty with context support
+// See: https://developer.pagerduty.com/docs/events-api-v2-overview
+func (service *Service) SendWithContext(
+	ctx context.Context,
+	message string,
+	params *types.Params,
+) error {
 	config := service.Config
 	endpointURL := fmt.Sprintf(eventEndpointTemplate, config.Host, config.Port)
 
@@ -82,10 +127,13 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return err
 	}
 
-	return service.sendAlert(endpointURL, payload)
+	return service.sendAlert(ctx, endpointURL, payload)
 }
 
-func (service *Service) newEventPayload(message string, params *types.Params) (EventPayload, error) {
+func (service *Service) newEventPayload(
+	message string,
+	params *types.Params,
+) (EventPayload, error) {
 	if params == nil {
 		params = &types.Params{}
 	}
@@ -94,12 +142,12 @@ func (service *Service) newEventPayload(message string, params *types.Params) (E
 	payloadFields := *service.Config
 
 	if err := service.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
-		return EventPayload{}, err
+		return EventPayload{}, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
 	// The maximum permitted length of this property is 1024 characters.
-	if len(message) > 1024 {
-		message = message[:1024]
+	if len(message) > maxMessageLength {
+		message = message[:maxMessageLength]
 	}
 
 	result := EventPayload{
@@ -111,14 +159,96 @@ func (service *Service) newEventPayload(message string, params *types.Params) (E
 		RoutingKey:  payloadFields.IntegrationKey,
 		EventAction: payloadFields.Action,
 	}
+
+	// Add optional fields if provided
+	if payloadFields.Details != "" {
+		result.Details = payloadFields.Details
+	}
+
+	if payloadFields.Client != "" {
+		result.Client = payloadFields.Client
+	}
+
+	if payloadFields.ClientURL != "" {
+		result.ClientURL = payloadFields.ClientURL
+	}
+
+	if payloadFields.Contexts != "" {
+		contexts, err := parseContexts(payloadFields.Contexts)
+		if err != nil {
+			return EventPayload{}, fmt.Errorf("failed to parse contexts: %w", err)
+		}
+
+		result.Contexts = contexts
+	}
+
 	return result, nil
 }
 
 func (service *Service) setDefaults() error {
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
-		return err
+		return fmt.Errorf("failed to set default props: %w", err)
 	}
 
-	setUrlDefaults(service.Config)
 	return nil
+}
+
+// parseContexts parses a string format like "type:src,type2:src2" into []PagerDutyContext.
+// It supports the following formats:
+// - "link:http://example.com" -> {Type: "link", Href: "http://example.com"}
+// - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}
+// - "text:Some description" -> {Type: "text", Text: "Some description"}.
+func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
+	if contextsStr == "" {
+		return nil, nil
+	}
+
+	// Split the input string by commas to get individual context entries
+	contexts := strings.Split(contextsStr, ",")
+	result := make([]PagerDutyContext, 0, len(contexts))
+
+	for _, ctx := range contexts {
+		// Trim whitespace from each context entry
+		ctx = strings.TrimSpace(ctx)
+		if ctx == "" {
+			continue
+		}
+
+		const expectedParts = 2
+
+		// Split each context by colon to separate type and value, limiting to 2 parts
+		parts := strings.SplitN(ctx, ":", expectedParts)
+		if len(parts) != expectedParts {
+			return nil, fmt.Errorf("%w: %q", errInvalidContextFormat, ctx)
+		}
+
+		// Trim whitespace from type and value parts
+		contextType := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Validate that neither type nor value is empty after trimming
+		if contextType == "" || value == "" {
+			return nil, fmt.Errorf("%w: %q", errEmptyContextTypeOrValue, ctx)
+		}
+
+		var context PagerDutyContext
+
+		// Map context types to appropriate PagerDutyContext fields
+		switch contextType {
+		case "link":
+			// Create a link context with href
+			context = PagerDutyContext{Type: "link", Href: value}
+		case "image":
+			// Create an image context with src
+			context = PagerDutyContext{Type: "image", Src: value}
+		default:
+			// For any other type, treat as text context
+			context = PagerDutyContext{Type: contextType, Text: value}
+		}
+
+		// Add the parsed context to the result slice
+		result = append(result, context)
+	}
+
+	return result, nil
 }

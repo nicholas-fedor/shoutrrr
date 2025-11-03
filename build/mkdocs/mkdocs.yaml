@@ -142,6 +142,7 @@ nav:
           - Pushover: services/push/pushover/index.md
       - Incident and Alert Management:
           - OpsGenie: services/incident/opsgenie/index.md
+          - PagerDuty: services/incident/pagerduty/index.md
       - Email Services:
           - SMTP: services/email/smtp/index.md
       - Specialized Services:
