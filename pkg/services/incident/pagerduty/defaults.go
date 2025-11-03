@@ -11,7 +11,7 @@ const (
 	tagDefault = "default"
 )
 
-func setUrlDefaults(config *Config) {
+func setUrlDefaults(config *Config) error {
 	cfg := reflect.TypeOf(*config)
 	values := getDefaultUrlValues(cfg)
 
@@ -24,17 +24,18 @@ func setUrlDefaults(config *Config) {
 		case reflect.Int:
 			intVal, err := strconv.Atoi(defVal)
 			if err != nil {
-				fmt.Errorf("enable to convert %q to an int: %w", defVal, err)
+				return fmt.Errorf("enable to convert %q to an int: %w", defVal, err)
 			}
 			field.SetInt(int64(intVal))
 		case reflect.Uint16:
 			intVal, err := strconv.Atoi(defVal)
 			if err != nil {
-				fmt.Errorf("enable to convert %q to an int: %w", defVal, err)
+				return fmt.Errorf("enable to convert %q to an int: %w", defVal, err)
 			}
 			field.SetUint(uint64(intVal))
 		}
 	}
+	return nil
 }
 
 // getDefaultUrlValues finds field names tagged with `url` and returns a map of the field name to their default value.

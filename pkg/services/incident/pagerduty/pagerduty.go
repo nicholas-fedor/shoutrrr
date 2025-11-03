@@ -125,6 +125,5 @@ func (service *Service) setDefaults() error {
 		return err
 	}
 
-	setUrlDefaults(service.Config)
-	return nil
+	return setUrlDefaults(service.Config)
 }
