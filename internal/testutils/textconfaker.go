@@ -54,11 +54,11 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		conversationBuilder.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
 
 		for len(resp) > 3 && resp[3] == '-' {
+			responseIndex++
 			if responseIndex >= len(tcf.responses) {
 				break
 			}
 
-			responseIndex++
 			resp = tcf.responses[responseIndex]
 			conversationBuilder.WriteString(fmt.Sprintf("         %50s << %-50s\n", " ", resp))
 		}

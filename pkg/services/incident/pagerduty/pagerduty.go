@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -73,7 +74,35 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 
 	// Check if the response status indicates success (2xx)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("%w: %d", errPagerDutyNotificationFailed, resp.StatusCode)
+		// Parse error response body for better error reporting
+		errorMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
+		if resp.Body != nil {
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err == nil && len(bodyBytes) > 0 {
+				// Try to parse as PagerDuty error response
+				var errorResponse struct {
+					Status  string   `json:"status"`
+					Message string   `json:"message"`
+					Error   string   `json:"error"`
+					Errors  []string `json:"errors"`
+				}
+				if jsonErr := json.Unmarshal(bodyBytes, &errorResponse); jsonErr == nil {
+					switch {
+					case errorResponse.Message != "":
+						errorMsg = errorResponse.Message
+					case errorResponse.Error != "":
+						errorMsg = errorResponse.Error
+					case len(errorResponse.Errors) > 0:
+						errorMsg = strings.Join(errorResponse.Errors, "; ")
+					}
+				} else {
+					// Fallback to raw body if JSON parsing fails
+					errorMsg = string(bodyBytes)
+				}
+			}
+		}
+
+		return fmt.Errorf("%w: %s", errPagerDutyNotificationFailed, errorMsg)
 	}
 
 	return nil
@@ -145,6 +174,16 @@ func (service *Service) newEventPayload(
 		return EventPayload{}, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
+	// Validate severity
+	if err := validateSeverity(payloadFields.Severity); err != nil {
+		return EventPayload{}, err
+	}
+
+	// Validate event action
+	if err := validateEventAction(payloadFields.Action); err != nil {
+		return EventPayload{}, err
+	}
+
 	// The maximum permitted length of this property is 1024 characters.
 	runes := []rune(message)
 	if len(runes) > maxMessageLength {
@@ -161,11 +200,20 @@ func (service *Service) newEventPayload(
 		EventAction: payloadFields.Action,
 	}
 
+	// Add optional dedup_key if provided
+	if payloadFields.DedupKey != "" {
+		result.DedupKey = payloadFields.DedupKey
+	}
+
 	// Add optional fields if provided
 	if payloadFields.Details != "" {
 		var details any
 		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil {
-			return EventPayload{}, fmt.Errorf("failed to unmarshal details %q: %w", payloadFields.Details, err)
+			return EventPayload{}, fmt.Errorf(
+				"failed to unmarshal details %q: %w",
+				payloadFields.Details,
+				err,
+			)
 		}
 
 		result.Details = details
@@ -189,6 +237,37 @@ func (service *Service) newEventPayload(
 	}
 
 	return result, nil
+}
+
+// validateSeverity checks if the provided severity is one of the allowed values.
+func validateSeverity(severity string) error {
+	validSeverities := map[string]bool{
+		"critical": true,
+		"error":    true,
+		"warning":  true,
+		"info":     true,
+	}
+
+	if !validSeverities[severity] {
+		return errInvalidSeverity
+	}
+
+	return nil
+}
+
+// validateEventAction checks if the provided event action is one of the allowed values.
+func validateEventAction(action string) error {
+	validActions := map[string]bool{
+		"trigger":     true,
+		"acknowledge": true,
+		"resolve":     true,
+	}
+
+	if !validActions[action] {
+		return errInvalidEventAction
+	}
+
+	return nil
 }
 
 func (service *Service) setDefaults() error {
@@ -256,8 +335,15 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 		case "image":
 			// Create an image context with src
 			context = PagerDutyContext{Type: "image", Src: value}
+		case "text":
+			// Create a text context with text
+			context = PagerDutyContext{Type: "text", Text: value}
 		default:
-			return nil, fmt.Errorf("%w: unsupported context type %q", errInvalidContextFormat, contextType)
+			return nil, fmt.Errorf(
+				"%w: unsupported context type %q",
+				errInvalidContextFormat,
+				contextType,
+			)
 		}
 
 		// Add the parsed context to the result slice

@@ -10,6 +10,8 @@ type EventPayload struct {
 	RoutingKey string `json:"routing_key"`
 	// EventAction specifies the type of event (e.g., "trigger", "acknowledge", "resolve").
 	EventAction string `json:"event_action"`
+	// DedupKey is a unique key used for incident deduplication. If not provided, PagerDuty will auto-generate one.
+	DedupKey string `json:"dedup_key,omitempty"`
 	// Details contains additional custom key-value pairs for the incident.
 	Details any `json:"details,omitempty"`
 	// Contexts provides additional context such as links or images related to the incident.

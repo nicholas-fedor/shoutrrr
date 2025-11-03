@@ -21,4 +21,14 @@ var (
 	errEmptyContextTypeOrValue = errors.New(
 		"invalid context format, type and value cannot be empty",
 	)
+
+	// errInvalidSeverity is returned when the severity value is not one of the allowed values.
+	errInvalidSeverity = errors.New(
+		"invalid severity: must be one of 'critical', 'error', 'warning', or 'info'",
+	)
+
+	// errInvalidEventAction is returned when the event action is not one of the allowed values.
+	errInvalidEventAction = errors.New(
+		"invalid event action: must be one of 'trigger', 'acknowledge', or 'resolve'",
+	)
 )

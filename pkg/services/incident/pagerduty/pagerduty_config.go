@@ -25,6 +25,7 @@ type Config struct {
 	Severity       string `desc:"The perceived severity of the status the event (critical, error, warning, or info); required"            default:"error"                key:"severity"`
 	Source         string `desc:"The unique location of the affected system, preferably a hostname or FQDN; required"                     default:"default"              key:"source"`
 	Action         string `desc:"The type of event (trigger, acknowledge, or resolve)"                                                    default:"trigger"              key:"action"`
+	DedupKey       string `desc:"A unique key used for incident deduplication"                                                                                           key:"dedup_key"`
 	Details        string `desc:"Additional details about the incident (JSON string that will be parsed into an object)"                                                 key:"details"`
 	Contexts       string `desc:"Additional context links or images"                                                                                                     key:"contexts"`
 	Client         string `desc:"The name of the monitoring client that is triggering this event"                                                                        key:"client"`

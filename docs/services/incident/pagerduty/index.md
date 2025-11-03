@@ -104,7 +104,7 @@ The PagerDuty service supports the following parameters to customize incident cr
 | Parameter | Type | Description | Required | Default | Valid Values |
 |-----------|------|-------------|----------|---------|--------------|
 | `details` | object | Additional custom key-value pairs for the incident | No | - | JSON object or URL-encoded string |
-| `contexts` | array | Additional context such as links or images | No | - | JSON array of context objects |
+| `contexts` | array | Additional context such as links or images | No | - | JSON array of context objects (only 'link' and 'image' types supported) |
 | `client` | string | Name of the monitoring client/integration | No | - | Any string |
 | `client_url` | string | URL of the monitoring client dashboard | No | - | Valid URL |
 
@@ -138,7 +138,7 @@ The `details` parameter accepts a JSON object with custom key-value pairs:
 
 #### Contexts Parameter
 
-The `contexts` parameter accepts a JSON array of context objects. Each context must have a `type` field:
+The `contexts` parameter accepts a JSON array of context objects. Each context must have a `type` field. Only `link` and `image` types are supported.
 
 **Link contexts:**
 
@@ -214,7 +214,7 @@ The `contexts` parameter accepts a JSON array of context objects. Each context m
     pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&client=jenkins&client_url=https://ci.example.com/job/123
     ```
     ```bash
-    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"}]&client=jenkins&client_url=https://ci.example.com/job/123' -m 'CI/CD pipeline failed'
+    shoutrrr send -u 'pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&source=ci-pipeline&contexts=[{"type":"link","href":"https://github.com/org/repo/actions/runs/123","text":"GitHub Actions Run"},{"type":"image","src":"https://example.com/failure-screenshot.png","text":"Build Failure"}]&client=jenkins&client_url=https://ci.example.com/job/123' -m 'CI/CD pipeline failed'
     ```
 
 ## Event Actions
