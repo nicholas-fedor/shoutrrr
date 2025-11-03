@@ -257,8 +257,7 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 			// Create an image context with src
 			context = PagerDutyContext{Type: "image", Src: value}
 		default:
-			// For any other type, treat as text context
-			context = PagerDutyContext{Type: contextType, Text: value}
+			return nil, fmt.Errorf("%w: unsupported context type %q", errInvalidContextFormat, contextType)
 		}
 
 		// Add the parsed context to the result slice
