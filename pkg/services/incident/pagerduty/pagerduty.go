@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,9 +21,6 @@ const (
 	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
 )
-
-// errPagerDutyNotificationFailed is returned when PagerDuty returns a non-2xx status code.
-var errPagerDutyNotificationFailed = errors.New("PagerDuty notification failed")
 
 // Service provides PagerDuty as a notification service.
 type Service struct {
@@ -59,11 +55,12 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 	// Set the Content-Type header to application/json
 	req.Header.Add("Content-Type", "application/json")
 
-	// Use the custom HTTP client if provided, otherwise use the default
-	client := service.httpClient
-	if client == nil {
-		client = http.DefaultClient
+	// Use the custom HTTP client
+	if service.httpClient == nil {
+		return errServiceNotInitialized
 	}
+
+	client := service.httpClient
 
 	// Send the HTTP request to PagerDuty
 	resp, err := client.Do(req)
@@ -122,9 +119,11 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		return err
 	}
 
-	// Initialize HTTP client with timeout
-	service.httpClient = &http.Client{
-		Timeout: defaultHTTPTimeout,
+	if service.httpClient == nil {
+		// Initialize HTTP client with timeout
+		service.httpClient = &http.Client{
+			Timeout: defaultHTTPTimeout,
+		}
 	}
 
 	return nil

@@ -36,4 +36,10 @@ var (
 	errInvalidContextType = errors.New(
 		"invalid context type: must be one of 'link' or 'image'",
 	)
+
+	// errServiceNotInitialized is returned when the service has not been properly initialized.
+	errServiceNotInitialized = errors.New("service not properly initialized: httpClient is nil")
+
+	// errPagerDutyNotificationFailed is returned when PagerDuty returns a non-2xx status code.
+	errPagerDutyNotificationFailed = errors.New("PagerDuty notification failed")
 )
