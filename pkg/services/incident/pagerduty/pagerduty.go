@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -21,6 +22,10 @@ type Service struct {
 	standard.Standard
 	Config *Config
 	pkr    format.PropKeyResolver
+}
+
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
 }
 
 func (service *Service) sendAlert(url string, payload EventPayload) error {
@@ -36,7 +41,7 @@ func (service *Service) sendAlert(url string, payload EventPayload) error {
 		return err
 	}
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to PagerDuty: %s", err)
 	}
