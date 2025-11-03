@@ -99,6 +99,7 @@ func (service *Service) newEventPayload(message string, params *types.Params) (E
 
 	// The maximum permitted length of this property is 1024 characters.
 	if len(message) > 1024 {
+		service.Logger.Logf("Message truncated from %d to 1024 characters", len(message))
 		message = message[:1024]
 	}
 
