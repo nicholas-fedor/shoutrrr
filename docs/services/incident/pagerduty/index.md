@@ -12,7 +12,7 @@ Follow to official [PagerDuty documentation](https://support.pagerduty.com/main/
 2. add an 'Events API V2' integration to the service. Note the value of the `Integration Key`
 
 The host is always `events.pagerduty.com`, so you do not need to explicitly specify it, however you can provide one if
-you prefer, of if there is a need to override the default.
+you prefer, or if there is a need to override the default.
 
 ```
 pagerduty:///eb243592-faa2-4ba2-a551q-1afdf565c889
