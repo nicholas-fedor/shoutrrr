@@ -34,6 +34,9 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 		responseIndex = 1
 	}
 
+	// conversationBuilder accumulates the conversation output in correct order: main lines followed by their continuations.
+	var conversationBuilder strings.Builder
+
 	for i, query := range input {
 		if query == "." {
 			inSequence = false
@@ -48,12 +51,16 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			break
 		}
 
-		conv += fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp)
+		conversationBuilder.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
 
 		for len(resp) > 3 && resp[3] == '-' {
 			responseIndex++
+			if responseIndex >= len(tcf.responses) {
+				break
+			}
+
 			resp = tcf.responses[responseIndex]
-			conv += fmt.Sprintf("         %50s << %-50s\n", " ", resp)
+			conversationBuilder.WriteString(fmt.Sprintf("         %50s << %-50s\n", " ", resp))
 		}
 
 		if !inSequence {
@@ -64,6 +71,8 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			inSequence = true
 		}
 	}
+
+	conv += conversationBuilder.String()
 
 	return conv
 }

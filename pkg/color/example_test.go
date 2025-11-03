@@ -16,10 +16,12 @@ func Example() {
 
 	originalOutput := color.Output
 	color.Output = os.Stdout
+
 	fmt.Println(color.RedString("This is red text"))
 	fmt.Println(color.GreenString("This is green text"))
 	fmt.Println(color.BlueString("This is blue text"))
 	fmt.Println(color.YellowString("This is yellow text"))
+
 	color.Output = originalOutput
 
 	// Output:

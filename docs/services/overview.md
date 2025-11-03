@@ -39,6 +39,7 @@ Click on the service for a more thorough explanation.
 | Service                              | URL format                                                                                                                                                          |
 |--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [OpsGenie](./incident/opsgenie/index.md)      | *opsgenie://__`host`__/token?responders=__`responder1`__[,__`responder2`__]*                                                                                        |
+| [PagerDuty](./incident/pagerduty/index.md)    | *pagerduty://[host[:port]]/__`integration-key`__[?query-parameters]*                                                                                               |
 
 ## Email Services
 

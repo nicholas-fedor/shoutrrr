@@ -225,6 +225,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	serviceConfig, err := generator.Generate(service, props, cmd.Flags().Args())
 	if err != nil {
 		_, _ = fmt.Fprint(os.Stdout, "Error: ", err, "\n")
+
 		os.Exit(1)
 	}
 

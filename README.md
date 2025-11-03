@@ -26,21 +26,30 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 
 ## Table of Contents
 
-- [Full Documentation](#full-documentation)
-- [Installation](#installation)
-  - [From Source](#from-source)
-  - [Binaries](#binaries)
-  - [Container Images](#container-images)
-  - [Go Package](#go-package)
-  - [GitHub Action](#github-action)
-- [Usage](#usage)
-  - [CLI](#cli)
-  - [Go Package Usage](#go-package-usage)
-  - [Docker](#docker)
-  - [GitHub Action Usage](#github-action-usage)
-- [Supported Services](#supported-services)
-- [Contributors](#contributors-)
-- [Related Projects](#related-projects)
+- [Shoutrrr](#shoutrrr)
+  - [Table of Contents](#table-of-contents)
+  - [Full Documentation](#full-documentation)
+  - [Installation](#installation)
+    - [From Source](#from-source)
+    - [Binaries](#binaries)
+    - [Container Images](#container-images)
+    - [Go Package](#go-package)
+    - [GitHub Action](#github-action)
+  - [Usage](#usage)
+    - [CLI](#cli)
+    - [Go Package Usage](#go-package-usage)
+    - [Docker](#docker)
+    - [GitHub Action Usage](#github-action-usage)
+    - [Use as a Package](#use-as-a-package)
+      - [Option 1 - Using the direct send command](#option-1---using-the-direct-send-command)
+      - [Option 2 - Using a sender](#option-2---using-a-sender)
+        - [Single URL](#single-url)
+        - [Multiple URLs](#multiple-urls)
+    - [Use Through the CLI](#use-through-the-cli)
+    - [Use as a GitHub Action](#use-as-a-github-action)
+  - [Supported Services](#supported-services)
+  - [Contributors ✨](#contributors-)
+  - [Related Project(s)](#related-projects)
 
 ## Full Documentation
 
@@ -221,6 +230,7 @@ jobs:
 | Notifiarr    | Notifiarr message forwarding         |
 | Ntfy         | Ntfy push notifications              |
 | Opsgenie     | Opsgenie alerts                      |
+| PagerDuty    | PagerDuty incident notifications     |
 | Pushbullet   | Pushbullet push notifications        |
 | Pushover     | Pushover push notifications          |
 | Rocket.Chat  | Rocket.Chat webhooks                 |
