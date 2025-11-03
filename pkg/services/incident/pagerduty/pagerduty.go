@@ -146,8 +146,9 @@ func (service *Service) newEventPayload(
 	}
 
 	// The maximum permitted length of this property is 1024 characters.
-	if len(message) > maxMessageLength {
-		message = message[:maxMessageLength]
+	runes := []rune(message)
+	if len(runes) > maxMessageLength {
+		message = string(runes[:maxMessageLength])
 	}
 
 	result := EventPayload{
