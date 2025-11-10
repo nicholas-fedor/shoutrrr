@@ -1,18 +1,12 @@
 name: "govulncheck"
 description: "Run govulncheck vulnerability scanner and upload SARIF report"
 
-inputs:
-  go-version:
-    description: "Go version to use"
-    required: false
-    default: "1.25.x"
-
 runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f
       with:
-        go-version: ${{ inputs.go-version }}
+        go-version-file: go.mod
 
     - name: Install govulncheck
       shell: bash
