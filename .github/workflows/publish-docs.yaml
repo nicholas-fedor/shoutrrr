@@ -13,9 +13,6 @@ permissions:
   contents: write
   actions: read
 
-env:
-  GO_VERSION: 1.25.x
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,8 +30,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f
         with:
-          check-latest: true
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - name: Set executable permissions for script
         run: chmod +x ./scripts/generate-service-config-docs.sh
