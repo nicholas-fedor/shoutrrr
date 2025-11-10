@@ -111,11 +111,12 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 			defer dumpBuffers()
 			answer := make(chan [][]string)
 			query := "pick foo or bar:"
+
+			mockTyped("foobar foobaz")
+
 			go func() {
 				answer <- client.QueryAll(query, regexp.MustCompile(`foo(ba[rz])`), "", -1)
 			}()
-
-			mockTyped("foobar foobaz")
 
 			gomega.Eventually(userIn).Should(gbytes.Say(query))
 			var matches [][]string
