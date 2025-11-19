@@ -4,10 +4,18 @@
   "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
+      "description": "Handle Go version updates",
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],
       "matchDepTypes": ["golang"],
       "rangeStrategy": "bump",
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "Handle Go toolchain updates",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["toolchain"],
+      "rangeStrategy": "pin",
       "semanticCommitType": "chore"
     },
     {
