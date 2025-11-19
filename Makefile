@@ -6,7 +6,7 @@ BINARY_NAME=shoutrrr
 GO=go
 DOCKER=docker
 GORELEASER=goreleaser
-GOLANGCI_LINT=golangci-lint-v2
+GOLANGCI_LINT=golangci-lint
 
 # Default target
 help: ## Show this help message
