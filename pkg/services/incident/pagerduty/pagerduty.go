@@ -68,7 +68,8 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 	if err != nil {
 		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status indicates success (2xx)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

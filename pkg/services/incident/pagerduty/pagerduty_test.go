@@ -53,7 +53,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 		httpHandler := func(_ http.ResponseWriter, r *http.Request) {
 			body, err := io.ReadAll(r.Body)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			defer r.Body.Close()
+			defer func() { _ = r.Body.Close() }()
 
 			checkRequest(string(body), r.Header)
 		}
