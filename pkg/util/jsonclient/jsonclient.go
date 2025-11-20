@@ -84,7 +84,8 @@ func (c *client) Get(url string, response any) error {
 	if err != nil {
 		return fmt.Errorf("executing GET request to %q: %w", url, err)
 	}
-	defer res.Body.Close()
+
+	defer func() { _ = res.Body.Close() }()
 
 	return parseResponse(res, response)
 }
@@ -123,7 +124,8 @@ func (c *client) Post(url string, request any, response any) error {
 	if err != nil {
 		return fmt.Errorf("sending POST request to %q: %w", url, err)
 	}
-	defer res.Body.Close()
+
+	defer func() { _ = res.Body.Close() }()
 
 	return parseResponse(res, response)
 }
