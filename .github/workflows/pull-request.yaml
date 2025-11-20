@@ -34,7 +34,7 @@ jobs:
       - name: Run gosec
         uses: securego/gosec@master
         with:
-          args: "-no-fail -fmt sarif -out results.sarif -tests ./..."
+          args: "-no-fail -fmt sarif -out results.raw.sarif -tests ./..."
       - name: Remove invalid AI fixes
         run: |
           jq '(.runs[].results[].fixes?)=[]' results.raw.sarif > results.sarif
