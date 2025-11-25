@@ -178,37 +178,48 @@ func (config *Config) parsePath(serviceURL *url.URL) error {
 // parseRecipients parses recipient phone numbers and group IDs from URL path segments.
 // It handles group IDs that may contain "/" characters by accumulating consecutive segments.
 func parseRecipients(pathParts []string) ([]string, error) {
-	var recipients []string
+	if len(pathParts) == 0 {
+		return nil, ErrNoRecipients
+	}
 
-	for i := 0; i < len(pathParts); i++ {
-		part := pathParts[i]
-		if strings.HasPrefix(part, "group.") {
-			// Accumulate group ID parts until next phone number or group ID
-			groupID := part
+	var (
+		recipients     []string
+		currentGroupID strings.Builder
+	)
 
-			i++
+	inGroupID := false
 
-			var groupIDBuilder strings.Builder
-
-			// Iterate through the remaining parts to build the group ID
-			for i < len(pathParts) && !strings.HasPrefix(pathParts[i], "+") && !strings.HasPrefix(pathParts[i], "group.") {
-				groupIDBuilder.WriteString("/" + pathParts[i])
-				i++
+	for _, part := range pathParts {
+		switch {
+		case strings.HasPrefix(part, "group."):
+			// Finalize any previous group ID
+			if inGroupID {
+				recipients = append(recipients, currentGroupID.String())
 			}
+			// Start new group ID
+			currentGroupID.Reset()
+			currentGroupID.WriteString(part)
 
-			groupID += groupIDBuilder.String()
+			inGroupID = true
 
-			i-- // compensate for the outer loop increment
+		case inGroupID && !strings.HasPrefix(part, "+"):
+			// Continue building group ID (not a phone number)
+			currentGroupID.WriteString("/" + part)
 
-			recipients = append(recipients, groupID)
-		} else {
+		default:
+			// Finalize any group ID in progress
+			if inGroupID {
+				recipients = append(recipients, currentGroupID.String())
+				inGroupID = false
+			}
+			// Add phone number or other recipient
 			recipients = append(recipients, part)
 		}
 	}
 
-	// Check for empty recipients
-	if len(recipients) == 0 {
-		return nil, ErrNoRecipients
+	// Finalize any remaining group ID
+	if inGroupID {
+		recipients = append(recipients, currentGroupID.String())
 	}
 
 	// Validate all recipients
