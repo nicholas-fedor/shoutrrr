@@ -64,6 +64,18 @@ var _ = ginkgo.Describe("the signal service", func() {
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
 			})
 
+			ginkgo.It("should accept group IDs with base64 characters / and =", func() {
+				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/group.ABCD/EFGH=")
+				err := signal.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("should accept group IDs with base64 character +", func() {
+				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/group.ABCD+EFGH")
+				err := signal.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+
 			ginkgo.When("parsing authentication", func() {
 				ginkgo.It("should parse user without password", func() {
 					serviceURL, _ := url.Parse(
@@ -237,6 +249,60 @@ var _ = ginkgo.Describe("the signal service", func() {
 
 			err = signal.Send("Test message", nil)
 			gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
+		})
+	})
+
+	ginkgo.Describe("parsing recipients", func() {
+		ginkgo.It("should parse valid phone numbers", func() {
+			recipients, err := parseRecipients([]string{"+1234567890", "+0987654321"})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(recipients).To(gomega.Equal([]string{"+1234567890", "+0987654321"}))
+		})
+
+		ginkgo.It("should parse valid group IDs", func() {
+			recipients, err := parseRecipients([]string{"group.testgroup", "group.abcdef123"})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(recipients).
+				To(gomega.Equal([]string{"group.testgroup", "group.abcdef123"}))
+		})
+
+		ginkgo.It("should parse group IDs with base64 characters", func() {
+			recipients, err := parseRecipients([]string{"group.ABCD/EFGH=", "group.xyz+abc"})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(recipients).
+				To(gomega.Equal([]string{"group.ABCD/EFGH=", "group.xyz+abc"}))
+		})
+
+		ginkgo.It("should parse mixed phone numbers and group IDs", func() {
+			recipients, err := parseRecipients(
+				[]string{"+1234567890", "group.testgroup", "+0987654321"},
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(recipients).
+				To(gomega.Equal([]string{"+1234567890", "group.testgroup", "+0987654321"}))
+		})
+
+		ginkgo.It("should return error for invalid recipients", func() {
+			_, err := parseRecipients([]string{"invalid-recipient"})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
+		})
+
+		ginkgo.It("should return error for mixed valid and invalid recipients", func() {
+			_, err := parseRecipients([]string{"+1234567890", "invalid-recipient"})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
+		})
+
+		ginkgo.It("should return error for empty recipient list", func() {
+			_, err := parseRecipients([]string{})
+			gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
+		})
+
+		ginkgo.It("should handle group IDs split across path segments", func() {
+			recipients, err := parseRecipients([]string{"group.ABCD", "EFGH="})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(recipients).To(gomega.Equal([]string{"group.ABCD/EFGH="}))
 		})
 	})
 
