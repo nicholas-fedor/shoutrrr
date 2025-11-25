@@ -21,6 +21,7 @@ Used by the following noteworthy projects:
   <li><a href="https://github.com/nicholas-fedor/watchtower" target="_blank">Watchtower</a> - Solution for automating Docker container image updates.</li>
   <li><a href="https://github.com/empowerists/beszel" target="_blank">Beszel</a> - Server monitoring platform with historical data, Docker stats, and alerts.</li>
   <li><a href="https://github.com/aceberg/WatchYourLAN" target="_blank">WatchYourLAN</a> - Network IP scanner for notifying about new hosts and monitoring host connectivity.</li>
+  <li><a href="https://github.com/StackExchange/dnscontrol" target="_blank">dnscontrol</a> - Infrastructure as code for DNS.</li>
   <li><a href="https://github.com/offen/docker-volume-backup" target="_blank">docker-volume-backup</a> - Backup Docker volumes locally or to any S3, WebDAV, Azure Blob Storage, Dropbox, Google Drive or SSH compatible storage.</li>
   <li><a href="https://github.com/tphakala/birdnet-go" target="_blank">BirdNET-Go</a> - An AI solution for continuous avian monitoring and identification.</li>
 </ul>
