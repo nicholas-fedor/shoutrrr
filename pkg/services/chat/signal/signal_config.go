@@ -25,7 +25,7 @@ const (
 var phoneRegex = regexp.MustCompile(`^\+?[0-9\s)(+-]+$`)
 
 // groupRegex validates group ID format.
-var groupRegex = regexp.MustCompile(`^group\.[a-zA-Z0-9_-]+$`)
+var groupRegex = regexp.MustCompile(`^group\.[a-zA-Z0-9_+/=-]+$`)
 
 // ErrInvalidPhoneNumber indicates an invalid phone number format.
 var (
@@ -164,15 +164,72 @@ func (config *Config) parsePath(serviceURL *url.URL) error {
 
 	config.Source = source
 
-	// Remaining parts are recipients
-	config.Recipients = pathParts[1:]
-	for _, recipient := range config.Recipients {
-		if !isValidPhoneNumber(recipient) && !isValidGroupID(recipient) {
-			return fmt.Errorf("%w: %s", ErrInvalidRecipient, recipient)
+	// Parse recipients from remaining path parts
+	recipients, err := parseRecipients(pathParts[1:])
+	if err != nil {
+		return err
+	}
+
+	config.Recipients = recipients
+
+	return nil
+}
+
+// parseRecipients parses recipient phone numbers and group IDs from URL path segments.
+// It handles group IDs that may contain "/" characters by accumulating consecutive segments.
+func parseRecipients(pathParts []string) ([]string, error) {
+	if len(pathParts) == 0 {
+		return nil, ErrNoRecipients
+	}
+
+	var (
+		recipients     []string
+		currentGroupID strings.Builder
+	)
+
+	inGroupID := false
+
+	for _, part := range pathParts {
+		switch {
+		case strings.HasPrefix(part, "group."):
+			// Finalize any previous group ID
+			if inGroupID {
+				recipients = append(recipients, currentGroupID.String())
+			}
+			// Start new group ID
+			currentGroupID.Reset()
+			currentGroupID.WriteString(part)
+
+			inGroupID = true
+
+		case inGroupID && !strings.HasPrefix(part, "+"):
+			// Continue building group ID (not a phone number)
+			currentGroupID.WriteString("/" + part)
+
+		default:
+			// Finalize any group ID in progress
+			if inGroupID {
+				recipients = append(recipients, currentGroupID.String())
+				inGroupID = false
+			}
+			// Add phone number or other recipient
+			recipients = append(recipients, part)
 		}
 	}
 
-	return nil
+	// Finalize any remaining group ID
+	if inGroupID {
+		recipients = append(recipients, currentGroupID.String())
+	}
+
+	// Validate all recipients
+	for _, recipient := range recipients {
+		if !isValidPhoneNumber(recipient) && !isValidGroupID(recipient) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidRecipient, recipient)
+		}
+	}
+
+	return recipients, nil
 }
 
 // parseQuery processes query parameters using the resolver.
