@@ -8,6 +8,7 @@
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],
       "matchDepTypes": ["golang"],
+      "matchUpdateTypes": ["major", "minor"],
       "rangeStrategy": "bump",
       "semanticCommitType": "chore"
     },
