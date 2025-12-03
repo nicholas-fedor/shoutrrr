@@ -23,5 +23,5 @@ type responseError struct {
 }
 
 func (er *responseError) Error() string {
-	return fmt.Sprintf("server respondend with %v (%v): %v", er.Name, er.Code, er.Description)
+	return fmt.Sprintf("server responded with %v (%v): %v", er.Name, er.Code, er.Description)
 }

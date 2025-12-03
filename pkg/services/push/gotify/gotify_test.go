@@ -207,7 +207,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 					)
 					err := service.Send("Message", nil)
 					gomega.Expect(err).
-						To(gomega.MatchError("server respondend with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
+						To(gomega.MatchError("server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
 				},
 			)
 			ginkgo.It("reports an error if sending fails with a network error", func() {
