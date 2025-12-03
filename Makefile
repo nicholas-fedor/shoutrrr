@@ -22,7 +22,7 @@ help: ## Show this help message
 .PHONY: build test lint vet run setup install
 
 build: ## Build the application binary
-	$(GO) build -o bin/$(BINARY_NAME) ./...
+	bash ./scripts/build.sh
 
 test: ## Run all tests
 	$(GO) test -timeout 30s -v -coverprofile coverage.out -covermode atomic ./...
@@ -58,21 +58,27 @@ mod-download: ## Download Go module dependencies
 # Documentation Targets
 # =============================================================================
 
-.PHONY: docs docs-setup docs-build docs-serve
+.PHONY: docs docs-setup docs-build docs-serve docs-activate docs-deactivate
 
 docs: docs-setup docs-serve ## Build and serve documentation site for local development
 
-docs-setup: ## Install Mkdocs dependencies
-	cd build/mkdocs && pip install -r docs-requirements.txt
+docs-setup: ## Create virtual environment and install Mkdocs dependencies
+	python3 -m venv shoutrrr-docs && chmod +x shoutrrr-docs/bin/activate && . shoutrrr-docs/bin/activate && pip install -r build/mkdocs/docs-requirements.txt
 
 docs-gen: ## Generate service configuration documentation
 	bash ./scripts/generate-service-config-docs.sh
 
-docs-build: ## Build Mkdocs documentation site
-	cd docs && mike build --config ../build/mkdocs/mkdocs.yaml
+docs-build: docs-gen ## Build Mkdocs documentation site
+	. shoutrrr-docs/bin/activate && mkdocs build --config-file build/mkdocs/mkdocs.yaml
 
 docs-serve: ## Serve Mkdocs documentation site locally
-	cd docs && mike serve --config ../build/mkdocs/mkdocs.yaml --dev-addr localhost:3000
+	. shoutrrr-docs/bin/activate && mkdocs serve --config-file build/mkdocs/mkdocs.yaml --livereload
+
+docs-activate: ## Activate the virtual environment for documentation
+	@echo "Run '. shoutrrr-docs/bin/activate' to activate the virtual environment."
+
+docs-deactivate: ## Show instructions to deactivate the virtual environment
+	@echo "Run 'deactivate' to exit the virtual environment."
 
 # =============================================================================
 # Release Targets
