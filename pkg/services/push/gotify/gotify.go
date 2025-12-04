@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -52,7 +51,6 @@ type Service struct {
 	pkr               format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
 	httpClient        *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
 	client            jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
-	once              sync.Once              // Ensures thread-safe initialization of HTTP client and related components
 }
 
 // Initialize configures the service with a URL and logger.
@@ -121,7 +119,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	service.initClient()
 
 	// Get reference to current configuration
-	config := service.Config
+	config := *service.Config
 
 	// Begin parameter processing section
 	// Filter out 'extras' parameter as it's handled separately from other config updates
@@ -136,21 +134,21 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Update configuration with filtered parameters (title, priority, etc.)
-	if err := service.pkr.UpdateConfigFromParams(config, &filteredParams); err != nil {
+	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
 		return fmt.Errorf("failed to update config from params: %w", err)
 	}
 
 	// Parse extras from parameters or fall back to config extras
-	extras := service.parseExtras(params, config)
+	extras := service.parseExtras(params, &config)
 
 	// Construct the complete API endpoint URL
-	postURL, err := buildURL(config)
+	postURL, err := buildURL(&config)
 	if err != nil {
 		return err
 	}
 
 	// Prepare the JSON request payload
-	request := service.prepareRequest(message, config, extras)
+	request := service.prepareRequest(message, &config, extras)
 
 	// Prepare headers for header-based authentication
 	var headers http.Header
@@ -195,11 +193,11 @@ func (service *Service) createHTTPClient(transport *http.Transport) *http.Client
 	}
 }
 
-// initClient initializes the HTTP client and related components in a thread-safe manner.
-// This method uses sync.Once to ensure that the transport, HTTP client, JSON client,
-// and TLS warning logging are performed exactly once, even in concurrent scenarios.
+// initClient initializes the HTTP client and related components.
+// This method ensures that the transport, HTTP client, JSON client,
+// and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
 func (service *Service) initClient() {
-	service.once.Do(func() {
+	if service.httpClient == nil {
 		transport := service.createTransport()
 		service.httpClient = service.createHTTPClient(transport)
 
@@ -207,7 +205,7 @@ func (service *Service) initClient() {
 		if service.Config.DisableTLS {
 			service.Log("Warning: TLS verification is disabled, making connections insecure")
 		}
-	})
+	}
 }
 
 // validateToken checks if a Gotify token meets length and character requirements.
