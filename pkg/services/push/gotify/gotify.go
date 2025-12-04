@@ -128,15 +128,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	// Begin parameter processing section
 	// Filter out 'extras' and 'date' parameters as they're handled separately from other config updates
-	filteredParams := make(types.Params)
-
-	// Iterate through all provided parameters
-	for k, v := range *params {
-		// Skip 'extras' and 'date' keys as they require special handling
-		if k != "extras" && k != "date" {
-			filteredParams[k] = v
-		}
-	}
+	filteredParams := filterParams(params)
 
 	// Update configuration with filtered parameters (title, priority, etc.)
 	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
@@ -144,21 +136,15 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Validate priority is within valid range (-2 to 10)
-	if config.Priority < -2 || config.Priority > 10 {
-		return ErrInvalidPriority
+	if err := validatePriority(config.Priority); err != nil {
+		return err
 	}
 
 	// Parse extras from parameters or fall back to config extras
 	extras := service.parseExtras(params, &config)
 
 	// Extract date parameter if provided
-	var date *string
-
-	if params != nil {
-		if dateStr, exists := (*params)["date"]; exists && dateStr != "" {
-			date = &dateStr
-		}
-	}
+	date := extractDate(params)
 
 	// Construct the complete API endpoint URL
 	postURL, err := buildURL(&config)
@@ -178,6 +164,45 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	// Execute the HTTP request and return result
 	return service.sendRequest(postURL, request, headers)
+}
+
+// filterParams filters out 'extras' and 'date' parameters from the given params.
+func filterParams(params *types.Params) types.Params {
+	if params == nil {
+		return types.Params{}
+	}
+
+	filtered := make(types.Params)
+
+	for k, v := range *params {
+		if k != "extras" && k != "date" {
+			filtered[k] = v
+		}
+	}
+
+	return filtered
+}
+
+// validatePriority checks if the priority is within the valid range (-2 to 10).
+func validatePriority(priority int) error {
+	if priority < -2 || priority > 10 {
+		return ErrInvalidPriority
+	}
+
+	return nil
+}
+
+// extractDate extracts the 'date' parameter from params if present and non-empty.
+func extractDate(params *types.Params) *string {
+	if params == nil {
+		return nil
+	}
+
+	if dateStr, exists := (*params)["date"]; exists && dateStr != "" {
+		return &dateStr
+	}
+
+	return nil
 }
 
 // GetHTTPClient returns the HTTP client for testing purposes.
@@ -453,13 +478,18 @@ func (service *Service) sendRequestWithHeaders(
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
 // This is a simplified version for internal use.
 func parseResponse(res *http.Response, response any) error {
-	if res.StatusCode >= HTTPClientErrorThreshold {
-		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
-	}
-
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if res.StatusCode >= HTTPClientErrorThreshold {
+		errorRes := &responseError{}
+		if err := json.Unmarshal(body, errorRes); err == nil {
+			return errorRes
+		}
+
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 	}
 
 	err = json.Unmarshal(body, response)

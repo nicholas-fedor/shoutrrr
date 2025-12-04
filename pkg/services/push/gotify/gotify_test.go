@@ -237,7 +237,6 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				service.Config.Extras = map[string]any{}
 				httpmock.ActivateNonDefault(service.GetHTTPClient())
-				httpmock.Activate()
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -367,7 +366,6 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.ActivateNonDefault(service.GetHTTPClient())
-			httpmock.Activate()
 		})
 		ginkgo.AfterEach(func() {
 			httpmock.DeactivateAndReset()
@@ -853,7 +851,6 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.ActivateNonDefault(service.GetHTTPClient())
-				httpmock.Activate()
 			})
 			ginkgo.AfterEach(func() {
 				httpmock.DeactivateAndReset()
@@ -1080,7 +1077,119 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 	})
 })
 
-// TestTimeout tests timeout handling using synctest for instant execution
+// TestSend tests basic message sending functionality.
+func TestSend(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	service := &Service{}
+	logger := log.New(os.Stderr, "Test", log.LstdFlags)
+	service.SetLogger(logger)
+
+	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(configURL, logger)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.ActivateNonDefault(service.GetHTTPClient())
+	httpmock.RegisterResponder(
+		"POST",
+		TargetURL,
+		testutils.JSONRespondMust(200, map[string]any{
+			"id":       float64(1),
+			"appid":    float64(1),
+			"message":  "Message",
+			"title":    "Shoutrrr notification",
+			"priority": float64(0),
+			"date":     "2023-01-01T00:00:00Z",
+		}),
+	)
+
+	err = service.Send("Message", nil)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.DeactivateAndReset()
+}
+
+// TestSendWithPriority tests sending a message with a custom priority.
+func TestSendWithPriority(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	service := &Service{}
+	logger := log.New(os.Stderr, "Test", log.LstdFlags)
+	service.SetLogger(logger)
+
+	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(configURL, logger)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.ActivateNonDefault(service.GetHTTPClient())
+	httpmock.RegisterResponder(
+		"POST",
+		TargetURL,
+		func(req *http.Request) (*http.Response, error) {
+			var requestBody map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+				return nil, err
+			}
+
+			gomega.Expect(requestBody["priority"]).To(gomega.Equal(float64(5)))
+
+			return testutils.JSONRespondMust(200, map[string]any{
+				"id":       float64(1),
+				"appid":    float64(1),
+				"message":  "Message",
+				"title":    "Shoutrrr notification",
+				"priority": float64(5),
+				"date":     "2023-01-01T00:00:00Z",
+			})(req)
+		},
+	)
+
+	params := types.Params{"priority": "5"}
+	err = service.Send("Message", &params)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.DeactivateAndReset()
+}
+
+// TestSendWithTitle tests sending a message with a custom title.
+func TestSendWithTitle(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	service := &Service{}
+	logger := log.New(os.Stderr, "Test", log.LstdFlags)
+	service.SetLogger(logger)
+
+	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(configURL, logger)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.ActivateNonDefault(service.GetHTTPClient())
+	httpmock.RegisterResponder(
+		"POST",
+		TargetURL,
+		func(req *http.Request) (*http.Response, error) {
+			var requestBody map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+				return nil, err
+			}
+
+			gomega.Expect(requestBody["title"]).To(gomega.Equal("Custom Title"))
+
+			return testutils.JSONRespondMust(200, map[string]any{
+				"id":       float64(1),
+				"appid":    float64(1),
+				"message":  "Message",
+				"title":    "Custom Title",
+				"priority": float64(0),
+				"date":     "2023-01-01T00:00:00Z",
+			})(req)
+		},
+	)
+
+	params := types.Params{"title": "Custom Title"}
+	err = service.Send("Message", &params)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	httpmock.DeactivateAndReset()
+}
+
+// TestTimeout tests timeout handling using synctest for instant execution.
+
+// TestTimeout tests timeout handling using synctest for instant execution.
 func TestTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
@@ -1089,10 +1198,13 @@ func TestTimeout(t *testing.T) {
 		defer srvConn.Close()
 		defer cliConn.Close()
 
+		errChan := make(chan error, 1)
+
 		// Create service with custom HTTP client using fake connection
 		service := &Service{}
 		logger := log.New(os.Stderr, "Test", log.LstdFlags)
 		service.SetLogger(logger)
+
 		configURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
 		err := service.Initialize(configURL, logger)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -1100,7 +1212,7 @@ func TestTimeout(t *testing.T) {
 		// Override the HTTP client to use fake connection
 		service.httpClient = &http.Client{
 			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return cliConn, nil
 				},
 			},
@@ -1116,6 +1228,7 @@ func TestTimeout(t *testing.T) {
 			}
 			// Simulate slow response
 			time.Sleep(15 * time.Second)
+
 			resp, err := testutils.JSONRespondMust(200, map[string]any{
 				"id":       float64(1),
 				"appid":    float64(1),
@@ -1127,12 +1240,26 @@ func TestTimeout(t *testing.T) {
 			if err != nil {
 				return
 			}
-			resp.Write(srvConn)
+
+			err = resp.Write(srvConn)
+			if err != nil {
+				errChan <- err
+
+				return
+			}
+
+			resp.Body.Close()
 		}()
 
 		// Send request and expect timeout
 		err = service.Send("Message", nil)
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err.Error()).To(gomega.ContainSubstring("context deadline exceeded"))
+
+		select {
+		case writeErr := <-errChan:
+			t.Fatalf("failed to write response: %v", writeErr)
+		default:
+		}
 	})
 }
