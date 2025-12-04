@@ -24,7 +24,7 @@
 // The following query parameters can be used to configure the service:
 //
 //   - title: notification title (default: "Shoutrrr notification")
-//   - priority: message priority (-2 to 1, where higher numbers indicate higher priority)
+//   - priority: message priority (0 to 10, where higher numbers indicate higher priority; negative values have special meanings in some clients)
 //   - disabletls: set to "yes" to disable TLS certificate verification (insecure, use with caution)
 //   - useheader: set to "yes" to send token in X-Gotify-Key header instead of URL query parameter
 //   - extras: JSON string containing additional key-value pairs to include in the notification
@@ -147,7 +147,7 @@
 // - Application tokens must be exactly 15 characters long and start with 'A'
 // - Valid token characters are: a-z, A-Z, 0-9, ., -, _
 // - Message content cannot be empty
-// - Priority values range from -2 (lowest) to 1 (highest), default is 0
+// - Priority can be set to a value between 0 and 10, where 0 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
 // - Extras field accepts valid JSON objects for custom data
 // - HTTP client timeout is set to 10 seconds for API requests
 // - TLS certificate verification can be disabled but is not recommended for production use

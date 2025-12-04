@@ -68,7 +68,7 @@ Gotify supports priority levels to control how notifications are displayed and h
 - **1**: High priority
 - **2 to 10**: Very high priority (may trigger special handling like persistent notifications)
 
-Higher priority notifications typically appear more prominently and may bypass quiet hours or notification filters. Values outside the -2 to 10 range may be accepted but are typically clamped by the Gotify server.
+Higher priority notifications typically appear more prominently and may bypass quiet hours or notification filters. The priority can be set to a value between 0 and 10, where 0 is the lowest priority and 10 is the highest. Negative values have special meanings in some clients.
 
 ### Custom Title
 

@@ -8,7 +8,7 @@ import "fmt"
 type messageRequest struct {
 	Message  string         `json:"message"`  // The main notification message text content
 	Title    string         `json:"title"`    // Notification title displayed in the Gotify interface
-	Priority int            `json:"priority"` // Priority level (-2 to 1) affecting notification behavior
+	Priority int            `json:"priority"` // Priority level (0-10) affecting notification behavior; negative values have special meanings in some clients
 	Extras   map[string]any `json:"extras"`   // Additional custom key-value pairs for extended functionality
 }
 
