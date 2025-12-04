@@ -3,6 +3,7 @@ package gotify
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
@@ -63,7 +64,9 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		// Marshal extras map to JSON string
 		extrasJSON, err := json.Marshal(config.Extras)
 		if err != nil {
-			// This shouldn't happen if Extras is valid, but handle gracefully
+			// Fallback to empty JSON object when Extras cannot be serialized
+			log.Printf("Failed to marshal Extras %v: %v", config.Extras, err)
+
 			extrasJSON = []byte("{}")
 		}
 
