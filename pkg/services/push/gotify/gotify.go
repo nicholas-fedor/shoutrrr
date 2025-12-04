@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -51,6 +52,7 @@ type Service struct {
 	pkr               format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
 	httpClient        *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
 	client            jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
+	once              sync.Once              // Ensures thread-safe initialization of HTTP client and related components
 }
 
 // Initialize configures the service with a URL and logger.
@@ -79,19 +81,8 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		return err // Return error if URL parsing fails
 	}
 
-	// Create HTTP transport with TLS configuration based on DisableTLS setting
-	transport := service.createTransport()
-
-	// Create HTTP client with the configured transport and timeout settings
-	service.httpClient = service.createHTTPClient(transport)
-
-	// Initialize the JSON client wrapper for handling API requests and responses
-	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
-
-	// Log a warning if TLS verification is disabled for security awareness
-	if service.Config.DisableTLS {
-		service.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
+	// Initialize HTTP client and related components in a thread-safe manner
+	service.initClient()
 
 	return nil // Return success
 }
@@ -126,21 +117,8 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return ErrServiceNotInitialized
 	}
 
-	// Lazy initialization of HTTP client if not already created
-	// This allows the service to be initialized without immediate client creation
-	if service.httpClient == nil {
-		// Create transport with TLS settings
-		transport := service.createTransport()
-		// Create HTTP client with transport and timeout
-		service.httpClient = service.createHTTPClient(transport)
-
-		// Initialize JSON client wrapper
-		service.client = jsonclient.NewWithHTTPClient(service.httpClient)
-		// Log security warning for disabled TLS
-		if service.Config.DisableTLS {
-			service.Log("Warning: TLS verification is disabled, making connections insecure")
-		}
-	}
+	// Initialize HTTP client and related components in a thread-safe manner
+	service.initClient()
 
 	// Get reference to current configuration
 	config := service.Config
@@ -215,6 +193,21 @@ func (service *Service) createHTTPClient(transport *http.Transport) *http.Client
 		Transport: transport,                 // Use the configured transport for TLS and proxy handling
 		Timeout:   HTTPTimeout * time.Second, // Set timeout to prevent hanging requests
 	}
+}
+
+// initClient initializes the HTTP client and related components in a thread-safe manner.
+// This method uses sync.Once to ensure that the transport, HTTP client, JSON client,
+// and TLS warning logging are performed exactly once, even in concurrent scenarios.
+func (service *Service) initClient() {
+	service.once.Do(func() {
+		transport := service.createTransport()
+		service.httpClient = service.createHTTPClient(transport)
+
+		service.client = jsonclient.NewWithHTTPClient(service.httpClient)
+		if service.Config.DisableTLS {
+			service.Log("Warning: TLS verification is disabled, making connections insecure")
+		}
+	})
 }
 
 // validateToken checks if a Gotify token meets length and character requirements.
