@@ -35,7 +35,7 @@ The `extras` parameter allows you to include additional metadata in the notifica
 !!! Example "With extras for actions"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/?extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%22%7D
     ```
 
     This sends a notification with an action button that opens `https://example.com` when clicked.
@@ -43,20 +43,32 @@ The `extras` parameter allows you to include additional metadata in the notifica
 !!! Example "With extras for images"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/?extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&extras=%7B%22image%22%3A%22https%3A%2F%2Fexample.com%2Fimage.png%22%7D
     ```
 
     This includes an image URL in the notification.
 
 ### Disable TLS
 
-The `disabletls` parameter can be set to `yes` to disable TLS certificate verification. This is useful for:
+The `disabletls` parameter can be set to `yes` to disable TLS entirely, forcing the use of HTTP instead of HTTPS. This is useful for:
 
 - Self-signed certificates in development environments
 - Internal Gotify servers with custom CA certificates
+- Testing with local Gotify instances
 
 !!! danger "Security Risk"
-    Disabling TLS verification makes connections vulnerable to man-in-the-middle attacks. Only use this option in trusted networks.
+    Disabling TLS makes all communication unencrypted and vulnerable to interception. Only use this option in trusted, isolated networks.
+
+### Skip TLS Certificate Verification
+
+The `insecureskipverify` parameter can be set to `yes` to skip TLS certificate verification while still using HTTPS. This maintains encrypted communication but bypasses certificate validation. This is useful for:
+
+- Self-signed certificates in development environments
+- Internal Gotify servers with custom CA certificates
+- Testing with certificates that don't match the hostname
+
+!!! danger "Security Risk"
+    Skipping certificate verification makes connections vulnerable to man-in-the-middle attacks. Only use this option when you trust the network path to the server.
 
 ### Priority Levels
 
@@ -68,15 +80,31 @@ Gotify supports priority levels to control how notifications are displayed and h
 - **1**: High priority
 - **2 to 10**: Very high priority (may trigger special handling like persistent notifications)
 
-Higher priority notifications typically appear more prominently and may bypass quiet hours or notification filters. The priority can be set to a value between 0 and 10, where 0 is the lowest priority and 10 is the highest. Negative values have special meanings in some clients.
+Higher priority notifications typically appear more prominently and may bypass quiet hours or notification filters. The priority can be set to a value between -2 and 10, where -2 is the lowest priority and 10 is the highest. Negative values have special meanings in some clients.
 
 ### Custom Title
 
 The `title` parameter allows you to set a custom title for your notification. If not specified, Shoutrrr uses the default title "Shoutrrr notification". Titles should be concise and descriptive to help users quickly identify the notification's purpose.
 
+### Custom Date
+
+The `date` parameter allows you to set a custom timestamp for the notification in ISO 8601 format. If not specified, Gotify will use the current server time when the notification is received. This is useful for:
+
+- Backdating notifications for historical events
+- Ensuring consistent timestamps across multiple notifications
+- Testing notification ordering
+
+!!! Example "With custom date"
+
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25T10:00:00Z
+    ```
+
+    This sets the notification timestamp to Christmas morning 2023.
+
 ### Use Header Authentication
 
-By default, the Gotify token is sent as a query parameter in the URL (`?token=...`). The `useheader` parameter allows you to send the token in the `X-Gotify-Key` HTTP header instead, which provides better security since:
+By default, the Gotify token is sent as a query parameter in the URL (`?token=...`). The `useheader` parameter set to `yes` removes the token from the URL entirely and sends it in the `X-Gotify-Key` HTTP header instead, which provides better security since:
 
 - Headers are less likely to be logged in server access logs
 - Query parameters may appear in browser history or be exposed in URLs
@@ -85,42 +113,52 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 !!! Example "Using header authentication"
 
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/?useheader=yes
+    gotify://gotify.example.com/message?useheader=yes
     ```
 
-    This sends the token `AzyoeNS.D4iJLVa` in the `X-Gotify-Key` header instead of as `?token=AzyoeNS.D4iJLVa` in the URL.
+    This sends the token in the `X-Gotify-Key` header, with no token appearing in the URL.
 
 ## Examples
 
 !!! Example "Common usage"
 
     ```uri
-    gotify://gotify.example.com:443/AzyoeNS.D4iJLVa/?title=Great+News&priority=1
+    gotify://gotify.example.com:443/message?token=AzyoeNS.D4iJLVa&title=Great+News&priority=1
     ```
 
 !!! Example "With subpath"
     ```uri
-    gotify://example.com:443/path/to/gotify/AzyoeNS.D4iJLVa/?title=Great+News&priority=1
+    gotify://example.com:443/path/to/gotify/message?token=AzyoeNS.D4iJLVa&title=Great+News&priority=1
     ```
 
 !!! Example "With all parameters"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+    gotify://gotify.example.com/message?title=System+Alert&priority=5&disabletls=yes&useheader=yes&date=2023-12-25T10%3A00%3A00Z&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
     ```
 
 !!! Example "Minimal configuration"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa
     ```
 
 !!! Example "With custom title and low priority"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa/?title=Info&priority=-1
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&title=Info&priority=-1
+    ```
+
+!!! Example "With custom date"
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25T10%3A00%3A00Z&title=Scheduled+Event
     ```
 
 !!! Example "With TLS disabled for self-signed certificates"
     ```uri
-    gotify://gotify.example.com:8080/AzyoeNS.D4iJLVa/?disabletls=yes
+    gotify://gotify.example.com:8080/message?token=AzyoeNS.D4iJLVa&disabletls=yes
+    ```
+
+!!! Example "With TLS certificate verification skipped"
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&insecureskipverify=yes
     ```
 
 ## Security Considerations
@@ -134,7 +172,7 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 ### Network Security
 
 - Always use HTTPS (default) for production deployments
-- Only disable TLS verification (`disabletls=yes`) in trusted development environments
+- Only disable TLS (`disabletls=yes`) or skip certificate verification (`insecureskipverify=yes`) in trusted development environments
 - Consider using Gotify behind a reverse proxy with additional authentication layers
 
 ### Token Management
@@ -185,7 +223,8 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 
 **Solutions:**
 
-- For self-signed certificates, use `disabletls=yes`
+- For self-signed certificates, use `insecureskipverify=yes` to skip verification while maintaining HTTPS
+- For development/testing with HTTP, use `disabletls=yes` to disable TLS entirely
 - Install proper certificates on the Gotify server
 - Verify the certificate is valid and not expired
 
@@ -194,13 +233,13 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 You can test your Gotify configuration using the Shoutrrr CLI:
 
 ```bash
-shoutrrr verify --url "gotify://your-server/token"
+shoutrrr verify --url "gotify://your-server/message?token=token"
 ```
 
 This validates the URL format and service configuration. To send a test notification, use:
 
 ```bash
-shoutrrr send --url "gotify://your-server/token" --message "Test notification"
+shoutrrr send --url "gotify://your-server/message?token=token" --message "Test notification"
 ```
 
 ### Gotify Server Logs

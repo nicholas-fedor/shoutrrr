@@ -6,10 +6,11 @@ import "fmt"
 // This struct represents the JSON request body sent to the Gotify message endpoint,
 // containing all notification data including message content, metadata, and custom extras.
 type messageRequest struct {
-	Message  string         `json:"message"`  // The main notification message text content
-	Title    string         `json:"title"`    // Notification title displayed in the Gotify interface
-	Priority int            `json:"priority"` // Priority level (0-10) affecting notification behavior; negative values have special meanings in some clients
-	Extras   map[string]any `json:"extras"`   // Additional custom key-value pairs for extended functionality
+	Message  string         `json:"message"`        // The main notification message text content
+	Title    string         `json:"title"`          // Notification title displayed in the Gotify interface
+	Priority int            `json:"priority"`       // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients
+	Date     *string        `json:"date,omitempty"` // Optional custom timestamp in ISO 8601 format for the notification
+	Extras   map[string]any `json:"extras"`         // Additional custom key-value pairs for extended functionality
 }
 
 // messageResponse represents the successful response from the Gotify API.

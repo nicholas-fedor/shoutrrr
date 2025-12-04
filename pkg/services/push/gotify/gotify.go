@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -42,6 +43,9 @@ var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 // ErrServiceNotInitialized indicates that the service has not been initialized.
 var ErrServiceNotInitialized = errors.New("service not initialized")
 
+// ErrInvalidPriority indicates that the priority value is outside the valid range.
+var ErrInvalidPriority = errors.New("priority must be between -2 and 10")
+
 // Service implements a Gotify notification service that handles sending push notifications
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
 // and payload construction for reliable message delivery.
@@ -49,6 +53,7 @@ type Service struct {
 	standard.Standard                        // Embeds the standard service functionality including logging
 	Config            *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
 	pkr               format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
+	mu                sync.Mutex             // Protects HTTP client initialization for thread safety
 	httpClient        *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
 	client            jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
 }
@@ -122,13 +127,13 @@ func (service *Service) Send(message string, params *types.Params) error {
 	config := *service.Config
 
 	// Begin parameter processing section
-	// Filter out 'extras' parameter as it's handled separately from other config updates
+	// Filter out 'extras' and 'date' parameters as they're handled separately from other config updates
 	filteredParams := make(types.Params)
 
 	// Iterate through all provided parameters
 	for k, v := range *params {
-		// Skip 'extras' key as it requires special JSON parsing
-		if k != "extras" {
+		// Skip 'extras' and 'date' keys as they require special handling
+		if k != "extras" && k != "date" {
 			filteredParams[k] = v
 		}
 	}
@@ -138,8 +143,22 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("failed to update config from params: %w", err)
 	}
 
+	// Validate priority is within valid range (-2 to 10)
+	if config.Priority < -2 || config.Priority > 10 {
+		return ErrInvalidPriority
+	}
+
 	// Parse extras from parameters or fall back to config extras
 	extras := service.parseExtras(params, &config)
+
+	// Extract date parameter if provided
+	var date *string
+
+	if params != nil {
+		if dateStr, exists := (*params)["date"]; exists && dateStr != "" {
+			date = &dateStr
+		}
+	}
 
 	// Construct the complete API endpoint URL
 	postURL, err := buildURL(&config)
@@ -148,7 +167,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Prepare the JSON request payload
-	request := service.prepareRequest(message, &config, extras)
+	request := service.prepareRequest(message, &config, extras, date)
 
 	// Prepare headers for header-based authentication
 	var headers http.Header
@@ -173,7 +192,9 @@ func (service *Service) GetHTTPClient() *http.Client {
 func (service *Service) createTransport() *http.Transport {
 	return &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: service.Config.DisableTLS, //nolint:gosec // Intentionally allow insecure connections when explicitly configured
+			MinVersion: tls.VersionTLS12,
+			InsecureSkipVerify: service.Config.DisableTLS || //nolint:gosec // Intentionally allow insecure connections when TLS is disabled or explicitly configured
+				service.Config.InsecureSkipVerify,
 		},
 		// Proxy settings can be added here if needed in future enhancements
 	}
@@ -197,13 +218,20 @@ func (service *Service) createHTTPClient(transport *http.Transport) *http.Client
 // This method ensures that the transport, HTTP client, JSON client,
 // and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
 func (service *Service) initClient() {
-	if service.httpClient == nil {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	if service.httpClient == nil || service.client == nil {
 		transport := service.createTransport()
 		service.httpClient = service.createHTTPClient(transport)
 
 		service.client = jsonclient.NewWithHTTPClient(service.httpClient)
 		if service.Config.DisableTLS {
-			service.Log("Warning: TLS verification is disabled, making connections insecure")
+			service.Log("Warning: TLS is disabled, using insecure HTTP connections")
+		}
+
+		if service.Config.InsecureSkipVerify {
+			service.Log("Warning: TLS certificate verification is disabled")
 		}
 	}
 }
@@ -308,17 +336,20 @@ func (service *Service) parseExtras(params *types.Params, config *Config) map[st
 //   - message: The main notification message text
 //   - config: Configuration containing title, priority, and other settings
 //   - extras: Additional key-value pairs to include in the notification
+//   - date: Optional custom timestamp in ISO 8601 format
 //
 // Returns: *messageRequest containing all data to be sent to the API.
 func (service *Service) prepareRequest(
 	message string,
 	config *Config,
 	extras map[string]any,
+	date *string,
 ) *messageRequest {
 	return &messageRequest{
 		Message:  message,         // The notification message content
 		Title:    config.Title,    // Notification title from configuration
 		Priority: config.Priority, // Priority level for the notification
+		Date:     date,            // Optional custom timestamp
 		Extras:   extras,          // Additional metadata or custom fields
 	}
 }
@@ -403,7 +434,7 @@ func (service *Service) sendRequestWithHeaders(
 	// Set custom headers
 	for key, values := range headers {
 		for _, value := range values {
-			req.Header.Set(key, value)
+			req.Header.Add(key, value)
 		}
 	}
 
@@ -422,18 +453,16 @@ func (service *Service) sendRequestWithHeaders(
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
 // This is a simplified version for internal use.
 func parseResponse(res *http.Response, response any) error {
-	body, err := io.ReadAll(res.Body)
-
 	if res.StatusCode >= HTTPClientErrorThreshold {
-		if err == nil {
-			err = fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
-		}
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 	}
 
-	if err == nil {
-		err = json.Unmarshal(body, response)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	err = json.Unmarshal(body, response)
 	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}

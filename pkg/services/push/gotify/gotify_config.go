@@ -23,17 +23,19 @@ const (
 // notification defaults, and additional metadata.
 type Config struct {
 	standard.EnumlessConfig                // Embeds standard configuration functionality without enum handling
-	Token                   string         `desc:"Application token"                     required:"" url:"path2"`                                                                  // Gotify application token for authentication (must be 15 chars starting with 'A')
-	Host                    string         `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`                                                              // Gotify server hostname and optional port number
-	Path                    string         `desc:"Server subpath"                                    url:"path1"     optional:""`                                                  // Optional subpath for Gotify installation (e.g., "/gotify")
-	Priority                int            `                                                                                     default:"0"                     key:"priority"`   // Notification priority level (0-10, where higher numbers are more important; negative values have special meanings in some clients)
-	Title                   string         `                                                                                     default:"Shoutrrr notification" key:"title"`      // Default notification title when none provided
-	DisableTLS              bool           `                                                                                     default:"No"                    key:"disabletls"` // Disable TLS certificate verification (insecure, use with caution)
-	UseHeader               bool           `desc:"Enable header-based authentication"                                            default:"No"                    key:"useheader"`  // Send token in X-Gotify-Key header instead of URL query parameter
+	Token                   string         `desc:"Application token"                     required:"" url:"path2"`                                                                          // Gotify application token for authentication (must be 15 chars starting with 'A')
+	Host                    string         `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`                                                                      // Gotify server hostname and optional port number
+	Path                    string         `desc:"Server subpath"                                    url:"path1"     optional:""`                                                          // Optional subpath for Gotify installation (e.g., "/gotify")
+	Priority                int            `                                                                                     default:"0"                     key:"priority"`           // Notification priority level (-2 to 10, where higher numbers are more important; negative values have special meanings in some clients)
+	Title                   string         `                                                                                     default:"Shoutrrr notification" key:"title"`              // Default notification title when none provided
+	DisableTLS              bool           `                                                                                     default:"No"                    key:"disabletls"`         // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
+	InsecureSkipVerify      bool           `                                                                                     default:"No"                    key:"insecureskipverify"` // Skip TLS certificate verification (insecure, use with caution)
+	UseHeader               bool           `desc:"Enable header-based authentication"                                            default:"No"                    key:"useheader"`          // Send token in X-Gotify-Key header instead of URL query parameter
 	Extras                  map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 }
 
 // GetURL generates a URL from the current configuration values.
+// If Extras marshalling fails, the failure is logged and extras are dropped.
 func (config *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(config)
 
@@ -64,18 +66,16 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		// Marshal extras map to JSON string
 		extrasJSON, err := json.Marshal(config.Extras)
 		if err != nil {
-			// Fallback to empty JSON object when Extras cannot be serialized
-			log.Printf("Failed to marshal Extras %v: %v", config.Extras, err)
+			// Skip adding extras when Extras cannot be serialized
+			log.Printf("Failed to marshal Extras %v: %v, skipping extras", config.Extras, err)
+		} else {
+			// Append extras to query string with proper URL encoding
+			if query != "" {
+				query += "&"
+			}
 
-			extrasJSON = []byte("{}")
+			query += "extras=" + url.QueryEscape(string(extrasJSON))
 		}
-
-		// Append extras to query string with proper URL encoding
-		if query != "" {
-			query += "&"
-		}
-
-		query += "extras=" + url.QueryEscape(string(extrasJSON))
 	}
 
 	// Construct and return the complete URL
