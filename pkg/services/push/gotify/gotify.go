@@ -39,6 +39,9 @@ var ErrEmptyMessage = errors.New("message cannot be empty")
 // ErrUnexpectedStatus indicates an unexpected HTTP response status.
 var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 
+// ErrServiceNotInitialized indicates that the service has not been initialized.
+var ErrServiceNotInitialized = errors.New("service not initialized")
+
 // Service implements a Gotify notification service that handles sending push notifications
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
 // and payload construction for reliable message delivery.
@@ -116,6 +119,11 @@ func (service *Service) Send(message string, params *types.Params) error {
 	// Ensure params is not nil to avoid nil pointer dereferences
 	if params == nil {
 		params = &types.Params{}
+	}
+
+	// Check if service is initialized
+	if service.Config == nil {
+		return ErrServiceNotInitialized
 	}
 
 	// Lazy initialization of HTTP client if not already created
