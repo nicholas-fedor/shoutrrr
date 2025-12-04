@@ -1,10 +1,13 @@
 package gotify
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,6 +26,8 @@ const (
 	TokenLength = 15
 	// TokenChars specifies the valid characters for a Gotify token.
 	TokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
+	// HTTPClientErrorThreshold specifies the status code threshold for client errors (400+).
+	HTTPClientErrorThreshold = 400
 )
 
 // ErrInvalidToken indicates an invalid Gotify token format or content.
@@ -30,6 +35,9 @@ var ErrInvalidToken = errors.New("invalid gotify token")
 
 // ErrEmptyMessage indicates that the message to send is empty.
 var ErrEmptyMessage = errors.New("message cannot be empty")
+
+// ErrUnexpectedStatus indicates an unexpected HTTP response status.
+var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 
 // Service implements a Gotify notification service that handles sending push notifications
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
@@ -155,19 +163,18 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return err
 	}
 
-	// Handle header-based authentication if enabled
-	if config.UseHeader {
-		// Set the authentication token in request headers
-		service.client.Headers().Set("X-Gotify-Key", config.Token)
-		// Ensure header is cleaned up after request to prevent token leakage
-		defer service.client.Headers().Del("X-Gotify-Key")
-	}
-
 	// Prepare the JSON request payload
 	request := service.prepareRequest(message, config, extras)
 
+	// Prepare headers for header-based authentication
+	var headers http.Header
+	if config.UseHeader {
+		headers = make(http.Header)
+		headers.Set("X-Gotify-Key", config.Token)
+	}
+
 	// Execute the HTTP request and return result
-	return service.sendRequest(postURL, request)
+	return service.sendRequest(postURL, request, headers)
 }
 
 // GetHTTPClient returns the HTTP client for testing purposes.
@@ -323,14 +330,26 @@ func (service *Service) prepareRequest(
 // Parameters:
 //   - postURL: The complete API endpoint URL to send the request to
 //   - request: The JSON payload to send in the request body
+//   - headers: Optional headers to set on the request
 //
 // Returns: error if the request fails or server returns an error, nil on success.
-func (service *Service) sendRequest(postURL string, request *messageRequest) error {
+func (service *Service) sendRequest(
+	postURL string,
+	request *messageRequest,
+	headers http.Header,
+) error {
 	// Prepare response structure to capture API response
 	response := &messageResponse{}
 
-	// Execute the POST request with JSON marshaling/unmarshaling
-	err := service.client.Post(postURL, request, response)
+	var err error
+	if len(headers) > 0 {
+		// Use HTTP client directly when custom headers are needed
+		err = service.sendRequestWithHeaders(postURL, request, response, headers)
+	} else {
+		// Use JSON client for standard requests
+		err = service.client.Post(postURL, request, response)
+	}
+
 	if err != nil {
 		// Attempt to extract structured error from response
 		errorRes := &responseError{}
@@ -343,5 +362,82 @@ func (service *Service) sendRequest(postURL string, request *messageRequest) err
 	}
 
 	// Request completed successfully
+	return nil
+}
+
+// sendRequestWithHeaders sends a request with custom headers using the underlying HTTP client.
+// This method is used when per-request headers are needed, bypassing the jsonclient
+// to avoid modifying shared header state.
+// Parameters:
+//   - postURL: The complete API endpoint URL to send the request to
+//   - request: The JSON payload to send in the request body
+//   - response: The response structure to unmarshal into
+//   - headers: Custom headers to set on the request
+//
+// Returns: error if the request fails or server returns an error, nil on success.
+func (service *Service) sendRequestWithHeaders(
+	postURL string,
+	request *messageRequest,
+	response *messageResponse,
+	headers http.Header,
+) error {
+	// Marshal the request to JSON
+	body, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("marshaling request to JSON: %w", err)
+	}
+
+	// Create the HTTP request
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		postURL,
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("creating POST request for %q: %w", postURL, err)
+	}
+
+	// Set Content-Type header
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set custom headers
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Set(key, value)
+		}
+	}
+
+	// Execute the request
+	res, err := service.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending POST request to %q: %w", postURL, err)
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	// Parse the response
+	return parseResponse(res, response)
+}
+
+// parseResponse parses the HTTP response and unmarshals it into the provided object.
+// This is a simplified version for internal use.
+func parseResponse(res *http.Response, response any) error {
+	body, err := io.ReadAll(res.Body)
+
+	if res.StatusCode >= HTTPClientErrorThreshold {
+		if err == nil {
+			err = fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
+		}
+	}
+
+	if err == nil {
+		err = json.Unmarshal(body, response)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
 	return nil
 }
