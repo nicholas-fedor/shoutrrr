@@ -2,10 +2,10 @@ package gotify
 
 import "fmt"
 
-// messageRequest is the actual payload being sent to the Gotify API.
+// MessageRequest is the actual payload being sent to the Gotify API.
 // This struct represents the JSON request body sent to the Gotify message endpoint,
 // containing all notification data including message content, metadata, and custom extras.
-type messageRequest struct {
+type MessageRequest struct {
 	Message  string         `json:"message"`        // The main notification message text content
 	Title    string         `json:"title"`          // Notification title displayed in the Gotify interface
 	Priority int            `json:"priority"`       // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients

@@ -162,6 +162,48 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 
     This sends the token in the `X-Gotify-Key` header, with no token appearing in the URL.
 
+## Input Validation
+
+Shoutrrr validates input parameters before sending notifications to Gotify to ensure data integrity and prevent common errors.
+
+### Message Requirements
+
+Messages must contain at least one character. Empty messages are not allowed.
+
+!!! Failure "Validation Failure Example"
+    ```bash
+    shoutrrr send --url "gotify://example.com/message?token=token" --message ""
+    ```
+    **Error**: `message cannot be empty`
+
+### Priority Ranges
+
+Priority values must be integers between -2 and 10 inclusive. Values outside this range will be rejected.
+
+!!! Failure "Validation Failure Example"
+    ```bash
+    shoutrrr send --url "gotify://example.com/message?token=token&priority=15" --message "test"
+    ```
+    **Error**: `priority must be between -2 and 10`
+
+### Date Format Handling
+
+Shoutrrr supports multiple date input formats, automatically converting them to ISO 8601 for the Gotify API. Invalid date formats are logged as warnings, and the notification uses Gotify's server timestamp instead.
+
+!!! Failure "Validation Failure Example"
+    ```bash
+    shoutrrr send --url "gotify://example.com/message?token=token&date=invalid-date" --message "test"
+    ```
+    **Warning logged**: `invalid date format`
+    **Result**: Notification sent with server timestamp
+
+Supported formats include:
+
+- ISO 8601 with timezone: `2023-12-25T10:00:00Z`
+- ISO 8601 without timezone: `2023-12-25T10:00:00`
+- Unix timestamp: `1703498400`
+- Basic date-time: `2023-12-25 10:00:00`
+
 ## Examples
 
 !!! Example "Common usage"
@@ -281,6 +323,77 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 - For development/testing with HTTP, use `disabletls=yes` to disable TLS entirely
 - Install proper certificates on the Gotify server
 - Verify the certificate is valid and not expired
+
+#### Validation Errors
+
+##### Empty Messages
+
+**Error**: `message cannot be empty`
+
+**Possible causes:**
+
+- No message provided in the request
+- Message parameter is an empty string
+
+**Solutions:**
+
+- Always include a non-empty message in your notification
+- Check that your message parameter is properly set
+
+##### Invalid Priorities
+
+**Error**: `priority must be between -2 and 10`
+
+**Possible causes:**
+
+- Priority value is less than -2 or greater than 10
+- Priority parameter contains non-numeric characters
+
+**Solutions:**
+
+- Use integer values between -2 and 10
+- Verify the priority parameter is a valid number
+
+##### Malformed Extras JSON
+
+**Error**: `failed to unmarshal extras JSON` or `failed to parse extras JSON from URL query`
+
+**Possible causes:**
+
+- Invalid JSON syntax in the extras parameter
+- Improper URL encoding of the JSON string
+- Missing quotes or brackets in JSON structure
+
+**Solutions:**
+
+- Validate JSON syntax using a JSON validator
+- Ensure proper URL encoding when passing JSON in URLs
+- Test extras JSON separately before including in URLs
+
+##### Invalid Date Formats
+
+**Error**: `invalid date format` (logged as warning)
+
+**Possible causes:**
+
+- Date format not matching supported formats
+- Invalid date values (e.g., February 30th)
+- Incorrect timezone specifications
+
+**Solutions:**
+
+- Use one of the supported date formats listed above
+- Verify date values are valid calendar dates
+- Note that invalid dates still send notifications but use server timestamps
+
+#### Error Handling Patterns
+
+Shoutrrr employs several error handling strategies for malformed inputs:
+
+- **Early Validation**: Parameters are validated before API requests to fail fast
+- **Graceful Degradation**: Non-critical validation failures (like invalid dates) allow notifications to proceed with defaults
+- **Detailed Error Messages**: Specific error messages help identify the exact validation issue
+- **Fallback Behavior**: When possible, invalid inputs fall back to sensible defaults rather than failing completely
 
 ### Testing Your Configuration
 

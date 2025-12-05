@@ -35,19 +35,18 @@ type Config struct {
 	Extras                  map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 }
 
-// GetURL generates a URL from the current configuration values.
-// If Extras marshalling fails, the failure is logged and extras are dropped.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.getURL(&resolver)
-}
-
 // SetURL updates the configuration from a URL representation.
 func (config *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
 	return config.setURL(&resolver, url)
+}
+
+// GetURL returns a URL representation of the current configuration.
+func (config *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(config)
+
+	return config.getURL(&resolver)
 }
 
 // getURL generates a URL from the current configuration values.
@@ -120,7 +119,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 
 	// Process query parameters to set remaining configuration fields
 	if err := config.processQueryParameters(resolver, url.Query()); err != nil {
-		return err
+		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 
 	return nil
@@ -147,13 +146,13 @@ func (config *Config) processQueryParameters(
 				config.Extras = make(map[string]any)
 				// Parse JSON string into map
 				if err := json.Unmarshal([]byte(query.Get(key)), &config.Extras); err != nil {
-					return fmt.Errorf("parsing extras JSON from URL query: %w", err)
+					return fmt.Errorf("%w", ErrExtrasParseFailed)
 				}
 			}
 		} else {
 			// Standard parameter handling through resolver
 			if err := resolver.Set(key, query.Get(key)); err != nil {
-				return fmt.Errorf("setting config property %q from URL query: %w", key, err)
+				return fmt.Errorf("%w", ErrConfigPropertyFailed)
 			}
 		}
 	}
