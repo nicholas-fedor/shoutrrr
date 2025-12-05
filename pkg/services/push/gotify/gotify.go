@@ -1,13 +1,10 @@
 package gotify
 
 import (
-	"crypto/tls"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
-	"time"
+	"sync"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -15,59 +12,62 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-const (
-	// HTTPTimeout defines the HTTP client timeout in seconds.
-	HTTPTimeout = 10
-	TokenLength = 15
-	// TokenChars specifies the valid characters for a Gotify token.
-	TokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
-)
-
-// ErrInvalidToken indicates an invalid Gotify token format or content.
-var ErrInvalidToken = errors.New("invalid gotify token")
-
-// Service implements a Gotify notification service.
+// Service implements a Gotify notification service that handles sending push notifications
+// to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
+// and payload construction for reliable message delivery.
 type Service struct {
-	standard.Standard
-	Config     *Config
-	pkr        format.PropKeyResolver
-	httpClient *http.Client
-	client     jsonclient.Client
+	standard.Standard                        // Embeds the standard service functionality including logging
+	Config            *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
+	pkr               format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
+	mu                sync.Mutex             // Protects HTTP client initialization for thread safety
+	httpClient        *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
+	client            jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
+
+	// Interface dependencies (injected during initialization)
+	httpClientManager HTTPClientManager
+	urlBuilder        URLBuilder
+	payloadBuilder    PayloadBuilder
+	validator         Validator
+	sender            Sender
 }
 
 // Initialize configures the service with a URL and logger.
+// This method sets up the entire service infrastructure including configuration parsing,
+// HTTP client creation with appropriate TLS settings, and logging capabilities.
+// Parameters:
+//   - configURL: The URL containing Gotify server configuration (host, token, path, etc.)
+//   - logger: Logger instance for recording service operations and warnings
 //
-//nolint:gosec
+// Returns: error if configuration parsing or setup fails, nil on success.
 func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	// Set the logger for this service instance to enable logging throughout the service lifecycle
 	service.SetLogger(logger)
+
+	// Initialize the configuration with default values
 	service.Config = &Config{
-		Title: "Shoutrrr notification",
+		Title: "Shoutrrr notification", // Default notification title used when none specified
 	}
+
+	// Create a property key resolver to handle dynamic configuration updates from parameters
 	service.pkr = format.NewPropKeyResolver(service.Config)
 
+	// Parse the configuration URL to extract host, token, path, and other settings
 	err := service.Config.SetURL(configURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set URL: %w", err)
 	}
 
-	service.httpClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				// InsecureSkipVerify disables TLS certificate verification when true.
-				// This is set to Config.DisableTLS to support HTTP or self-signed certificate setups,
-				// but it reduces security by allowing potential man-in-the-middle attacks.
-				InsecureSkipVerify: service.Config.DisableTLS,
-			},
-		},
-		Timeout: HTTPTimeout * time.Second,
-	}
-	if service.Config.DisableTLS {
-		service.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
+	// Inject default implementations for interfaces
+	service.httpClientManager = &DefaultHTTPClientManager{}
+	service.urlBuilder = &DefaultURLBuilder{}
+	service.payloadBuilder = &DefaultPayloadBuilder{}
+	service.validator = &DefaultValidator{}
+	service.sender = &DefaultSender{}
 
-	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
+	// Initialize HTTP client and related components in a thread-safe manner
+	service.initClient()
 
-	return nil
+	return nil // Return success
 }
 
 // GetID returns the identifier for this service.
@@ -75,74 +75,164 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// isTokenValid checks if a Gotify token meets length and character requirements.
-// Rules are based on Gotify's token validation logic.
-func isTokenValid(token string) bool {
-	if len(token) != TokenLength || token[0] != 'A' {
-		return false
-	}
-
-	for _, c := range token {
-		if !strings.ContainsRune(TokenChars, c) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// buildURL constructs the Gotify API URL with scheme, host, path, and token.
-func buildURL(config *Config) (string, error) {
-	token := config.Token
-	if !isTokenValid(token) {
-		return "", fmt.Errorf("%w: %q", ErrInvalidToken, token)
-	}
-
-	scheme := "https"
-	if config.DisableTLS {
-		scheme = "http" // Use HTTP if TLS is disabled
-	}
-
-	return fmt.Sprintf("%s://%s%s/message?token=%s", scheme, config.Host, config.Path, token), nil
+// GetHTTPClient returns the HTTP client used by this service.
+// This method implements the MockClientService interface for testing.
+func (service *Service) GetHTTPClient() *http.Client {
+	return service.httpClient
 }
 
 // Send delivers a notification message to Gotify.
+// This is the main entry point for sending notifications. It handles message validation,
+// parameter processing, configuration updates, URL construction, authentication setup,
+// and HTTP request execution.
+// Parameters:
+//   - message: The notification message content to send (cannot be empty)
+//   - params: Optional parameters that can override configuration settings or provide extras
+//
+// Returns: error if sending fails or validation fails, nil on successful delivery.
 func (service *Service) Send(message string, params *types.Params) error {
-	if params == nil {
-		params = &types.Params{}
+	if err := service.validateInputs(message, params); err != nil {
+		return fmt.Errorf("input validation failed: %w", err)
 	}
 
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		service.Logf("Failed to update params: %v", err)
-	}
+	service.initClient()
 
-	postURL, err := buildURL(config)
+	config, extras, err := service.processConfig(params)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to process config: %w", err)
 	}
 
-	request := &messageRequest{
-		Message:  message,
-		Title:    config.Title,
-		Priority: config.Priority,
-	}
-	response := &messageResponse{}
-
-	err = service.client.Post(postURL, request, response)
+	postURL, request, headers, err := service.buildRequest(message, &config, extras)
 	if err != nil {
-		errorRes := &responseError{}
-		if service.client.ErrorResponse(err, errorRes) {
-			return errorRes
-		}
+		return fmt.Errorf("failed to build request: %w", err)
+	}
 
-		return fmt.Errorf("failed to send notification to Gotify: %w", err)
+	return service.sendRequest(postURL, request, headers)
+}
+
+// validateInputs performs initial validation checks for the Send method.
+func (service *Service) validateInputs(message string, _ *types.Params) error {
+	if err := service.validator.ValidateMessage(message); err != nil {
+		return fmt.Errorf("message validation failed: %w", err)
+	}
+
+	if err := service.validator.ValidateServiceInitialized(service.Config); err != nil {
+		return fmt.Errorf("service initialization validation failed: %w", err)
 	}
 
 	return nil
 }
 
-// GetHTTPClient returns the HTTP client for testing purposes.
-func (service *Service) GetHTTPClient() *http.Client {
-	return service.httpClient
+// processConfig handles configuration processing including parameter updates, validation, and extras parsing.
+func (service *Service) processConfig(params *types.Params) (Config, map[string]any, error) {
+	// Get reference to current configuration
+	config := *service.Config
+
+	// Filter out 'extras' parameter as it's handled separately from other config updates
+	filteredParams := filterParams(params)
+
+	// Update configuration with filtered parameters (title, priority, etc.)
+	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
+		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
+	}
+
+	// Validate priority is within valid range (-2 to 10)
+	if err := service.validator.ValidatePriority(config.Priority); err != nil {
+		return config, nil, fmt.Errorf("priority validation failed: %w", err)
+	}
+
+	// Validate and convert date format
+	validatedDate, err := service.validator.ValidateDate(config.Date)
+	if err != nil {
+		service.Logf("Invalid date format: %v", err)
+
+		config.Date = ""
+	} else {
+		config.Date = validatedDate
+	}
+
+	// Parse extras from parameters or fall back to config extras
+	extras, err := service.payloadBuilder.ParseExtras(params, &config)
+	if err != nil {
+		service.Logf("Failed to parse extras from params: %v", err)
+
+		extras = config.Extras
+	}
+
+	return config, extras, nil
+}
+
+// buildRequest constructs the URL, payload, and headers for the HTTP request.
+func (service *Service) buildRequest(
+	message string,
+	config *Config,
+	extras map[string]any,
+) (string, *MessageRequest, http.Header, error) {
+	// Validate token format before constructing URL
+	if !service.validator.ValidateToken(config.Token) {
+		return "", nil, nil, fmt.Errorf("%w: %q", ErrInvalidToken, config.Token)
+	}
+
+	// Construct the complete API endpoint URL
+	postURL, err := service.urlBuilder.BuildURL(config)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	// Prepare the JSON request payload
+	request := service.payloadBuilder.PrepareRequest(message, config, extras, config.Date)
+
+	// Prepare headers for header-based authentication
+	var headers http.Header
+	if config.UseHeader {
+		headers = make(http.Header)
+		headers.Set("X-Gotify-Key", config.Token)
+	}
+
+	return postURL, request, headers, nil
+}
+
+// filterParams filters out 'extras' parameters from the given params.
+func filterParams(params *types.Params) types.Params {
+	if params == nil {
+		return types.Params{}
+	}
+
+	filtered := make(types.Params)
+
+	for k, v := range *params {
+		if k != "extras" {
+			filtered[k] = v
+		}
+	}
+
+	return filtered
+}
+
+// initClient initializes the HTTP client and related components.
+// This method ensures that the transport, HTTP client, JSON client,
+// and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
+func (service *Service) initClient() {
+	initClient(service, service.httpClientManager)
+}
+
+// sendRequest handles the HTTP request.
+// This function executes the actual HTTP POST request to the Gotify API endpoint,
+// handling both successful responses and error conditions with appropriate error wrapping.
+// Parameters:
+//   - postURL: The complete API endpoint URL to send the request to
+//   - request: The JSON payload to send in the request body
+//   - headers: Optional headers to set on the request
+//
+// Returns: error if the request fails or server returns an error, nil on success.
+func (service *Service) sendRequest(
+	postURL string,
+	request *MessageRequest,
+	headers http.Header,
+) error {
+	if err := service.sender.SendRequest(service.httpClient, postURL, request, headers); err != nil {
+		return fmt.Errorf("%s: %w", ErrSendFailed.Error(), err)
+	}
+
+	return nil
 }
