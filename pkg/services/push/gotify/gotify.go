@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,9 @@ var ErrServiceNotInitialized = errors.New("service not initialized")
 
 // ErrInvalidPriority indicates that the priority value is outside the valid range.
 var ErrInvalidPriority = errors.New("priority must be between -2 and 10")
+
+// ErrInvalidDate indicates that the date format is invalid.
+var ErrInvalidDate = errors.New("invalid date format")
 
 // Service implements a Gotify notification service that handles sending push notifications
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
@@ -127,7 +131,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	config := *service.Config
 
 	// Begin parameter processing section
-	// Filter out 'extras' and 'date' parameters as they're handled separately from other config updates
+	// Filter out 'extras' parameter as it's handled separately from other config updates
 	filteredParams := filterParams(params)
 
 	// Update configuration with filtered parameters (title, priority, etc.)
@@ -140,11 +144,18 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return err
 	}
 
+	// Validate date format if provided
+	convertedDate, err := validateDate(config.Date)
+	if err != nil {
+		service.Logf("Warning: %v, skipping date setting", err)
+
+		config.Date = ""
+	} else {
+		config.Date = convertedDate
+	}
+
 	// Parse extras from parameters or fall back to config extras
 	extras := service.parseExtras(params, &config)
-
-	// Extract date parameter if provided
-	date := extractDate(params)
 
 	// Construct the complete API endpoint URL
 	postURL, err := buildURL(&config)
@@ -153,7 +164,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Prepare the JSON request payload
-	request := service.prepareRequest(message, &config, extras, date)
+	request := service.prepareRequest(message, &config, extras, config.Date)
 
 	// Prepare headers for header-based authentication
 	var headers http.Header
@@ -166,7 +177,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return service.sendRequest(postURL, request, headers)
 }
 
-// filterParams filters out 'extras' and 'date' parameters from the given params.
+// filterParams filters out 'extras' parameters from the given params.
 func filterParams(params *types.Params) types.Params {
 	if params == nil {
 		return types.Params{}
@@ -175,7 +186,7 @@ func filterParams(params *types.Params) types.Params {
 	filtered := make(types.Params)
 
 	for k, v := range *params {
-		if k != "extras" && k != "date" {
+		if k != "extras" {
 			filtered[k] = v
 		}
 	}
@@ -192,17 +203,38 @@ func validatePriority(priority int) error {
 	return nil
 }
 
-// extractDate extracts the 'date' parameter from params if present and non-empty.
-func extractDate(params *types.Params) *string {
-	if params == nil {
-		return nil
+// validateDate validates and converts the provided date string to RFC3339 format.
+// It attempts parsing multiple formats in order of preference: RFC3339, RFC3339 without timezone,
+// Unix timestamp (seconds), and basic date-time formats.
+// Returns the converted date string in RFC3339 format, or error if all parsing attempts fail.
+func validateDate(date string) (string, error) {
+	if date == "" {
+		return "", nil
 	}
 
-	if dateStr, exists := (*params)["date"]; exists && dateStr != "" {
-		return &dateStr
+	// Try RFC3339
+	if t, err := time.Parse(time.RFC3339, date); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
 	}
 
-	return nil
+	// Try RFC3339 without timezone
+	if t, err := time.ParseInLocation("2006-01-02T15:04:05", date, time.UTC); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+
+	// Try Unix timestamp seconds
+	if unix, err := strconv.ParseInt(date, 10, 64); err == nil {
+		t := time.Unix(unix, 0)
+
+		return t.UTC().Format(time.RFC3339), nil
+	}
+
+	// Try basic date-time "2006-01-02 15:04:05"
+	if t, err := time.ParseInLocation("2006-01-02 15:04:05", date, time.UTC); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+
+	return "", fmt.Errorf("%w: %s", ErrInvalidDate, date)
 }
 
 // GetHTTPClient returns the HTTP client for testing purposes.
@@ -368,13 +400,18 @@ func (service *Service) prepareRequest(
 	message string,
 	config *Config,
 	extras map[string]any,
-	date *string,
+	date string,
 ) *messageRequest {
+	var datePtr *string
+	if date != "" {
+		datePtr = &date
+	}
+
 	return &messageRequest{
 		Message:  message,         // The notification message content
 		Title:    config.Title,    // Notification title from configuration
 		Priority: config.Priority, // Priority level for the notification
-		Date:     date,            // Optional custom timestamp
+		Date:     datePtr,         // Optional custom timestamp
 		Extras:   extras,          // Additional metadata or custom fields
 	}
 }

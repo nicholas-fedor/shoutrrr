@@ -29,7 +29,9 @@ import (
 // These constants define test URLs and endpoints used throughout the test suite
 // for mocking Gotify API interactions and verifying URL construction.
 const (
-	TargetURL = "https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd" // Standard test URL with token in query parameter
+	TargetURL      = "https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd" // Standard test URL with token in query parameter
+	TestDateRFC    = "2023-12-04T20:00:00Z"                                // Standard test date in RFC3339 format
+	TestDateConfig = "2023-01-01T00:00:00Z"                                // Test date for config
 )
 
 // TestGotify runs the Ginkgo test suite for the Gotify package.
@@ -815,7 +817,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 		ginkgo.When("sending with date parameter", func() {
 			ginkgo.It("includes date in request payload when provided", func() {
-				customDate := "2023-12-04T20:00:00Z"
+				customDate := TestDateRFC
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -837,6 +839,200 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 					},
 				)
 				params := types.Params{"date": customDate}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("converts Unix timestamp date parameter to RFC3339", func() {
+				unixDate := "1701720000" // 2023-12-04T20:00:00Z
+				expectedDate := TestDateRFC
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     expectedDate,
+						})(req)
+					},
+				)
+				params := types.Params{"date": unixDate}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("converts basic date-time format to RFC3339", func() {
+				basicDate := "2023-12-04 20:00:00"
+				expectedDate := TestDateRFC
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     expectedDate,
+						})(req)
+					},
+				)
+				params := types.Params{"date": basicDate}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("handles invalid date parameter gracefully", func() {
+				invalidDate := "not-a-date"
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						// Date should not be present in request when invalid
+						gomega.Expect(requestBody["date"]).To(gomega.BeNil())
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     "2023-01-01T00:00:00Z",
+						})(req)
+					},
+				)
+				params := types.Params{"date": invalidDate}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).
+					NotTo(gomega.HaveOccurred())
+				// Send should succeed, date is just skipped
+			})
+			ginkgo.It("prioritizes date from params over config", func() {
+				// Set date in config
+				service.Config.Date = TestDateConfig
+				paramDate := TestDateRFC
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(paramDate))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     paramDate,
+						})(req)
+					},
+				)
+				params := types.Params{"date": paramDate}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("uses config date when no param date provided", func() {
+				configDate := TestDateConfig
+				service.Config.Date = configDate
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(configDate))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     configDate,
+						})(req)
+					},
+				)
+				err := service.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("includes date with priority parameter", func() {
+				customDate := TestDateRFC
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
+						gomega.Expect(requestBody["priority"]).To(gomega.Equal(float64(3)))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(3),
+							"date":     customDate,
+						})(req)
+					},
+				)
+				params := types.Params{"date": customDate, "priority": "3"}
+				err := service.Send("Message", &params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+			ginkgo.It("includes date with extras parameter", func() {
+				customDate := TestDateRFC
+				extrasJSON := `{"key":"value"}`
+				httpmock.RegisterResponder(
+					"POST",
+					TargetURL,
+					func(req *http.Request) (*http.Response, error) {
+						var requestBody map[string]any
+						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+							return nil, err
+						}
+						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
+						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
+							"key": "value",
+						}))
+
+						return testutils.JSONRespondMust(200, map[string]any{
+							"id":       float64(1),
+							"appid":    float64(1),
+							"message":  "Message",
+							"title":    "Shoutrrr notification",
+							"priority": float64(0),
+							"date":     customDate,
+						})(req)
+					},
+				)
+				params := types.Params{"date": customDate, "extras": extrasJSON}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -956,7 +1152,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				message := "Test message"
 				date := "2023-01-01T00:00:00Z"
 
-				request := service.prepareRequest(message, config, extras, &date)
+				request := service.prepareRequest(message, config, extras, date)
 
 				gomega.Expect(request.Message).To(gomega.Equal(message))
 				gomega.Expect(request.Title).To(gomega.Equal(config.Title))
@@ -1020,6 +1216,142 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			})
 			ginkgo.It("returns false for invalid character at position 15", func() {
 				gomega.Expect(validateToken("Aaa.bbb.ccc.dd!")).To(gomega.BeFalse())
+			})
+		})
+		ginkgo.Describe("validateDate", func() {
+			ginkgo.It("returns empty string for empty input", func() {
+				result, err := validateDate("")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal(""))
+			})
+			ginkgo.It("validates RFC3339 format correctly", func() {
+				input := TestDateRFC
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal(input))
+			})
+			ginkgo.It("validates RFC3339 with timezone offset", func() {
+				input := "2023-12-04T20:00:00+05:00"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T15:00:00Z"))
+			})
+			ginkgo.It("validates RFC3339 without timezone (assumes UTC)", func() {
+				input := "2023-12-04T20:00:00"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
+			})
+			ginkgo.It("validates Unix timestamp seconds", func() {
+				input := "1701720000" // 2023-12-04T20:00:00Z
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
+			})
+			ginkgo.It("validates basic date-time format", func() {
+				input := "2023-12-04 20:00:00"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
+			})
+			ginkgo.It("handles zero Unix timestamp", func() {
+				input := "0"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("1970-01-01T00:00:00Z"))
+			})
+			ginkgo.It("handles negative Unix timestamp", func() {
+				input := "-1"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("1969-12-31T23:59:59Z"))
+			})
+			ginkgo.It("handles large Unix timestamp", func() {
+				input := "2147483647" // Max int32
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2038-01-19T03:14:07Z"))
+			})
+			ginkgo.It("rejects invalid RFC3339 format", func() {
+				input := "2023-13-04T20:00:00Z" // Invalid month
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+			})
+			ginkgo.It("rejects invalid date string", func() {
+				input := "not-a-date"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+			})
+			ginkgo.It("rejects malformed RFC3339", func() {
+				input := "2023-13-04T20:00:00Z" // Invalid month
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("rejects invalid Unix timestamp", func() {
+				input := "abc123"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("rejects Unix timestamp with decimal", func() {
+				input := "1701720000.5"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("rejects date with invalid separators", func() {
+				input := "2023/12/04 20:00:00"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("rejects date with extra characters", func() {
+				input := "2023-12-04T20:00:00Z extra"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("handles RFC3339Nano format", func() {
+				input := "2023-12-04T20:00:00.123456789Z"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).
+					To(gomega.Equal("2023-12-04T20:00:00Z"))
+				// Nanoseconds are truncated to RFC3339
+			})
+			ginkgo.It("validates RFC3339 with +00:00 timezone", func() {
+				input := "2023-12-04T20:00:00+00:00"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
+			})
+			ginkgo.It("validates RFC3339 with -08:00 timezone", func() {
+				input := "2023-12-04T20:00:00-08:00"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-05T04:00:00Z"))
+			})
+			ginkgo.It("validates Unix timestamp with leading zeros", func() {
+				input := "0001701720000"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
+			})
+			ginkgo.It("validates Unix timestamp for 2021-01-01", func() {
+				input := "1609459200"
+				result, err := validateDate(input)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(result).To(gomega.Equal("2021-01-01T00:00:00Z"))
+			})
+			ginkgo.It("rejects date-only format", func() {
+				input := "2023-12-04"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+			})
+			ginkgo.It("rejects time-only format", func() {
+				input := "20:00:00"
+				_, err := validateDate(input)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
 			})
 		})
 		ginkgo.Describe("buildURL", func() {

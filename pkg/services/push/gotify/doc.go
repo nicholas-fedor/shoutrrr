@@ -25,8 +25,10 @@
 //
 //   - title: notification title (default: "Shoutrrr notification")
 //   - priority: message priority (-2 to 10, where higher numbers indicate higher priority; negative values have special meanings in some clients)
-//   - disabletls: set to "yes" to disable TLS certificate verification (insecure, use with caution)
+//   - disabletls: set to "yes" to disable TLS (use HTTP instead of HTTPS)
+//   - insecureskipverify: set to "yes" to skip TLS certificate verification (insecure, use with caution)
 //   - useheader: set to "yes" to send token in X-Gotify-Key header instead of URL query parameter
+//   - date: optional custom timestamp in ISO 8601 format for the notification (accepts multiple input formats and converts to RFC3339)
 //   - extras: JSON string containing additional key-value pairs to include in the notification
 //
 // # Templates
@@ -66,6 +68,11 @@
 //
 //	url := "gotify://gotify.example.com/gotify/Aaa.bbb.ccc.ddd"
 //	err := shoutrrr.Send(url, "Notification to subpath installation")
+//
+// ## Notification with custom timestamp
+//
+//	url := "gotify://gotify.example.com/Aaa.bbb.ccc.ddd?date=2023-12-25T10:30:00Z"
+//	err := shoutrrr.Send(url, "Scheduled notification")
 //
 // # Common Use Cases
 //
@@ -136,7 +143,8 @@
 // - Store application tokens securely - avoid hardcoding them in source code or configuration files
 // - Use header-based authentication (useheader=yes) to avoid exposing tokens in server logs
 // - Consider token entropy - Gotify tokens are application-specific and should be treated as secrets
-// - Be cautious with disabletls=yes - only use in trusted environments as it disables certificate verification
+// - Be cautious with disabletls=yes - only use in trusted environments as it disables TLS (uses HTTP)
+// - Be cautious with insecureskipverify=yes - only use in trusted environments as it disables certificate verification
 // - Validate extras JSON content to prevent injection of malicious data
 // - Use appropriate priority levels - high priority notifications should be reserved for critical events
 // - Consider message content - avoid sending sensitive information in notification messages
@@ -148,9 +156,10 @@
 // - Valid token characters are: a-z, A-Z, 0-9, ., -, _
 // - Message content cannot be empty
 // - Priority can be set to a value between -2 and 10, where -2 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
+// - Date parameter accepts multiple formats (RFC3339, RFC3339 without timezone, Unix timestamp seconds, "2006-01-02 15:04:05") and converts them to ISO 8601 format; invalid dates are skipped with a warning
 // - Extras field accepts valid JSON objects for custom data
 // - HTTP client timeout is set to 10 seconds for API requests
-// - TLS certificate verification can be disabled but is not recommended for production use
+// - TLS can be disabled entirely (disabletls=yes) or certificate verification can be skipped (insecureskipverify=yes), both are not recommended for production use
 // - Header authentication sends token in X-Gotify-Key header and cleans up after each request
 // - Server response includes message ID, app ID, and timestamp upon successful delivery
 // - Failed requests return structured error responses with error codes and descriptions

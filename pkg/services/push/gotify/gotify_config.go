@@ -31,6 +31,7 @@ type Config struct {
 	DisableTLS              bool           `                                                                                     default:"No"                    key:"disabletls"`         // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
 	InsecureSkipVerify      bool           `                                                                                     default:"No"                    key:"insecureskipverify"` // Skip TLS certificate verification (insecure, use with caution)
 	UseHeader               bool           `desc:"Enable header-based authentication"                                            default:"No"                    key:"useheader"`          // Send token in X-Gotify-Key header instead of URL query parameter
+	Date                    string         `                                                                                     default:""                      key:"date"`               // Optional custom timestamp in ISO 8601 format for the notification
 	Extras                  map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 }
 

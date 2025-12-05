@@ -88,19 +88,63 @@ The `title` parameter allows you to set a custom title for your notification. If
 
 ### Custom Date
 
-The `date` parameter allows you to set a custom timestamp for the notification in ISO 8601 format. If not specified, Gotify will use the current server time when the notification is received. This is useful for:
+The `date` parameter allows you to set a custom timestamp for the notification. Shoutrrr accepts multiple common date formats and automatically converts them to ISO 8601 format for the Gotify API. If not specified, Gotify will use the current server time when the notification is received.
+
+#### Supported Input Formats
+
+The date parameter accepts the following formats:
+
+- **ISO 8601 with timezone** (RFC3339): `2023-12-25T10:00:00Z` or `2023-12-25T10:00:00+05:00`
+- **ISO 8601 without timezone**: `2023-12-25T10:00:00` (assumes UTC)
+- **Unix timestamp** (seconds since epoch): `1703498400`
+- **Basic date-time**: `2023-12-25 10:00:00` (assumes UTC)
+
+All formats are converted to ISO 8601 format before sending to Gotify.
+
+#### Validation Behavior
+
+If an invalid date format is provided, Shoutrrr will log a warning and skip setting the custom date, falling back to Gotify's default server timestamp. This ensures notifications are still delivered even with date parsing errors.
+
+#### Use Cases
+
+This parameter is useful for:
 
 - Backdating notifications for historical events
 - Ensuring consistent timestamps across multiple notifications
-- Testing notification ordering
+- Testing notification ordering in development
+- Scheduling notifications with specific timestamps
 
-!!! Example "With custom date"
+!!! Example "ISO 8601 with timezone"
 
     ```uri
     gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25T10:00:00Z
     ```
 
-    This sets the notification timestamp to Christmas morning 2023.
+    Sets the notification timestamp to Christmas morning 2023 UTC.
+
+!!! Example "ISO 8601 without timezone"
+
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25T10:00:00
+    ```
+
+    Sets the notification timestamp to Christmas morning 2023, interpreted as UTC.
+
+!!! Example "Unix timestamp"
+
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=1703498400
+    ```
+
+    Sets the notification timestamp to Christmas morning 2023 (Unix timestamp for 2023-12-25 10:00:00 UTC).
+
+!!! Example "Basic date-time format"
+
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25%2010:00:00
+    ```
+
+    Sets the notification timestamp to Christmas morning 2023, interpreted as UTC.
 
 ### Use Header Authentication
 
@@ -149,6 +193,16 @@ By default, the Gotify token is sent as a query parameter in the URL (`?token=..
 !!! Example "With custom date"
     ```uri
     gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25T10%3A00%3A00Z&title=Scheduled+Event
+    ```
+
+!!! Example "With Unix timestamp date"
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=1703498400&title=Timestamp+Event
+    ```
+
+!!! Example "With basic date-time format"
+    ```uri
+    gotify://gotify.example.com/message?token=AzyoeNS.D4iJLVa&date=2023-12-25%2010%3A00%3A00&title=Simple+Date+Event
     ```
 
 !!! Example "With TLS disabled for self-signed certificates"
