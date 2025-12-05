@@ -1,0 +1,4824 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Shoutrrr, a notification library for gophers and their furry friends. Heavily inspired by caronc/apprise.">
+      
+      
+        <meta name="author" content="Nicholas Fedor">
+      
+      
+        <link rel="canonical" href="https://shoutrrr.nickfedor.com/v0.13.0/services/incident/pagerduty/">
+      
+      
+        <link rel="prev" href="../opsgenie/">
+      
+      
+        <link rel="next" href="../../email/smtp/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/media/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>PagerDuty - Shoutrrr</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../css/timeago.css">
+    
+      <link rel="stylesheet" href="../../../assets/styles/theme.css">
+    
+      <link rel="stylesheet" href="../../../assets/styles/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="shoutrrr" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pagerduty" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Shoutrrr" class="md-header__button md-logo" aria-label="Shoutrrr" data-md-component="logo">
+      
+  <img src="../../../assets/media/shoutrrr-180px.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Shoutrrr
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              PagerDuty
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nicholas-fedor/shoutrrr/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nicholas-fedor/shoutrrr
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../usage/" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../overview/" class="md-tabs__link">
+          
+  
+  
+  Services
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../guides/slack/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../examples/home-assistant/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Shoutrrr" class="md-nav__button md-logo" aria-label="Shoutrrr" data-md-component="logo">
+      
+  <img src="../../../assets/media/shoutrrr-180px.png" alt="logo">
+
+    </a>
+    Shoutrrr
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nicholas-fedor/shoutrrr/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nicholas-fedor/shoutrrr
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    CLI
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_2" id="__nav_3_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/generate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Generate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/help/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Help
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/send/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Send
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/cli/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verify
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/github-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Action
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../usage/go-package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Services
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat and Messaging Platforms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Chat and Messaging Platforms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/discord/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Discord
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/googlechat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Google Chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/hangouts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hangouts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/lark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/mattermost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mattermost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/rocketchat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rocket.Chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/signal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/slack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teams
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/telegram/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telegram
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/wecom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WeCom
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../chat/zulip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Zulip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Push Notification Services
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Push Notification Services
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/bark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/gotify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gotify
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/ifttt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IFTTT
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/join/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Join
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/ntfy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ntfy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/pushbullet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pushbullet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../push/pushover/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pushover
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident and Alert Management
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident and Alert Management
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opsgenie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpsGenie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PagerDuty
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PagerDuty
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="URL Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#url_components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Components
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup_and_service_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup and Service Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup and Service Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating_a_service_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Service Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#additional_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parameter_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameter Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#severity_levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event_action_items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Action Items
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#details_parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Details Parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contexts_parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts Parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_incident_triggering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Incident Triggering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_management_workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event_actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trigger_actiontrigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trigger (action=trigger)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acknowledge_actionacknowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acknowledge (action=acknowledge)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve_actionresolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resolve (action=resolve)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced_features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client_information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Information
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_grouping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Grouping
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate_limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rate Limiting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handling_rate_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handling Rate Limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error_handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#success_responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common_issues_and_solutions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Issues and Solutions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#go_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Go Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Go Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_incident_triggering_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Incident Triggering Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_configuration_with_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Configuration with Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_management_workflow_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management Workflow Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using_contexts_for_rich_incident_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using Contexts for Rich Incident Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_with_monitoring_systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration with Monitoring Systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_lifecycle_management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Lifecycle Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_with_scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration with Scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best_practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Best Practices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incident_management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incident Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use_appropriate_severity_levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Appropriate Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provide_meaningful_source_identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provide Meaningful Source Identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#include_rich_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Include Rich Context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational_considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operational Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rate_limiting_awareness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting Awareness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_handling_considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling Considerations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Integration Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#monitoring_system_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cicd_pipeline_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI/CD Pipeline Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#application_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#regular_testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regular Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email Services
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Email Services
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../email/smtp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SMTP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Specialized Services
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Specialized Services
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specialized/generic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Generic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specialized/logger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logger
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specialized/notifiarr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifiarr
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/slack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuring Slack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/proxy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proxy Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/home-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="URL Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#url_components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Components
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup_and_service_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup and Service Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup and Service Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating_a_service_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Service Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#additional_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parameter_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameter Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#severity_levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event_action_items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Action Items
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#details_parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Details Parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contexts_parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts Parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_incident_triggering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Incident Triggering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_management_workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event_actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trigger_actiontrigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trigger (action=trigger)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acknowledge_actionacknowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acknowledge (action=acknowledge)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve_actionresolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resolve (action=resolve)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced_features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contexts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client_information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Information
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_grouping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Grouping
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate_limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rate Limiting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handling_rate_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handling Rate Limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error_handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#success_responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common_issues_and_solutions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Issues and Solutions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#go_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Go Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Go Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_incident_triggering_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Incident Triggering Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_configuration_with_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Configuration with Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_management_workflow_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management Workflow Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using_contexts_for_rich_incident_details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using Contexts for Rich Incident Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_with_monitoring_systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration with Monitoring Systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli_examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic_usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident_lifecycle_management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Lifecycle Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced_parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_with_scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration with Scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best_practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Best Practices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incident_management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Incident Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use_appropriate_severity_levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Appropriate Severity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provide_meaningful_source_identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provide Meaningful Source Identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#include_rich_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Include Rich Context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational_considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operational Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rate_limiting_awareness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting Awareness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error_handling_considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling Considerations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration_patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Integration Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#monitoring_system_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cicd_pipeline_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI/CD Pipeline Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#application_integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#regular_testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regular Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="pagerduty">PagerDuty<a class="headerlink" href="#pagerduty" title="Permanent link">&para;</a></h1>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>PagerDuty is a digital operations management platform that helps teams respond to incidents and outages. The PagerDuty service integrates with PagerDuty's Events API v2 to create, acknowledge, and resolve incidents programmatically. This service enables automated incident management workflows, allowing you to trigger alerts when issues are detected, acknowledge them when investigation begins, and resolve them when problems are fixed.</p>
+<p>The service supports rich incident context including custom details, links to related resources, images, and client information to provide comprehensive incident information to on-call responders.</p>
+<h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
+<h3 id="url_components">URL Components<a class="headerlink" href="#url_components" title="Permanent link">&para;</a></h3>
+<p>The PagerDuty service URL follows this structure:</p>
+<div class="highlight"><pre><span></span><code>pagerduty://[host[:port]]/integration-key[?query-parameters]
+</code></pre></div>
+<p><strong>Components:</strong></p>
+<ul>
+<li><strong>Scheme</strong>: <code>pagerduty://</code> - Identifies the service type</li>
+<li><strong>Host</strong> (optional): PagerDuty API hostname (default: <code>events.pagerduty.com</code>)</li>
+<li><strong>Port</strong> (optional): API port number (default: <code>443</code> for HTTPS)</li>
+<li><strong>Integration Key</strong>: 32-character hexadecimal string that routes events to your PagerDuty service</li>
+<li><strong>Query Parameters</strong> (optional): Additional configuration parameters</li>
+</ul>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<div class="admonition example">
+<p class="admonition-title">Default configuration</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889
+</code></pre></div>
+Uses default host (<code>events.pagerduty.com</code>) and port (<code>443</code>)</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Custom host</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889
+</code></pre></div>
+Explicitly specifies the PagerDuty Events API host</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">With parameters</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=production-db
+</code></pre></div>
+Includes severity and source parameters</p>
+</div>
+<h2 id="setup_and_service_integration">Setup and Service Integration<a class="headerlink" href="#setup_and_service_integration" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<p>Before using the PagerDuty service, you need:</p>
+<ol>
+<li>A PagerDuty account</li>
+<li>A service configured in PagerDuty</li>
+<li>An Events API v2 integration key</li>
+</ol>
+<h3 id="creating_a_service_integration">Creating a Service Integration<a class="headerlink" href="#creating_a_service_integration" title="Permanent link">&para;</a></h3>
+<p>Follow these steps to set up PagerDuty integration:</p>
+<ol>
+<li><strong>Log in to PagerDuty</strong></li>
+<li>
+<p>Access your PagerDuty account at <a href="https://pagerduty.com">pagerduty.com</a></p>
+</li>
+<li>
+<p><strong>Navigate to Services</strong></p>
+</li>
+<li>
+<p>Go to <strong>Services</strong> → <strong>Service Directory</strong> in the main navigation</p>
+</li>
+<li>
+<p><strong>Create or Select a Service</strong></p>
+</li>
+<li>Either create a new service or select an existing one</li>
+<li>
+<p>If creating new: Click <strong>+ New Service</strong>, give it a name, and select an escalation policy</p>
+</li>
+<li>
+<p><strong>Add Events API v2 Integration</strong></p>
+</li>
+<li>In the service details, click <strong>Integrations</strong> tab</li>
+<li>Click <strong>+ Add another integration</strong></li>
+<li>Search for and select <strong>Events API v2</strong></li>
+<li>Give the integration a name (e.g., "Shoutrrr Integration")</li>
+<li>
+<p>Click <strong>Create Integration</strong></p>
+</li>
+<li>
+<p><strong>Copy Integration Key</strong></p>
+</li>
+<li>The integration key will be displayed</li>
+<li>Copy this 32-character key for use in your Shoutrrr URL</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Integration Key Security</p>
+<p>Keep your integration key secure. It acts as an authentication token for sending events to PagerDuty.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Only Integration Keys Supported</p>
+<p>This service only accepts PagerDuty service integration keys (32 hexadecimal characters matching <code>/^[a-fA-F0-9]{32}$/</code>). API keys are not supported and will result in an invalid integration key error.</p>
+</div>
+<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
+<p>The PagerDuty service supports the following parameters to customize incident creation and management:</p>
+<h3 id="core_parameters">Core Parameters<a class="headerlink" href="#core_parameters" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+<th>Required</th>
+<th>Default</th>
+<th>Valid Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>severity</code></td>
+<td>string</td>
+<td>The perceived severity of the incident</td>
+<td>No</td>
+<td><code>error</code></td>
+<td><code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code></td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string</td>
+<td>The unique location of the affected system</td>
+<td>No</td>
+<td><code>default</code></td>
+<td>Any string identifier</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>string</td>
+<td>The type of event to send</td>
+<td>No</td>
+<td><code>trigger</code></td>
+<td><code>trigger</code>, <code>acknowledge</code>, <code>resolve</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="additional_parameters">Additional Parameters<a class="headerlink" href="#additional_parameters" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+<th>Required</th>
+<th>Default</th>
+<th>Valid Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>details</code></td>
+<td>object</td>
+<td>Additional custom key-value pairs for the incident</td>
+<td>No</td>
+<td>-</td>
+<td>JSON object or URL-encoded string</td>
+</tr>
+<tr>
+<td><code>contexts</code></td>
+<td>array</td>
+<td>Additional context such as links or images</td>
+<td>No</td>
+<td>-</td>
+<td>JSON array of context objects (only 'link' and 'image' types supported)</td>
+</tr>
+<tr>
+<td><code>client</code></td>
+<td>string</td>
+<td>Name of the monitoring client/integration</td>
+<td>No</td>
+<td>-</td>
+<td>Any string</td>
+</tr>
+<tr>
+<td><code>client_url</code></td>
+<td>string</td>
+<td>URL of the monitoring client dashboard</td>
+<td>No</td>
+<td>-</td>
+<td>Valid URL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="parameter_details">Parameter Details<a class="headerlink" href="#parameter_details" title="Permanent link">&para;</a></h3>
+<h4 id="severity_levels">Severity Levels<a class="headerlink" href="#severity_levels" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong><code>info</code></strong>: Informational events that don't require immediate action</li>
+<li><strong><code>warning</code></strong>: Potential issues that should be monitored</li>
+<li><strong><code>error</code></strong>: Actual problems affecting system operation</li>
+<li><strong><code>critical</code></strong>: Urgent issues requiring immediate response</li>
+</ul>
+<h4 id="event_action_items">Event Action Items<a class="headerlink" href="#event_action_items" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong><code>trigger</code></strong>: Creates a new incident or updates an existing one</li>
+<li><strong><code>acknowledge</code></strong>: Acknowledges an incident (stops escalation)</li>
+<li><strong><code>resolve</code></strong>: Resolves an incident (closes it)</li>
+</ul>
+<h4 id="details_parameter">Details Parameter<a class="headerlink" href="#details_parameter" title="Permanent link">&para;</a></h4>
+<p>The <code>details</code> parameter accepts a JSON object with custom key-value pairs:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;database&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.1.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;error_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ECONNREFUSED&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;affected_users&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">150</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="contexts_parameter">Contexts Parameter<a class="headerlink" href="#contexts_parameter" title="Permanent link">&para;</a></h4>
+<p>The <code>contexts</code> parameter accepts a JSON array of context objects. Each context must have a <code>type</code> field. Only <code>link</code> and <code>image</code> types are supported.</p>
+<p><strong>Link contexts:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;link&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;href&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/logs&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;View Application Logs&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Image contexts:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;image&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/error-screenshot.png&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;href&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/dashboard&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Error Screenshot&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="usage_examples">Usage Examples<a class="headerlink" href="#usage_examples" title="Permanent link">&para;</a></h2>
+<h3 id="basic_incident_triggering">Basic Incident Triggering<a class="headerlink" href="#basic_incident_triggering" title="Permanent link">&para;</a></h3>
+<div class="admonition example">
+<p class="admonition-title">Simple alert</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Database connection lost&#39;</span>
+</code></pre></div></p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Critical incident with source</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=prod-db-01
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=critical&amp;source=prod-db-01&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Production database is unresponsive&#39;</span>
+</code></pre></div></p>
+</div>
+<h3 id="incident_management_workflow">Incident Management Workflow<a class="headerlink" href="#incident_management_workflow" title="Permanent link">&para;</a></h3>
+<div class="admonition example">
+<p class="admonition-title">Acknowledge incident</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Engineer has acknowledged the incident and is investigating&#39;</span>
+</code></pre></div></p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Resolve incident</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Database connection restored, incident resolved&#39;</span>
+</code></pre></div></p>
+</div>
+<h3 id="advanced_examples">Advanced Examples<a class="headerlink" href="#advanced_examples" title="Permanent link">&para;</a></h3>
+<div class="admonition example">
+<p class="admonition-title">With custom details</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=monitoring&amp;details={&quot;component&quot;:&quot;api&quot;,&quot;version&quot;:&quot;1.2.3&quot;,&quot;response_time&quot;:&quot;5.2s&quot;}
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=monitoring&amp;details={&quot;component&quot;:&quot;api&quot;,&quot;version&quot;:&quot;1.2.3&quot;,&quot;response_time&quot;:&quot;5.2s&quot;}&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;API response time degraded&#39;</span>
+</code></pre></div></p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">With contexts and client info</p>
+<p><div class="highlight"><pre><span></span><code>pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&amp;source=ci-pipeline&amp;contexts=[{&quot;type&quot;:&quot;link&quot;,&quot;href&quot;:&quot;https://github.com/org/repo/actions/runs/123&quot;,&quot;text&quot;:&quot;GitHub Actions Run&quot;},{&quot;type&quot;:&quot;image&quot;,&quot;src&quot;:&quot;https://example.com/failure-screenshot.png&quot;,&quot;text&quot;:&quot;Build Failure&quot;}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=error&amp;source=ci-pipeline&amp;contexts=[{&quot;type&quot;:&quot;link&quot;,&quot;href&quot;:&quot;https://github.com/org/repo/actions/runs/123&quot;,&quot;text&quot;:&quot;GitHub Actions Run&quot;},{&quot;type&quot;:&quot;image&quot;,&quot;src&quot;:&quot;https://example.com/failure-screenshot.png&quot;,&quot;text&quot;:&quot;Build Failure&quot;}]&amp;client=jenkins&amp;client_url=https://ci.example.com/job/123&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;CI/CD pipeline failed&#39;</span>
+</code></pre></div></p>
+</div>
+<h2 id="event_actions">Event Actions<a class="headerlink" href="#event_actions" title="Permanent link">&para;</a></h2>
+<p>The PagerDuty service supports three primary event actions that correspond to the incident lifecycle:</p>
+<h3 id="trigger_actiontrigger">Trigger (<code>action=trigger</code>)<a class="headerlink" href="#trigger_actiontrigger" title="Permanent link">&para;</a></h3>
+<p>Creates a new incident or updates an existing one with new information. This is the default action.</p>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>System failures or outages</li>
+<li>Performance degradation</li>
+<li>Security alerts</li>
+<li>Application errors</li>
+</ul>
+<p><strong>Behavior:</strong></p>
+<ul>
+<li>If no incident exists for the service, creates a new one</li>
+<li>If an incident exists, adds a new trigger event (may escalate if unacknowledged)</li>
+<li>Includes all provided context, details, and parameters</li>
+</ul>
+<h3 id="acknowledge_actionacknowledge">Acknowledge (<code>action=acknowledge</code>)<a class="headerlink" href="#acknowledge_actionacknowledge" title="Permanent link">&para;</a></h3>
+<p>Acknowledges an existing incident, stopping escalation and indicating that someone is actively working on it.</p>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Engineer has started investigation</li>
+<li>Issue has been triaged</li>
+<li>Response team is assembled</li>
+</ul>
+<p><strong>Behavior:</strong></p>
+<ul>
+<li>Stops incident escalation</li>
+<li>Records acknowledgment timestamp</li>
+<li>Can include update notes in the message</li>
+</ul>
+<h3 id="resolve_actionresolve">Resolve (<code>action=resolve</code>)<a class="headerlink" href="#resolve_actionresolve" title="Permanent link">&para;</a></h3>
+<p>Resolves an incident, marking it as completed and closing the alert cycle.</p>
+<p><strong>Use cases:</strong></p>
+<ul>
+<li>Issue has been fixed</li>
+<li>Service has been restored</li>
+<li>Incident is no longer relevant</li>
+</ul>
+<p><strong>Behavior:</strong></p>
+<ul>
+<li>Closes the incident</li>
+<li>Records resolution timestamp</li>
+<li>Prevents further notifications for this incident</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Incident Deduplication</p>
+<p>PagerDuty automatically deduplicates incidents based on the integration key and incident details. Multiple triggers for the same issue will update the existing incident rather than create duplicates.</p>
+</div>
+<h2 id="advanced_features">Advanced Features<a class="headerlink" href="#advanced_features" title="Permanent link">&para;</a></h2>
+<h3 id="custom_details">Custom Details<a class="headerlink" href="#custom_details" title="Permanent link">&para;</a></h3>
+<p>The <code>details</code> parameter allows you to attach structured data to incidents:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;production&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;web-server&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.1.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;error_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;500&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;affected_services&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;api&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;database&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;metrics&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;cpu_usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">95.2</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;memory_usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">87.1</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>These details appear in the PagerDuty incident details and can be used for filtering, reporting, and automation.</p>
+<h3 id="contexts">Contexts<a class="headerlink" href="#contexts" title="Permanent link">&para;</a></h3>
+<p>Contexts provide additional visual and navigational context to responders:</p>
+<p><strong>Link Contexts:</strong></p>
+<ul>
+<li>Direct responders to relevant resources</li>
+<li>Include runbooks, documentation, or monitoring dashboards</li>
+<li>Support both internal and external links</li>
+</ul>
+<p><strong>Image Contexts:</strong></p>
+<ul>
+<li>Attach screenshots or graphs</li>
+<li>Show error visualizations or system diagrams</li>
+<li>Include clickable links to full-size images</li>
+</ul>
+<h3 id="client_information">Client Information<a class="headerlink" href="#client_information" title="Permanent link">&para;</a></h3>
+<p>The <code>client</code> and <code>client_url</code> parameters identify the monitoring system:</p>
+<ul>
+<li><strong><code>client</code></strong>: Name of your monitoring tool (e.g., "Prometheus", "DataDog", "Custom Monitor")</li>
+<li><strong><code>client_url</code></strong>: Direct link to the monitoring dashboard or alert details</li>
+</ul>
+<p>This helps responders understand where the alert originated and provides quick access to additional monitoring data.</p>
+<h3 id="incident_grouping">Incident Grouping<a class="headerlink" href="#incident_grouping" title="Permanent link">&para;</a></h3>
+<p>PagerDuty supports incident grouping based on custom details. Use consistent detail keys to group related incidents:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;service&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;payment-api&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;region&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-west-2&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;cluster&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;production&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="rate_limiting">Rate Limiting<a class="headerlink" href="#rate_limiting" title="Permanent link">&para;</a></h2>
+<p>The PagerDuty Events API v2 enforces rate limits to ensure system stability:</p>
+<ul>
+<li><strong>120 events per minute</strong> per integration key (higher ceilings available on AIOps/enterprise tiers)</li>
+<li>Rate limits are enforced per integration key, not per service</li>
+<li>Exceeding limits returns HTTP 429 (Too Many Requests)</li>
+</ul>
+<h3 id="handling_rate_limits">Handling Rate Limits<a class="headerlink" href="#handling_rate_limits" title="Permanent link">&para;</a></h3>
+<p>When rate limits are exceeded:</p>
+<ol>
+<li><strong>Implement backoff</strong>: Use exponential backoff (start with 1 minute, double each retry)</li>
+<li><strong>Queue messages</strong>: Buffer notifications during high-volume periods</li>
+<li><strong>Use multiple integrations</strong>: Distribute load across multiple integration keys if needed</li>
+<li><strong>Monitor usage</strong>: Track your API usage in PagerDuty's integration settings</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Rate Limit Best Practices</p>
+<ul>
+<li>Implement retry logic with jitter to avoid thundering herd problems</li>
+<li>Consider using PagerDuty's enterprise features for higher limits if needed</li>
+<li>Monitor your integration's usage in PagerDuty's web interface</li>
+</ul>
+</div>
+<h2 id="error_handling">Error Handling<a class="headerlink" href="#error_handling" title="Permanent link">&para;</a></h2>
+<p>The PagerDuty service returns standard HTTP status codes. Handle these appropriately in your applications:</p>
+<h3 id="success_responses">Success Responses<a class="headerlink" href="#success_responses" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>200 OK</strong>: Event processed successfully</li>
+<li><strong>202 Accepted</strong>: Event accepted for processing (asynchronous)</li>
+</ul>
+<h3 id="error_responses">Error Responses<a class="headerlink" href="#error_responses" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>400 Bad Request</strong>: Invalid request payload or parameters</li>
+<li>Check integration key format (must be 32 hex characters)</li>
+<li>Validate JSON structure for details/contexts</li>
+<li>
+<p>Ensure URLs are properly encoded</p>
+</li>
+<li>
+<p><strong>401 Unauthorized</strong>: Invalid or missing integration key</p>
+</li>
+<li>Verify the integration key is correct</li>
+<li>
+<p>Check that the integration hasn't been disabled</p>
+</li>
+<li>
+<p><strong>403 Forbidden</strong>: Integration lacks required permissions</p>
+</li>
+<li>Ensure the integration key has appropriate permissions</li>
+<li>
+<p>Check service configuration in PagerDuty</p>
+</li>
+<li>
+<p><strong>429 Too Many Requests</strong>: Rate limit exceeded</p>
+</li>
+<li>Implement exponential backoff</li>
+<li>
+<p>Consider queuing messages</p>
+</li>
+<li>
+<p><strong>500 Internal Server Error</strong>: PagerDuty service error</p>
+</li>
+<li>Retry with backoff</li>
+<li>Check PagerDuty status page for outages</li>
+</ul>
+<h3 id="common_issues_and_solutions">Common Issues and Solutions<a class="headerlink" href="#common_issues_and_solutions" title="Permanent link">&para;</a></h3>
+<div class="admonition tip">
+<p class="admonition-title">Integration Key Validation</p>
+<p>Integration keys must be exactly 32 hexadecimal characters. Common mistakes include:
+- Using API keys instead of integration keys
+- Extra whitespace or characters
+- Using keys from disabled integrations</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">JSON Parameter Encoding</p>
+<p>When passing complex parameters like <code>details</code> or <code>contexts</code> in URLs, ensure proper JSON encoding:</p>
+<p><strong>Correct:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="nv">details</span><span class="o">={</span><span class="s2">&quot;key&quot;</span>:<span class="s2">&quot;value&quot;</span><span class="o">}</span>
+</code></pre></div>
+<p><strong>Incorrect - missing quotes:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="nv">details</span><span class="o">={</span>key:value<span class="o">}</span>
+</code></pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Context Object Validation</p>
+<p>Each context object must have a valid <code>type</code> field. Supported types are <code>link</code> and <code>image</code>.</p>
+</div>
+<h2 id="code_examples">Code Examples<a class="headerlink" href="#code_examples" title="Permanent link">&para;</a></h2>
+<h3 id="go_integration">Go Integration<a class="headerlink" href="#go_integration" title="Permanent link">&para;</a></h3>
+<h4 id="basic_incident_triggering_implementation">Basic Incident Triggering Implementation<a class="headerlink" href="#basic_incident_triggering_implementation" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;pagerduty:///eb243592faa24ba2a5511afdf565c889&quot;</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Database connection failed&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="advanced_configuration_with_parameters">Advanced Configuration with Parameters<a class="headerlink" href="#advanced_configuration_with_parameters" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr/pkg/types&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;pagerduty:///eb243592faa24ba2a5511afdf565c889&quot;</span>
+
+<span class="w">    </span><span class="c1">// Trigger critical incident</span>
+<span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;severity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;critical&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;source&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;production-db-01&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;trigger&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;details&quot;</span><span class="p">:</span><span class="w">  </span><span class="s">`{&quot;database&quot;: &quot;postgres&quot;, &quot;error&quot;: &quot;connection timeout&quot;}`</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;client&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;monitoring-system&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;client_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://monitoring.example.com/alerts/123&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Production database is down&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="incident_management_workflow_implementation">Incident Management Workflow Implementation<a class="headerlink" href="#incident_management_workflow_implementation" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;time&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr/pkg/types&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">handleIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">baseURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;pagerduty:///eb243592faa24ba2a5511afdf565c889&quot;</span>
+
+<span class="w">    </span><span class="c1">// 1. Trigger incident</span>
+<span class="w">    </span><span class="nx">triggerParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;severity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;critical&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;source&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;web-server-01&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;trigger&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Web server unresponsive&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">triggerParams</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;Failed to trigger incident: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// Simulate investigation time</span>
+<span class="w">    </span><span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="mi">5</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// 2. Acknowledge incident</span>
+<span class="w">    </span><span class="nx">ackParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;acknowledge&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Engineer investigating server issue&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">ackParams</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;Failed to acknowledge incident: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// Simulate resolution time</span>
+<span class="w">    </span><span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="mi">15</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// 3. Resolve incident</span>
+<span class="w">    </span><span class="nx">resolveParams</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;resolve&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Web server restarted successfully&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">resolveParams</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;Failed to resolve incident: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="using_contexts_for_rich_incident_details">Using Contexts for Rich Incident Details<a class="headerlink" href="#using_contexts_for_rich_incident_details" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr/pkg/types&quot;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">sendRichIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;pagerduty:///eb243592faa24ba2a5511afdf565c889&quot;</span>
+
+<span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;severity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;error&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;source&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;ci-pipeline&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;trigger&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;details&quot;</span><span class="p">:</span><span class="w">  </span><span class="s">`{</span>
+<span class="s">            &quot;pipeline&quot;: &quot;deploy-prod&quot;,</span>
+<span class="s">            &quot;stage&quot;: &quot;test&quot;,</span>
+<span class="s">            &quot;commit&quot;: &quot;abc123def&quot;,</span>
+<span class="s">            &quot;branch&quot;: &quot;main&quot;</span>
+<span class="s">        }`</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;contexts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">`[</span>
+<span class="s">            {</span>
+<span class="s">                &quot;type&quot;: &quot;link&quot;,</span>
+<span class="s">                &quot;href&quot;: &quot;https://github.com/org/repo/commit/abc123def&quot;,</span>
+<span class="s">                &quot;text&quot;: &quot;View Commit&quot;</span>
+<span class="s">            },</span>
+<span class="s">            {</span>
+<span class="s">                &quot;type&quot;: &quot;link&quot;, </span>
+<span class="s">                &quot;href&quot;: &quot;https://ci.example.com/pipelines/123&quot;,</span>
+<span class="s">                &quot;text&quot;: &quot;Pipeline Details&quot;</span>
+<span class="s">            },</span>
+<span class="s">            {</span>
+<span class="s">                &quot;type&quot;: &quot;image&quot;,</span>
+<span class="s">                &quot;src&quot;: &quot;https://ci.example.com/screenshots/failure.png&quot;,</span>
+<span class="s">                &quot;text&quot;: &quot;Test Failure Screenshot&quot;</span>
+<span class="s">            }</span>
+<span class="s">        ]`</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;client&quot;</span><span class="p">:</span><span class="w">    </span><span class="s">&quot;GitHub Actions&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;client_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://github.com/org/repo/actions/runs/456&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CI/CD pipeline failed in production deployment&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="integration_with_monitoring_systems">Integration with Monitoring Systems<a class="headerlink" href="#integration_with_monitoring_systems" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;encoding/json&quot;</span>
+<span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/containrrr/shoutrrr/pkg/types&quot;</span>
+<span class="p">)</span>
+
+<span class="c1">// AlertData represents alert data from a monitoring system</span>
+<span class="kd">type</span><span class="w"> </span><span class="nx">AlertData</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Title</span><span class="w">       </span><span class="kt">string</span><span class="w">            </span><span class="s">`json:&quot;title&quot;`</span>
+<span class="w">    </span><span class="nx">Description</span><span class="w"> </span><span class="kt">string</span><span class="w">            </span><span class="s">`json:&quot;description&quot;`</span>
+<span class="w">    </span><span class="nx">Severity</span><span class="w">    </span><span class="kt">string</span><span class="w">            </span><span class="s">`json:&quot;severity&quot;`</span>
+<span class="w">    </span><span class="nx">Source</span><span class="w">      </span><span class="kt">string</span><span class="w">            </span><span class="s">`json:&quot;source&quot;`</span>
+<span class="w">    </span><span class="nx">Details</span><span class="w">     </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">interface</span><span class="p">{}</span><span class="w"> </span><span class="s">`json:&quot;details&quot;`</span>
+<span class="w">    </span><span class="nx">DashboardURL</span><span class="w"> </span><span class="kt">string</span><span class="w">           </span><span class="s">`json:&quot;dashboard_url&quot;`</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">sendMonitoringAlert</span><span class="p">(</span><span class="nx">data</span><span class="w"> </span><span class="nx">AlertData</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;pagerduty:///eb243592faa24ba2a5511afdf565c889&quot;</span>
+
+<span class="w">    </span><span class="c1">// Convert details to JSON string</span>
+<span class="w">    </span><span class="nx">detailsJSON</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nx">Marshal</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">Details</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;severity&quot;</span><span class="p">:</span><span class="w">   </span><span class="nx">data</span><span class="p">.</span><span class="nx">Severity</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;source&quot;</span><span class="p">:</span><span class="w">     </span><span class="nx">data</span><span class="p">.</span><span class="nx">Source</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;action&quot;</span><span class="p">:</span><span class="w">     </span><span class="s">&quot;trigger&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;details&quot;</span><span class="p">:</span><span class="w">    </span><span class="nb">string</span><span class="p">(</span><span class="nx">detailsJSON</span><span class="p">),</span>
+<span class="w">        </span><span class="s">&quot;client&quot;</span><span class="p">:</span><span class="w">     </span><span class="s">&quot;Custom Monitoring&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s">&quot;client_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">DashboardURL</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">Title</span><span class="o">+</span><span class="s">&quot;: &quot;</span><span class="o">+</span><span class="nx">data</span><span class="p">.</span><span class="nx">Description</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="cli_examples">CLI Examples<a class="headerlink" href="#cli_examples" title="Permanent link">&para;</a></h2>
+<h3 id="basic_usage">Basic Usage<a class="headerlink" href="#basic_usage" title="Permanent link">&para;</a></h3>
+<p>Send a simple alert:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Server is down&#39;</span>
+</code></pre></div>
+<p>Send with severity:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?severity=critical&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Production outage detected&#39;</span>
+</code></pre></div>
+<h3 id="incident_lifecycle_management">Incident Lifecycle Management<a class="headerlink" href="#incident_lifecycle_management" title="Permanent link">&para;</a></h3>
+<p>Trigger incident:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?action=trigger&amp;severity=critical&amp;source=web-app&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Application crashed&#39;</span>
+</code></pre></div>
+<p>Acknowledge incident:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?action=acknowledge&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;DevOps team is investigating&#39;</span>
+</code></pre></div>
+<p>Resolve incident:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?action=resolve&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Application restarted successfully&#39;</span>
+</code></pre></div>
+<h3 id="advanced_parameters">Advanced Parameters<a class="headerlink" href="#advanced_parameters" title="Permanent link">&para;</a></h3>
+<p>With custom details:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?details={&quot;component&quot;:&quot;database&quot;,&quot;error&quot;:&quot;connection_failed&quot;}&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Database connectivity issue&#39;</span>
+</code></pre></div>
+<p>With contexts:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty:///eb243592faa24ba2a5511afdf565c889?contexts=[{&quot;type&quot;:&quot;link&quot;,&quot;href&quot;:&quot;https://monitoring.example.com&quot;,&quot;text&quot;:&quot;Monitoring Dashboard&quot;}]&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;High CPU usage detected&#39;</span>
+</code></pre></div>
+<p>Full configuration:</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;pagerduty://events.pagerduty.com/eb243592faa24ba2a5511afdf565c889?severity=warning&amp;source=load-balancer&amp;client=prometheus&amp;client_url=https://prometheus.example.com/alerts&#39;</span><span class="w"> </span>-m<span class="w"> </span><span class="s1">&#39;Load balancer health check failing&#39;</span>
+</code></pre></div>
+<h3 id="integration_with_scripts">Integration with Scripts<a class="headerlink" href="#integration_with_scripts" title="Permanent link">&para;</a></h3>
+<p>Example script for PagerDuty alerts:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+
+<span class="nv">INTEGRATION_KEY</span><span class="o">=</span><span class="s2">&quot;eb243592faa24ba2a5511afdf565c889&quot;</span>
+<span class="nv">SEVERITY</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">1</span><span class="k">:-</span><span class="nv">error</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">SOURCE</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">2</span><span class="k">:-</span><span class="nv">unknown</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">MESSAGE</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$3</span><span class="s2">&quot;</span>
+
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-z<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MESSAGE</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Usage: </span><span class="nv">$0</span><span class="s2"> [severity] [source] message&quot;</span>
+<span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<span class="k">fi</span>
+
+<span class="nv">URL</span><span class="o">=</span><span class="s2">&quot;pagerduty:///</span><span class="nv">$INTEGRATION_KEY</span><span class="s2">?severity=</span><span class="nv">$SEVERITY</span><span class="s2">&amp;source=</span><span class="nv">$SOURCE</span><span class="s2">&quot;</span>
+
+shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$URL</span><span class="s2">&quot;</span><span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MESSAGE</span><span class="s2">&quot;</span>
+</code></pre></div>
+<h2 id="best_practices">Best Practices<a class="headerlink" href="#best_practices" title="Permanent link">&para;</a></h2>
+<h3 id="incident_management">Incident Management<a class="headerlink" href="#incident_management" title="Permanent link">&para;</a></h3>
+<h4 id="use_appropriate_severity_levels">Use Appropriate Severity Levels<a class="headerlink" href="#use_appropriate_severity_levels" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Reserve <code>critical</code> for issues requiring immediate attention</li>
+<li>Use <code>error</code> for actual problems, <code>warning</code> for potential issues</li>
+<li>Use <code>info</code> sparingly for informational events</li>
+</ul>
+<h4 id="provide_meaningful_source_identifiers">Provide Meaningful Source Identifiers<a class="headerlink" href="#provide_meaningful_source_identifiers" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Use consistent, descriptive source names</li>
+<li>Include environment information (e.g., <code>prod-web-01</code>, <code>staging-db</code>)</li>
+<li>Avoid generic sources like "unknown" or "default"</li>
+</ul>
+<h4 id="include_rich_context">Include Rich Context<a class="headerlink" href="#include_rich_context" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Always provide <code>client</code> and <code>client_url</code> for traceability</li>
+<li>Use <code>details</code> for structured data that can be queried</li>
+<li>Add relevant <code>contexts</code> to help responders</li>
+</ul>
+<h3 id="operational_considerations">Operational Considerations<a class="headerlink" href="#operational_considerations" title="Permanent link">&para;</a></h3>
+<h4 id="rate_limiting_awareness">Rate Limiting Awareness<a class="headerlink" href="#rate_limiting_awareness" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Monitor your API usage to avoid hitting limits</li>
+<li>Implement queuing for high-volume scenarios</li>
+<li>Use exponential backoff for retries</li>
+</ul>
+<h4 id="error_handling_considerations">Error Handling Considerations<a class="headerlink" href="#error_handling_considerations" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Always check for errors when sending notifications</li>
+<li>Implement proper logging for debugging</li>
+<li>Handle rate limiting gracefully</li>
+</ul>
+<h4 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Store integration keys securely (environment variables, secrets management)</li>
+<li>Rotate keys periodically</li>
+<li>Use least-privilege access</li>
+</ul>
+<h3 id="integration_patterns">Integration Patterns<a class="headerlink" href="#integration_patterns" title="Permanent link">&para;</a></h3>
+<h4 id="monitoring_system_integration">Monitoring System Integration<a class="headerlink" href="#monitoring_system_integration" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Map monitoring severity levels to PagerDuty severities</li>
+<li>Include monitoring system links in <code>client_url</code></li>
+<li>Use consistent <code>source</code> naming conventions</li>
+</ul>
+<h4 id="cicd_pipeline_integration">CI/CD Pipeline Integration<a class="headerlink" href="#cicd_pipeline_integration" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Trigger incidents for deployment failures</li>
+<li>Include build links and commit information</li>
+<li>Use appropriate severity based on environment</li>
+</ul>
+<h4 id="application_integration">Application Integration<a class="headerlink" href="#application_integration" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Include error codes, stack traces in <code>details</code></li>
+<li>Provide links to logs and monitoring</li>
+<li>Use structured logging for better incident data</li>
+</ul>
+<h3 id="maintenance">Maintenance<a class="headerlink" href="#maintenance" title="Permanent link">&para;</a></h3>
+<h4 id="regular_testing">Regular Testing<a class="headerlink" href="#regular_testing" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Test integrations regularly to ensure they work</li>
+<li>Verify integration keys are valid</li>
+<li>Test different severity levels and parameters</li>
+</ul>
+<h4 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Document your PagerDuty integrations</li>
+<li>Maintain runbooks for common incident types</li>
+<li>Keep contact information current</li>
+</ul>
+<h4 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Monitor PagerDuty integration health</li>
+<li>Set up alerts for integration failures</li>
+<li>Review incident response times and effectiveness</li>
+</ul>
+<p>By following these best practices, you can ensure reliable, effective incident management that helps your team respond quickly and effectively to system issues.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 3, 2025 06:45:14 UTC"><span class="timeago" datetime="2025-11-03T06:45:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 3, 2025 06:45:14 UTC">2025-11-03</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 3, 2025 06:45:14 UTC"><span class="timeago" datetime="2025-11-03T06:45:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 3, 2025 06:45:14 UTC">2025-11-03</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © 2025 Nicholas Fedor
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/nicholas-fedor/shoutrrr" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tooltips", "content.tabs.link", "navigation.top"], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": ["latest", "dev"], "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+        <script src="../../../js/timeago.min.js"></script>
+      
+        <script src="../../../js/timeago_mkdocs_material.js"></script>
+      
+    
+  </body>
+</html>
