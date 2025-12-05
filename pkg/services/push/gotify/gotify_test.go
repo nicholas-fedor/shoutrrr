@@ -1580,7 +1580,9 @@ func TestTimeout(t *testing.T) {
 				return
 			}
 
-			resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				errChan <- err
+			}
 		}()
 
 		// Send request and expect timeout
