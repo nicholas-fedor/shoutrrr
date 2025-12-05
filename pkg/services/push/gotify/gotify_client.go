@@ -11,8 +11,6 @@ import (
 const (
 	// HTTPTimeout defines the HTTP client timeout in seconds.
 	HTTPTimeout = 10
-	// HTTPClientErrorThreshold specifies the status code threshold for client errors (400+).
-	HTTPClientErrorThreshold = 400
 )
 
 // HTTPClientManager handles HTTP client creation and configuration.
