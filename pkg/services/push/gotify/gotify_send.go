@@ -41,7 +41,15 @@ func (s *DefaultSender) SendRequest(
 	var err error
 	if len(headers) > 0 {
 		// Use direct HTTP client when custom headers are needed
-		err = s.sendRequestWithHeaders(client, url, request, response, headers)
+		body, err := s.sendRequestWithHeaders(client, url, request, headers)
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(body, response)
+		if err != nil {
+			return fmt.Errorf("%s: %w", ErrParseResponse.Error(), err)
+		}
 	} else {
 		// Use JSON client for standard requests - this will handle error extraction
 		jsonClient := jsonclient.NewWithHTTPClient(client)
@@ -76,24 +84,20 @@ func (s *DefaultSender) SendRequest(
 //   - client: HTTP client to use
 //   - url: The complete API endpoint URL to send the request to
 //   - request: The JSON payload to send in the request body
-//   - response: The response structure to unmarshal into
 //   - headers: Custom headers to set on the request
 //
-// Returns: error if the request fails or server returns an error, nil on success.
+// Returns: the response body as bytes if successful, or an error.
 func (s *DefaultSender) sendRequestWithHeaders(
 	client *http.Client,
 	url string,
 	request *MessageRequest,
-	response *messageResponse,
 	headers http.Header,
-) error {
-	// Marshal the request to JSON
+) ([]byte, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("%s: %w", ErrMarshalRequest.Error(), err)
+		return nil, fmt.Errorf("%s: %w", ErrMarshalRequest.Error(), err)
 	}
 
-	// Create the HTTP request
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -101,33 +105,43 @@ func (s *DefaultSender) sendRequestWithHeaders(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("%s: %w", ErrCreateRequest.Error(), err)
+		return nil, fmt.Errorf("%s: %w", ErrCreateRequest.Error(), err)
 	}
 
-	// Set Content-Type header
+	s.setRequestHeaders(req, headers)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ErrSendRequest.Error(), err)
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	body, err = io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ErrReadResponse.Error(), err)
+	}
+
+	if err := s.handleResponseError(res, body); err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
+// setRequestHeaders sets the Content-Type and custom headers on the HTTP request.
+func (s *DefaultSender) setRequestHeaders(req *http.Request, headers http.Header) {
 	req.Header.Set("Content-Type", "application/json")
 
-	// Set custom headers
 	for key, values := range headers {
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
 	}
+}
 
-	// Execute the request
-	res, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s: %w", ErrSendRequest.Error(), err)
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	// Read the response body
-	body, err = io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("%s: %w", ErrReadResponse.Error(), err)
-	}
-
+// handleResponseError checks the response status and extracts error information if present.
+func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
 	if res.StatusCode >= 400 { //nolint:mnd
 		errorRes := &responseError{}
 		if s.extractErrorResponse(body, errorRes) {
@@ -135,11 +149,6 @@ func (s *DefaultSender) sendRequestWithHeaders(
 		}
 
 		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
-	}
-
-	err = json.Unmarshal(body, response)
-	if err != nil {
-		return fmt.Errorf("%s: %w", ErrParseResponse.Error(), err)
 	}
 
 	return nil
