@@ -39,18 +39,8 @@ func (s *DefaultSender) SendRequest(
 	response := &messageResponse{}
 
 	var err error
-	if len(headers) > 0 {
-		// Use direct HTTP client when custom headers are needed
-		body, err := s.sendRequestWithHeaders(client, url, request, headers)
-		if err != nil {
-			return err
-		}
 
-		err = json.Unmarshal(body, response)
-		if err != nil {
-			return fmt.Errorf("%s: %w", ErrParseResponse.Error(), err)
-		}
-	} else {
+	if len(headers) == 0 {
 		// Use JSON client for standard requests - this will handle error extraction
 		jsonClient := jsonclient.NewWithHTTPClient(client)
 
@@ -68,12 +58,17 @@ func (s *DefaultSender) SendRequest(
 		return nil
 	}
 
+	// Use direct HTTP client when custom headers are needed
+	body, err := s.sendRequestWithHeaders(client, url, request, headers)
 	if err != nil {
-		// Return generic error with context
-		return fmt.Errorf("%s: %w", ErrSendFailed.Error(), err)
+		return err
 	}
 
-	// Request completed successfully
+	err = json.Unmarshal(body, response)
+	if err != nil {
+		return fmt.Errorf("%s: %w", ErrParseResponse.Error(), err)
+	}
+
 	return nil
 }
 

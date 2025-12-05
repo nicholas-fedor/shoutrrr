@@ -37,7 +37,8 @@ func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
 		return m.Transport
 	}
 
-	return nil // Use http.DefaultTransport
+	// Return nil to use the default transport, avoiding nil dereferences
+	return nil
 }
 
 // CreateClient creates a client with the given transport.
