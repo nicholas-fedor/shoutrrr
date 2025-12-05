@@ -1220,138 +1220,120 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 		ginkgo.Describe("validateDate", func() {
 			ginkgo.It("returns empty string for empty input", func() {
-				result, err := validateDate("")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate("")
 				gomega.Expect(result).To(gomega.Equal(""))
 			})
 			ginkgo.It("validates RFC3339 format correctly", func() {
 				input := TestDateRFC
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal(input))
 			})
 			ginkgo.It("validates RFC3339 with timezone offset", func() {
 				input := "2023-12-04T20:00:00+05:00"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T15:00:00Z"))
 			})
 			ginkgo.It("validates RFC3339 without timezone (assumes UTC)", func() {
 				input := "2023-12-04T20:00:00"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
 			})
 			ginkgo.It("validates Unix timestamp seconds", func() {
 				input := "1701720000" // 2023-12-04T20:00:00Z
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
 			})
 			ginkgo.It("validates basic date-time format", func() {
 				input := "2023-12-04 20:00:00"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
 			})
 			ginkgo.It("handles zero Unix timestamp", func() {
 				input := "0"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("1970-01-01T00:00:00Z"))
 			})
 			ginkgo.It("handles negative Unix timestamp", func() {
 				input := "-1"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("1969-12-31T23:59:59Z"))
 			})
 			ginkgo.It("handles large Unix timestamp", func() {
 				input := "2147483647" // Max int32
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2038-01-19T03:14:07Z"))
 			})
-			ginkgo.It("rejects invalid RFC3339 format", func() {
+			ginkgo.It("returns empty string for invalid RFC3339 format", func() {
 				input := "2023-13-04T20:00:00Z" // Invalid month
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects invalid date string", func() {
+			ginkgo.It("returns empty string for invalid date string", func() {
 				input := "not-a-date"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects malformed RFC3339", func() {
+			ginkgo.It("returns empty string for malformed RFC3339", func() {
 				input := "2023-13-04T20:00:00Z" // Invalid month
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects invalid Unix timestamp", func() {
+			ginkgo.It("returns empty string for invalid Unix timestamp", func() {
 				input := "abc123"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects Unix timestamp with decimal", func() {
+			ginkgo.It("returns empty string for Unix timestamp with decimal", func() {
 				input := "1701720000.5"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects date with invalid separators", func() {
+			ginkgo.It("returns empty string for date with invalid separators", func() {
 				input := "2023/12/04 20:00:00"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects date with extra characters", func() {
+			ginkgo.It("returns empty string for date with extra characters", func() {
 				input := "2023-12-04T20:00:00Z extra"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
 			ginkgo.It("handles RFC3339Nano format", func() {
 				input := "2023-12-04T20:00:00.123456789Z"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).
 					To(gomega.Equal("2023-12-04T20:00:00Z"))
 				// Nanoseconds are truncated to RFC3339
 			})
 			ginkgo.It("validates RFC3339 with +00:00 timezone", func() {
 				input := "2023-12-04T20:00:00+00:00"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
 			})
 			ginkgo.It("validates RFC3339 with -08:00 timezone", func() {
 				input := "2023-12-04T20:00:00-08:00"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-05T04:00:00Z"))
 			})
 			ginkgo.It("validates Unix timestamp with leading zeros", func() {
 				input := "0001701720000"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
 			})
 			ginkgo.It("validates Unix timestamp for 2021-01-01", func() {
 				input := "1609459200"
-				result, err := validateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				result := validateDate(input)
 				gomega.Expect(result).To(gomega.Equal("2021-01-01T00:00:00Z"))
 			})
-			ginkgo.It("rejects date-only format", func() {
+			ginkgo.It("returns empty string for date-only format", func() {
 				input := "2023-12-04"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
-			ginkgo.It("rejects time-only format", func() {
+			ginkgo.It("returns empty string for time-only format", func() {
 				input := "20:00:00"
-				_, err := validateDate(input)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid date format"))
+				result := validateDate(input)
+				gomega.Expect(result).To(gomega.Equal(""))
 			})
 		})
 		ginkgo.Describe("buildURL", func() {

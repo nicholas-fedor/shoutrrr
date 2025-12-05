@@ -109,14 +109,30 @@ func (service *Service) GetID() string {
 //
 // Returns: error if sending fails or validation fails, nil on successful delivery.
 func (service *Service) Send(message string, params *types.Params) error {
+	if err := service.validateInputs(message, params); err != nil {
+		return err
+	}
+
+	service.initClient()
+
+	config, extras, err := service.processConfig(params)
+	if err != nil {
+		return err
+	}
+
+	postURL, request, headers, err := service.buildRequest(message, &config, extras)
+	if err != nil {
+		return err
+	}
+
+	return service.sendRequest(postURL, request, headers)
+}
+
+// validateInputs performs initial validation checks for the Send method.
+func (service *Service) validateInputs(message string, _ *types.Params) error {
 	// Validate that the message is not empty before proceeding
 	if message == "" {
 		return ErrEmptyMessage
-	}
-
-	// Ensure params is not nil to avoid nil pointer dereferences
-	if params == nil {
-		params = &types.Params{}
 	}
 
 	// Check if service is initialized
@@ -124,47 +140,50 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return ErrServiceNotInitialized
 	}
 
-	// Initialize HTTP client and related components in a thread-safe manner
-	service.initClient()
+	return nil
+}
 
+// processConfig handles configuration processing including parameter updates, validation, and extras parsing.
+func (service *Service) processConfig(params *types.Params) (Config, map[string]any, error) {
 	// Get reference to current configuration
 	config := *service.Config
 
-	// Begin parameter processing section
 	// Filter out 'extras' parameter as it's handled separately from other config updates
 	filteredParams := filterParams(params)
 
 	// Update configuration with filtered parameters (title, priority, etc.)
 	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
-		return fmt.Errorf("failed to update config from params: %w", err)
+		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
 	// Validate priority is within valid range (-2 to 10)
 	if err := validatePriority(config.Priority); err != nil {
-		return err
+		return config, nil, err
 	}
 
-	// Validate date format if provided
-	convertedDate, err := validateDate(config.Date)
-	if err != nil {
-		service.Logf("Warning: %v, skipping date setting", err)
-
-		config.Date = ""
-	} else {
-		config.Date = convertedDate
-	}
+	// Validate and convert date format
+	config.Date = validateDate(config.Date)
 
 	// Parse extras from parameters or fall back to config extras
 	extras := service.parseExtras(params, &config)
 
+	return config, extras, nil
+}
+
+// buildRequest constructs the URL, payload, and headers for the HTTP request.
+func (service *Service) buildRequest(
+	message string,
+	config *Config,
+	extras map[string]any,
+) (string, *messageRequest, http.Header, error) {
 	// Construct the complete API endpoint URL
-	postURL, err := buildURL(&config)
+	postURL, err := buildURL(config)
 	if err != nil {
-		return err
+		return "", nil, nil, err
 	}
 
 	// Prepare the JSON request payload
-	request := service.prepareRequest(message, &config, extras, config.Date)
+	request := service.prepareRequest(message, config, extras, config.Date)
 
 	// Prepare headers for header-based authentication
 	var headers http.Header
@@ -173,8 +192,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 		headers.Set("X-Gotify-Key", config.Token)
 	}
 
-	// Execute the HTTP request and return result
-	return service.sendRequest(postURL, request, headers)
+	return postURL, request, headers, nil
 }
 
 // filterParams filters out 'extras' parameters from the given params.
@@ -206,35 +224,35 @@ func validatePriority(priority int) error {
 // validateDate validates and converts the provided date string to RFC3339 format.
 // It attempts parsing multiple formats in order of preference: RFC3339, RFC3339 without timezone,
 // Unix timestamp (seconds), and basic date-time formats.
-// Returns the converted date string in RFC3339 format, or error if all parsing attempts fail.
-func validateDate(date string) (string, error) {
+// Returns the converted date string in RFC3339 format, or empty string if all parsing attempts fail.
+func validateDate(date string) string {
 	if date == "" {
-		return "", nil
+		return ""
 	}
 
 	// Try RFC3339
 	if t, err := time.Parse(time.RFC3339, date); err == nil {
-		return t.UTC().Format(time.RFC3339), nil
+		return t.UTC().Format(time.RFC3339)
 	}
 
 	// Try RFC3339 without timezone
 	if t, err := time.ParseInLocation("2006-01-02T15:04:05", date, time.UTC); err == nil {
-		return t.UTC().Format(time.RFC3339), nil
+		return t.UTC().Format(time.RFC3339)
 	}
 
 	// Try Unix timestamp seconds
 	if unix, err := strconv.ParseInt(date, 10, 64); err == nil {
 		t := time.Unix(unix, 0)
 
-		return t.UTC().Format(time.RFC3339), nil
+		return t.UTC().Format(time.RFC3339)
 	}
 
 	// Try basic date-time "2006-01-02 15:04:05"
 	if t, err := time.ParseInLocation("2006-01-02 15:04:05", date, time.UTC); err == nil {
-		return t.UTC().Format(time.RFC3339), nil
+		return t.UTC().Format(time.RFC3339)
 	}
 
-	return "", fmt.Errorf("%w: %s", ErrInvalidDate, date)
+	return ""
 }
 
 // GetHTTPClient returns the HTTP client for testing purposes.
