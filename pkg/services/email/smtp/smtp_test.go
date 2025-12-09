@@ -3,7 +3,9 @@ package smtp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log"
+	"net"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -49,6 +51,30 @@ var (
 	// BasePlusURL is a config with plus signs in email addresses.
 	BasePlusURL = "smtp://user:password@example.com:2225/?useStartTLS=no&fromAddress=sender+tag@example.com&toAddresses=rec1+tag@example.com,rec2@example.com&useHTML=yes&timeout=10s"
 )
+
+// mockConn is a mock implementation of net.Conn that fails on Close for testing purposes.
+type mockConn struct {
+	closeCount int
+}
+
+func (m *mockConn) Read(_ []byte) (int, error)  { return 0, nil }
+func (m *mockConn) Write(b []byte) (int, error) { return len(b), nil }
+func (m *mockConn) Close() error {
+	m.closeCount++
+
+	ginkgo.GinkgoWriter.Write([]byte("mockConn.Close called\n"))
+
+	if m.closeCount > 1 {
+		return errors.New("mock close error")
+	}
+
+	return nil
+}
+func (m *mockConn) LocalAddr() net.Addr                { return nil }
+func (m *mockConn) RemoteAddr() net.Addr               { return nil }
+func (m *mockConn) SetDeadline(_ time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (m *mockConn) SetWriteDeadline(_ time.Time) error { return nil }
 
 // modifyURL modifies a base URL by updating query parameters as specified.
 func modifyURL(base string, params map[string]string) string {
@@ -512,6 +538,68 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 					gomega.Expect(err).To(matchFailure(FailClosingSession))
 				},
 			)
+			ginkgo.It("should ignore short response errors on QUIT and log warning", func() {
+				testURL := BaseNoAuthURL
+				serviceURL, _ := url.Parse(testURL)
+				localService := &Service{}
+				err := localService.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				var buf bytes.Buffer
+				testLogger := log.New(&buf, "", 0)
+				localService.SetLogger(testLogger)
+				responses := []string{
+					"250-mx.google.com at your service",
+					"250-SIZE 35651584",
+					"250-AUTH LOGIN PLAIN",
+					"250 8BITMIME",
+					"250 Sender OK",
+					"250 Receiver OK",
+					"354 Go ahead",
+					"250 Data OK",
+					"22", // Short response on QUIT
+				}
+				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
+				client := &smtp.Client{Text: textCon}
+				fakeTLSEnabled(client, serviceURL.Hostname())
+				config := localService.Config
+				err = localService.doSend(client, "Test message", config)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				gomega.Expect(buf.String()).
+					To(gomega.ContainSubstring("Warning: Ignoring session closure error (delivery succeeded)"))
+			})
+			ginkgo.It("should log warning when QUIT succeeds but Close fails", func() {
+				testURL := BaseNoAuthURL
+				serviceURL, _ := url.Parse(testURL)
+				localService := &Service{}
+				err := localService.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				var buf bytes.Buffer
+				testLogger := log.New(&buf, "", 0)
+				localService.SetLogger(testLogger)
+				responses := []string{
+					"250-mx.google.com at your service",
+					"250-SIZE 35651584",
+					"250-AUTH LOGIN PLAIN",
+					"250 8BITMIME",
+					"250 Sender OK",
+					"250 Receiver OK",
+					"354 Go ahead",
+					"250 Data OK",
+					"221 OK", // QUIT succeeds
+				}
+				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
+				client := &smtp.Client{Text: textCon}
+				fakeTLSEnabled(client, serviceURL.Hostname())
+				// Mock the underlying connection to fail on Close
+				cr := reflect.ValueOf(client).Elem().FieldByName("Text").Elem().FieldByName("conn")
+				cr = reflect.NewAt(cr.Type(), unsafe.Pointer(cr.UnsafeAddr())).Elem()
+				cr.Set(reflect.ValueOf(&mockConn{}))
+				config := localService.Config
+				err = localService.doSend(client, "Test message", config)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				gomega.Expect(buf.String()).
+					To(gomega.ContainSubstring("Warning: Failed to close SMTP client connection: mock close error"))
+			})
 			ginkgo.It("should fail when context is canceled during connection", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()

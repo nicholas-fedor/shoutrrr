@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
@@ -22,12 +23,13 @@ import (
 )
 
 const (
-	contentHTML      = "text/html; charset=\"UTF-8\""
-	contentPlain     = "text/plain; charset=\"UTF-8\""
-	contentMultipart = "multipart/alternative; boundary=%s"
-	DefaultSMTPPort  = 25 // DefaultSMTPPort is the standard port for SMTP communication.
-	boundaryByteLen  = 8  // boundaryByteLen is the number of bytes for the multipart boundary.
-	DefaultTimeout   = 10 // DefaultTimeout is the default timout in seconds
+	contentHTML                 = "text/html; charset=\"UTF-8\""
+	contentPlain                = "text/plain; charset=\"UTF-8\""
+	contentMultipart            = "multipart/alternative; boundary=%s"
+	DefaultSMTPPort             = 25               // DefaultSMTPPort is the standard port for SMTP communication.
+	boundaryByteLen             = 8                // boundaryByteLen is the number of bytes for the multipart boundary.
+	DefaultTimeout              = 10               // DefaultTimeout is the default timout in seconds
+	shortResponseErrorSubstring = "short response" // Error substring from textproto indicating a short response that is sometimes received during session closure.
 )
 
 // ErrNoAuth is a sentinel error indicating no authentication is required.
@@ -206,7 +208,19 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 
 	// Send the QUIT command and close the connection.
 	if err := client.Quit(); err != nil {
-		errs = append(errs, fail(FailClosingSession, err))
+		// Ignore known "short response" errors from quirky servers (e.g., Office 365 on close),
+		// as they don't impact delivery.
+		if strings.Contains(err.Error(), shortResponseErrorSubstring) {
+			service.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
+		} else {
+			// Bubble up other close errors (e.g., network drops)
+			errs = append(errs, fail(FailClosingSession, err))
+		}
+	}
+
+	// Best-effort cleanup to avoid descriptor leaks
+	if closeErr := client.Close(); closeErr != nil {
+		service.Logf("Warning: Failed to close SMTP client connection: %v", closeErr)
 	}
 
 	if len(errs) > 0 {
