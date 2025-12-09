@@ -512,6 +512,35 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 					gomega.Expect(err).To(matchFailure(FailClosingSession))
 				},
 			)
+			ginkgo.It("should ignore short response errors on QUIT and log warning", func() {
+				testURL := BaseNoAuthURL
+				serviceURL, _ := url.Parse(testURL)
+				localService := &Service{}
+				err := localService.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				var buf bytes.Buffer
+				testLogger := log.New(&buf, "", 0)
+				localService.SetLogger(testLogger)
+				responses := []string{
+					"250-mx.google.com at your service",
+					"250-SIZE 35651584",
+					"250-AUTH LOGIN PLAIN",
+					"250 8BITMIME",
+					"250 Sender OK",
+					"250 Receiver OK",
+					"354 Go ahead",
+					"250 Data OK",
+					"22", // Short response on QUIT
+				}
+				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
+				client := &smtp.Client{Text: textCon}
+				fakeTLSEnabled(client, serviceURL.Hostname())
+				config := localService.Config
+				err = localService.doSend(client, "Test message", config)
+				gomega.Expect(err).To(gomega.BeNil())
+				gomega.Expect(buf.String()).
+					To(gomega.ContainSubstring("Warning: Ignoring session closure error (delivery succeeded)"))
+			})
 			ginkgo.It("should fail when context is canceled during connection", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
