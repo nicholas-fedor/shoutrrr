@@ -1558,8 +1558,6 @@ func TestSendWithTitle(t *testing.T) {
 }
 
 // TestTimeout tests timeout handling using synctest for instant execution.
-
-// TestTimeout tests timeout handling using synctest for instant execution.
 func TestTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
