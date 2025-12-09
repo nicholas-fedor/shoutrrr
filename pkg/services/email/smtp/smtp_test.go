@@ -537,7 +537,7 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				fakeTLSEnabled(client, serviceURL.Hostname())
 				config := localService.Config
 				err = localService.doSend(client, "Test message", config)
-				gomega.Expect(err).To(gomega.BeNil())
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 				gomega.Expect(buf.String()).
 					To(gomega.ContainSubstring("Warning: Ignoring session closure error (delivery succeeded)"))
 			})
