@@ -101,7 +101,7 @@ jobs:
 
       - name: Upload binary SBOMs # Upload SBOMs for prod builds.
         if: ${{ !inputs.dry-run && inputs.build-type == 'prod' }}
-        uses: actions/upload-artifact@b340c4ff4638505212095ac024653b8ce841caf5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: ${{ inputs.build-type }}-binary-sboms
           path: dist/*.sbom
