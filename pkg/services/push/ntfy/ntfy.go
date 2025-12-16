@@ -69,7 +69,7 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	}
 
 	// Configure HTTP transport for TLS verification and enforce TLS 1.2
-	if service.Config.DisableTLSVerification {
+	if service.Config.DisableTLS {
 		service.httpClient.Transport = &http.Transport{
 			//nolint:gosec // TLS verification intentionally disabled
 			TLSClientConfig: &tls.Config{
