@@ -60,6 +60,17 @@ Commonly used parameters can be added as query parameters to customize notificat
 !!! note
     Action buttons require JSON formatting. See the [upstream documentation](https://docs.ntfy.sh/publish/#action-buttons) for detailed syntax.
 
+## TLS Configuration
+
+Ntfy supports two TLS-related configuration options to handle different security scenarios:
+
+- **`DisableTLSVerification`**: When set to `true`, disables TLS certificate verification. This allows connections to servers with self-signed or invalid certificates, but still uses the HTTPS protocol. Use this option when you trust the server but the certificate cannot be verified by standard means.
+
+- **`DisableTLS`**: When set to `true`, disables TLS entirely and forces the use of the HTTP scheme instead of HTTPS. This makes the connection unencrypted and should only be used in secure, trusted environments or for testing purposes.
+
+!!! warning
+    Using either of these options reduces the security of your connection. `DisableTLS` is particularly insecure as it transmits data in plain text. Only use these options when necessary and in controlled environments.
+
 ## Examples
 
 !!! example "Basic notification"

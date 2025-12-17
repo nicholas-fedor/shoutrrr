@@ -75,21 +75,22 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				serviceURL := testutils.URLMust("ntfy://hostname/topic")
 				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 				gomega.Expect(*service.Config).To(gomega.Equal(Config{
-					Host:       "hostname",
-					Topic:      "topic",
-					Scheme:     "https",
-					Tags:       []string{""},
-					Actions:    []string{""},
-					Priority:   3,
-					Firebase:   true,
-					Cache:      true,
-					DisableTLS: false,
+					Host:                   "hostname",
+					Topic:                  "topic",
+					Scheme:                 "https",
+					Tags:                   []string{""},
+					Actions:                []string{""},
+					Priority:               3,
+					Firebase:               true,
+					Cache:                  true,
+					DisableTLSVerification: false,
+					DisableTLS:             false,
 				}))
 			})
 		})
 		ginkgo.When("parsing the configuration URL", func() {
 			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := "ntfy://user:pass@example.com:2225/topic?cache=No&click=CLICK&disabletls=No&firebase=No&icon=ICON&priority=Max&scheme=http&title=TITLE"
+				testURL := "ntfy://user:pass@example.com:2225/topic?cache=No&click=CLICK&disabletls=No&disabletlsverification=No&firebase=No&icon=ICON&priority=Max&scheme=http&title=TITLE"
 				config := &Config{}
 				service.client = jsonclient.NewWithHTTPClient(service.httpClient)
 				pkr := format.NewPropKeyResolver(config)
@@ -149,7 +150,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				testutils.TestConfigSetInvalidQueryValue(&Config{}, "ntfy://host/topic?foo=bar")
 				testutils.TestConfigSetDefaultValues(&Config{})
 				testutils.TestConfigGetEnumsCount(&Config{}, 1)
-				testutils.TestConfigGetFieldsCount(&Config{}, 16)
+				testutils.TestConfigGetFieldsCount(&Config{}, 17)
 			})
 		})
 		ginkgo.Describe("the service instance", func() {
@@ -1431,60 +1432,62 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		})
 	})
 
-	ginkgo.Describe("DisableTLS configuration", func() {
-		ginkgo.It(
-			"should use HTTPS scheme and set InsecureSkipVerify when DisableTLS is true",
-			func() {
+	ginkgo.Describe("TLS configuration", func() {
+		ginkgo.Describe("DisableTLSVerification", func() {
+			ginkgo.It(
+				"should set InsecureSkipVerify when DisableTLSVerification is true",
+				func() {
+					serviceURL := testutils.URLMust(
+						"ntfy://example.com/test?disabletlsverification=yes",
+					)
+					gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+					transport := service.httpClient.Transport.(*http.Transport)
+					gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+				},
+			)
+
+			ginkgo.It("should log warning when DisableTLSVerification is enabled", func() {
+				// This test verifies that a warning is logged when TLS verification is disabled
+				serviceURL := testutils.URLMust(
+					"ntfy://example.com/test?disabletlsverification=yes",
+				)
+				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+				gomega.Expect(service.Config.DisableTLSVerification).To(gomega.BeTrue())
+			})
+
+			ginkgo.It(
+				"should not set InsecureSkipVerify when DisableTLSVerification is false",
+				func() {
+					serviceURL := testutils.URLMust("ntfy://example.com/test")
+					gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+					// Check that the HTTP client does not have InsecureSkipVerify set
+					transport := service.httpClient.Transport.(*http.Transport)
+					gomega.Expect(transport.TLSClientConfig == nil || transport.TLSClientConfig.InsecureSkipVerify == false).
+						To(gomega.BeTrue())
+				},
+			)
+		})
+
+		ginkgo.Describe("DisableTLS", func() {
+			ginkgo.It("should use HTTP scheme when DisableTLS is true", func() {
 				serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
 				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 
 				gomega.Expect(service.Config.GetAPIURL()).
-					To(gomega.Equal("https://example.com/test"))
+					To(gomega.Equal("http://example.com/test"))
+			})
 
-				transport := service.httpClient.Transport.(*http.Transport)
-				gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-			},
-		)
-
-		ginkgo.It("should use HTTPS scheme when DisableTLS is false", func() {
-			config := &Config{
-				Host:       "example.com",
-				Topic:      "test",
-				Scheme:     "https",
-				DisableTLS: false,
-			}
-			gomega.Expect(config.GetAPIURL()).To(gomega.Equal("https://example.com/test"))
-		})
-
-		ginkgo.It(
-			"should configure HTTP client with InsecureSkipVerify when DisableTLS is true",
-			func() {
-				serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
-				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				// Check that the HTTP client has InsecureSkipVerify set
-				transport := service.httpClient.Transport.(*http.Transport)
-				gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-			},
-		)
-
-		ginkgo.It("should log warning when DisableTLS is enabled", func() {
-			// This test verifies that a warning is logged when TLS is disabled
-			// We can't easily test the log output directly, but we can verify the config is set
-			serviceURL := testutils.URLMust("ntfy://example.com/test?disabletls=yes")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should not set InsecureSkipVerify when DisableTLS is false", func() {
-			serviceURL := testutils.URLMust("ntfy://example.com/test")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-			// Check that the HTTP client does not have InsecureSkipVerify set
-			// If TLSClientConfig is nil, it means InsecureSkipVerify is not set (equivalent to false)
-			transport := service.httpClient.Transport.(*http.Transport)
-			gomega.Expect(transport.TLSClientConfig == nil || transport.TLSClientConfig.InsecureSkipVerify == false).
-				To(gomega.BeTrue())
+			ginkgo.It("should use HTTPS scheme when DisableTLS is false", func() {
+				config := &Config{
+					Host:       "example.com",
+					Topic:      "test",
+					Scheme:     "https",
+					DisableTLS: false,
+				}
+				gomega.Expect(config.GetAPIURL()).To(gomega.Equal("https://example.com/test"))
+			})
 		})
 	})
 })
