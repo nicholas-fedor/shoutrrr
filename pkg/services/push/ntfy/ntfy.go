@@ -64,11 +64,16 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		return err
 	}
 
+	// Force HTTP scheme when DisableTLS is true
+	if service.Config.DisableTLS {
+		service.Config.Scheme = "http"
+	}
+
 	service.httpClient = &http.Client{
 		Timeout: HTTPTimeout * time.Second,
 	}
 
-	// Configure HTTP transport for TLS verification and enforce TLS 1.2
+	// Configure HTTP transport: skip TLS verification if disabled, enforce TLS 1.2 minimum
 	if service.Config.DisableTLSVerification {
 		service.httpClient.Transport = &http.Transport{
 			//nolint:gosec // TLS verification intentionally disabled
