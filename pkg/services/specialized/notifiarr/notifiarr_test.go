@@ -1287,4 +1287,213 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})
+
+	ginkgo.Describe("parsing functions", func() {
+		ginkgo.Describe("ParseChannelID", func() {
+			ginkgo.It("parses valid numeric channel ID", func() {
+				service := &notifiarr.Service{}
+				channelID, err := service.ParseChannelID("123456789")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(channelID).To(gomega.Equal(123456789))
+			})
+
+			ginkgo.It("returns error for non-numeric channel ID", func() {
+				service := &notifiarr.Service{}
+				_, err := service.ParseChannelID("invalid")
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid channel ID"))
+			})
+
+			ginkgo.It("returns error for empty channel ID", func() {
+				service := &notifiarr.Service{}
+				_, err := service.ParseChannelID("")
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid channel ID"))
+			})
+
+			ginkgo.It("parses large numeric channel ID", func() {
+				service := &notifiarr.Service{}
+				channelID, err := service.ParseChannelID("9223372036854775807")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(channelID).To(gomega.Equal(9223372036854775807))
+			})
+		})
+
+		ginkgo.Describe("ParseFields", func() {
+			ginkgo.It("parses valid JSON fields", func() {
+				service := &notifiarr.Service{}
+				fields, err := service.ParseFields(
+					`[{"title":"Test","text":"Content","inline":true}]`,
+				)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(fields).To(gomega.HaveLen(1))
+				gomega.Expect(fields[0].Title).To(gomega.Equal("Test"))
+				gomega.Expect(fields[0].Text).To(gomega.Equal("Content"))
+				gomega.Expect(fields[0].Inline).To(gomega.BeTrue())
+			})
+
+			ginkgo.It("returns error for invalid JSON", func() {
+				service := &notifiarr.Service{}
+				_, err := service.ParseFields(`invalid json`)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("parses empty JSON array", func() {
+				service := &notifiarr.Service{}
+				fields, err := service.ParseFields(`[]`)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(fields).To(gomega.BeEmpty())
+			})
+
+			ginkgo.It("parses multiple fields", func() {
+				service := &notifiarr.Service{}
+				fields, err := service.ParseFields(
+					`[{"title":"Field1","text":"Text1"},{"title":"Field2","text":"Text2"}]`,
+				)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(fields).To(gomega.HaveLen(2))
+			})
+		})
+
+		ginkgo.Describe("parseMention", func() {
+			ginkgo.It("parses user mention <@123>", func() {
+				mentionType, id := notifiarr.ParseMention("<@123>")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeUser))
+				gomega.Expect(id).To(gomega.Equal(123))
+			})
+
+			ginkgo.It("parses user mention with nickname <@!456>", func() {
+				mentionType, id := notifiarr.ParseMention("<@!456>")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeUser))
+				gomega.Expect(id).To(gomega.Equal(456))
+			})
+
+			ginkgo.It("parses role mention <@&789>", func() {
+				mentionType, id := notifiarr.ParseMention("<@&789>")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeRole))
+				gomega.Expect(id).To(gomega.Equal(789))
+			})
+
+			ginkgo.It("returns none for invalid mention format", func() {
+				mentionType, id := notifiarr.ParseMention("invalid")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
+				gomega.Expect(id).To(gomega.Equal(0))
+			})
+
+			ginkgo.It("returns none for mention without closing bracket", func() {
+				mentionType, id := notifiarr.ParseMention("<@123")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
+				gomega.Expect(id).To(gomega.Equal(0))
+			})
+
+			ginkgo.It("returns none for non-numeric ID", func() {
+				mentionType, id := notifiarr.ParseMention("<@abc>")
+				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
+				gomega.Expect(id).To(gomega.Equal(0))
+			})
+		})
+
+		ginkgo.Describe("ExtractPingIDs", func() {
+			ginkgo.It("extracts user and role IDs from mentions", func() {
+				service := &notifiarr.Service{}
+				mentions := []string{"<@123>", "<@&456>", "<@!789>"}
+				userIDs, roleIDs := service.ExtractPingIDs(mentions)
+				gomega.Expect(userIDs).To(gomega.Equal([]int{123, 789}))
+				gomega.Expect(roleIDs).To(gomega.Equal([]int{456}))
+			})
+
+			ginkgo.It("handles empty mentions list", func() {
+				service := &notifiarr.Service{}
+				mentions := []string{}
+				userIDs, roleIDs := service.ExtractPingIDs(mentions)
+				gomega.Expect(userIDs).To(gomega.BeEmpty())
+				gomega.Expect(roleIDs).To(gomega.BeEmpty())
+			})
+
+			ginkgo.It("ignores invalid mentions", func() {
+				service := &notifiarr.Service{}
+				mentions := []string{"<@123>", "invalid", "<@&456>"}
+				userIDs, roleIDs := service.ExtractPingIDs(mentions)
+				gomega.Expect(userIDs).To(gomega.Equal([]int{123}))
+				gomega.Expect(roleIDs).To(gomega.Equal([]int{456}))
+			})
+		})
+
+		ginkgo.Describe("parseUpdateFlag", func() {
+			ginkgo.It("parses 'true' string to true", func() {
+				params := types.Params{"update": "true"}
+				result := notifiarr.ParseUpdateFlag(params)
+				gomega.Expect(result).NotTo(gomega.BeNil())
+				gomega.Expect(*result).To(gomega.BeTrue())
+			})
+
+			ginkgo.It("parses 'false' string to false", func() {
+				params := types.Params{"update": "false"}
+				result := notifiarr.ParseUpdateFlag(params)
+				gomega.Expect(result).NotTo(gomega.BeNil())
+				gomega.Expect(*result).To(gomega.BeFalse())
+			})
+
+			ginkgo.It("returns nil for invalid value", func() {
+				params := types.Params{"update": "invalid"}
+				result := notifiarr.ParseUpdateFlag(params)
+				gomega.Expect(result).To(gomega.BeNil())
+			})
+
+			ginkgo.It("returns nil when update key is missing", func() {
+				params := types.Params{}
+				result := notifiarr.ParseUpdateFlag(params)
+				gomega.Expect(result).To(gomega.BeNil())
+			})
+
+			ginkgo.It("returns nil for empty update value", func() {
+				params := types.Params{"update": ""}
+				result := notifiarr.ParseUpdateFlag(params)
+				gomega.Expect(result).To(gomega.BeNil())
+			})
+		})
+	})
+
+	ginkgo.Describe("Send method edge cases", func() {
+		ginkgo.BeforeEach(func() {
+			httpmock.Activate()
+			service = &notifiarr.Service{}
+			service.SetLogger(logger)
+		})
+
+		ginkgo.AfterEach(func() {
+			httpmock.DeactivateAndReset()
+		})
+
+		ginkgo.It("handles nil params gracefully", func() {
+			serviceURL := testutils.URLMust("notifiarr://apikey123")
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
+				httpmock.NewStringResponder(200, ""),
+			)
+
+			err = service.Send("Test message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("handles empty params map", func() {
+			serviceURL := testutils.URLMust("notifiarr://apikey123")
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
+				httpmock.NewStringResponder(200, ""),
+			)
+
+			emptyParams := types.Params{}
+			err = service.Send("Test message", &emptyParams)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+	})
 })

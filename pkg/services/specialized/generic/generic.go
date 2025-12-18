@@ -123,10 +123,17 @@ func (service *Service) doSend(config *Config, params types.Params) error {
 		return fmt.Errorf("creating HTTP request: %w", err)
 	}
 
+	// Determine content type based on payload format
+	contentType := config.ContentType
+	if config.Template == "" {
+		// When no template is specified, payload is plain text
+		contentType = "text/plain"
+	}
+
 	// Set content type header
-	req.Header.Set("Content-Type", config.ContentType)
+	req.Header.Set("Content-Type", contentType)
 	// Set accept header
-	req.Header.Set("Accept", config.ContentType)
+	req.Header.Set("Accept", contentType)
 
 	for key, value := range config.headers {
 		// Add custom headers
@@ -150,8 +157,8 @@ func (service *Service) doSend(config *Config, params types.Params) error {
 		}
 	}
 
-	if res.StatusCode >= http.StatusMultipleChoices {
-		// Check for error status codes
+	if res.StatusCode >= http.StatusBadRequest {
+		// Check for error status codes (4xx and 5xx)
 		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 	}
 

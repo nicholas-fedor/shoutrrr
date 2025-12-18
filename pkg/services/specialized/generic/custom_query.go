@@ -65,6 +65,11 @@ func stripCustomQueryValues(query url.Values) (map[string]string, map[string]str
 	extraData := make(map[string]string)
 
 	for key, values := range query {
+		// Skip keys with length <= 1 to prevent processing empty or invalid keys that could result in malformed headers or JSON fields
+		if len(key) <= 1 {
+			continue
+		}
+
 		switch key[0] {
 		case HeaderPrefixChar: // Header prefixed with @
 			// Normalize header key

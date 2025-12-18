@@ -1,9 +1,7 @@
 # Generic
 
-The Generic service can be used for any target that is not explicitly supported by Shoutrrr, as long as it
-supports receiving the message via a POST request.
-Usually, this requires customization on the receiving end to interpret the payload that it receives, and might
-not be a viable approach.
+The Generic service can be used for any target that is not explicitly supported by Shoutrrr, as long as it supports receiving the message via a POST request.
+Usually, this requires customization on the receiving end to interpret the payload that it receives, and might not be a viable approach.
 
 Common examples for use with service providers can be found under [examples](../../../examples/home-assistant/index.md).
 
@@ -11,17 +9,13 @@ Common examples for use with service providers can be found under [examples](../
 
 You can add additional HTTP headers to your request by adding query variables prefixed with `@` (`@key=value`).
 
-Using
+For example, the following URL adds the `Accept-Language: tlh-Piqd` header:
 
 ```url
 generic://example.com?@acceptLanguage=tlh-Piqd
 ```
 
-would result in the additional header being added:
-
-```http
-Accept-Language: tlh-Piqd
-```
+The following adds webhook-specific information:
 
 !!! example
     ```url
@@ -33,8 +27,8 @@ Accept-Language: tlh-Piqd
 
 ## JSON template
 
-By using the built in `JSON` template (`template=json`) you can create a generic JSON payload. The keys used for `title` and `message` can be overriden
-by supplying the params/query values `titleKey` and `messageKey`.
+By using the built in `JSON` template (`template=json`) you can create a generic JSON payload.
+The keys used for `title` and `message` can be overriden by supplying the params/query values `titleKey` and `messageKey`.
 
 !!! example
     ```json
@@ -70,13 +64,15 @@ When using the JSON template, you can add additional key/value pairs to the JSON
 
 ## Shortcut URL
 
-You can just add `generic+` as a prefix to your target URL to use it with the generic service, so
+You can just add `generic+` as a prefix to your target URL to use it with the generic service.
+
+For example, the following URL:
 
 ```url
 https://example.com/api/v1/postStuff
 ```
 
-would become
+Becomes the following `generic+` URL:
 
 ```url
 generic+https://example.com/api/v1/postStuff
