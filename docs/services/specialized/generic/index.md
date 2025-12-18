@@ -27,8 +27,8 @@ The following adds webhook-specific information:
 
 ## JSON template
 
-By using the built in `JSON` template (`template=json`) you can create a generic JSON payload.
-The keys used for `title` and `message` can be overriden by supplying the params/query values `titleKey` and `messageKey`.
+By using the built-in `JSON` template (`template=json`) you can create a generic JSON payload.
+The keys used for `title` and `message` can be overridden by supplying the params/query values `titleKey` and `messageKey`.
 
 !!! example
     ```json
