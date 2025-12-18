@@ -2558,19 +2558,15 @@
 
 
 <h1 id="generic">Generic<a class="headerlink" href="#generic" title="Permanent link">&para;</a></h1>
-<p>The Generic service can be used for any target that is not explicitly supported by Shoutrrr, as long as it
-supports receiving the message via a POST request.
-Usually, this requires customization on the receiving end to interpret the payload that it receives, and might
-not be a viable approach.</p>
+<p>The Generic service can be used for any target that is not explicitly supported by Shoutrrr, as long as it supports receiving the message via a POST request.
+Usually, this requires customization on the receiving end to interpret the payload that it receives, and might not be a viable approach.</p>
 <p>Common examples for use with service providers can be found under <a href="../../../examples/home-assistant/">examples</a>.</p>
 <h2 id="custom_headers">Custom headers<a class="headerlink" href="#custom_headers" title="Permanent link">&para;</a></h2>
 <p>You can add additional HTTP headers to your request by adding query variables prefixed with <code>@</code> (<code>@key=value</code>).</p>
-<p>Using</p>
+<p>For example, the following URL adds the <code>Accept-Language: tlh-Piqd</code> header:</p>
 <div class="highlight"><pre><span></span><code>generic://example.com?@acceptLanguage=tlh-Piqd
 </code></pre></div>
-<p>would result in the additional header being added:</p>
-<div class="highlight"><pre><span></span><code><span class="err">Accept-Language: tlh-Piqd</span>
-</code></pre></div>
+<p>The following adds webhook-specific information:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code>generic://api.example.com/webhook?@Authorization=Bearer%20token123&amp;@X-Custom=value
@@ -2581,8 +2577,8 @@ not be a viable approach.</p>
 <p>Header names are normalized to HTTP header format (e.g., <code>acceptlanguage</code> becomes <code>Accept-Language</code>).</p>
 </div>
 <h2 id="json_template">JSON template<a class="headerlink" href="#json_template" title="Permanent link">&para;</a></h2>
-<p>By using the built in <code>JSON</code> template (<code>template=json</code>) you can create a generic JSON payload. The keys used for <code>title</code> and <code>message</code> can be overriden
-by supplying the params/query values <code>titleKey</code> and <code>messageKey</code>.</p>
+<p>By using the built-in <code>JSON</code> template (<code>template=json</code>) you can create a generic JSON payload.
+The keys used for <code>title</code> and <code>message</code> can be overridden by supplying the params/query values <code>titleKey</code> and <code>messageKey</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
@@ -2614,10 +2610,11 @@ by supplying the params/query values <code>titleKey</code> and <code>messageKey<
 </code></pre></div>
 </div>
 <h2 id="shortcut_url">Shortcut URL<a class="headerlink" href="#shortcut_url" title="Permanent link">&para;</a></h2>
-<p>You can just add <code>generic+</code> as a prefix to your target URL to use it with the generic service, so</p>
+<p>You can just add <code>generic+</code> as a prefix to your target URL to use it with the generic service.</p>
+<p>For example, the following URL:</p>
 <div class="highlight"><pre><span></span><code>https://example.com/api/v1/postStuff
 </code></pre></div>
-<p>would become</p>
+<p>Becomes the following <code>generic+</code> URL:</p>
 <div class="highlight"><pre><span></span><code>generic+https://example.com/api/v1/postStuff
 </code></pre></div>
 <div class="admonition note">
@@ -2649,7 +2646,7 @@ If instead escaped, <code>generic+https://example.com/api/v1/postStuff?_contentt
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>ContentType</strong> - The value of the Content-Type header<br />
+<p><strong>ContentType</strong> - The default value of the Content-Type header (dynamically set based on payload format)<br />
   Default: <code>application/json</code>  </p>
 </li>
 <li>
@@ -2699,7 +2696,7 @@ If instead escaped, <code>generic+https://example.com/api/v1/postStuff?_contentt
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2025 02:49:00 UTC"><span class="timeago" datetime="2025-10-23T02:49:00+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2025 02:49:00 UTC">2025-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="December 18, 2025 08:53:15 UTC"><span class="timeago" datetime="2025-12-18T08:53:15+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="December 18, 2025 08:53:15 UTC">2025-12-18</span>
   </span>
 
     
