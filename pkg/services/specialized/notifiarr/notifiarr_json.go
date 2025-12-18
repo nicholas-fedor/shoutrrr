@@ -31,8 +31,8 @@ type DiscordPayload struct {
 
 // PingPayload contains ping configuration for Discord notifications.
 type PingPayload struct {
-	PingUser int `json:"pingUser,omitempty"` // Optional user ID to ping
-	PingRole int `json:"pingRole,omitempty"` // Optional role ID to ping
+	PingUser *int `json:"pingUser,omitempty"` // Optional user ID to ping
+	PingRole *int `json:"pingRole,omitempty"` // Optional role ID to ping
 }
 
 // ImagePayload contains image URLs for Discord notifications.

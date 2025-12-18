@@ -109,11 +109,11 @@ Send a notification with both thumbnail and image:
 
 ### Notification with User Mentions
 
-Send a notification that mentions specific Discord users (parsed from message content):
+Send a notification that mentions specific Discord users (parsed from message content). Both standard mentions `<@123>` and nickname mentions `<@!456>` are supported. **Note:** Only the first user mention and first role mention in the message will be used for pinging.
 
 !!! example
     ```bash title="Send Notification with User Mentions"
-    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678" --message "Hey <@123456789> and <@987654321>, the deployment is complete!"
+    shoutrrr send --url "notifiarr://your-api-key-here?channel=123456789012345678" --message "Hey <@123456789> and <@!987654321>, the deployment is complete!"
     ```
 
     ```text title="Expected Output"
@@ -185,8 +185,8 @@ The service sends a POST request with a JSON payload containing the notification
       ]
     },
     "ping": {
-      "pingUser": [123456789, 987654321],
-      "pingRole": [111111111, 222222222]
+      "pingUser": 123456789,
+      "pingRole": 111111111
     }
   }
 }
@@ -210,8 +210,8 @@ The service sends a POST request with a JSON payload containing the notification
   - `text.description`: The notification message content
   - `text.footer`: Optional footer text for the embed
   - `text.fields`: Optional array of field objects with title, text, and inline properties
-  - `ping.pingUser`: Array of Discord user IDs to mention (parsed from `<@123>` mentions in message)
-  - `ping.pingRole`: Array of Discord role IDs to mention (parsed from `<@&123>` mentions in message)
+  - `ping.pingUser`: Discord user ID to mention (parsed from the first `<@123>` mention in message)
+  - `ping.pingRole`: Discord role ID to mention (parsed from the first `<@&123>` mention in message)
 
 ### Response
 

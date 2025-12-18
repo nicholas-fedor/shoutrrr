@@ -24,13 +24,13 @@ type Config struct {
 	headers map[string]string
 	// Additional data to include in JSON payloads
 	extraData     map[string]string
-	ContentType   string `default:"application/json" desc:"The value of the Content-Type header"               key:"contenttype"`
-	DisableTLS    bool   `default:"No"                                                                         key:"disabletls"`
-	Template      string `                           desc:"The template used for creating the request payload" key:"template"    optional:""`
-	Title         string `default:""                                                                           key:"title"`
-	TitleKey      string `default:"title"            desc:"The key that will be used for the title value"      key:"titlekey"`
-	MessageKey    string `default:"message"          desc:"The key that will be used for the message value"    key:"messagekey"`
-	RequestMethod string `default:"POST"                                                                       key:"method"`
+	ContentType   string `default:"application/json" desc:"The default value of the Content-Type header (dynamically set based on payload format)" key:"contenttype"`
+	DisableTLS    bool   `default:"No"                                                                                                             key:"disabletls"`
+	Template      string `                           desc:"The template used for creating the request payload"                                     key:"template"    optional:""`
+	Title         string `default:""                                                                                                               key:"title"`
+	TitleKey      string `default:"title"            desc:"The key that will be used for the title value"                                          key:"titlekey"`
+	MessageKey    string `default:"message"          desc:"The key that will be used for the message value"                                        key:"messagekey"`
+	RequestMethod string `default:"POST"                                                                                                           key:"method"`
 }
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.

@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -21,12 +22,14 @@ import (
 const (
 	// APIBaseURL is the base URL for Notifiarr API.
 	APIBaseURL = "https://notifiarr.com/api/v1/notification/passthrough"
-	// mentionTypeNone represents no mention type.
-	mentionTypeNone = 0
-	// mentionTypeUser represents a user mention type.
-	mentionTypeUser = 1
-	// mentionTypeRole represents a role mention type.
-	mentionTypeRole = 2
+	// MentionTypeNone represents no mention type.
+	MentionTypeNone = 0
+	// MentionTypeUser represents a user mention type.
+	MentionTypeUser = 1
+	// MentionTypeRole represents a role mention type.
+	MentionTypeRole = 2
+	// requestTimeout is the timeout duration for HTTP requests to prevent hangs.
+	requestTimeout = 30 // seconds
 )
 
 // ErrSendFailed indicates a failure to send a notification to Notifiarr.
@@ -36,6 +39,8 @@ var (
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
 	// ErrInvalidAPIKey indicates an invalid API key was provided.
 	ErrInvalidAPIKey = errors.New("invalid API key")
+	// ErrAuthenticationFailed indicates authentication failure (e.g., 401 response).
+	ErrAuthenticationFailed = errors.New("authentication failed")
 	// ErrEmptyMessage indicates the message is empty.
 	ErrEmptyMessage = errors.New("message is empty")
 	// ErrInvalidURL indicates an invalid URL format.
@@ -171,8 +176,8 @@ func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	return config.getURL(&pkr), nil
 }
 
-// parseChannelID parses the channel string to an integer.
-func (service *Service) parseChannelID(channelStr string) (int, error) {
+// ParseChannelID parses the channel string to an integer.
+func (service *Service) ParseChannelID(channelStr string) (int, error) {
 	var channelID int
 
 	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
@@ -183,8 +188,8 @@ func (service *Service) parseChannelID(channelStr string) (int, error) {
 	return channelID, nil
 }
 
-// parseMentions extracts Discord user and role mentions from the message content.
-func (service *Service) parseMentions(message string) []string {
+// ParseMentions extracts Discord user and role mentions from the message content.
+func (service *Service) ParseMentions(message string) []string {
 	var mentions []string
 
 	matches := mentionRegex.FindAllStringSubmatch(message, -1)
@@ -199,8 +204,8 @@ func (service *Service) parseMentions(message string) []string {
 	return mentions
 }
 
-// parseFields parses a JSON string into a slice of Field structs.
-func (service *Service) parseFields(fieldsStr string) ([]Field, error) {
+// ParseFields parses a JSON string into a slice of Field structs.
+func (service *Service) ParseFields(fieldsStr string) ([]Field, error) {
 	var fields []Field
 	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
 		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
@@ -209,45 +214,49 @@ func (service *Service) parseFields(fieldsStr string) ([]Field, error) {
 	return fields, nil
 }
 
-// parseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
-func parseMention(mention string) (int, int) {
+// ParseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
+func ParseMention(mention string) (int, int) {
 	if !strings.HasPrefix(mention, "<@") || !strings.HasSuffix(mention, ">") {
-		return mentionTypeNone, 0
+		return MentionTypeNone, 0
 	}
 
 	idStr := mention[2 : len(mention)-1]
 	if strings.HasPrefix(idStr, "&") {
 		roleIDStr := idStr[1:]
 		if roleID, err := strconv.Atoi(roleIDStr); err == nil {
-			return mentionTypeRole, roleID
+			return MentionTypeRole, roleID
 		}
 	} else {
-		if userID, err := strconv.Atoi(idStr); err == nil {
-			return mentionTypeUser, userID
+		// Handle user mentions, which may have a "!" prefix for nicknames
+		userIDStr := strings.TrimPrefix(idStr, "!")
+
+		if userID, err := strconv.Atoi(userIDStr); err == nil {
+			return MentionTypeUser, userID
 		}
 	}
 
-	return mentionTypeNone, 0
+	return MentionTypeNone, 0
 }
 
-// extractPingIDs extracts user and role IDs from mention strings.
-func (service *Service) extractPingIDs(mentions []string) (int, int) {
-	var pingUser, pingRole int
+// ExtractPingIDs extracts user and role IDs from mention strings.
+func (service *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
+	var pingUsers, pingRoles []int
 
 	for _, mention := range mentions {
-		mentionType, id := parseMention(mention)
-		if mentionType == mentionTypeUser && pingUser == 0 {
-			pingUser = id
-		} else if mentionType == mentionTypeRole && pingRole == 0 {
-			pingRole = id
+		mentionType, id := ParseMention(mention)
+		switch mentionType {
+		case MentionTypeUser:
+			pingUsers = append(pingUsers, id)
+		case MentionTypeRole:
+			pingRoles = append(pingRoles, id)
 		}
 	}
 
-	return pingUser, pingRole
+	return pingUsers, pingRoles
 }
 
-// parseUpdateFlag parses the update parameter from params.
-func parseUpdateFlag(params types.Params) *bool {
+// ParseUpdateFlag parses the update parameter from params.
+func ParseUpdateFlag(params types.Params) *bool {
 	if updateStr, exists := params["update"]; exists && updateStr != "" {
 		switch updateStr {
 		case "true":
@@ -287,7 +296,7 @@ func checkPresenceFlags(
 		description: message != "",
 		footer:      params["footer"] != "",
 		fields:      params["fields"] != "",
-		mentions:    len(service.parseMentions(message)) > 0,
+		mentions:    len(service.ParseMentions(message)) > 0,
 	}
 }
 
@@ -306,7 +315,7 @@ func (service *Service) buildDiscordPayload(
 
 	if flags.channel {
 		// Parse channel ID from config string to integer
-		channelID, err := service.parseChannelID(config.Channel)
+		channelID, err := service.ParseChannelID(config.Channel)
 		if err != nil {
 			return nil, fmt.Errorf("parsing channel ID: %w", err)
 		}
@@ -338,7 +347,7 @@ func (service *Service) buildDiscordPayload(
 
 	if flags.fields {
 		// Parse JSON fields string into Field structs
-		fields, err := service.parseFields(params["fields"])
+		fields, err := service.ParseFields(params["fields"])
 		if err != nil {
 			return nil, fmt.Errorf("parsing fields: %w", err)
 		}
@@ -350,15 +359,21 @@ func (service *Service) buildDiscordPayload(
 
 	if flags.mentions {
 		// Extract Discord mentions from message content
-		mentions := service.parseMentions(message)
+		mentions := service.ParseMentions(message)
 
-		// Extract user and role IDs for ping setup
-		pingUser, pingRole := service.extractPingIDs(mentions)
-		if pingUser > 0 || pingRole > 0 {
-			discord.Ping = &PingPayload{
-				PingUser: pingUser,
-				PingRole: pingRole,
+		// Extract user and role IDs for ping setup (collects all mentions)
+		pingUsers, pingRoles := service.ExtractPingIDs(mentions)
+		if len(pingUsers) > 0 || len(pingRoles) > 0 {
+			pingPayload := &PingPayload{}
+			if len(pingUsers) > 0 {
+				pingPayload.PingUser = &pingUsers[0] // Use first user mention
 			}
+
+			if len(pingRoles) > 0 {
+				pingPayload.PingRole = &pingRoles[0] // Use first role mention
+			}
+
+			discord.Ping = pingPayload
 		}
 	}
 
@@ -372,7 +387,7 @@ func (service *Service) createPayload(
 	config *Config,
 ) ([]byte, error) {
 	// Parse the update parameter from params
-	updatePtr := parseUpdateFlag(params)
+	updatePtr := ParseUpdateFlag(params)
 	// Build the notification data structure
 	notificationData := buildNotificationData(updatePtr, config, params)
 	// Check presence flags for Discord fields
@@ -399,14 +414,19 @@ func (service *Service) createPayload(
 }
 
 // doSend executes the HTTP request to send a notification to Notifiarr.
+// It includes a timeout to prevent hangs and differentiates between authentication failures and other errors.
 func (service *Service) doSend(payload []byte) error {
 	// Build the API URL with API key
 	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, service.Config.APIKey)
 
-	// Create background context for the request
-	ctx := context.Background()
+	// Create context with timeout to prevent request hangs
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(requestTimeout)*time.Second,
+	)
+	defer cancel()
 
-	// Create HTTP request with context
+	// Create HTTP request with context and timeout
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", err)
@@ -432,6 +452,12 @@ func (service *Service) doSend(payload []byte) error {
 		}
 	}
 
+	// Check for authentication failure (401 Unauthorized)
+	if res.StatusCode == http.StatusUnauthorized {
+		return ErrAuthenticationFailed
+	}
+
+	// Check for other unexpected status codes
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 	}
