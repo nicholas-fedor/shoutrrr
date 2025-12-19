@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,13 +12,6 @@ import (
 
 // Scheme defines the protocol identifier for this service's configuration URL.
 const Scheme = "discord"
-
-// Static error definitions.
-var (
-	ErrIllegalURLArgument = errors.New("illegal argument in config URL")
-	ErrMissingWebhookID   = errors.New("webhook ID missing from config URL")
-	ErrMissingToken       = errors.New("token missing from config URL")
-)
 
 // Config holds the settings required for sending Discord notifications.
 type Config struct {
@@ -119,4 +111,29 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	return nil
+}
+
+// CreateAPIURLFromConfig builds a POST URL from the Discord configuration.
+func CreateAPIURLFromConfig(config *Config) string {
+	if config.WebhookID == "" || config.Token == "" {
+		return "" // Invalid cases are caught in doSend
+	}
+	// Trim whitespace to prevent malformed URLs
+	webhookID := strings.TrimSpace(config.WebhookID)
+	token := strings.TrimSpace(config.Token)
+
+	baseURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+
+	query := url.Values{}
+
+	if config.ThreadID != "" {
+		// Append thread_id as a query parameter
+		query.Set("thread_id", strings.TrimSpace(config.ThreadID))
+	}
+
+	if len(query) > 0 {
+		return baseURL + "?" + query.Encode()
+	}
+
+	return baseURL
 }
