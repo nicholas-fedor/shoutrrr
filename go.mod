@@ -2,7 +2,7 @@ module github.com/nicholas-fedor/shoutrrr
 
 go 1.25
 
-toolchain go1.25.5
+toolchain go1.25.6
 
 require (
 	github.com/jarcoal/httpmock v1.4.1
