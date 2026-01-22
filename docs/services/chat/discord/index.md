@@ -45,11 +45,22 @@ For simple text messages without embeds, Shoutrrr now uses Discord's `content` f
 
 ## Message Chunking
 
-Shoutrrr automatically handles long messages by splitting them into multiple chunks when they exceed Discord's character limits. Messages are split at appropriate boundaries to avoid breaking words or formatting.
+### Discord API Constraints
 
-- __Chunk Size__: Maximum 2000 characters per message
-- __Total Size__: Maximum 6000 characters total across all chunks
-- __Max Chunks__: Up to 10 message chunks per send operation
+Discord limits individual messages to 2000 characters.
+Messages exceeding this limit are sent as separate messages without automatic merging.
+
+### Shoutrrr Implementation
+
+Shoutrrr provides additional message chunking as a feature to handle longer content.
+This is implemented through Shoutrrr's PartitionMessage utility and is not a Discord requirement.
+
+- __Chunk Size__: Maximum 2000 characters per message (matches Discord API limit)
+- __Total Size__: Maximum 6000 characters total across all chunks (Shoutrrr-specific limit)
+- __Max Chunks__: Up to 10 message chunks per send operation (Shoutrrr-specific limit)
+
+!!! note ""
+    The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.
 
 When `splitLines` is enabled (default), each line of the input becomes a separate embedded item. When disabled, long messages are automatically chunked to fit within Discord's limits.
 
