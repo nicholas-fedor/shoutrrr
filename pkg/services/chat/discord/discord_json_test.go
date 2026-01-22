@@ -17,13 +17,13 @@ var _ = ginkgo.Describe("Discord JSON Unit Tests", func() {
 			gomega.Expect(result).To(gomega.BeFalse())
 		})
 
-		ginkgo.It("should return false for regular fields only", func() {
+		ginkgo.It("should return true for regular fields only", func() {
 			fields := []types.Field{
 				{Key: "regular_field", Value: "value"},
 				{Key: "another_field", Value: "another_value"},
 			}
 			result := hasEmbedFields(fields)
-			gomega.Expect(result).To(gomega.BeFalse())
+			gomega.Expect(result).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should return true when embed_author_name is present", func() {

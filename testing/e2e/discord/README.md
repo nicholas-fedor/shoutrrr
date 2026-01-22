@@ -78,8 +78,8 @@ SHOUTRRR_DISCORD_THREAD_ID=YOUR_THREAD_ID
 ### Example .env Configuration
 
 ```bash
-SHOUTRRR_DISCORD_URL=discord://ta-gvnSNygoHwM4c_W3y7qRE4EqiMGLvQYmLoXZyQCiPmqP4XltiqTveoUsl_JJuJwwH@1451317435310538864
-SHOUTRRR_DISCORD_THREAD_ID=1451410637120081976
+SHOUTRRR_DISCORD_URL=discord://<WEBHOOK_ID>:<TOKEN>@<GUILD_ID>
+SHOUTRRR_DISCORD_THREAD_ID=<THREAD_ID>
 ```
 
 ## Running the Tests
@@ -102,13 +102,13 @@ Run specific test files:
 
 ```bash
 # Test basic functionality
-go test ./testing/e2e/discord/ -run "basic_test.go" -v
+go test ./testing/e2e/discord/ -args -ginkgo.focus "basic" -v
 
 # Test embed features
-go test ./testing/e2e/discord/ -run "embed_.*_test.go" -v
+go test ./testing/e2e/discord/ -args -ginkgo.focus "embed" -v
 
 # Test file attachments
-go test ./testing/e2e/discord/ -run "file_.*_test.go" -v
+go test ./testing/e2e/discord/ -args -ginkgo.focus "file" -v
 ```
 
 ### Test Behavior

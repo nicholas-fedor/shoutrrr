@@ -291,7 +291,7 @@ func TestSendWithLargePayload(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
 			t,
-			"discord://test-token@test-webhook",
+			"discord://test-token@test-webhook?splitLines=false",
 			mockClient,
 		)
 
@@ -303,7 +303,7 @@ func TestSendWithLargePayload(t *testing.T) {
 
 		mockClient.On("Do", mock.Anything).
 			Return(createMockResponse(http.StatusNoContent, ""), nil).
-			Once()
+			Times(167)
 
 		err := service.Send(string(largeMessage), nil)
 

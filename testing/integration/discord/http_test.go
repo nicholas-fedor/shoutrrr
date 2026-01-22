@@ -1,8 +1,10 @@
 package discord_test
 
 import (
-	"errors"
+	"net"
 	"net/http"
+	"os"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -168,14 +170,26 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 			mockClient,
 		)
 
-		networkError := errors.New("connection reset")
-		mockClient.On("Do", mock.Anything).Return((*http.Response)(nil), networkError)
+		// Use a timeout error which is considered transient
+		timeoutError := &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: &os.SyscallError{
+				Syscall: "connect",
+				Err:     syscall.ETIMEDOUT,
+			},
+		}
+		mockClient.On("Do", mock.Anything).
+			Return((*http.Response)(nil), timeoutError).
+			Once()
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
 
 		err := service.Send("Test message", nil)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to send discord notification")
-		mockClient.AssertNumberOfCalls(t, "Do", 1)
+		require.NoError(t, err)
+		mockClient.AssertNumberOfCalls(t, "Do", 2)
 
 		mockClient.AssertExpectations(t)
 	})

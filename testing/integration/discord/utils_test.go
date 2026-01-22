@@ -70,15 +70,15 @@ func createTestMessageItemWithFile(text string, filename string, data []byte) ty
 
 // createTestParams creates test parameters with the given key-value pairs.
 func createTestParams(pairs ...string) *types.Params {
-	params := &types.Params{}
+	params := make(types.Params)
 
 	for i := 0; i < len(pairs); i += 2 {
 		if i+1 < len(pairs) {
-			(*params)[pairs[i]] = pairs[i+1]
+			params[pairs[i]] = pairs[i+1]
 		}
 	}
 
-	return params
+	return &params
 }
 
 // MockHTTPClient is a testify mock that implements the HTTPClient interface.
@@ -96,6 +96,10 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	args := m.Called(req)
+
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 
 	return args.Get(0).(*http.Response), args.Error(1)
 }

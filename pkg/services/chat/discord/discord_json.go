@@ -64,17 +64,9 @@ type attachment struct {
 	Filename string `json:"filename"`
 }
 
-// hasEmbedFields checks if the fields contain any embed-specific fields.
+// hasEmbedFields checks if the fields contain any fields that should trigger embed processing.
 func hasEmbedFields(fields []types.Field) bool {
-	for _, field := range fields {
-		switch field.Key {
-		case "embed_author_name", "embed_author_url", "embed_author_icon_url",
-			"embed_image_url", "embed_thumbnail_url":
-			return true
-		}
-	}
-
-	return false
+	return len(fields) > 0
 }
 
 // processEmbedFields processes MessageItem fields into embed components.

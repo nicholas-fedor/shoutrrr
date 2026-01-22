@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -143,6 +146,25 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	return req, nil
 }
 
+// isTransientError checks if an error is transient and should be retried.
+func isTransientError(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return isTransientError(urlErr.Err)
+	}
+
+	return false
+}
+
 // sendWithRetry executes an HTTP request with exponential backoff retries.
 func sendWithRetry(
 	ctx context.Context,
@@ -152,11 +174,12 @@ func sendWithRetry(
 	sleeper Sleeper,
 ) error {
 	const (
-		MaxRetries      = 5
-		BaseBackoff     = time.Second
-		MaxBackoff      = 64 * time.Second
-		MaxRetryTimeout = 5 * time.Minute
-		BackoffBase     = 2
+		MaxRetries          = 5
+		maxTransportRetries = 3
+		BaseBackoff         = time.Second
+		MaxBackoff          = 64 * time.Second
+		MaxRetryTimeout     = 5 * time.Minute
+		BackoffBase         = 2
 	)
 
 	startTime := time.Now()
@@ -177,10 +200,34 @@ func sendWithRetry(
 			return fmt.Errorf("preparing request: %w", err)
 		}
 
-		// Make the request
-		res, err := httpClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("making HTTP POST request: %w", err)
+		// Make the request with retry on transient transport errors
+		var res *http.Response
+
+		for transportAttempt := 0; transportAttempt <= maxTransportRetries; transportAttempt++ {
+			var err error
+
+			res, err = httpClient.Do(req)
+			if err != nil {
+				if isTransientError(err) && transportAttempt < maxTransportRetries {
+					wait := time.Duration(
+						math.Min(
+							math.Pow(BackoffBase, float64(transportAttempt))*float64(BaseBackoff),
+							float64(MaxBackoff),
+						),
+					)
+					select {
+					case <-ctx.Done():
+						return fmt.Errorf("making HTTP POST request: %w", ctx.Err())
+					case <-time.After(wait):
+					}
+
+					continue
+				}
+
+				return fmt.Errorf("making HTTP POST request: %w", err)
+			}
+			// Success, proceed with response
+			break
 		}
 
 		if res == nil {

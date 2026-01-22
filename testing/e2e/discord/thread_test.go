@@ -12,6 +12,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 )
 
+// redact masks sensitive string values for logging.
+func redact(value string) string {
+	if len(value) <= 4 {
+		return "****"
+	}
+
+	return value[:4] + "****"
+}
+
 var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 	ginkgo.When("running e2e tests", func() {
 		ginkgo.It("should post message to existing thread using thread_id", func() {
@@ -39,9 +48,9 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 			// Debug: Print configuration
 			ginkgo.GinkgoWriter.Printf(
 				"DEBUG: Discord config - WebhookID: %s, Token: %s, ThreadID: %s\n",
-				service.Config.WebhookID,
-				service.Config.Token,
-				service.Config.ThreadID,
+				redact(service.Config.WebhookID),
+				redact(service.Config.Token),
+				redact(service.Config.ThreadID),
 			)
 
 			err = service.Send("E2E Test: Posting to existing thread", nil)
