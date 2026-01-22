@@ -1,112 +1,205 @@
 package discord_test
 
 import (
-	"strings"
+	"net/http"
+	"testing"
+	"testing/synctest"
+	"time"
 
-	"github.com/jarcoal/httpmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Content", func() {
-	var testService *discord.Service
-	var dummyConfig discord.Config
+func TestServiceInitialization(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
-		dummyConfig = CreateDummyConfig()
-		testService = CreateTestService(dummyConfig)
+		// Test that service initializes correctly
+		assert.NotNil(t, service)
+		assert.Equal(t, "discord", service.GetID())
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
+func TestSendItemsWithPlainText(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Test SendItems with plain text message
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			createTestMessageItem("Test plain text message"),
+		}
+
+		err := service.SendItems(items, nil)
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("content field support (plain text messages)", func() {
-		ginkgo.It("should send a simple plain text message successfully", func() {
-			message := "Hello, Discord!"
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+func TestSendItemsWithEmptyMessage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-			// Verify the request was made to the correct URL
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+		// Test SendItems with empty message
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
 
-		ginkgo.It("should send plain text with special characters successfully", func() {
-			message := "Special chars: éñüñ 中文 🚀 @everyone #channel"
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		items := []types.MessageItem{
+			createTestMessageItem(""),
+		}
 
-			// Verify the request was made
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+		err := service.SendItems(items, nil)
+		assert.NoError(t, err)
 
-		ginkgo.It("should send long plain text messages successfully", func() {
-			longMessage := strings.Repeat("This is a long message. ", 100)
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.Send(longMessage, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Verify the request was made
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.It("should handle empty messages with error", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.Send("", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle whitespace-only messages successfully", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.Send("   \n\t   ", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Verify the request was made
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.Context("malformed payload handling", func() {
-			ginkgo.It("should handle extremely long content fields gracefully", func() {
-				// Test with content that exceeds Discord's limits but should be handled by chunking
-				veryLongContent := strings.Repeat(
-					"This is a very long message that should be chunked. ",
-					500,
-				)
-				SetupMockResponder(&dummyConfig, 204)
-				err := testService.Send(veryLongContent, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.BeNumerically(">=", 1))
-			})
-
-			ginkgo.It("should handle content with special Unicode characters", func() {
-				specialContent := "Special chars: éñüñ 中文 🚀 @everyone #channel 😀 🎉"
-				SetupMockResponder(&dummyConfig, 204)
-				err := testService.Send(specialContent, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-			})
-
-			ginkgo.It("should handle content with null bytes", func() {
-				contentWithNull := "Content with null byte: \x00 in the middle"
-				SetupMockResponder(&dummyConfig, 204)
-				err := testService.Send(contentWithNull, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-			})
-
-			ginkgo.It("should handle content with control characters", func() {
-				contentWithControl := "Content with control chars: \n\r\t"
-				SetupMockResponder(&dummyConfig, 204)
-				err := testService.Send(contentWithControl, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-			})
-		})
+		mockClient.AssertExpectations(t)
 	})
-})
+}
+
+func TestSendItemsWithMultipleItems(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Test SendItems with multiple plain text items
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			createTestMessageItem("First message"),
+			createTestMessageItem("Second message"),
+			createTestMessageItem("Third message"),
+		}
+
+		err := service.SendItems(items, nil)
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendItemsWithParams(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Test SendItems with parameters
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			createTestMessageItem("Message with params"),
+		}
+
+		params := createTestParams(
+			"username",
+			"TestBot",
+			"avatar",
+			"https://example.com/avatar.png",
+		)
+		err := service.SendItems(items, params)
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendItemsWithTimestamp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Test SendItems with timestamp
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			{
+				Text:      "Message with timestamp",
+				Timestamp: time.Now(),
+			},
+		}
+
+		err := service.SendItems(items, nil)
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendItemsWithLevel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Test SendItems with different message levels
+		tests := []struct {
+			name  string
+			level types.MessageLevel
+		}{
+			{"info level", types.Info},
+			{"warning level", types.Warning},
+			{"error level", types.Error},
+		}
+
+		for _, tt := range tests {
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
+				Once()
+
+			items := []types.MessageItem{
+				{
+					Text:  "Message with level",
+					Level: tt.level,
+				},
+			}
+
+			err := service.SendItems(items, nil)
+			assert.NoError(t, err)
+		}
+
+		mockClient.AssertExpectations(t)
+	})
+}

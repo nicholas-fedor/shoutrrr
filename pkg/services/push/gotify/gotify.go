@@ -230,7 +230,12 @@ func (service *Service) sendRequest(
 	request *MessageRequest,
 	headers http.Header,
 ) error {
-	if err := service.sender.SendRequest(service.httpClient, postURL, request, headers); err != nil {
+	if err := service.sender.SendRequest(
+		service.httpClient,
+		postURL,
+		request,
+		headers,
+	); err != nil {
 		return fmt.Errorf("%s: %w", ErrSendFailed.Error(), err)
 	}
 

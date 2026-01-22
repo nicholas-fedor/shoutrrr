@@ -62,7 +62,7 @@ func (m *mockConn) Write(b []byte) (int, error) { return len(b), nil }
 func (m *mockConn) Close() error {
 	m.closeCount++
 
-	ginkgo.GinkgoWriter.Write([]byte("mockConn.Close called\n"))
+	_, _ = ginkgo.GinkgoWriter.Write([]byte("mockConn.Close called\n"))
 
 	if m.closeCount > 1 {
 		return errors.New("mock close error")

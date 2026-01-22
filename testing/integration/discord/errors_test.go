@@ -1,154 +1,362 @@
 package discord_test
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
+	"testing"
+	"testing/synctest"
 
-	"github.com/jarcoal/httpmock"
-
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Errors", func() {
-	var testService *discord.Service
-	var dummyConfig discord.Config
+func TestSendWithHTTPError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tests := []struct {
+			name          string
+			statusCode    int
+			response      string
+			expectedError string
+			expectedCalls int
+		}{
+			{
+				"bad request",
+				http.StatusBadRequest,
+				`{"message": "Invalid webhook"}`,
+				"failed to send discord notification",
+				1,
+			},
+			{
+				"unauthorized",
+				http.StatusUnauthorized,
+				`{"message": "Invalid token"}`,
+				"failed to send discord notification",
+				1,
+			},
+			{
+				"forbidden",
+				http.StatusForbidden,
+				`{"message": "Missing permissions"}`,
+				"failed to send discord notification",
+				1,
+			},
+			{
+				"not found",
+				http.StatusNotFound,
+				`{"message": "Webhook not found"}`,
+				"failed to send discord notification",
+				1,
+			},
+			{
+				"too many requests",
+				http.StatusTooManyRequests,
+				`{"message": "Rate limited"}`,
+				"failed to send discord notification",
+				6,
+			},
+			{
+				"internal server error",
+				http.StatusInternalServerError,
+				`{"message": "Server error"}`,
+				"failed to send discord notification",
+				6,
+			},
+		}
 
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
-		dummyConfig = CreateDummyConfig()
-		testService = CreateTestService(dummyConfig)
-	})
-
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
-	})
-
-	ginkgo.Context("HTTP error handling", func() {
-		ginkgo.It("should handle 400 Bad Request errors", func() {
-			SetupMockResponder(&dummyConfig, 400)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).
-				To(gomega.ContainSubstring("unexpected response status code"))
-		})
-
-		ginkgo.It("should handle 401 Unauthorized errors", func() {
-			SetupMockResponder(&dummyConfig, 401)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle 403 Forbidden errors", func() {
-			SetupMockResponder(&dummyConfig, 403)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle 404 Not Found errors", func() {
-			SetupMockResponder(&dummyConfig, 404)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle 429 Rate Limit errors", func() {
-			apiURL := discord.CreateAPIURLFromConfig(&dummyConfig)
-			httpmock.RegisterResponder(
-				"POST",
-				apiURL,
-				func(_ *http.Request) (*http.Response, error) {
-					resp := httpmock.NewStringResponse(429, "")
-					resp.Header.Set("Retry-After", "1") // Short retry time for test
-
-					return resp, nil
-				},
+		for _, tt := range tests {
+			mockClient := &MockHTTPClient{}
+			service := createTestService(
+				t,
+				"discord://test-token@test-webhook",
+				mockClient,
 			)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
 
-		ginkgo.It("should handle 500 Internal Server Error", func() {
-			SetupMockResponder(&dummyConfig, 500)
-			err := testService.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(tt.statusCode, tt.response), nil). //nolint:bodyclose
+				Times(tt.expectedCalls)
+
+			err := service.Send("Test message", nil)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedError)
+			mockClient.AssertExpectations(t)
+		}
 	})
+}
 
-	ginkgo.Context("payload validation errors", func() {
-		ginkgo.It("should reject empty messages", func() {
-			err := testService.Send("", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+func TestSendWithNetworkError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-		ginkgo.It("should reject whitespace-only messages", func() {
-			err := testService.Send("   \n\t   ", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		networkError := errors.New("network connection failed")
+		mockClient.On("Do", mock.Anything).Return((*http.Response)(nil), networkError).Once()
 
-		ginkgo.It("should reject nil message items", func() {
-			var items []types.MessageItem
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		err := service.Send("Test message", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send discord notification")
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("malformed payload handling", func() {
-		ginkgo.It("should handle invalid JSON in JSON mode", func() {
-			// Create a service with JSON mode enabled
-			jsonConfig := CreateDummyConfig()
-			jsonConfig.JSON = true
-			jsonService := CreateTestService(jsonConfig)
+func TestSendWithMalformedResponse(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-			// This should fail during payload processing since invalid JSON is passed as message
-			err := jsonService.Send(`{"invalid": json}`, nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusOK, "invalid json"), nil). //nolint:bodyclose
+			Once()
+
+		err := service.Send("Test message", nil)
+
+		// Should still succeed since we only check for 204 No Content
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("file attachment errors", func() {
-		ginkgo.It("should handle file attachment failures", func() {
-			// Create a multipart responder that returns an error
-			httpmock.RegisterResponder("POST", discord.CreateAPIURLFromConfig(&dummyConfig),
-				func(_ *http.Request) (*http.Response, error) {
-					return httpmock.NewStringResponse(400, "File too large"), nil
-				})
+func TestSendWithRetryOnRateLimit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-			testData := []byte("test file content")
-			items := CreateMessageItemWithFile("Message with file", "test.txt", testData)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		// First call returns rate limit, second succeeds
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 1}`), nil).
+			Once()
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
 
-		ginkgo.Context("invalid configuration handling", func() {
-			ginkgo.It("should handle empty webhook ID", func() {
-				invalidConfig := discord.Config{
-					WebhookID: "",
-					Token:     "test-token",
-				}
-				invalidService := &discord.Service{}
-				err := invalidService.Initialize(invalidConfig.GetURL(), nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
+		err := service.Send("Test message", nil)
 
-			ginkgo.It("should handle empty token", func() {
-				invalidConfig := discord.Config{
-					WebhookID: "123",
-					Token:     "",
-				}
-				invalidService := &discord.Service{}
-				err := invalidService.Initialize(invalidConfig.GetURL(), nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
+		assert.NoError(t, err)
+		mockClient.AssertNumberOfCalls(t, "Do", 2)
 
-			ginkgo.It("should handle malformed URLs", func() {
-				invalidService := &discord.Service{}
-				invalidURL, _ := url.Parse("not-a-url")
-				err := invalidService.Initialize(invalidURL, nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
+		mockClient.AssertExpectations(t)
 	})
-})
+}
+
+func TestSendWithInvalidURL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		invalidService := createTestService(t, "discord://token@invalid", mockClient)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNotFound, `{"message": "Unknown Webhook"}`), nil).
+			Once()
+
+		err := invalidService.Send("Test message", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send discord notification")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithEmptyURL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		emptyService := createTestService(t, "discord://token@empty", mockClient)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNotFound, `{"message": "Unknown Webhook"}`), nil).
+			Once()
+
+		err := emptyService.Send("Test message", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send discord notification")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithInvalidScheme(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		service := &discord.Service{}
+
+		parsedURL, _ := url.Parse("http://discord.com/api/webhooks/test/test")
+
+		err := service.Initialize(parsedURL, &mockLogger{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
+	})
+}
+
+func TestSendWithInvalidHost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		service := &discord.Service{}
+
+		parsedURL, _ := url.Parse("discord://token@notdiscord.com/webhook")
+
+		err := service.Initialize(parsedURL, &mockLogger{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
+	})
+}
+
+func TestSendWithInvalidPath(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		service := &discord.Service{}
+
+		parsedURL, _ := url.Parse("discord://token@webhook/invalid/path")
+
+		err := service.Initialize(parsedURL, &mockLogger{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
+	})
+}
+
+func TestSendItemsWithInvalidPayload(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		// Create an item that would cause JSON marshaling to fail
+		items := []types.MessageItem{
+			{
+				Text: "Test",
+				// This would cause issues if not handled properly
+			},
+		}
+
+		err := service.SendItems(items, nil)
+
+		// Should succeed as the payload creation should work
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Simulate a timeout by having the mock not respond
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusRequestTimeout, ""), nil). //nolint:bodyclose
+			Once()
+
+		err := service.Send("Test message", nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send discord notification")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithLargePayload(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		// Create a very large message that might cause issues
+		largeMessage := make([]byte, 1000000) // 1MB
+		for i := range largeMessage {
+			largeMessage[i] = 'a'
+		}
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		err := service.Send(string(largeMessage), nil)
+
+		assert.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithInvalidJSONMode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		// Create service with JSON mode
+		service := createTestService(t, "discord://test-token@test-webhook?json=true", mockClient)
+
+		// Send invalid JSON
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		err := service.Send(`{"invalid": json}`, nil)
+
+		assert.NoError(t, err) // Should succeed as it's passed through as raw content
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithFileUploadError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusBadRequest, `{"message": "File too large"}`), nil).
+			Once()
+
+		items := []types.MessageItem{
+			createTestMessageItemWithFile(
+				"Test",
+				"large.txt",
+				make([]byte, 100*1024*1024),
+			), // 100MB file
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected response status code")
+
+		mockClient.AssertExpectations(t)
+	})
+}

@@ -337,7 +337,11 @@ func (service *Service) getHeaders(toAddress string, subject string) map[string]
 
 // writeMultipartMessage writes a multipart email message to the provided writer.
 func (service *Service) writeMultipartMessage(writeCloser io.WriteCloser, message string) failure {
-	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, contentPlain); err != nil {
+	if err := writeMultipartHeader(
+		writeCloser,
+		service.multipartBoundary,
+		contentPlain,
+	); err != nil {
 		return fail(FailPlainHeader, err)
 	}
 
@@ -345,7 +349,11 @@ func (service *Service) writeMultipartMessage(writeCloser io.WriteCloser, messag
 		return err
 	}
 
-	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, contentHTML); err != nil {
+	if err := writeMultipartHeader(
+		writeCloser,
+		service.multipartBoundary,
+		contentHTML,
+	); err != nil {
 		return fail(FailHTMLHeader, err)
 	}
 

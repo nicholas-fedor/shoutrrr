@@ -126,7 +126,16 @@ func SetConfigField(config reflect.Value, field FieldInfo, inputValue string) (b
 
 // setIntField handles integer field setting.
 func setIntField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
-	number, base := util.StripNumberPrefix(inputValue)
+	number, detectedBase := util.StripNumberPrefix(inputValue)
+
+	base := detectedBase
+	if field.Base > 0 {
+		base = field.Base
+
+		if detectedBase == 0 {
+			number = inputValue
+		}
+	}
 
 	value, err := strconv.ParseInt(number, base, field.Type.Bits())
 	if err != nil {
@@ -140,7 +149,16 @@ func setIntField(configField reflect.Value, field FieldInfo, inputValue string) 
 
 // setUintField handles unsigned integer field setting.
 func setUintField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
-	number, base := util.StripNumberPrefix(inputValue)
+	number, detectedBase := util.StripNumberPrefix(inputValue)
+
+	base := detectedBase
+	if field.Base > 0 {
+		base = field.Base
+
+		if detectedBase == 0 {
+			number = inputValue
+		}
+	}
 
 	value, err := strconv.ParseUint(number, base, field.Type.Bits())
 	if err != nil {
@@ -341,6 +359,10 @@ func getMapValue(valueType reflect.Type, valueRaw string) (reflect.Value, error)
 func getMapUintValue(valueRaw string, valueType reflect.Type) (reflect.Value, error) {
 	number, base := util.StripNumberPrefix(valueRaw)
 
+	if base == 0 {
+		base = 10 // Default to decimal for maps if no prefix
+	}
+
 	numValue, err := strconv.ParseUint(number, base, valueType.Bits())
 	if err != nil {
 		return reflect.Value{}, fmt.Errorf("%w: %w", ErrParseUintFailed, err)
@@ -412,6 +434,10 @@ func getMapUintValue(valueRaw string, valueType reflect.Type) (reflect.Value, er
 // getMapIntValue converts a string to a signed integer map value.
 func getMapIntValue(valueRaw string, valueType reflect.Type) (reflect.Value, error) {
 	number, base := util.StripNumberPrefix(valueRaw)
+
+	if base == 0 {
+		base = 10 // Default to decimal for maps if no prefix
+	}
 
 	numValue, err := strconv.ParseInt(number, base, valueType.Bits())
 	if err != nil {

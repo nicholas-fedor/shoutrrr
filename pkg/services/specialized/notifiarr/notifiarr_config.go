@@ -21,17 +21,17 @@ const (
 type Config struct {
 	standard.EnumlessConfig
 	// The API key for Notifiarr authentication
-	APIKey string `desc:"The Notifiarr API key"                    key:"apikey"    required:"true"`
+	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true"`
 	// Optional name of the app/script for notifications
-	Name string `desc:"Name of the app/script for notifications" key:"name"                      default:"Shoutrrr" optional:""`
+	Name string `default:"Shoutrrr" desc:"Name of the app/script for notifications" key:"name" optional:""`
 	// Optional Discord channel ID for Discord notifications
-	Channel string `desc:"Discord channel ID for notifications"     key:"channel"                                      optional:""`
+	Channel string `desc:"Discord channel ID for notifications" key:"channel" optional:""`
 	// Optional thumbnail URL for Discord notifications
-	Thumbnail string `desc:"Thumbnail URL for Discord notifications"  key:"thumbnail"                                    optional:""`
+	Thumbnail string `desc:"Thumbnail URL for Discord notifications" key:"thumbnail" optional:""`
 	// Optional image URL for Discord notifications
-	Image string `desc:"Image URL for Discord notifications"      key:"image"                                        optional:""`
+	Image string `desc:"Image URL for Discord notifications" key:"image" optional:""`
 	// Optional color for Discord notifications
-	Color string `desc:"Color for Discord notifications"          key:"color"                                        optional:""`
+	Color string `desc:"Color for Discord notifications" key:"color" optional:""`
 	// Custom query parameters from webhook URL
 	webhookQuery url.Values
 }

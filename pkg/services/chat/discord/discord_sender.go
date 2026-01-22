@@ -84,6 +84,7 @@ func (p *JSONRequestPreparer) PrepareRequest(
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "shoutrrr")
 
 	return req, nil
 }
@@ -127,7 +128,9 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 		}
 	}
 
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart writer: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
 	if err != nil {
@@ -135,6 +138,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("User-Agent", "shoutrrr")
 
 	return req, nil
 }

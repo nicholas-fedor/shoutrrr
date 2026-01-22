@@ -29,9 +29,11 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 			}
 
 			demoURLStr := envURL + "?thread_id=" + envThreadID
-			demoURL, _ := url.Parse(demoURLStr)
+			demoURL, err := url.Parse(demoURLStr)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to parse Discord URL")
+
 			service := &discord.Service{}
-			err := service.Initialize(demoURL, testutils.TestLogger())
+			err = service.Initialize(demoURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Debug: Print configuration
@@ -64,7 +66,9 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 				// For other errors, still fail the test
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			} else {
-				ginkgo.GinkgoWriter.Printf("DEBUG: Send succeeded, message should be posted to thread\n")
+				ginkgo.GinkgoWriter.Printf(
+					"DEBUG: Send succeeded, message should be posted to thread\n",
+				)
 			}
 		})
 	})

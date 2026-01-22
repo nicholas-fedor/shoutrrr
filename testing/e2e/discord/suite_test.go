@@ -33,7 +33,8 @@ func loadEnvFile(filename string) {
 		// .env file doesn't exist, skip loading
 		return
 	}
-	defer file.Close()
+
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -48,7 +49,7 @@ func loadEnvFile(filename string) {
 			value := strings.TrimSpace(parts[1])
 			// Remove quotes if present
 			value = strings.Trim(value, `"'`)
-			os.Setenv(key, value)
+			_ = os.Setenv(key, value) // Ignore error as it's test setup
 		}
 	}
 }

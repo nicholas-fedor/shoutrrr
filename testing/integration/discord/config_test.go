@@ -1,77 +1,320 @@
 package discord_test
 
 import (
-	"github.com/jarcoal/httpmock"
+	"net/http"
+	"testing"
+	"testing/synctest"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
+func TestSendWithCustomUsername(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		tests := []struct {
+			name     string
+			username string
+		}{
+			{"simple username", "TestBot"},
+			{"username with spaces", "Test Bot"},
+			{"username with special chars", "Test_Bot-123"},
+			{"unicode username", "テストボット"},
+			{"long username", "ThisIsAVeryLongUsernameThatMightCauseIssuesButShouldStillWork"},
+		}
+
+		for _, tt := range tests {
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Once()
+
+			params := createTestParams("username", tt.username)
+			err := service.Send("Message with custom username", params)
+
+			require.NoError(t, err)
+			assertRequestContains(t, mockClient, `"username":"`+tt.username+`"`)
+		}
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
+func TestSendWithCustomAvatar(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		tests := []struct {
+			name   string
+			avatar string
+		}{
+			{"http avatar", "http://example.com/avatar.png"},
+			{"https avatar", "https://example.com/avatar.jpg"},
+			{"avatar with query params", "https://example.com/avatar.png?size=128"},
+			{"avatar with path", "https://cdn.example.com/avatars/bot/avatar.gif"},
+			{
+				"data URL avatar",
+				"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+			},
+		}
+
+		for _, tt := range tests {
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Once()
+
+			params := createTestParams("avatar", tt.avatar)
+			err := service.Send("Message with custom avatar", params)
+
+			require.NoError(t, err)
+			assertRequestContains(t, mockClient, `"avatar_url":"`+tt.avatar+`"`)
+		}
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("configuration options", func() {
-		ginkgo.It("should handle custom username", func() {
-			customConfig := CreateDummyConfig()
-			customConfig.Username = "TestBot"
-			customService := CreateTestService(customConfig)
+func TestSendWithCustomColors(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-			SetupMockResponderWithPayloadValidation(&customConfig, 204,
-				func(payload discord.WebhookPayload) error {
-					if err := ValidatePlainTextPayload("Test message")(payload); err != nil {
-						return err
-					}
+		tests := []struct {
+			name  string
+			color string
+		}{
+			{"red color", "16711680"},
+			{"green color", "65280"},
+			{"blue color", "255"},
+			{"white color", "16777215"},
+			{"black color", "0"},
+			{"hex color", "ff0000"},
+			{"color with hash", "#ff0000"},
+		}
 
-					return ValidateUsername("TestBot")(payload)
-				})
-			err := customService.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		for _, tt := range tests {
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Once()
 
-		ginkgo.It("should handle custom avatar URL", func() {
-			customConfig := CreateDummyConfig()
-			customConfig.Avatar = "https://example.com/avatar.png"
-			customService := CreateTestService(customConfig)
+			params := createTestParams("color", tt.color)
+			err := service.Send("Message with custom color", params)
 
-			SetupMockResponderWithPayloadValidation(&customConfig, 204,
-				func(payload discord.WebhookPayload) error {
-					if err := ValidatePlainTextPayload("Test message")(payload); err != nil {
-						return err
-					}
+			require.NoError(t, err)
+			// Note: Color handling might be complex, just verify the request is made
+		}
 
-					return ValidateAvatarURL("https://example.com/avatar.png")(payload)
-				})
-			err := customService.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle both username and avatar", func() {
-			customConfig := CreateDummyConfig()
-			customConfig.Username = "CustomBot"
-			customConfig.Avatar = "https://example.com/bot-avatar.png"
-			customService := CreateTestService(customConfig)
-
-			SetupMockResponderWithPayloadValidation(&customConfig, 204,
-				func(payload discord.WebhookPayload) error {
-					if err := ValidatePlainTextPayload("Test message")(payload); err != nil {
-						return err
-					}
-					if err := ValidateUsername("CustomBot")(payload); err != nil {
-						return err
-					}
-
-					return ValidateAvatarURL("https://example.com/bot-avatar.png")(payload)
-				})
-			err := customService.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		mockClient.AssertExpectations(t)
 	})
-})
+}
+
+func TestSendWithJSONMode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		// Create service with JSON mode enabled
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?json=true",
+			mockClient,
+		)
+
+		jsonPayload := `{"content": "Raw JSON message", "embeds": [{"title": "JSON Embed"}]}`
+
+		err := service.Send(jsonPayload, nil)
+
+		require.NoError(t, err)
+		assertRequestBody(t, mockClient, jsonPayload)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithSplitLines(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tests := []struct {
+			name          string
+			splitLines    string
+			message       string
+			expectedCalls int
+		}{
+			{"split lines enabled", "true", "Line 1\nLine 2\nLine 3", 1},
+			{"split lines disabled", "false", "LongMessageWithoutSpaces", 1},
+			{"no split config", "", "LongMessageWithoutSpaces", 1},
+		}
+
+		for _, tt := range tests {
+			mockClient := &MockHTTPClient{}
+			service := createTestService(
+				t,
+				"discord://test-token@test-webhook",
+				mockClient,
+			)
+
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Times(tt.expectedCalls)
+
+			var params *types.Params
+			if tt.splitLines != "" {
+				params = createTestParams("splitLines", tt.splitLines)
+			}
+
+			err := service.Send(tt.message, params)
+
+			require.NoError(t, err)
+			mockClient.AssertNumberOfCalls(t, "Do", tt.expectedCalls)
+			mockClient.AssertExpectations(t)
+		}
+	})
+}
+
+func TestSendWithTitle(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		params := createTestParams("title", "Custom Title")
+		err := service.Send("Message with custom title", params)
+
+		require.NoError(t, err)
+		// Title handling depends on embed creation, verify request is made
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithComplexParameterCombination(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		params := createTestParams(
+			"username", "ComplexBot",
+			"avatar", "https://example.com/complex-avatar.png",
+			"color", "16776960",
+			"title", "Complex Test",
+			"splitLines", "false",
+		)
+
+		err := service.Send("Complex parameter combination test", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, `"username":"ComplexBot"`)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"avatar_url":"https://example.com/complex-avatar.png"`,
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithEmptyParameters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		emptyParams := &types.Params{}
+		err := service.Send("Message with empty params", emptyParams)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, `"content":"Message with empty params"`)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithNilParameters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		err := service.Send("Message with nil params", nil)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, `"content":"Message with nil params"`)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendWithURLParameters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Once()
+
+		// Create service with URL parameters
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?username=URLBot&avatar=https://example.com/url-avatar.png",
+			mockClient,
+		)
+
+		err := service.Send("Message with URL params", nil)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, `"username":"URLBot"`)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"avatar_url":"https://example.com/url-avatar.png"`,
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}

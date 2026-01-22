@@ -1,6 +1,7 @@
 # Discord Integration Tests
 
-This directory contains integration tests for the Discord service in Shoutrrr. The tests validate Discord webhook functionality by mocking HTTP requests to Discord's API, ensuring feature parity with Discord's webhook API.
+This directory contains integration tests for the Discord service in Shoutrrr.
+The tests validate Discord webhook functionality by mocking HTTP requests to Discord's API, ensuring feature parity with Discord's webhook API.
 
 ## Test Coverage
 
@@ -79,6 +80,7 @@ go test ./testing/integration/discord/ -run TestThreads -v
 go test ./testing/integration/discord/ -run TestConfig -v
 go test ./testing/integration/discord/ -run TestFiles -v
 go test ./testing/integration/discord/ -run TestErrors -v
+go test ./testing/integration/discord/ -run TestHTTP -v
 ```
 
 ## Test Structure
@@ -90,18 +92,19 @@ testing/integration/discord/
 ├── api_compliance_test.go # API compliance and webhook specification validation
 ├── config_test.go         # Configuration options (username, avatar, colors, JSON mode)
 ├── content_test.go        # Plain text message functionality
+├── edge_cases_test.go     # Comprehensive edge case testing including empty messages, Unicode handling, control characters, very long messages up to Discord's 2000 char limit, invalid UTF-8, extremely large files 50MB+, special characters in filenames, concurrent requests, memory exhaustion scenarios, and rapid succession requests
 ├── embeds_test.go         # Embed features (author, image, thumbnail, fields, timestamps)
 ├── errors_test.go         # Error handling and edge cases
 ├── files_test.go          # File attachment functionality
 ├── http_test.go           # HTTP-related tests
-├── integration_suite_test.go # Test suite setup and configuration
 ├── threads_test.go        # Thread creation and messaging
-└── utils_test.go          # Shared test utilities and helpers
+└── README.md              # This documentation
 ```
 
 ### Test Organization
 
-Each test file contains independent black-box tests for specific Discord service behaviors. Tests validate that the service correctly interacts with external APIs without inspecting internal data structures:
+Each test file contains independent black-box tests for specific Discord service behaviors.
+Tests validate that the service correctly interacts with external APIs without inspecting internal data structures:
 
 - **API Compliance Tests** (`api_compliance_test.go`): Service behavior with different Discord API response scenarios
 - **Content Tests** (`content_test.go`): Service handling of various message types and external API responses

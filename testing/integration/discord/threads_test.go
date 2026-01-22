@@ -1,89 +1,315 @@
 package discord_test
 
 import (
-	"strings"
+	"net/http"
+	"testing"
+	"testing/synctest"
 
-	"github.com/jarcoal/httpmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Threads", func() {
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
+func TestSendMessageToThread(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		// Create service with thread ID in URL
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=123456789",
+			mockClient,
+		)
+
+		err := service.Send("Message in thread", nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=123456789",
+		)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
+func TestSendItemsToThread(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		// Create service with thread ID in URL
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=987654321",
+			mockClient,
+		)
+
+		items := []types.MessageItem{
+			{Text: "Thread message with embed"},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=987654321",
+		)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("thread functionality", func() {
-		ginkgo.It("should post to existing thread with thread_id", func() {
-			customConfig := CreateDummyConfig()
-			customConfig.ThreadID = "1234567890123456789"
-			customService := CreateTestService(customConfig)
+func TestSendMessageToThreadWithParams(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
 
-			// The API URL should include the thread_id as a query parameter
-			expectedURL := "https://discord.com/api/webhooks/123456789012345678/test-token-abcdefghijklmnopqrstuvwxyz123456?thread_id=1234567890123456789"
-			httpmock.RegisterResponder("POST", expectedURL,
-				httpmock.NewStringResponder(204, ""))
+		// Create service with thread ID in URL
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=111222333",
+			mockClient,
+		)
 
-			err := customService.Send("Test message in thread", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		params := createTestParams("thread_id", "444555666") // Override thread_id via params
 
-		ginkgo.It("should post file attachments to existing thread", func() {
-			customConfig := CreateDummyConfig()
-			customConfig.ThreadID = "1234567890123456789"
-			customService := CreateTestService(customConfig)
+		err := service.Send("Message with param thread override", params)
 
-			testData := []byte("existing thread file content")
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=444555666",
+		)
 
-			SetupMockResponder(&customConfig, 200)
-
-			items := CreateMessageItemWithFile(
-				"File message in existing thread",
-				"existing-thread-file.txt",
-				testData,
-			)
-			err := customService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.Context("thread parameter edge cases", func() {
-			ginkgo.It("should handle thread IDs with special characters", func() {
-				customConfig := CreateDummyConfig()
-				customConfig.ThreadID = "thread-123_special"
-				customService := CreateTestService(customConfig)
-
-				expectedURL := "https://discord.com/api/webhooks/123456789012345678/test-token-abcdefghijklmnopqrstuvwxyz123456?thread_id=thread-123_special"
-				httpmock.RegisterResponder(
-					"POST",
-					expectedURL,
-					httpmock.NewStringResponder(204, ""),
-				)
-
-				err := customService.Send("Test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				// Verify the URL was constructed correctly
-				actualURL := discord.CreateAPIURLFromConfig(&customConfig)
-				gomega.Expect(actualURL).To(gomega.Equal(expectedURL))
-			})
-
-			ginkgo.It("should handle very long thread IDs", func() {
-				customConfig := CreateDummyConfig()
-				customConfig.ThreadID = strings.Repeat("1", 100)
-				customService := CreateTestService(customConfig)
-
-				SetupMockResponder(&customConfig, 204)
-				err := customService.Send("Test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
+		mockClient.AssertExpectations(t)
 	})
-})
+}
+
+func TestSendFileToThread(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		// Create service with thread ID in URL
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=thread123",
+			mockClient,
+		)
+
+		items := []types.MessageItem{
+			createTestMessageItemWithFile(
+				"File in thread",
+				"thread-file.txt",
+				[]byte("thread content"),
+			),
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=thread123",
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestThreadIDWithSpecialCharacters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		// Test thread ID with various characters
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=thread-123_456.789",
+			mockClient,
+		)
+
+		err := service.Send("Message with special thread ID", nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=thread-123_456.789",
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestThreadIDValidation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		// Test that invalid thread IDs are handled properly
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=invalid-thread-id",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		err := service.Send("Message with invalid thread ID", nil)
+
+		assert.NoError(t, err)
+		// Should still work as Discord accepts various thread ID formats
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestThreadMessageWithEmbed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=embed-thread",
+			mockClient,
+		)
+
+		items := []types.MessageItem{
+			{
+				Text: "Thread message with rich embed",
+				Fields: []types.Field{
+					{Key: "Thread", Value: "Yes"},
+					{Key: "Type", Value: "Test"},
+				},
+				Level: types.Info,
+			},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=embed-thread",
+		)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"description":"Thread message with rich embed"`,
+		)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"name":"Thread","value":"Yes"`,
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestThreadMessageWithMultipleFiles(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=file-thread",
+			mockClient,
+		)
+
+		items := []types.MessageItem{
+			createTestMessageItemWithFile("First file in thread", "file1.txt", []byte("content 1")),
+			createTestMessageItemWithFile(
+				"Second file in thread",
+				"file2.txt",
+				[]byte("content 2"),
+			),
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=file-thread",
+		)
+		assertRequestContains(t, mockClient, `filename="file1.txt"`)
+		assertRequestContains(t, mockClient, `filename="file2.txt"`)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestThreadMessageWithUsernameAvatar(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook?thread_id=custom-thread",
+			mockClient,
+		)
+
+		params := createTestParams(
+			"username",
+			"ThreadBot",
+			"avatar",
+			"https://example.com/thread-avatar.png",
+		)
+
+		err := service.Send("Thread message with custom appearance", params)
+
+		assert.NoError(t, err)
+		assertRequestMade(
+			t,
+			mockClient,
+			"POST",
+			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=custom-thread",
+		)
+		assertRequestContains(t, mockClient, `"username":"ThreadBot"`)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"avatar_url":"https://example.com/thread-avatar.png"`,
+		)
+
+		mockClient.AssertExpectations(t)
+	})
+}

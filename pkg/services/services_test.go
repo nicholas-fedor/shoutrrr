@@ -106,7 +106,9 @@ var _ = ginkgo.Describe("services", func() {
 						httpmock.NewStringResponder(http.StatusOK, ""),
 					)
 				} else {
-					httpmock.RegisterNoResponder(httpmock.NewStringResponder(respStatus, serviceResponses[key]))
+					httpmock.RegisterNoResponder(
+						httpmock.NewStringResponder(respStatus, serviceResponses[key]),
+					)
 				}
 
 				err = service.Send("test", (*types.Params)(&map[string]string{

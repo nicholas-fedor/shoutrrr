@@ -1,195 +1,256 @@
 package discord_test
 
 import (
-	"fmt"
-	"strings"
+	"net/http"
+	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/jarcoal/httpmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Embeds", func() {
-	var testService *discord.Service
-	var dummyConfig discord.Config
+func TestSendEmbedWithAuthor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
-		dummyConfig = CreateDummyConfig()
-		testService = CreateTestService(dummyConfig)
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			{
+				Text: "Test embed with author",
+				Fields: []types.Field{
+					{Key: "embed_author_name", Value: "Test Author"},
+					{Key: "embed_author_url", Value: "https://example.com/author"},
+					{Key: "embed_author_icon_url", Value: "https://example.com/icon.png"},
+				},
+			},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"author":{"name":"Test Author","url":"https://example.com/author","icon_url":"https://example.com/icon.png"}`,
+		)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
+func TestSendEmbedWithImage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			{
+				Text: "Test embed with image",
+				Fields: []types.Field{
+					{Key: "embed_image_url", Value: "https://example.com/image.png"},
+				},
+			},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"image":{"url":"https://example.com/image.png"}`,
+		)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("enhanced embed features", func() {
-		ginkgo.It("should send an embed with default color", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			items := CreateMessageItemWithLevel(
-				"This is a test message",
-				types.Info, // Use Info level to force embed creation
-			)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+func TestSendEmbedWithThumbnail(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
 
-		ginkgo.It("should send embeds with different message levels and colors", func() {
-			testCases := []struct {
-				level types.MessageLevel
-				text  string
-			}{
-				{types.Error, "Error message"},
-				{types.Warning, "Warning message"},
-				{types.Info, "Info message"},
-				{types.Debug, "Debug message"},
-			}
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
 
-			for _, tc := range testCases {
-				SetupMockResponder(&dummyConfig, 204)
-				items := CreateMessageItemWithLevel(tc.text, tc.level)
-				err := testService.SendItems(items, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			}
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(4))
-		})
-
-		ginkgo.It("should send embed with author information", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			fields := []types.Field{
-				{Key: "embed_author_name", Value: "Test Author"},
-				{Key: "embed_author_url", Value: "https://example.com"},
-				{Key: "embed_author_icon_url", Value: "https://example.com/icon.png"},
-			}
-			items := CreateMessageItemWithFields("Message with author", fields)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.It("should send embed with image and thumbnail", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			fields := []types.Field{
-				{Key: "embed_image_url", Value: "https://example.com/image.png"},
-				{Key: "embed_thumbnail_url", Value: "https://example.com/thumb.png"},
-			}
-			items := CreateMessageItemWithFields("Message with media", fields)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.It("should send embed with custom fields array", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			fields := []types.Field{
-				{Key: "Status", Value: "Active"},
-				{Key: "Version", Value: "1.0.0"},
-				{Key: "Environment", Value: "Production"},
-				{Key: "Priority", Value: "High"},
-			}
-			items := CreateMessageItemWithFields(
-				"Message with custom fields",
-				fields,
-			)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
-
-		ginkgo.It("should send embed with timestamp", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			items := []types.MessageItem{
-				{
-					Text:      "Message with timestamp",
-					Timestamp: time.Now(),
+		items := []types.MessageItem{
+			{
+				Text: "Test embed with thumbnail",
+				Fields: []types.Field{
+					{Key: "embed_thumbnail_url", Value: "https://example.com/thumb.png"},
 				},
-			}
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+			},
+		}
 
-		ginkgo.It("should send multiple embeds with different features", func() {
-			SetupMockResponder(&dummyConfig, 204)
-			items := []types.MessageItem{
-				{
-					Text:  "First embed with author",
-					Level: types.Info,
-					Fields: []types.Field{
-						{Key: "embed_author_name", Value: "Bot"},
-						{Key: "Status", Value: "OK"},
-					},
-				},
-				{
-					Text:  "Second embed with image",
-					Level: types.Warning,
-					Fields: []types.Field{
-						{Key: "embed_image_url", Value: "https://example.com/alert.png"},
-						{Key: "Severity", Value: "Medium"},
-					},
-				},
-			}
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"thumbnail":{"url":"https://example.com/thumb.png"}`,
+		)
+
+		mockClient.AssertExpectations(t)
 	})
+}
 
-	ginkgo.Context("embed edge cases", func() {
-		ginkgo.It("should handle embeds with empty descriptions", func() {
-			items := []types.MessageItem{
-				{
-					Text:  "",
-					Level: types.Info,
+func TestSendEmbedWithFields(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			{
+				Text: "Test embed with fields",
+				Fields: []types.Field{
+					{Key: "Status", Value: "Active"},
+					{Key: "Priority", Value: "High"},
+					{Key: "Assignee", Value: "John Doe"},
 				},
-			}
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+				Level: types.Info,
+			},
+		}
 
-		ginkgo.It("should handle embeds with very long field values", func() {
-			longValue := strings.Repeat("A", 1024)
-			items := []types.MessageItem{
-				{
-					Text: "Message with long field value",
-					Fields: []types.Field{
-						{Key: "long_field", Value: longValue},
-					},
-				},
-			}
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+		err := service.SendItems(items, nil)
 
-		ginkgo.It("should handle embeds with many fields", func() {
-			fields := make([]types.Field, 25) // More than Discord's typical limit
-			for i := range fields {
-				fields[i] = types.Field{
-					Key:   fmt.Sprintf("field_%d", i),
-					Value: fmt.Sprintf("value_%d", i),
-				}
-			}
+		assert.NoError(t, err)
+		assertRequestContains(
+			t,
+			mockClient,
+			`"fields":[{"name":"Status","value":"Active"},{"name":"Priority","value":"High"},{"name":"Assignee","value":"John Doe"}]`,
+		)
 
-			items := []types.MessageItem{
-				{
-					Text:   "Message with many fields",
-					Fields: fields,
-				},
-			}
-			SetupMockResponder(&dummyConfig, 204)
-			err := testService.SendItems(items, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(1))
-		})
+		mockClient.AssertExpectations(t)
 	})
-})
+}
+
+func TestSendEmbedWithTimestamp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		testTime := time.Date(2023, 12, 25, 12, 0, 0, 0, time.UTC)
+		items := []types.MessageItem{
+			{
+				Text:      "Test embed with timestamp",
+				Timestamp: testTime,
+			},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		assertRequestContains(t, mockClient, `"timestamp":"2023-12-25T12:00:00Z"`)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendEmbedWithColors(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		tests := []struct {
+			name  string
+			level types.MessageLevel
+		}{
+			{"info level", types.Info},
+			{"warning level", types.Warning},
+			{"error level", types.Error},
+		}
+
+		for _, tt := range tests {
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
+				Once()
+
+			items := []types.MessageItem{
+				{Text: "Test embed with color", Level: tt.level},
+			}
+
+			err := service.SendItems(items, nil)
+
+			assert.NoError(t, err)
+			// Color handling depends on configuration
+		}
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestSendMultipleEmbeds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			"discord://test-token@test-webhook",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
+			Once()
+
+		items := []types.MessageItem{
+			{Text: "First embed"},
+			{Text: "Second embed"},
+			{Text: "Third embed"},
+		}
+
+		err := service.SendItems(items, nil)
+
+		assert.NoError(t, err)
+		// Verify multiple embeds are created
+		assertRequestContains(t, mockClient, `"description":"First embed"`)
+		assertRequestContains(t, mockClient, `"description":"Second embed"`)
+		assertRequestContains(t, mockClient, `"description":"Third embed"`)
+
+		mockClient.AssertExpectations(t)
+	})
+}

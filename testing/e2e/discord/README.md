@@ -152,6 +152,6 @@ Each test file focuses on a specific feature category:
 - **Basic Tests** (`basic_test.go`): Core message sending functionality
 - **Embed Tests** (`embed_*_test.go`): Rich embed features and formatting
 - **File Tests** (`file_*_test.go`): File attachment handling
-- **Thread Tests** (`thread_test.go`): Thread creation and messaging
+- **Thread Tests** (`thread_test.go`): Posting messages to existing threads
 - **Configuration Tests** (`username_avatar_test.go`, `json_mode_test.go`): Service configuration options
 - **Edge Case Tests** (`long_message_test.go`, `special_characters_test.go`): Boundary conditions

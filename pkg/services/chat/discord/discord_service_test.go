@@ -27,10 +27,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					WebhookID: "123456789",
 					Token:     "test-token",
 				},
-				httpClient: &mockServiceHTTPClient{},
+				HTTPClient: &mockServiceHTTPClient{},
 			}
 			service.SetLogger(&mockLogger{})
-			mockClient = service.httpClient.(*mockServiceHTTPClient)
+			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
 			mockClient.response = &http.Response{
 				StatusCode: http.StatusNoContent,
 				Body:       io.NopCloser(strings.NewReader("")),
@@ -115,7 +115,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					WebhookID: "123456789",
 					Token:     "test-token",
 				},
-				httpClient: &mockServiceHTTPClient{
+				HTTPClient: &mockServiceHTTPClient{
 					response: &http.Response{
 						StatusCode: http.StatusNoContent,
 						Body:       io.NopCloser(strings.NewReader("")),
@@ -147,9 +147,9 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					Token:     "test-token",
 				},
 				pkr:        format.NewPropKeyResolver(&Config{}),
-				httpClient: &mockServiceHTTPClient{},
+				HTTPClient: &mockServiceHTTPClient{},
 			}
-			mockClient = service.httpClient.(*mockServiceHTTPClient)
+			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
 			mockClient.response = &http.Response{
 				StatusCode: http.StatusNoContent,
 				Body:       io.NopCloser(strings.NewReader("")),
@@ -307,7 +307,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			gomega.Expect(service.Config.WebhookID).To(gomega.Equal("webhook"))
 			gomega.Expect(service.Config.Token).To(gomega.Equal("token"))
 			gomega.Expect(service.Config.Username).To(gomega.Equal("TestBot"))
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
+			gomega.Expect(service.HTTPClient).NotTo(gomega.BeNil())
 		})
 
 		ginkgo.It("should handle URL parsing error", func() {
@@ -353,9 +353,9 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
-				httpClient: &mockServiceHTTPClient{},
+				HTTPClient: &mockServiceHTTPClient{},
 			}
-			mockClient = service.httpClient.(*mockServiceHTTPClient)
+			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
 			mockClient.response = &http.Response{
 				StatusCode: http.StatusNoContent,
 				Body:       io.NopCloser(strings.NewReader("")),
@@ -434,9 +434,9 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
-				httpClient: &mockServiceHTTPClient{},
+				HTTPClient: &mockServiceHTTPClient{},
 			}
-			mockClient = service.httpClient.(*mockServiceHTTPClient)
+			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
 			mockClient.response = &http.Response{
 				StatusCode: http.StatusNoContent,
 				Body:       io.NopCloser(strings.NewReader("")),

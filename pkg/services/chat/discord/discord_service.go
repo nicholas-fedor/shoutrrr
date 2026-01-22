@@ -32,11 +32,15 @@ type Service struct {
 	standard.Standard
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient HTTPClient
+	HTTPClient HTTPClient
 }
 
 // Send delivers a notification message to Discord.
 func (service *Service) Send(message string, params *types.Params) error {
+	if message == "" {
+		return ErrEmptyMessage
+	}
+
 	var firstErr error
 
 	if service.Config.JSON {
@@ -45,9 +49,14 @@ func (service *Service) Send(message string, params *types.Params) error {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 	} else {
-		batches := CreateItemsFromPlain(message, service.Config.SplitLines)
-		for _, items := range batches {
-			if err := service.sendItems(items, params); err != nil {
+		config := *service.Config
+		if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+			return fmt.Errorf("updating config from params: %w", err)
+		}
+
+		batches := CreateItemsFromPlain(message, config.SplitLines)
+		for _, batch := range batches {
+			if err := service.sendItems(batch, params); err != nil {
 				service.Log(err)
 
 				if firstErr == nil {
@@ -137,7 +146,7 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.httpClient = NewDefaultHTTPClient() // Default client for backward compatibility
+	service.HTTPClient = NewDefaultHTTPClient() // Default client for backward compatibility
 
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -188,7 +197,7 @@ func (service *Service) doSend(payload []byte, postURL string) error {
 
 	preparer := &JSONRequestPreparer{payload: payload}
 
-	return sendWithRetry(ctx, preparer, postURL, service.httpClient, RealSleeper{})
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, RealSleeper{})
 }
 
 // doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
@@ -205,5 +214,5 @@ func (service *Service) doSendMultipart(
 		files:   files,
 	}
 
-	return sendWithRetry(ctx, preparer, postURL, service.httpClient, RealSleeper{})
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, RealSleeper{})
 }

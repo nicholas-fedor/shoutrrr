@@ -11,5 +11,9 @@ func StripNumberPrefix(input string) (string, int) {
 		return input[1:], hex
 	}
 
+	if strings.HasPrefix(input, "0x") || strings.HasPrefix(input, "0X") {
+		return input[2:], hex
+	}
+
 	return input, 0
 }
