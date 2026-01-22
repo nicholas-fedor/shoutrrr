@@ -158,11 +158,13 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 	ginkgo.Describe("sendWithRetry", func() {
 		var mockClient *mockHTTPClient
 		var preparer *JSONRequestPreparer
+		var sleeper *mockSleeper
 
 		ginkgo.BeforeEach(func() {
 			mockClient = &mockHTTPClient{}
 			payload := []byte(`{"content":"test"}`)
 			preparer = &JSONRequestPreparer{payload: payload}
+			sleeper = &mockSleeper{}
 		})
 
 		ginkgo.It("should succeed on first attempt", func() {
@@ -172,10 +174,11 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			}
 
 			ctx := context.Background()
-			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, RealSleeper{})
+			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle unexpected status codes", func() {
@@ -186,30 +189,33 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			}
 
 			ctx := context.Background()
-			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, RealSleeper{})
+			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).
 				To(gomega.ContainSubstring("unexpected response status code"))
+			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle nil response", func() {
 			mockClient.response = nil
 
 			ctx := context.Background()
-			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, RealSleeper{})
+			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrUnknownAPIError))
+			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle HTTP client errors", func() {
 			mockClient.err = http.ErrHandlerTimeout
 
 			ctx := context.Background()
-			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, RealSleeper{})
+			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("making HTTP POST request"))
+			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 	})
 
@@ -225,6 +231,15 @@ type mockHTTPClient struct {
 	doFunc    func(*http.Request) (*http.Response, error)
 }
 
+// mockSleeper is a test helper that implements Sleeper interface and records sleep durations.
+type mockSleeper struct {
+	slept []time.Duration
+}
+
+func (m *mockSleeper) Sleep(d time.Duration) {
+	m.slept = append(m.slept, d)
+}
+
 func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	m.callCount++
 	if m.doFunc != nil {
@@ -238,15 +253,6 @@ func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return m.response, nil
 }
 
-// mockSleeper is a test helper that records sleep calls without actually sleeping.
-type mockSleeper struct {
-	slept []time.Duration
-}
-
-func (m *mockSleeper) Sleep(d time.Duration) {
-	m.slept = append(m.slept, d)
-}
-
 func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
@@ -254,6 +260,7 @@ func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 		mockClient := &mockHTTPClient{}
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
+		sleeper := &mockSleeper{}
 
 		// First call returns 429 with retry-after
 		callCount := 0
@@ -276,14 +283,12 @@ func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 			}, nil
 		}
 
-		mockSleeper := &mockSleeper{}
 		ctx := context.Background()
-		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, mockSleeper)
+		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		gomega.Expect(callCount).To(gomega.Equal(2))
-		gomega.Expect(mockSleeper.slept).To(gomega.HaveLen(1))
-		gomega.Expect(mockSleeper.slept[0]).To(gomega.Equal(1 * time.Second))
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
 	})
 }
 
@@ -294,6 +299,7 @@ func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 		mockClient := &mockHTTPClient{}
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
+		sleeper := &mockSleeper{}
 
 		mockClient.response = &http.Response{
 			StatusCode: http.StatusInternalServerError,
@@ -301,14 +307,19 @@ func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("")),
 		}
 
-		mockSleeper := &mockSleeper{}
 		ctx := context.Background()
-		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, mockSleeper)
+		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err).To(gomega.MatchError(ErrMaxRetries))
 		gomega.Expect(mockClient.callCount).To(gomega.Equal(6)) // MaxRetries + 1 = 6
-		gomega.Expect(mockSleeper.slept).To(gomega.HaveLen(5))  // 5 retries with sleep
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{
+			time.Second,
+			2 * time.Second,
+			4 * time.Second,
+			8 * time.Second,
+			16 * time.Second,
+		}))
 	})
 }
 
@@ -319,6 +330,7 @@ func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
 		mockClient := &mockHTTPClient{}
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
+		sleeper := &mockSleeper{}
 
 		// Mock a very long retry-after that exceeds MaxRetryTimeout
 		mockClient.doFunc = func(_ *http.Request) (*http.Response, error) {
@@ -333,10 +345,11 @@ func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, RealSleeper{})
+		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err.Error()).To(gomega.ContainSubstring("rate limited by Discord"))
+		gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 	})
 }
 
@@ -351,13 +364,12 @@ func TestHandleRateLimitResponseRetryAfterHeader(t *testing.T) {
 		}
 		resp.Header.Set("Retry-After", "2")
 
-		mockSleeper := &mockSleeper{}
 		startTime := time.Now()
-		err := handleRateLimitResponse(resp, 0, startTime, mockSleeper)
+		sleeper := &mockSleeper{}
+		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(mockSleeper.slept).To(gomega.HaveLen(1))
-		gomega.Expect(mockSleeper.slept[0]).To(gomega.Equal(2 * time.Second))
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{2 * time.Second}))
 	})
 }
 
@@ -373,10 +385,12 @@ func TestHandleRateLimitResponseInvalidRetryAfterHeader(t *testing.T) {
 		resp.Header.Set("Retry-After", "invalid")
 
 		startTime := time.Now()
-		err := handleRateLimitResponse(resp, 0, startTime, RealSleeper{})
+		sleeper := &mockSleeper{}
+		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		// Should fall back to exponential backoff
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
 	})
 }
 
@@ -392,10 +406,12 @@ func TestHandleRateLimitResponseRetryAfterExceedingMaxTimeout(t *testing.T) {
 		resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
 
 		startTime := time.Now()
-		err := handleRateLimitResponse(resp, 0, startTime, RealSleeper{})
+		sleeper := &mockSleeper{}
+		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
+		gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 	})
 }
 
@@ -410,18 +426,18 @@ func TestHandleRateLimitResponseExponentialBackoff(t *testing.T) {
 		}
 		// No retry-after header
 
-		mockSleeper := &mockSleeper{}
 		startTime := time.Now()
+		sleeper := &mockSleeper{}
 		err := handleRateLimitResponse(
+			context.Background(),
 			resp,
 			2,
 			startTime,
-			mockSleeper,
-		) // attempt = 2, so backoff = 2^2 * 1s = 4s
+			sleeper,
+		)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(mockSleeper.slept).To(gomega.HaveLen(1))
-		gomega.Expect(mockSleeper.slept[0]).To(gomega.Equal(4 * time.Second))
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{4 * time.Second}))
 	})
 }
 
@@ -435,17 +451,17 @@ func TestHandleRateLimitResponseCapExponentialBackoff(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("")),
 		}
 
-		mockSleeper := &mockSleeper{}
 		startTime := time.Now()
+		sleeper := &mockSleeper{}
 		err := handleRateLimitResponse(
+			context.Background(),
 			resp,
 			6,
 			startTime,
-			mockSleeper,
-		) // attempt = 6, backoff = 2^6 * 1s = 64s, capped at 64s
+			sleeper,
+		)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(mockSleeper.slept).To(gomega.HaveLen(1))
-		gomega.Expect(mockSleeper.slept[0]).To(gomega.Equal(64 * time.Second))
+		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{64 * time.Second}))
 	})
 }

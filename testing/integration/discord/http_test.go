@@ -196,27 +196,28 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 }
 
 func TestHTTPMaxRetries(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		mockClient := &MockHTTPClient{}
-		service := createTestService(
-			t,
-			"discord://test-token@test-webhook",
-			mockClient,
-		)
+	mockClient := &MockHTTPClient{}
+	service := createTestService(
+		t,
+		"discord://test-token@test-webhook",
+		mockClient,
+	)
 
-		// Test that it doesn't retry indefinitely
-		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 0.001}`), nil).
-			Times(6)
-			// More than max retries
+	// Use noOpSleeper to avoid real sleeps in tests
+	service.Sleeper = &noOpSleeper{}
 
-		err := service.Send("Test message", nil)
+	// Test that it doesn't retry indefinitely
+	mockClient.On("Do", mock.Anything).
+		Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 0.001}`), nil).
+		Times(6)
+		// Max retries + 1 initial attempt
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to send discord notification")
+	err := service.Send("Test message", nil)
 
-		mockClient.AssertExpectations(t)
-	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to send discord notification")
+
+	mockClient.AssertExpectations(t)
 }
 
 func TestHTTPContextCancellation(t *testing.T) {
@@ -243,54 +244,55 @@ func TestHTTPContextCancellation(t *testing.T) {
 }
 
 func TestHTTPResponseStatusHandling(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		mockClient := &MockHTTPClient{}
-		service := createTestService(
-			t,
-			"discord://test-token@test-webhook",
-			mockClient,
-		)
+	mockClient := &MockHTTPClient{}
+	service := createTestService(
+		t,
+		"discord://test-token@test-webhook",
+		mockClient,
+	)
 
-		tests := []struct {
-			name          string
-			statusCode    int
-			responseBody  string
-			expectError   bool
-			expectedCalls int
-		}{
-			{"success", http.StatusNoContent, "", false, 1},
-			{"bad request", http.StatusBadRequest, `{"message": "error"}`, true, 1},
-			{"unauthorized", http.StatusUnauthorized, `{"message": "error"}`, true, 1},
-			{"forbidden", http.StatusForbidden, `{"message": "error"}`, true, 1},
-			{"not found", http.StatusNotFound, `{"message": "error"}`, true, 1},
-			{
-				"rate limited",
-				http.StatusTooManyRequests,
-				`{"retry_after": 1}`,
-				true,
-				6,
-			}, // Should retry but eventually fail
-			{"server error", http.StatusInternalServerError, `{"message": "error"}`, true, 6},
-		}
+	// Use noOpSleeper to avoid real sleeps in tests
+	service.Sleeper = &noOpSleeper{}
 
-		for _, tt := range tests {
-			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(tt.statusCode, tt.responseBody), nil).
-				Times(tt.expectedCalls)
+	tests := []struct {
+		name          string
+		statusCode    int
+		responseBody  string
+		expectError   bool
+		expectedCalls int
+	}{
+		{"success", http.StatusNoContent, "", false, 1},
+		{"bad request", http.StatusBadRequest, `{"message": "error"}`, true, 1},
+		{"unauthorized", http.StatusUnauthorized, `{"message": "error"}`, true, 1},
+		{"forbidden", http.StatusForbidden, `{"message": "error"}`, true, 1},
+		{"not found", http.StatusNotFound, `{"message": "error"}`, true, 1},
+		{
+			"rate limited",
+			http.StatusTooManyRequests,
+			`{"retry_after": 1}`,
+			true,
+			6,
+		}, // Should retry but eventually fail
+		{"server error", http.StatusInternalServerError, `{"message": "error"}`, true, 6},
+	}
 
-			err := service.Send("Test message", nil)
+	for _, tt := range tests {
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(tt.statusCode, tt.responseBody), nil).
+			Times(tt.expectedCalls)
 
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+		err := service.Send("Test message", nil)
 
-			mockClient.AssertExpectations(t)
+		if tt.expectError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
 		}
 
 		mockClient.AssertExpectations(t)
-	})
+	}
+
+	mockClient.AssertExpectations(t)
 }
 
 func TestHTTPMultipartUpload(t *testing.T) {

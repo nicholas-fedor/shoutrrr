@@ -33,6 +33,7 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
+	Sleeper    Sleeper
 }
 
 // Send delivers a notification message to Discord.
@@ -147,6 +148,7 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
 	service.HTTPClient = NewDefaultHTTPClient() // Default client for backward compatibility
+	service.Sleeper = RealSleeper{}             // Default sleeper
 
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -206,7 +208,7 @@ func (service *Service) doSend(payload []byte, postURL string) error {
 
 	preparer := &JSONRequestPreparer{payload: payload}
 
-	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, RealSleeper{})
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, service.Sleeper)
 }
 
 // doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
@@ -227,5 +229,5 @@ func (service *Service) doSendMultipart(
 		files:   files,
 	}
 
-	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, RealSleeper{})
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, service.Sleeper)
 }

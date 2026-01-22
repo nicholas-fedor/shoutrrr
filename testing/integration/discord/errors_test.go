@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -15,14 +16,20 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// noOpSleeper is a sleeper that does nothing, for testing.
+type noOpSleeper struct{}
+
+func (noOpSleeper) Sleep(_ time.Duration) {}
+
 func TestSendWithHTTPError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
-			name          string
-			statusCode    int
-			response      string
-			expectedError string
-			expectedCalls int
+			name            string
+			statusCode      int
+			response        string
+			expectedError   string
+			expectedCalls   int
+			expectedHeaders map[string]string
 		}{
 			{
 				"bad request",
@@ -30,6 +37,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Invalid webhook"}`,
 				"failed to send discord notification",
 				1,
+				nil,
 			},
 			{
 				"unauthorized",
@@ -37,6 +45,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Invalid token"}`,
 				"failed to send discord notification",
 				1,
+				nil,
 			},
 			{
 				"forbidden",
@@ -44,6 +53,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Missing permissions"}`,
 				"failed to send discord notification",
 				1,
+				nil,
 			},
 			{
 				"not found",
@@ -51,6 +61,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Webhook not found"}`,
 				"failed to send discord notification",
 				1,
+				nil,
 			},
 			{
 				"too many requests",
@@ -58,6 +69,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Rate limited"}`,
 				"failed to send discord notification",
 				6,
+				map[string]string{"Retry-After": "0"},
 			},
 			{
 				"internal server error",
@@ -65,6 +77,7 @@ func TestSendWithHTTPError(t *testing.T) {
 				`{"message": "Server error"}`,
 				"failed to send discord notification",
 				6,
+				nil,
 			},
 		}
 
@@ -76,8 +89,13 @@ func TestSendWithHTTPError(t *testing.T) {
 				mockClient,
 			)
 
+			// Use noOpSleeper to avoid real sleeps in tests
+			service.Sleeper = &noOpSleeper{}
+
+			resp := createMockResponse(tt.statusCode, tt.response, tt.expectedHeaders)
+
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(tt.statusCode, tt.response), nil).
+				Return(resp, nil).
 				Times(tt.expectedCalls)
 
 			err := service.Send("Test message", nil)

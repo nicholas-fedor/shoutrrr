@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -336,7 +337,7 @@ var _ = ginkgo.Describe("Discord JSON Unit Tests", func() {
 		ginkgo.It("should limit embeds to MaxEmbeds", func() {
 			items := make([]types.MessageItem, MaxEmbeds+5)
 			for i := range items {
-				items[i] = types.MessageItem{Text: "Message " + string(rune(i+'0'))}
+				items[i] = types.MessageItem{Text: "Message " + strconv.Itoa(i)}
 			}
 			payload, err := CreatePayloadFromItems(items, "", colors)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())

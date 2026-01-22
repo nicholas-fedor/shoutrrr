@@ -25,12 +25,20 @@ const (
 	serverErrorStatusCode = 500
 )
 
-// HTTPClient defines the interface for HTTP operations to enable dependency injection and testing.
+const (
+	maxRetries      = 5
+	baseBackoff     = time.Second
+	maxBackoff      = 64 * time.Second
+	maxRetryTimeout = 5 * time.Minute
+	backoffBase     = 2
+)
+
+// HTTPClient defines the interface for HTTP operations.
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Sleeper defines the interface for sleep operations to enable testing.
+// Sleeper defines the interface for sleep operations.
 type Sleeper interface {
 	Sleep(d time.Duration)
 }
@@ -174,22 +182,17 @@ func sendWithRetry(
 	sleeper Sleeper,
 ) error {
 	const (
-		MaxRetries          = 5
 		maxTransportRetries = 3
-		BaseBackoff         = time.Second
-		MaxBackoff          = 64 * time.Second
-		MaxRetryTimeout     = 5 * time.Minute
-		BackoffBase         = 2
 	)
 
 	startTime := time.Now()
 
-	for attempt := 0; attempt <= MaxRetries; attempt++ {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Check if we've exceeded the maximum retry timeout
-		if time.Since(startTime) > MaxRetryTimeout {
+		if time.Since(startTime) > maxRetryTimeout {
 			return fmt.Errorf(
 				"max retry timeout exceeded after %v: %w",
-				MaxRetryTimeout,
+				maxRetryTimeout,
 				ErrMaxRetries,
 			)
 		}
@@ -211,14 +214,16 @@ func sendWithRetry(
 				if isTransientError(err) && transportAttempt < maxTransportRetries {
 					wait := time.Duration(
 						math.Min(
-							math.Pow(BackoffBase, float64(transportAttempt))*float64(BaseBackoff),
-							float64(MaxBackoff),
+							math.Pow(backoffBase, float64(transportAttempt))*float64(baseBackoff),
+							float64(maxBackoff),
 						),
 					)
+
 					select {
 					case <-ctx.Done():
 						return fmt.Errorf("making HTTP POST request: %w", ctx.Err())
-					case <-time.After(wait):
+					default:
+						sleeper.Sleep(wait)
 					}
 
 					continue
@@ -234,11 +239,9 @@ func sendWithRetry(
 			return ErrUnknownAPIError
 		}
 
-		defer func() { _ = res.Body.Close() }()
-
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
-			if err := handleRateLimitResponse(res, attempt, startTime, sleeper); err != nil {
+			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
 				return err
 			}
 
@@ -247,15 +250,23 @@ func sendWithRetry(
 
 		// Retry on server errors (5xx) but not on client errors (4xx)
 		if res.StatusCode >= serverErrorStatusCode {
-			if attempt < MaxRetries {
+			if attempt < maxRetries {
 				// Exponential backoff for server errors
 				wait := time.Duration(
 					math.Min(
-						math.Pow(BackoffBase, float64(attempt))*float64(BaseBackoff),
-						float64(MaxBackoff),
+						math.Pow(backoffBase, float64(attempt))*float64(baseBackoff),
+						float64(maxBackoff),
 					),
 				)
-				sleeper.Sleep(wait)
+
+				select {
+				case <-ctx.Done():
+					_ = res.Body.Close()
+
+					return fmt.Errorf("context canceled during server error backoff: %w", ctx.Err())
+				default:
+					sleeper.Sleep(wait)
+				}
 
 				_ = res.Body.Close()
 
@@ -271,6 +282,8 @@ func sendWithRetry(
 			return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 		}
 
+		_ = res.Body.Close()
+
 		return nil
 	}
 
@@ -279,35 +292,36 @@ func sendWithRetry(
 
 // handleRateLimitResponse handles rate limiting logic for 429 responses.
 func handleRateLimitResponse(
+	ctx context.Context,
 	res *http.Response,
 	attempt int,
 	startTime time.Time,
 	sleeper Sleeper,
 ) error {
-	const (
-		MaxRetryTimeout = 5 * time.Minute
-		BaseBackoff     = time.Second
-		MaxBackoff      = 64 * time.Second
-		BackoffBase     = 2
-	)
-
 	retryAfter := res.Header.Get("Retry-After")
 	if retryAfter != "" {
 		if seconds, err := strconv.Atoi(retryAfter); err == nil {
 			wait := time.Duration(seconds) * time.Second
 			// Don't wait longer than remaining timeout
-			if wait > MaxRetryTimeout-time.Since(startTime) {
+			if wait > maxRetryTimeout-time.Since(startTime) {
 				_ = res.Body.Close()
 
 				return fmt.Errorf(
 					"retry-after wait time %v would exceed max retry timeout %v: %w",
 					wait,
-					MaxRetryTimeout,
+					maxRetryTimeout,
 					ErrRateLimited,
 				)
 			}
 
-			sleeper.Sleep(wait)
+			select {
+			case <-ctx.Done():
+				_ = res.Body.Close()
+
+				return fmt.Errorf("context canceled during rate limit backoff: %w", ctx.Err())
+			default:
+				sleeper.Sleep(wait)
+			}
 
 			_ = res.Body.Close()
 
@@ -316,21 +330,28 @@ func handleRateLimitResponse(
 	}
 	// Fallback to exponential backoff
 	wait := time.Duration(
-		math.Min(math.Pow(BackoffBase, float64(attempt))*float64(BaseBackoff), float64(MaxBackoff)),
+		math.Min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)),
 	)
 	// Don't wait longer than remaining timeout
-	if wait > MaxRetryTimeout-time.Since(startTime) {
+	if wait > maxRetryTimeout-time.Since(startTime) {
 		_ = res.Body.Close()
 
 		return fmt.Errorf(
 			"backoff wait time %v would exceed max retry timeout %v: %w",
 			wait,
-			MaxRetryTimeout,
+			maxRetryTimeout,
 			ErrRateLimited,
 		)
 	}
 
-	sleeper.Sleep(wait)
+	select {
+	case <-ctx.Done():
+		_ = res.Body.Close()
+
+		return fmt.Errorf("context canceled during rate limit backoff: %w", ctx.Err())
+	default:
+		sleeper.Sleep(wait)
+	}
 
 	_ = res.Body.Close()
 

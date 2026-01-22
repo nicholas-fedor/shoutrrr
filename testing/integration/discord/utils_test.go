@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -34,12 +33,7 @@ func createTestService(
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
-		v := reflect.ValueOf(service).Elem()
-
-		field := v.FieldByName("HTTPClient")
-		if field.IsValid() && field.CanSet() {
-			field.Set(reflect.ValueOf(httpClients[0]))
-		}
+		service.HTTPClient = httpClients[0]
 	}
 
 	return service
@@ -105,12 +99,20 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 // createMockResponse creates a mock HTTP response with the given status code and body.
-func createMockResponse(statusCode int, body string) *http.Response {
-	return &http.Response{
+func createMockResponse(statusCode int, body string, headers ...map[string]string) *http.Response {
+	resp := &http.Response{
 		StatusCode: statusCode,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}
+
+	if len(headers) > 0 && headers[0] != nil {
+		for k, v := range headers[0] {
+			resp.Header.Set(k, v)
+		}
+	}
+
+	return resp
 }
 
 // assertRequestMade asserts that an HTTP POST request was made to the expected URL.
