@@ -2,6 +2,7 @@ package discord_test
 
 import (
 	"errors"
+	"net"
 	"net/http"
 	"net/url"
 	"testing"
@@ -20,6 +21,16 @@ import (
 type noOpSleeper struct{}
 
 func (noOpSleeper) Sleep(_ time.Duration) {}
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string { return "timeout" }
+
+func (timeoutError) Timeout() bool { return true }
+
+func (timeoutError) Temporary() bool { return false }
+
+var _ net.Error = timeoutError{}
 
 // computeExpectedBatches computes the number of batches for a message based on Discord limits.
 func computeExpectedBatches(message string, splitLines bool) int {
@@ -44,6 +55,7 @@ func computeExpectedBatches(message string, splitLines bool) int {
 	return batches
 }
 
+//nolint:funlen
 func TestSendWithHTTPError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
@@ -169,7 +181,7 @@ func TestSendWithMalformedResponse(t *testing.T) {
 
 		err := service.Send("Test message", nil)
 
-		// Should still succeed since we only check for 204 No Content
+		// Should still succeed since non-error status codes (2xx) are accepted
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -205,7 +217,7 @@ func TestSendWithRetryOnRateLimit(t *testing.T) {
 	})
 }
 
-func TestSendWithInvalidURL(t *testing.T) {
+func TestSendWithNonExistentWebhook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		invalidService := createTestService(t, "discord://token@invalid", mockClient)
@@ -223,7 +235,7 @@ func TestSendWithInvalidURL(t *testing.T) {
 	})
 }
 
-func TestSendWithEmptyURL(t *testing.T) {
+func TestSendWithUnknownWebhook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		emptyService := createTestService(t, "discord://token@empty", mockClient)
@@ -319,10 +331,14 @@ func TestSendWithTimeout(t *testing.T) {
 			mockClient,
 		)
 
-		// Simulate a timeout by having the mock not respond
+		// Use noOpSleeper to avoid real sleeps in tests
+		service.Sleeper = &noOpSleeper{}
+
+		// Simulate a network timeout by returning a timeout error
+		// Timeout errors are transient and will be retried up to maxTransportRetries (3) times
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusRequestTimeout, ""), nil).
-			Once()
+			Return(nil, timeoutError{}).
+			Times(4) // Initial attempt + 3 retries
 
 		err := service.Send("Test message", nil)
 

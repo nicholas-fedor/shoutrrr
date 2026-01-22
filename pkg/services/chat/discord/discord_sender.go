@@ -320,6 +320,8 @@ func sendWithRetry(
 			return ErrUnknownAPIError
 		}
 
+		defer func() { _ = res.Body.Close() }()
+
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
@@ -341,8 +343,6 @@ func sendWithRetry(
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
 			return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 		}
-
-		_ = res.Body.Close()
 
 		return nil
 	}
@@ -387,8 +387,8 @@ func handleRateLimitResponse(
 ) error {
 	retryAfter := res.Header.Get("Retry-After")
 	if retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil {
-			wait := time.Duration(seconds) * time.Second
+		if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {
+			wait := time.Duration(seconds * float64(time.Second))
 			if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
 				_ = res.Body.Close()
 

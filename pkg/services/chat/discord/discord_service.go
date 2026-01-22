@@ -226,8 +226,7 @@ func (service *Service) doSendMultipart(
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	preparer := &MultipartRequestPreparer{
 		payload: payload,
