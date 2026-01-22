@@ -96,17 +96,23 @@ func (service *Service) sendItems(items []types.MessageItem, params *types.Param
 	postURL := CreateAPIURLFromConfig(&config)
 
 	// Check if any items have files
-	hasFiles := false
-
-	var files []types.File
+	fileCount := 0
 
 	for _, item := range items {
 		if item.File != nil {
-			hasFiles = true
+			fileCount++
+		}
+	}
 
+	files := make([]types.File, 0, fileCount)
+
+	for _, item := range items {
+		if item.File != nil {
 			files = append(files, *item.File)
 		}
 	}
+
+	hasFiles := len(files) > 0
 
 	if hasFiles {
 		return service.doSendMultipart(payload, files, postURL)

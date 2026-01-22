@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -135,7 +136,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 			return nil, fmt.Errorf("creating form file for %s: %w", file.Name, err)
 		}
 
-		_, err = fw.Write(file.Data)
+		_, err = io.Copy(fw, bytes.NewReader(file.Data))
 		if err != nil {
 			return nil, fmt.Errorf("writing file data for %s: %w", file.Name, err)
 		}
@@ -158,13 +159,22 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 
 // isTransientError checks if an error is transient and should be retried.
 func isTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	if errors.Is(err, context.Canceled) {
 		return false
 	}
 
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		return netErr.Timeout()
+		return netErr.Timeout() ||
+			netErr.Temporary() //nolint:staticcheck // Temporary is deprecated but still used for compatibility
 	}
 
 	var urlErr *url.Error
@@ -172,7 +182,98 @@ func isTransientError(err error) bool {
 		return isTransientError(urlErr.Err)
 	}
 
-	return false
+	errStr := err.Error()
+
+	return strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset")
+}
+
+// executeWithTransportRetry executes an HTTP request with transport-level retries.
+func executeWithTransportRetry(
+	ctx context.Context,
+	httpClient HTTPClient,
+	bodyBytes []byte,
+	req *http.Request,
+	sleeper Sleeper,
+) (*http.Response, error) {
+	const maxTransportRetries = 3
+
+	for transportAttempt := 0; transportAttempt <= maxTransportRetries; transportAttempt++ {
+		newReq, err := http.NewRequestWithContext(
+			ctx,
+			req.Method,
+			req.URL.String(),
+			bytes.NewReader(bodyBytes),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating retry request: %w", err)
+		}
+
+		maps.Copy(newReq.Header, req.Header)
+
+		res, err := httpClient.Do(newReq)
+		if err != nil {
+			if isTransientError(err) && transportAttempt < maxTransportRetries {
+				wait := time.Duration(
+					math.Min(
+						math.Pow(backoffBase, float64(transportAttempt))*float64(baseBackoff),
+						float64(maxBackoff),
+					),
+				)
+
+				select {
+				case <-ctx.Done():
+					return nil, fmt.Errorf("making HTTP POST request: %w", ctx.Err())
+				default:
+					sleeper.Sleep(wait)
+				}
+
+				continue
+			}
+
+			return nil, fmt.Errorf("making HTTP POST request: %w", err)
+		}
+
+		return res, nil
+	}
+
+	return nil, fmt.Errorf("making HTTP POST request: %w", ErrMaxRetries)
+}
+
+// handleServerError handles 5xx server errors with retry logic.
+func handleServerError(
+	ctx context.Context,
+	res *http.Response,
+	attempt int,
+	startTime time.Time,
+	sleeper Sleeper,
+) error {
+	if res.StatusCode < serverErrorStatusCode {
+		return nil
+	}
+
+	if attempt >= maxRetries {
+		_ = res.Body.Close()
+
+		return ErrMaxRetries
+	}
+
+	wait := time.Duration(
+		math.Min(
+			math.Pow(backoffBase, float64(attempt))*float64(baseBackoff),
+			float64(maxBackoff),
+		),
+	)
+
+	if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
+		_ = res.Body.Close()
+
+		return err
+	}
+
+	_ = res.Body.Close()
+
+	return nil // Continue retry
 }
 
 // sendWithRetry executes an HTTP request with exponential backoff retries.
@@ -183,10 +284,6 @@ func sendWithRetry(
 	httpClient HTTPClient,
 	sleeper Sleeper,
 ) error {
-	const (
-		maxTransportRetries = 3
-	)
-
 	startTime := time.Now()
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -211,51 +308,12 @@ func sendWithRetry(
 			return fmt.Errorf("reading request body: %w", err)
 		}
 
-		req.Body.Close()
+		_ = req.Body.Close()
 
-		// Make the request with retry on transient transport errors
-		var res *http.Response
-
-		for transportAttempt := 0; transportAttempt <= maxTransportRetries; transportAttempt++ {
-			var err error
-
-			// Recreate request with preserved body for each retry
-			newReq, err := http.NewRequestWithContext(
-				ctx,
-				req.Method,
-				req.URL.String(),
-				bytes.NewReader(bodyBytes),
-			)
-			if err != nil {
-				return fmt.Errorf("creating retry request: %w", err)
-			}
-			// Copy headers
-			maps.Copy(newReq.Header, req.Header)
-
-			res, err = httpClient.Do(newReq)
-			if err != nil {
-				if isTransientError(err) && transportAttempt < maxTransportRetries {
-					wait := time.Duration(
-						math.Min(
-							math.Pow(backoffBase, float64(transportAttempt))*float64(baseBackoff),
-							float64(maxBackoff),
-						),
-					)
-
-					select {
-					case <-ctx.Done():
-						return fmt.Errorf("making HTTP POST request: %w", ctx.Err())
-					default:
-						sleeper.Sleep(wait)
-					}
-
-					continue
-				}
-
-				return fmt.Errorf("making HTTP POST request: %w", err)
-			}
-			// Success, proceed with response
-			break
+		// Execute request with transport retries
+		res, err := executeWithTransportRetry(ctx, httpClient, bodyBytes, req, sleeper)
+		if err != nil {
+			return err
 		}
 
 		if res == nil {
@@ -271,34 +329,13 @@ func sendWithRetry(
 			continue
 		}
 
-		// Retry on server errors (5xx) but not on client errors (4xx)
+		// Handle server errors
+		if err := handleServerError(ctx, res, attempt, startTime, sleeper); err != nil {
+			return err
+		}
+
 		if res.StatusCode >= serverErrorStatusCode {
-			if attempt < maxRetries {
-				// Exponential backoff for server errors
-				wait := time.Duration(
-					math.Min(
-						math.Pow(backoffBase, float64(attempt))*float64(baseBackoff),
-						float64(maxBackoff),
-					),
-				)
-
-				select {
-				case <-ctx.Done():
-					_ = res.Body.Close()
-
-					return fmt.Errorf("context canceled during server error backoff: %w", ctx.Err())
-				default:
-					sleeper.Sleep(wait)
-				}
-
-				_ = res.Body.Close()
-
-				continue
-			}
-
-			_ = res.Body.Close()
-
-			return ErrMaxRetries
+			continue
 		}
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
@@ -313,6 +350,33 @@ func sendWithRetry(
 	return ErrMaxRetries
 }
 
+// waitWithTimeout waits for the specified duration with timeout and context cancellation checks.
+func waitWithTimeout(
+	ctx context.Context,
+	wait time.Duration,
+	startTime time.Time,
+	sleeper Sleeper,
+) error {
+	// Don't wait longer than remaining timeout
+	if wait > maxRetryTimeout-time.Since(startTime) {
+		return fmt.Errorf(
+			"wait time %v would exceed max retry timeout %v: %w",
+			wait,
+			maxRetryTimeout,
+			ErrRateLimited,
+		)
+	}
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled during wait: %w", ctx.Err())
+	default:
+		sleeper.Sleep(wait)
+	}
+
+	return nil
+}
+
 // handleRateLimitResponse handles rate limiting logic for 429 responses.
 func handleRateLimitResponse(
 	ctx context.Context,
@@ -325,25 +389,10 @@ func handleRateLimitResponse(
 	if retryAfter != "" {
 		if seconds, err := strconv.Atoi(retryAfter); err == nil {
 			wait := time.Duration(seconds) * time.Second
-			// Don't wait longer than remaining timeout
-			if wait > maxRetryTimeout-time.Since(startTime) {
+			if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
 				_ = res.Body.Close()
 
-				return fmt.Errorf(
-					"retry-after wait time %v would exceed max retry timeout %v: %w",
-					wait,
-					maxRetryTimeout,
-					ErrRateLimited,
-				)
-			}
-
-			select {
-			case <-ctx.Done():
-				_ = res.Body.Close()
-
-				return fmt.Errorf("context canceled during rate limit backoff: %w", ctx.Err())
-			default:
-				sleeper.Sleep(wait)
+				return err
 			}
 
 			_ = res.Body.Close()
@@ -355,25 +404,10 @@ func handleRateLimitResponse(
 	wait := time.Duration(
 		math.Min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)),
 	)
-	// Don't wait longer than remaining timeout
-	if wait > maxRetryTimeout-time.Since(startTime) {
+	if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
 		_ = res.Body.Close()
 
-		return fmt.Errorf(
-			"backoff wait time %v would exceed max retry timeout %v: %w",
-			wait,
-			maxRetryTimeout,
-			ErrRateLimited,
-		)
-	}
-
-	select {
-	case <-ctx.Done():
-		_ = res.Body.Close()
-
-		return fmt.Errorf("context canceled during rate limit backoff: %w", ctx.Err())
-	default:
-		sleeper.Sleep(wait)
+		return err
 	}
 
 	_ = res.Body.Close()

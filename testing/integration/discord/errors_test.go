@@ -21,6 +21,29 @@ type noOpSleeper struct{}
 
 func (noOpSleeper) Sleep(_ time.Duration) {}
 
+// computeExpectedBatches computes the number of batches for a message based on Discord limits.
+func computeExpectedBatches(message string, splitLines bool) int {
+	const (
+		chunkSize      = 2000
+		totalChunkSize = 6000
+	)
+
+	if splitLines {
+		// For split lines, each line is a separate item, but simplified for test
+		return 1
+	}
+
+	messageLen := len(message)
+	if messageLen == 0 {
+		return 0
+	}
+
+	chunks := (messageLen + chunkSize - 1) / chunkSize                                    // Ceiling division
+	batches := (chunks + (totalChunkSize / chunkSize) - 1) / (totalChunkSize / chunkSize) // Ceiling division
+
+	return batches
+}
+
 func TestSendWithHTTPError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
@@ -82,6 +105,7 @@ func TestSendWithHTTPError(t *testing.T) {
 		}
 
 		for _, tt := range tests {
+			t.Logf("Running test case: %s", tt.name)
 			mockClient := &MockHTTPClient{}
 			service := createTestService(
 				t,
@@ -159,6 +183,9 @@ func TestSendWithRetryOnRateLimit(t *testing.T) {
 			"discord://test-token@test-webhook",
 			mockClient,
 		)
+
+		// Use noOpSleeper to avoid real sleeps in tests
+		service.Sleeper = &noOpSleeper{}
 
 		// First call returns rate limit, second succeeds
 		mockClient.On("Do", mock.Anything).
@@ -261,22 +288,22 @@ func TestSendItemsWithInvalidPayload(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil).
-			Once()
-
-		// Create an item that would cause JSON marshaling to fail
+		// Create an item with invalid UTF-8 that gets sent as invalid JSON
 		items := []types.MessageItem{
 			{
-				Text: "Test",
-				// This would cause issues if not handled properly
+				Text: string([]byte{0xff, 0xfe, 0xfd}), // Invalid UTF-8 bytes
 			},
 		}
 
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusBadRequest, `{"message": "Invalid JSON"}`), nil).
+			Once()
+
 		err := service.SendItems(items, nil)
 
-		// Should succeed as the payload creation should work
-		require.NoError(t, err)
+		// Should fail due to invalid JSON payload
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected response status code")
 
 		mockClient.AssertExpectations(t)
 	})
@@ -320,9 +347,12 @@ func TestSendWithLargePayload(t *testing.T) {
 			largeMessage[i] = 'a'
 		}
 
+		// Compute expected number of calls based on message splitting logic
+		expectedCalls := computeExpectedBatches(string(largeMessage), false)
+
 		mockClient.On("Do", mock.Anything).
 			Return(createMockResponse(http.StatusNoContent, ""), nil).
-			Times(167)
+			Times(expectedCalls)
 
 		err := service.Send(string(largeMessage), nil)
 
