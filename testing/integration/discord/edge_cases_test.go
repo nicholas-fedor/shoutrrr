@@ -90,7 +90,7 @@ func TestUnicodeMessages(t *testing.T) {
 
 		for _, tt := range tests {
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			err := service.Send(tt.message, nil)
@@ -130,7 +130,7 @@ func TestControlCharacters(t *testing.T) {
 			// With splitLines enabled by default, all lines are sent as embeds in one request
 			expectedCalls := 1
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Times(expectedCalls)
 
 			err := service.Send(tt.message, nil)
@@ -264,7 +264,7 @@ func TestExtremelyLargeFile(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -343,7 +343,7 @@ func TestFileWithSpecialCharactersInName(t *testing.T) {
 
 			err := service.SendItems(items, nil)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		mockClient.AssertExpectations(t)
@@ -356,7 +356,7 @@ func TestConcurrentRequests(t *testing.T) {
 		done := make(chan bool, 3)
 
 		for i := range 3 {
-			go func(id int) {
+			go func(_ int) {
 				mockClient := &MockHTTPClient{}
 				mockClient.On("Do", mock.Anything).
 					Return(createMockResponse(http.StatusNoContent, ""), nil).
@@ -365,7 +365,7 @@ func TestConcurrentRequests(t *testing.T) {
 				service := createTestService(t, "discord://test-token@test-webhook", mockClient)
 
 				err := service.Send("Concurrent message", nil)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 
 				mockClient.AssertExpectations(t)
 
@@ -394,7 +394,7 @@ func TestMemoryExhaustionSimulation(t *testing.T) {
 			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
-		var items []types.MessageItem
+		items := make([]types.MessageItem, 0, 10)
 		for i := range 10 {
 			items = append(items, types.MessageItem{
 				Text: "Embed " + string(rune(i+'0')),
@@ -407,7 +407,7 @@ func TestMemoryExhaustionSimulation(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -431,7 +431,7 @@ func TestRapidSuccessionRequests(t *testing.T) {
 
 		for range 10 {
 			err := service.Send("Message", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		mockClient.AssertExpectations(t)

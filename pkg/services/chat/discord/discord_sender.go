@@ -187,6 +187,8 @@ func sendWithRetry(
 			return ErrUnknownAPIError
 		}
 
+		defer res.Body.Close()
+
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(res, attempt, startTime, sleeper); err != nil {
@@ -217,8 +219,6 @@ func sendWithRetry(
 
 			return ErrMaxRetries
 		}
-
-		defer func() { _ = res.Body.Close() }()
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
 			return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)

@@ -204,7 +204,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte("OK")) // nolint:errcheck // test handler
+						_, _ = w.Write([]byte("OK"))
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -245,7 +245,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			server := httptest.NewTLSServer(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte("OK")) // nolint:errcheck // test handler
+					_, _ = w.Write([]byte("OK"))
 				}),
 			)
 			defer server.Close()
@@ -268,7 +268,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			gomega.Expect(resp.StatusCode).To(gomega.Equal(http.StatusOK))
 
-			_ = resp.Body.Close() // nolint:errcheck // test cleanup
+			_ = resp.Body.Close()
 		})
 
 		ginkgo.It(
@@ -310,7 +310,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -384,7 +384,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -510,7 +510,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					}
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+					_ = json.NewEncoder(w).Encode(response)
 				}),
 			)
 			server.TLS = &tls.Config{
@@ -649,7 +649,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					}
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+					_ = json.NewEncoder(w).Encode(response)
 				}),
 			)
 			server.TLS = &tls.Config{
@@ -742,7 +742,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					}
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+					_ = json.NewEncoder(w).Encode(response)
 				}),
 			)
 			server.TLS = &tls.Config{
@@ -868,7 +868,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -947,7 +947,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				defer server.Close()
@@ -1019,7 +1019,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -1105,7 +1105,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{
@@ -1279,7 +1279,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						}
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(response) // nolint:errcheck // test handler
+						_ = json.NewEncoder(w).Encode(response)
 					}),
 				)
 				server.TLS = &tls.Config{

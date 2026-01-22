@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -48,7 +49,7 @@ func TestSendItemsWithPlainText(t *testing.T) {
 		}
 
 		err := service.SendItems(items, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -73,7 +74,7 @@ func TestSendItemsWithEmptyMessage(t *testing.T) {
 		}
 
 		err := service.SendItems(items, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -100,7 +101,7 @@ func TestSendItemsWithMultipleItems(t *testing.T) {
 		}
 
 		err := service.SendItems(items, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -131,7 +132,7 @@ func TestSendItemsWithParams(t *testing.T) {
 			"https://example.com/avatar.png",
 		)
 		err := service.SendItems(items, params)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -159,7 +160,7 @@ func TestSendItemsWithTimestamp(t *testing.T) {
 		}
 
 		err := service.SendItems(items, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -197,7 +198,7 @@ func TestSendItemsWithLevel(t *testing.T) {
 			}
 
 			err := service.SendItems(items, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		mockClient.AssertExpectations(t)

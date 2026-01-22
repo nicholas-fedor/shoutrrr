@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -27,10 +27,10 @@ func createTestService(
 	service := &discord.Service{}
 
 	parsedURL, err := url.Parse(webhookURL)
-	require.NoError(t, err)
+	assert.NoError(t, err) //nolint:testifylint
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	require.NoError(t, err)
+	assert.NoError(t, err) //nolint:testifylint
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
@@ -48,9 +48,9 @@ func createTestService(
 // mockLogger is a simple logger implementation for testing.
 type mockLogger struct{}
 
-func (m *mockLogger) Print(v ...any)                 {}
-func (m *mockLogger) Printf(format string, v ...any) {}
-func (m *mockLogger) Println(v ...any)               {}
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
 
 // createTestMessageItem creates a test MessageItem with the given text.
 func createTestMessageItem(text string) types.MessageItem {
@@ -109,18 +109,20 @@ func createMockResponse(statusCode int, body string) *http.Response {
 	}
 }
 
-// assertRequestMade asserts that an HTTP request was made with the expected method and URL.
+// assertRequestMade asserts that an HTTP POST request was made to the expected URL.
 func assertRequestMade(
 	t *testing.T,
 	mockClient *MockHTTPClient,
-	expectedMethod, expectedURL string,
+	expectedURL string,
 ) {
+	t.Helper()
+
 	found := false
 
 	for _, call := range mockClient.Calls {
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
-			if req.Method == expectedMethod && req.URL.String() == expectedURL {
+			if req.Method == http.MethodPost && req.URL.String() == expectedURL {
 				found = true
 
 				break
@@ -129,12 +131,14 @@ func assertRequestMade(
 	}
 
 	if !found {
-		t.Errorf("Expected request %s %s, but no matching call found", expectedMethod, expectedURL)
+		t.Errorf("Expected POST request to %s, but no matching call found", expectedURL)
 	}
 }
 
 // assertRequestContains asserts that the HTTP request body contains the expected content.
 func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedContent string) {
+	t.Helper()
+
 	found := false
 
 	for _, call := range mockClient.Calls {
@@ -162,6 +166,8 @@ func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedCon
 
 // assertRequestBody asserts that the HTTP request body exactly matches the expected content.
 func assertRequestBody(t *testing.T, mockClient *MockHTTPClient, expectedBody string) {
+	t.Helper()
+
 	found := false
 
 	for _, call := range mockClient.Calls {
@@ -194,6 +200,8 @@ func assertRequestMatches(
 	predicate func(*http.Request) bool,
 	description string,
 ) {
+	t.Helper()
+
 	found := false
 
 	for _, call := range mockClient.Calls {

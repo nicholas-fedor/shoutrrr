@@ -5,8 +5,8 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -27,11 +27,10 @@ func TestSendMessageToThread(t *testing.T) {
 
 		err := service.Send("Message in thread", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=123456789",
 		)
 
@@ -59,11 +58,10 @@ func TestSendItemsToThread(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=987654321",
 		)
 
@@ -89,11 +87,10 @@ func TestSendMessageToThreadWithParams(t *testing.T) {
 
 		err := service.Send("Message with param thread override", params)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=444555666",
 		)
 
@@ -125,11 +122,10 @@ func TestSendFileToThread(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=thread123",
 		)
 
@@ -153,11 +149,10 @@ func TestThreadIDWithSpecialCharacters(t *testing.T) {
 
 		err := service.Send("Message with special thread ID", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=thread-123_456.789",
 		)
 
@@ -181,7 +176,7 @@ func TestThreadIDValidation(t *testing.T) {
 
 		err := service.Send("Message with invalid thread ID", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Should still work as Discord accepts various thread ID formats
 
 		mockClient.AssertExpectations(t)
@@ -214,11 +209,10 @@ func TestThreadMessageWithEmbed(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=embed-thread",
 		)
 		assertRequestContains(
@@ -260,11 +254,10 @@ func TestThreadMessageWithMultipleFiles(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=file-thread",
 		)
 		assertRequestContains(t, mockClient, `filename="file1.txt"`)
@@ -296,11 +289,10 @@ func TestThreadMessageWithUsernameAvatar(t *testing.T) {
 
 		err := service.Send("Thread message with custom appearance", params)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=custom-thread",
 		)
 		assertRequestContains(t, mockClient, `"username":"ThreadBot"`)

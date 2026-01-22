@@ -6,8 +6,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -38,7 +38,7 @@ func TestSendEmbedWithAuthor(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(
 			t,
 			mockClient,
@@ -73,7 +73,7 @@ func TestSendEmbedWithImage(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(
 			t,
 			mockClient,
@@ -108,7 +108,7 @@ func TestSendEmbedWithThumbnail(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(
 			t,
 			mockClient,
@@ -146,7 +146,7 @@ func TestSendEmbedWithFields(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(
 			t,
 			mockClient,
@@ -180,7 +180,7 @@ func TestSendEmbedWithTimestamp(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `"timestamp":"2023-12-25T12:00:00Z"`)
 
 		mockClient.AssertExpectations(t)
@@ -216,7 +216,7 @@ func TestSendEmbedWithColors(t *testing.T) {
 
 			err := service.SendItems(items, nil)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			// Color handling depends on configuration
 		}
 
@@ -245,7 +245,7 @@ func TestSendMultipleEmbeds(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Verify multiple embeds are created
 		assertRequestContains(t, mockClient, `"description":"First embed"`)
 		assertRequestContains(t, mockClient, `"description":"Second embed"`)

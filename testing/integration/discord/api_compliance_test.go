@@ -64,7 +64,7 @@ func TestWebhookURLFormatCompliance(t *testing.T) {
 
 			// Initialize succeeded, set up mock and test Send
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			// Override HTTPClient after Initialize
@@ -93,7 +93,7 @@ func TestPayloadStructureCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
@@ -109,7 +109,7 @@ func TestEmbedStructureCompliance(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		service := createTestService(
@@ -169,7 +169,7 @@ func TestFileUploadCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		items := []types.MessageItem{
@@ -193,7 +193,7 @@ func TestThreadParameterCompliance(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		service := createTestService(
@@ -208,7 +208,6 @@ func TestThreadParameterCompliance(t *testing.T) {
 		assertRequestMade(
 			t,
 			mockClient,
-			"POST",
 			"https://discord.com/api/webhooks/test-webhook/test-token?thread_id=123456",
 		)
 
@@ -226,7 +225,7 @@ func TestUsernameAvatarCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		params := createTestParams(
@@ -253,7 +252,7 @@ func TestJSONModeCompliance(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		service := createTestService(
@@ -287,7 +286,7 @@ func TestRateLimitHeaderCompliance(t *testing.T) {
 			Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 1}`), nil).
 			Once()
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Rate limited message", nil)
@@ -309,7 +308,7 @@ func TestContentTypeHeaderCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
@@ -334,7 +333,7 @@ func TestUserAgentHeaderCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
@@ -360,7 +359,7 @@ func TestHTTPSRequirementCompliance(t *testing.T) {
 
 		// This should be tested by the service itself - all requests must use HTTPS
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)

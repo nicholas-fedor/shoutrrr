@@ -5,8 +5,8 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -31,7 +31,7 @@ func TestSendSingleFileAttachment(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Verify multipart request was made (contains boundary)
 		assertRequestContains(t, mockClient, "Content-Disposition: form-data")
 		assertRequestContains(t, mockClient, `name="files[0]"`)
@@ -63,7 +63,7 @@ func TestSendMultipleFileAttachments(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="file1.txt"`)
 		assertRequestContains(t, mockClient, `filename="file2.txt"`)
 		assertRequestContains(t, mockClient, `filename="file3.txt"`)
@@ -100,7 +100,7 @@ func TestSendLargeFileAttachment(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="large.bin"`)
 
 		mockClient.AssertExpectations(t)
@@ -138,7 +138,7 @@ func TestSendFileWithSpecialCharactersInName(t *testing.T) {
 
 			err := service.SendItems(items, nil)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assertRequestContains(t, mockClient, `filename="`+filename+`"`)
 		}
 
@@ -180,7 +180,7 @@ func TestSendFileWithDifferentTypes(t *testing.T) {
 
 			err := service.SendItems(items, nil)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assertRequestContains(t, mockClient, `filename="`+tc.filename+`"`)
 			assertRequestContains(t, mockClient, string(tc.content))
 		}
@@ -208,7 +208,7 @@ func TestSendFileWithEmptyContent(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="empty.txt"`)
 
 		mockClient.AssertExpectations(t)
@@ -235,7 +235,7 @@ func TestSendFileWithUnicodeContent(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, string(unicodeContent))
 
 		mockClient.AssertExpectations(t)
@@ -265,7 +265,7 @@ func TestSendFileWithMessageText(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "This is a message with a file attachment")
 		assertRequestContains(t, mockClient, `filename="attachment.txt"`)
 		assertRequestContains(t, mockClient, "file content")

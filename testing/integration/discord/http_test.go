@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -23,12 +24,12 @@ func TestHTTPMethodCompliance(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {
 			return req.Method == http.MethodPost
 		}, "POST method")
@@ -47,14 +48,14 @@ func TestHTTPTimeoutConfiguration(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		start := time.Now()
 		err := service.Send("Test message", nil)
 		duration := time.Since(start)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Should complete relatively quickly (timeout is configured)
 		assert.Less(t, duration, 10*time.Second)
 
@@ -72,12 +73,12 @@ func TestHTTPHeaders(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {
 			contentType := req.Header.Get("Content-Type")
 			userAgent := req.Header.Get("User-Agent")
@@ -117,15 +118,15 @@ func TestHTTPURLConstruction(t *testing.T) {
 
 		for _, tt := range tests {
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			testService := createTestService(t, tt.webhookURL, mockClient)
 
 			err := testService.Send("Test", nil)
 
-			assert.NoError(t, err)
-			assertRequestMade(t, mockClient, "POST", tt.expectedURL)
+			require.NoError(t, err)
+			assertRequestMade(t, mockClient, tt.expectedURL)
 		}
 
 		mockClient.AssertExpectations(t)
@@ -146,12 +147,12 @@ func TestHTTPRetryMechanism(t *testing.T) {
 			Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 0.1}`), nil).
 			Once()
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		mockClient.AssertNumberOfCalls(t, "Do", 2)
 
 		mockClient.AssertExpectations(t)
@@ -172,7 +173,7 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 
 		err := service.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 		mockClient.AssertNumberOfCalls(t, "Do", 1)
 
@@ -197,7 +198,7 @@ func TestHTTPMaxRetries(t *testing.T) {
 
 		err := service.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 
 		mockClient.AssertExpectations(t)
@@ -215,12 +216,12 @@ func TestHTTPContextCancellation(t *testing.T) {
 
 		// This is harder to test directly, but we can verify timeout behavior
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Context should be properly set with timeout
 
 		mockClient.AssertExpectations(t)
@@ -259,23 +260,16 @@ func TestHTTPResponseStatusHandling(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			if tt.statusCode == http.StatusTooManyRequests ||
-				tt.statusCode == http.StatusInternalServerError {
-				mockClient.On("Do", mock.Anything).
-					Return(createMockResponse(tt.statusCode, tt.responseBody), nil).
-					Times(tt.expectedCalls)
-			} else {
-				mockClient.On("Do", mock.Anything).
-					Return(createMockResponse(tt.statusCode, tt.responseBody), nil).
-					Times(tt.expectedCalls)
-			}
+			mockClient.On("Do", mock.Anything).
+				Return(createMockResponse(tt.statusCode, tt.responseBody), nil).
+				Times(tt.expectedCalls)
 
 			err := service.Send("Test message", nil)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			mockClient.AssertExpectations(t)
@@ -295,7 +289,7 @@ func TestHTTPMultipartUpload(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		items := []types.MessageItem{
@@ -304,7 +298,7 @@ func TestHTTPMultipartUpload(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {
 			return req.Header.Get("Content-Type") != "application/json" // Should be multipart
 		}, "multipart content type")
@@ -324,16 +318,16 @@ func TestHTTPConnectionReuse(t *testing.T) {
 
 		// Test multiple requests reuse connections (hard to test directly with mock)
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Times(3)
 
 		err1 := service.Send("Message 1", nil)
 		err2 := service.Send("Message 2", nil)
 		err3 := service.Send("Message 3", nil)
 
-		assert.NoError(t, err1)
-		assert.NoError(t, err2)
-		assert.NoError(t, err3)
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		require.NoError(t, err3)
 		mockClient.AssertNumberOfCalls(t, "Do", 3)
 
 		mockClient.AssertExpectations(t)

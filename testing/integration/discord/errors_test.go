@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -76,12 +77,12 @@ func TestSendWithHTTPError(t *testing.T) {
 			)
 
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(tt.statusCode, tt.response), nil). //nolint:bodyclose
+				Return(createMockResponse(tt.statusCode, tt.response), nil).
 				Times(tt.expectedCalls)
 
 			err := service.Send("Test message", nil)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 			mockClient.AssertExpectations(t)
 		}
@@ -102,7 +103,7 @@ func TestSendWithNetworkError(t *testing.T) {
 
 		err := service.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 
 		mockClient.AssertExpectations(t)
@@ -119,13 +120,13 @@ func TestSendWithMalformedResponse(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusOK, "invalid json"), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusOK, "invalid json"), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
 		// Should still succeed since we only check for 204 No Content
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -145,12 +146,12 @@ func TestSendWithRetryOnRateLimit(t *testing.T) {
 			Return(createMockResponse(http.StatusTooManyRequests, `{"retry_after": 1}`), nil).
 			Once()
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		mockClient.AssertNumberOfCalls(t, "Do", 2)
 
 		mockClient.AssertExpectations(t)
@@ -168,7 +169,7 @@ func TestSendWithInvalidURL(t *testing.T) {
 
 		err := invalidService.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 
 		mockClient.AssertExpectations(t)
@@ -186,7 +187,7 @@ func TestSendWithEmptyURL(t *testing.T) {
 
 		err := emptyService.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 
 		mockClient.AssertExpectations(t)
@@ -201,7 +202,7 @@ func TestSendWithInvalidScheme(t *testing.T) {
 
 		err := service.Initialize(parsedURL, &mockLogger{})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
 	})
 }
@@ -214,7 +215,7 @@ func TestSendWithInvalidHost(t *testing.T) {
 
 		err := service.Initialize(parsedURL, &mockLogger{})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
 	})
 }
@@ -227,7 +228,7 @@ func TestSendWithInvalidPath(t *testing.T) {
 
 		err := service.Initialize(parsedURL, &mockLogger{})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "setting config URL: illegal argument in config URL")
 	})
 }
@@ -242,7 +243,7 @@ func TestSendItemsWithInvalidPayload(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		// Create an item that would cause JSON marshaling to fail
@@ -256,7 +257,7 @@ func TestSendItemsWithInvalidPayload(t *testing.T) {
 		err := service.SendItems(items, nil)
 
 		// Should succeed as the payload creation should work
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -273,12 +274,12 @@ func TestSendWithTimeout(t *testing.T) {
 
 		// Simulate a timeout by having the mock not respond
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusRequestTimeout, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusRequestTimeout, ""), nil).
 			Once()
 
 		err := service.Send("Test message", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to send discord notification")
 
 		mockClient.AssertExpectations(t)
@@ -301,12 +302,12 @@ func TestSendWithLargePayload(t *testing.T) {
 		}
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send(string(largeMessage), nil)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -320,12 +321,12 @@ func TestSendWithInvalidJSONMode(t *testing.T) {
 
 		// Send invalid JSON
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send(`{"invalid": json}`, nil)
 
-		assert.NoError(t, err) // Should succeed as it's passed through as raw content
+		require.NoError(t, err) // Should succeed as it's passed through as raw content
 
 		mockClient.AssertExpectations(t)
 	})
@@ -354,7 +355,7 @@ func TestSendWithFileUploadError(t *testing.T) {
 
 		err := service.SendItems(items, nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected response status code")
 
 		mockClient.AssertExpectations(t)

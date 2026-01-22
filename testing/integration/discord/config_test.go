@@ -33,7 +33,7 @@ func TestSendWithCustomUsername(t *testing.T) {
 
 		for _, tt := range tests {
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			params := createTestParams("username", tt.username)
@@ -72,7 +72,7 @@ func TestSendWithCustomAvatar(t *testing.T) {
 
 		for _, tt := range tests {
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			params := createTestParams("avatar", tt.avatar)
@@ -110,7 +110,7 @@ func TestSendWithCustomColors(t *testing.T) {
 
 		for _, tt := range tests {
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Once()
 
 			params := createTestParams("color", tt.color)
@@ -128,7 +128,7 @@ func TestSendWithJSONMode(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		// Create service with JSON mode enabled
@@ -171,7 +171,7 @@ func TestSendWithSplitLines(t *testing.T) {
 			)
 
 			mockClient.On("Do", mock.Anything).
-				Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+				Return(createMockResponse(http.StatusNoContent, ""), nil).
 				Times(tt.expectedCalls)
 
 			var params *types.Params
@@ -198,7 +198,7 @@ func TestSendWithTitle(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		params := createTestParams("title", "Custom Title")
@@ -221,7 +221,7 @@ func TestSendWithComplexParameterCombination(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		params := createTestParams(
@@ -256,7 +256,7 @@ func TestSendWithEmptyParameters(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		emptyParams := &types.Params{}
@@ -279,7 +279,7 @@ func TestSendWithNilParameters(t *testing.T) {
 		)
 
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		err := service.Send("Message with nil params", nil)
@@ -295,7 +295,7 @@ func TestSendWithURLParameters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
-			Return(createMockResponse(http.StatusNoContent, ""), nil). //nolint:bodyclose
+			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
 		// Create service with URL parameters
