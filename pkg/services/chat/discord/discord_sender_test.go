@@ -220,6 +220,98 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 	})
 
 	ginkgo.Describe("handleRateLimitResponse", func() {
+		ginkgo.It("should handle retry-after header", func() {
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+			}
+			resp.Header.Set("Retry-After", "2")
+
+			startTime := time.Now()
+			sleeper := &mockSleeper{}
+			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{2 * time.Second}))
+		})
+
+		ginkgo.It("should handle invalid retry-after header", func() {
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+			}
+			resp.Header.Set("Retry-After", "invalid")
+
+			startTime := time.Now()
+			sleeper := &mockSleeper{}
+			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			// Should fall back to exponential backoff
+			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
+		})
+
+		ginkgo.It("should handle retry-after exceeding max timeout", func() {
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+			}
+			resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
+
+			startTime := time.Now()
+			sleeper := &mockSleeper{}
+			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
+
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
+			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
+		})
+
+		ginkgo.It("should handle exponential backoff", func() {
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+			}
+			// No retry-after header
+
+			startTime := time.Now()
+			sleeper := &mockSleeper{}
+			err := handleRateLimitResponse(
+				context.Background(),
+				resp,
+				2,
+				startTime,
+				sleeper,
+			)
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{4 * time.Second}))
+		})
+
+		ginkgo.It("should cap exponential backoff", func() {
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+			}
+
+			startTime := time.Now()
+			sleeper := &mockSleeper{}
+			err := handleRateLimitResponse(
+				context.Background(),
+				resp,
+				6,
+				startTime,
+				sleeper,
+			)
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{64 * time.Second}))
+		})
 	})
 })
 
@@ -350,118 +442,5 @@ func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err.Error()).To(gomega.ContainSubstring("rate limited by Discord"))
 		gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
-	})
-}
-
-func TestHandleRateLimitResponseRetryAfterHeader(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
-
-		resp := &http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}
-		resp.Header.Set("Retry-After", "2")
-
-		startTime := time.Now()
-		sleeper := &mockSleeper{}
-		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
-
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{2 * time.Second}))
-	})
-}
-
-func TestHandleRateLimitResponseInvalidRetryAfterHeader(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
-
-		resp := &http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}
-		resp.Header.Set("Retry-After", "invalid")
-
-		startTime := time.Now()
-		sleeper := &mockSleeper{}
-		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
-
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		// Should fall back to exponential backoff
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
-	})
-}
-
-func TestHandleRateLimitResponseRetryAfterExceedingMaxTimeout(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
-
-		resp := &http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}
-		resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
-
-		startTime := time.Now()
-		sleeper := &mockSleeper{}
-		err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
-
-		gomega.Expect(err).To(gomega.HaveOccurred())
-		gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
-		gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
-	})
-}
-
-func TestHandleRateLimitResponseExponentialBackoff(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
-
-		resp := &http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}
-		// No retry-after header
-
-		startTime := time.Now()
-		sleeper := &mockSleeper{}
-		err := handleRateLimitResponse(
-			context.Background(),
-			resp,
-			2,
-			startTime,
-			sleeper,
-		)
-
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{4 * time.Second}))
-	})
-}
-
-func TestHandleRateLimitResponseCapExponentialBackoff(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
-
-		resp := &http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader("")),
-		}
-
-		startTime := time.Now()
-		sleeper := &mockSleeper{}
-		err := handleRateLimitResponse(
-			context.Background(),
-			resp,
-			6,
-			startTime,
-			sleeper,
-		)
-
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{64 * time.Second}))
 	})
 }

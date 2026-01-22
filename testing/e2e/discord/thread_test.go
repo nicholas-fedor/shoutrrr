@@ -18,7 +18,7 @@ func redact(value string) string {
 		return "****"
 	}
 
-	return value[:4] + "****"
+	return "****" + value[len(value)-4:]
 }
 
 var _ = ginkgo.Describe("Discord E2E Thread Test", func() {

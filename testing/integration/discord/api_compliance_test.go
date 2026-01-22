@@ -3,7 +3,6 @@ package discord_test
 import (
 	"net/http"
 	"net/url"
-	"reflect"
 	"testing"
 	"testing/synctest"
 
@@ -68,12 +67,7 @@ func TestWebhookURLFormatCompliance(t *testing.T) {
 				Once()
 
 			// Override HTTPClient after Initialize
-			v := reflect.ValueOf(service).Elem()
-
-			field := v.FieldByName("HTTPClient")
-			if field.IsValid() && field.CanSet() {
-				field.Set(reflect.ValueOf(mockClient))
-			}
+			service.HTTPClient = mockClient
 
 			err := service.Send("test", nil)
 			require.NoError(t, err, "Expected no error for valid test case: %s", tt.name)

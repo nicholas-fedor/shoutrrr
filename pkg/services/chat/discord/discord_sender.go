@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"math"
 	"mime/multipart"
 	"net"
@@ -203,13 +205,34 @@ func sendWithRetry(
 			return fmt.Errorf("preparing request: %w", err)
 		}
 
+		// Read the request body to preserve it for retries
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return fmt.Errorf("reading request body: %w", err)
+		}
+
+		req.Body.Close()
+
 		// Make the request with retry on transient transport errors
 		var res *http.Response
 
 		for transportAttempt := 0; transportAttempt <= maxTransportRetries; transportAttempt++ {
 			var err error
 
-			res, err = httpClient.Do(req)
+			// Recreate request with preserved body for each retry
+			newReq, err := http.NewRequestWithContext(
+				ctx,
+				req.Method,
+				req.URL.String(),
+				bytes.NewReader(bodyBytes),
+			)
+			if err != nil {
+				return fmt.Errorf("creating retry request: %w", err)
+			}
+			// Copy headers
+			maps.Copy(newReq.Header, req.Header)
+
+			res, err = httpClient.Do(newReq)
 			if err != nil {
 				if isTransientError(err) && transportAttempt < maxTransportRetries {
 					wait := time.Duration(

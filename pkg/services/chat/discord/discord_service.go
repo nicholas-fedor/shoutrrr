@@ -203,8 +203,7 @@ func (service *Service) doSend(payload []byte, postURL string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
-	defer cancel()
+	ctx := context.Background()
 
 	preparer := &JSONRequestPreparer{payload: payload}
 

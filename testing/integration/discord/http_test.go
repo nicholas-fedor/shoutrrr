@@ -291,8 +291,6 @@ func TestHTTPResponseStatusHandling(t *testing.T) {
 
 		mockClient.AssertExpectations(t)
 	}
-
-	mockClient.AssertExpectations(t)
 }
 
 func TestHTTPMultipartUpload(t *testing.T) {

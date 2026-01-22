@@ -116,6 +116,7 @@ func TestSendWithNetworkError(t *testing.T) {
 			mockClient,
 		)
 
+		// Generic errors are not retried; only transient errors (net.Error with Timeout()/Temporary()) trigger retry logic.
 		networkError := errors.New("network connection failed")
 		mockClient.On("Do", mock.Anything).Return((*http.Response)(nil), networkError).Once()
 
@@ -367,8 +368,8 @@ func TestSendWithFileUploadError(t *testing.T) {
 			createTestMessageItemWithFile(
 				"Test",
 				"large.txt",
-				make([]byte, 100*1024*1024),
-			), // 100MB file
+				make([]byte, 1024),
+			), // 1KB file
 		}
 
 		err := service.SendItems(items, nil)
