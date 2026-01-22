@@ -106,6 +106,7 @@ func TestSendWithHTTPError(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Logf("Running test case: %s", tt.name)
+
 			mockClient := &MockHTTPClient{}
 			service := createTestService(
 				t,
