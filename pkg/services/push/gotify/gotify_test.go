@@ -1563,8 +1563,9 @@ func TestTimeout(t *testing.T) {
 		gomega.RegisterTestingT(t)
 		// Create fake network connection
 		srvConn, cliConn := net.Pipe()
-		defer srvConn.Close()
-		defer cliConn.Close()
+
+		defer func() { _ = srvConn.Close() }()
+		defer func() { _ = cliConn.Close() }()
 
 		errChan := make(chan error, 1)
 

@@ -208,6 +208,7 @@ linters:
           - promlinter
           - wrapcheck
           - varnamelen
+          - bodyclose
       # Exclude revive from flagging the internal/util package's name.
       - path: "internal/util/.*"
         linters:

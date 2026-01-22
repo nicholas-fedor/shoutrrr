@@ -74,6 +74,16 @@ var _ = ginkgo.Describe("the util package", func() {
 			gomega.Expect(number).To(gomega.Equal("ab"))
 			gomega.Expect(base).To(gomega.Equal(16))
 		})
+		ginkgo.It("should remove 0x prefix and return base 16 if found", func() {
+			number, base := util.StripNumberPrefix("0xab")
+			gomega.Expect(number).To(gomega.Equal("ab"))
+			gomega.Expect(base).To(gomega.Equal(16))
+		})
+		ginkgo.It("should remove 0X prefix and return base 16 if found", func() {
+			number, base := util.StripNumberPrefix("0XAB")
+			gomega.Expect(number).To(gomega.Equal("AB"))
+			gomega.Expect(base).To(gomega.Equal(16))
+		})
 	})
 
 	ginkgo.When("checking if a supplied kind is numeric", func() {

@@ -291,7 +291,7 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	}
 
 	// First, attempt to parse as JSON array
-	var result []PagerDutyContext //nolint:prealloc // length is unknown for JSON case
+	var result []PagerDutyContext
 	if err := json.Unmarshal([]byte(contextsStr), &result); err == nil {
 		// Validate Type field and required fields for each context in JSON format
 		for _, ctx := range result {

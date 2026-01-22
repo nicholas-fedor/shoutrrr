@@ -1,11 +1,9 @@
 package discord
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -23,16 +21,6 @@ const (
 	HooksBaseURL   = "https://discord.com/api/webhooks"
 )
 
-var (
-	ErrUnknownAPIError  = errors.New("unknown error from Discord API")
-	ErrUnexpectedStatus = errors.New("unexpected response status code")
-	ErrInvalidURLPrefix = errors.New("URL must start with Discord webhook base URL")
-	ErrInvalidWebhookID = errors.New("invalid webhook ID")
-	ErrInvalidToken     = errors.New("invalid token")
-	ErrEmptyURL         = errors.New("empty URL provided")
-	ErrMalformedURL     = errors.New("malformed URL: missing webhook ID or token")
-)
-
 var limits = types.MessageLimit{
 	ChunkSize:      ChunkSize,
 	TotalChunkSize: TotalChunkSize,
@@ -42,23 +30,34 @@ var limits = types.MessageLimit{
 // Service implements a Discord notification service.
 type Service struct {
 	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	HTTPClient HTTPClient
+	Sleeper    Sleeper
 }
 
 // Send delivers a notification message to Discord.
 func (service *Service) Send(message string, params *types.Params) error {
+	if message == "" {
+		return ErrEmptyMessage
+	}
+
 	var firstErr error
 
 	if service.Config.JSON {
 		postURL := CreateAPIURLFromConfig(service.Config)
-		if err := doSend([]byte(message), postURL); err != nil {
+		if err := service.doSend([]byte(message), postURL); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 	} else {
-		batches := CreateItemsFromPlain(message, service.Config.SplitLines)
-		for _, items := range batches {
-			if err := service.sendItems(items, params); err != nil {
+		config := *service.Config
+		if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+			return fmt.Errorf("updating config from params: %w", err)
+		}
+
+		batches := CreateItemsFromPlain(message, config.SplitLines)
+		for _, batch := range batches {
+			if err := service.sendItems(batch, params); err != nil {
 				service.Log(err)
 
 				if firstErr == nil {
@@ -94,14 +93,37 @@ func (service *Service) sendItems(items []types.MessageItem, params *types.Param
 	payload.Username = config.Username
 	payload.AvatarURL = config.Avatar
 
+	postURL := CreateAPIURLFromConfig(&config)
+
+	// Check if any items have files
+	fileCount := 0
+
+	for _, item := range items {
+		if item.File != nil {
+			fileCount++
+		}
+	}
+
+	files := make([]types.File, 0, fileCount)
+
+	for _, item := range items {
+		if item.File != nil {
+			files = append(files, *item.File)
+		}
+	}
+
+	hasFiles := len(files) > 0
+
+	if hasFiles {
+		return service.doSendMultipart(payload, files, postURL)
+	}
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	postURL := CreateAPIURLFromConfig(&config)
-
-	return doSend(payloadBytes, postURL)
+	return service.doSend(payloadBytes, postURL)
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
@@ -131,6 +153,8 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	service.SetLogger(logger)
 	service.Config = &Config{}
 	service.pkr = format.NewPropKeyResolver(service.Config)
+	service.HTTPClient = NewDefaultHTTPClient() // Default client for backward compatibility
+	service.Sleeper = RealSleeper{}             // Default sleeper
 
 	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -148,32 +172,8 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// CreateAPIURLFromConfig builds a POST URL from the Discord configuration.
-func CreateAPIURLFromConfig(config *Config) string {
-	if config.WebhookID == "" || config.Token == "" {
-		return "" // Invalid cases are caught in doSend
-	}
-	// Trim whitespace to prevent malformed URLs
-	webhookID := strings.TrimSpace(config.WebhookID)
-	token := strings.TrimSpace(config.Token)
-
-	baseURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
-
-	if config.ThreadID != "" {
-		// Append thread_id as a query parameter
-		query := url.Values{}
-		query.Set("thread_id", strings.TrimSpace(config.ThreadID))
-
-		return baseURL + "?" + query.Encode()
-	}
-
-	return baseURL
-}
-
-// doSend executes an HTTP POST request to deliver the payload to Discord.
-//
-//nolint:gosec,noctx
-func doSend(payload []byte, postURL string) error {
+// validateDiscordWebhookURL validates the Discord webhook URL for security and correctness.
+func validateDiscordWebhookURL(postURL string) error {
 	if postURL == "" {
 		return ErrEmptyURL
 	}
@@ -183,7 +183,15 @@ func doSend(payload []byte, postURL string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	if !strings.HasPrefix(parsedURL.String(), HooksBaseURL) {
+	if parsedURL.Scheme != "https" {
+		return ErrInvalidScheme
+	}
+
+	if parsedURL.Host != "discord.com" {
+		return ErrInvalidHost
+	}
+
+	if !strings.HasPrefix(parsedURL.Path, "/api/webhooks/") {
 		return ErrInvalidURLPrefix
 	}
 
@@ -192,24 +200,38 @@ func doSend(payload []byte, postURL string) error {
 		return ErrMalformedURL
 	}
 
-	webhookID := strings.TrimSpace(parts[0])
-	token := strings.TrimSpace(parts[1])
-	safeURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
-
-	res, err := http.Post(safeURL, "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("making HTTP POST request: %w", err)
-	}
-
-	if res == nil {
-		return ErrUnknownAPIError
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	if res.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
-	}
-
 	return nil
+}
+
+// doSend executes an HTTP POST request to deliver the payload to Discord.
+func (service *Service) doSend(payload []byte, postURL string) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	preparer := &JSONRequestPreparer{payload: payload}
+
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, service.Sleeper)
+}
+
+// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
+func (service *Service) doSendMultipart(
+	payload WebhookPayload,
+	files []types.File,
+	postURL string,
+) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	preparer := &MultipartRequestPreparer{
+		payload: payload,
+		files:   files,
+	}
+
+	return sendWithRetry(ctx, preparer, postURL, service.HTTPClient, service.Sleeper)
 }

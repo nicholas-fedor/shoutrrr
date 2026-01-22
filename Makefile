@@ -14,18 +14,39 @@ help: ## Show this help message
 	@echo ""
 	@echo "Available targets:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Parameterized test targets:"
+	@echo "  test-unit                Run unit tests for a specific service (usage: make test-unit <service>)"
+	@echo "  test-integration         Run integration tests for a specific service (usage: make test-integration <service>)"
+	@echo "  test-e2e                 Run e2e tests for a specific service (usage: make test-e2e <service>)"
 
 # =============================================================================
 # Development Targets
 # =============================================================================
 
-.PHONY: build test lint vet run setup install
+.PHONY: build test test-unit test-integration test-e2e lint vet run setup install
 
 build: ## Build the application binary
 	bash ./scripts/build.sh
 
-test: ## Run all tests
-	$(GO) test -timeout 30s -v -coverprofile coverage.out -covermode atomic ./...
+test: ## Run unit tests only
+	$(GO) test -timeout 30s -v -coverprofile coverage.out -covermode atomic $(shell go list ./... | grep -v testing/...)
+
+test-unit: ## Run unit tests for a specific service (usage: make test-unit <service>)
+	@SVC=`echo $(MAKECMDGOALS) | cut -d' ' -f2`; \
+	if [ -z "$$SVC" ]; then echo "Usage: make test-unit <service>"; exit 1; fi; \
+	SERVICE_DIR=`find ./pkg/services -name "$$SVC" -type d`; \
+	$(GO) test -timeout 30s -v $$SERVICE_DIR
+
+test-integration: ## Run integration tests for a specific service (usage: make test-integration <service>)
+	@SVC=`echo $(MAKECMDGOALS) | cut -d' ' -f2`; \
+	if [ -z "$$SVC" ]; then echo "Usage: make test-integration <service>"; exit 1; fi; \
+	$(GO) test -timeout 30s -v ./testing/integration/$$SVC
+
+test-e2e: ## Run e2e tests for a specific service (usage: make test-e2e <service>)
+	@SVC=`echo $(MAKECMDGOALS) | cut -d' ' -f2`; \
+	if [ -z "$$SVC" ]; then echo "Usage: make test-e2e <service>"; exit 1; fi; \
+	$(GO) test -timeout 30s -v ./testing/e2e/$$SVC
 
 lint: ## Run linter and fix issues
 	$(GOLANGCI_LINT) run --fix --config build/golangci-lint/golangci.yaml ./...
@@ -112,3 +133,7 @@ docker-push: ## Push Docker image (requires proper tagging)
 
 clean: ## Clean build artifacts
 	rm -rf bin/
+
+.PHONY: %
+%:
+	@:

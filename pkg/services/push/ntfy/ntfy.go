@@ -87,7 +87,9 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		service.httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		}
-		service.Log("Using custom HTTP transport with TLS verification enabled and TLS 1.2 enforced")
+		service.Log(
+			"Using custom HTTP transport with TLS verification enabled and TLS 1.2 enforced",
+		)
 	}
 
 	service.client = jsonclient.NewWithHTTPClient(service.httpClient)

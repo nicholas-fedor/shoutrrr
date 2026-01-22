@@ -32,12 +32,19 @@ var messageLevelStrings = [MessageLevelCount]string{
 // MessageLevel is used to denote the urgency of a message item.
 type MessageLevel uint8
 
+// File represents a file attachment for a message.
+type File struct {
+	Name string
+	Data []byte
+}
+
 // MessageItem is an entry in a notification being sent by a service.
 type MessageItem struct {
 	Text      string
 	Timestamp time.Time
 	Level     MessageLevel
 	Fields    []Field
+	File      *File
 }
 
 func (level MessageLevel) String() string {

@@ -1,6 +1,4 @@
 # Binaries for programs and plugins
-# ---
-
 *.exe
 *.exe~
 *.dll
@@ -9,20 +7,22 @@
 shoutrrr
 *.snap
 
-# Test binary, build with `go test -c`
-# ---
-
+# Test binaries and coverage
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-# ---
-
 *.out
-.idea
-
 report.json
 coverage.txt
 *.coverprofile
+
+# Build artifacts
 dist
 site/
+
+# IDE and editor files
+.idea
+
+# Generated documentation
 docs/services/*/*/config.md
+
+# Environment variables
+.env

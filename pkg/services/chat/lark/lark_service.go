@@ -222,7 +222,10 @@ func (service *Service) getRequestBody(
 
 		if params != nil {
 			if link, ok := (*params)["link"]; ok && link != "" {
-				content = append(content, []Item{{Tag: TagValueLink, Text: "More Info", Link: link}})
+				content = append(
+					content,
+					[]Item{{Tag: TagValueLink, Text: "More Info", Link: link}},
+				)
 			}
 		}
 
