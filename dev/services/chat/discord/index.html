@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../assets/media/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1143,6 +1143,95 @@
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook_customization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook Customization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Content
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_chunking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Chunking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message Chunking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discord_api_constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discord API Constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shoutrrr_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shoutrrr Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enhanced_embeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enhanced Embeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file_attachments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Attachments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Attachments">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#url_fields" class="md-nav__link">
@@ -2421,6 +2510,95 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook_customization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook Customization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Content
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_chunking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Chunking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message Chunking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discord_api_constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discord API Constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shoutrrr_implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shoutrrr Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enhanced_embeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enhanced Embeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file_attachments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Attachments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Attachments">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#url_fields" class="md-nav__link">
     <span class="md-ellipsis">
@@ -2485,6 +2663,7 @@
 <div class="admonition info">
 <p><a href="https://discord.com/api/webhooks/__webhookid__/__token">https://discord.com/api/webhooks/__<code>webhookid</code><strong>/</strong><code>token</code></a>__</p>
 </div>
+<p>For more information about Discord webhooks, see the <a href="https://discord.com/developers/docs/resources/webhook">official documentation</a>.</p>
 <p>The shoutrrr service URL should look like this:</p>
 <div class="admonition info">
 <p>discord://<strong><code>token</code></strong>@<strong><code>webhookid</code></strong>[?thread_id=<strong><code>threadid</code></strong>]</p>
@@ -2494,7 +2673,56 @@
 <div class="admonition info">
 <p>discord://<strong><code>token</code></strong>@<strong><code>webhookid</code></strong>?thread_id=123456789</p>
 </div>
-<p>You can obtain the <code>thread_id</code> by right-clicking a thread in Discord and selecting "Copy ID" (requires Developer Mode to be enabled in Discord settings).</p>
+<p>You can obtain the <code>thread_id</code> by right-clicking a thread in Discord and selecting "Copy ID" (requires Developer Mode to be enabled in Discord settings). For more details on threads, see Discord's <a href="https://discord.com/developers/docs/resources/channel#thread-object">thread documentation</a>. Learn how to enable Developer Mode in Discord's <a href="https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-">support article</a>.</p>
+<h2 id="webhook_customization">Webhook Customization<a class="headerlink" href="#webhook_customization" title="Permanent link">&para;</a></h2>
+<p>You can customize the webhook's appearance by overriding the default username and avatar that were set when creating the webhook.</p>
+<div class="admonition example">
+<p class="admonition-title">Custom Username and Avatar</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid?username=MyBot&amp;avatar=https://example.com/avatar.png&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from custom bot!&quot;</span>
+</code></pre></div>
+</div>
+<h2 id="message_content">Message Content<a class="headerlink" href="#message_content" title="Permanent link">&para;</a></h2>
+<p>For simple text messages without embeds, Shoutrrr now uses Discord's <code>content</code> field directly, providing cleaner message formatting and better compatibility with Discord's features.</p>
+<div class="admonition example">
+<p class="admonition-title">Simple Text Message</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello, World!&quot;</span>
+</code></pre></div>
+<p>This sends a plain text message using the <code>content</code> field instead of an embed.</p>
+</div>
+<h2 id="message_chunking">Message Chunking<a class="headerlink" href="#message_chunking" title="Permanent link">&para;</a></h2>
+<h3 id="discord_api_constraints">Discord API Constraints<a class="headerlink" href="#discord_api_constraints" title="Permanent link">&para;</a></h3>
+<p>Discord limits individual messages to 2000 characters.
+Messages exceeding this limit are sent as separate messages without automatic merging.</p>
+<h3 id="shoutrrr_implementation">Shoutrrr Implementation<a class="headerlink" href="#shoutrrr_implementation" title="Permanent link">&para;</a></h3>
+<p>Shoutrrr provides additional message chunking as a feature to handle longer content.
+This is implemented through Shoutrrr's PartitionMessage utility and is not a Discord requirement.</p>
+<ul>
+<li><strong>Chunk Size</strong>: Maximum 2000 characters per message (matches Discord API limit)</li>
+<li><strong>Total Size</strong>: Maximum 6000 characters total across all chunks (Shoutrrr-specific limit)</li>
+<li><strong>Max Chunks</strong>: Up to 10 message chunks per send operation (Shoutrrr-specific limit)</li>
+</ul>
+<div class="admonition note">
+<p>The 6000-character limit mentioned in Discord's documentation applies specifically to the total text content of embed objects, not to message chunking.</p>
+</div>
+<p>When <code>splitLines</code> is enabled (default), each line of the input becomes a separate embedded item. When disabled, long messages are automatically chunked to fit within Discord's limits.</p>
+<div class="admonition example">
+<p class="admonition-title">Long Message Chunking</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid?splitLines=false&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;This is a very long message that will be automatically split into multiple chunks if it exceeds Discord&#39;s 2000 character limit per message.&quot;</span>
+</code></pre></div>
+</div>
+<div class="admonition note">
+<p>Message chunking only applies when <code>splitLines</code> is set to <code>false</code>. When <code>splitLines</code> is <code>true</code> (default), each line becomes a separate embed instead.</p>
+</div>
+<h2 id="enhanced_embeds">Enhanced Embeds<a class="headerlink" href="#enhanced_embeds" title="Permanent link">&para;</a></h2>
+<p>Shoutrrr supports rich embed formatting with authors, images, thumbnails, and custom fields when using the Go library API. Embeds are automatically created when using structured message items with metadata. For detailed information about embed objects, refer to Discord's <a href="https://discord.com/developers/docs/resources/channel#embed-object">embed documentation</a>.</p>
+<div class="admonition note">
+<p>Enhanced embed features are only available through the Go library API using <code>SendItems</code> with <code>MessageItem</code> structs containing metadata. The CLI does not support embed parameters.</p>
+</div>
+<h2 id="file_attachments">File Attachments<a class="headerlink" href="#file_attachments" title="Permanent link">&para;</a></h2>
+<p>Shoutrrr supports attaching files to your Discord messages when using the Go library. Files are sent as multipart/form-data along with the message payload. See Discord's <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">webhook execution documentation</a> for details on file attachments.</p>
+<div class="admonition note">
+<p>File attachments require the webhook to have appropriate permissions, and files must be accessible from the system running Shoutrrr. File attachments are not supported in the CLI.</p>
+</div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Token</strong> (<strong>Required</strong>)<br />
@@ -2608,7 +2836,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="January 22, 2026 09:24:03 UTC"><span class="timeago" datetime="2026-01-22T09:24:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="January 22, 2026 09:24:03 UTC">2026-01-22</span>
   </span>
 
     
@@ -2690,10 +2918,10 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tooltips", "content.tabs.link", "navigation.top"], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": ["latest", "dev"], "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tooltips", "content.tabs.link", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": ["latest", "dev"], "provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
         <script src="../../../js/timeago.min.js"></script>
       
