@@ -187,7 +187,7 @@ func sendWithRetry(
 			return ErrUnknownAPIError
 		}
 
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {

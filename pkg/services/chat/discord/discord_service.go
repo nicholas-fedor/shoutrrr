@@ -164,8 +164,8 @@ func (service *Service) GetID() string {
 	return Scheme
 }
 
-// doSend executes an HTTP POST request to deliver the payload to Discord.
-func (service *Service) doSend(payload []byte, postURL string) error {
+// validateDiscordWebhookURL validates the Discord webhook URL for security and correctness.
+func validateDiscordWebhookURL(postURL string) error {
 	if postURL == "" {
 		return ErrEmptyURL
 	}
@@ -192,6 +192,15 @@ func (service *Service) doSend(payload []byte, postURL string) error {
 		return ErrMalformedURL
 	}
 
+	return nil
+}
+
+// doSend executes an HTTP POST request to deliver the payload to Discord.
+func (service *Service) doSend(payload []byte, postURL string) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
 	defer cancel()
 
@@ -206,6 +215,10 @@ func (service *Service) doSendMultipart(
 	files []types.File,
 	postURL string,
 ) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
 	defer cancel()
 
