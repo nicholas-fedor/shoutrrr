@@ -5,12 +5,12 @@ runs:
   using: "composite"
   steps:
     - name: Login to Docker Hub
-      uses: docker/login-action@2e1345c05f9563db17b704b7855578af55a6c8be
+      uses: docker/login-action@3227f5311cb93ffd14d13e65d8cc400d30f4dd8a
       with:
         username: ${{ inputs.dockerhub-username }}
         password: ${{ inputs.dockerhub-token }}
     - name: Login to GHCR
-      uses: docker/login-action@2e1345c05f9563db17b704b7855578af55a6c8be
+      uses: docker/login-action@3227f5311cb93ffd14d13e65d8cc400d30f4dd8a
       with:
         registry: ghcr.io
         username: ${{ inputs.ghcr-username }}
