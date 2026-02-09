@@ -137,6 +137,7 @@ nav:
           - Gotify: services/push/gotify/index.md
           - IFTTT: services/push/ifttt/index.md
           - Join: services/push/join/index.md
+          - MQTT: services/push/mqtt/index.md
           - Ntfy: services/push/ntfy/index.md
           - Pushbullet: services/push/pushbullet/index.md
           - Pushover: services/push/pushover/index.md

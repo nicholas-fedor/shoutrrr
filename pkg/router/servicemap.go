@@ -20,6 +20,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/gotify"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ifttt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
@@ -42,6 +43,8 @@ var serviceMap = map[string]func() types.Service{
 	"logger":     func() types.Service { return &logger.Service{} },
 	"matrix":     func() types.Service { return &matrix.Service{} },
 	"mattermost": func() types.Service { return &mattermost.Service{} },
+	"mqtt":       func() types.Service { return &mqtt.Service{} },
+	"mqtts":      func() types.Service { return &mqtt.Service{} },
 	"notifiarr":  func() types.Service { return &notifiarr.Service{} },
 	"ntfy":       func() types.Service { return &ntfy.Service{} },
 	"opsgenie":   func() types.Service { return &opsgenie.Service{} },

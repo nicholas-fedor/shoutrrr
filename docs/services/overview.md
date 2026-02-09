@@ -30,6 +30,7 @@ Click on the service for a more thorough explanation.
 | [Gotify](./push/gotify/index.md)         | *gotify://__`gotify-host`__/__`token`__*                                                                                |
 | [IFTTT](./push/ifttt/index.md)           | *ifttt://__`key`__/?events=__`event1`__[,__`event2`__,...]&value1=__`value1`__&value2=__`value2`__&value3=__`value3`__* |
 | [Join](./push/join/index.md)             | *join://shoutrrr:__`api-key`__@join/?devices=__`device1`__[,__`device2`__, ...][&icon=__`icon`__][&title=__`title`__]*  |
+| [MQTT](./push/mqtt/index.md)             | *mqtt://[__`username`__[:__`password`__]@]__`host`__[:__`port`__]/__`topic`__*                                          |
 | [Ntfy](./push/ntfy/index.md)             | *ntfy://__`username`__:__`password`<__@ntfy.sh>/__`topic`__*                                                            |
 | [Pushbullet](./push/pushbullet/index.md) | *pushbullet://__`api-token`__[/__`device`__/#__`channel`__/__`email`__]*                                                |
 | [Pushover](./push/pushover/index.md)     | *pushover://shoutrrr:__`apiToken`__@__`userKey`__/?devices=__`device1`__[,__`device2`__, ...]*                          |
