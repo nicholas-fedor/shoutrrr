@@ -56,7 +56,7 @@ type Service struct {
 	// pkr resolves property keys for configuration updates from URL parameters.
 	pkr format.PropKeyResolver
 	// connectionManager is the underlying MQTT connection manager for broker communication.
-	connectionManager *autopaho.ConnectionManager
+	connectionManager ConnectionManager
 	// clientMutex protects the connection initialization to ensure thread-safe
 	// lazy initialization while allowing retry on transient failures.
 	clientMutex sync.Mutex
@@ -409,4 +409,16 @@ func (s *Service) Close() error {
 	})
 
 	return s.closeErr
+}
+
+// SetConnectionManager sets the connection manager for the service.
+//
+// Parameters:
+//   - cm: The ConnectionManager implementation to use
+//
+// This method should only be called before any Send operations to avoid
+// race conditions with lazy initialization.
+func (s *Service) SetConnectionManager(cm ConnectionManager) {
+	s.connectionManager = cm
+	s.connectionInitialized = cm != nil
 }
