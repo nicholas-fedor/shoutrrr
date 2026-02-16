@@ -40,7 +40,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 			return s.client.login(s.Config.User, s.Config.Password)
 		}
 
-		s.client.useToken(s.Config.Password)
+		s.client.AccessToken = s.Config.Password
 	}
 
 	return nil
