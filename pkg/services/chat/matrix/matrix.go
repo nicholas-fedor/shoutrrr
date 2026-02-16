@@ -61,7 +61,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}
-
 	errors := s.client.sendMessage(message, s.Config.Rooms)
 	if len(errors) > 0 {
 		for _, err := range errors {

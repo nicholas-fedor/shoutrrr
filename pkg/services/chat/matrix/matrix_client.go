@@ -22,7 +22,6 @@ import (
 const (
 	schemeHTTPPrefixLength = 4
 	tokenHintLength        = 3
-	minSliceLength         = 1
 	httpClientErrorStatus  = 400
 	defaultHTTPTimeout     = 10 * time.Second // defaultHTTPTimeout is the timeout for HTTP requests.
 )
@@ -72,7 +71,7 @@ func (c *client) login(user string, password string) error {
 	c.apiURL.RawQuery = ""
 
 	resLogin := apiResLoginFlows{}
-	if err := c.apiGet(apiLogin, &resLogin); err != nil {
+	if err := c.apiReq(apiLogin, nil, &resLogin, http.MethodGet); err != nil {
 		return fmt.Errorf("failed to get login flows: %w", err)
 	}
 
@@ -93,11 +92,11 @@ func (c *client) login(user string, password string) error {
 // loginPassword performs a password-based login to the Matrix server.
 func (c *client) loginPassword(user string, password string) error {
 	response := apiResLogin{}
-	if err := c.apiPut(apiLogin, apiReqLogin{
+	if err := c.apiReq(apiLogin, apiReqLogin{
 		Type:       flowLoginPassword,
 		Password:   password,
 		Identifier: newUserIdentifier(user),
-	}, &response); err != nil {
+	}, &response, http.MethodPost); err != nil {
 		return fmt.Errorf("failed to log in: %w", err)
 	}
 
@@ -116,7 +115,7 @@ func (c *client) loginPassword(user string, password string) error {
 
 // sendMessage sends a message to the specified rooms or all joined rooms if none are specified.
 func (c *client) sendMessage(message string, rooms []string) []error {
-	if len(rooms) >= minSliceLength {
+	if len(rooms) > 0 {
 		return c.sendToExplicitRooms(rooms, message)
 	}
 
@@ -178,7 +177,7 @@ func (c *client) sendToJoinedRooms(message string) []error {
 // joinRoom joins a specified room and returns its ID.
 func (c *client) joinRoom(room string) (string, error) {
 	resRoom := apiResRoom{}
-	if err := c.apiPut(fmt.Sprintf(apiRoomJoin, room), nil, &resRoom); err != nil {
+	if err := c.apiReq(fmt.Sprintf(apiRoomJoin, room), nil, &resRoom, http.MethodPost); err != nil {
 		return "", err
 	}
 
@@ -191,65 +190,27 @@ var txCounter = 0
 func (c *client) sendMessageToRoom(message string, roomID string) error {
 	resEvent := apiResEvent{}
 
-	id := roomID
 	txnID := strconv.Itoa(os.Getpid()) + strconv.Itoa(int(time.Now().Unix())) + strconv.Itoa(txCounter)
-	url := fmt.Sprintf(apiSendMessage, id, txnID)
+	url := fmt.Sprintf(apiSendMessage, roomID, txnID)
 	txCounter += 1
 
-	return c.apiPut(url, apiReqSend{
+	return c.apiReq(url, apiReqSend{
 		MsgType: msgTypeText,
 		Body:    message,
-	}, &resEvent)
+	}, &resEvent, http.MethodPut)
 }
 
-// apiGet performs a GET request to the Matrix API.
-func (c *client) apiGet(path string, response any) error {
+// apiPut performs a Put or Post request to the Matrix API.
+func (c *client) apiReq(path string, request any, response any, method string) error {
 	c.apiURL.Path = path
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL.String(), nil)
+	var body []byte
+	var err error
+	if request != nil {
+		body, err = json.Marshal(request)
+	}
 	if err != nil {
-		return fmt.Errorf("creating GET request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.AccessToken)
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing GET request: %w", err)
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("reading GET response body: %w", err)
-	}
-
-	if res.StatusCode >= httpClientErrorStatus {
-		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError); err == nil {
-			return resError
-		}
-
-		return fmt.Errorf("%w: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
-	}
-
-	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling GET response: %w", err)
-	}
-
-	return nil
-}
-
-// apiPut performs a PUT request to the Matrix API.
-func (c *client) apiPut(path string, request any, response any) error {
-	c.apiURL.Path = path
-
-	body, err := json.Marshal(request)
-	if err != nil {
-		return fmt.Errorf("marshaling PUT request: %w", err)
+		return fmt.Errorf("marshaling %w request: %w", method, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
@@ -257,12 +218,13 @@ func (c *client) apiPut(path string, request any, response any) error {
 
 	req, err := http.NewRequestWithContext(
 		ctx,
-		http.MethodPut,
+		method,
 		c.apiURL.String(),
 		bytes.NewReader(body),
 	)
+
 	if err != nil {
-		return fmt.Errorf("creating PUT request: %w", err)
+		return fmt.Errorf("creating %w request: %w", method, err)
 	}
 
 	req.Header.Set("Content-Type", contentType)
@@ -271,14 +233,14 @@ func (c *client) apiPut(path string, request any, response any) error {
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing PUT request: %w", err)
+		return fmt.Errorf("executing %w request: %w", method, err)
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
 	body, err = io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("reading PUT response body: %w", err)
+		return fmt.Errorf("reading %w response body: %w", method, err)
 	}
 
 	if res.StatusCode >= httpClientErrorStatus {
@@ -287,11 +249,11 @@ func (c *client) apiPut(path string, request any, response any) error {
 			return resError
 		}
 
-		return fmt.Errorf("%w: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
+		return fmt.Errorf("%w: %v (unmarshal error: %w)", method, ErrUnexpectedStatus, res.Status, err)
 	}
 
 	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling PUT response: %w", err)
+		return fmt.Errorf("unmarshaling %w response: %w", method, err)
 	}
 
 	return nil
@@ -305,7 +267,7 @@ func (c *client) logf(format string, v ...any) {
 // getJoinedRooms retrieves the list of rooms the client has joined.
 func (c *client) getJoinedRooms() ([]string, error) {
 	response := apiResJoinedRooms{}
-	if err := c.apiGet(apiJoinedRooms, &response); err != nil {
+	if err := c.apiReq(apiJoinedRooms, nil, &response, http.MethodGet); err != nil {
 		return []string{}, err
 	}
 
