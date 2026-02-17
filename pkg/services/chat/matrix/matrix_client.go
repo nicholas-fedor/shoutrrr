@@ -35,7 +35,7 @@ var (
 // client manages interactions with the Matrix API.
 type client struct {
 	apiURL      url.URL
-	AccessToken string
+	accessToken string
 	logger      types.StdLogger
 	httpClient  *http.Client
 }
@@ -100,7 +100,7 @@ func (c *client) loginPassword(user string, password string) error {
 		return fmt.Errorf("failed to log in: %w", err)
 	}
 
-	c.AccessToken = response.AccessToken
+	c.accessToken = response.AccessToken
 
 	tokenHint := ""
 	if len(response.AccessToken) > tokenHintLength {
@@ -229,7 +229,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("accept", contentType)
-	req.Header.Set("Authorization", "Bearer "+c.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
