@@ -200,7 +200,7 @@ func (c *client) sendMessageToRoom(message string, roomID string) error {
 	}, &resEvent, http.MethodPut)
 }
 
-// apiPut performs a Put or Post request to the Matrix API.
+// Performs a request of `method` type to the Matrix API.
 func (c *client) apiReq(path string, request any, response any, method string) error {
 	c.apiURL.Path = path
 
@@ -229,7 +229,9 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("accept", contentType)
-	req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	if len(c.accessToken) > 0 {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
