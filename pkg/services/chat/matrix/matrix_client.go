@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -183,15 +184,14 @@ func (c *client) joinRoom(room string) (string, error) {
 	return resRoom.RoomID, nil
 }
 
-var txCounter = 0
+var txCounter atomic.Int64
 
 // sendMessageToRoom sends a message to a specific room.
 func (c *client) sendMessageToRoom(message string, roomID string) error {
 	resEvent := apiResEvent{}
 
-	txnID := fmt.Sprintf("%s%s%s", os.Getpid(), int(time.Now().UnixNano()), txCounter)
+	txnID := fmt.Sprintf("%s%s%s", os.Getpid(), int(time.Now().UnixNano()), txCounter.Add(1))
 	url := fmt.Sprintf(apiSendMessage, roomID, txnID)
-	txCounter += 1
 
 	return c.apiReq(url, apiReqSend{
 		MsgType: msgTypeText,
@@ -250,7 +250,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 			return resError
 		}
 
-		return fmt.Errorf("%s: %v (unmarshal error: %w)", method, ErrUnexpectedStatus, res.Status, err)
+		return fmt.Errorf("%s: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
 	}
 
 	if err = json.Unmarshal(body, response); err != nil {
