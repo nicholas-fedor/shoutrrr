@@ -199,15 +199,25 @@ func (c *client) sendMessageToRoom(message string, roomID string) error {
 	}, &resEvent, http.MethodPut)
 }
 
+func createReader(request any) (io.Reader, error) {
+	if request == nil {
+		return nil, nil
+	} else {
+		body, err := json.Marshal(request)
+		if err != nil {
+			return nil, err
+		}
+
+		return bytes.NewReader(body), nil
+	}
+}
+
 // Performs a request of `method` type to the Matrix API.
 func (c *client) apiReq(path string, request any, response any, method string) error {
 	c.apiURL.Path = path
 
-	var body []byte
-	var err error
-	if request != nil {
-		body, err = json.Marshal(request)
-	}
+	reader, err := createReader(request)
+
 	if err != nil {
 		return fmt.Errorf("marshaling %s request: %w", method, err)
 	}
@@ -219,7 +229,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 		ctx,
 		method,
 		c.apiURL.String(),
-		bytes.NewReader(body),
+		reader,
 	)
 
 	if err != nil {
@@ -227,7 +237,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 	}
 
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("accept", contentType)
+	req.Header.Set("Accept", contentType)
 	if len(c.accessToken) > 0 {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	}
@@ -239,6 +249,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 
 	defer func() { _ = res.Body.Close() }()
 
+	var body []byte
 	body, err = io.ReadAll(res.Body)
 	if err != nil {
 		return fmt.Errorf("reading %s response body: %w", method, err)
