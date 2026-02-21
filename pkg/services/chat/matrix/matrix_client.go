@@ -210,7 +210,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 		body, err = json.Marshal(request)
 	}
 	if err != nil {
-		return fmt.Errorf("marshaling %w request: %w", method, err)
+		return fmt.Errorf("marshaling %s request: %w", method, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
@@ -224,7 +224,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 	)
 
 	if err != nil {
-		return fmt.Errorf("creating %w request: %w", method, err)
+		return fmt.Errorf("creating %s request: %w", method, err)
 	}
 
 	req.Header.Set("Content-Type", contentType)
@@ -235,14 +235,14 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing %w request: %w", method, err)
+		return fmt.Errorf("executing %s request: %w", method, err)
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
 	body, err = io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("reading %w response body: %w", method, err)
+		return fmt.Errorf("reading %s response body: %w", method, err)
 	}
 
 	if res.StatusCode >= httpClientErrorStatus {
@@ -251,11 +251,11 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 			return resError
 		}
 
-		return fmt.Errorf("%w: %v (unmarshal error: %w)", method, ErrUnexpectedStatus, res.Status, err)
+		return fmt.Errorf("%s: %v (unmarshal error: %w)", method, ErrUnexpectedStatus, res.Status, err)
 	}
 
 	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling %w response: %w", method, err)
+		return fmt.Errorf("unmarshaling %s response: %w", method, err)
 	}
 
 	return nil
