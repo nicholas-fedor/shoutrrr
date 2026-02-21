@@ -190,7 +190,7 @@ var txCounter atomic.Int64
 func (c *client) sendMessageToRoom(message string, roomID string) error {
 	resEvent := apiResEvent{}
 
-	txnID := fmt.Sprintf("%s%s%s", os.Getpid(), int(time.Now().UnixNano()), txCounter.Add(1))
+	txnID := fmt.Sprintf("%d%d%d", os.Getpid(), int(time.Now().UnixNano()), txCounter.Add(1))
 	url := fmt.Sprintf(apiSendMessage, roomID, txnID)
 
 	return c.apiReq(url, apiReqSend{
