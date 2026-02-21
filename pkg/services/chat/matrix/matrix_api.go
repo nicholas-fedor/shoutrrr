@@ -7,14 +7,12 @@ type (
 )
 
 const (
-	apiLogin       = "/_matrix/client/r0/login"
-	apiRoomJoin    = "/_matrix/client/r0/join/%s"
-	apiSendMessage = "/_matrix/client/r0/rooms/%s/send/m.room.message"
-	apiJoinedRooms = "/_matrix/client/r0/joined_rooms"
+	apiLogin       = "/_matrix/client/v3/login"
+	apiRoomJoin    = "/_matrix/client/v3/join/%s"
+	apiSendMessage = "/_matrix/client/v3/rooms/%s/send/m.room.message/%s"
+	apiJoinedRooms = "/_matrix/client/v3/joined_rooms"
 
 	contentType = "application/json"
-
-	accessTokenKey = "access_token"
 
 	msgTypeText       messageType    = "m.text"
 	flowLoginPassword flowType       = "m.login.password"

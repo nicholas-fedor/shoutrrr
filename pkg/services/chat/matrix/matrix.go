@@ -40,7 +40,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 			return s.client.login(s.Config.User, s.Config.Password)
 		}
 
-		s.client.useToken(s.Config.Password)
+		s.client.accessToken = s.Config.Password
 	}
 
 	return nil
@@ -61,7 +61,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}
-
 	errors := s.client.sendMessage(message, s.Config.Rooms)
 	if len(errors) > 0 {
 		for _, err := range errors {

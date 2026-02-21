@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -20,7 +22,6 @@ import (
 const (
 	schemeHTTPPrefixLength = 4
 	tokenHintLength        = 3
-	minSliceLength         = 1
 	httpClientErrorStatus  = 400
 	defaultHTTPTimeout     = 10 * time.Second // defaultHTTPTimeout is the timeout for HTTP requests.
 )
@@ -65,19 +66,12 @@ func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 	return client
 }
 
-// useToken sets the access token for the client.
-func (c *client) useToken(token string) {
-	c.accessToken = token
-	c.updateAccessToken()
-}
-
 // login authenticates the client using a username and password.
 func (c *client) login(user string, password string) error {
 	c.apiURL.RawQuery = ""
-	defer c.updateAccessToken()
 
 	resLogin := apiResLoginFlows{}
-	if err := c.apiGet(apiLogin, &resLogin); err != nil {
+	if err := c.apiReq(apiLogin, nil, &resLogin, http.MethodGet); err != nil {
 		return fmt.Errorf("failed to get login flows: %w", err)
 	}
 
@@ -98,11 +92,11 @@ func (c *client) login(user string, password string) error {
 // loginPassword performs a password-based login to the Matrix server.
 func (c *client) loginPassword(user string, password string) error {
 	response := apiResLogin{}
-	if err := c.apiPost(apiLogin, apiReqLogin{
+	if err := c.apiReq(apiLogin, apiReqLogin{
 		Type:       flowLoginPassword,
 		Password:   password,
 		Identifier: newUserIdentifier(user),
-	}, &response); err != nil {
+	}, &response, http.MethodPost); err != nil {
 		return fmt.Errorf("failed to log in: %w", err)
 	}
 
@@ -116,13 +110,12 @@ func (c *client) loginPassword(user string, password string) error {
 	c.logf("AccessToken: %v...\n", tokenHint)
 	c.logf("HomeServer: %v\n", response.HomeServer)
 	c.logf("User: %v\n", response.UserID)
-
 	return nil
 }
 
 // sendMessage sends a message to the specified rooms or all joined rooms if none are specified.
 func (c *client) sendMessage(message string, rooms []string) []error {
-	if len(rooms) >= minSliceLength {
+	if len(rooms) > 0 {
 		return c.sendToExplicitRooms(rooms, message)
 	}
 
@@ -184,45 +177,45 @@ func (c *client) sendToJoinedRooms(message string) []error {
 // joinRoom joins a specified room and returns its ID.
 func (c *client) joinRoom(room string) (string, error) {
 	resRoom := apiResRoom{}
-	if err := c.apiPost(fmt.Sprintf(apiRoomJoin, room), nil, &resRoom); err != nil {
+	if err := c.apiReq(fmt.Sprintf(apiRoomJoin, room), nil, &resRoom, http.MethodPost); err != nil {
 		return "", err
 	}
 
 	return resRoom.RoomID, nil
 }
 
+var txCounter atomic.Int64
+
 // sendMessageToRoom sends a message to a specific room.
 func (c *client) sendMessageToRoom(message string, roomID string) error {
 	resEvent := apiResEvent{}
 
-	return c.apiPost(fmt.Sprintf(apiSendMessage, roomID), apiReqSend{
+	txnID := fmt.Sprintf("%d%d%d", os.Getpid(), int(time.Now().UnixNano()), txCounter.Add(1))
+	url := fmt.Sprintf(apiSendMessage, roomID, txnID)
+
+	return c.apiReq(url, apiReqSend{
 		MsgType: msgTypeText,
 		Body:    message,
-	}, &resEvent)
+	}, &resEvent, http.MethodPut)
 }
 
-// apiGet performs a GET request to the Matrix API.
-func (c *client) apiGet(path string, response any) error {
-	c.apiURL.Path = path
+func createReader(request any) (io.Reader, error) {
+	if request == nil {
+		return nil, nil
+	} else {
+		body, err := json.Marshal(request)
+		if err != nil {
+			return nil, err
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL.String(), nil)
-	if err != nil {
-		return fmt.Errorf("creating GET request: %w", err)
+		return bytes.NewReader(body), nil
 	}
+}
 
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing GET request: %w", err)
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
+func unmarshal(res *http.Response, method string, response any) error {
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("reading GET response body: %w", err)
+		return fmt.Errorf("reading %s response body: %w", method, err)
 	}
 
 	if res.StatusCode >= httpClientErrorStatus {
@@ -235,19 +228,20 @@ func (c *client) apiGet(path string, response any) error {
 	}
 
 	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling GET response: %w", err)
+		return fmt.Errorf("unmarshaling %s response: %w", method, err)
 	}
-
 	return nil
+
 }
 
-// apiPost performs a POST request to the Matrix API.
-func (c *client) apiPost(path string, request any, response any) error {
+// Performs a request of `method` type to the Matrix API.
+func (c *client) apiReq(path string, request any, response any, method string) error {
 	c.apiURL.Path = path
 
-	body, err := json.Marshal(request)
+	reader, err := createReader(request)
+
 	if err != nil {
-		return fmt.Errorf("marshaling POST request: %w", err)
+		return fmt.Errorf("marshaling %s request: %w", method, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
@@ -255,49 +249,29 @@ func (c *client) apiPost(path string, request any, response any) error {
 
 	req, err := http.NewRequestWithContext(
 		ctx,
-		http.MethodPost,
+		method,
 		c.apiURL.String(),
-		bytes.NewReader(body),
+		reader,
 	)
+
 	if err != nil {
-		return fmt.Errorf("creating POST request: %w", err)
+		return fmt.Errorf("creating %s request: %w", method, err)
 	}
 
 	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Accept", contentType)
+	if len(c.accessToken) > 0 {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing POST request: %w", err)
+		return fmt.Errorf("executing %s request: %w", method, err)
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err = io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("reading POST response body: %w", err)
-	}
-
-	if res.StatusCode >= httpClientErrorStatus {
-		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError); err == nil {
-			return resError
-		}
-
-		return fmt.Errorf("%w: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
-	}
-
-	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling POST response: %w", err)
-	}
-
-	return nil
-}
-
-// updateAccessToken updates the API URL query with the current access token.
-func (c *client) updateAccessToken() {
-	query := c.apiURL.Query()
-	query.Set(accessTokenKey, c.accessToken)
-	c.apiURL.RawQuery = query.Encode()
+	return unmarshal(res, method, response)
 }
 
 // logf logs a formatted message using the client's logger.
@@ -308,7 +282,7 @@ func (c *client) logf(format string, v ...any) {
 // getJoinedRooms retrieves the list of rooms the client has joined.
 func (c *client) getJoinedRooms() ([]string, error) {
 	response := apiResJoinedRooms{}
-	if err := c.apiGet(apiJoinedRooms, &response); err != nil {
+	if err := c.apiReq(apiJoinedRooms, nil, &response, http.MethodGet); err != nil {
 		return []string{}, err
 	}
 
