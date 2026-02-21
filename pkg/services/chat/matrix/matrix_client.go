@@ -212,6 +212,28 @@ func createReader(request any) (io.Reader, error) {
 	}
 }
 
+func unmarshal(res *http.Response, method string, response any) error {
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("reading %s response body: %w", method, err)
+	}
+
+	if res.StatusCode >= httpClientErrorStatus {
+		resError := &apiResError{}
+		if err = json.Unmarshal(body, resError); err == nil {
+			return resError
+		}
+
+		return fmt.Errorf("%s: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
+	}
+
+	if err = json.Unmarshal(body, response); err != nil {
+		return fmt.Errorf("unmarshaling %s response: %w", method, err)
+	}
+	return nil
+
+}
+
 // Performs a request of `method` type to the Matrix API.
 func (c *client) apiReq(path string, request any, response any, method string) error {
 	c.apiURL.Path = path
@@ -249,26 +271,7 @@ func (c *client) apiReq(path string, request any, response any, method string) e
 
 	defer func() { _ = res.Body.Close() }()
 
-	var body []byte
-	body, err = io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("reading %s response body: %w", method, err)
-	}
-
-	if res.StatusCode >= httpClientErrorStatus {
-		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError); err == nil {
-			return resError
-		}
-
-		return fmt.Errorf("%s: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
-	}
-
-	if err = json.Unmarshal(body, response); err != nil {
-		return fmt.Errorf("unmarshaling %s response: %w", method, err)
-	}
-
-	return nil
+	return unmarshal(res, method, response)
 }
 
 // logf logs a formatted message using the client's logger.
