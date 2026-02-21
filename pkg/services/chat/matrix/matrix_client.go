@@ -224,7 +224,7 @@ func unmarshal(res *http.Response, method string, response any) error {
 			return resError
 		}
 
-		return fmt.Errorf("%s: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
+		return fmt.Errorf("%w: %v (unmarshal error: %w)", ErrUnexpectedStatus, res.Status, err)
 	}
 
 	if err = json.Unmarshal(body, response); err != nil {
