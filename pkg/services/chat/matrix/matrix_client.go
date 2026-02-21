@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -190,7 +189,7 @@ var txCounter = 0
 func (c *client) sendMessageToRoom(message string, roomID string) error {
 	resEvent := apiResEvent{}
 
-	txnID := strconv.Itoa(os.Getpid()) + strconv.Itoa(int(time.Now().Unix())) + strconv.Itoa(txCounter)
+	txnID := fmt.Sprintf("%s%s%s", os.Getpid(), int(time.Now().UnixNano()), txCounter)
 	url := fmt.Sprintf(apiSendMessage, roomID, txnID)
 	txCounter += 1
 
