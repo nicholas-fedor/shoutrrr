@@ -36,6 +36,7 @@ var serviceURLs = map[string]string{
 	"smtp":       "smtp://host.tld:25/?fromAddress=from@host.tld&toAddresses=to@host.tld",
 	"teams":      "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=test.webhook.office.com",
 	"telegram":   "telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram?channels=channel",
+	"twilio":     "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543",
 	"xmpp":       "xmpp://",
 	"zulip":      "zulip://mail:key@example.com/?stream=foo&topic=bar",
 }
@@ -57,6 +58,7 @@ var serviceResponses = map[string]string{
 	"smtp":       "",
 	"teams":      "",
 	"telegram":   "",
+	"twilio":     `{"sid": "SM123"}`,
 	"xmpp":       "",
 	"zulip":      "",
 }
@@ -98,6 +100,9 @@ var _ = ginkgo.Describe("services", func() {
 				respStatus := http.StatusOK
 				if key == "discord" || key == "ifttt" {
 					respStatus = http.StatusNoContent
+				}
+				if key == "twilio" {
+					respStatus = http.StatusCreated
 				}
 				if key == "mattermost" {
 					httpmock.RegisterResponder(
