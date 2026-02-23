@@ -26,11 +26,13 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 		ginkgo.It("should post message to existing thread using thread_id", func() {
 			envURL := os.Getenv("SHOUTRRR_DISCORD_URL")
 			envThreadID := os.Getenv("SHOUTRRR_DISCORD_THREAD_ID")
+
 			if envURL == "" {
 				ginkgo.Skip("SHOUTRRR_DISCORD_URL not set, skipping thread posting test")
 
 				return
 			}
+
 			if envThreadID == "" {
 				ginkgo.Skip("SHOUTRRR_DISCORD_THREAD_ID not set, skipping thread posting test")
 

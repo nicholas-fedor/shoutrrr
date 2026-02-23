@@ -18,8 +18,10 @@ const testWebhookURLAlt = "https://discord.com/api/webhooks/123/abc"
 
 var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	ginkgo.Describe("Service.Send method", func() {
-		var service *Service
-		var mockClient *mockServiceHTTPClient
+		var (
+			service    *Service
+			mockClient *mockServiceHTTPClient
+		)
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
@@ -137,8 +139,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.sendItems method", func() {
-		var service *Service
-		var mockClient *mockServiceHTTPClient
+		var (
+			service    *Service
+			mockClient *mockServiceHTTPClient
+		)
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
@@ -261,10 +265,12 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 			gomega.Expect(result).To(gomega.HaveLen(1))    // All chunks fit in one batch
 			gomega.Expect(result[0]).To(gomega.HaveLen(2)) // 2 chunks: 2000 and 100
+
 			totalLength := 0
 			for _, item := range result[0] {
 				totalLength += len(item.Text)
 			}
+
 			gomega.Expect(totalLength).To(gomega.Equal(len(largeMessage)))
 		})
 
@@ -348,8 +354,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.doSend method", func() {
-		var service *Service
-		var mockClient *mockServiceHTTPClient
+		var (
+			service    *Service
+			mockClient *mockServiceHTTPClient
+		)
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
@@ -429,8 +437,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.doSendMultipart method", func() {
-		var service *Service
-		var mockClient *mockServiceHTTPClient
+		var (
+			service    *Service
+			mockClient *mockServiceHTTPClient
+		)
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{

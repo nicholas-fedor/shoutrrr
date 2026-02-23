@@ -135,8 +135,10 @@ var _ = ginkgo.Describe("the signal service", func() {
 			})
 
 			ginkgo.When("the url is valid", func() {
-				var config *Config
-				var err error
+				var (
+					config *Config
+					err    error
+				)
 
 				ginkgo.BeforeEach(func() {
 					serviceURL, _ := url.Parse(
@@ -170,6 +172,7 @@ var _ = ginkgo.Describe("the signal service", func() {
 
 	ginkgo.Describe("sending the payload", func() {
 		var err error
+
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 		})

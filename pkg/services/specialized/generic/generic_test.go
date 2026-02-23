@@ -36,7 +36,9 @@ var (
 	_             = ginkgo.BeforeSuite(func() {
 		service = &generic.Service{}
 		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+
 		var err error
+
 		envGenericURL, err = url.Parse(os.Getenv("SHOUTRRR_GENERIC_URL"))
 		if err != nil {
 			envGenericURL = &url.URL{} // Default to empty URL if parsing fails
@@ -52,6 +54,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 
 				return
 			}
+
 			serviceURL := testutils.URLMust(envGenericURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -225,6 +228,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 				serviceURL := testutils.URLMust("generic://host.tld/webhook?template=JSON")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				params := types.Params{"title": "test title", "message": "test message"}
 				payload, err := service.GetPayload(service.Config, params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -242,6 +246,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					)
 					err := service.Initialize(serviceURL, logger)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 					params := types.Params{"header": "test title", "body": "test message"}
 					payload, err := service.GetPayload(service.Config, params)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -261,6 +266,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.SetTemplateString("news", `{{.title}} ==> {{.message}}`)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				params := types.Params{"title": "BREAKING NEWS", "message": "it's today!"}
 				payload, err := service.GetPayload(service.Config, params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -300,6 +306,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 	ginkgo.Describe("sending the payload", func() {
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
+
 			service = &generic.Service{}
 			service.SetLogger(logger)
 		})
@@ -317,6 +324,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					TestWebhookURL,
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -329,6 +337,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					TestWebhookURL,
 					httpmock.NewErrorResponder(errors.New("dummy error")),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
@@ -342,6 +351,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 
 						return httpmock.NewStringResponse(200, ""), nil
 					})
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -360,6 +370,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 
 						return httpmock.NewStringResponse(200, ""), nil
 					})
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -372,6 +383,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					TestWebhookURL,
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -384,6 +396,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					TestWebhookURL,
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				params := types.Params{"title": "TITLE"}
 				err = service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())

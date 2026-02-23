@@ -58,75 +58,75 @@ func TestConfigValidURLParsing(t *testing.T) {
 func TestConfigQueryParameters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
-			name                string
-			url                 string
-			expectedQoS         byte
-			expectedRetained    bool
-			expectedClientID    string
+			name                 string
+			url                  string
+			expectedQoS          byte
+			expectedRetained     bool
+			expectedClientID     string
 			expectedCleanSession bool
 		}{
 			{
-				name:                "qos 0",
-				url:                 "mqtt://broker.example.com/alerts?qos=0",
-				expectedQoS:         0,
-				expectedRetained:    false,
-				expectedClientID:    "shoutrrr",
+				name:                 "qos 0",
+				url:                  "mqtt://broker.example.com/alerts?qos=0",
+				expectedQoS:          0,
+				expectedRetained:     false,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "qos 1",
-				url:                 "mqtt://broker.example.com/alerts?qos=1",
-				expectedQoS:         1,
-				expectedRetained:    false,
-				expectedClientID:    "shoutrrr",
+				name:                 "qos 1",
+				url:                  "mqtt://broker.example.com/alerts?qos=1",
+				expectedQoS:          1,
+				expectedRetained:     false,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "qos 2",
-				url:                 "mqtt://broker.example.com/alerts?qos=2",
-				expectedQoS:         2,
-				expectedRetained:    false,
-				expectedClientID:    "shoutrrr",
+				name:                 "qos 2",
+				url:                  "mqtt://broker.example.com/alerts?qos=2",
+				expectedQoS:          2,
+				expectedRetained:     false,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "retained yes",
-				url:                 "mqtt://broker.example.com/alerts?retained=yes",
-				expectedQoS:         0,
-				expectedRetained:    true,
-				expectedClientID:    "shoutrrr",
+				name:                 "retained yes",
+				url:                  "mqtt://broker.example.com/alerts?retained=yes",
+				expectedQoS:          0,
+				expectedRetained:     true,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "retained true",
-				url:                 "mqtt://broker.example.com/alerts?retained=true",
-				expectedQoS:         0,
-				expectedRetained:    true,
-				expectedClientID:    "shoutrrr",
+				name:                 "retained true",
+				url:                  "mqtt://broker.example.com/alerts?retained=true",
+				expectedQoS:          0,
+				expectedRetained:     true,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "custom client id",
-				url:                 "mqtt://broker.example.com/alerts?clientid=custom-client",
-				expectedQoS:         0,
-				expectedRetained:    false,
-				expectedClientID:    "custom-client",
+				name:                 "custom client id",
+				url:                  "mqtt://broker.example.com/alerts?clientid=custom-client",
+				expectedQoS:          0,
+				expectedRetained:     false,
+				expectedClientID:     "custom-client",
 				expectedCleanSession: true,
 			},
 			{
-				name:                "clean session no",
-				url:                 "mqtt://broker.example.com/alerts?cleansession=no",
-				expectedQoS:         0,
-				expectedRetained:    false,
-				expectedClientID:    "shoutrrr",
+				name:                 "clean session no",
+				url:                  "mqtt://broker.example.com/alerts?cleansession=no",
+				expectedQoS:          0,
+				expectedRetained:     false,
+				expectedClientID:     "shoutrrr",
 				expectedCleanSession: false,
 			},
 			{
-				name:                "all options combined",
-				url:                 "mqtt://broker.example.com/alerts?qos=1&retained=yes&clientid=myclient&cleansession=no",
-				expectedQoS:         1,
-				expectedRetained:    true,
-				expectedClientID:    "myclient",
+				name:                 "all options combined",
+				url:                  "mqtt://broker.example.com/alerts?qos=1&retained=yes&clientid=myclient&cleansession=no",
+				expectedQoS:          1,
+				expectedRetained:     true,
+				expectedClientID:     "myclient",
 				expectedCleanSession: false,
 			},
 		}
@@ -208,10 +208,10 @@ func TestConfigUsernamePassword(t *testing.T) {
 func TestConfigTLSOptions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
-			name                       string
-			url                        string
-			expectedDisableTLS         bool
-			expectedDisableTLSVerify   bool
+			name                     string
+			url                      string
+			expectedDisableTLS       bool
+			expectedDisableTLSVerify bool
 		}{
 			{
 				name:                     "tls enabled by default with mqtts",
@@ -275,6 +275,7 @@ func TestConfigInvalidURLs(t *testing.T) {
 
 		for _, tt := range tests {
 			service := &mqtt.Service{}
+
 			parsedURL, err := parseURLHelper(tt.url)
 			if err != nil {
 				continue // URL parsing failed, which is acceptable

@@ -59,7 +59,10 @@ func (m *MockConnectionManager) AwaitConnection(ctx context.Context) error {
 }
 
 // Publish mocks sending an MQTT message to the broker.
-func (m *MockConnectionManager) Publish(ctx context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
+func (m *MockConnectionManager) Publish(
+	ctx context.Context,
+	publish *paho.Publish,
+) (*paho.PublishResponse, error) {
 	args := m.Called(ctx, publish)
 
 	if args.Get(0) == nil {
@@ -85,7 +88,10 @@ func createMockPublishResponse(reasonCode byte) *paho.PublishResponse {
 }
 
 // createMockPublishResponseWithReason creates a mock publish response with reason code and string.
-func createMockPublishResponseWithReason(reasonCode byte, reasonString string) *paho.PublishResponse {
+func createMockPublishResponseWithReason(
+	reasonCode byte,
+	reasonString string,
+) *paho.PublishResponse {
 	return &paho.PublishResponse{
 		ReasonCode: reasonCode,
 		Properties: &paho.PublishResponseProperties{
@@ -130,7 +136,11 @@ func assertPublishCalled(t *testing.T, mockManager *MockConnectionManager, expec
 }
 
 // assertPublishPayload asserts that Publish was called with the expected payload.
-func assertPublishPayload(t *testing.T, mockManager *MockConnectionManager, expectedPayload string) {
+func assertPublishPayload(
+	t *testing.T,
+	mockManager *MockConnectionManager,
+	expectedPayload string,
+) {
 	t.Helper()
 
 	found := false
@@ -147,7 +157,10 @@ func assertPublishPayload(t *testing.T, mockManager *MockConnectionManager, expe
 	}
 
 	if !found {
-		t.Errorf("Expected Publish call with payload %q, but no matching call found", expectedPayload)
+		t.Errorf(
+			"Expected Publish call with payload %q, but no matching call found",
+			expectedPayload,
+		)
 	}
 }
 
@@ -174,7 +187,11 @@ func assertPublishQoS(t *testing.T, mockManager *MockConnectionManager, expected
 }
 
 // assertPublishRetained asserts that Publish was called with the expected retained flag.
-func assertPublishRetained(t *testing.T, mockManager *MockConnectionManager, expectedRetained bool) {
+func assertPublishRetained(
+	t *testing.T,
+	mockManager *MockConnectionManager,
+	expectedRetained bool,
+) {
 	t.Helper()
 
 	found := false
@@ -191,7 +208,10 @@ func assertPublishRetained(t *testing.T, mockManager *MockConnectionManager, exp
 	}
 
 	if !found {
-		t.Errorf("Expected Publish call with Retain=%v, but no matching call found", expectedRetained)
+		t.Errorf(
+			"Expected Publish call with Retain=%v, but no matching call found",
+			expectedRetained,
+		)
 	}
 }
 

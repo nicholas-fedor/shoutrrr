@@ -110,7 +110,7 @@ func TestSendWithFailureReasonCode(t *testing.T) {
 
 			// Verify it's a PublishError
 			var publishErr mqtt.PublishError
-			require.True(t, errors.As(err, &publishErr))
+			require.ErrorAs(t, err, &publishErr)
 			require.Equal(t, tt.reasonCode, publishErr.ReasonCode)
 			require.Equal(t, tt.reasonString, publishErr.ReasonString)
 
@@ -133,7 +133,7 @@ func TestSendWithReasonCodeNoReasonString(t *testing.T) {
 		require.Error(t, err)
 
 		var publishErr mqtt.PublishError
-		require.True(t, errors.As(err, &publishErr))
+		require.ErrorAs(t, err, &publishErr)
 		require.Equal(t, byte(0x80), publishErr.ReasonCode)
 		require.Empty(t, publishErr.ReasonString)
 

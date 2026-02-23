@@ -51,7 +51,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			break
 		}
 
-		conversationBuilder.WriteString(fmt.Sprintf("  #%2d >> %50s << %-50s\n", i, query, resp))
+		fmt.Fprintf(&conversationBuilder, "  #%2d >> %50s << %-50s\n", i, query, resp)
 
 		for len(resp) > 3 && resp[3] == '-' {
 			responseIndex++
@@ -60,7 +60,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			}
 
 			resp = tcf.responses[responseIndex]
-			conversationBuilder.WriteString(fmt.Sprintf("         %50s << %-50s\n", " ", resp))
+			fmt.Fprintf(&conversationBuilder, "         %50s << %-50s\n", " ", resp)
 		}
 
 		if !inSequence {

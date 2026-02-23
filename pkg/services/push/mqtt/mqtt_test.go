@@ -68,6 +68,7 @@ var _ = ginkgo.Describe("Service", func() {
 	ginkgo.Describe("Initialize", func() {
 		ginkgo.BeforeEach(func() {
 			var err error
+
 			testURL, err = url.Parse("mqtt://broker.example.com:1883/notifications/alerts")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -236,12 +237,15 @@ var _ = ginkgo.Describe("Service", func() {
 			"should be thread-safe and return same cancel function on multiple calls",
 			func() {
 				var wg sync.WaitGroup
+
 				cancels := make([]context.CancelFunc, 10)
 
 				for i := range 10 {
 					wg.Add(1)
+
 					go func(idx int) {
 						defer wg.Done()
+
 						cancels[idx] = service.getCancel()
 					}(i)
 				}
@@ -257,6 +261,7 @@ var _ = ginkgo.Describe("Service", func() {
 
 		ginkgo.It("should allow cancel to be called without panic", func() {
 			cancel := service.getCancel()
+
 			gomega.Expect(func() { cancel() }).NotTo(gomega.Panic())
 		})
 

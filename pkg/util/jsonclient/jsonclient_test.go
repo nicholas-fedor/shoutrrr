@@ -19,8 +19,10 @@ func TestJSONClient(t *testing.T) {
 }
 
 var _ = ginkgo.Describe("JSONClient", func() {
-	var server *ghttp.Server
-	var client jsonclient.Client
+	var (
+		server *ghttp.Server
+		client jsonclient.Client
+	)
 
 	ginkgo.BeforeEach(func() {
 		server = ghttp.NewServer()
@@ -30,6 +32,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 	ginkgo.When("the server returns an invalid JSON response", func() {
 		ginkgo.It("should return an error", func() {
 			server.AppendHandlers(ghttp.RespondWith(http.StatusOK, "invalid json"))
+
 			res := &mockResponse{}
 			err := client.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -42,6 +45,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 	ginkgo.When("the server returns an empty response", func() {
 		ginkgo.It("should return an error", func() {
 			server.AppendHandlers(ghttp.RespondWith(http.StatusOK, nil))
+
 			res := &mockResponse{}
 			err := client.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -54,6 +58,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 		server.AppendHandlers(
 			ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "OK"}),
 		)
+
 		res := &mockResponse{}
 		err := client.Get(server.URL(), res)
 		gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -66,6 +71,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 			server.AppendHandlers(
 				ghttp.RespondWithJSONEncoded(http.StatusOK, mockResponse{Status: "Default OK"}),
 			)
+
 			res := &mockResponse{}
 			err := jsonclient.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))
@@ -76,6 +82,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 		ginkgo.It("should handle POST via DefaultClient", func() {
 			req := &mockRequest{Number: 10}
 			res := &mockResponse{}
+
 			server.AppendHandlers(ghttp.CombineHandlers(
 				ghttp.VerifyRequest("POST", "/"),
 				ghttp.VerifyJSONRepresenting(&req),
@@ -92,6 +99,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 		ginkgo.It("should de-/serialize request and response", func() {
 			req := &mockRequest{Number: 5}
 			res := &mockResponse{}
+
 			server.AppendHandlers(ghttp.CombineHandlers(
 				ghttp.VerifyRequest("POST", "/"),
 				ghttp.VerifyJSONRepresenting(&req),
@@ -137,6 +145,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 		ginkgo.It("should handle string request without marshaling", func() {
 			rawJSON := `{"Number": 42}`
 			res := &mockResponse{}
+
 			server.AppendHandlers(ghttp.CombineHandlers(
 				ghttp.VerifyRequest("POST", "/"),
 				ghttp.VerifyBody([]byte(rawJSON)),
@@ -177,6 +186,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 
 			req := &mockRequest{Number: 99}
 			res := &mockResponse{}
+
 			server.AppendHandlers(ghttp.CombineHandlers(
 				ghttp.VerifyRequest("POST", "/"),
 				ghttp.VerifyHeader(http.Header{
@@ -246,6 +256,7 @@ var _ = ginkgo.Describe("JSONClient", func() {
 
 		ginkgo.It("should handle invalid JSON with success status", func() {
 			server.AppendHandlers(ghttp.RespondWith(http.StatusOK, "bad json"))
+
 			res := &mockResponse{}
 			err := client.Get(server.URL(), res)
 			gomega.Expect(server.ReceivedRequests()).Should(gomega.HaveLen(1))

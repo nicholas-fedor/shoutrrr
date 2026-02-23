@@ -12,6 +12,7 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 		ts  *testStruct
 		pkr PropKeyResolver
 	)
+
 	ginkgo.BeforeEach(func() {
 		ts = &testStruct{}
 		pkr = NewPropKeyResolver(ts)
@@ -35,6 +36,7 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 					nil,
 					&types.Params{"signed": "1", "b": "c", "str": "val"},
 				)
+
 				gomega.Expect(ts.Signed).To(gomega.Equal(1))
 				gomega.Expect(ts.Str).To(gomega.Equal("val"))
 			})

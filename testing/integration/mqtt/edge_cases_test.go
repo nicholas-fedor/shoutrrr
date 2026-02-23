@@ -289,9 +289,10 @@ func TestPublishBinaryLikeData(t *testing.T) {
 
 		// Create a string with all byte values (simulating binary data)
 		var binaryLike strings.Builder
-		for i := 0; i < 256; i++ {
+		for i := range 256 {
 			binaryLike.WriteByte(byte(i))
 		}
+
 		message := binaryLike.String()
 
 		err := service.Send(message, nil)
@@ -344,7 +345,7 @@ func TestPublishMultipleConcurrentMessages(t *testing.T) {
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
 
 		// Set up mock for multiple concurrent publish calls
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			mockManager.On("Publish", mock.Anything, mock.Anything).
 				Return(createMockPublishResponse(0), nil).
 				Once()
@@ -354,14 +355,15 @@ func TestPublishMultipleConcurrentMessages(t *testing.T) {
 
 		// Send multiple messages
 		done := make(chan error, 5)
-		for i := 0; i < 5; i++ {
+
+		for i := range 5 {
 			go func(idx int) {
 				done <- service.Send("Message", nil)
 			}(i)
 		}
 
 		// Wait for all to complete
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			err := <-done
 			require.NoError(t, err)
 		}
@@ -379,7 +381,11 @@ func TestPublishWithEscapedCharactersInURL(t *testing.T) {
 			Once()
 
 		// URL with percent-encoded characters in password
-		service := createTestService(t, "mqtt://user:pass%40word@broker.example.com/test/topic", mockManager)
+		service := createTestService(
+			t,
+			"mqtt://user:pass%40word@broker.example.com/test/topic",
+			mockManager,
+		)
 
 		err := service.Send("Test message", nil)
 		require.NoError(t, err)

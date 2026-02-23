@@ -49,6 +49,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 	ginkgo.Describe("Config test helpers", func() {
 		var config dummyConfig
+
 		ginkgo.BeforeEach(func() {
 			config = dummyConfig{}
 		})
@@ -100,6 +101,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 	ginkgo.Describe("Service test helpers", func() {
 		var service dummyService
+
 		ginkgo.BeforeEach(func() {
 			service = dummyService{}
 		})

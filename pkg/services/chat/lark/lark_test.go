@@ -43,6 +43,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 			pkr := format.NewPropKeyResolver(config)
 			err := config.setURL(&pkr, url)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+
 			outputURL := config.GetURL()
 			ginkgo.GinkgoT().Logf("\n\n%s\n%s\n\n-", outputURL, fullURL)
 			gomega.Expect(outputURL.String()).To(gomega.Equal(fullURL))
@@ -51,6 +52,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 
 	ginkgo.Context("basic service API methods", func() {
 		var config *Config
+
 		ginkgo.BeforeEach(func() {
 			config = &Config{}
 		})
@@ -87,6 +89,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 				for i := range data {
 					data[i] = "0123456789"
 				}
+
 				message := strings.Join(data, "")
 				service := Service{Config: &Config{Host: larkHost, Path: "token"}}
 				gomega.Expect(service.Send(message, nil)).To(gomega.MatchError(ErrLargeMessage))
@@ -119,6 +122,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 						map[string]any{"code": 0, "msg": "success"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -134,6 +138,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 						map[string]any{"code": 0, "msg": "success"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", &types.Params{"title": "title"})
@@ -149,6 +154,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 						map[string]any{"code": 0, "msg": "success"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send(
@@ -164,6 +170,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 					"/open-apis/bot/v2/hook/token",
 					httpmock.NewErrorResponder(errors.New("network error")),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -176,6 +183,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 					"/open-apis/bot/v2/hook/token",
 					httpmock.NewStringResponder(http.StatusOK, "some response"),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -192,6 +200,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 						map[string]any{"code": 1, "msg": "some error"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -204,6 +213,7 @@ var _ = ginkgo.Describe("Lark Test", func() {
 					"/open-apis/bot/v2/hook/token",
 					httpmock.NewStringResponder(http.StatusBadRequest, "bad request"),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)

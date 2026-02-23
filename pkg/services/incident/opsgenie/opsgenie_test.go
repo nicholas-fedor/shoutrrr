@@ -47,6 +47,7 @@ var _ = ginkgo.Describe("the OpsGenie service", func() {
 		httpHandler := func(_ http.ResponseWriter, r *http.Request) {
 			body, err := io.ReadAll(r.Body)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 			defer func() { _ = r.Body.Close() }()
 
 			checkRequest(string(body), r.Header)
@@ -61,10 +62,12 @@ var _ = ginkgo.Describe("the OpsGenie service", func() {
 		// Determine the host of our mock http server
 		mockServerURL, err := url.Parse(mockServer.URL)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 		mockHost = mockServerURL.Host
 
 		// Initialize a mock logger
 		var buf bytes.Buffer
+
 		mockLogger = log.New(&buf, "", 0)
 	})
 
@@ -198,7 +201,6 @@ var _ = ginkgo.Describe("the OpsGenie service", func() {
 				// before generating the alert payload. This test ensures that none of the parameters
 				// from alert 1 remain in the config struct when sending alert 2
 				// In short: This tests if we clone the config struct
-
 				checkRequest = func(body string, header http.Header) {
 					gomega.Expect(header["Authorization"][0]).
 						To(gomega.Equal("GenieKey " + mockAPIKey))

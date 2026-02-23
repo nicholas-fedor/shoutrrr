@@ -66,8 +66,8 @@ func TestPublishWithDifferentQoSLevels(t *testing.T) {
 func TestPublishWithRetainedFlag(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
-			name            string
-			url             string
+			name             string
+			url              string
 			expectedRetained bool
 		}{
 			{"retained not set", "mqtt://broker.example.com/test/topic", false},
@@ -124,7 +124,7 @@ func TestPublishMultipleMessages(t *testing.T) {
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
 
 		// Set up mock for multiple publish calls
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			mockManager.On("Publish", mock.Anything, mock.Anything).
 				Return(createMockPublishResponse(0), nil).
 				Once()
@@ -155,7 +155,11 @@ func TestPublishTopicVariations(t *testing.T) {
 			expectedTopic string
 		}{
 			{"simple topic", "mqtt://broker.example.com/alerts", "alerts"},
-			{"nested topic", "mqtt://broker.example.com/home/sensors/temperature", "home/sensors/temperature"},
+			{
+				"nested topic",
+				"mqtt://broker.example.com/home/sensors/temperature",
+				"home/sensors/temperature",
+			},
 			{"deep topic", "mqtt://broker.example.com/a/b/c/d/e/f", "a/b/c/d/e/f"},
 		}
 
@@ -200,7 +204,7 @@ func TestPublishVerifyPublishStructFields(t *testing.T) {
 		require.NotNil(t, publish)
 		require.Equal(t, "test/topic", publish.Topic)
 		require.Equal(t, byte(1), publish.QoS)
-		require.Equal(t, true, publish.Retain)
+		require.True(t, publish.Retain)
 		require.Equal(t, []byte("Test payload"), publish.Payload)
 
 		mockManager.AssertExpectations(t)
@@ -264,7 +268,7 @@ func TestPublishServiceConfigAfterInit(t *testing.T) {
 		require.Equal(t, "user", service.Config.Username)
 		require.Equal(t, "pass", service.Config.Password)
 		require.Equal(t, mqtt.QoS(1), service.Config.QoS)
-		require.Equal(t, true, service.Config.Retained)
+		require.True(t, service.Config.Retained)
 		require.Equal(t, "testclient", service.Config.ClientID)
 
 		err := service.Send("Test message", nil)

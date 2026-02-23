@@ -53,6 +53,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 		httpHandler := func(_ http.ResponseWriter, r *http.Request) {
 			body, err := io.ReadAll(r.Body)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 			defer func() { _ = r.Body.Close() }()
 
 			checkRequest(string(body), r.Header)
@@ -70,6 +71,7 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 
 		// Initialize a mock logger
 		var buf bytes.Buffer
+
 		mockLogger = log.New(&buf, "", 0)
 	})
 
@@ -142,7 +144,9 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 					checkRequest = func(body string, header http.Header) {
 						gomega.Expect(header["Content-Type"][0]).
 							To(gomega.Equal("application/json"))
+
 						var payload EventPayload
+
 						err := json.Unmarshal([]byte(body), &payload)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 						gomega.Expect(payload.Payload.Summary).To(gomega.HaveLen(1024))
@@ -227,7 +231,9 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 					checkRequest = func(body string, header http.Header) {
 						gomega.Expect(header["Content-Type"][0]).
 							To(gomega.Equal("application/json"))
+
 						var payload EventPayload
+
 						err := json.Unmarshal([]byte(body), &payload)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 						gomega.Expect(payload.Client).To(gomega.Equal("my-monitor"))
@@ -264,7 +270,9 @@ var _ = ginkgo.Describe("the PagerDuty service", func() {
 					checkRequest = func(body string, header http.Header) {
 						gomega.Expect(header["Content-Type"][0]).
 							To(gomega.Equal("application/json"))
+
 						var payload EventPayload
+
 						err := json.Unmarshal([]byte(body), &payload)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 						gomega.Expect(payload.Contexts).To(gomega.HaveLen(2))

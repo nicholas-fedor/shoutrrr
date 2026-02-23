@@ -9,6 +9,7 @@ import (
 
 var _ = ginkgo.Describe("Query Formatter", func() {
 	var pkr PropKeyResolver
+
 	ginkgo.BeforeEach(func() {
 		ts = &testStruct{}
 		pkr = NewPropKeyResolver(ts)
