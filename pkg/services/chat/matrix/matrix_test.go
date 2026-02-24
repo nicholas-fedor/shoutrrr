@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -278,7 +279,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.client.apiPost("/test/path", make(chan int), nil)
+				err = service.client.apiReq("/test/path", make(chan int), nil, http.MethodPost)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
 					To(gomega.ContainSubstring("json: unsupported type: chan int"))
@@ -393,10 +394,11 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.client.apiPost(
+				err = service.client.apiReq(
 					"/test/path",
 					apiReqSend{MsgType: msgTypeText, Body: "test"},
 					nil,
+					http.MethodPost,
 				)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring("simulated HTTP failure"))
@@ -414,7 +416,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.client.apiPost("/test/path", make(chan int), nil)
+				err = service.client.apiReq("/test/path", make(chan int), nil, http.MethodPost)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
 					To(gomega.ContainSubstring("json: unsupported type: chan int"))
@@ -432,7 +434,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.client.apiURL.RawQuery).To(gomega.Equal("access_token=token"))
-				service.client.useToken("newtoken")
+				service.client.accessToken = "newtoken"
 				gomega.Expect(service.client.apiURL.RawQuery).
 					To(gomega.Equal("access_token=newtoken"))
 			})
