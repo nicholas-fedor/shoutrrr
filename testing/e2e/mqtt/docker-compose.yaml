@@ -1,5 +1,7 @@
 # EMQX MQTT Broker for local testing
 #
+# https://hub.docker.com/r/emqx/emqx
+#
 # Usage:
 #   docker-compose up -d
 #
@@ -30,7 +32,7 @@ services:
       # Default credentials (change in production!)
       - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
       - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
-      # EMQX v5 Authentication Bootstrap Configuration
+      # EMQX Authentication Bootstrap Configuration
       - EMQX_AUTHENTICATION__1__ENABLE=true
       - EMQX_AUTHENTICATION__1__BACKEND=built_in_database
       - EMQX_AUTHENTICATION__1__MECHANISM=password_based
