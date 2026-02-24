@@ -238,6 +238,7 @@ jobs:
 | SMTP         | Email notifications                  |
 | Teams        | Microsoft Teams webhooks             |
 | Telegram     | Telegram bots                        |
+| Twilio       | Twilio SMS notifications             |
 | Zulip        | Zulip chat                           |
 | XMPP         | XMPP messages (if enabled)           |
 
