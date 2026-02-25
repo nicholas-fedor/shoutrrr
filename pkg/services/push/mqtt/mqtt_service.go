@@ -363,7 +363,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	// Publish the message to the configured topic with QoS and retention settings
 	resp, err := s.connectionManager.Publish(ctx, &paho.Publish{
 		Topic:   s.Config.Topic,
-		QoS:     byte(s.Config.QoS),
+		QoS:     byte(s.Config.QoS), //nolint:gosec // QoS validated to 0-2
 		Retain:  s.Config.Retained,
 		Payload: []byte(message),
 	})
