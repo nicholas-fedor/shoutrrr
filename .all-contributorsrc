@@ -179,6 +179,16 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "circa10a",
+      "name": "Caleb Lemoine",
+      "avatar_url": "https://avatars.githubusercontent.com/u/21261388?v=4",
+      "profile": "https://caleblemoine.dev",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
