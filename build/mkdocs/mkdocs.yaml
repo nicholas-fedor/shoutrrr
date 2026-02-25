@@ -10,7 +10,7 @@ site_description: Documentation for Shoutrrr, a notification library for gophers
 # Author name for meta tags in HTML header.
 site_author: Nicholas Fedor
 # Copyright information displayed in the documentation footer (Material theme).
-copyright: Copyright © 2025 Nicholas Fedor
+copyright: Copyright © 2026 Nicholas Fedor
 
 # Theme Configuration: https://www.mkdocs.org/user-guide/configuration/#theme
 theme:
@@ -146,6 +146,8 @@ nav:
           - PagerDuty: services/incident/pagerduty/index.md
       - Email Services:
           - SMTP: services/email/smtp/index.md
+      - SMS Services:
+          - Twilio: services/sms/twilio/index.md
       - Specialized Services:
           - Generic: services/specialized/generic/index.md
           - Logger: services/specialized/logger/index.md

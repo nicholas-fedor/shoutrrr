@@ -2,7 +2,7 @@ module github.com/nicholas-fedor/shoutrrr
 
 go 1.25
 
-toolchain go1.25.7
+toolchain go1.26.0
 
 require (
 	github.com/eclipse/paho.golang v0.23.0
@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/sys v0.41.0
-	golang.org/x/term v0.39.0
+	golang.org/x/term v0.40.0
 )
 
 require (
