@@ -47,6 +47,12 @@ Click on the service for a more thorough explanation.
 |--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Email](./email/smtp/index.md)            | *smtp://__`username`__:__`password`__@__`host`__:__`port`__/?fromaddress=__`fromAddress`__&toaddresses=__`recipient1`__[,__`recipient2`__,...][&additional_params]* |
 
+## SMS Services
+
+| Service                              | URL format                                                                                                 |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------|
+| [Twilio](./sms/twilio/index.md)      | *twilio://__`accountSID`__:__`authToken`__@__`fromNumber`__/__`toNumber`__*                                |
+
 ## Specialized Services
 
 | Service                                           | Description                                                  |
