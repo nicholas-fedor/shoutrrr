@@ -19,7 +19,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 [![license](https://img.shields.io/github/license/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr/blob/main/LICENSE)
 [![Pulls from DockerHub](https://img.shields.io/docker/pulls/nickfedor/shoutrrr.svg)](https://hub.docker.com/r/nickfedor/shoutrrr)
 [![godoc](https://godoc.org/github.com/nicholas-fedor/shoutrrr?status.svg)](https://godoc.org/github.com/nicholas-fedor/shoutrrr) <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-19-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 </div>
 <!-- markdownlint-restore -->
@@ -275,6 +275,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/serverleader"><img src="https://avatars.githubusercontent.com/u/34089?v=4?s=100" width="100px;" alt="Carlos Savcic"/><br /><sub><b>Carlos Savcic</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=serverleader" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=serverleader" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/PythonGermany"><img src="https://avatars.githubusercontent.com/u/97847597?v=4?s=100" width="100px;" alt="PythonGermany"/><br /><sub><b>PythonGermany</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=PythonGermany" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/noelob"><img src="https://avatars.githubusercontent.com/u/643338?v=4?s=100" width="100px;" alt="Noel O'Brien"/><br /><sub><b>Noel O'Brien</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=noelob" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=noelob" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://caleblemoine.dev"><img src="https://avatars.githubusercontent.com/u/21261388?v=4?s=100" width="100px;" alt="Caleb Lemoine"/><br /><sub><b>Caleb Lemoine</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=circa10a" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=circa10a" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>
