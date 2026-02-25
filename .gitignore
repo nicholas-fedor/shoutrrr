@@ -19,6 +19,7 @@ dist
 site/
 
 # IDE and editor files
+.vscode/settings.json
 .idea
 
 # Generated documentation
