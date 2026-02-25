@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -18,6 +17,13 @@ var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
 			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
 			if envURL == "" {
 				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping auth test")
+
+				return
+			}
+
+			// Skip if authentication is required, as this test expects no auth to work
+			if os.Getenv("SHOUTRRR_MQTT_AUTH_REQUIRED") == envValueTrue {
+				ginkgo.Skip("Skipping unauthenticated test when authentication is required")
 
 				return
 			}
@@ -56,31 +62,14 @@ var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
 				return
 			}
 
-			// Add credentials to URL
-			// Parse the URL and add username/password to the host
+			// Add credentials to URL using helper
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Reconstruct URL with credentials
-			host := serviceURL.Host
-			if strings.Contains(host, ":") {
-				// Has port, need to handle differently
-				host = username + ":" + password + "@" + host
-			} else {
-				host = username + ":" + password + "@" + host
-			}
-
-			// Build new URL with credentials
-			newURL := serviceURL.Scheme + "://" + host + serviceURL.Path
-			if serviceURL.RawQuery != "" {
-				newURL += "?" + serviceURL.RawQuery
-			}
-
-			credURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
 			service := &mqtt.Service{}
-			err = service.Initialize(credURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Authenticated message", nil)

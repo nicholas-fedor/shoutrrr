@@ -21,6 +21,9 @@ var _ = ginkgo.Describe("MQTT E2E Basic Test", func() {
 				return
 			}
 
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 

@@ -21,18 +21,17 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 				return
 			}
 
-			// Parse the base URL
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Change topic to single level
-			newURL := serviceURL.Scheme + "://" + serviceURL.Host + "/test/single"
-
-			topicURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			// Change topic to single level by modifying the path
+			serviceURL.Path = "/test/single"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(topicURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Single-level topic", nil)
@@ -50,18 +49,17 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 				return
 			}
 
-			// Parse the base URL
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Change topic to nested levels
-			newURL := serviceURL.Scheme + "://" + serviceURL.Host + "/home/alerts/notifications"
-
-			topicURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			// Change topic to nested levels by modifying the path
+			serviceURL.Path = "/home/alerts/notifications"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(topicURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Nested topic message", nil)
@@ -79,18 +77,17 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 				return
 			}
 
-			// Parse the base URL
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Change topic to multi-level wildcard base
-			newURL := serviceURL.Scheme + "://" + serviceURL.Host + "/sensors/+/temperature"
-
-			topicURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			// Change topic to multi-level wildcard base by modifying the path
+			serviceURL.Path = "/sensors/+/temperature"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(topicURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Wildcard topic base", nil)
@@ -108,18 +105,17 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 				return
 			}
 
-			// Parse the base URL
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Change topic to multi-level wildcard
-			newURL := serviceURL.Scheme + "://" + serviceURL.Host + "/home/#"
-
-			topicURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			// Change topic to multi-level wildcard by modifying the path
+			serviceURL.Path = "/home/#"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(topicURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Multi-level wildcard topic", nil)
@@ -137,18 +133,17 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 				return
 			}
 
-			// Parse the base URL
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Change topic with special characters (encoded)
-			newURL := serviceURL.Scheme + "://" + serviceURL.Host + "/sensor%2Fdevice%231/temperature"
-
-			topicURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			// Change topic with special characters by modifying the path
+			serviceURL.Path = "/sensor%2Fdevice%231/temperature"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(topicURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Topic with special characters", nil)

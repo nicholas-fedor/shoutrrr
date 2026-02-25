@@ -78,6 +78,10 @@ type Service struct {
 	closeOnce sync.Once
 	// closeErr stores any error from the close operation for return on subsequent calls.
 	closeErr error
+	// urlScheme stores the URL scheme from the config URL for scheme detection.
+	// This allows the scheme (mqtt or mqtts) to be used as the primary determinant
+	// for TLS handling, with port as secondary.
+	urlScheme string
 }
 
 // Initialize configures the MQTT service with settings from a URL and sets up logging.
@@ -96,6 +100,11 @@ type Service struct {
 func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	// Set up logging for the service
 	s.SetLogger(logger)
+
+	// Store the URL scheme for use in initClient()
+	// This allows the scheme (mqtt or mqtts) to be used as the primary
+	// determinant for TLS handling
+	s.urlScheme = configURL.Scheme
 
 	// Initialize the configuration struct with default values
 	s.Config = &Config{}
@@ -173,14 +182,35 @@ func (s *Service) initClient() error {
 	// This stores both s.ctx and s.cancel for connection lifecycle management.
 	_ = s.getCancel()
 
-	// Determine the connection scheme based on TLS configuration
-	scheme := Scheme
+	// Determine the connection scheme based on URL scheme and port configuration.
+	// The URL scheme is the primary determinant, with port-based defaults as fallback.
+	// User-specified port overrides the default; scheme determines TLS handling.
+	scheme := s.urlScheme
 	port := s.Config.Port
 
-	// Set secure scheme when TLS is enabled and port matches MQTTS default
-	if !s.Config.DisableTLS && s.Config.Port == s.getDefaultPortForScheme(SecureScheme) {
-		scheme = SecureScheme
+	// Apply default scheme if URL scheme is not set or is invalid
+	if scheme == "" {
+		scheme = Scheme
 	}
+
+	// Apply default port based on scheme if user didn't specify one
+	// Default: 1883 for mqtt, 8883 for mqtts
+	defaultPort := s.getDefaultPortForScheme(scheme)
+	if port == 0 {
+		port = defaultPort
+	}
+
+	// Handle scheme/port mismatches with warnings (but don't change the scheme)
+	if scheme == SecureScheme && !s.Config.DisableTLS && port == defaultMQTTPort {
+		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
+		s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
+	} else if scheme == Scheme && port == defaultMQTTSPort {
+		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
+		s.Logf("Warning: Using MQTT scheme with TLS port %d; TLS will not be used", port)
+	}
+
+	// Enable TLS when using secure scheme and TLS is not disabled
+	useTLS := scheme == SecureScheme && !s.Config.DisableTLS
 
 	// Build the broker URL
 	brokerURL := fmt.Sprintf("%s://%s:%d", scheme, s.Config.Host, port)
@@ -229,8 +259,8 @@ func (s *Service) initClient() error {
 		s.Log("Warning: Password provided without username; skipping password authentication")
 	}
 
-	// Configure TLS only when using the secure scheme and TLS is not disabled
-	if scheme == SecureScheme && !s.Config.DisableTLS {
+	// Configure TLS based on scheme and DisableTLS setting
+	if useTLS {
 		cliCfg.TlsCfg = s.createTLSConfig()
 	}
 

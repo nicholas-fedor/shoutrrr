@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"bufio"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -10,6 +11,59 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
+
+// envValueTrue is the string value for boolean true in environment variables.
+const envValueTrue = "true"
+
+// addCredentialsToURL adds username and password from environment variables to the URL
+// if they are set. Returns the modified URL string.
+func addCredentialsToURL(envURL string) string {
+	username := os.Getenv("SHOUTRRR_MQTT_USERNAME")
+	password := os.Getenv("SHOUTRRR_MQTT_PASSWORD")
+
+	// If either username or password is set, add them to the URL
+	if username != "" || password != "" {
+		serviceURL, err := url.Parse(envURL)
+		if err != nil {
+			return envURL
+		}
+
+		// Build host with credentials
+		host := serviceURL.Host
+
+		if username != "" {
+			if password != "" {
+				host = username + ":" + password + "@" + host
+			} else {
+				host = username + "@" + host
+			}
+		}
+
+		// Reconstruct URL with credentials
+		newURL := serviceURL.Scheme + "://" + host + serviceURL.Path
+		if serviceURL.RawQuery != "" {
+			newURL += "?" + serviceURL.RawQuery
+		}
+
+		return newURL
+	}
+
+	return envURL
+}
+
+// addTLSParam adds TLS skip verify parameter to URL if enabled via environment variable.
+func addTLSParam(rawURL string) string {
+	tlsSkipVerify := os.Getenv("SHOUTRRR_MQTT_TLS_SKIP_VERIFY")
+	if tlsSkipVerify == "true" {
+		if strings.Contains(rawURL, "?") {
+			return rawURL + "&disabletlsverification=yes"
+		}
+
+		return rawURL + "?disabletlsverification=yes"
+	}
+
+	return rawURL
+}
 
 func TestMQTT_E2E(t *testing.T) {
 	// Load .env file if it exists

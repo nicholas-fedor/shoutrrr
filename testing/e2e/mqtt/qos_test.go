@@ -23,6 +23,9 @@ var _ = ginkgo.Describe("MQTT E2E QoS Test", func() {
 				return
 			}
 
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			// Add QoS parameter to URL
 			if strings.Contains(envURL, "?") {
 				envURL += "&qos=0"
@@ -51,6 +54,9 @@ var _ = ginkgo.Describe("MQTT E2E QoS Test", func() {
 
 				return
 			}
+
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
 
 			// Add QoS parameter to URL
 			if strings.Contains(envURL, "?") {
@@ -81,6 +87,9 @@ var _ = ginkgo.Describe("MQTT E2E QoS Test", func() {
 				return
 			}
 
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
+
 			// Add QoS parameter to URL
 			if strings.Contains(envURL, "?") {
 				envURL += "&qos=2"
@@ -109,6 +118,9 @@ var _ = ginkgo.Describe("MQTT E2E QoS Test", func() {
 
 				return
 			}
+
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
 
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

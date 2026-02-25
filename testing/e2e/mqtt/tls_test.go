@@ -12,25 +12,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 )
 
-// envValueTrue is the string value for boolean true in environment variables.
-const envValueTrue = "true"
-
 var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 	ginkgo.When("testing TLS connections", func() {
-		// Helper function to add TLS skip verify parameter to URL if enabled
-		addTLSParam := func(rawURL string) string {
-			tlsSkipVerify := os.Getenv("SHOUTRRR_MQTT_TLS_SKIP_VERIFY")
-			if tlsSkipVerify == envValueTrue {
-				if strings.Contains(rawURL, "?") {
-					return rawURL + "&disabletlsverification=yes"
-				}
-
-				return rawURL + "?disabletlsverification=yes"
-			}
-
-			return rawURL
-		}
-
 		ginkgo.It("should connect using mqtts:// scheme", func() {
 			envURL := os.Getenv("SHOUTRRR_MQTT_TLS_URL")
 			if envURL == "" {
@@ -47,6 +30,9 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 				// Replace mqtt:// with mqtts://
 				envURL = strings.Replace(envURL, "mqtt://", "mqtts://", 1)
 			}
+
+			// Add credentials from environment variables if set
+			envURL = addCredentialsToURL(envURL)
 
 			// Add TLS skip verify param if enabled (for self-signed certificates)
 			envURL = addTLSParam(envURL)
@@ -84,6 +70,9 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 			// Build new URL
 			newURL := scheme + "://" + serviceURL.Hostname() + ":" + port + serviceURL.Path
 
+			// Add credentials from environment variables if set
+			newURL = addCredentialsToURL(newURL)
+
 			// Add TLS skip verify param if enabled
 			newURL = addTLSParam(newURL)
 
@@ -113,14 +102,6 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 				return
 			}
 
-			// Skip this test if TLS verification is disabled
-			// When TLS verification is skipped, the connection may succeed even on non-TLS port
-			if os.Getenv("SHOUTRRR_MQTT_TLS_SKIP_VERIFY") == envValueTrue {
-				ginkgo.Skip("Skipping TLS port mismatch test when TLS verification is disabled")
-
-				return
-			}
-
 			// Parse the URL and change the scheme to mqtts
 			serviceURL, err := url.Parse(envURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -132,7 +113,8 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 
 			newURL := scheme + "://" + serviceURL.Hostname() + ":" + port + serviceURL.Path
 
-			// Add TLS skip verify param if enabled
+			// Add credentials and TLS skip verify param
+			newURL = addCredentialsToURL(newURL)
 			newURL = addTLSParam(newURL)
 
 			if serviceURL.RawQuery != "" {
