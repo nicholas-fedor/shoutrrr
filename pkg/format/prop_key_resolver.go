@@ -59,9 +59,27 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	}
 }
 
-// QueryFields returns a list of tagged keys.
-func (pkr *PropKeyResolver) QueryFields() []string {
-	return pkr.keys
+// GetConfigQueryResolver returns the ConfigQueryResolver interface for the config if it implements it,
+// otherwise it creates and returns a PropKeyResolver that implements it.
+func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolver {
+	var resolver types.ConfigQueryResolver
+
+	var ok bool
+	if resolver, ok = config.(types.ConfigQueryResolver); !ok {
+		pkr := NewPropKeyResolver(config)
+		resolver = &pkr
+	}
+
+	return resolver
+}
+
+// Bind creates a new instance of the PropKeyResolver with the internal config reference
+// set to the provided config. This should only be used for configs of the same type.
+func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
+	bound := *pkr
+	bound.confValue = configValue(config)
+
+	return bound
 }
 
 // Get returns the value of a config property tagged with the corresponding key.
@@ -73,23 +91,40 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 	return "", fmt.Errorf("%w: %v", ErrInvalidConfigKey, key)
 }
 
+// IsDefault returns whether the specified key value is the default value.
+func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
+	return pkr.keyFields[key].DefaultValue == value
+}
+
+// KeyIsPrimary returns whether the key is the primary (and not an alias).
+func (pkr *PropKeyResolver) KeyIsPrimary(key string) bool {
+	return pkr.keyFields[key].Keys[0] == key
+}
+
+// QueryFields returns a list of tagged keys.
+func (pkr *PropKeyResolver) QueryFields() []string {
+	return pkr.keys
+}
+
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
 func (pkr *PropKeyResolver) Set(key, value string) error {
 	return pkr.set(pkr.confValue, key, value)
 }
 
-// set sets the value of a target struct tagged with the corresponding key.
-func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
-	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
-		valid, err := SetConfigField(target, field, value)
-		if !valid && err == nil {
-			return ErrInvalidValueForType
-		}
+// SetDefaultProps mutates the provided config, setting the tagged fields with their default values.
+// If the provided config is nil, the internal config will be updated instead.
+// The error returned is the first error that occurred; subsequent errors are discarded.
+func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
+	var firstError error
 
-		return err
+	confValue := pkr.configValueOrInternal(config)
+	for key, info := range pkr.keyFields {
+		if err := pkr.set(confValue, key, info.DefaultValue); err != nil && firstError == nil {
+			firstError = err
+		}
 	}
 
-	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
+	return firstError
 }
 
 // UpdateConfigFromParams mutates the provided config, updating the values from its corresponding params.
@@ -114,50 +149,7 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	return firstError
 }
 
-// SetDefaultProps mutates the provided config, setting the tagged fields with their default values.
-// If the provided config is nil, the internal config will be updated instead.
-// The error returned is the first error that occurred; subsequent errors are discarded.
-func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
-	var firstError error
-
-	confValue := pkr.configValueOrInternal(config)
-	for key, info := range pkr.keyFields {
-		if err := pkr.set(confValue, key, info.DefaultValue); err != nil && firstError == nil {
-			firstError = err
-		}
-	}
-
-	return firstError
-}
-
-// Bind creates a new instance of the PropKeyResolver with the internal config reference
-// set to the provided config. This should only be used for configs of the same type.
-func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
-	bound := *pkr
-	bound.confValue = configValue(config)
-
-	return bound
-}
-
-// GetConfigQueryResolver returns the ConfigQueryResolver interface for the config if it implements it,
-// otherwise it creates and returns a PropKeyResolver that implements it.
-func GetConfigQueryResolver(config types.ServiceConfig) types.ConfigQueryResolver {
-	var resolver types.ConfigQueryResolver
-
-	var ok bool
-	if resolver, ok = config.(types.ConfigQueryResolver); !ok {
-		pkr := NewPropKeyResolver(config)
-		resolver = &pkr
-	}
-
-	return resolver
-}
-
-// KeyIsPrimary returns whether the key is the primary (and not an alias).
-func (pkr *PropKeyResolver) KeyIsPrimary(key string) bool {
-	return pkr.keyFields[key].Keys[0] == key
-}
-
+// configValueOrInternal returns the reflect.Value of the config, or the internal config if config is nil.
 func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) reflect.Value {
 	if config != nil {
 		return configValue(config)
@@ -166,11 +158,21 @@ func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) re
 	return pkr.confValue
 }
 
-func configValue(config types.ServiceConfig) reflect.Value {
-	return reflect.Indirect(reflect.ValueOf(config))
+// set sets the value of a target struct tagged with the corresponding key.
+func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
+	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
+		valid, err := SetConfigField(target, field, value)
+		if !valid && err == nil {
+			return ErrInvalidValueForType
+		}
+
+		return err
+	}
+
+	return fmt.Errorf("%w: %v (valid keys: %v)", ErrInvalidConfigKey, key, pkr.keys)
 }
 
-// IsDefault returns whether the specified key value is the default value.
-func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
-	return pkr.keyFields[key].DefaultValue == value
+// configValue returns the indirect reflect.Value of the config.
+func configValue(config types.ServiceConfig) reflect.Value {
+	return reflect.Indirect(reflect.ValueOf(config))
 }
