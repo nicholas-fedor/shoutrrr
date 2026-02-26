@@ -1,3 +1,4 @@
+// Package generate provides the CLI command for generating notification service URLs.
 package generate
 
 import (
@@ -35,17 +36,6 @@ var Cmd = &cobra.Command{
 	Args:   cobra.MaximumNArgs(MaximumNArgs),
 }
 
-// loadArgsFromAltSources populates command flags from positional arguments if provided.
-func loadArgsFromAltSources(cmd *cobra.Command, args []string) {
-	if len(args) > 0 {
-		_ = cmd.Flags().Set("service", args[0])
-	}
-
-	if len(args) > 1 {
-		_ = cmd.Flags().Set("generator", args[1])
-	}
-}
-
 // init initializes the command flags for the generate command.
 func init() {
 	serviceRouter = router.ServiceRouter{}
@@ -58,6 +48,17 @@ func init() {
 		StringArrayP("property", "p", []string{}, "Configuration property in key=value format (e.g., token=abc123)")
 	Cmd.Flags().
 		BoolP("show-sensitive", "x", false, "Show sensitive data in the generated URL (default: masked)")
+}
+
+// loadArgsFromAltSources populates command flags from positional arguments if provided.
+func loadArgsFromAltSources(cmd *cobra.Command, args []string) {
+	if len(args) > 0 {
+		_ = cmd.Flags().Set("service", args[0])
+	}
+
+	if len(args) > 1 {
+		_ = cmd.Flags().Set("generator", args[1])
+	}
 }
 
 // maskSensitiveURL masks sensitive parts of a Shoutrrr URL based on the service schema.
