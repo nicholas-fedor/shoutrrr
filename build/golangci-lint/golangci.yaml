@@ -183,6 +183,17 @@ linters:
       # Default: false (var statements are not ignored)
       disable-var-dec-num-check: false
     ####################################################################################################
+    funcorder:
+      # Checks that constructors are placed after the structure declaration.
+      # Default: true
+      constructor: true
+      # Checks if the exported methods of a structure are placed before the non-exported ones.
+      # Default: true
+      struct-method: true
+      # Checks if the constructors and/or structure methods are sorted alphabetically.
+      # Default: false
+      alphabetical: true
+    ####################################################################################################
     revive:
       enable-all-rules: false
       # Configure rules
