@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-shoutrrr
+/bin/shoutrrr
 *.snap
 
 # Test binaries and coverage
