@@ -1,3 +1,21 @@
+// Package shoutrrr provides a simple API for sending notifications to various services.
+//
+// The package supports multiple notification services including Slack, Discord,
+// Telegram, and many others. Notifications are sent using service-specific URLs
+// that contain all necessary configuration and authentication details.
+//
+// Basic usage:
+//
+//	if err := shoutrrr.Send("slack://webhook/...", "Hello, World!"); err != nil {
+//		// handle error
+//	}
+//
+// For more complex scenarios, create a sender with multiple service URLs:
+//
+//	sender, err := shoutrrr.CreateSender("slack://webhook/...", "discord://webhook/...")
+//
+// The package uses a default router, but you can also create custom routers
+// using router.New for more control over the notification pipeline.
 package shoutrrr
 
 import (
