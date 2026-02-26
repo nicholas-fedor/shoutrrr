@@ -22,6 +22,7 @@ const TruncatedSummaryLen = 21
 // Service sends notifications to Microsoft Teams.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

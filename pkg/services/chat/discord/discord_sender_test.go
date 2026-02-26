@@ -68,8 +68,10 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 	})
 
 	ginkgo.Describe("JSONRequestPreparer.PrepareRequest", func() {
-		var preparer *JSONRequestPreparer
-		var payload []byte
+		var (
+			preparer *JSONRequestPreparer
+			payload  []byte
+		)
 
 		ginkgo.BeforeEach(func() {
 			payload = []byte(`{"content":"test message"}`)
@@ -151,6 +153,7 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			req, err := preparer.PrepareRequest(ctx, url)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 			body, _ := io.ReadAll(req.Body)
 			bodyStr := string(body)
 			gomega.Expect(bodyStr).To(gomega.ContainSubstring("payload_json"))
@@ -159,9 +162,11 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 	})
 
 	ginkgo.Describe("sendWithRetry", func() {
-		var mockClient *mockHTTPClient
-		var preparer *JSONRequestPreparer
-		var sleeper *mockSleeper
+		var (
+			mockClient *mockHTTPClient
+			preparer   *JSONRequestPreparer
+			sleeper    *mockSleeper
+		)
 
 		ginkgo.BeforeEach(func() {
 			mockClient = &mockHTTPClient{}

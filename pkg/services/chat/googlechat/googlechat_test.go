@@ -31,7 +31,9 @@ var (
 	_                = ginkgo.BeforeSuite(func() {
 		service = &googlechat.Service{}
 		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+
 		var err error
+
 		envGooglechatURL, err = url.Parse(os.Getenv("SHOUTRRR_GOOGLECHAT_URL"))
 		if err != nil {
 			envGooglechatURL = &url.URL{} // Default to empty URL if parsing fails
@@ -47,6 +49,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 
 				return
 			}
+
 			serviceURL := testutils.URLMust(envGooglechatURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -108,6 +111,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 	ginkgo.Describe("sending the payload", func() {
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
+
 			service = &googlechat.Service{}
 			service.SetLogger(logger)
 		})
@@ -126,6 +130,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -140,6 +145,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
 					httpmock.NewStringResponder(400, "Bad Request"),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
@@ -160,6 +166,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 						return httpmock.NewStringResponse(200, ""), nil
 					},
 				)
+
 				err = service.Send("Test Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -180,6 +187,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 						return httpmock.NewStringResponse(200, ""), nil
 					},
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -196,6 +204,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				err = service.Send("Valid Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -210,6 +219,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
 					httpmock.NewErrorResponder(errors.New("network failure")),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.MatchError(
 					"sending notification to Google Chat: Post \"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz\": network failure",

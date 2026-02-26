@@ -24,6 +24,7 @@ var ErrNotificationFailed = errors.New("notification failed")
 // Service sends notifications to a pre-configured Rocket.Chat channel or user.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	Client *http.Client
 }

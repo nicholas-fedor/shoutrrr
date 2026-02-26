@@ -28,6 +28,7 @@ const (
 // Service provides PagerDuty as a notification service.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient *http.Client

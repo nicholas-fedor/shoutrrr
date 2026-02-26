@@ -25,6 +25,7 @@ var ErrSendFailed = errors.New("failed to send notification to join devices")
 // Service sends notifications to Join devices.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

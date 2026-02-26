@@ -34,6 +34,7 @@ var hostValidator = regexp.MustCompile(
 // Service sends notifications to a pre-configured Zulip channel or user.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 }
 

@@ -102,6 +102,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 
 				serviceURL, err := service.GetConfigURLFromCustom(customURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
+
 				expectedURL := testURLBase + "?color=f008c1&host=test.webhook.office.com&title=TheTitle"
 				gomega.Expect(serviceURL.String()).To(gomega.Equal(expectedURL))
 			})
@@ -109,8 +110,11 @@ var _ = ginkgo.Describe("the teams service", func() {
 	})
 
 	ginkgo.Describe("sending the payload", func() {
-		var err error
-		var service Service
+		var (
+			err     error
+			service Service
+		)
+
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 		})
@@ -127,6 +131,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				scopedWebhookURL,
 				httpmock.NewStringResponder(200, ""),
 			)
+
 			err = service.Send("Message", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -140,6 +145,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				scopedWebhookURL,
 				httpmock.NewErrorResponder(errors.New("dummy error")),
 			)
+
 			err = service.Send("Message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})

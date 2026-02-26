@@ -22,6 +22,7 @@ var (
 // Config for the zulip service.
 type Config struct {
 	standard.EnumlessConfig
+
 	BotMail string `desc:"Bot e-mail address"  url:"user"`
 	BotKey  string `desc:"API Key"             url:"pass"`
 	Host    string `desc:"API server hostname" url:"host,port"`

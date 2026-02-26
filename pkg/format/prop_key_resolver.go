@@ -74,12 +74,12 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 }
 
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
-func (pkr *PropKeyResolver) Set(key string, value string) error {
+func (pkr *PropKeyResolver) Set(key, value string) error {
 	return pkr.set(pkr.confValue, key, value)
 }
 
 // set sets the value of a target struct tagged with the corresponding key.
-func (pkr *PropKeyResolver) set(target reflect.Value, key string, value string) error {
+func (pkr *PropKeyResolver) set(target reflect.Value, key, value string) error {
 	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
 		valid, err := SetConfigField(target, field, value)
 		if !valid && err == nil {
@@ -171,6 +171,6 @@ func configValue(config types.ServiceConfig) reflect.Value {
 }
 
 // IsDefault returns whether the specified key value is the default value.
-func (pkr *PropKeyResolver) IsDefault(key string, value string) bool {
+func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 	return pkr.keyFields[key].DefaultValue == value
 }

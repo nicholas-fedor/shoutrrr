@@ -17,6 +17,6 @@ type ServiceConfig interface {
 // ConfigQueryResolver is the interface used to get/set and list service config query fields.
 type ConfigQueryResolver interface {
 	Get(key string) (value string, err error)
-	Set(key string, value string) error
+	Set(key, value string) error
 	QueryFields() []string
 }

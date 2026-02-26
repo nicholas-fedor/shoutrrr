@@ -50,6 +50,7 @@ var httpClient = &http.Client{Timeout: defaultTime}
 // Service sends notifications to Lark.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

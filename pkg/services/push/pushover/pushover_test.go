@@ -42,6 +42,7 @@ var _ = ginkgo.Describe("the pushover service", func() {
 			if envPushoverURL.String() == "" {
 				return
 			}
+
 			serviceURL, _ := url.Parse(envPushoverURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -183,7 +184,7 @@ var _ = ginkgo.Describe("the pushover config", func() {
 	})
 })
 
-func createURL(username string, token string) *url.URL {
+func createURL(username, token string) *url.URL {
 	return &url.URL{
 		User: url.UserPassword("Token", token),
 		Host: username,

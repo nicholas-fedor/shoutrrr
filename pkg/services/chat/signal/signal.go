@@ -29,6 +29,7 @@ var (
 // Service sends notifications to Signal recipients via signal-cli-rest-api.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

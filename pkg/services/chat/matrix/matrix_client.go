@@ -72,7 +72,7 @@ func (c *client) useToken(token string) {
 }
 
 // login authenticates the client using a username and password.
-func (c *client) login(user string, password string) error {
+func (c *client) login(user, password string) error {
 	c.apiURL.RawQuery = ""
 	defer c.updateAccessToken()
 
@@ -96,7 +96,7 @@ func (c *client) login(user string, password string) error {
 }
 
 // loginPassword performs a password-based login to the Matrix server.
-func (c *client) loginPassword(user string, password string) error {
+func (c *client) loginPassword(user, password string) error {
 	response := apiResLogin{}
 	if err := c.apiPost(apiLogin, apiReqLogin{
 		Type:       flowLoginPassword,
@@ -192,7 +192,7 @@ func (c *client) joinRoom(room string) (string, error) {
 }
 
 // sendMessageToRoom sends a message to a specific room.
-func (c *client) sendMessageToRoom(message string, roomID string) error {
+func (c *client) sendMessageToRoom(message, roomID string) error {
 	resEvent := apiResEvent{}
 
 	return c.apiPost(fmt.Sprintf(apiSendMessage, roomID), apiReqSend{
@@ -242,7 +242,7 @@ func (c *client) apiGet(path string, response any) error {
 }
 
 // apiPost performs a POST request to the Matrix API.
-func (c *client) apiPost(path string, request any, response any) error {
+func (c *client) apiPost(path string, request, response any) error {
 	c.apiURL.Path = path
 
 	body, err := json.Marshal(request)

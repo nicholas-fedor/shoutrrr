@@ -24,6 +24,7 @@ const (
 // Config represents the configuration for the Teams service.
 type Config struct {
 	standard.EnumlessConfig
+
 	Group      string `optional:"" url:"user"`
 	Tenant     string `optional:"" url:"host"`
 	AltID      string `optional:"" url:"path1"`

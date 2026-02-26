@@ -22,6 +22,7 @@ func TestMatrix(t *testing.T) {
 
 var _ = ginkgo.Describe("the matrix service", func() {
 	var service *Service
+
 	logger := log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
 	envMatrixURL := os.Getenv("SHOUTRRR_MATRIX_URL")
 
@@ -40,6 +41,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 			if envMatrixURL == "" {
 				return
 			}
+
 			serviceURL, err := url.Parse(envMatrixURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Initialize(serviceURL, logger)
@@ -88,9 +90,11 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				testURL := "matrix://user:pass@mockserver?rooms=%23room1%2C%23room2"
 				url, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
+
 				config := &Config{}
 				err = config.SetURL(url)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
+
 				outputURL := config.GetURL()
 				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
 			})
@@ -109,6 +113,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 63-65: login (successful initialization)
 				// - 76-87: loginPassword (successful login flow)
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				gomega.Expect(service.Initialize(serviceURL, nil)).To(gomega.Succeed())
 			})
@@ -125,6 +130,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 156-173: sendMessageToRoom (successful send)
 				// - 225-242: getJoinedRooms (fetches room list)
 				setupMockResponders()
+
 				serviceURL, _ := url.Parse("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -144,6 +150,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 177-192: joinRoom (joins rooms successfully)
 				// - 156-173: sendMessageToRoom (successful send)
 				setupMockResponders()
+
 				serviceURL, _ := url.Parse("matrix://user:pass@mockserver?rooms=room1,room2")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -161,6 +168,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 					// - 177-192: joinRoom (fails for "secret" room)
 					// - 156-173: sendMessageToRoom (succeeds for "room2")
 					setupMockResponders()
+
 					serviceURL, _ := url.Parse("matrix://user:pass@mockserver?rooms=secret,room2")
 					err := service.Initialize(serviceURL, logger)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -177,6 +185,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 63-65: login (successful initialization over HTTP)
 				// - 76-87: loginPassword (successful login flow)
 				setupMockRespondersHTTP()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver?disableTLS=yes")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -191,6 +200,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 63-69: login (specifically line 69: return fmt.Errorf("failed to get login flows: %w", err))
 				// - 175-223: apiGet (returns error due to 500 response)
 				setupMockRespondersLoginFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -205,6 +215,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 63-87: login (specifically line 84: return fmt.Errorf("none of the server login flows are supported: %v", strings.Join(flows, ", ")))
 				// - 175-223: apiGet (successful GET with unsupported flows)
 				setupMockRespondersUnsupportedFlows()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -220,6 +231,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 59-60: useToken (sets token and calls updateAccessToken)
 				// - 244-248: updateAccessToken (updates URL query with token)
 				setupMockResponders() // Minimal mocks for initialization
+
 				serviceURL := testutils.URLMust("matrix://:token@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -238,6 +250,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 134-154: sendToJoinedRooms (specifically lines 137 and 154: error handling for getJoinedRooms failure)
 				// - 225-267: getJoinedRooms (specifically line 267: return []string{}, err)
 				setupMockRespondersJoinedRoomsFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -258,6 +271,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 177-192: joinRoom (specifically line 188: return "", err on failure)
 				// - 156-173: sendMessageToRoom (succeeds for second room)
 				setupMockRespondersJoinFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver?rooms=secret,room2")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -275,6 +289,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 76-87: loginPassword (successful login flow)
 				// - 195-252: apiPost (specifically line 208: body, err = json.Marshal(request) fails)
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -296,6 +311,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 156-173: sendMessageToRoom (calls apiPost)
 				// - 195-252: apiPost (specifically lines 204, 223, 230: res handling and body read failure)
 				setupMockRespondersBodyFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -317,6 +333,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 177-192: joinRoom (joins rooms successfully)
 				// - 156-173: sendMessageToRoom (successful send)
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver?rooms=room1")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -336,6 +353,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 156-173: sendMessageToRoom (successful send)
 				// - 225-242: getJoinedRooms (fetches room list)
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -354,6 +372,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 134-154: sendToJoinedRooms (specifically line 137: errors = append(errors, fmt.Errorf("failed to get joined rooms: %w", err)))
 				// - 225-267: getJoinedRooms (returns error)
 				setupMockRespondersJoinedRoomsFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -373,6 +392,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 112-133: sendToExplicitRooms (calls joinRoom)
 				// - 177-192: joinRoom (specifically line 188: return "", err)
 				setupMockRespondersJoinFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver?rooms=secret")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -390,6 +410,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 76-87: loginPassword (successful login flow)
 				// - 195-252: apiPost (specifically line 204: var res *http.Response and error handling)
 				setupMockRespondersPostFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -411,6 +432,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 76-87: loginPassword (successful login flow)
 				// - 195-252: apiPost (specifically line 208: body, err = json.Marshal(request))
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -428,6 +450,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 59-60: useToken (calls updateAccessToken)
 				// - 244-248: updateAccessToken (specifically line 244: query := c.apiURL.Query())
 				setupMockResponders()
+
 				serviceURL := testutils.URLMust("matrix://:token@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -449,6 +472,7 @@ var _ = ginkgo.Describe("the matrix service", func() {
 				// - 156-173: sendMessageToRoom (calls apiPost)
 				// - 195-252: apiPost (specifically line 251: if err != nil { after io.ReadAll)
 				setupMockRespondersBodyFail()
+
 				serviceURL := testutils.URLMust("matrix://user:pass@mockserver")
 				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())

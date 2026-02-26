@@ -20,6 +20,7 @@ const (
 // Config holds settings for the Notifiarr notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	// The API key for Notifiarr authentication
 	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true"`
 	// Optional name of the app/script for notifications

@@ -2,6 +2,7 @@ package format
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,13 +36,7 @@ func (fi *FieldInfo) IsEnum() bool {
 
 // IsURLPart returns whether the field is serialized as the specified part of an URL.
 func (fi *FieldInfo) IsURLPart(part URLPart) bool {
-	for _, up := range fi.URLParts {
-		if up == part {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(fi.URLParts, part)
 }
 
 func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumFormatter) []FieldInfo {

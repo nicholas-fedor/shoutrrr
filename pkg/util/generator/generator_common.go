@@ -175,7 +175,7 @@ func (ud *UserDialog) QueryStringPattern(
 }
 
 // QueryInt prompts the user and returns the answer as an integer if parseable.
-func (ud *UserDialog) QueryInt(prompt string, key string, bitSize int) int64 {
+func (ud *UserDialog) QueryInt(prompt, key string, bitSize int) int64 {
 	validator := regexp.MustCompile(`^((0x|#)([0-9a-fA-F]+))|(-?[0-9]+)$`)
 
 	var value int64
@@ -209,7 +209,7 @@ func (ud *UserDialog) QueryInt(prompt string, key string, bitSize int) int64 {
 }
 
 // QueryBool prompts the user and returns the answer as a boolean if parseable.
-func (ud *UserDialog) QueryBool(prompt string, key string) bool {
+func (ud *UserDialog) QueryBool(prompt, key string) bool {
 	var value bool
 
 	ud.QueryString(prompt, func(answer string) error {

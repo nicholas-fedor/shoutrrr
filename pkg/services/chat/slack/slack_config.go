@@ -17,6 +17,7 @@ const (
 // Config for the slack service.
 type Config struct {
 	standard.EnumlessConfig
+
 	BotName  string `desc:"Bot name"                                                            key:"botname,username"         optional:"uses bot default"`
 	Icon     string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)"   key:"icon,icon_emoji,icon_url" optional:""                     default:""`
 	Token    Token  `desc:"API Bot token"                                                                                                                                 url:"user,pass"`

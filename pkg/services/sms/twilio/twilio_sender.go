@@ -31,7 +31,7 @@ func DefaultHTTPClient() HTTPClient {
 }
 
 // sendToRecipient sends an SMS message to a single recipient via the Twilio API.
-func (service *Service) sendToRecipient(config *Config, toNumber string, message string) error {
+func (service *Service) sendToRecipient(config *Config, toNumber, message string) error {
 	body := message
 	if config.Title != "" {
 		body = config.Title + "\n" + message

@@ -28,6 +28,7 @@ var ErrSendFailed = errors.New("failed to send notification to pushover device")
 // Service provides the Pushover notification service.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 	Client *http.Client
@@ -49,7 +50,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // sendToDevice sends a notification to a specific Pushover device.
-func (service *Service) sendToDevice(device string, message string, config *Config) error {
+func (service *Service) sendToDevice(device, message string, config *Config) error {
 	data := url.Values{}
 	data.Set("device", device)
 	data.Set("user", config.User)

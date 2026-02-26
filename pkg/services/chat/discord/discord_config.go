@@ -16,6 +16,7 @@ const Scheme = "discord"
 // Config holds the settings required for sending Discord notifications.
 type Config struct {
 	standard.EnumlessConfig
+
 	WebhookID  string `url:"host"`
 	Token      string `url:"user"`
 	Title      string `           default:""         key:"title"`

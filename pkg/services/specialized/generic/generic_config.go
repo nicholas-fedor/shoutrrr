@@ -18,6 +18,7 @@ const (
 // Config holds settings for the generic notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	// The webhook URL to send notifications to
 	webhookURL *url.URL
 	// Custom HTTP headers to include in requests

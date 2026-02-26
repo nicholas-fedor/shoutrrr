@@ -17,7 +17,7 @@ func SetLogger(logger types.StdLogger) {
 }
 
 // Send delivers a notification message using the specified URL.
-func Send(rawURL string, message string) error {
+func Send(rawURL, message string) error {
 	service, err := defaultRouter.Locate(rawURL)
 	if err != nil {
 		return fmt.Errorf("locating service for URL %q: %w", rawURL, err)

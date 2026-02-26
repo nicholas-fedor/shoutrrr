@@ -27,6 +27,7 @@ var (
 // Config for the Rocket.Chat service.
 type Config struct {
 	standard.EnumlessConfig
+
 	UserName string `optional:"" url:"user"`
 	Host     string `            url:"host"`
 	Port     string `            url:"port"`

@@ -19,6 +19,7 @@ var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http s
 // Service implements a Google Chat notification service.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 }
 

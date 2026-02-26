@@ -44,6 +44,7 @@ var (
 type Service struct {
 	standard.Standard
 	standard.Templater
+
 	Config            *Config
 	multipartBoundary string
 	propKeyResolver   format.PropKeyResolver
@@ -315,7 +316,7 @@ func (service *Service) sendToRecipient(
 }
 
 // getHeaders constructs email headers for the SMTP message.
-func (service *Service) getHeaders(toAddress string, subject string) map[string]string {
+func (service *Service) getHeaders(toAddress, subject string) map[string]string {
 	conf := service.Config
 
 	var contentType string
@@ -396,7 +397,7 @@ func (service *Service) writeMessagePart(
 }
 
 // writeMultipartHeader writes a multipart boundary header to the provided writer.
-func writeMultipartHeader(writeCloser io.WriteCloser, boundary string, contentType string) error {
+func writeMultipartHeader(writeCloser io.WriteCloser, boundary, contentType string) error {
 	suffix := "\n"
 	if len(contentType) < 1 {
 		suffix = "--"

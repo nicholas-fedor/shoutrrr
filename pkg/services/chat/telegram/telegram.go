@@ -24,6 +24,7 @@ var (
 // Service sends notifications to configured Telegram chats.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }
@@ -80,7 +81,7 @@ func (service *Service) GetConfig() *Config {
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.
-func sendMessageToAPI(message string, chat string, config *Config) error {
+func sendMessageToAPI(message, chat string, config *Config) error {
 	client := &Client{token: config.Token}
 	payload := createSendMessagePayload(message, chat, config)
 	_, err := client.SendMessage(&payload)

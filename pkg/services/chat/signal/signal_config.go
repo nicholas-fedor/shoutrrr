@@ -38,6 +38,7 @@ var (
 // Config holds settings for the Signal notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	Host       string   `default:"localhost" desc:"Signal REST API server hostname or IP"      key:"host"`
 	Port       int      `default:"8080"      desc:"Signal REST API server port"                key:"port"`
 	User       string   `                    desc:"Username for HTTP Basic Auth"               key:"user"`

@@ -88,13 +88,13 @@ var _ = ginkgo.Describe("the util package", func() {
 
 	ginkgo.When("checking if a supplied kind is numeric", func() {
 		ginkgo.It("should be true if supplied a constant integer", func() {
-			gomega.Expect(util.IsNumeric(reflect.TypeOf(5).Kind())).To(gomega.BeTrue())
+			gomega.Expect(util.IsNumeric(reflect.TypeFor[int]().Kind())).To(gomega.BeTrue())
 		})
 		ginkgo.It("should be true if supplied a constant float", func() {
-			gomega.Expect(util.IsNumeric(reflect.TypeOf(2.5).Kind())).To(gomega.BeTrue())
+			gomega.Expect(util.IsNumeric(reflect.TypeFor[float64]().Kind())).To(gomega.BeTrue())
 		})
 		ginkgo.It("should be false if supplied a constant string", func() {
-			gomega.Expect(util.IsNumeric(reflect.TypeOf("3").Kind())).To(gomega.BeFalse())
+			gomega.Expect(util.IsNumeric(reflect.TypeFor[string]().Kind())).To(gomega.BeFalse())
 		})
 	})
 

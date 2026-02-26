@@ -23,6 +23,7 @@ var ErrTokenIncorrectSize = errors.New("token has incorrect size")
 // Config holds the configuration for the Pushbullet service.
 type Config struct {
 	standard.EnumlessConfig
+
 	Targets []string `url:"path"`
 	Token   string   `url:"host"`
 	Title   string   `           default:"Shoutrrr notification" key:"title"`

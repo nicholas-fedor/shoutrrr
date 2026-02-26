@@ -21,6 +21,7 @@ var (
 
 type Config struct {
 	standard.EnumlessConfig
+
 	Host  string `default:"chat.googleapis.com"`
 	Path  string
 	Token string

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,6 +32,7 @@ var (
 // Service implements a generic notification service for custom webhooks.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }
@@ -173,10 +175,8 @@ func (service *Service) GetPayload(config *Config, params types.Params) (io.Read
 		return bytes.NewBufferString(params[config.MessageKey]), nil
 	case "json", JSONTemplate:
 		// JSON template, marshal params to JSON
-		for key, value := range config.extraData {
-			// Add extra data to params
-			params[key] = value
-		}
+		// Add extra data to params
+		maps.Copy(params, config.extraData)
 
 		// Marshal to JSON
 		jsonBytes, err := json.Marshal(params)

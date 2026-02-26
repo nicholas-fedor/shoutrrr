@@ -22,6 +22,7 @@ var ErrSetQueryFailed = errors.New("failed to set query parameter")
 // Config holds configuration settings for the Bark service.
 type Config struct {
 	standard.EnumlessConfig
+
 	Title     string `default:""      desc:"Notification title, optionally set by the sender"           key:"title"`
 	Host      string `                desc:"Server hostname and port"                                                  url:"host"`
 	Path      string `default:"/"     desc:"Server path"                                                               url:"path"`

@@ -17,6 +17,7 @@ var _ = ginkgo.Describe("Partition Message", func() {
 		TotalChunkSize: 6000,
 		ChunkCount:     10,
 	}
+
 	ginkgo.When("given a message that exceeds the max length", func() {
 		ginkgo.When("not splitting by lines", func() {
 			ginkgo.It("should return a payload with chunked messages", func() {
@@ -58,12 +59,13 @@ var _ = ginkgo.Describe("Partition Message", func() {
 						TotalChunkSize: 5631,
 					}
 
-					testString := ""
+					var testString strings.Builder
 					for inputLen := 1; inputLen < 8000; inputLen++ {
 						// add a rune to the string using a repeatable pattern (single digit hex of position)
-						testString += strconv.FormatInt(int64(inputLen%16), 16)
-						items, omitted := PartitionMessage(testString, unalignedLimits, 7)
+						testString.WriteString(strconv.FormatInt(int64(inputLen%16), 16))
+						items, omitted := PartitionMessage(testString.String(), unalignedLimits, 7)
 						included := 0
+
 						for ii, item := range items {
 							expectedSize := unalignedLimits.ChunkSize
 
@@ -100,6 +102,7 @@ var _ = ginkgo.Describe("Partition Message", func() {
 							included += len(item.Text)
 							gomega.Expect(item.Text).To(gomega.HaveLen(expectedSize))
 						}
+
 						gomega.Expect(omitted + included).To(gomega.Equal(inputLen))
 					}
 				})

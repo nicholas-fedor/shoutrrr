@@ -58,6 +58,7 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			if envZulipURL.String() == "" {
 				return
 			}
+
 			serviceURL, _ := url.Parse(envZulipURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -182,8 +183,11 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			params := &types.Params{"stream": "newstream"}
+
 			httpmock.Activate()
+
 			defer httpmock.DeactivateAndReset()
+
 			apiURL := service.getAPIURL(&Config{
 				BotMail: "bot-name@zulipchat.com",
 				BotKey:  "correcthorsebatterystable",
@@ -195,6 +199,7 @@ var _ = ginkgo.Describe("the zulip service", func() {
 				apiURL,
 				httpmock.NewStringResponder(http.StatusOK, ""),
 			)
+
 			err = service.Send("test message", params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -210,8 +215,11 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			params := &types.Params{"topic": "newtopic"}
+
 			httpmock.Activate()
+
 			defer httpmock.DeactivateAndReset()
+
 			config := &Config{
 				BotMail: "bot-name@zulipchat.com",
 				BotKey:  "correcthorsebatterystable",
@@ -229,6 +237,7 @@ var _ = ginkgo.Describe("the zulip service", func() {
 					return httpmock.NewStringResponse(http.StatusOK, ""), nil
 				},
 			)
+
 			err = service.Send("test message", params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -244,13 +253,16 @@ var _ = ginkgo.Describe("the zulip service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.Activate()
+
 			defer httpmock.DeactivateAndReset()
+
 			apiURL := service.getAPIURL(service.Config)
 			httpmock.RegisterResponder(
 				"POST",
 				apiURL,
 				httpmock.NewStringResponder(http.StatusBadRequest, "Bad Request"),
 			)
+
 			err = service.Send("test message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring(

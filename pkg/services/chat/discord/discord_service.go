@@ -30,6 +30,7 @@ var limits = types.MessageLimit{
 // Service implements a Discord notification service.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient

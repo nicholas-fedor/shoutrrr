@@ -62,6 +62,7 @@ func TestValidURLFormats(t *testing.T) {
 					if tt.shouldError {
 						return
 					}
+
 					t.Fatalf("Unexpected URL parse error: %v", err)
 				}
 
@@ -114,6 +115,7 @@ func TestBasicAuthCompliance(t *testing.T) {
 		// Verify Basic Auth is set correctly
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {
 			username, password, ok := req.BasicAuth()
+
 			return ok && username == "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" && password == "authToken"
 		}, "Basic Auth credentials")
 
@@ -209,6 +211,7 @@ func TestMessagingServiceSIDCompliance(t *testing.T) {
 			if readErr != nil {
 				return false
 			}
+
 			req.Body = io.NopCloser(bytes.NewReader(body))
 
 			return !bytes.Contains(body, []byte("From="))

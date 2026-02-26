@@ -49,6 +49,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 	ginkgo.Describe("Config test helpers", func() {
 		var config dummyConfig
+
 		ginkgo.BeforeEach(func() {
 			config = dummyConfig{}
 		})
@@ -100,6 +101,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 	ginkgo.Describe("Service test helpers", func() {
 		var service dummyService
+
 		ginkgo.BeforeEach(func() {
 			service = dummyService{}
 		})
@@ -116,6 +118,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 type dummyConfig struct {
 	standard.EnumlessConfig
+
 	Foo uint64 `default:"-1" key:"foo"`
 }
 
@@ -127,6 +130,7 @@ func (dc *dummyConfig) QueryFields() []string      { return []string{} }
 
 type dummyService struct {
 	standard.Standard
+
 	Config dummyConfig
 }
 

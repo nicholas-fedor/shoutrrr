@@ -57,6 +57,7 @@ var mentionRegex = regexp.MustCompile(`<@!?(\d+)>|<@&(\d+)>`)
 // Service implements a Notifiarr notification service.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

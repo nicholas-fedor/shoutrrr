@@ -19,6 +19,7 @@ var ErrClientNotInitialized = errors.New("client not initialized; cannot send me
 // Service sends notifications via the Matrix protocol.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	client *client
 	pkr    format.PropKeyResolver

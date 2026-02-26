@@ -226,7 +226,7 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 		ginkgo.It("should pass standard config tests", func() {
 			cfg := &Config{}
 			enums := cfg.Enums()
-			gomega.Expect(enums).To(gomega.HaveLen(0))
+			gomega.Expect(enums).To(gomega.BeEmpty())
 
 			resolver := format.NewPropKeyResolver(cfg)
 			fields := resolver.QueryFields()

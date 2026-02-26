@@ -30,12 +30,13 @@ var ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected 
 // Service provides OpsGenie as a notification service.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }
 
 // sendAlert sends an alert to OpsGenie using the specified URL and API key.
-func (service *Service) sendAlert(url string, apiKey string, payload AlertPayload) error {
+func (service *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshaling alert payload to JSON: %w", err)

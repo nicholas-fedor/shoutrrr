@@ -21,6 +21,7 @@ var (
 // Service sends notifications to Bark.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

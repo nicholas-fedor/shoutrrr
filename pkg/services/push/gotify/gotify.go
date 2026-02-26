@@ -16,12 +16,13 @@ import (
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
 // and payload construction for reliable message delivery.
 type Service struct {
-	standard.Standard                        // Embeds the standard service functionality including logging
-	Config            *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
-	pkr               format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
-	mu                sync.Mutex             // Protects HTTP client initialization for thread safety
-	httpClient        *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
-	client            jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
+	standard.Standard // Embeds the standard service functionality including logging
+
+	Config     *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
+	pkr        format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
+	mu         sync.Mutex             // Protects HTTP client initialization for thread safety
+	httpClient *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
+	client     jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
 
 	// Interface dependencies (injected during initialization)
 	httpClientManager HTTPClientManager

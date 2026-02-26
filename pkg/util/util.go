@@ -6,7 +6,7 @@ import (
 )
 
 // Min returns the smallest of a and b.
-func Min(a int, b int) int {
+func Min(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -15,7 +15,7 @@ func Min(a int, b int) int {
 }
 
 // Max returns the largest of a and b.
-func Max(a int, b int) int {
+func Max(a, b int) int {
 	if a > b {
 		return a
 	}

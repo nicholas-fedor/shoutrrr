@@ -83,22 +83,16 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 		}
 
 		if len(field.Template) > 0 {
-			stringBuilder.WriteString(
-				fmt.Sprintf(" <Template: %s>", ColorizeString(field.Template)),
-			)
+			fmt.Fprintf(&stringBuilder, " <Template: %s>", ColorizeString(field.Template))
 		}
 
 		if len(field.DefaultValue) > 0 {
-			stringBuilder.WriteString(
-				fmt.Sprintf(
-					" <Default: %s>",
-					ColorizeValue(field.DefaultValue, field.EnumFormatter != nil),
-				),
-			)
+			fmt.Fprintf(&stringBuilder, " <Default: %s>",
+				ColorizeValue(field.DefaultValue, field.EnumFormatter != nil))
 		}
 
 		if field.Required {
-			stringBuilder.WriteString(fmt.Sprintf(" <%s>", ColorizeFalse("Required")))
+			fmt.Fprintf(&stringBuilder, " <%s>", ColorizeFalse("Required"))
 		}
 
 		if len(field.Keys) > 1 {

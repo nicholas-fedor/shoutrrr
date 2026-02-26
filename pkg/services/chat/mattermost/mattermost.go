@@ -26,6 +26,7 @@ var ErrSendFailed = errors.New(
 // Service sends notifications to a pre-configured Mattermost channel or user.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient *http.Client

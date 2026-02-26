@@ -42,11 +42,11 @@ func (m *mockConfig) SetURL(u *url.URL) error {
 	return nil
 }
 
-func (m *mockConfig) SetTemplateFile(_ string, _ string) error {
+func (m *mockConfig) SetTemplateFile(_, _ string) error {
 	return nil
 }
 
-func (m *mockConfig) SetTemplateString(_ string, _ string) error {
+func (m *mockConfig) SetTemplateString(_, _ string) error {
 	return nil
 }
 
@@ -66,7 +66,7 @@ func (m *mockConfig) Get(key string) (string, error) {
 	}
 }
 
-func (m *mockConfig) Set(key string, value string) error {
+func (m *mockConfig) Set(key, value string) error {
 	switch strings.ToLower(key) {
 	case "host":
 		m.Host = value
@@ -103,11 +103,11 @@ func (m *mockServiceConfig) GetTemplate(_ string) (*template.Template, bool) {
 	return nil, false
 }
 
-func (m *mockServiceConfig) SetTemplateFile(_ string, _ string) error {
+func (m *mockServiceConfig) SetTemplateFile(_, _ string) error {
 	return nil
 }
 
-func (m *mockServiceConfig) SetTemplateString(_ string, _ string) error {
+func (m *mockServiceConfig) SetTemplateString(_, _ string) error {
 	return nil
 }
 
@@ -313,7 +313,7 @@ func TestGenerator_getInputValue(t *testing.T) {
 		},
 		{
 			name:    "from user input",
-			field:   &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0)}, // Add Type
+			field:   &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int]()}, // Add Type
 			propKey: "port",
 			props:   map[string]string{},
 			input:   "8080\n",
@@ -398,7 +398,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "valid value",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0), Required: true},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int](), Required: true},
 			inputValue: "8080",
 			want:       true,
 			wantErr:    false,
@@ -406,7 +406,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "required field empty",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0), Required: true},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int](), Required: true},
 			inputValue: "",
 			want:       false,
 			wantErr:    false,
@@ -414,7 +414,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "invalid value",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0)},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int]()},
 			inputValue: "invalid",
 			want:       false,
 			wantErr:    true,

@@ -13,6 +13,7 @@ import (
 // Service provides the Twilio SMS notification service.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient

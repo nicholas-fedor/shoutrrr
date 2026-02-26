@@ -186,7 +186,7 @@ func (router *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL
 }
 
 // Route a message to a specific notification service using the notification URL.
-func (router *ServiceRouter) Route(rawURL string, message string) error {
+func (router *ServiceRouter) Route(rawURL, message string) error {
 	service, err := router.Locate(rawURL)
 	if err != nil {
 		return err

@@ -16,22 +16,25 @@ var (
 )
 
 var _ = ginkgo.Describe("SetConfigField", func() {
-	testConfig := testStruct{}
-	tt := reflect.TypeOf(testConfig)
+	tt := reflect.TypeFor[testStruct]()
 
 	ginkgo.When("updating a struct", func() {
 		ginkgo.BeforeEach(func() {
 			tsPtr := reflect.New(tt)
 			tv = tsPtr.Elem()
 			ts = tsPtr.Interface().(*testStruct)
+
 			gomega.Expect(tv.CanSet()).To(gomega.BeTrue())
 			gomega.Expect(tv.FieldByName("TestEnum").CanSet()).To(gomega.BeTrue())
+
 			rootNode := getRootNode(ts)
+
 			nodeMap = make(map[string]Node, len(rootNode.Items))
 			for _, item := range rootNode.Items {
 				field := item.Field()
 				nodeMap[field.Name] = item
 			}
+
 			gomega.Expect(int(tv.FieldByName("TestEnum").Int())).
 				To(gomega.Equal(0), "TestEnum initial value")
 		})
@@ -182,14 +185,18 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			tsPtr := reflect.New(tt)
 			tv = tsPtr.Elem()
 			ts = tsPtr.Interface().(*testStruct)
+
 			gomega.Expect(tv.CanSet()).To(gomega.BeTrue())
 			gomega.Expect(tv.FieldByName("TestEnum").CanSet()).To(gomega.BeTrue())
+
 			rootNode := getRootNode(ts)
+
 			nodeMap = make(map[string]Node, len(rootNode.Items))
 			for _, item := range rootNode.Items {
 				field := item.Field()
 				nodeMap[field.Name] = item
 			}
+
 			gomega.Expect(int(tv.FieldByName("TestEnum").Int())).
 				To(gomega.Equal(0), "TestEnum initial value")
 		})
@@ -265,7 +272,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 	})
 })
 
-func testSetAndFormat(tv reflect.Value, node Node, value string, prettyFormat string) {
+func testSetAndFormat(tv reflect.Value, node Node, value, prettyFormat string) {
 	field := node.Field()
 
 	valid, err := SetConfigField(tv, *field, value)

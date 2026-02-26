@@ -36,6 +36,7 @@ var _ = ginkgo.Describe("the join service", func() {
 			if envJoinURL.String() == "" {
 				return
 			}
+
 			serviceURL, _ := url.Parse(envJoinURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -130,6 +131,7 @@ var _ = ginkgo.Describe("the join config", func() {
 
 	ginkgo.Describe("sending the payload", func() {
 		var err error
+
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 		})
@@ -158,7 +160,7 @@ var _ = ginkgo.Describe("the join config", func() {
 	})
 })
 
-func createURL(username string, token string, devices string) *url.URL {
+func createURL(username, token, devices string) *url.URL {
 	return &url.URL{
 		User:     url.UserPassword("Token", token),
 		Host:     username,

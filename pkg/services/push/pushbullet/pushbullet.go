@@ -27,6 +27,7 @@ var (
 // Service providing Pushbullet as a notification service.
 type Service struct {
 	standard.Standard
+
 	client jsonclient.Client
 	Config *Config
 	pkr    format.PropKeyResolver
@@ -73,7 +74,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // doSend sends a push notification to a specific target and validates the response.
-func doSend(config *Config, target string, message string, client jsonclient.Client) error {
+func doSend(config *Config, target, message string, client jsonclient.Client) error {
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 

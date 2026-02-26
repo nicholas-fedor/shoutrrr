@@ -156,7 +156,8 @@
 // - Valid token characters are: a-z, A-Z, 0-9, ., -, _
 // - Message content cannot be empty
 // - Priority can be set to a value between -2 and 10, where -2 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
-// - Date parameter accepts multiple formats (RFC3339, RFC3339 without timezone, Unix timestamp seconds, "2006-01-02 15:04:05") and converts them to ISO 8601 format; invalid dates are skipped with a warning
+// - Date parameter accepts multiple formats (RFC3339, RFC3339 without timezone, Unix timestamp seconds, "2006-01-02 15:04:05") and converts them to ISO 8601 format; invalid dates are skipped with a
+// warning
 // - Extras field accepts valid JSON objects for custom data
 // - HTTP client timeout is set to 10 seconds for API requests
 // - TLS can be disabled entirely (disabletls=yes) or certificate verification can be skipped (insecureskipverify=yes), both are not recommended for production use

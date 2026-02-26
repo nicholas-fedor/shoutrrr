@@ -25,6 +25,7 @@ const (
 // Service sends notifications to a pre-configured Slack channel or user.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 	client *http.Client

@@ -51,6 +51,7 @@ type Node interface {
 // ValueNode is a Node without any child items.
 type ValueNode struct {
 	*FieldInfo
+
 	Value     string
 	tokenType NodeTokenType
 }
@@ -75,6 +76,7 @@ func (n *ValueNode) Update(tv reflect.Value) {
 // ContainerNode is a Node with child items.
 type ContainerNode struct {
 	*FieldInfo
+
 	Items        []Node
 	MaxKeyLength int
 }

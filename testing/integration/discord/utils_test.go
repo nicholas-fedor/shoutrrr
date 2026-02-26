@@ -52,7 +52,7 @@ func createTestMessageItem(text string) types.MessageItem {
 }
 
 // createTestMessageItemWithFile creates a test MessageItem with a file attachment.
-func createTestMessageItemWithFile(text string, filename string, data []byte) types.MessageItem {
+func createTestMessageItemWithFile(text, filename string, data []byte) types.MessageItem {
 	return types.MessageItem{
 		Text: text,
 		File: &types.File{

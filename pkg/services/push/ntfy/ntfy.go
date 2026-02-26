@@ -22,6 +22,7 @@ const HTTPTimeout = 10
 // Service sends notifications to ntfy.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient *http.Client
@@ -156,7 +157,7 @@ func (service *Service) sendAPI(config *Config, message string) error {
 }
 
 // addHeaderIfNotEmpty adds a header to the request if the value is non-empty.
-func addHeaderIfNotEmpty(headers *http.Header, key string, value string) {
+func addHeaderIfNotEmpty(headers *http.Header, key, value string) {
 	if value != "" {
 		headers.Add(key, value)
 	}

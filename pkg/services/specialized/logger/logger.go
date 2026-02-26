@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 // Service is the Logger service struct.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 }
 
@@ -20,9 +22,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	data := types.Params{}
 
 	if params != nil {
-		for key, value := range *params {
-			data[key] = value
-		}
+		maps.Copy(data, *params)
 	}
 
 	data["message"] = message

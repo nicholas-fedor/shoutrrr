@@ -31,11 +31,11 @@ func mockTyped(a ...any) {
 }
 
 func dumpBuffers() {
-	for _, line := range strings.Split(string(userIn.Contents()), "\n") {
+	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
 		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "> ", line, "\n")
 	}
 
-	for _, line := range strings.Split(string(userOut.Contents()), "\n") {
+	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
 		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "< ", line, "\n")
 	}
 }
@@ -54,7 +54,9 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 
 	ginkgo.It("reprompt upon invalid answers", func() {
 		defer dumpBuffers()
+
 		answer := make(chan string)
+
 		go func() {
 			answer <- client.QueryString("name:", generator.Required, "")
 		}()
@@ -70,28 +72,36 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 
 	ginkgo.It("should accept any input when validator is nil", func() {
 		defer dumpBuffers()
+
 		answer := make(chan string)
+
 		go func() {
 			answer <- client.QueryString("name:", nil, "")
 		}()
+
 		mockTyped("")
 		gomega.Eventually(answer).Should(gomega.Receive(gomega.BeEmpty()))
 	})
 
 	ginkgo.It("should use predefined prop value if key is present", func() {
 		defer dumpBuffers()
+
 		answer := make(chan string)
+
 		go func() {
 			answer <- client.QueryString("name:", generator.Required, "propKey")
 		}()
+
 		gomega.Eventually(answer).Should(gomega.Receive(gomega.Equal("propVal")))
 	})
 
 	ginkgo.Describe("Query", func() {
 		ginkgo.It("should prompt until a valid answer is provided", func() {
 			defer dumpBuffers()
+
 			answer := make(chan []string)
 			query := "pick foo or bar:"
+
 			go func() {
 				answer <- client.Query(query, regexp.MustCompile("(foo|bar)"), "")
 			}()
@@ -109,6 +119,7 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 	ginkgo.Describe("QueryAll", func() {
 		ginkgo.It("should prompt until a valid answer is provided", func() {
 			defer dumpBuffers()
+
 			answer := make(chan [][]string)
 			query := "pick foo or bar:"
 
@@ -119,6 +130,7 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 			}()
 
 			gomega.Eventually(userIn).Should(gbytes.Say(query))
+
 			var matches [][]string
 			gomega.Eventually(answer).Should(gomega.Receive(&matches))
 			gomega.Expect(matches).To(gomega.ContainElement([]string{"foobar", "bar"}))
@@ -129,8 +141,10 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 	ginkgo.Describe("QueryStringPattern", func() {
 		ginkgo.It("should prompt until a valid answer is provided", func() {
 			defer dumpBuffers()
+
 			answer := make(chan string)
 			query := "type of bar:"
+
 			go func() {
 				answer <- client.QueryStringPattern(query, regexp.MustCompile(".*bar"), "")
 			}()
@@ -148,8 +162,10 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 	ginkgo.Describe("QueryInt", func() {
 		ginkgo.It("should prompt until a valid answer is provided", func() {
 			defer dumpBuffers()
+
 			answer := make(chan int64)
 			query := "number:"
+
 			go func() {
 				answer <- client.QueryInt(query, "", 64)
 			}()
@@ -167,8 +183,10 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 	ginkgo.Describe("QueryBool", func() {
 		ginkgo.It("should prompt until a valid answer is provided", func() {
 			defer dumpBuffers()
+
 			answer := make(chan bool)
 			query := "cool?"
+
 			go func() {
 				answer <- client.QueryBool(query, "")
 			}()

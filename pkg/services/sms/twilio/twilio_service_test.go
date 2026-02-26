@@ -132,6 +132,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 // initPKR initializes a PropKeyResolver for testing.
 func initPKR(config *Config) *format.PropKeyResolver {
 	pkr := format.NewPropKeyResolver(config)
+
 	return &pkr
 }
 

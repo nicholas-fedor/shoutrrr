@@ -34,6 +34,7 @@ var (
 // Config holds settings for the IFTTT notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	WebHookID         string   `required:"true" url:"host"`
 	Events            []string `required:"true"            key:"events"`
 	Value1            string   `                           key:"value1"       optional:""`

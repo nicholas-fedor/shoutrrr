@@ -190,8 +190,8 @@ func setMapField(configField reflect.Value, field FieldInfo, inputValue string) 
 
 	mapValue := reflect.MakeMap(field.Type)
 
-	pairs := strings.Split(inputValue, ",")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(inputValue, ",")
+	for pair := range pairs {
 		elems := strings.Split(pair, ":")
 		if len(elems) != KeyValuePairSize {
 			return false, ErrInvalidFieldValue

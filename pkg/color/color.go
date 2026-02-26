@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -524,13 +525,7 @@ func (c *Color) Equals(colorToCompare *Color) bool {
 }
 
 func (c *Color) attrExists(a Attribute) bool {
-	for _, attr := range c.params {
-		if attr == a {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(c.params, a)
 }
 
 func boolPtr(v bool) *bool {

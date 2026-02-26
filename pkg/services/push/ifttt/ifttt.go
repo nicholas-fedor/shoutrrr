@@ -27,6 +27,7 @@ var (
 // Service sends notifications to an IFTTT webhook.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 	pkr    format.PropKeyResolver
 }

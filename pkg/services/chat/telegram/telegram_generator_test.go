@@ -48,6 +48,7 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 		userOut = gbytes.NewBuffer()
 		userIn = gbytes.NewBuffer()
 		userInMono = colorable.NewNonColorable(userIn)
+
 		httpmock.Activate()
 	})
 	ginkgo.AfterEach(func() {
@@ -105,10 +106,12 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 
 		go func() {
 			defer ginkgo.GinkgoRecover()
+
 			conf, err := gen.Generate(nil, nil, nil)
 
 			gomega.Expect(conf).ToNot(gomega.BeNil())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 			resultChannel <- conf.GetURL().String()
 		}()
 

@@ -22,17 +22,18 @@ const (
 // with a Gotify server, including connection details, authentication credentials,
 // notification defaults, and additional metadata.
 type Config struct {
-	standard.EnumlessConfig                // Embeds standard configuration functionality without enum handling
-	Token                   string         `desc:"Application token"                     required:"" url:"path2"`                                                                          // Gotify application token for authentication (must be 15 chars starting with 'A')
-	Host                    string         `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`                                                                      // Gotify server hostname and optional port number
-	Path                    string         `desc:"Server subpath"                                    url:"path1"     optional:""`                                                          // Optional subpath for Gotify installation (e.g., "/gotify")
-	Priority                int            `                                                                                     default:"0"                     key:"priority"`           // Notification priority level (-2 to 10, where higher numbers are more important; negative values have special meanings in some clients)
-	Title                   string         `                                                                                     default:"Shoutrrr notification" key:"title"`              // Default notification title when none provided
-	DisableTLS              bool           `                                                                                     default:"No"                    key:"disabletls"`         // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
-	InsecureSkipVerify      bool           `                                                                                     default:"No"                    key:"insecureskipverify"` // Skip TLS certificate verification (insecure, use with caution)
-	UseHeader               bool           `desc:"Enable header-based authentication"                                            default:"No"                    key:"useheader"`          // Send token in X-Gotify-Key header instead of URL query parameter
-	Date                    string         `                                                                                     default:""                      key:"date"`               // Optional custom timestamp in ISO 8601 format for the notification
-	Extras                  map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
+	standard.EnumlessConfig // Embeds standard configuration functionality without enum handling
+
+	Token              string         `desc:"Application token"                     required:"" url:"path2"`                                                                          // Gotify application token for authentication (must be 15 chars starting with 'A')
+	Host               string         `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`                                                                      // Gotify server hostname and optional port number
+	Path               string         `desc:"Server subpath"                                    url:"path1"     optional:""`                                                          // Optional subpath for Gotify installation (e.g., "/gotify")
+	Priority           int            `                                                                                     default:"0"                     key:"priority"`           // Notification priority level (-2 to 10, where higher numbers are more important; negative values have special meanings in some clients)
+	Title              string         `                                                                                     default:"Shoutrrr notification" key:"title"`              // Default notification title when none provided
+	DisableTLS         bool           `                                                                                     default:"No"                    key:"disabletls"`         // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
+	InsecureSkipVerify bool           `                                                                                     default:"No"                    key:"insecureskipverify"` // Skip TLS certificate verification (insecure, use with caution)
+	UseHeader          bool           `desc:"Enable header-based authentication"                                            default:"No"                    key:"useheader"`          // Send token in X-Gotify-Key header instead of URL query parameter
+	Date               string         `                                                                                     default:""                      key:"date"`               // Optional custom timestamp in ISO 8601 format for the notification
+	Extras             map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 }
 
 // SetURL updates the configuration from a URL representation.

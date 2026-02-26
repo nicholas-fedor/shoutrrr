@@ -94,7 +94,9 @@ type chosenInlineResult struct{}
 
 // Update contains state changes since the previous Update.
 type Update struct {
-	// 	The Update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This ID becomes especially handy if you're using Webhooks, since it allows you to ignore repeated updates or to restore the correct Update sequence, should they get out of order. If there are no new updates for at least a week, then identifier of the next Update will be chosen randomly instead of sequentially.
+	// 	The Update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This ID becomes especially handy if you're using Webhooks, since it allows
+	// you to ignore repeated updates or to restore the correct Update sequence, should they get out of order. If there are no new updates for at least a week, then identifier of the next Update will
+	// be chosen randomly instead of sequentially.
 	UpdateID int `json:"update_id"`
 	// 	Optional. New incoming Message of any kind — text, photo, sticker, etc.
 	Message *Message `json:"Message"`
@@ -106,7 +108,8 @@ type Update struct {
 	EditedChannelPost *Message `json:"edited_channel_post"`
 	// 	Optional. New incoming inline query
 	InlineQuery *inlineQuery `json:"inline_query"`
-	//// 	Optional. The result of an inline query that was chosen by a User and sent to their chat partner. Please see our documentation on the feedback collecting for details on how to enable these updates for your bot.
+	// // 	Optional. The result of an inline query that was chosen by a User and sent to their chat partner. Please see our documentation on the feedback collecting for details on how to enable these
+	// updates for your bot.
 	ChosenInlineResult *chosenInlineResult `json:"chosen_inline_result"`
 	//// 	Optional. New incoming callback query
 	CallbackQuery *callbackQuery `json:"callback_query"`
@@ -196,7 +199,7 @@ func (c *Chat) Name() string {
 	return c.Title
 }
 
-func createSendMessagePayload(message string, channel string, config *Config) SendMessagePayload {
+func createSendMessagePayload(message, channel string, config *Config) SendMessagePayload {
 	var threadID *int
 
 	chatID, thread, ok := strings.Cut(channel, ":")

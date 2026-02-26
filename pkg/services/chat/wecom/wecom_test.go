@@ -43,6 +43,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 			pkr := format.NewPropKeyResolver(config)
 			err := config.setURL(&pkr, url)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+
 			outputURL := config.GetURL()
 			ginkgo.GinkgoT().Logf("\n\n%s\n%s\n\n-", outputURL, fullURL)
 			gomega.Expect(outputURL.String()).To(gomega.Equal(fullURL))
@@ -51,6 +52,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 
 	ginkgo.Context("basic service API methods", func() {
 		var config *Config
+
 		ginkgo.BeforeEach(func() {
 			config = &Config{}
 		})
@@ -89,6 +91,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 				for i := range data {
 					data[i] = "0123456789"
 				}
+
 				message := strings.Join(data, "")
 				service := Service{Config: &Config{Key: "693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa"}}
 				gomega.Expect(service.Send(message, nil)).To(gomega.MatchError(ErrLargeMessage))
@@ -121,6 +124,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 						map[string]any{"errcode": 0, "errmsg": "ok"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -136,6 +140,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 						map[string]any{"errcode": 0, "errmsg": "ok"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", &types.Params{"mentioned_list": "@all"})
@@ -148,6 +153,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 					"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa",
 					httpmock.NewErrorResponder(errors.New("network error")),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -160,6 +166,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 					"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa",
 					httpmock.NewStringResponder(http.StatusOK, "some response"),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -176,6 +183,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 						map[string]any{"errcode": 1, "errmsg": "some error"},
 					),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
@@ -188,6 +196,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 					"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa",
 					httpmock.NewStringResponder(http.StatusBadRequest, "bad request"),
 				)
+
 				err := service.Initialize(testutils.URLMust(fullURL), logger)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)

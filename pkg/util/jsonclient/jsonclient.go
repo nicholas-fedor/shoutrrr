@@ -41,7 +41,7 @@ func Get(url string, response any) error {
 }
 
 // Post sends a request as JSON and unmarshals the response into the provided object using DefaultClient.
-func Post(url string, request any, response any) error {
+func Post(url string, request, response any) error {
 	if err := DefaultClient.Post(url, request, response); err != nil {
 		return fmt.Errorf("posting JSON to %q: %w", url, err)
 	}
@@ -91,7 +91,7 @@ func (c *client) Get(url string, response any) error {
 }
 
 // Post sends a request as JSON and unmarshals the response into the provided object.
-func (c *client) Post(url string, request any, response any) error {
+func (c *client) Post(url string, request, response any) error {
 	var err error
 
 	var body []byte

@@ -27,6 +27,7 @@ type ErrorMessage string
 // Config holds all configuration information for the Mattermost service.
 type Config struct {
 	standard.EnumlessConfig
+
 	UserName   string `desc:"Override webhook user"                                             optional:"" url:"user"`
 	Icon       string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" optional:""                 default:""   key:"icon,icon_emoji,icon_url"`
 	Title      string `desc:"Notification title, optionally set by the sender (not used)"                                   default:""   key:"title"`
