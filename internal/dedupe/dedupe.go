@@ -1,3 +1,4 @@
+// Package dedupe provides utilities for removing duplicate elements from slices.
 package dedupe
 
 import "slices"
