@@ -49,7 +49,6 @@ linters:
     - misspell # Finds commonly misspelled English words.
     - nakedret # Checks that functions with naked returns are not longer than a maximum size (can be zero).
     - nlreturn # Nlreturn checks for a new line before return and branch statements to increase code clarity.
-    - noinlineerr # Disallows inline error handling
     - nolintlint # Reports ill-formed or insufficient nolint directives.
     - perfsprint # Checks that fmt.Sprintf can be replaced with a faster alternative.
     - protogetter # Reports direct reads from proto message fields when getters should be used. [auto-fix]
@@ -139,6 +138,7 @@ linters:
     - lll # Reports long lines.
     - maintidx # Maintidx measures the maintainability index of each function.
     - nestif # Reports deeply nested if statements.
+    - noinlineerr # Disallows inline error handling
     - paralleltest # Detects missing usage of t.Parallel() method in your Go test.
     - rowserrcheck # Checks whether Rows.Err of rows is checked successfully.
     - spancheck # Checks for mistakes with OpenTelemetry/Census spans.
