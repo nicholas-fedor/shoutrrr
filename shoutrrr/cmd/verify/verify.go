@@ -1,3 +1,4 @@
+// Package verify provides the CLI command for verifying notification service URLs.
 package verify
 
 import (
