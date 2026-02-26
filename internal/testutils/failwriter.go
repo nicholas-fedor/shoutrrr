@@ -6,12 +6,12 @@ import (
 	"io"
 )
 
-var ErrWriteLimitReached = errors.New("reached write limit")
-
 type failWriter struct {
 	writeLimit int
 	writeCount int
 }
+
+var ErrWriteLimitReached = errors.New("reached write limit")
 
 // Close is just a dummy function to implement io.Closer.
 func (fw *failWriter) Close() error {
