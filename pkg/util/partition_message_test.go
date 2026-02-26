@@ -11,6 +11,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+const hundredChars = "this string is exactly (to the letter) a hundred characters long which will make the send func error"
+
 var _ = ginkgo.Describe("Partition Message", func() {
 	limits := types.MessageLimit{
 		ChunkSize:      2000,
@@ -152,8 +154,6 @@ var _ = ginkgo.Describe("Partition Message", func() {
 		})
 	})
 })
-
-const hundredChars = "this string is exactly (to the letter) a hundred characters long which will make the send func error"
 
 // testMessageItemsFromLines generates message item batches from repeated text with line breaks.
 func testMessageItemsFromLines(

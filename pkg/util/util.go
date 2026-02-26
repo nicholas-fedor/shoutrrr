@@ -5,6 +5,9 @@ import (
 	"log"
 )
 
+// DiscardLogger is a logger that discards any output written to it.
+var DiscardLogger = log.New(io.Discard, "", 0)
+
 // Min returns the smallest of a and b.
 func Min(a, b int) int {
 	if a < b {
@@ -22,6 +25,3 @@ func Max(a, b int) int {
 
 	return b
 }
-
-// DiscardLogger is a logger that discards any output written to it.
-var DiscardLogger = log.New(io.Discard, "", 0)

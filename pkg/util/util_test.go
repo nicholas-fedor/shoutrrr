@@ -12,11 +12,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-func TestUtil(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Util Suite")
-}
-
 const (
 	a = 10
 	b = 20
@@ -113,3 +108,8 @@ var _ = ginkgo.Describe("the util package", func() {
 		})
 	})
 })
+
+func TestUtil(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Util Suite")
+}
