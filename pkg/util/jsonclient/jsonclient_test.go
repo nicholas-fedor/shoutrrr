@@ -13,10 +13,21 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-func TestJSONClient(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "JSONClient Suite")
+type mockResponse struct {
+	Status string
 }
+
+type mockRequest struct {
+	Number int
+}
+
+// mockTransport returns a predefined response.
+type mockTransport struct {
+	response *http.Response
+}
+
+// failingReader simulates an io.Reader that fails on Read.
+type failingReader struct{}
 
 var _ = ginkgo.Describe("JSONClient", func() {
 	var (
@@ -316,25 +327,14 @@ var _ = ginkgo.Describe("Error", func() {
 	})
 })
 
-type mockResponse struct {
-	Status string
-}
-
-type mockRequest struct {
-	Number int
-}
-
-// mockTransport returns a predefined response.
-type mockTransport struct {
-	response *http.Response
+func TestJSONClient(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "JSONClient Suite")
 }
 
 func (mt *mockTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return mt.response, nil
 }
-
-// failingReader simulates an io.Reader that fails on Read.
-type failingReader struct{}
 
 func (fr *failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("simulated read failure")

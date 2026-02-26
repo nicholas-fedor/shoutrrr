@@ -1,3 +1,5 @@
+// Package jsonclient provides a JSON HTTP client for making HTTP requests
+// that automatically marshal and unmarshal JSON payloads.
 package jsonclient
 
 import (
@@ -9,6 +11,13 @@ import (
 	"io"
 	"net/http"
 )
+
+// Client wraps http.Client for JSON operations.
+type client struct {
+	httpClient *http.Client
+	headers    http.Header
+	indent     string
+}
 
 // ContentType defines the default MIME type for JSON requests.
 const ContentType = "application/json"
@@ -23,13 +32,6 @@ var (
 
 // DefaultClient provides a singleton JSON client using http.DefaultClient.
 var DefaultClient = NewClient()
-
-// Client wraps http.Client for JSON operations.
-type client struct {
-	httpClient *http.Client
-	headers    http.Header
-	indent     string
-}
 
 // Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
 func Get(url string, response any) error {
@@ -80,6 +82,7 @@ func (c *client) Get(url string, response any) error {
 		req.Header.Set(key, val[0])
 	}
 
+	//nolint:gosec // This is an HTTP client library; making HTTP requests is the intended functionality
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request to %q: %w", url, err)
@@ -120,6 +123,7 @@ func (c *client) Post(url string, request, response any) error {
 		req.Header.Set(key, val[0])
 	}
 
+	//nolint:gosec // This is an HTTP client library; making HTTP requests is the intended functionality
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending POST request to %q: %w", url, err)
