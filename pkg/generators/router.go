@@ -1,3 +1,4 @@
+// Package generators provides a router for creating generator instances by identifier.
 package generators
 
 import (
