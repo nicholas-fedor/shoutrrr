@@ -1,3 +1,6 @@
+// Package generator provides common utilities for interactive CLI generators.
+// It includes the UserDialog type for prompting users with validation
+// and capturing various input types (strings, integers, booleans, and regex patterns).
 package generator
 
 import (
@@ -11,6 +14,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
+
+// UserDialog facilitates question/answer-based user interaction.
+type UserDialog struct {
+	reader  io.Reader
+	writer  io.Writer
+	scanner *bufio.Scanner
+	props   map[string]string
+}
 
 // errInvalidFormat indicates an invalid user input format.
 var (
@@ -38,14 +49,6 @@ func Required(answer string) error {
 	}
 
 	return nil
-}
-
-// UserDialog facilitates question/answer-based user interaction.
-type UserDialog struct {
-	reader  io.Reader
-	writer  io.Writer
-	scanner *bufio.Scanner
-	props   map[string]string
 }
 
 // NewUserDialog initializes a UserDialog with safe defaults.

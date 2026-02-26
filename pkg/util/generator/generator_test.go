@@ -14,31 +14,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
-func TestGenerator(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Generator Suite")
-}
-
 var (
 	client  *generator.UserDialog
 	userOut *gbytes.Buffer
 	userIn  *gbytes.Buffer
 )
-
-func mockTyped(a ...any) {
-	_, _ = fmt.Fprint(userOut, a...)
-	_, _ = fmt.Fprint(userOut, "\n")
-}
-
-func dumpBuffers() {
-	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
-		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "> ", line, "\n")
-	}
-
-	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
-		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "< ", line, "\n")
-	}
-}
 
 var _ = ginkgo.Describe("GeneratorCommon", func() {
 	ginkgo.BeforeEach(func() {
@@ -201,3 +181,23 @@ var _ = ginkgo.Describe("GeneratorCommon", func() {
 		})
 	})
 })
+
+func TestGenerator(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Generator Suite")
+}
+
+func mockTyped(a ...any) {
+	_, _ = fmt.Fprint(userOut, a...)
+	_, _ = fmt.Fprint(userOut, "\n")
+}
+
+func dumpBuffers() {
+	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
+		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "> ", line, "\n")
+	}
+
+	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
+		_, _ = fmt.Fprint(ginkgo.GinkgoWriter, "< ", line, "\n")
+	}
+}
