@@ -23,35 +23,13 @@ type mockConfig struct {
 	url  *url.URL
 }
 
+// mockServiceConfig is a test implementation of Service.
+type mockServiceConfig struct {
+	Config *mockConfig
+}
+
 func (m *mockConfig) Enums() map[string]types.EnumFormatter {
 	return nil
-}
-
-func (m *mockConfig) GetURL() *url.URL {
-	if m.url == nil {
-		u, _ := url.Parse("mock://url")
-		m.url = u
-	}
-
-	return m.url
-}
-
-func (m *mockConfig) SetURL(u *url.URL) error {
-	m.url = u
-
-	return nil
-}
-
-func (m *mockConfig) SetTemplateFile(_, _ string) error {
-	return nil
-}
-
-func (m *mockConfig) SetTemplateString(_, _ string) error {
-	return nil
-}
-
-func (m *mockConfig) SetLogger(_ types.StdLogger) {
-	// Minimal implementation, no-op
 }
 
 // ConfigQueryResolver methods.
@@ -64,6 +42,24 @@ func (m *mockConfig) Get(key string) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown key: %s", key)
 	}
+}
+
+func (m *mockConfig) GetPropValue() (string, error) {
+	// Minimal implementation for testing
+	return fmt.Sprintf("%s:%d", m.Host, m.Port), nil
+}
+
+func (m *mockConfig) GetURL() *url.URL {
+	if m.url == nil {
+		u, _ := url.Parse("mock://url")
+		m.url = u
+	}
+
+	return m.url
+}
+
+func (m *mockConfig) QueryFields() []string {
+	return []string{"host", "port"}
 }
 
 func (m *mockConfig) Set(key, value string) error {
@@ -86,41 +82,6 @@ func (m *mockConfig) Set(key, value string) error {
 	}
 }
 
-func (m *mockConfig) QueryFields() []string {
-	return []string{"host", "port"}
-}
-
-// mockServiceConfig is a test implementation of Service.
-type mockServiceConfig struct {
-	Config *mockConfig
-}
-
-func (m *mockServiceConfig) GetID() string {
-	return "mockID"
-}
-
-func (m *mockServiceConfig) GetTemplate(_ string) (*template.Template, bool) {
-	return nil, false
-}
-
-func (m *mockServiceConfig) SetTemplateFile(_, _ string) error {
-	return nil
-}
-
-func (m *mockServiceConfig) SetTemplateString(_, _ string) error {
-	return nil
-}
-
-func (m *mockServiceConfig) Initialize(_ *url.URL, _ types.StdLogger) error {
-	return nil
-}
-
-func (m *mockServiceConfig) Send(_ string, _ *types.Params) error {
-	return nil
-}
-
-func (m *mockServiceConfig) SetLogger(_ types.StdLogger) {}
-
 // ConfigProp methods.
 func (m *mockConfig) SetFromProp(propValue string) error {
 	// Minimal implementation for testing; typically parses propValue
@@ -139,16 +100,48 @@ func (m *mockConfig) SetFromProp(propValue string) error {
 	return nil
 }
 
-func (m *mockConfig) GetPropValue() (string, error) {
-	// Minimal implementation for testing
-	return fmt.Sprintf("%s:%d", m.Host, m.Port), nil
+func (m *mockConfig) SetLogger(_ types.StdLogger) {
+	// Minimal implementation, no-op
 }
 
-// newMockServiceConfig creates a new mockServiceConfig with an initialized Config.
-func newMockServiceConfig() *mockServiceConfig {
-	return &mockServiceConfig{
-		Config: &mockConfig{},
-	}
+func (m *mockConfig) SetTemplateFile(_, _ string) error {
+	return nil
+}
+
+func (m *mockConfig) SetTemplateString(_, _ string) error {
+	return nil
+}
+
+func (m *mockConfig) SetURL(u *url.URL) error {
+	m.url = u
+
+	return nil
+}
+
+func (m *mockServiceConfig) GetID() string {
+	return "mockID"
+}
+
+func (m *mockServiceConfig) GetTemplate(_ string) (*template.Template, bool) {
+	return nil, false
+}
+
+func (m *mockServiceConfig) Initialize(_ *url.URL, _ types.StdLogger) error {
+	return nil
+}
+
+func (m *mockServiceConfig) Send(_ string, _ *types.Params) error {
+	return nil
+}
+
+func (m *mockServiceConfig) SetLogger(_ types.StdLogger) {}
+
+func (m *mockServiceConfig) SetTemplateFile(_, _ string) error {
+	return nil
+}
+
+func (m *mockServiceConfig) SetTemplateString(_, _ string) error {
+	return nil
 }
 
 func TestGenerator_Generate(t *testing.T) {
@@ -539,4 +532,11 @@ func atoiOrZero(s string) int {
 	i, _ := strconv.Atoi(s)
 
 	return i
+}
+
+// newMockServiceConfig creates a new mockServiceConfig with an initialized Config.
+func newMockServiceConfig() *mockServiceConfig {
+	return &mockServiceConfig{
+		Config: &mockConfig{},
+	}
 }
