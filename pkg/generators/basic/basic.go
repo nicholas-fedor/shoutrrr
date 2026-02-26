@@ -65,6 +65,7 @@ func (g *Generator) getInputValue(
 	scanner *bufio.Scanner,
 ) (string, error) {
 	if propValue, ok := props[propKey]; ok && len(propValue) > 0 {
+		//nolint:gosec // G705 - This outputs to stdout (CLI console), not an HTML context. XSS is not applicable here.
 		_, _ = fmt.Fprint(
 			color.Output,
 			"Using property ",
@@ -79,6 +80,7 @@ func (g *Generator) getInputValue(
 	}
 
 	prompt := g.formatPrompt(field)
+	//nolint:gosec // G705 - This outputs to stdout (CLI console), not an HTML context. XSS is not applicable here.
 	_, _ = fmt.Fprint(color.Output, prompt)
 
 	if scanner.Scan() {
@@ -116,6 +118,7 @@ func (g *Generator) getInputValue(
 
 // printError displays an error message for an invalid field value.
 func (g *Generator) printError(fieldName, errorMsg string) {
+	//nolint:gosec // G705 - This outputs to stdout (CLI console), not an HTML context. XSS is not applicable here.
 	_, _ = fmt.Fprint(
 		color.Output,
 		"Invalid format for field ",
@@ -128,6 +131,7 @@ func (g *Generator) printError(fieldName, errorMsg string) {
 
 // printInvalidType displays a type mismatch error for a field.
 func (g *Generator) printInvalidType(fieldName, typeName string) {
+	//nolint:gosec // G705 - This outputs to stdout (CLI console), not an HTML context. XSS is not applicable here.
 	_, _ = fmt.Fprint(
 		color.Output,
 		"Invalid type ",
@@ -183,6 +187,7 @@ func (g *Generator) setFieldValue(
 ) (bool, error) {
 	if len(inputValue) == 0 {
 		if field.Required {
+			//nolint:gosec // G705 - This outputs to stdout (CLI console), not an HTML context. XSS is not applicable here.
 			_, _ = fmt.Fprint(
 				color.Output,
 				"Field ",
