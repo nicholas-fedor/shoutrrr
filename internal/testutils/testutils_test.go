@@ -122,15 +122,15 @@ var _ = ginkgo.Describe("the testutils package", func() {
 	})
 })
 
-func (dc *dummyConfig) GetURL() *url.URL           { return &url.URL{} }
-func (dc *dummyConfig) SetURL(_ *url.URL) error    { return nil }
 func (dc *dummyConfig) Get(string) (string, error) { return "", nil }
-func (dc *dummyConfig) Set(string, string) error   { return nil }
+func (dc *dummyConfig) GetURL() *url.URL           { return &url.URL{} }
 func (dc *dummyConfig) QueryFields() []string      { return []string{} }
+func (dc *dummyConfig) Set(string, string) error   { return nil }
+func (dc *dummyConfig) SetURL(_ *url.URL) error    { return nil }
 
+func (s *dummyService) GetID() string                                  { return "dummy" }
 func (s *dummyService) Initialize(_ *url.URL, _ types.StdLogger) error { return nil }
 func (s *dummyService) Send(_ string, _ *types.Params) error           { return nil }
-func (s *dummyService) GetID() string                                  { return "dummy" }
 
 func TestTestUtils(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)

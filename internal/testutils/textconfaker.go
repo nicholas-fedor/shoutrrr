@@ -16,10 +16,16 @@ type textConFaker struct {
 	delim        string
 }
 
-func (tcf *textConFaker) GetInput() string {
+// CreateReadWriter returns a ReadWriter from the textConFakers internal reader and writer.
+func (tcf *textConFaker) CreateReadWriter() *bufio.ReadWriter {
+	return bufio.NewReadWriter(tcf.outputReader, tcf.inputWriter)
+}
+
+// GetClientSentences returns all the input received from the client separated by the delimiter.
+func (tcf *textConFaker) GetClientSentences() []string {
 	_ = tcf.inputWriter.Flush()
 
-	return tcf.inputBuffer.String()
+	return strings.Split(tcf.inputBuffer.String(), tcf.delim)
 }
 
 // GetConversation returns the input and output streams as a conversation.
@@ -77,16 +83,10 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 	return conv
 }
 
-// GetClientSentences returns all the input received from the client separated by the delimiter.
-func (tcf *textConFaker) GetClientSentences() []string {
+func (tcf *textConFaker) GetInput() string {
 	_ = tcf.inputWriter.Flush()
 
-	return strings.Split(tcf.inputBuffer.String(), tcf.delim)
-}
-
-// CreateReadWriter returns a ReadWriter from the textConFakers internal reader and writer.
-func (tcf *textConFaker) CreateReadWriter() *bufio.ReadWriter {
-	return bufio.NewReadWriter(tcf.outputReader, tcf.inputWriter)
+	return tcf.inputBuffer.String()
 }
 
 func (tcf *textConFaker) init() {
