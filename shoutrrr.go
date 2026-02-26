@@ -8,17 +8,17 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// _defaultRouter manages the creation and routing of notification services.
-var _defaultRouter = router.ServiceRouter{}
+// defaultRouter manages the creation and routing of notification services.
+var defaultRouter = router.ServiceRouter{}
 
 // SetLogger configures the logger for all services in the default router.
 func SetLogger(logger types.StdLogger) {
-	_defaultRouter.SetLogger(logger)
+	defaultRouter.SetLogger(logger)
 }
 
 // Send delivers a notification message using the specified URL.
 func Send(rawURL, message string) error {
-	service, err := _defaultRouter.Locate(rawURL)
+	service, err := defaultRouter.Locate(rawURL)
 	if err != nil {
 		return fmt.Errorf("locating service for URL %q: %w", rawURL, err)
 	}
