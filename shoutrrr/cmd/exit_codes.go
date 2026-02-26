@@ -1,4 +1,13 @@
+// Package cmd provides exit codes and result types for the Shoutrrr CLI.
 package cmd
+
+// Result contains the final exit message and code for a CLI session.
+//
+//nolint:errname
+type Result struct {
+	ExitCode int
+	Message  string
+}
 
 const (
 	// ExSuccess is the exit code that signals that everything went as expected.
@@ -15,14 +24,6 @@ const (
 //
 //nolint:errname
 var Success = Result{}
-
-// Result contains the final exit message and code for a CLI session.
-//
-//nolint:errname
-type Result struct {
-	ExitCode int
-	Message  string
-}
 
 func (e Result) Error() string {
 	return e.Message
