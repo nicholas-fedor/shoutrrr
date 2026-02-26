@@ -1,3 +1,4 @@
+// Package send provides the CLI command for sending notifications to various notification services.
 package send
 
 import (
@@ -44,6 +45,7 @@ func init() {
 	Cmd.Flags().StringP("title", "t", "", "The title used for services that support it")
 }
 
+//nolint:gosec // G705: false positive - output goes to stderr (terminal), not HTML/web context where XSS could occur
 func logf(format string, a ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", a...)
 }
