@@ -231,14 +231,6 @@ func (c *Color) Set() *Color {
 	return c
 }
 
-func (c *Color) unset() {
-	if c.isNoColorSet() {
-		return
-	}
-
-	Unset()
-}
-
 // SetWriter is used to set the SGR sequence with the given io.Writer. This is
 // a low-level function, and users should use the higher-level functions, such
 // as color.Fprint, color.Print, etc.
@@ -437,6 +429,52 @@ func (c *Color) SprintlnFunc() func(a ...any) string {
 	}
 }
 
+// DisableColor disables the color output. Useful to not change any existing
+// code and still being able to output. Can be used for flags like
+// "--no-color". To enable back use EnableColor() method.
+func (c *Color) DisableColor() {
+	c.noColor = boolPtr(true)
+}
+
+// EnableColor enables the color output. Use it in conjunction with
+// DisableColor(). Otherwise, this method has no side effects.
+func (c *Color) EnableColor() {
+	c.noColor = boolPtr(false)
+}
+
+// Equals returns a boolean value indicating whether two colors are equal.
+func (c *Color) Equals(colorToCompare *Color) bool {
+	if c == nil && colorToCompare == nil {
+		return true
+	}
+
+	if c == nil || colorToCompare == nil {
+		return false
+	}
+
+	if len(c.params) != len(colorToCompare.params) {
+		return false
+	}
+
+	for _, attr := range c.params {
+		if !colorToCompare.attrExists(attr) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (c *Color) isNoColorSet() bool {
+	// check first if we have user set action
+	if c.noColor != nil {
+		return *c.noColor
+	}
+
+	// if not return the global option, which is disabled by default
+	return NoColor
+}
+
 // sequence returns a formatted SGR sequence to be plugged into a "\x1b[...m"
 // an example output might be: "1;36" -> bold cyan.
 func (c *Color) sequence() string {
@@ -462,6 +500,9 @@ func (c *Color) format() string {
 	return fmt.Sprintf("%s[%sm", escape, c.sequence())
 }
 
+// unformat returns the ANSI escape sequence to reset the color formatting.
+// For each parameter in the color, it uses the specific reset attribute if available,
+// or the generic Reset attribute otherwise.
 func (c *Color) unformat() string {
 	// return fmt.Sprintf("%s[%dm", escape, Reset)
 	// for each element in sequence let's use the specific reset escape, or the generic one if not found
@@ -478,50 +519,12 @@ func (c *Color) unformat() string {
 	return fmt.Sprintf("%s[%sm", escape, strings.Join(format, ";"))
 }
 
-// DisableColor disables the color output. Useful to not change any existing
-// code and still being able to output. Can be used for flags like
-// "--no-color". To enable back use EnableColor() method.
-func (c *Color) DisableColor() {
-	c.noColor = boolPtr(true)
-}
-
-// EnableColor enables the color output. Use it in conjunction with
-// DisableColor(). Otherwise, this method has no side effects.
-func (c *Color) EnableColor() {
-	c.noColor = boolPtr(false)
-}
-
-func (c *Color) isNoColorSet() bool {
-	// check first if we have user set action
-	if c.noColor != nil {
-		return *c.noColor
+func (c *Color) unset() {
+	if c.isNoColorSet() {
+		return
 	}
 
-	// if not return the global option, which is disabled by default
-	return NoColor
-}
-
-// Equals returns a boolean value indicating whether two colors are equal.
-func (c *Color) Equals(colorToCompare *Color) bool {
-	if c == nil && colorToCompare == nil {
-		return true
-	}
-
-	if c == nil || colorToCompare == nil {
-		return false
-	}
-
-	if len(c.params) != len(colorToCompare.params) {
-		return false
-	}
-
-	for _, attr := range c.params {
-		if !colorToCompare.attrExists(attr) {
-			return false
-		}
-	}
-
-	return true
+	Unset()
 }
 
 func (c *Color) attrExists(a Attribute) bool {
