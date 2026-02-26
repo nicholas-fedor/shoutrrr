@@ -13,35 +13,6 @@ import (
 	"golang.org/x/term"
 )
 
-var (
-	// NoColor defines if the output is colorized or not. It's dynamically set to
-	// false or true based on the stdout's file descriptor referring to a terminal
-	// or not. It's also set to true if the NO_COLOR environment variable is
-	// set (regardless of its value). This is a global option and affects all
-	// colors. For more control over each color block use the methods
-	// DisableColor() individually.
-	NoColor = noColorIsSet() || os.Getenv("TERM") == "dumb" ||
-		(!term.IsTerminal(int(os.Stdout.Fd())))
-
-	// Output defines the standard output of the print functions. By default,
-	// os.Stdout is used.
-	Output = colorable.NewColorableStdout()
-
-	// Error defines a color supporting writer for os.Stderr.
-	Error = colorable.NewColorableStderr()
-
-	// colorsCache is used to reduce the count of created Color objects and
-	// allows to reuse already created objects with required Attribute.
-	colorsCache   = make(map[Attribute]*Color)
-	colorsCacheMu sync.Mutex // protects colorsCache
-)
-
-// noColorIsSet returns true if the environment variable NO_COLOR is set to a non-empty string.
-func noColorIsSet() bool {
-	return os.Getenv("NO_COLOR") != ""
-}
-
-// Color defines a custom color object which is defined by SGR parameters.
 type Color struct {
 	params  []Attribute
 	noColor *bool
@@ -79,18 +50,6 @@ const (
 	ResetConcealed
 	ResetCrossedOut
 )
-
-var mapResetAttributes = map[Attribute]Attribute{
-	Bold:         ResetBold,
-	Faint:        ResetBold,
-	Italic:       ResetItalic,
-	Underline:    ResetUnderline,
-	BlinkSlow:    ResetBlinking,
-	BlinkRapid:   ResetBlinking,
-	ReverseVideo: ResetReversed,
-	Concealed:    ResetConcealed,
-	CrossedOut:   ResetCrossedOut,
-}
 
 // Foreground text colors.
 const (
@@ -145,6 +104,46 @@ const (
 	BgHiCyan
 	BgHiWhite
 )
+
+var (
+	// NoColor defines if the output is colorized or not. It's dynamically set to
+	// false or true based on the stdout's file descriptor referring to a terminal
+	// or not. It's also set to true if the NO_COLOR environment variable is
+	// set (regardless of its value). This is a global option and affects all
+	// colors. For more control over each color block use the methods
+	// DisableColor() individually.
+	NoColor = noColorIsSet() || os.Getenv("TERM") == "dumb" ||
+		(!term.IsTerminal(int(os.Stdout.Fd())))
+
+	// Output defines the standard output of the print functions. By default,
+	// os.Stdout is used.
+	Output = colorable.NewColorableStdout()
+
+	// Error defines a color supporting writer for os.Stderr.
+	Error = colorable.NewColorableStderr()
+
+	// colorsCache is used to reduce the count of created Color objects and
+	// allows to reuse already created objects with required Attribute.
+	colorsCache   = make(map[Attribute]*Color)
+	colorsCacheMu sync.Mutex // protects colorsCache
+)
+
+var mapResetAttributes = map[Attribute]Attribute{
+	Bold:         ResetBold,
+	Faint:        ResetBold,
+	Italic:       ResetItalic,
+	Underline:    ResetUnderline,
+	BlinkSlow:    ResetBlinking,
+	BlinkRapid:   ResetBlinking,
+	ReverseVideo: ResetReversed,
+	Concealed:    ResetConcealed,
+	CrossedOut:   ResetCrossedOut,
+}
+
+// noColorIsSet returns true if the environment variable NO_COLOR is set to a non-empty string.
+func noColorIsSet() bool {
+	return os.Getenv("NO_COLOR") != ""
+}
 
 // New returns a newly created color object.
 func New(value ...Attribute) *Color {

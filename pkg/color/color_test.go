@@ -11,6 +11,8 @@ import (
 	"github.com/mattn/go-colorable"
 )
 
+const expectedRedFooOutput = "\x1b[31mfoo\x1b[0m\n"
+
 // Testing colors is kinda different. First we test for given colors and their
 // escaped formatted results. Next we create some visual tests to be tested.
 // Each visual test includes the color name to be compared.
@@ -425,8 +427,6 @@ func TestNoFormatString(t *testing.T) {
 		}
 	}
 }
-
-const expectedRedFooOutput = "\x1b[31mfoo\x1b[0m\n"
 
 func TestColor_Println_Newline(t *testing.T) {
 	rb := new(bytes.Buffer)
