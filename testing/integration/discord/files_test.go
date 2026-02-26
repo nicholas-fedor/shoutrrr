@@ -228,6 +228,7 @@ func TestSendFileWithUnicodeContent(t *testing.T) {
 			Return(createMockResponse(http.StatusNoContent, ""), nil).
 			Once()
 
+		//nolint:gosmopolitan // Intentional string literal containing rune in Han script (gosmopolitan)
 		unicodeContent := []byte("Hello 世界 🌍 éñüñ")
 		items := []types.MessageItem{
 			createTestMessageItemWithFile("Unicode file", "unicode.txt", unicodeContent),

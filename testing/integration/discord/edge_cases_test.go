@@ -66,6 +66,7 @@ func TestEmptyMessageItems(t *testing.T) {
 	})
 }
 
+//nolint:gosmopolitan // Intentional string literals containing runes
 func TestUnicodeMessages(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
