@@ -167,6 +167,8 @@ var _ = ginkgo.Describe("the failure package", func() {
 
 // TestFailures runs the Ginkgo test suite for the failures package.
 func TestFailures(t *testing.T) {
+	t.Parallel()
+
 	format.CharactersAroundMismatchToInclude = 20 // Show more context in failure output
 
 	gomega.RegisterFailHandler(ginkgo.Fail)

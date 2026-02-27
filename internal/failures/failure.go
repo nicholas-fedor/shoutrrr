@@ -26,7 +26,9 @@ type Failure interface {
 }
 
 // Ensure failure implements the error interface at compile time.
-var _ error = &failure{}
+//
+//nolint:errcheck // Compile-time type assertion, not an error check
+var _ error = (*failure)(nil)
 
 // Error returns the failure's message, appending the wrapped error's message if present.
 func (f *failure) Error() string {
