@@ -342,6 +342,10 @@ linters:
       # Enable all checks.
       # Default: false
       enable-all: true
+      # Disable checks that conflict with nonamedreturns linter
+      # Default: []
+      disabled-checks:
+        - unnamedResult
 
     ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#gosec
