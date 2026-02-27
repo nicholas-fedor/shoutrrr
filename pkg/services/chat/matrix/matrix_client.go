@@ -208,7 +208,7 @@ func (c *client) apiGet(path string, response any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL.String(), http.NoBody)
 	if err != nil {
 		return fmt.Errorf("creating GET request: %w", err)
 	}

@@ -46,7 +46,7 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			httpmock.RegisterResponder("GET", "http://example.com",
 				httpmock.NewStringResponder(200, "success"))
 
-			req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
+			req, _ := http.NewRequest(http.MethodGet, "http://example.com", http.NoBody)
 			resp, err := client.Do(req)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -59,7 +59,7 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			httpmock.RegisterResponder("GET", "http://example.com",
 				httpmock.NewErrorResponder(errors.New("network error")))
 
-			req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
+			req, _ := http.NewRequest(http.MethodGet, "http://example.com", http.NoBody)
 			_, err := client.Do(req)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())

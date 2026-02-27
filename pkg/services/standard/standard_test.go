@@ -3,7 +3,6 @@ package standard
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -77,7 +76,7 @@ var _ = ginkgo.Describe("the standard template implementation", func() {
 			defer func() { _ = file.Close() }()
 			defer func() { _ = os.Remove(fileName) }()
 
-			_, err = io.WriteString(file, "template content")
+			_, err = file.WriteString("template content")
 			if err != nil {
 				ginkgo.Skip(fmt.Sprintf("Could not write to temp file: %s", err))
 

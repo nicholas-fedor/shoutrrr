@@ -73,7 +73,7 @@ func (c *client) Headers() http.Header {
 
 // Get fetches a URL using GET and unmarshals the response into the provided object.
 func (c *client) Get(url string, response any) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("creating GET request for %q: %w", url, err)
 	}

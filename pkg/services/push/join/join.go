@@ -76,12 +76,7 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 
 	apiURL.RawQuery = data.Encode()
 
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		apiURL.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL.String(), http.NoBody)
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", err)
 	}
