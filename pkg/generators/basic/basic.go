@@ -206,7 +206,7 @@ func (g *Generator) setFieldValue(
 		inputValue = field.DefaultValue
 	}
 
-	valid, err := format.SetConfigField(config, *field, inputValue)
+	valid, err := format.SetConfigField(config, field, inputValue)
 	if err != nil {
 		return false, fmt.Errorf("failed to set field %s: %w", field.Name, err)
 	}

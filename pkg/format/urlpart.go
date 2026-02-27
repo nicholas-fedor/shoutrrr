@@ -11,6 +11,16 @@ import (
 // URLPart is an indicator as to what part of an URL a field is serialized to.
 type URLPart int
 
+// indicator as to what part of an URL a field is serialized to.
+const (
+	URLQuery URLPart = iota
+	URLUser
+	URLPassword
+	URLHost
+	URLPort
+	URLPath // Base path; additional paths are URLPath + N
+)
+
 // Suffix returns the separator between the URLPart and its subsequent part.
 func (u URLPart) Suffix() rune {
 	switch u {
@@ -30,16 +40,6 @@ func (u URLPart) Suffix() rune {
 		return '/'
 	}
 }
-
-// indicator as to what part of an URL a field is serialized to.
-const (
-	URLQuery URLPart = iota
-	URLUser
-	URLPassword
-	URLHost
-	URLPort
-	URLPath // Base path; additional paths are URLPath + N
-)
 
 // ParseURLPart returns the URLPart that matches the supplied string.
 func ParseURLPart(inputString string) URLPart {

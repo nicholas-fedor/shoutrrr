@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 		ginkgo.When("setting an integer value", func() {
 			ginkgo.When("the value is valid", func() {
 				ginkgo.It("should set it", func() {
-					valid, err := SetConfigField(tv, *nodeMap["Signed"].Field(), "3")
+					valid, err := SetConfigField(tv, nodeMap["Signed"].Field(), "3")
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeTrue())
 					gomega.Expect(ts.Signed).To(gomega.Equal(3))
@@ -50,7 +50,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			ginkgo.When("the value is invalid", func() {
 				ginkgo.It("should return an error", func() {
 					ts.Signed = 2
-					valid, err := SetConfigField(tv, *nodeMap["Signed"].Field(), "z7")
+					valid, err := SetConfigField(tv, nodeMap["Signed"].Field(), "z7")
 					gomega.Expect(err).To(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeFalse())
 					gomega.Expect(ts.Signed).To(gomega.Equal(2))
@@ -60,7 +60,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 		ginkgo.When("setting an unsigned integer value", func() {
 			ginkgo.When("the value is valid", func() {
 				ginkgo.It("should set it", func() {
-					valid, err := SetConfigField(tv, *nodeMap["Unsigned"].Field(), "6")
+					valid, err := SetConfigField(tv, nodeMap["Unsigned"].Field(), "6")
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeTrue())
 					gomega.Expect(ts.Unsigned).To(gomega.Equal(uint(6)))
@@ -69,7 +69,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			ginkgo.When("the value is invalid", func() {
 				ginkgo.It("should return an error", func() {
 					ts.Unsigned = 2
-					valid, err := SetConfigField(tv, *nodeMap["Unsigned"].Field(), "-3")
+					valid, err := SetConfigField(tv, nodeMap["Unsigned"].Field(), "-3")
 					gomega.Expect(err).To(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeFalse())
 					gomega.Expect(ts.Unsigned).To(gomega.Equal(uint(2)))
@@ -81,7 +81,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 				ginkgo.It("should set it", func() {
 					valid, err := SetConfigField(
 						tv,
-						*nodeMap["StrSlice"].Field(),
+						nodeMap["StrSlice"].Field(),
 						"meawannowalkalitabitalleh,meawannofeelalitabitstrongah",
 					)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -95,7 +95,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 				ginkgo.It("should set it", func() {
 					valid, err := SetConfigField(
 						tv,
-						*nodeMap["StrArray"].Field(),
+						nodeMap["StrArray"].Field(),
 						"meawannowalkalitabitalleh,meawannofeelalitabitstrongah,meawannothinkalitabitsmartah",
 					)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -106,7 +106,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 				ginkgo.It("should return an error", func() {
 					valid, err := SetConfigField(
 						tv,
-						*nodeMap["StrArray"].Field(),
+						nodeMap["StrArray"].Field(),
 						"one,two,three,four?",
 					)
 					gomega.Expect(err).To(gomega.HaveOccurred())
@@ -115,7 +115,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			})
 			ginkgo.When("the value has too few elements", func() {
 				ginkgo.It("should return an error", func() {
-					valid, err := SetConfigField(tv, *nodeMap["StrArray"].Field(), "oneassis,two")
+					valid, err := SetConfigField(tv, nodeMap["StrArray"].Field(), "oneassis,two")
 					gomega.Expect(err).To(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeFalse())
 				})
@@ -124,7 +124,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 		ginkgo.When("setting a struct value", func() {
 			ginkgo.When("it doesn't implement ConfigProp", func() {
 				ginkgo.It("should return an error", func() {
-					valid, err := SetConfigField(tv, *nodeMap["Sub"].Field(), "@awol")
+					valid, err := SetConfigField(tv, nodeMap["Sub"].Field(), "@awol")
 					gomega.Expect(err).To(gomega.HaveOccurred())
 					gomega.Expect(valid).NotTo(gomega.BeTrue())
 				})
@@ -132,7 +132,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			ginkgo.When("it implements ConfigProp", func() {
 				ginkgo.When("the value is valid", func() {
 					ginkgo.It("should set it", func() {
-						valid, err := SetConfigField(tv, *nodeMap["SubProp"].Field(), "@awol")
+						valid, err := SetConfigField(tv, nodeMap["SubProp"].Field(), "@awol")
 						gomega.Expect(err).NotTo(gomega.HaveOccurred())
 						gomega.Expect(valid).To(gomega.BeTrue())
 						gomega.Expect(ts.SubProp.Value).To(gomega.Equal("awol"))
@@ -142,7 +142,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 					ginkgo.It("should return an error", func() {
 						valid, err := SetConfigField(
 							tv,
-							*nodeMap["SubProp"].Field(),
+							nodeMap["SubProp"].Field(),
 							"missing initial at symbol",
 						)
 						gomega.Expect(err).To(gomega.HaveOccurred())
@@ -156,7 +156,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 				ginkgo.It("should set it", func() {
 					valid, err := SetConfigField(
 						tv,
-						*nodeMap["SubPropSlice"].Field(),
+						nodeMap["SubPropSlice"].Field(),
 						"@alice,@merton",
 					)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -170,7 +170,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 				ginkgo.It("should set it", func() {
 					valid, err := SetConfigField(
 						tv,
-						*nodeMap["SubPropPtrSlice"].Field(),
+						nodeMap["SubPropPtrSlice"].Field(),
 						"@the,@best",
 					)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -275,7 +275,7 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 func testSetAndFormat(tv reflect.Value, node Node, value, prettyFormat string) {
 	field := node.Field()
 
-	valid, err := SetConfigField(tv, *field, value)
+	valid, err := SetConfigField(tv, field, value)
 	if !valid {
 		gomega.Expect(err).To(gomega.HaveOccurred(), "SetConfigField returned false but no error")
 	}
@@ -283,7 +283,7 @@ func testSetAndFormat(tv reflect.Value, node Node, value, prettyFormat string) {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "SetConfigField error: %v", err)
 	gomega.Expect(valid).To(gomega.BeTrue(), "SetConfigField failed")
 
-	formatted, err := GetConfigFieldString(tv, *field)
+	formatted, err := GetConfigFieldString(tv, field)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "GetConfigFieldString error: %v", err)
 	gomega.Expect(formatted).To(gomega.Equal(value), "Expected %q, got %q", value, formatted)
 	node.Update(tv.FieldByName(field.Name))

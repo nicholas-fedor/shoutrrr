@@ -8,6 +8,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
+// ConsoleTreeRenderer renders a ContainerNode tree into an ansi-colored console string.
+type ConsoleTreeRenderer struct {
+	WithValues bool
+}
+
 // Constants for console rendering.
 const (
 	DescriptionColumnWidth = 60 // Width of the description column in console output
@@ -17,11 +22,6 @@ const (
 	ContainerBracketLength = 4  // Length of container delimiters (e.g., "{ }" or "[ ]")
 	KeySeparatorLength     = 2  // Length of the ": " separator after a key in containers
 )
-
-// ConsoleTreeRenderer renders a ContainerNode tree into an ansi-colored console string.
-type ConsoleTreeRenderer struct {
-	WithValues bool
-}
 
 // RenderTree renders a ContainerNode tree into an ansi-colored console string.
 func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
@@ -82,11 +82,11 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 			stringBuilder.WriteString(">")
 		}
 
-		if len(field.Template) > 0 {
+		if field.Template != "" {
 			fmt.Fprintf(&stringBuilder, " <Template: %s>", ColorizeString(field.Template))
 		}
 
-		if len(field.DefaultValue) > 0 {
+		if field.DefaultValue != "" {
 			fmt.Fprintf(&stringBuilder, " <Default: %s>",
 				ColorizeValue(field.DefaultValue, field.EnumFormatter != nil))
 		}
@@ -134,22 +134,6 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 	return stringBuilder.String()
 }
 
-func (r ConsoleTreeRenderer) writeNodeValue(stringBuilder *strings.Builder, node Node) int {
-	if contNode, isContainer := node.(*ContainerNode); isContainer {
-		return r.writeContainer(stringBuilder, contNode)
-	}
-
-	if valNode, isValue := node.(*ValueNode); isValue {
-		stringBuilder.WriteString(ColorizeToken(valNode.Value, valNode.tokenType))
-
-		return len(valNode.Value)
-	}
-
-	stringBuilder.WriteRune('?')
-
-	return 1
-}
-
 func (r ConsoleTreeRenderer) writeContainer(
 	stringBuilder *strings.Builder,
 	node *ContainerNode,
@@ -191,4 +175,20 @@ func (r ConsoleTreeRenderer) writeContainer(
 	}
 
 	return totalLen
+}
+
+func (r ConsoleTreeRenderer) writeNodeValue(stringBuilder *strings.Builder, node Node) int {
+	if contNode, isContainer := node.(*ContainerNode); isContainer {
+		return r.writeContainer(stringBuilder, contNode)
+	}
+
+	if valNode, isValue := node.(*ValueNode); isValue {
+		stringBuilder.WriteString(ColorizeToken(valNode.Value, valNode.tokenType))
+
+		return len(valNode.Value)
+	}
+
+	stringBuilder.WriteByte('?')
+
+	return 1
 }

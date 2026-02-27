@@ -84,7 +84,7 @@ func GetConfigFormat(config types.ServiceConfig) *ContainerNode {
 }
 
 // SetConfigField updates a config field with a deserialized value from a string.
-func SetConfigField(config reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	configField := config.FieldByName(field.Name)
 	if field.EnumFormatter != nil {
 		return setEnumField(configField, field, inputValue)
@@ -125,7 +125,7 @@ func SetConfigField(config reflect.Value, field FieldInfo, inputValue string) (b
 }
 
 // setIntField handles integer field setting.
-func setIntField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func setIntField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	number, detectedBase := util.StripNumberPrefix(inputValue)
 
 	base := detectedBase
@@ -148,7 +148,7 @@ func setIntField(configField reflect.Value, field FieldInfo, inputValue string) 
 }
 
 // setUintField handles unsigned integer field setting.
-func setUintField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func setUintField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	number, detectedBase := util.StripNumberPrefix(inputValue)
 
 	base := detectedBase
@@ -183,7 +183,7 @@ func setBoolField(configField reflect.Value, inputValue string) (bool, error) {
 }
 
 // setMapField handles map field setting.
-func setMapField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func setMapField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	if field.Type.Key().Kind() != reflect.String {
 		return false, ErrUnsupportedFieldKey
 	}
@@ -213,7 +213,7 @@ func setMapField(configField reflect.Value, field FieldInfo, inputValue string) 
 }
 
 // setStructField handles struct field setting.
-func setStructField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func setStructField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	valuePtr, err := GetConfigPropFromString(field.Type, inputValue)
 	if err != nil {
 		return false, err
@@ -227,7 +227,7 @@ func setStructField(configField reflect.Value, field FieldInfo, inputValue strin
 // setSliceOrArrayField handles slice or array field setting.
 func setSliceOrArrayField(
 	configField reflect.Value,
-	field FieldInfo,
+	field *FieldInfo,
 	inputValue string,
 ) (bool, error) {
 	elemType := field.Type.Elem()
@@ -252,7 +252,7 @@ func setSliceOrArrayField(
 // setSliceOrArrayValues sets the actual values for slice or array fields.
 func setSliceOrArrayValues(
 	configField reflect.Value,
-	field FieldInfo,
+	field *FieldInfo,
 	elemType reflect.Type,
 	values []string,
 ) (bool, error) {
@@ -299,7 +299,7 @@ func setSliceOrArrayValues(
 }
 
 // setEnumField handles enum field setting.
-func setEnumField(configField reflect.Value, field FieldInfo, inputValue string) (bool, error) {
+func setEnumField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	value := field.EnumFormatter.Parse(inputValue)
 	if value == EnumInvalid {
 		return false, fmt.Errorf(
@@ -520,13 +520,13 @@ func getMapIntValue(valueRaw string, valueType reflect.Type) (reflect.Value, err
 }
 
 // GetConfigFieldString converts a config field value to its string representation.
-func GetConfigFieldString(config reflect.Value, field FieldInfo) (string, error) {
+func GetConfigFieldString(config reflect.Value, field *FieldInfo) (string, error) {
 	configField := config.FieldByName(field.Name)
 	if field.IsEnum() {
 		return field.EnumFormatter.Print(int(configField.Int())), nil
 	}
 
-	strVal, token := getValueNodeValue(configField, &field)
+	strVal, token := getValueNodeValue(configField, field)
 	if token == ErrorToken {
 		return "", ErrInvalidFieldValueData
 	}

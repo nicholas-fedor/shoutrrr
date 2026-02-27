@@ -13,15 +13,56 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestFormat(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Format Suite")
+type subPropStruct struct {
+	Value string
+}
+
+type subStruct struct {
+	Value string
+}
+
+type testStruct struct {
+	Signed          int `default:"0"        key:"signed"`
+	Unsigned        uint
+	Str             string `default:"notempty" key:"str"`
+	StrSlice        []string
+	StrArray        [3]string
+	Sub             subStruct
+	TestEnum        int `default:"None"     key:"testenum"`
+	SubProp         subPropStruct
+	SubSlice        []subStruct
+	SubPropSlice    []subPropStruct
+	SubPropPtrSlice []*subPropStruct
+	StrMap          map[string]string
+	IntMap          map[string]int
+	Int8Map         map[string]int8
+	Int16Map        map[string]int16
+	Int32Map        map[string]int32
+	Int64Map        map[string]int64
+	UintMap         map[string]uint
+	Uint8Map        map[string]int8
+	Uint16Map       map[string]int16
+	Uint32Map       map[string]int32
+	Uint64Map       map[string]int64
+}
+
+type testStructBadDefault struct {
+	standard.EnumlessConfig
+
+	Value int `default:"NaN" key:"value"`
 }
 
 var _ = ginkgo.BeforeSuite(func() {
 	// Disable color output for tests using environment variable
 	os.Setenv("NO_COLOR", "true")
 })
+
+var (
+	testEnum = CreateEnumFormatter([]string{"None", "Foo", "Bar"})
+	enums    = map[string]types.EnumFormatter{
+		"TestEnum": testEnum,
+	}
+)
 
 var _ = ginkgo.Describe("the format package", func() {
 	ginkgo.Describe("Generic Format Utils", func() {
@@ -78,49 +119,8 @@ var _ = ginkgo.Describe("the format package", func() {
 	})
 })
 
-type testStruct struct {
-	Signed          int `default:"0"        key:"signed"`
-	Unsigned        uint
-	Str             string `default:"notempty" key:"str"`
-	StrSlice        []string
-	StrArray        [3]string
-	Sub             subStruct
-	TestEnum        int `default:"None"     key:"testenum"`
-	SubProp         subPropStruct
-	SubSlice        []subStruct
-	SubPropSlice    []subPropStruct
-	SubPropPtrSlice []*subPropStruct
-	StrMap          map[string]string
-	IntMap          map[string]int
-	Int8Map         map[string]int8
-	Int16Map        map[string]int16
-	Int32Map        map[string]int32
-	Int64Map        map[string]int64
-	UintMap         map[string]uint
-	Uint8Map        map[string]int8
-	Uint16Map       map[string]int16
-	Uint32Map       map[string]int32
-	Uint64Map       map[string]int64
-}
-
-func (t *testStruct) GetURL() *url.URL {
-	panic("not implemented")
-}
-
-func (t *testStruct) SetURL(_ *url.URL) error {
-	panic("not implemented")
-}
-
-func (t *testStruct) Enums() map[string]types.EnumFormatter {
-	return enums
-}
-
-type subStruct struct {
-	Value string
-}
-
-type subPropStruct struct {
-	Value string
+func (s *subPropStruct) GetPropValue() (string, error) {
+	return "@" + s.Value, nil
 }
 
 func (s *subPropStruct) SetFromProp(propValue string) error {
@@ -133,21 +133,16 @@ func (s *subPropStruct) SetFromProp(propValue string) error {
 	return nil
 }
 
-func (s *subPropStruct) GetPropValue() (string, error) {
-	return "@" + s.Value, nil
+func (t *testStruct) Enums() map[string]types.EnumFormatter {
+	return enums
 }
 
-var (
-	testEnum = CreateEnumFormatter([]string{"None", "Foo", "Bar"})
-	enums    = map[string]types.EnumFormatter{
-		"TestEnum": testEnum,
-	}
-)
+func (t *testStruct) GetURL() *url.URL {
+	panic("not implemented")
+}
 
-type testStructBadDefault struct {
-	standard.EnumlessConfig
-
-	Value int `default:"NaN" key:"value"`
+func (t *testStruct) SetURL(_ *url.URL) error {
+	panic("not implemented")
 }
 
 func (t *testStructBadDefault) GetURL() *url.URL {
@@ -156,4 +151,10 @@ func (t *testStructBadDefault) GetURL() *url.URL {
 
 func (t *testStructBadDefault) SetURL(_ *url.URL) error {
 	panic("not implemented")
+}
+
+func TestFormat(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Format Suite")
 }

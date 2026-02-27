@@ -13,7 +13,7 @@ import (
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
 	confValue reflect.Value
-	keyFields map[string]FieldInfo
+	keyFields map[string]*FieldInfo
 	keys      []string
 }
 
@@ -27,7 +27,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	configNode := GetConfigFormat(config)
 	items := configNode.Items
 
-	keyFields := make(map[string]FieldInfo, len(items))
+	keyFields := make(map[string]*FieldInfo, len(items))
 	keys := make([]string, 0, len(items))
 
 	for _, item := range items {
@@ -40,7 +40,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 			key = strings.ToLower(key)
 			if key != "" {
 				keys = append(keys, key)
-				keyFields[key] = field
+				keyFields[key] = &field
 			}
 		}
 	}

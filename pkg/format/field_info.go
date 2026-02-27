@@ -47,11 +47,12 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 	for i := range numFields {
 		fieldDef := structType.Field(i)
 
-		if isHiddenField(fieldDef) {
+		if isHiddenField(&fieldDef) {
 			// This is an embedded or private field, which should not be part of the Config output
 			continue
 		}
 
+		//nolint:exhaustruct // Partial initialization is intentional, other fields are set below
 		info := FieldInfo{
 			Name:          fieldDef.Name,
 			Type:          fieldDef.Type,
@@ -61,7 +62,7 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 		}
 
 		if util.IsNumeric(fieldDef.Type.Kind()) {
-			info.Base = getFieldBase(fieldDef)
+			info.Base = getFieldBase(&fieldDef)
 		}
 
 		if tag, ok := fieldDef.Tag.Lookup("desc"); ok {
@@ -113,11 +114,11 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 	return fields
 }
 
-func isHiddenField(field reflect.StructField) bool {
+func isHiddenField(field *reflect.StructField) bool {
 	return field.Anonymous || strings.ToUpper(field.Name[0:1]) != field.Name[0:1]
 }
 
-func getFieldBase(field reflect.StructField) int {
+func getFieldBase(field *reflect.StructField) int {
 	if tag, ok := field.Tag.Lookup("base"); ok {
 		if base, err := strconv.ParseUint(tag, 10, 8); err == nil {
 			return int(base)

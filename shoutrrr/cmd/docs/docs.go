@@ -58,8 +58,8 @@ func printDocs(docFormat string, services []string) cmd.Result {
 	case "markdown":
 		renderer = format.MarkdownTreeRenderer{
 			HeaderPrefix:      "### ",
-			PropsDescription:  "Props can be either supplied using the params argument, or through the URL using  \n`?key=value&key=value` etc.\n",
-			PropsEmptyMessage: "*The services does not support any query/param props*",
+			PropsDescription:  "Props can be either supplied using the params argument, or through the URL using\n`?key=value&key=value` etc.\n",
+			PropsEmptyMessage: "*The services does not support any query/param props*\n",
 		}
 	default:
 		return cmd.InvalidUsage("invalid format")
@@ -82,7 +82,7 @@ func printDocs(docFormat string, services []string) cmd.Result {
 
 		config := format.GetServiceConfig(service)
 		configNode := format.GetConfigFormat(config)
-		_, _ = fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme), "\n")
+		_, _ = fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme))
 	}
 
 	return cmd.Success
