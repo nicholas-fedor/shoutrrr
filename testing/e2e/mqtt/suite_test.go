@@ -54,7 +54,7 @@ func addCredentialsToURL(envURL string) string {
 // addTLSParam adds TLS skip verify parameter to URL if enabled via environment variable.
 func addTLSParam(rawURL string) string {
 	tlsSkipVerify := os.Getenv("SHOUTRRR_MQTT_TLS_SKIP_VERIFY")
-	if tlsSkipVerify == "true" {
+	if tlsSkipVerify == envValueTrue {
 		if strings.Contains(rawURL, "?") {
 			return rawURL + "&disabletlsverification=yes"
 		}
