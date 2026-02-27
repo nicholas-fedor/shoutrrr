@@ -31,6 +31,7 @@ var _ = ginkgo.Describe("the format package", func() {
 				gomega.Expect(parsed).To(gomega.Equal(expected))
 				gomega.Expect(ok).To(gomega.BeTrue())
 			}
+
 			ginkgo.It("should parse truthy values as true", func() {
 				testParseValidBool("true", true)
 				testParseValidBool("1", true)

@@ -85,6 +85,7 @@ var _ = ginkgo.Describe("services", func() {
 				if key == "smtp" {
 					ginkgo.Skip("smtp does not use HTTP and needs a specific test")
 				}
+
 				if key == "xmpp" {
 					ginkgo.Skip("not supported")
 				}
@@ -93,6 +94,7 @@ var _ = ginkgo.Describe("services", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				httpmock.Activate()
+
 				if mockService, ok := service.(testutils.MockClientService); ok {
 					httpmock.ActivateNonDefault(mockService.GetHTTPClient())
 				}
@@ -101,9 +103,11 @@ var _ = ginkgo.Describe("services", func() {
 				if key == "discord" || key == "ifttt" {
 					respStatus = http.StatusNoContent
 				}
+
 				if key == "twilio" {
 					respStatus = http.StatusCreated
 				}
+
 				if key == "mattermost" {
 					httpmock.RegisterResponder(
 						"POST",
@@ -129,9 +133,11 @@ var _ = ginkgo.Describe("services", func() {
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 					httpmock.Activate()
+
 					if mockService, ok := service.(testutils.MockClientService); ok {
 						httpmock.ActivateNonDefault(mockService.GetHTTPClient())
 					}
+
 					httpmock.RegisterResponder(
 						"POST",
 						"http://example.com/hooks/token",

@@ -79,7 +79,9 @@ var (
 			"Test",
 			log.LstdFlags,
 		) // Create logger that writes to Ginkgo output
+
 		var err error
+
 		envGotifyURL, err = url.Parse(
 			os.Getenv("SHOUTRRR_GOTIFY_URL"),
 		) // Parse integration test URL from environment
@@ -101,6 +103,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 
 				return
 			}
+
 			serviceURL := testutils.URLMust(envGotifyURL.String())
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -256,6 +259,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				configURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				params := types.Params{"priority": "-100"}
 				err = service.Send("Message", &params)
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -269,16 +273,20 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			})
 			ginkgo.It("handles empty config extras", func() {
 				httpmock.Activate()
+
 				defer httpmock.DeactivateAndReset()
+
 				configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				mockManager := &MockHTTPClientManager{}
 				service.httpClientManager = mockManager
 				// Force recreation of client with mock transport
 				service.httpClient = nil
 				service.client = nil
 				service.Config.Extras = map[string]any{}
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -287,6 +295,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{}))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -299,6 +308,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -406,13 +416,16 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 
 	ginkgo.Describe("sending the payload", func() {
 		var mockManager *MockHTTPClientManager
+
 		ginkgo.BeforeEach(func() {
 			service = &Service{}
 			service.SetLogger(logger)
 			httpmock.Activate()
+
 			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 			mockManager = &MockHTTPClientManager{}
 			service.httpClientManager = mockManager
 			// Force recreation of client with mock transport
@@ -436,6 +449,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"date":     "2023-01-01T00:00:00Z",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -452,6 +466,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 							"errorDescription": "you need to provide a valid access token or user credentials to access this api",
 						}),
 					)
+
 					err := service.Send("Message", nil)
 					gomega.Expect(err.Error()).
 						To(gomega.ContainSubstring("server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
@@ -467,6 +482,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "access denied",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -482,6 +498,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "endpoint not found",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -497,6 +514,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "rate limit exceeded",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -512,6 +530,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "internal error",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -527,6 +546,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "bad gateway",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -542,6 +562,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "service unavailable",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -557,6 +578,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"errorDescription": "gateway timeout",
 					}),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -568,6 +590,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 					TargetURL,
 					httpmock.NewErrorResponder(errors.New("network failure")),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err.Error()).
 					To(gomega.ContainSubstring("sending POST request to \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": Post \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": network failure"))
@@ -610,8 +633,10 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(service.client).NotTo(gomega.BeNil())
 				// Now activate httpmock and set client to nil to force recreation with mocked transport
 				httpmock.Activate()
+
 				service.httpClient = nil
 				service.client = nil
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -630,6 +655,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			})
 			ginkgo.It("handles very long messages", func() {
 				longMessage := strings.Repeat("a", 10000)
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -638,6 +664,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["message"]).To(gomega.Equal(longMessage))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -650,11 +677,13 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send(longMessage, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("handles messages with special characters", func() {
 				specialMessage := "Message with special chars: éñüñ 中文 🚀 \n\t\"quotes\" 'single'"
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -663,6 +692,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["message"]).To(gomega.Equal(specialMessage))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -675,6 +705,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send(specialMessage, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -684,6 +715,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 					TargetURL,
 					httpmock.NewStringResponder(500, "Internal Server Error"),
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
@@ -702,7 +734,9 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						"date":     "2023-01-01T00:00:00Z",
 					}),
 				)
+
 				numGoroutines := 10
+
 				errChan := make(chan error, numGoroutines)
 				for i := range numGoroutines {
 					go func(id int) {
@@ -710,6 +744,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						errChan <- err
 					}(i)
 				}
+
 				for range numGoroutines {
 					err := <-errChan
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -724,6 +759,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						100,
 					) // ~400 bytes per entry
 				}
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -732,6 +768,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(largeExtras))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -744,12 +781,14 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				service.Config.Extras = largeExtras
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("handles combined large message and extras", func() {
 				largeMessage := strings.Repeat("message", 2000) // ~12KB message
+
 				largeExtras := make(map[string]any)
 				for i := range 500 {
 					largeExtras[strconv.Itoa(i)] = strings.Repeat(
@@ -757,6 +796,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						50,
 					) // ~250 bytes per entry
 				}
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -765,6 +805,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["message"]).To(gomega.Equal(largeMessage))
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(largeExtras))
 
@@ -778,6 +819,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				service.Config.Extras = largeExtras
 				err := service.Send(largeMessage, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -786,6 +828,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		ginkgo.When("sending with extras from params", func() {
 			ginkgo.It("includes extras in request payload from params", func() {
 				extrasJSON := `{"paramKey":"paramValue"}`
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -794,6 +837,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
 							"paramKey": "paramValue",
 						}))
@@ -808,12 +852,14 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"extras": extrasJSON}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("includes extras in request payload from config", func() {
 				service.Config.Extras = map[string]any{"configKey": "configValue"}
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -822,6 +868,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
 							"configKey": "configValue",
 						}))
@@ -836,6 +883,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -843,6 +891,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.It("prioritizes extras from params over config", func() {
 				service.Config.Extras = map[string]any{"configKey": "configValue"}
 				extrasJSON := `{"paramKey":"paramValue"}`
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -851,6 +900,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
 							"paramKey": "paramValue",
 						}))
@@ -865,6 +915,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"extras": extrasJSON}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -873,6 +924,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		ginkgo.When("sending with date parameter", func() {
 			ginkgo.It("includes date in request payload when provided", func() {
 				customDate := TestDateRFC
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -881,6 +933,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -893,6 +946,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": customDate}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -900,6 +954,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.It("converts Unix timestamp date parameter to RFC3339", func() {
 				unixDate := "1701720000" // 2023-12-04T20:00:00Z
 				expectedDate := TestDateRFC
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -908,6 +963,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -920,6 +976,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": unixDate}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -927,6 +984,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.It("converts basic date-time format to RFC3339", func() {
 				basicDate := "2023-12-04 20:00:00"
 				expectedDate := TestDateRFC
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -935,6 +993,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -947,16 +1006,19 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": basicDate}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("logs warning for invalid date parameter and sends with empty date", func() {
 				var logBuffer bytes.Buffer
+
 				testLogger := log.New(&logBuffer, "Test", log.LstdFlags)
 				service.SetLogger(testLogger)
 
 				invalidDate := "not-a-date"
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -978,6 +1040,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": invalidDate}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -987,6 +1050,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				// Set date in config
 				service.Config.Date = TestDateConfig
 				paramDate := TestDateRFC
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -995,6 +1059,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(paramDate))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -1007,6 +1072,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": paramDate}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -1014,6 +1080,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.It("uses config date when no param date provided", func() {
 				configDate := TestDateConfig
 				service.Config.Date = configDate
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -1022,6 +1089,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(configDate))
 
 						return testutils.JSONRespondMust(200, map[string]any{
@@ -1034,11 +1102,13 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 			ginkgo.It("includes date with priority parameter", func() {
 				customDate := TestDateRFC
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -1047,6 +1117,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
 						gomega.Expect(requestBody["priority"]).To(gomega.Equal(float64(3)))
 
@@ -1060,6 +1131,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": customDate, "priority": "3"}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -1067,6 +1139,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.It("includes date with extras parameter", func() {
 				customDate := TestDateRFC
 				extrasJSON := `{"key":"value"}`
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -1075,6 +1148,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
 							return nil, err
 						}
+
 						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
 						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
 							"key": "value",
@@ -1090,6 +1164,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"date": customDate, "extras": extrasJSON}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -1100,11 +1175,13 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				service = &Service{}
 				service.SetLogger(logger)
 				httpmock.Activate()
+
 				configURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes",
 				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				mockManager = &MockHTTPClientManager{}
 				service.httpClientManager = mockManager
 				// Force recreation of client with mock transport
@@ -1132,6 +1209,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -1153,6 +1231,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				err := service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				// Verify header was cleaned up
@@ -1163,6 +1242,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		ginkgo.When("parsing extras with invalid JSON", func() {
 			ginkgo.It("logs error and falls back to config extras", func() {
 				service.Config.Extras = map[string]any{"configKey": "configValue"}
+
 				httpmock.RegisterResponder(
 					"POST",
 					TargetURL,
@@ -1186,6 +1266,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 						})(req)
 					},
 				)
+
 				params := types.Params{"extras": "invalid-json"}
 				err := service.Send("Message", &params)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())

@@ -1,0 +1,57 @@
+# EMQX MQTT Broker for local testing
+#
+# https://hub.docker.com/r/emqx/emqx
+#
+# Usage:
+#   docker-compose up -d
+#
+# Default credentials:
+#   Username: admin
+#   Password: public
+#
+# Dashboard: http://localhost:18083
+#   Username: admin
+#   Password: public
+#
+# Note: Change default credentials in production!
+
+services:
+  emqx:
+    image: emqx/emqx:latest
+    container_name: emqx
+    ports:
+      - "1883:1883" # MQTT TCP
+      - "8883:8883" # MQTT over TLS
+      - "8083:8083" # WebSocket MQTT
+      - "8084:8084" # WebSocket MQTT over TLS
+      - "18083:18083" # EMQX Dashboard
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_HOST=0.0.0.0
+      - EMQX_NODE__COOKIE=emqxsecretcookie123 # silences Erlang cookie warning
+      # Default credentials (change in production!)
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
+      # EMQX Authentication Bootstrap Configuration
+      - EMQX_AUTHENTICATION__1__ENABLE=true
+      - EMQX_AUTHENTICATION__1__BACKEND=built_in_database
+      - EMQX_AUTHENTICATION__1__MECHANISM=password_based
+      - EMQX_AUTHENTICATION__1__USER_ID_TYPE=username
+      - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM={"name":"sha256","salt_position":"prefix"}
+      - EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE=/opt/emqx/etc/auth-built-in-db-bootstrap.json
+      - EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE=hash
+      # Explicitly disable anonymous access
+      - EMQX_ALLOW_ANONYMOUS=false
+      # Enable TLS/SSL
+      - EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__CACERTFILE=/opt/emqx/etc/certs/ca.pem
+      - EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__CERTFILE=/opt/emqx/etc/certs/cert.pem
+      - EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__KEYFILE=/opt/emqx/etc/certs/key.pem
+    volumes:
+      - ./certs:/opt/emqx/etc/certs:ro
+      - ./auth-built-in-db-bootstrap.json:/opt/emqx/etc/auth-built-in-db-bootstrap.json:ro
+    healthcheck:
+      test: [ "CMD", "/opt/emqx/bin/emqx_ctl", "status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped

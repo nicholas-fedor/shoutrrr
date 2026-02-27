@@ -86,6 +86,7 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 			for _, cert := range mockServer.TLS.Certificates {
 				certPool.AddCert(cert.Leaf)
 			}
+
 			client = &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{

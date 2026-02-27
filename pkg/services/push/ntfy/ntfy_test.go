@@ -53,6 +53,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 
 				return
 			}
+
 			configURL := testutils.URLMust(envBarkURL.String())
 			gomega.Expect(service.Initialize(configURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("This is an integration test message", nil)).
@@ -137,6 +138,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 
 		ginkgo.It("should not panic if a communication error occurs", func() {
 			httpmock.DeactivateAndReset()
+
 			serviceURL := testutils.URLMust("ntfy://:devicekey@nonresolvablehostname/testtopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("Message", nil)).To(gomega.HaveOccurred())
@@ -215,6 +217,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						},
 					},
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -308,6 +311,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -321,6 +325,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						},
 					},
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -382,6 +387,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -395,6 +401,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						},
 					},
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -508,6 +515,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						Code:    http.StatusOK,
 						Message: "OK",
 					}
+
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
 					_ = json.NewEncoder(w).Encode(response)
@@ -522,6 +530,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				},
 				MinVersion: tls.VersionTLS13,
 			}
+
 			server.StartTLS()
 			defer server.Close()
 
@@ -561,7 +570,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		ginkgo.It("should fail with missing intermediate certificates", func() {
 			// This test demonstrates failure when intermediate certificates are missing
 			// from the certificate chain, which is common with Let's Encrypt certificates
-
 			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -647,6 +655,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						Code:    http.StatusOK,
 						Message: "OK",
 					}
+
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
 					_ = json.NewEncoder(w).Encode(response)
@@ -664,6 +673,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			}
 			// Reference intermediateDerBytes to avoid unused variable warning
 			_ = intermediateDerBytes
+
 			server.StartTLS()
 			defer server.Close()
 
@@ -703,7 +713,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		ginkgo.It("should fail with network/proxy interference scenarios", func() {
 			// This test demonstrates failure when network proxies or middleboxes
 			// interfere with TLS connections by performing MITM attacks
-
 			privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -740,6 +749,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						Code:    http.StatusOK,
 						Message: "Intercepted by proxy",
 					}
+
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
 					_ = json.NewEncoder(w).Encode(response)
@@ -753,6 +763,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					},
 				},
 			}
+
 			server.StartTLS()
 			defer server.Close()
 
@@ -780,7 +791,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			func() {
 				// This test demonstrates what SHOULD work - proper TLS configuration
 				// with a complete certificate chain that includes all intermediates
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -866,6 +876,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -883,6 +894,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						},
 					},
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -894,6 +906,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					"DEBUG: Test setup - server certificate chain length: %d",
 					len(server.TLS.Certificates[0].Certificate),
 				)
+
 				if len(server.TLS.Certificates[0].Certificate) > 0 {
 					cert, err := x509.ParseCertificate(server.TLS.Certificates[0].Certificate[0])
 					if err == nil {
@@ -904,6 +917,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 						)
 					}
 				}
+
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 				rootCAs.AddCert(rootCert)
 
@@ -938,13 +952,13 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			func() {
 				// This test demonstrates success with Go's default RootCAs
 				// using httptest.NewTLSServer which provides a properly trusted certificate
-
 				server := httptest.NewTLSServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						response := apiResponse{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -984,7 +998,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// This test demonstrates that TLS certificate verification can fail even with valid certificates
 				// when the server uses a TLS version below the client's minimum required version.
 				// This highlights another aspect of TLS issues that can cause certificate verification failures.
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -1017,6 +1030,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -1033,6 +1047,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					MinVersion: tls.VersionTLS10,
 					MaxVersion: tls.VersionTLS10,
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -1070,7 +1085,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// This test demonstrates that TLS certificate verification can fail even with valid certificates
 				// when the server uses TLS 1.1 but the client requires minimum TLS 1.2.
 				// This is another common cause of TLS handshake failures that appear as certificate verification errors.
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -1103,6 +1117,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -1119,6 +1134,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					MinVersion: tls.VersionTLS11,
 					MaxVersion: tls.VersionTLS11,
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -1159,7 +1175,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			func() {
 				// This test demonstrates successful TLS connection when both server and client
 				// support TLS 1.2 as the minimum version requirement.
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -1192,6 +1207,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -1207,6 +1223,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					// Server supports TLS 1.2 and above
 					MinVersion: tls.VersionTLS12,
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -1244,7 +1261,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			func() {
 				// This test demonstrates successful TLS connection when the server supports TLS 1.2+
 				// and the client requires minimum TLS 1.2 (TLS 1.3 is negotiated when available).
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -1277,6 +1293,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -1292,6 +1309,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					// Server supports TLS 1.2 and above, negotiating to 1.3 when available
 					MinVersion: tls.VersionTLS12,
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -1327,7 +1345,6 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// This test demonstrates how different MinVersion settings affect TLS connections.
 				// It shows that even with valid certificates, TLS version requirements can cause
 				// connection failures that manifest as certificate verification errors.
-
 				privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
@@ -1360,6 +1377,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
+
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusOK)
 						_ = json.NewEncoder(w).Encode(response)
@@ -1376,6 +1394,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					MinVersion: tls.VersionTLS12,
 					MaxVersion: tls.VersionTLS12,
 				}
+
 				server.StartTLS()
 				defer server.Close()
 
@@ -1402,6 +1421,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					server.TLS.MaxVersion,
 				)
 				client13 := &http.Client{Transport: transport13}
+
 				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 				service.SetHTTPClient(client13)
 				err = service.Send("Test message with TLS 1.3 min requirement", nil)
@@ -1417,6 +1437,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 					},
 				}
 				client12 := &http.Client{Transport: transport12}
+
 				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 				service.SetHTTPClient(client12)
 				gomega.Expect(service.Send("Test message with TLS 1.2 min requirement", nil)).

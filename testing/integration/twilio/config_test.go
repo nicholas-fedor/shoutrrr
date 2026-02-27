@@ -133,7 +133,7 @@ func TestConfigEmptyTitle(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
 
-		assert.Equal(t, "", service.Config.Title)
+		assert.Empty(t, service.Config.Title)
 
 		mockClient.AssertExpectations(t)
 	})

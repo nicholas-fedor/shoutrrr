@@ -44,6 +44,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 
 				return
 			}
+
 			serviceURL := testutils.URLMust(envTestURL)
 			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -131,6 +132,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				configURL := testutils.URLMust("ifttt://dummyID/?events=foo%2Cbar%2Cbaz")
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				resultURL := service.Config.GetURL().String()
 				gomega.Expect(resultURL).To(gomega.Equal(configURL.String()))
 			})
@@ -142,6 +144,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				)
 				err := service.Initialize(configURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 				resultURL := service.Config.GetURL().String()
 				gomega.Expect(resultURL).To(gomega.Equal(configURL.String()))
 			})
@@ -151,6 +154,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 	ginkgo.Describe("sending a message", func() {
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
+
 			service = &ifttt.Service{}
 			service.SetLogger(logger)
 		})
@@ -167,6 +171,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				"https://maker.ifttt.com/trigger/foo/with/key/dummy",
 				httpmock.NewStringResponder(404, ""),
 			)
+
 			err = service.Send("hello", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
@@ -179,6 +184,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				"https://maker.ifttt.com/trigger/foo/with/key/dummy",
 				httpmock.NewStringResponder(200, ""),
 			)
+
 			err = service.Send("hello", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -186,6 +192,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			configURL := testutils.URLMust("ifttt://dummy/?events=event1")
 			err := service.Initialize(configURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 			params := types.Params{"messagevalue": "invalid"}
 			err = service.Send("hello", &params)
 			gomega.Expect(err).To(gomega.HaveOccurred())
@@ -203,9 +210,12 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 					func(req *http.Request) (*http.Response, error) {
 						body, err := io.ReadAll(req.Body)
 						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 						var payload jsonPayload
+
 						err = json.Unmarshal(body, &payload)
 						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 						switch expectedField {
 						case "Value1":
 							gomega.Expect(payload.Value1).To(gomega.Equal("hello"))
@@ -224,6 +234,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 						return httpmock.NewStringResponse(200, ""), nil
 					},
 				)
+
 				err = service.Send("hello", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			},
@@ -241,7 +252,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				func(req *http.Request) (*http.Response, error) {
 					body, err := io.ReadAll(req.Body)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 					var payload jsonPayload
+
 					err = json.Unmarshal(body, &payload)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(payload.Value1).To(gomega.Equal("hello"))
@@ -251,6 +264,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 					return httpmock.NewStringResponse(200, ""), nil
 				},
 			)
+
 			params := types.Params{
 				"value2": "y",
 			}
@@ -269,7 +283,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 				func(req *http.Request) (*http.Response, error) {
 					body, err := io.ReadAll(req.Body)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
 					var payload jsonPayload
+
 					err = json.Unmarshal(body, &payload)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(payload.Value1).To(gomega.Equal("x"))
@@ -279,6 +295,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 					return httpmock.NewStringResponse(200, ""), nil
 				},
 			)
+
 			params := types.Params{
 				"value1": "x",
 				// "value2": "y", // Omitted to let message override

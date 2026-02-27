@@ -173,6 +173,7 @@ var _ = ginkgo.Describe("the slack service", func() {
 	ginkgo.Describe("creating the payload", func() {
 		ginkgo.Describe("the icon fields", func() {
 			payload := slack.MessagePayload{}
+
 			ginkgo.It("should set IconURL when the configured icon looks like an URL", func() {
 				payload.SetIcon("https://example.com/logo.png")
 				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
@@ -195,10 +196,12 @@ var _ = ginkgo.Describe("the slack service", func() {
 		ginkgo.When("when more than 99 lines are being sent", func() {
 			ginkgo.It("should append the exceeding lines to the last attachment", func() {
 				config := slack.Config{}
+
 				sb := strings.Builder{}
 				for i := 1; i <= 110; i++ {
-					sb.WriteString(fmt.Sprintf("Line %d\n", i))
+					fmt.Fprintf(&sb, "Line %d\n", i)
 				}
+
 				payload := slack.CreateJSONPayload(&config, sb.String()).(slack.MessagePayload)
 				atts := payload.Attachments
 
@@ -227,6 +230,7 @@ var _ = ginkgo.Describe("the slack service", func() {
 	ginkgo.Describe("sending the payload", func() {
 		ginkgo.When("sending via webhook URL", func() {
 			var err error
+
 			ginkgo.BeforeEach(func() {
 				httpmock.Activate()
 			})
@@ -269,6 +273,7 @@ var _ = ginkgo.Describe("the slack service", func() {
 		})
 		ginkgo.When("sending via bot API", func() {
 			var err error
+
 			ginkgo.BeforeEach(func() {
 				httpmock.Activate()
 			})

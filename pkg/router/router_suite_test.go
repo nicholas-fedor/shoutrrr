@@ -115,6 +115,7 @@ var _ = ginkgo.Describe("the router suite", func() {
 		ginkgo.When("it hasn't been assigned a sender", func() {
 			ginkgo.It("should not cause a panic", func() {
 				defer sr.Flush(nil)
+
 				sr.Enqueue("message")
 			})
 		})

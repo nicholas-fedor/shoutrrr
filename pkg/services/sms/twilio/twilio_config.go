@@ -17,18 +17,20 @@ const Scheme = "twilio"
 var (
 	ErrAccountSIDMissing = errors.New("account SID missing from config URL")
 	ErrAuthTokenMissing  = errors.New("auth token missing from config URL")
-	ErrFromNumberMissing = errors.New("from number or messaging service SID missing from config URL")
-	ErrToFromNumberSame  = errors.New("to and from phone numbers must not be the same")
-	ErrToNumbersMissing  = errors.New("recipient phone number(s) missing from config URL")
+	ErrFromNumberMissing = errors.New(
+		"from number or messaging service SID missing from config URL",
+	)
+	ErrToFromNumberSame = errors.New("to and from phone numbers must not be the same")
+	ErrToNumbersMissing = errors.New("recipient phone number(s) missing from config URL")
 )
 
 // Config for the Twilio SMS notification service.
 type Config struct {
-	AccountSID string   `desc:"Twilio Account SID"                           url:"user"     required:""`
-	AuthToken  string   `desc:"Twilio Auth Token"                            url:"password" required:""`
-	FromNumber string   `desc:"Sender phone number or Messaging Service SID" url:"host"     required:""`
-	ToNumbers  []string `desc:"Recipient phone number(s)"                    url:"path"     required:""`
-	Title      string   `key:"title" default:"" desc:"Notification title"                  optional:""`
+	AccountSID string   `desc:"Twilio Account SID"                           required:"" url:"user"`
+	AuthToken  string   `desc:"Twilio Auth Token"                            required:"" url:"password"`
+	FromNumber string   `desc:"Sender phone number or Messaging Service SID" required:"" url:"host"`
+	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:"" url:"path"`
+	Title      string   `desc:"Notification title"                                                      default:"" key:"title" optional:""`
 }
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.

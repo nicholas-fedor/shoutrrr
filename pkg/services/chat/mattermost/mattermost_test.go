@@ -34,6 +34,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			if envMattermostURL.String() == "" {
 				return
 			}
+
 			serviceURL, _ := url.Parse(envMattermostURL.String())
 			gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).
 				To(gomega.Succeed())
@@ -51,6 +52,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
+
 			ginkgo.It("should not have caused an error", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -79,6 +81,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
+
 			ginkgo.It("should not have caused an error", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -95,6 +98,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
+
 			ginkgo.It("should not hav caused an error", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -111,6 +115,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			)
 			config := &Config{}
 			err := config.SetURL(mattermostURL)
+
 			ginkgo.It("should not hav caused an error", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -170,6 +175,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 
 		ginkgo.Describe("sending the payload", func() {
 			var err error
+
 			ginkgo.BeforeEach(func() {
 				httpmock.Activate()
 			})
@@ -191,6 +197,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 					"https://mattermost.host/hooks/token",
 					httpmock.NewStringResponder(200, ""),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
@@ -209,10 +216,12 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 					"https://mattermost.host/hooks/token",
 					httpmock.NewStringResponder(403, "Forbidden"),
 				)
+
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
 					To(gomega.ContainSubstring("failed to send notification to service"))
+
 				resp := httpmock.NewStringResponse(403, "Forbidden")
 				resp.Status = "403 Forbidden"
 				httpmock.RegisterResponder(
@@ -243,6 +252,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 	ginkgo.Describe("creating the payload", func() {
 		ginkgo.Describe("the icon fields", func() {
 			payload := JSON{}
+
 			ginkgo.It("should set IconURL when the configured icon looks like an URL", func() {
 				payload.SetIcon("https://example.com/logo.png")
 				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
@@ -378,6 +388,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 
 	ginkgo.Describe("sending the payload", func() {
 		var err error
+
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 		})

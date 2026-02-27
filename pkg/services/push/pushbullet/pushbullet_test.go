@@ -124,7 +124,9 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 
 	ginkgo.Describe("sending the payload", func() {
 		var err error
+
 		targetURL := "https://api.pushbullet.com/v2/pushes"
+
 		ginkgo.BeforeEach(func() {
 			httpmock.Activate()
 		})
