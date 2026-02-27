@@ -20,6 +20,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Generator is the XOAuth2 Generator implementation.
+type Generator struct{}
+
 // SMTP port constants.
 const (
 	DefaultSMTPPort       uint16 = 25  // Standard SMTP port without encryption
@@ -35,9 +38,6 @@ var (
 	ErrScanFailed          = errors.New("failed to scan input")
 	ErrTokenExchangeFailed = errors.New("failed to exchange token")
 )
-
-// Generator is the XOAuth2 Generator implementation.
-type Generator struct{}
 
 // Generate generates a service URL from a set of user questions/answers.
 func (g *Generator) Generate(

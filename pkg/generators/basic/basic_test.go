@@ -11,7 +11,6 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -209,7 +208,6 @@ func TestGenerator_Generate(t *testing.T) {
 			_ = w.Close()
 
 			service := newMockServiceConfig()
-			color.NoColor = true
 
 			got, err := g.Generate(service, tt.props, nil)
 			if (err != nil) != tt.wantErr {
@@ -260,7 +258,6 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			color.NoColor = true
 
 			err := g.promptUserForFields(tt.config, tt.props, scanner)
 			if (err != nil) != tt.wantErr {
@@ -328,7 +325,6 @@ func TestGenerator_getInputValue(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			color.NoColor = true
 
 			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, scanner)
 			if (err != nil) != tt.wantErr {
@@ -357,19 +353,18 @@ func TestGenerator_formatPrompt(t *testing.T) {
 		{
 			name:  "field with default",
 			field: &format.FieldInfo{Name: "Host", DefaultValue: "localhost"},
-			want:  "\x1b[97mHost\x1b[0m[localhost]: ",
+			want:  "Host[localhost]: ",
 		},
 		{
 			name:  "field without default",
 			field: &format.FieldInfo{Name: "Port"},
-			want:  "\x1b[97mPort\x1b[0m: ",
+			want:  "Port: ",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &Generator{}
-			color.NoColor = false
 
 			got := g.formatPrompt(tt.field)
 			if got != tt.want {
@@ -417,7 +412,6 @@ func TestGenerator_setFieldValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &Generator{}
-			color.NoColor = true
 
 			got, err := g.setFieldValue(tt.config, tt.field, tt.inputValue)
 			if (err != nil) != tt.wantErr {
@@ -458,7 +452,6 @@ func TestGenerator_printError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(*testing.T) {
 			g := &Generator{}
-			color.NoColor = true
 
 			g.printError(tt.fieldName, tt.errorMsg)
 		})
@@ -481,7 +474,6 @@ func TestGenerator_printInvalidType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(*testing.T) {
 			g := &Generator{}
-			color.NoColor = true
 
 			g.printInvalidType(tt.fieldName, tt.typeName)
 		})

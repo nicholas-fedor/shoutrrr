@@ -131,21 +131,27 @@ func (ud *UserDialog) QueryString(prompt string, validator func(string) error, k
 
 	for {
 		ud.Write("%v ", prompt)
-		color.Set(color.FgHiWhite)
+
+		cfg := color.DefaultConfig()
+		c := color.NewWithConfig(cfg, color.FgHiWhite)
+		c.Set()
 
 		if !ud.scanner.Scan() {
 			if err := ud.scanner.Err(); err != nil {
 				ud.Writelnf(err.Error())
+				c.Unset()
 
 				continue
 			}
 			// Input closed, return an empty string
+			c.Unset()
+
 			return ""
 		}
 
 		answer = ud.scanner.Text()
 
-		color.Unset()
+		c.Unset()
 
 		if err := validator(answer); err != nil {
 			ud.Writelnf("%v", err)

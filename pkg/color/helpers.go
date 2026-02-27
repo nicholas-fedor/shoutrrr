@@ -195,8 +195,9 @@ func YellowString(format string, a ...any) string {
 }
 
 // colorPrint prints formatted text with the specified color attribute.
+// Uses the default configuration for backward compatibility.
 func colorPrint(format string, attribute Attribute, arguments ...any) {
-	c := getCachedColor(attribute)
+	c := New(attribute)
 
 	if !strings.HasSuffix(format, "\n") {
 		format += "\n"
@@ -210,8 +211,9 @@ func colorPrint(format string, attribute Attribute, arguments ...any) {
 }
 
 // colorString returns a formatted string with the specified color attribute.
+// Uses the default configuration for backward compatibility.
 func colorString(format string, attribute Attribute, arguments ...any) string {
-	c := getCachedColor(attribute)
+	c := New(attribute)
 
 	if len(arguments) == 0 {
 		return c.SprintFunc()(format)

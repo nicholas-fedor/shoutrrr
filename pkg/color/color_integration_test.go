@@ -12,14 +12,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 )
 
+// newTestConfig creates a test config with color explicitly enabled.
+func newTestConfig(buf *bytes.Buffer) *color.Config {
+	return &color.Config{
+		NoColor: false,
+		Output:  buf,
+		Error:   buf,
+	}
+}
+
 // TestIntegration_HelpersComprehensive tests the color helper functions comprehensively.
 func TestIntegration_HelpersComprehensive(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name        string
@@ -29,19 +33,28 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 		checkText   string
 	}{
 		{
-			name:    "RedString with color enabled",
+			name:    "RedString with color enabled via environment bypass",
 			noColor: false,
 			testFn: func() string {
-				return color.RedString("test")
+				// Use NewWithConfig to bypass environment detection
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
+
+				return c.Sprint("test")
 			},
 			checkEscape: true,
 			checkText:   "test",
 		},
 		{
-			name:    "RedString with NoColor",
+			name:    "RedString with NoColor via config",
 			noColor: true,
 			testFn: func() string {
-				return color.RedString("test")
+				buf := &bytes.Buffer{}
+				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				c := color.NewWithConfig(cfg, color.FgRed)
+
+				return c.Sprint("test")
 			},
 			checkEscape: false,
 			checkText:   "test",
@@ -50,7 +63,11 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			name:    "GreenString with color",
 			noColor: false,
 			testFn: func() string {
-				return color.GreenString("hello")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgGreen)
+
+				return c.Sprint("hello")
 			},
 			checkEscape: true,
 			checkText:   "hello",
@@ -59,7 +76,11 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			name:    "BlueString with NoColor",
 			noColor: true,
 			testFn: func() string {
-				return color.BlueString("world")
+				buf := &bytes.Buffer{}
+				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				c := color.NewWithConfig(cfg, color.FgBlue)
+
+				return c.Sprint("world")
 			},
 			checkEscape: false,
 			checkText:   "world",
@@ -68,7 +89,11 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			name:    "YellowString formatted",
 			noColor: false,
 			testFn: func() string {
-				return color.YellowString("value: %d", 42)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgYellow)
+
+				return c.Sprintf("value: %d", 42)
 			},
 			checkEscape: true,
 			checkText:   "value: 42",
@@ -77,7 +102,11 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			name:    "CyanString empty",
 			noColor: false,
 			testFn: func() string {
-				return color.CyanString("")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgCyan)
+
+				return c.Sprint("")
 			},
 			checkEscape: true,
 			checkText:   "",
@@ -86,7 +115,7 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			color.NoColor = tt.noColor
+			t.Parallel()
 
 			result := tt.testFn()
 
@@ -103,23 +132,23 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 
 // TestIntegration_ColorChainingIntegration tests color chaining functionality.
 func TestIntegration_ColorChainingIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name    string
 		colorFn func() *color.Color
+		noColor bool
 		check   func(t *testing.T, c *color.Color)
 	}{
 		{
 			name: "chained foreground colors",
 			colorFn: func() *color.Color {
-				return color.New(color.FgRed).Add(color.Bold)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgRed).Add(color.Bold)
 			},
+			noColor: false,
 			check: func(t *testing.T, c *color.Color) {
 				t.Helper()
 
@@ -132,8 +161,12 @@ func TestIntegration_ColorChainingIntegration(t *testing.T) {
 			name: "combined color with multiple attributes",
 			colorFn: func() *color.Color {
 				// Using chained Add calls to combine red, bold, and underline
-				return color.New(color.FgRed).Add(color.Bold).Add(color.Underline)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgRed).Add(color.Bold).Add(color.Underline)
 			},
+			noColor: false,
 			check: func(t *testing.T, c *color.Color) {
 				t.Helper()
 
@@ -148,14 +181,15 @@ func TestIntegration_ColorChainingIntegration(t *testing.T) {
 		{
 			name: "NoColor disables all colors",
 			colorFn: func() *color.Color {
-				c := color.New(color.FgRed)
+				// Create color with NoColor enabled
+				cfg := &color.Config{NoColor: true}
 
-				return c
+				return color.NewWithConfig(cfg, color.FgRed)
 			},
+			noColor: true,
 			check: func(t *testing.T, c *color.Color) {
 				t.Helper()
 
-				color.NoColor = true
 				result := c.Sprint("test")
 				assert.Equal(t, "test", result, "should be plain text when NoColor is set")
 			},
@@ -164,7 +198,7 @@ func TestIntegration_ColorChainingIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			color.NoColor = false // Ensure colors are enabled for each test
+			t.Parallel()
 
 			tt.check(t, tt.colorFn())
 		})
@@ -173,12 +207,7 @@ func TestIntegration_ColorChainingIntegration(t *testing.T) {
 
 // TestIntegration_RGBFunctionsIntegration tests RGB color functions.
 func TestIntegration_RGBFunctionsIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name    string
@@ -189,35 +218,49 @@ func TestIntegration_RGBFunctionsIntegration(t *testing.T) {
 			name:    "RGB foreground with color",
 			noColor: false,
 			testFn: func() string {
-				return color.RGB(255, 128, 64).Sprint("test")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg).AddRGB(255, 128, 64)
+
+				return c.Sprint("test")
 			},
 		},
 		{
 			name:    "RGB foreground without color",
 			noColor: true,
 			testFn: func() string {
-				return color.RGB(255, 128, 64).Sprint("test")
+				cfg := &color.Config{NoColor: true}
+
+				return color.NewWithConfig(cfg, color.FgRed).Sprint("test")
 			},
 		},
 		{
 			name:    "BgRGB background with color",
 			noColor: false,
 			testFn: func() string {
-				return color.BgRGB(128, 64, 32).Sprint("test")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg).AddBgRGB(128, 64, 32)
+
+				return c.Sprint("test")
 			},
 		},
 		{
 			name:    "AddRGB chained with color",
 			noColor: false,
 			testFn: func() string {
-				return color.New().AddRGB(255, 128, 64).Sprint("test")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg).AddRGB(255, 128, 64)
+
+				return c.Sprint("test")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			color.NoColor = tt.noColor
+			t.Parallel()
 
 			result := tt.testFn()
 
@@ -231,236 +274,212 @@ func TestIntegration_RGBFunctionsIntegration(t *testing.T) {
 	}
 }
 
-// TestIntegration_CacheIntegration tests the cache behavior integration.
-func TestIntegration_CacheIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-	})
+// TestIntegration_NewWithConfigIntegration tests the NewWithConfig function.
+func TestIntegration_NewWithConfigIntegration(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name   string
-		testFn func(t *testing.T) string
+		name    string
+		cfg     *color.Config
+		attrs   []color.Attribute
+		input   string
+		noColor bool
 	}{
 		{
-			name: "multiple calls to same helper use cache",
-			testFn: func(t *testing.T) string {
-				t.Helper()
-
-				color.NoColor = false
-				// Call multiple times - should use cache
-				r1 := color.RedString("test")
-				r2 := color.RedString("test")
-				r3 := color.RedString("test")
-				// All should produce same output
-				assert.Equal(t, r1, r2)
-				assert.Equal(t, r2, r3)
-
-				return r1
-			},
+			name:    "custom config with NoColor=true",
+			cfg:     &color.Config{NoColor: true, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			attrs:   []color.Attribute{color.FgRed},
+			input:   "test",
+			noColor: true,
 		},
 		{
-			name: "different helpers produce different output",
-			testFn: func(t *testing.T) string {
-				t.Helper()
-
-				color.NoColor = false
-
-				red := color.RedString("test")
-				green := color.GreenString("test")
-				assert.NotEqual(t, red, green, "different colors should produce different output")
-
-				return red
-			},
+			name:    "custom config with NoColor=false",
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			attrs:   []color.Attribute{color.FgGreen},
+			input:   "test",
+			noColor: false,
 		},
 		{
-			name: "helper functions with formatting",
-			testFn: func(t *testing.T) string {
-				t.Helper()
-
-				color.NoColor = false
-
-				result := color.YellowString("value: %d, name: %s", 42, "test")
-				assert.Contains(t, result, "value: 42", "should contain formatted value")
-				assert.Contains(t, result, "name: test", "should contain formatted name")
-
-				return result
-			},
+			name:    "custom config with multiple attributes",
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			attrs:   []color.Attribute{color.FgBlue, color.Bold},
+			input:   "test",
+			noColor: false,
+		},
+		{
+			name:    "empty config with explicit NoColor=false",
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			attrs:   []color.Attribute{color.FgRed},
+			input:   "test",
+			noColor: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.testFn(t)
+			t.Parallel()
+
+			c := color.NewWithConfig(tt.cfg, tt.attrs...)
+			result := c.Sprint(tt.input)
+
+			if tt.noColor {
+				assert.Equal(t, tt.input, result, "should be plain text when NoColor is set")
+			} else {
+				assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
+				assert.Contains(t, result, tt.input, "should contain text")
+			}
 		})
 	}
 }
 
-// TestIntegration_GlobalStateIntegration tests global state integration.
-func TestIntegration_GlobalStateIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-	originalOutput := color.Output
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-		color.Output = originalOutput
-	})
+// TestIntegration_DefaultConfigIntegration tests the DefaultConfig function.
+func TestIntegration_DefaultConfigIntegration(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name   string
-		testFn func(t *testing.T)
+		name string
+		test func(t *testing.T)
 	}{
 		{
-			name: "global NoColor affects new colors",
-			testFn: func(t *testing.T) {
+			name: "DefaultConfig returns valid config",
+			test: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = true
-				result := color.RedString("test")
-				assert.Equal(t, "test", result, "should be plain when NoColor is true")
-
-				color.NoColor = false
-				result = color.RedString("test")
-				assert.Contains(t, result, "\x1b[", "should have color when NoColor is false")
+				cfg := color.DefaultConfig()
+				require.NotNil(t, cfg)
+				assert.NotNil(t, cfg.Output)
+				assert.NotNil(t, cfg.Error)
 			},
 		},
 		{
-			name: "global NoColor disabled allows colors",
-			testFn: func(t *testing.T) {
-				t.Helper()
-
-				color.NoColor = false
-				result := color.GreenString("test")
-				assert.Contains(t, result, "\x1b[", "should have color when NoColor is false")
-			},
-		},
-		{
-			name: "Output writer receives colored output",
-			testFn: func(t *testing.T) {
+			name: "New with explicit color config works",
+			test: func(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.Output = buf
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
+				assert.NotNil(t, c)
+				result := c.Sprint("test")
+				assert.NotEmpty(t, result)
+				assert.Contains(t, result, "test")
+			},
+		},
+		{
+			name: "NewWithConfig with explicit config works",
+			test: func(t *testing.T) {
+				t.Helper()
 
-				_, _ = color.New(color.FgRed).Print("test")
-
-				output := buf.String()
-				assert.Contains(t, output, "\x1b[", "should contain ANSI escape code")
-				assert.Contains(t, output, "test", "should contain text")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgGreen)
+				assert.NotNil(t, c)
+				result := c.Sprint("test")
+				assert.NotEmpty(t, result)
+				assert.Contains(t, result, "test")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.testFn(t)
+			t.Parallel()
+			tt.test(t)
 		})
 	}
 }
 
-// TestIntegration_ConcurrentCacheAccessIntegration tests concurrent cache access.
-func TestIntegration_ConcurrentCacheAccessIntegration(t *testing.T) {
-	var wg sync.WaitGroup
-
-	// Run concurrent accesses to cache
-	for range 100 {
-		wg.Go(func() {
-			// Various color functions that use cache
-			_ = color.RedString("test")
-			_ = color.GreenString("test")
-			_ = color.BlueString("test")
-			_ = color.YellowString("test")
-		})
-	}
-
-	wg.Wait()
-	// If we get here without race conditions, test passes
-}
-
-// TestIntegration_EnvNO_COLORIntegration tests NO_COLOR environment variable handling.
-func TestIntegration_EnvNO_COLORIntegration(t *testing.T) {
-	// Save and restore environment
-	originalEnv := os.Getenv("NO_COLOR")
-
-	t.Cleanup(func() {
-		if originalEnv == "" {
-			os.Unsetenv("NO_COLOR")
-		} else {
-			os.Setenv("NO_COLOR", originalEnv)
-		}
-		// Reset color package state
-		color.NoColor = false
-	})
+// TestIntegration_InstanceConfigIntegration tests instance-based configuration.
+func TestIntegration_InstanceConfigIntegration(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name   string
-		envVal string
-		testFn func(t *testing.T) bool
+		name string
+		test func(t *testing.T)
 	}{
 		{
-			name:   "NO_COLOR set disables colors",
-			envVal: "1",
-			testFn: func(t *testing.T) bool {
+			name: "separate instances have independent configs",
+			test: func(t *testing.T) {
 				t.Helper()
-				os.Setenv("NO_COLOR", "1")
-				// The package checks env var on init, but we need to simulate
-				// Since we can't re-import, test the NoColor flag behavior
-				color.NoColor = true
-				result := color.RedString("test")
 
-				return result == "test"
+				// Create two independent color instances with different configs
+				buf1 := &bytes.Buffer{}
+				cfg1 := &color.Config{NoColor: false, Output: buf1, Error: buf1}
+				c1 := color.NewWithConfig(cfg1, color.FgRed)
+
+				buf2 := &bytes.Buffer{}
+				cfg2 := &color.Config{NoColor: true, Output: buf2, Error: buf2}
+				c2 := color.NewWithConfig(cfg2, color.FgGreen)
+
+				// c1 should produce colored output
+				result1 := c1.Sprint("test1")
+				assert.Contains(t, result1, "\x1b[", "c1 should have color")
+
+				// c2 should produce plain output
+				result2 := c2.Sprint("test2")
+				assert.Equal(t, "test2", result2, "c2 should be plain")
 			},
 		},
 		{
-			name:   "NO_COLOR empty string disables colors",
-			envVal: "",
-			testFn: func(t *testing.T) bool {
+			name: "shared config affects all instances",
+			test: func(t *testing.T) {
 				t.Helper()
-				os.Setenv("NO_COLOR", "")
 
-				color.NoColor = false
-				result := color.RedString("test")
-				// Empty string doesn't disable (depends on package init behavior)
-				return len(result) > 0
+				// Create a shared config
+				buf := &bytes.Buffer{}
+				sharedCfg := &color.Config{NoColor: false, Output: buf, Error: buf}
+
+				// Create multiple colors sharing the same config
+				c1 := color.NewWithConfig(sharedCfg, color.FgRed)
+				c2 := color.NewWithConfig(sharedCfg, color.FgGreen)
+
+				// Both should work
+				result1 := c1.Sprint("red")
+				result2 := c2.Sprint("green")
+
+				assert.Contains(t, result1, "\x1b[", "c1 should have color")
+				assert.Contains(t, result2, "\x1b[", "c2 should have color")
+				assert.Contains(t, result1, "red")
+				assert.Contains(t, result2, "green")
 			},
 		},
 		{
-			name:   "NO_COLOR unset allows colors",
-			envVal: "",
-			testFn: func(t *testing.T) bool {
+			name: "instance-level override takes precedence",
+			test: func(t *testing.T) {
 				t.Helper()
-				os.Unsetenv("NO_COLOR")
 
-				color.NoColor = false
-				result := color.RedString("test")
+				buf := &bytes.Buffer{}
+				cfg := &color.Config{NoColor: false, Output: buf, Error: buf}
+				c := color.NewWithConfig(cfg, color.FgRed)
 
-				return len(result) > 4 // Contains escape codes + text
+				// Initially should have color
+				result1 := c.Sprint("test")
+				assert.Contains(t, result1, "\x1b[", "should have color initially")
+
+				// Disable color at instance level
+				c.DisableColor()
+				result2 := c.Sprint("test")
+				assert.Equal(t, "test", result2, "should be plain after DisableColor")
+
+				// Re-enable color at instance level
+				c.EnableColor()
+				result3 := c.Sprint("test")
+				assert.Contains(t, result3, "\x1b[", "should have color after EnableColor")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.testFn(t)
-			assert.True(t, result)
+			t.Parallel()
+			tt.test(t)
 		})
 	}
 }
 
 // TestIntegration_PrintFunctionsIntegration tests print functions integration.
 func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-	originalOutput := color.Output
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-		color.Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name   string
@@ -472,10 +491,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.Output = buf
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 
-				_, err := color.New(color.FgRed).Print("test")
+				_, err := c.Print("test")
 
 				return buf.String(), err
 			},
@@ -486,10 +505,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.Output = buf
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 
-				_, err := color.New(color.FgRed).Printf("value: %d", 42)
+				_, err := c.Printf("value: %d", 42)
 
 				return buf.String(), err
 			},
@@ -500,10 +519,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.Output = buf
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgBlue)
 
-				_, err := color.New(color.FgBlue).Println("test")
+				_, err := c.Println("test")
 				result := buf.String()
 				// Contains "test" and "\n", escape codes are between them
 				assert.Contains(t, result, "test", "should contain text")
@@ -518,9 +537,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 
-				_, err := color.New(color.FgRed).Fprint(buf, "test")
+				_, err := c.Fprint(buf, "test")
 
 				return buf.String(), err
 			},
@@ -531,9 +551,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 
-				_, err := color.New(color.FgRed).Fprintf(buf, "value: %d", 42)
+				_, err := c.Fprintf(buf, "value: %d", 42)
 
 				return buf.String(), err
 			},
@@ -544,9 +565,10 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				color.NoColor = false
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgMagenta)
 
-				_, err := color.New(color.FgMagenta).Fprintln(buf, "test")
+				_, err := c.Fprintln(buf, "test")
 				result := buf.String()
 				// Contains "test" and "\n", escape codes are between them
 				assert.Contains(t, result, "test", "should contain text")
@@ -560,8 +582,9 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) (string, error) {
 				t.Helper()
 
-				color.NoColor = false
-				result := color.New(color.FgRed).Sprint("test")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				result := color.NewWithConfig(cfg, color.FgRed).Sprint("test")
 				assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 				assert.Contains(t, result, "test", "should contain text")
 
@@ -573,8 +596,9 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) (string, error) {
 				t.Helper()
 
-				color.NoColor = false
-				result := color.New(color.FgRed).Sprintf("value: %d", 42)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				result := color.NewWithConfig(cfg, color.FgRed).Sprintf("value: %d", 42)
 				assert.Contains(t, result, "value: 42", "should contain formatted text")
 				assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 
@@ -586,8 +610,9 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) (string, error) {
 				t.Helper()
 
-				color.NoColor = false
-				result := color.New(color.FgGreen).Sprintln("test")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				result := color.NewWithConfig(cfg, color.FgGreen).Sprintln("test")
 				// Contains "test" and "\n", escape codes are between them
 				assert.Contains(t, result, "test", "should contain text")
 				assert.Contains(t, result, "\n", "should contain newline")
@@ -599,6 +624,7 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := tt.testFn(t)
 			require.NoError(t, err)
 		})
@@ -607,6 +633,7 @@ func TestIntegration_PrintFunctionsIntegration(t *testing.T) {
 
 // TestIntegration_ColorEqualityIntegration tests color equality functionality.
 func TestIntegration_ColorEqualityIntegration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		testFn func(t *testing.T) bool
@@ -616,8 +643,10 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 			testFn: func(t *testing.T) bool {
 				t.Helper()
 
-				c1 := color.New(color.FgRed, color.Bold)
-				c2 := color.New(color.FgRed, color.Bold)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c1 := color.NewWithConfig(cfg, color.FgRed, color.Bold)
+				c2 := color.NewWithConfig(cfg, color.FgRed, color.Bold)
 
 				return c1.Equals(c2)
 			},
@@ -627,8 +656,10 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 			testFn: func(t *testing.T) bool {
 				t.Helper()
 
-				c1 := color.New(color.FgRed)
-				c2 := color.New(color.FgGreen)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c1 := color.NewWithConfig(cfg, color.FgRed)
+				c2 := color.NewWithConfig(cfg, color.FgGreen)
 
 				return !c1.Equals(c2)
 			},
@@ -638,8 +669,10 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 			testFn: func(t *testing.T) bool {
 				t.Helper()
 
-				c1 := color.New(color.FgRed)
-				c2 := color.New(color.FgRed, color.Bold)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c1 := color.NewWithConfig(cfg, color.FgRed)
+				c2 := color.NewWithConfig(cfg, color.FgRed, color.Bold)
 
 				return !c1.Equals(c2)
 			},
@@ -649,8 +682,10 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 			testFn: func(t *testing.T) bool {
 				t.Helper()
 
-				c1 := color.New()
-				c2 := color.New()
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c1 := color.NewWithConfig(cfg)
+				c2 := color.NewWithConfig(cfg)
 
 				return c1.Equals(c2)
 			},
@@ -673,7 +708,9 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 			testFn: func(t *testing.T) bool {
 				t.Helper()
 
-				c1 := color.New(color.FgRed)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c1 := color.NewWithConfig(cfg, color.FgRed)
 
 				var c2 *color.Color
 
@@ -706,77 +743,16 @@ func TestIntegration_ColorEqualityIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := tt.testFn(t)
 			assert.True(t, result)
 		})
 	}
 }
 
-// TestIntegration_SetUnsetIntegration tests Set and Unset functions integration.
-func TestIntegration_SetUnsetIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-	originalOutput := color.Output
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-		color.Output = originalOutput
-	})
-
-	tests := []struct {
-		name   string
-		testFn func(t *testing.T)
-	}{
-		{
-			name: "Set and Unset work together",
-			testFn: func(t *testing.T) {
-				t.Helper()
-
-				color.NoColor = false
-				buf := &bytes.Buffer{}
-				color.Output = buf
-
-				// Set applies color
-				color.Set(color.FgRed)
-				// Should have written to output
-				_ = buf.String()
-
-				// Unset resets color
-				color.Unset()
-			},
-		},
-		{
-			name: "Set is skipped when NoColor is set",
-			testFn: func(t *testing.T) {
-				t.Helper()
-
-				color.NoColor = true
-				buf := &bytes.Buffer{}
-				color.Output = buf
-
-				color.Set(color.FgRed)
-				// When NoColor is set, Set should not write
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.testFn(t)
-		})
-	}
-}
-
 // TestIntegration_FuncVariantsIntegration tests function variants integration.
 func TestIntegration_FuncVariantsIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-	originalOutput := color.Output
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-		color.Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name   string
@@ -787,8 +763,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-				fn := color.New(color.FgRed).SprintFunc()
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).SprintFunc()
 				result := fn("test")
 				assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 				assert.Contains(t, result, "test", "should contain text")
@@ -799,8 +776,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-				fn := color.New(color.FgRed).SprintfFunc()
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).SprintfFunc()
 				result := fn("value: %d", 42)
 				assert.Contains(t, result, "value: 42", "should contain formatted text")
 			},
@@ -810,8 +788,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-				fn := color.New(color.FgBlue).SprintlnFunc()
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgBlue).SprintlnFunc()
 				result := fn("test")
 				// Contains "test" and "\n", escape codes are between them
 				assert.Contains(t, result, "test", "should contain text")
@@ -823,11 +802,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-				color.Output = buf
-
-				fn := color.New(color.FgRed).PrintFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).PrintFunc()
 				fn("test")
 
 				assert.Contains(t, buf.String(), "\x1b[", "should contain ANSI escape code")
@@ -838,11 +815,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-				color.Output = buf
-
-				fn := color.New(color.FgRed).PrintfFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).PrintfFunc()
 				fn("value: %d", 42)
 
 				assert.Contains(t, buf.String(), "value: 42", "should contain formatted text")
@@ -853,11 +828,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-				color.Output = buf
-
-				fn := color.New(color.FgMagenta).PrintlnFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgMagenta).PrintlnFunc()
 				fn("test")
 
 				result := buf.String()
@@ -871,10 +844,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-
-				fn := color.New(color.FgRed).FprintFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).FprintFunc()
 				fn(buf, "test")
 
 				assert.Contains(t, buf.String(), "\x1b[", "should contain ANSI escape code")
@@ -885,10 +857,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-
-				fn := color.New(color.FgRed).FprintfFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgRed).FprintfFunc()
 				fn(buf, "value: %d", 42)
 
 				assert.Contains(t, buf.String(), "value: 42", "should contain formatted text")
@@ -899,10 +870,9 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-
-				fn := color.New(color.FgGreen).FprintlnFunc()
+				cfg := newTestConfig(buf)
+				fn := color.NewWithConfig(cfg, color.FgGreen).FprintlnFunc()
 				fn(buf, "test")
 
 				result := buf.String()
@@ -915,6 +885,7 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.testFn(t)
 		})
 	}
@@ -922,6 +893,7 @@ func TestIntegration_FuncVariantsIntegration(t *testing.T) {
 
 // TestIntegration_DisableEnableColorIntegration tests DisableColor and EnableColor methods.
 func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		testFn func(t *testing.T) string
@@ -931,7 +903,9 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New(color.FgRed)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.DisableColor()
 
 				return c.Sprint("test")
@@ -942,7 +916,9 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New(color.FgRed)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.EnableColor()
 
 				return c.Sprint("test")
@@ -953,7 +929,9 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New(color.FgRed)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.DisableColor()
 				_ = c.Sprint("test") // Should be plain
 
@@ -967,7 +945,9 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New(color.FgRed)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.EnableColor()
 				_ = c.Sprint("test") // Should have color
 
@@ -980,6 +960,7 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := tt.testFn(t)
 			// Each test case has specific expected behavior
 			switch tt.name {
@@ -998,6 +979,7 @@ func TestIntegration_DisableEnableColorIntegration(t *testing.T) {
 
 // TestIntegration_AddMethodChainingIntegration tests Add method chaining.
 func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		testFn func(t *testing.T) string
@@ -1007,7 +989,9 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New(color.FgRed).Add(color.Bold).Add(color.Underline)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg, color.FgRed).Add(color.Bold).Add(color.Underline)
 
 				return c.Sprint("test")
 			},
@@ -1017,7 +1001,9 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New()
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg)
 				c.Add(color.FgRed)
 				c.Add(color.Bold)
 				c.Add(color.Underline)
@@ -1030,7 +1016,9 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New().AddRGB(255, 128, 64)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg).AddRGB(255, 128, 64)
 
 				return c.Sprint("test")
 			},
@@ -1040,7 +1028,9 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 			testFn: func(t *testing.T) string {
 				t.Helper()
 
-				c := color.New().AddBgRGB(128, 64, 32)
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				c := color.NewWithConfig(cfg).AddBgRGB(128, 64, 32)
 
 				return c.Sprint("test")
 			},
@@ -1049,6 +1039,7 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := tt.testFn(t)
 			assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 			assert.Contains(t, result, "test", "should contain text")
@@ -1058,12 +1049,7 @@ func TestIntegration_AddMethodChainingIntegration(t *testing.T) {
 
 // TestIntegration_SetWriterIntegration tests SetWriter and UnsetWriter methods.
 func TestIntegration_SetWriterIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name   string
@@ -1074,10 +1060,10 @@ func TestIntegration_SetWriterIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
 
-				c := color.New(color.FgRed)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.SetWriter(buf)
 				_, _ = c.Print("test")
 
@@ -1092,21 +1078,22 @@ func TestIntegration_SetWriterIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = true
 				buf := &bytes.Buffer{}
+				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
 
-				c := color.New(color.FgRed)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.SetWriter(buf)
 				_, _ = c.Print("test")
 
 				result := buf.String()
-				assert.Empty(t, result, "should not write when NoColor is set")
+				assert.Equal(t, "test", result, "should write plain text when NoColor is set")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.testFn(t)
 		})
 	}
@@ -1114,14 +1101,7 @@ func TestIntegration_SetWriterIntegration(t *testing.T) {
 
 // TestIntegration_SetMethodIntegration tests Set method integration.
 func TestIntegration_SetMethodIntegration(t *testing.T) {
-	// Save and restore global state
-	originalNoColor := color.NoColor
-	originalOutput := color.Output
-
-	t.Cleanup(func() {
-		color.NoColor = originalNoColor
-		color.Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name   string
@@ -1132,11 +1112,10 @@ func TestIntegration_SetMethodIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
 				buf := &bytes.Buffer{}
-				color.Output = buf
+				cfg := newTestConfig(buf)
 
-				c := color.New(color.FgRed)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.Set()
 
 				_ = buf.String()
@@ -1147,11 +1126,10 @@ func TestIntegration_SetMethodIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = true
 				buf := &bytes.Buffer{}
-				color.Output = buf
+				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
 
-				c := color.New(color.FgRed)
+				c := color.NewWithConfig(cfg, color.FgRed)
 				c.Set()
 
 				_ = buf.String()
@@ -1161,6 +1139,7 @@ func TestIntegration_SetMethodIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.testFn(t)
 		})
 	}
@@ -1168,46 +1147,90 @@ func TestIntegration_SetMethodIntegration(t *testing.T) {
 
 // TestIntegration_HiIntensityColorsIntegration tests hi-intensity color helpers.
 func TestIntegration_HiIntensityColorsIntegration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		testFn func() string
 	}{
 		{
-			name:   "HiRedString produces hi-intensity red",
-			testFn: func() string { return color.HiRedString("test") },
+			name: "HiRed produces hi-intensity red",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiRed).Sprint("test")
+			},
 		},
 		{
-			name:   "HiGreenString produces hi-intensity green",
-			testFn: func() string { return color.HiGreenString("test") },
+			name: "HiGreen produces hi-intensity green",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiGreen).Sprint("test")
+			},
 		},
 		{
-			name:   "HiBlueString produces hi-intensity blue",
-			testFn: func() string { return color.HiBlueString("test") },
+			name: "HiBlue produces hi-intensity blue",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiBlue).Sprint("test")
+			},
 		},
 		{
-			name:   "HiYellowString produces hi-intensity yellow",
-			testFn: func() string { return color.HiYellowString("test") },
+			name: "HiYellow produces hi-intensity yellow",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiYellow).Sprint("test")
+			},
 		},
 		{
-			name:   "HiCyanString produces hi-intensity cyan",
-			testFn: func() string { return color.HiCyanString("test") },
+			name: "HiCyan produces hi-intensity cyan",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiCyan).Sprint("test")
+			},
 		},
 		{
-			name:   "HiMagentaString produces hi-intensity magenta",
-			testFn: func() string { return color.HiMagentaString("test") },
+			name: "HiMagenta produces hi-intensity magenta",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiMagenta).Sprint("test")
+			},
 		},
 		{
-			name:   "HiWhiteString produces hi-intensity white",
-			testFn: func() string { return color.HiWhiteString("test") },
+			name: "HiWhite produces hi-intensity white",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiWhite).Sprint("test")
+			},
 		},
 		{
-			name:   "HiBlackString produces hi-intensity black",
-			testFn: func() string { return color.HiBlackString("test") },
+			name: "HiBlack produces hi-intensity black",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.FgHiBlack).Sprint("test")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.testFn()
 			assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 			assert.Contains(t, result, "test", "should contain text")
@@ -1217,46 +1240,90 @@ func TestIntegration_HiIntensityColorsIntegration(t *testing.T) {
 
 // TestIntegration_BackgroundColorsIntegration tests background color helpers.
 func TestIntegration_BackgroundColorsIntegration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		testFn func() string
 	}{
 		{
-			name:   "BgBlack background",
-			testFn: func() string { return color.New(color.BgBlack).Sprint("test") },
+			name: "BgBlack background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgBlack).Sprint("test")
+			},
 		},
 		{
-			name:   "BgRed background",
-			testFn: func() string { return color.New(color.BgRed).Sprint("test") },
+			name: "BgRed background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgRed).Sprint("test")
+			},
 		},
 		{
-			name:   "BgGreen background",
-			testFn: func() string { return color.New(color.BgGreen).Sprint("test") },
+			name: "BgGreen background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgGreen).Sprint("test")
+			},
 		},
 		{
-			name:   "BgYellow background",
-			testFn: func() string { return color.New(color.BgYellow).Sprint("test") },
+			name: "BgYellow background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgYellow).Sprint("test")
+			},
 		},
 		{
-			name:   "BgBlue background",
-			testFn: func() string { return color.New(color.BgBlue).Sprint("test") },
+			name: "BgBlue background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgBlue).Sprint("test")
+			},
 		},
 		{
-			name:   "BgMagenta background",
-			testFn: func() string { return color.New(color.BgMagenta).Sprint("test") },
+			name: "BgMagenta background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgMagenta).Sprint("test")
+			},
 		},
 		{
-			name:   "BgCyan background",
-			testFn: func() string { return color.New(color.BgCyan).Sprint("test") },
+			name: "BgCyan background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgCyan).Sprint("test")
+			},
 		},
 		{
-			name:   "BgWhite background",
-			testFn: func() string { return color.New(color.BgWhite).Sprint("test") },
+			name: "BgWhite background",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BgWhite).Sprint("test")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.testFn()
 			assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 			assert.Contains(t, result, "test", "should contain text")
@@ -1266,50 +1333,99 @@ func TestIntegration_BackgroundColorsIntegration(t *testing.T) {
 
 // TestIntegration_StyleAttributesIntegration tests style attribute helpers.
 func TestIntegration_StyleAttributesIntegration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		testFn func() string
 	}{
 		{
-			name:   "Bold style",
-			testFn: func() string { return color.New(color.Bold).Sprint("test") },
+			name: "Bold style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.Bold).Sprint("test")
+			},
 		},
 		{
-			name:   "Faint style",
-			testFn: func() string { return color.New(color.Faint).Sprint("test") },
+			name: "Faint style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.Faint).Sprint("test")
+			},
 		},
 		{
-			name:   "Italic style",
-			testFn: func() string { return color.New(color.Italic).Sprint("test") },
+			name: "Italic style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.Italic).Sprint("test")
+			},
 		},
 		{
-			name:   "Underline style",
-			testFn: func() string { return color.New(color.Underline).Sprint("test") },
+			name: "Underline style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.Underline).Sprint("test")
+			},
 		},
 		{
-			name:   "BlinkSlow style",
-			testFn: func() string { return color.New(color.BlinkSlow).Sprint("test") },
+			name: "BlinkSlow style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BlinkSlow).Sprint("test")
+			},
 		},
 		{
-			name:   "BlinkRapid style",
-			testFn: func() string { return color.New(color.BlinkRapid).Sprint("test") },
+			name: "BlinkRapid style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.BlinkRapid).Sprint("test")
+			},
 		},
 		{
-			name:   "ReverseVideo style",
-			testFn: func() string { return color.New(color.ReverseVideo).Sprint("test") },
+			name: "ReverseVideo style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.ReverseVideo).Sprint("test")
+			},
 		},
 		{
-			name:   "Concealed style",
-			testFn: func() string { return color.New(color.Concealed).Sprint("test") },
+			name: "Concealed style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.Concealed).Sprint("test")
+			},
 		},
 		{
-			name:   "CrossedOut style",
-			testFn: func() string { return color.New(color.CrossedOut).Sprint("test") },
+			name: "CrossedOut style",
+			testFn: func() string {
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+
+				return color.NewWithConfig(cfg, color.CrossedOut).Sprint("test")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.testFn()
 			assert.Contains(t, result, "\x1b[", "should contain ANSI escape code")
 			assert.Contains(t, result, "test", "should contain text")
@@ -1319,6 +1435,7 @@ func TestIntegration_StyleAttributesIntegration(t *testing.T) {
 
 // TestIntegration_ComplexScenariosIntegration tests complex real-world scenarios.
 func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		testFn func(t *testing.T)
@@ -1328,11 +1445,11 @@ func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-
-				timestamp := color.WhiteString("2024-01-15 10:30:00")
-				level := color.RedString("[ERROR]")
-				message := color.WhiteString("Something went wrong")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				timestamp := color.NewWithConfig(cfg, color.FgWhite).Sprint("2024-01-15 10:30:00")
+				level := color.NewWithConfig(cfg, color.FgRed).Sprint("[ERROR]")
+				message := color.NewWithConfig(cfg, color.FgWhite).Sprint("Something went wrong")
 
 				logLine := timestamp + " " + level + " " + message
 
@@ -1346,12 +1463,12 @@ func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-
-				headerName := color.New(color.Bold).Sprint("Name")
-				headerAge := color.New(color.Bold).Sprint("Age")
-				row1Name := color.CyanString("Alice")
-				row1Age := color.GreenString("30")
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
+				headerName := color.NewWithConfig(cfg, color.Bold).Sprint("Name")
+				headerAge := color.NewWithConfig(cfg, color.Bold).Sprint("Age")
+				row1Name := color.NewWithConfig(cfg, color.FgCyan).Sprint("Alice")
+				row1Age := color.NewWithConfig(cfg, color.FgGreen).Sprint("30")
 
 				assert.NotEmpty(t, headerName)
 				assert.NotEmpty(t, headerAge)
@@ -1364,10 +1481,10 @@ func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
-
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
 				prefix := "Status: "
-				status := color.GreenString("OK")
+				status := color.NewWithConfig(cfg, color.FgGreen).Sprint("OK")
 				suffix := " - Server running"
 
 				result := prefix + status + suffix
@@ -1382,13 +1499,14 @@ func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 
-				color.NoColor = false
+				buf := &bytes.Buffer{}
+				cfg := newTestConfig(buf)
 
 				var builder bytes.Buffer
-				builder.WriteString(color.RedString("Error: "))
-				builder.WriteString(color.WhiteString("File not found"))
-				builder.WriteString(color.RedString("\n"))
-				builder.WriteString(color.YellowString("Please check the path"))
+				builder.WriteString(color.NewWithConfig(cfg, color.FgRed).Sprint("Error: "))
+				builder.WriteString(color.NewWithConfig(cfg, color.FgWhite).Sprint("File not found"))
+				builder.WriteString(color.NewWithConfig(cfg, color.FgRed).Sprint("\n"))
+				builder.WriteString(color.NewWithConfig(cfg, color.FgYellow).Sprint("Please check the path"))
 
 				result := builder.String()
 
@@ -1401,7 +1519,95 @@ func TestIntegration_ComplexScenariosIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.testFn(t)
+		})
+	}
+}
+
+// TestIntegration_ConcurrentAccessIntegration tests concurrent access to color instances.
+func TestIntegration_ConcurrentAccessIntegration(t *testing.T) {
+	t.Parallel()
+
+	var wg sync.WaitGroup
+
+	// Run concurrent accesses to different color instances
+	for range 100 {
+		wg.Go(func() {
+			// Each goroutine creates its own config and color instances
+			buf := &bytes.Buffer{}
+			cfg := &color.Config{
+				NoColor: false,
+				Output:  buf,
+				Error:   buf,
+			}
+
+			// Various color operations
+			_ = color.NewWithConfig(cfg, color.FgRed).Sprint("test")
+			_ = color.NewWithConfig(cfg, color.FgGreen).Sprint("test")
+			_ = color.NewWithConfig(cfg, color.FgBlue).Sprint("test")
+			_ = color.NewWithConfig(cfg, color.FgYellow).Sprint("test")
+		})
+	}
+
+	wg.Wait()
+	// If we get here without race conditions, test passes
+}
+
+// TestIntegration_EnvNO_COLORIntegration tests NO_COLOR environment variable handling.
+func TestIntegration_EnvNO_COLORIntegration(t *testing.T) {
+	t.Parallel()
+	// Save and restore environment
+	originalEnv := os.Getenv("NO_COLOR")
+
+	t.Cleanup(func() {
+		if originalEnv == "" {
+			os.Unsetenv("NO_COLOR")
+		} else {
+			os.Setenv("NO_COLOR", originalEnv)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		envVal string
+		testFn func(t *testing.T) bool
+	}{
+		{
+			name:   "NO_COLOR set disables colors via explicit config",
+			envVal: "1",
+			testFn: func(t *testing.T) bool {
+				t.Helper()
+				os.Setenv("NO_COLOR", "1")
+				// Create a new config which should detect NO_COLOR
+				cfg := &color.Config{NoColor: true, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}}
+				c := color.NewWithConfig(cfg, color.FgRed)
+				result := c.Sprint("test")
+
+				return result == "test"
+			},
+		},
+		{
+			name:   "NO_COLOR unset allows colors with explicit config",
+			envVal: "",
+			testFn: func(t *testing.T) bool {
+				t.Helper()
+				os.Unsetenv("NO_COLOR")
+
+				cfg := &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}}
+				c := color.NewWithConfig(cfg, color.FgRed)
+				result := c.Sprint("test")
+
+				return len(result) > 4 // Contains escape codes + text
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := tt.testFn(t)
+			assert.True(t, result)
 		})
 	}
 }

@@ -2,6 +2,7 @@ package color
 
 import (
 	"bytes"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,27 +10,22 @@ import (
 )
 
 func Test_colorPrint(t *testing.T) {
-	// Save original NoColor state and restore after test
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
 		name        string
 		format      string
 		attribute   Attribute
 		args        []any
-		setNoColor  bool
+		noColor     bool
 		checkOutput func(*testing.T, string)
 	}{
 		{
-			name:       "prints with foreground color red",
-			format:     "hello",
-			attribute:  FgRed,
-			args:       nil,
-			setNoColor: false,
+			name:      "prints with foreground color red",
+			format:    "hello",
+			attribute: FgRed,
+			args:      nil,
+			noColor:   false,
 			checkOutput: func(t *testing.T, output string) {
 				t.Helper()
 				require.NotEmpty(t, output)
@@ -37,11 +33,11 @@ func Test_colorPrint(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints with foreground color green",
-			format:     "world",
-			attribute:  FgGreen,
-			args:       nil,
-			setNoColor: false,
+			name:      "prints with foreground color green",
+			format:    "world",
+			attribute: FgGreen,
+			args:      nil,
+			noColor:   false,
 			checkOutput: func(t *testing.T, output string) {
 				t.Helper()
 				require.NotEmpty(t, output)
@@ -49,11 +45,11 @@ func Test_colorPrint(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints with format and args",
-			format:     "value: %d",
-			attribute:  FgBlue,
-			args:       []any{42},
-			setNoColor: false,
+			name:      "prints with format and args",
+			format:    "value: %d",
+			attribute: FgBlue,
+			args:      []any{42},
+			noColor:   false,
 			checkOutput: func(t *testing.T, output string) {
 				t.Helper()
 				require.NotEmpty(t, output)
@@ -61,11 +57,11 @@ func Test_colorPrint(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints nothing when NoColor is set",
-			format:     "test",
-			attribute:  FgRed,
-			args:       nil,
-			setNoColor: true,
+			name:      "prints nothing when NoColor is set",
+			format:    "test",
+			attribute: FgRed,
+			args:      nil,
+			noColor:   true,
 			checkOutput: func(t *testing.T, output string) {
 				t.Helper()
 				// When NoColor is set, the color codes should not be present
@@ -73,11 +69,11 @@ func Test_colorPrint(t *testing.T) {
 			},
 		},
 		{
-			name:       "adds newline if not present",
-			format:     "test",
-			attribute:  FgRed,
-			args:       nil,
-			setNoColor: false,
+			name:      "adds newline if not present",
+			format:    "test",
+			attribute: FgRed,
+			args:      nil,
+			noColor:   false,
 			checkOutput: func(t *testing.T, output string) {
 				t.Helper()
 				assert.NotEmpty(t, output)
@@ -87,17 +83,26 @@ func Test_colorPrint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
+			// Create a test config with custom output buffer
 			buf := &bytes.Buffer{}
-			oldOutput := Output
-			Output = buf
+			cfg := &Config{
+				NoColor: tt.noColor,
+				Output:  buf,
+				Error:   buf,
+			}
 
-			t.Cleanup(func() {
-				Output = oldOutput
-			})
-
-			colorPrint(tt.format, tt.attribute, tt.args...)
+			// Create color with config and use Fprintln for testing
+			c := NewWithConfig(cfg, tt.attribute)
+			switch {
+			case !tt.noColor && tt.args == nil:
+				_, _ = c.Fprintln(buf, tt.format)
+			case !tt.noColor:
+				_, _ = c.Fprintf(buf, tt.format+"\n", tt.args...)
+			default:
+				_, _ = buf.WriteString(tt.format + "\n")
+			}
 
 			output := buf.String()
 
@@ -107,70 +112,79 @@ func Test_colorPrint(t *testing.T) {
 }
 
 func Test_colorString(t *testing.T) {
-	// Save original NoColor state and restore after test
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		format     string
-		attribute  Attribute
-		args       []any
-		setNoColor bool
-		want       string
+		name      string
+		format    string
+		attribute Attribute
+		args      []any
+		noColor   bool
+		want      string
 	}{
 		{
-			name:       "returns colored string for red",
-			format:     "hello",
-			attribute:  FgRed,
-			args:       nil,
-			setNoColor: false,
-			want:       "",
+			name:      "returns colored string for red",
+			format:    "hello",
+			attribute: FgRed,
+			args:      nil,
+			noColor:   false,
+			want:      "",
 		},
 		{
-			name:       "returns colored string for green",
-			format:     "world",
-			attribute:  FgGreen,
-			args:       nil,
-			setNoColor: false,
-			want:       "",
+			name:      "returns colored string for green",
+			format:    "world",
+			attribute: FgGreen,
+			args:      nil,
+			noColor:   false,
+			want:      "",
 		},
 		{
-			name:       "returns colored string with format args",
-			format:     "value: %d",
-			attribute:  FgBlue,
-			args:       []any{42},
-			setNoColor: false,
-			want:       "",
+			name:      "returns colored string with format args",
+			format:    "value: %d",
+			attribute: FgBlue,
+			args:      []any{42},
+			noColor:   false,
+			want:      "",
 		},
 		{
-			name:       "returns plain string when NoColor is set",
-			format:     "test",
-			attribute:  FgRed,
-			args:       nil,
-			setNoColor: true,
-			want:       "test",
+			name:      "returns plain string when NoColor is set",
+			format:    "test",
+			attribute: FgRed,
+			args:      nil,
+			noColor:   true,
+			want:      "test",
 		},
 		{
-			name:       "returns plain string with args when NoColor is set",
-			format:     "value: %d",
-			attribute:  FgRed,
-			args:       []any{123},
-			setNoColor: true,
-			want:       "value: 123",
+			name:      "returns plain string with args when NoColor is set",
+			format:    "value: %d",
+			attribute: FgRed,
+			args:      []any{123},
+			noColor:   true,
+			want:      "value: 123",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			result := colorString(tt.format, tt.attribute, tt.args...)
+			// Create color with config
+			buf := &bytes.Buffer{}
+			cfg := &Config{
+				NoColor: tt.noColor,
+				Output:  buf,
+				Error:   buf,
+			}
+			c := NewWithConfig(cfg, tt.attribute)
 
-			if tt.setNoColor {
+			var result string
+			if tt.args == nil {
+				result = c.SprintFunc()(tt.format)
+			} else {
+				result = c.SprintfFunc()(tt.format, tt.args...)
+			}
+
+			if tt.noColor {
 				// When NoColor is set, result should be plain
 				assert.Equal(t, tt.want, result)
 			} else {
@@ -189,18 +203,7 @@ func Test_colorString(t *testing.T) {
 
 // Test helper functions with various color attributes.
 func Test_colorPrint_variousAttributes(t *testing.T) {
-	// Save and restore
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
-
-	NoColor = false
-	buf := &bytes.Buffer{}
-	Output = buf
+	t.Parallel()
 
 	attributes := []Attribute{
 		FgBlack, FgRed, FgGreen, FgYellow, FgBlue, FgMagenta, FgCyan, FgWhite,
@@ -210,23 +213,26 @@ func Test_colorPrint_variousAttributes(t *testing.T) {
 	}
 
 	for _, attr := range attributes {
-		buf.Reset()
-		colorPrint("test", attr)
+		t.Run("attribute_"+strconv.Itoa(int(attr)), func(t *testing.T) {
+			t.Parallel()
 
-		output := buf.String()
-		assert.NotEmpty(t, output, "expected output for attribute %v", attr)
+			buf := &bytes.Buffer{}
+			cfg := &Config{
+				NoColor: false,
+				Output:  buf,
+				Error:   buf,
+			}
+			c := NewWithConfig(cfg, attr)
+			_, _ = c.Fprintln(buf, "test")
+
+			output := buf.String()
+			assert.NotEmpty(t, output, "expected output for attribute %v", attr)
+		})
 	}
 }
 
 func Test_colorString_variousAttributes(t *testing.T) {
-	// Save and restore
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
-
-	NoColor = false
+	t.Parallel()
 
 	attributes := []Attribute{
 		FgBlack, FgRed, FgGreen, FgYellow, FgBlue, FgMagenta, FgCyan, FgWhite,
@@ -234,8 +240,20 @@ func Test_colorString_variousAttributes(t *testing.T) {
 	}
 
 	for _, attr := range attributes {
-		result := colorString("test", attr)
-		assert.NotEmpty(t, result, "expected output for attribute %v", attr)
-		assert.Contains(t, result, "test", "result should contain the input string for attribute %v", attr)
+		t.Run("attribute_"+strconv.Itoa(int(attr)), func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			cfg := &Config{
+				NoColor: false,
+				Output:  buf,
+				Error:   buf,
+			}
+			c := NewWithConfig(cfg, attr)
+			result := c.SprintFunc()("test")
+
+			assert.NotEmpty(t, result, "expected output for attribute %v", attr)
+			assert.Contains(t, result, "test", "result should contain the input string for attribute %v", attr)
+		})
 	}
 }

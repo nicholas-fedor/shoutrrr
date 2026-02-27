@@ -92,29 +92,31 @@ standard output to the given parameters. That way a rewrite of an existing
 code is not required.
 
 	// Use handy standard colors.
-	color.Set(color.FgYellow)
+	c := color.New(color.FgYellow)
+	c.Set()
 
 	fmt.Println("Existing text will be now in Yellow")
 	fmt.Printf("This one %s\n", "too")
 
-	color.Unset() // don't forget to unset
+	c.Unset() // don't forget to unset
 
 	// You can mix up parameters
-	color.Set(color.FgMagenta, color.Bold)
-	defer color.Unset() // use it in your function
+	c2 := color.New(color.FgMagenta, color.Bold)
+	defer c2.Unset() // use it in your function
 
+	c2.Set()
 	fmt.Println("All text will be now bold magenta.")
 
 There might be a case where you want to disable color output (for example to
 pipe the standard output of your app to somewhere else). `Color` has support to
-disable colors both globally and for single color definition. For example
-suppose you have a CLI app and a `--no-color` bool flag. You can easily disable
-the color output with:
+disable colors for single color definition. For example suppose you have a CLI
+app and a `--no-color` bool flag. You can easily disable the color output with:
 
 	var flagNoColor = flag.Bool("no-color", false, "Disable color output")
 
+	cfg := color.DefaultConfig()
 	if *flagNoColor {
-		color.NoColor = true // disables colorized output
+		cfg.NoColor = true // disables colorized output
 	}
 
 You can also disable the color by setting the NO_COLOR environment variable to any value.

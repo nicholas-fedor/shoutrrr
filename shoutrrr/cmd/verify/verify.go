@@ -46,7 +46,8 @@ func Run(cmd *cobra.Command, _ []string) {
 	config := format.GetServiceConfig(service)
 	configNode := format.GetConfigFormat(config)
 
-	_, _ = fmt.Fprint(color.Output, format.ColorFormatTree(configNode, true))
+	cfg := color.DefaultConfig()
+	_, _ = fmt.Fprint(cfg.Output, format.ColorFormatTree(configNode, true))
 }
 
 // sanitizeError removes sensitive details from an error message.

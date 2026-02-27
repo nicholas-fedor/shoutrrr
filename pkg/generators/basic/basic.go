@@ -50,7 +50,7 @@ func (g *Generator) Generate(
 
 // formatPrompt creates a user prompt based on the field’s name and default value.
 func (g *Generator) formatPrompt(field *format.FieldInfo) string {
-	if len(field.DefaultValue) > 0 {
+	if field.DefaultValue != "" {
 		return fmt.Sprintf("%s[%s]: ", color.HiWhiteString(field.Name), field.DefaultValue)
 	}
 
@@ -64,9 +64,11 @@ func (g *Generator) getInputValue(
 	props map[string]string,
 	scanner *bufio.Scanner,
 ) (string, error) {
-	if propValue, ok := props[propKey]; ok && len(propValue) > 0 {
+	cfg := color.DefaultConfig()
+
+	if propValue, ok := props[propKey]; ok && propValue != "" {
 		_, _ = fmt.Fprint(
-			color.Output,
+			cfg.Output,
 			"Using property ",
 			color.HiCyanString(propValue),
 			" for ",
@@ -79,12 +81,12 @@ func (g *Generator) getInputValue(
 	}
 
 	prompt := g.formatPrompt(field)
-	_, _ = fmt.Fprint(color.Output, prompt)
+	_, _ = fmt.Fprint(cfg.Output, prompt)
 
 	if scanner.Scan() {
 		input := scanner.Text()
-		if len(input) == 0 {
-			if len(field.DefaultValue) > 0 {
+		if input == "" {
+			if field.DefaultValue != "" {
 				return field.DefaultValue, nil
 			}
 
@@ -116,8 +118,9 @@ func (g *Generator) getInputValue(
 
 // printError displays an error message for an invalid field value.
 func (g *Generator) printError(fieldName, errorMsg string) {
+	cfg := color.DefaultConfig()
 	_, _ = fmt.Fprint(
-		color.Output,
+		cfg.Output,
 		"Invalid format for field ",
 		color.HiCyanString(fieldName),
 		": ",
@@ -128,8 +131,9 @@ func (g *Generator) printError(fieldName, errorMsg string) {
 
 // printInvalidType displays a type mismatch error for a field.
 func (g *Generator) printInvalidType(fieldName, typeName string) {
+	cfg := color.DefaultConfig()
 	_, _ = fmt.Fprint(
-		color.Output,
+		cfg.Output,
 		"Invalid type ",
 		color.HiYellowString(typeName),
 		" for field ",
@@ -175,16 +179,18 @@ func (g *Generator) promptUserForFields(
 	return nil
 }
 
-// setFieldValue attempts to set a field’s value and handles required field validation.
+// setFieldValue attempts to set a field's value and handles required field validation.
 func (g *Generator) setFieldValue(
 	config reflect.Value,
 	field *format.FieldInfo,
 	inputValue string,
 ) (bool, error) {
-	if len(inputValue) == 0 {
+	cfg := color.DefaultConfig()
+
+	if inputValue == "" {
 		if field.Required {
 			_, _ = fmt.Fprint(
-				color.Output,
+				cfg.Output,
 				"Field ",
 				color.HiCyanString(field.Name),
 				" is required!\n\n",
@@ -193,7 +199,7 @@ func (g *Generator) setFieldValue(
 			return false, nil
 		}
 
-		if len(field.DefaultValue) == 0 {
+		if field.DefaultValue == "" {
 			return true, nil
 		}
 

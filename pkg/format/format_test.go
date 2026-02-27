@@ -3,12 +3,12 @@ package format
 import (
 	"errors"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -19,8 +19,8 @@ func TestFormat(t *testing.T) {
 }
 
 var _ = ginkgo.BeforeSuite(func() {
-	// Disable color output for tests to have them match the string format rather than the colors
-	color.NoColor = true
+	// Disable color output for tests using environment variable
+	os.Setenv("NO_COLOR", "true")
 })
 
 var _ = ginkgo.Describe("the format package", func() {

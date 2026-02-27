@@ -148,11 +148,13 @@ func Run(cmd *cobra.Command, _ []string) {
 	// Parse properties into a key-value map.
 	props := make(map[string]string, len(propertyFlags))
 
+	cfg := color.DefaultConfig()
+
 	for _, prop := range propertyFlags {
 		parts := strings.Split(prop, "=")
 		if len(parts) != MaximumNArgs {
 			_, _ = fmt.Fprint(
-				color.Output,
+				cfg.Output,
 				"Invalid property key/value pair: ",
 				color.HiYellowString(prop),
 				"\n",
@@ -165,7 +167,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	if len(propertyFlags) > 0 {
-		_, _ = fmt.Fprint(color.Output, "\n") // Add spacing after property warnings
+		_, _ = fmt.Fprint(cfg.Output, "\n") // Add spacing after property warnings
 	}
 
 	// Validate and create the service.
@@ -220,8 +222,8 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 
 	// Generate and display the URL.
-	_, _ = fmt.Fprint(color.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
-	_, _ = fmt.Fprint(color.Output, " using ", color.HiMagentaString(generatorName), " generator\n")
+	_, _ = fmt.Fprint(cfg.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
+	_, _ = fmt.Fprint(cfg.Output, " using ", color.HiMagentaString(generatorName), " generator\n")
 
 	serviceConfig, err := generator.Generate(service, props, cmd.Flags().Args())
 	if err != nil {
@@ -230,7 +232,7 @@ func Run(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	_, _ = fmt.Fprint(color.Output, "\n")
+	_, _ = fmt.Fprint(cfg.Output, "\n")
 
 	maskedURL := maskSensitiveURL(serviceSchema, serviceConfig.GetURL().String())
 

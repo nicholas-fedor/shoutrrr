@@ -9,6 +9,7 @@ import (
 )
 
 func Test_boolPtr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    bool
@@ -36,24 +37,16 @@ func Test_boolPtr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := boolPtr(tt.input)
 			tt.checkPtr(t, result)
 		})
 	}
 }
 
+//nolint:paralleltest // This test cannot run in parallel because it manipulates environment variables.
 func Test_noColorIsSet(t *testing.T) {
-	// Save original environment
-	originalEnv := os.Getenv("NO_COLOR")
-
-	t.Cleanup(func() {
-		if originalEnv == "" {
-			os.Unsetenv("NO_COLOR")
-		} else {
-			os.Setenv("NO_COLOR", originalEnv)
-		}
-	})
-
 	tests := []struct {
 		name      string
 		setEnv    bool   // whether to set the environment variable
@@ -94,11 +87,24 @@ func Test_noColorIsSet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Save original environment before each subtest
+			originalEnv, hadOriginal := os.LookupEnv("NO_COLOR")
+
+			// Set or unset environment variable
 			if tt.setEnv {
 				os.Setenv("NO_COLOR", tt.envValue)
 			} else {
 				os.Unsetenv("NO_COLOR")
 			}
+
+			// Defer cleanup to restore original state
+			defer func() {
+				if hadOriginal {
+					os.Setenv("NO_COLOR", originalEnv)
+				} else {
+					os.Unsetenv("NO_COLOR")
+				}
+			}()
 
 			result := noColorIsSet()
 			assert.Equal(t, tt.expectSet, result)
@@ -107,6 +113,8 @@ func Test_noColorIsSet(t *testing.T) {
 }
 
 func Test_sprintln(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []any
@@ -151,6 +159,8 @@ func Test_sprintln(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := sprintln(tt.input...)
 			assert.Equal(t, tt.expected, result)
 		})

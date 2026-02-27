@@ -21,14 +21,13 @@ func BenchmarkColor_Add(b *testing.B) {
 
 // BenchmarkColor_Sprint benchmarks the Sprint method for converting colored strings.
 func BenchmarkColor_Sprint(b *testing.B) {
-	originalNoColor := NoColor
-	NoColor = false
+	cfg := &Config{
+		NoColor: false,
+		Output:  nil,
+		Error:   nil,
+	}
 
-	b.Cleanup(func() {
-		NoColor = originalNoColor
-	})
-
-	c := New(FgRed)
+	c := NewWithConfig(cfg, FgRed)
 	for b.Loop() {
 		_ = c.Sprint("hello")
 	}
@@ -36,14 +35,13 @@ func BenchmarkColor_Sprint(b *testing.B) {
 
 // BenchmarkColor_Sprintf benchmarks the Sprintf method for formatted colored strings.
 func BenchmarkColor_Sprintf(b *testing.B) {
-	originalNoColor := NoColor
-	NoColor = false
+	cfg := &Config{
+		NoColor: false,
+		Output:  nil,
+		Error:   nil,
+	}
 
-	b.Cleanup(func() {
-		NoColor = originalNoColor
-	})
-
-	c := New(FgRed)
+	c := NewWithConfig(cfg, FgRed)
 	for b.Loop() {
 		_ = c.Sprintf("value: %d", 42)
 	}
@@ -59,14 +57,13 @@ func BenchmarkColor_sequence(b *testing.B) {
 
 // BenchmarkColor_format benchmarks the format method for generating full ANSI escape sequences.
 func BenchmarkColor_format(b *testing.B) {
-	originalNoColor := NoColor
-	NoColor = false
+	cfg := &Config{
+		NoColor: false,
+		Output:  nil,
+		Error:   nil,
+	}
 
-	b.Cleanup(func() {
-		NoColor = originalNoColor
-	})
-
-	c := New(FgRed, Bold)
+	c := NewWithConfig(cfg, FgRed, Bold)
 	for b.Loop() {
 		_ = c.format()
 	}

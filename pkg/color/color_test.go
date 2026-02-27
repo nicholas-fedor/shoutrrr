@@ -12,8 +12,21 @@ import (
 // Ensure Color implements io.Writer interface.
 var _ io.Writer = (*bytes.Buffer)(nil)
 
+// newTestColor creates a Color with a test configuration for thread-safe testing.
+func newTestColor(output *bytes.Buffer, noColor bool, attrs ...Attribute) *Color {
+	cfg := &Config{
+		NoColor: noColor,
+		Output:  output,
+		Error:   output,
+	}
+
+	return NewWithConfig(cfg, attrs...)
+}
+
 // TestColor_Add tests the Add method which chains SGR parameters.
 func TestColor_Add(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		initialAttrs   []Attribute
@@ -54,7 +67,10 @@ func TestColor_Add(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(tt.initialAttrs...)
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, false, tt.initialAttrs...)
 			originalColor := c
 
 			result := c.Add(tt.addAttrs...)
@@ -67,6 +83,8 @@ func TestColor_Add(t *testing.T) {
 
 // TestColor_AddBgRGB tests the AddBgRGB method for background RGB colors.
 func TestColor_AddBgRGB(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		r          int
@@ -99,7 +117,10 @@ func TestColor_AddBgRGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New()
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, false)
 			result := c.AddBgRGB(tt.r, tt.g, tt.b)
 
 			assert.Len(t, c.params, tt.wantParams, "should have correct param count")
@@ -110,6 +131,8 @@ func TestColor_AddBgRGB(t *testing.T) {
 
 // TestColor_AddRGB tests the AddRGB method for foreground RGB colors.
 func TestColor_AddRGB(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		r          int
@@ -142,7 +165,10 @@ func TestColor_AddRGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New()
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, false)
 			result := c.AddRGB(tt.r, tt.g, tt.b)
 
 			assert.Len(t, c.params, tt.wantParams, "should have correct param count")
@@ -153,64 +179,78 @@ func TestColor_AddRGB(t *testing.T) {
 
 // TestColor_DisableColor tests the DisableColor method.
 func TestColor_DisableColor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
-		c       *Color
+		attrs   []Attribute
 		wantNil bool
 	}{
 		{
 			name:    "disables color on new color",
-			c:       New(FgRed),
+			attrs:   []Attribute{FgRed},
 			wantNil: false,
 		},
 		{
 			name:    "disables color on empty color",
-			c:       New(),
+			attrs:   []Attribute{},
 			wantNil: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.c.DisableColor()
+			t.Parallel()
 
-			require.NotNil(t, tt.c.noColor, "noColor should be set")
-			assert.True(t, *tt.c.noColor, "noColor should be true")
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, false, tt.attrs...)
+			c.DisableColor()
+
+			require.NotNil(t, c.noColor, "noColor should be set")
+			assert.True(t, *c.noColor, "noColor should be true")
 		})
 	}
 }
 
 // TestColor_EnableColor tests the EnableColor method.
 func TestColor_EnableColor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
-		c       *Color
+		attrs   []Attribute
 		wantNil bool
 	}{
 		{
 			name:    "enables color on new color",
-			c:       New(FgRed),
+			attrs:   []Attribute{FgRed},
 			wantNil: false,
 		},
 		{
 			name:    "enables color on empty color",
-			c:       New(),
+			attrs:   []Attribute{},
 			wantNil: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.c.EnableColor()
+			t.Parallel()
 
-			require.NotNil(t, tt.c.noColor, "noColor should be set")
-			assert.False(t, *tt.c.noColor, "noColor should be false")
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, true, tt.attrs...)
+			c.EnableColor()
+
+			require.NotNil(t, c.noColor, "noColor should be set")
+			assert.False(t, *c.noColor, "noColor should be false")
 		})
 	}
 }
 
 // TestColor_Equals tests the Equals method.
 func TestColor_Equals(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		c              *Color
@@ -263,6 +303,8 @@ func TestColor_Equals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.c.Equals(tt.colorToCompare)
 			assert.Equal(t, tt.want, got)
 		})
@@ -271,25 +313,20 @@ func TestColor_Equals(t *testing.T) {
 
 // TestColor_Fprint tests the Fprint method.
 func TestColor_Fprint(t *testing.T) {
-	// Save and restore global NoColor
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "prints with color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "prints with color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "hello", "should contain the text")
@@ -297,20 +334,20 @@ func TestColor_Fprint(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints without color when NoColor set",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "prints without color when NoColor set",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Equal(t, "hello", output, "should be plain text")
 			},
 		},
 		{
-			name:       "prints multiple args",
-			c:          New(FgGreen),
-			args:       []any{"hello", "world"},
-			setNoColor: false,
+			name:    "prints multiple args",
+			attrs:   []Attribute{FgGreen},
+			args:    []any{"hello", "world"},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "hello", "should contain first arg")
@@ -318,10 +355,10 @@ func TestColor_Fprint(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints empty",
-			c:          New(FgBlue),
-			args:       []any{},
-			setNoColor: false,
+			name:    "prints empty",
+			attrs:   []Attribute{FgBlue},
+			args:    []any{},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				// When colors are enabled, even empty args produce the escape codes
@@ -332,10 +369,11 @@ func TestColor_Fprint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
-			_, err := tt.c.Fprint(buf, tt.args...)
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+			_, err := c.Fprint(buf, tt.args...)
 
 			require.NoError(t, err)
 			tt.check(t, buf.String())
@@ -345,40 +383,38 @@ func TestColor_Fprint(t *testing.T) {
 
 // TestColor_FprintFunc tests the FprintFunc method.
 func TestColor_FprintFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-
-			fn := tt.c.FprintFunc()
-			require.NotNil(t, fn)
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.FprintFunc()
+			require.NotNil(t, fn)
+
 			fn(buf, "test")
 
-			if tt.setNoColor {
+			if tt.noColor {
 				assert.Equal(t, "test", buf.String())
 			} else {
 				assert.NotEmpty(t, buf.String())
@@ -389,26 +425,22 @@ func TestColor_FprintFunc(t *testing.T) {
 
 // TestColor_Fprintf tests the Fprintf method.
 func TestColor_Fprintf(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		format     string
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		format  string
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "prints formatted with color",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: false,
+			name:    "prints formatted with color",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "value: 42", "should contain formatted text")
@@ -416,11 +448,11 @@ func TestColor_Fprintf(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints formatted without color",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: true,
+			name:    "prints formatted without color",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: true,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Equal(t, "value: 42", output, "should be plain text")
@@ -430,10 +462,11 @@ func TestColor_Fprintf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
-			_, err := tt.c.Fprintf(buf, tt.format, tt.args...)
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+			_, err := c.Fprintf(buf, tt.format, tt.args...)
 
 			require.NoError(t, err)
 			tt.check(t, buf.String())
@@ -443,40 +476,38 @@ func TestColor_Fprintf(t *testing.T) {
 
 // TestColor_FprintfFunc tests the FprintfFunc method.
 func TestColor_FprintfFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-
-			fn := tt.c.FprintfFunc()
-			require.NotNil(t, fn)
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.FprintfFunc()
+			require.NotNil(t, fn)
+
 			fn(buf, "value: %d", 42)
 
-			if tt.setNoColor {
+			if tt.noColor {
 				assert.Equal(t, "value: 42", buf.String())
 			} else {
 				assert.NotEmpty(t, buf.String())
@@ -487,24 +518,20 @@ func TestColor_FprintfFunc(t *testing.T) {
 
 // TestColor_Fprintln tests the Fprintln method.
 func TestColor_Fprintln(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "prints with newline with color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "prints with newline with color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "hello", "should contain the text")
@@ -512,20 +539,20 @@ func TestColor_Fprintln(t *testing.T) {
 			},
 		},
 		{
-			name:       "prints with newline without color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "prints with newline without color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Equal(t, "hello\n", output, "should be plain text with newline")
 			},
 		},
 		{
-			name:       "prints multiple args with newline",
-			c:          New(FgGreen),
-			args:       []any{"hello", "world"},
-			setNoColor: true,
+			name:    "prints multiple args with newline",
+			attrs:   []Attribute{FgGreen},
+			args:    []any{"hello", "world"},
+			noColor: true,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Equal(t, "hello world\n", output, "should be plain text with newline")
@@ -535,10 +562,11 @@ func TestColor_Fprintln(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
-			_, err := tt.c.Fprintln(buf, tt.args...)
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+			_, err := c.Fprintln(buf, tt.args...)
 
 			require.NoError(t, err)
 			tt.check(t, buf.String())
@@ -548,37 +576,35 @@ func TestColor_Fprintln(t *testing.T) {
 
 // TestColor_FprintlnFunc tests the FprintlnFunc method.
 func TestColor_FprintlnFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-
-			fn := tt.c.FprintlnFunc()
-			require.NotNil(t, fn)
+			t.Parallel()
 
 			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.FprintlnFunc()
+			require.NotNil(t, fn)
+
 			fn(buf, "test")
 
 			assert.NotEmpty(t, buf.String())
@@ -588,41 +614,36 @@ func TestColor_FprintlnFunc(t *testing.T) {
 
 // TestColor_Print tests the Print method.
 func TestColor_Print(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
 	}{
 		{
-			name:       "prints with color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "prints with color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 		},
 		{
-			name:       "prints without color when NoColor set",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "prints without color when NoColor set",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			got, err := tt.c.Print(tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got, err := c.Print(tt.args...)
 
 			require.NoError(t, err)
 			assert.Positive(t, got)
@@ -632,38 +653,33 @@ func TestColor_Print(t *testing.T) {
 
 // TestColor_PrintFunc tests the PrintFunc method.
 func TestColor_PrintFunc(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			fn := tt.c.PrintFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.PrintFunc()
 			require.NotNil(t, fn)
 
 			fn("test")
@@ -675,44 +691,39 @@ func TestColor_PrintFunc(t *testing.T) {
 
 // TestColor_Printf tests the Printf method.
 func TestColor_Printf(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		format     string
-		args       []any
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		format  string
+		args    []any
+		noColor bool
 	}{
 		{
-			name:       "prints formatted with color",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: false,
+			name:    "prints formatted with color",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: false,
 		},
 		{
-			name:       "prints formatted without color",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: true,
+			name:    "prints formatted without color",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			got, err := tt.c.Printf(tt.format, tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got, err := c.Printf(tt.format, tt.args...)
 
 			require.NoError(t, err)
 			assert.Positive(t, got)
@@ -722,38 +733,33 @@ func TestColor_Printf(t *testing.T) {
 
 // TestColor_PrintfFunc tests the PrintfFunc method.
 func TestColor_PrintfFunc(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			fn := tt.c.PrintfFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.PrintfFunc()
 			require.NotNil(t, fn)
 
 			fn("value: %d", 42)
@@ -765,36 +771,30 @@ func TestColor_PrintfFunc(t *testing.T) {
 
 // TestColor_Println tests the Println method.
 func TestColor_Println(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "prints with newline with color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "prints with newline with color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "hello", "should contain the text")
 			},
 		},
 		{
-			name:       "prints with newline without color",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "prints with newline without color",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 			check: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Equal(t, "hello\n", output, "should be plain text with newline")
@@ -804,11 +804,12 @@ func TestColor_Println(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			_, err := tt.c.Println(tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			_, err := c.Println(tt.args...)
 
 			require.NoError(t, err)
 			tt.check(t, buf.String())
@@ -818,38 +819,33 @@ func TestColor_Println(t *testing.T) {
 
 // TestColor_PrintlnFunc tests the PrintlnFunc method.
 func TestColor_PrintlnFunc(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			fn := tt.c.PrintlnFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.PrintlnFunc()
 			require.NotNil(t, fn)
 
 			fn("test")
@@ -861,106 +857,95 @@ func TestColor_PrintlnFunc(t *testing.T) {
 
 // TestColor_Set tests the Set method.
 func TestColor_Set(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "sets color",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "sets color",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "skips when NoColor set",
-			c:          New(FgRed),
-			setNoColor: true,
+			name:    "skips when NoColor set",
+			attrs:   []Attribute{FgRed},
+			noColor: true,
 		},
 		{
-			name:       "sets empty color",
-			c:          New(),
-			setNoColor: false,
+			name:    "sets empty color",
+			attrs:   []Attribute{},
+			noColor: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
+
 			buf := &bytes.Buffer{}
-			Output = buf
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
 
-			result := tt.c.Set()
+			result := c.Set()
 
-			assert.Same(t, tt.c, result)
+			assert.Same(t, c, result)
 		})
 	}
 }
 
 // TestColor_SetWriter tests the SetWriter method.
 func TestColor_SetWriter(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "sets writer with color",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "sets writer with color",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "skips when NoColor set",
-			c:          New(FgRed),
-			setNoColor: true,
+			name:    "skips when NoColor set",
+			attrs:   []Attribute{FgRed},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
+
 			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
 
-			result := tt.c.SetWriter(buf)
+			result := c.SetWriter(buf)
 
-			assert.Same(t, tt.c, result)
+			assert.Same(t, c, result)
 		})
 	}
 }
 
 // TestColor_Sprint tests the Sprint method.
 func TestColor_Sprint(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "returns colored string",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "returns colored string",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Contains(t, result, "hello", "should contain the text")
@@ -968,30 +953,30 @@ func TestColor_Sprint(t *testing.T) {
 			},
 		},
 		{
-			name:       "returns plain string when NoColor set",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "returns plain string when NoColor set",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Equal(t, "hello", result)
 			},
 		},
 		{
-			name:       "handles multiple args",
-			c:          New(FgGreen),
-			args:       []any{"hello", "world"},
-			setNoColor: true,
+			name:    "handles multiple args",
+			attrs:   []Attribute{FgGreen},
+			args:    []any{"hello", "world"},
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Equal(t, "helloworld", result)
 			},
 		},
 		{
-			name:       "handles empty args",
-			c:          New(FgBlue),
-			args:       []any{},
-			setNoColor: true,
+			name:    "handles empty args",
+			attrs:   []Attribute{FgBlue},
+			args:    []any{},
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Empty(t, result)
@@ -1001,9 +986,12 @@ func TestColor_Sprint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			got := tt.c.Sprint(tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got := c.Sprint(tt.args...)
 			tt.check(t, got)
 		})
 	}
@@ -1011,39 +999,38 @@ func TestColor_Sprint(t *testing.T) {
 
 // TestColor_SprintFunc tests the SprintFunc method.
 func TestColor_SprintFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			fn := tt.c.SprintFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.SprintFunc()
 			require.NotNil(t, fn)
 
 			result := fn("test")
 
-			if tt.setNoColor {
+			if tt.noColor {
 				assert.Equal(t, "test", result)
 			} else {
 				assert.NotEmpty(t, result)
@@ -1054,26 +1041,22 @@ func TestColor_SprintFunc(t *testing.T) {
 
 // TestColor_Sprintf tests the Sprintf method.
 func TestColor_Sprintf(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		format     string
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		format  string
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "returns formatted colored string",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: false,
+			name:    "returns formatted colored string",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Contains(t, result, "value: 42", "should contain formatted text")
@@ -1081,11 +1064,11 @@ func TestColor_Sprintf(t *testing.T) {
 			},
 		},
 		{
-			name:       "returns formatted plain string when NoColor set",
-			c:          New(FgRed),
-			format:     "value: %d",
-			args:       []any{42},
-			setNoColor: true,
+			name:    "returns formatted plain string when NoColor set",
+			attrs:   []Attribute{FgRed},
+			format:  "value: %d",
+			args:    []any{42},
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Equal(t, "value: 42", result)
@@ -1095,9 +1078,12 @@ func TestColor_Sprintf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			got := tt.c.Sprintf(tt.format, tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got := c.Sprintf(tt.format, tt.args...)
 			tt.check(t, got)
 		})
 	}
@@ -1105,39 +1091,38 @@ func TestColor_Sprintf(t *testing.T) {
 
 // TestColor_SprintfFunc tests the SprintfFunc method.
 func TestColor_SprintfFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			fn := tt.c.SprintfFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.SprintfFunc()
 			require.NotNil(t, fn)
 
 			result := fn("value: %d", 42)
 
-			if tt.setNoColor {
+			if tt.noColor {
 				assert.Equal(t, "value: 42", result)
 			} else {
 				assert.NotEmpty(t, result)
@@ -1148,24 +1133,20 @@ func TestColor_SprintfFunc(t *testing.T) {
 
 // TestColor_Sprintln tests the Sprintln method.
 func TestColor_Sprintln(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		args       []any
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		args    []any
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "returns colored string with newline",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: false,
+			name:    "returns colored string with newline",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Contains(t, result, "hello", "should contain the text")
@@ -1173,10 +1154,10 @@ func TestColor_Sprintln(t *testing.T) {
 			},
 		},
 		{
-			name:       "returns plain string with newline when NoColor set",
-			c:          New(FgRed),
-			args:       []any{"hello"},
-			setNoColor: true,
+			name:    "returns plain string with newline when NoColor set",
+			attrs:   []Attribute{FgRed},
+			args:    []any{"hello"},
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Equal(t, "hello\n", result)
@@ -1186,9 +1167,12 @@ func TestColor_Sprintln(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			got := tt.c.Sprintln(tt.args...)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got := c.Sprintln(tt.args...)
 			tt.check(t, got)
 		})
 	}
@@ -1196,39 +1180,38 @@ func TestColor_Sprintln(t *testing.T) {
 
 // TestColor_SprintlnFunc tests the SprintlnFunc method.
 func TestColor_SprintlnFunc(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "returns function with color enabled",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "returns function with color enabled",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "returns function with NoColor set",
-			c:          New(FgGreen),
-			setNoColor: true,
+			name:    "returns function with NoColor set",
+			attrs:   []Attribute{FgGreen},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			fn := tt.c.SprintlnFunc()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			fn := c.SprintlnFunc()
 			require.NotNil(t, fn)
 
 			result := fn("test")
 
-			if tt.setNoColor {
+			if tt.noColor {
 				assert.Equal(t, "test\n", result)
 			} else {
 				assert.NotEmpty(t, result)
@@ -1239,35 +1222,33 @@ func TestColor_SprintlnFunc(t *testing.T) {
 
 // TestColor_UnsetWriter tests the UnsetWriter method.
 func TestColor_UnsetWriter(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "unsets writer with color",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "unsets writer with color",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "skips when NoColor set",
-			c:          New(FgRed),
-			setNoColor: true,
+			name:    "skips when NoColor set",
+			attrs:   []Attribute{FgRed},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
+			t.Parallel()
 
-			tt.c.UnsetWriter(buf)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			c.UnsetWriter(buf)
 
 			// Just verify it doesn't panic
 		})
@@ -1276,6 +1257,8 @@ func TestColor_UnsetWriter(t *testing.T) {
 
 // TestColor_attrExists tests the attrExists method.
 func TestColor_attrExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		c    *Color
@@ -1316,6 +1299,8 @@ func TestColor_attrExists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.c.attrExists(tt.attr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -1324,22 +1309,18 @@ func TestColor_attrExists(t *testing.T) {
 
 // TestColor_format tests the format method.
 func TestColor_format(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		c       *Color
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "formats with color",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "formats with color",
+			c:       New(FgRed),
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.NotEmpty(t, result)
@@ -1347,9 +1328,9 @@ func TestColor_format(t *testing.T) {
 			},
 		},
 		{
-			name:       "formats empty color",
-			c:          New(),
-			setNoColor: false,
+			name:    "formats empty color",
+			c:       New(),
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				// Empty color with no params returns escape + [ + m (short reset form)
@@ -1364,7 +1345,7 @@ func TestColor_format(t *testing.T) {
 
 				return c
 			}(),
-			setNoColor: false,
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				// format() does not check NoColor - it always generates the ANSI sequence
@@ -1375,7 +1356,7 @@ func TestColor_format(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
 			got := tt.c.format()
 			tt.check(t, got)
@@ -1385,17 +1366,13 @@ func TestColor_format(t *testing.T) {
 
 // TestColor_isNoColorSet tests the isNoColorSet method.
 func TestColor_isNoColorSet(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
-		want       bool
+		name    string
+		c       *Color
+		noColor bool
+		want    bool
 	}{
 		{
 			name: "returns true when noColor is explicitly set",
@@ -1405,8 +1382,8 @@ func TestColor_isNoColorSet(t *testing.T) {
 
 				return c
 			}(),
-			setNoColor: false,
-			want:       true,
+			noColor: false,
+			want:    true,
 		},
 		{
 			name: "returns false when noColor is explicitly enabled",
@@ -1416,20 +1393,36 @@ func TestColor_isNoColorSet(t *testing.T) {
 
 				return c
 			}(),
-			setNoColor: false,
-			want:       false,
+			noColor: false,
+			want:    false,
 		},
 		{
-			name:       "returns global NoColor when noColor is nil",
-			c:          New(),
-			setNoColor: false,
-			want:       false,
+			name: "returns config NoColor when noColor is nil (color enabled)",
+			c: func() *Color {
+				buf := &bytes.Buffer{}
+				cfg := &Config{NoColor: false, Output: buf, Error: buf}
+
+				return NewWithConfig(cfg)
+			}(),
+			noColor: false,
+			want:    false,
+		},
+		{
+			name: "returns config NoColor when noColor is nil (color disabled)",
+			c: func() *Color {
+				buf := &bytes.Buffer{}
+				cfg := &Config{NoColor: true, Output: buf, Error: buf}
+
+				return NewWithConfig(cfg)
+			}(),
+			noColor: true,
+			want:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
 			got := tt.c.isNoColorSet()
 			assert.Equal(t, tt.want, got)
@@ -1439,6 +1432,8 @@ func TestColor_isNoColorSet(t *testing.T) {
 
 // TestColor_sequence tests the sequence method.
 func TestColor_sequence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		c    *Color
@@ -1478,6 +1473,8 @@ func TestColor_sequence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.c.sequence()
 			assert.Equal(t, tt.want, got)
 		})
@@ -1486,6 +1483,8 @@ func TestColor_sequence(t *testing.T) {
 
 // TestColor_unformat tests the unformat method.
 func TestColor_unformat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		c    *Color
@@ -1525,6 +1524,8 @@ func TestColor_unformat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.c.unformat()
 			assert.Equal(t, tt.want, got)
 		})
@@ -1533,38 +1534,33 @@ func TestColor_unformat(t *testing.T) {
 
 // TestColor_unset tests the unset method.
 func TestColor_unset(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		setNoColor bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
 		{
-			name:       "unsets with color",
-			c:          New(FgRed),
-			setNoColor: false,
+			name:    "unsets with color",
+			attrs:   []Attribute{FgRed},
+			noColor: false,
 		},
 		{
-			name:       "skips when NoColor set",
-			c:          New(FgRed),
-			setNoColor: true,
+			name:    "skips when NoColor set",
+			attrs:   []Attribute{FgRed},
+			noColor: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			tt.c.unset()
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			c.Unset()
 
 			// Just verify it doesn't panic
 		})
@@ -1573,24 +1569,20 @@ func TestColor_unset(t *testing.T) {
 
 // TestColor_wrap tests the wrap method.
 func TestColor_wrap(t *testing.T) {
-	originalNoColor := NoColor
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-	})
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		c          *Color
-		s          string
-		setNoColor bool
-		check      func(*testing.T, string)
+		name    string
+		attrs   []Attribute
+		s       string
+		noColor bool
+		check   func(*testing.T, string)
 	}{
 		{
-			name:       "wraps string with color",
-			c:          New(FgRed),
-			s:          "hello",
-			setNoColor: false,
+			name:    "wraps string with color",
+			attrs:   []Attribute{FgRed},
+			s:       "hello",
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Contains(t, result, "hello", "should contain the text")
@@ -1598,20 +1590,20 @@ func TestColor_wrap(t *testing.T) {
 			},
 		},
 		{
-			name:       "returns plain string when NoColor set",
-			c:          New(FgRed),
-			s:          "hello",
-			setNoColor: true,
+			name:    "returns plain string when NoColor set",
+			attrs:   []Attribute{FgRed},
+			s:       "hello",
+			noColor: true,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.Equal(t, "hello", result)
 			},
 		},
 		{
-			name:       "wraps empty string",
-			c:          New(FgRed),
-			s:          "",
-			setNoColor: false,
+			name:    "wraps empty string",
+			attrs:   []Attribute{FgRed},
+			s:       "",
+			noColor: false,
 			check: func(t *testing.T, result string) {
 				t.Helper()
 				assert.NotEmpty(t, result, "should have escape codes even for empty string")
@@ -1621,9 +1613,12 @@ func TestColor_wrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
+			t.Parallel()
 
-			got := tt.c.wrap(tt.s)
+			buf := &bytes.Buffer{}
+			c := newTestColor(buf, tt.noColor, tt.attrs...)
+
+			got := c.wrap(tt.s)
 			tt.check(t, got)
 		})
 	}
@@ -1631,6 +1626,8 @@ func TestColor_wrap(t *testing.T) {
 
 // TestNew tests the New function.
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		value      []Attribute
@@ -1665,6 +1662,8 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := New(tt.value...)
 
 			require.NotNil(t, got)
@@ -1673,90 +1672,82 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// TestSet tests the Set function.
-func TestSet(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
-
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+// TestNewWithConfig tests the NewWithConfig function.
+func TestNewWithConfig(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name       string
-		p          []Attribute
-		setNoColor bool
+		name           string
+		noColor        bool
+		attrs          []Attribute
+		wantNoColor    bool
+		wantNoColorNil bool
 	}{
 		{
-			name:       "sets color with attributes",
-			p:          []Attribute{FgRed},
-			setNoColor: false,
+			name:           "creates color with NoColor=true",
+			noColor:        true,
+			attrs:          []Attribute{FgRed},
+			wantNoColor:    true,
+			wantNoColorNil: false,
 		},
 		{
-			name:       "sets color with NoColor",
-			p:          []Attribute{FgRed},
-			setNoColor: true,
+			name:           "creates color with NoColor=false",
+			noColor:        false,
+			attrs:          []Attribute{FgRed},
+			wantNoColor:    false,
+			wantNoColorNil: true,
 		},
 		{
-			name:       "sets empty color",
-			p:          []Attribute{},
-			setNoColor: false,
+			name:           "creates empty color with config",
+			noColor:        false,
+			attrs:          []Attribute{},
+			wantNoColor:    false,
+			wantNoColorNil: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
+			t.Parallel()
 
-			got := Set(tt.p...)
+			buf := &bytes.Buffer{}
+			cfg := &Config{
+				NoColor: tt.noColor,
+				Output:  buf,
+				Error:   buf,
+			}
+
+			got := NewWithConfig(cfg, tt.attrs...)
 
 			require.NotNil(t, got)
+			assert.Equal(t, cfg, got.config)
+
+			if tt.wantNoColorNil {
+				assert.Nil(t, got.noColor)
+			} else {
+				require.NotNil(t, got.noColor)
+				assert.Equal(t, tt.wantNoColor, *got.noColor)
+			}
 		})
 	}
 }
 
-// TestUnset tests the Unset function.
-func TestUnset(t *testing.T) {
-	originalNoColor := NoColor
-	originalOutput := Output
+// TestDefaultConfig tests the DefaultConfig function.
+func TestDefaultConfig(t *testing.T) {
+	t.Parallel()
 
-	t.Cleanup(func() {
-		NoColor = originalNoColor
-		Output = originalOutput
-	})
+	cfg := DefaultConfig()
 
-	tests := []struct {
-		name       string
-		setNoColor bool
-	}{
-		{
-			name:       "unsets with color enabled",
-			setNoColor: false,
-		},
-		{
-			name:       "skips with NoColor set",
-			setNoColor: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			NoColor = tt.setNoColor
-			buf := &bytes.Buffer{}
-			Output = buf
-
-			Unset()
-
-			// Just verify it doesn't panic
-		})
-	}
+	require.NotNil(t, cfg)
+	assert.NotNil(t, cfg.Output)
+	assert.NotNil(t, cfg.Error)
+	// NoColor depends on environment, so we just verify it's set
 }
 
 // TestBgRGB tests the BgRGB function.
 func TestBgRGB(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		r          int
@@ -1789,6 +1780,8 @@ func TestBgRGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := BgRGB(tt.r, tt.g, tt.b)
 
 			require.NotNil(t, got)
@@ -1799,6 +1792,8 @@ func TestBgRGB(t *testing.T) {
 
 // TestRGB tests the RGB function.
 func TestRGB(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		r          int
@@ -1831,6 +1826,8 @@ func TestRGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := RGB(tt.r, tt.g, tt.b)
 
 			require.NotNil(t, got)
