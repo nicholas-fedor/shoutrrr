@@ -22,39 +22,62 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 
 	ginkgo.Describe("SetURL", func() {
 		ginkgo.It("should update the account SID from the user part of the url", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "+15551234567", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"+15551234567",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.AccountSID).To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
 		})
 
 		ginkgo.It("should update the auth token from the password part of the url", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "testAuthToken", "+15551234567", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"testAuthToken",
+				"+15551234567",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.AuthToken).To(gomega.Equal("testAuthToken"))
 		})
 
 		ginkgo.It("should update the from number from the host part of the url", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "+15551234567", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"+15551234567",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.FromNumber).To(gomega.Equal("+15551234567"))
 		})
 
 		ginkgo.It("should update the to numbers from the path part of the url", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "+15551234567", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"+15551234567",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.ToNumbers).To(gomega.Equal([]string{"+15559876543"}))
 		})
 
 		ginkgo.It("should parse multiple recipients from the path", func() {
-			testURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543/+15551111111")
+			testURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543/+15551111111",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.ToNumbers).To(gomega.Equal([]string{"+15559876543", "+15551111111"}))
+			gomega.Expect(config.ToNumbers).
+				To(gomega.Equal([]string{"+15559876543", "+15551111111"}))
 		})
 
 		ginkgo.It("should error if the account SID is missing", func() {
@@ -64,25 +87,45 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 		})
 
 		ginkgo.It("should error if the auth token is missing", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "", "+15551234567", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"",
+				"+15551234567",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).To(gomega.MatchError(ErrAuthTokenMissing))
 		})
 
 		ginkgo.It("should error if the from number is missing", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "", "+15559876543")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"",
+				"+15559876543",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).To(gomega.MatchError(ErrFromNumberMissing))
 		})
 
 		ginkgo.It("should error if the to numbers are missing", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "+15551234567", "")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"+15551234567",
+				"",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).To(gomega.MatchError(ErrToNumbersMissing))
 		})
 
 		ginkgo.It("should error if to and from numbers are the same", func() {
-			testURL := createTestURL("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", "authToken", "+15551234567", "+15551234567")
+			testURL := createTestURL(
+				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				"authToken",
+				"+15551234567",
+				"+15551234567",
+			)
 			err := config.SetURL(testURL)
 			gomega.Expect(err).To(gomega.MatchError(ErrToFromNumberSame))
 		})
@@ -116,7 +159,9 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 
 	ginkgo.Describe("Messaging Service SID", func() {
 		ginkgo.It("should accept an MG-prefixed sender", func() {
-			testURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543")
+			testURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -125,7 +170,9 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 
 		ginkgo.It("should not validate to==from when using Messaging Service SID", func() {
 			// MG-prefixed senders skip the to==from validation
-			testURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+			testURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -134,7 +181,9 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 
 	ginkgo.Describe("normalizePhoneNumber", func() {
 		ginkgo.It("should strip dashes and parentheses", func() {
-			testURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1(555)123-4567/+1(555)987-6543")
+			testURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1(555)123-4567/+1(555)987-6543",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -143,7 +192,9 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 		})
 
 		ginkgo.It("should strip spaces and dots", func() {
-			testURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1.555.123.4567/+1 555 987 6543")
+			testURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1.555.123.4567/+1 555 987 6543",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -226,7 +277,7 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 		ginkgo.It("should pass standard config tests", func() {
 			cfg := &Config{}
 			enums := cfg.Enums()
-			gomega.Expect(enums).To(gomega.HaveLen(0))
+			gomega.Expect(enums).To(gomega.BeEmpty())
 
 			resolver := format.NewPropKeyResolver(cfg)
 			fields := resolver.QueryFields()
