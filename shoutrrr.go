@@ -27,7 +27,9 @@ import (
 )
 
 // defaultRouter manages the creation and routing of notification services.
-var defaultRouter = router.ServiceRouter{}
+var defaultRouter = router.ServiceRouter{
+	Timeout: router.DefaultTimeout,
+}
 
 // SetLogger configures the logger for all services in the default router.
 func SetLogger(logger types.StdLogger) {
