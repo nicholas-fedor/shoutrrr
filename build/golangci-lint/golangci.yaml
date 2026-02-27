@@ -79,6 +79,7 @@ linters:
     - errname # Checks that sentinel errors are prefixed with the `Err` and error types are suffixed with the `Error`.
     - errcheck # Errcheck is a program for checking for unchecked errors in Go code. These unchecked errors can be critical bugs in some cases.
     - exhaustive # Check exhaustiveness of enum switch statements.
+    - exhaustruct # Checks if all structure fields are initialized.
     - forbidigo # Forbids identifiers.
     - forcetypeassert # Finds forced type assertions.
     - funcorder # Checks the order of functions, methods, and constructors.
@@ -106,6 +107,7 @@ linters:
     - noctx # Finds sending http request without context.Context.
     - nonamedreturns # Reports all named returns.
     - nosprintfhostport # Checks for misuse of Sprintf to construct a host with port in a URL.
+    - paralleltest # Detects missing usage of t.Parallel() method in your Go test.
     - prealloc # Finds slice declarations that could potentially be pre-allocated.
     - predeclared # Find code that shadows one of Go's predeclared identifiers.
     - promlinter # Check Prometheus metrics naming via promlint.
@@ -121,12 +123,12 @@ linters:
     - varnamelen # Checks that the length of a variable's name matches its scope.
     - wastedassign # Finds wasted assignment statements.
     - wrapcheck # Checks that errors returned from external packages are wrapped.
+    - zerologlint # Detects the wrong usage of zerolog that a user forgets to dispatch with Send or Msg.
   ####################################################################################################
   disable:
     - arangolint # Opinionated best practices for arangodb client.
     - cyclop # Checks function and package cyclomatic complexity.
     - depguard # Checks if package imports are in a list of acceptable packages.
-    - exhaustruct # Checks if all structure fields are initialized.
     - funlen # Checks for long functions.
     - gochecknoglobals # Check that no global variables exist.
     - gochecknoinits # Checks that no init functions are present in Go code.
@@ -139,20 +141,26 @@ linters:
     - maintidx # Maintidx measures the maintainability index of each function.
     - nestif # Reports deeply nested if statements.
     - noinlineerr # Disallows inline error handling
-    - paralleltest # Detects missing usage of t.Parallel() method in your Go test.
     - rowserrcheck # Checks whether Rows.Err of rows is checked successfully.
     - spancheck # Checks for mistakes with OpenTelemetry/Census spans.
     - sqlclosecheck # Checks that sql.Rows, sql.Stmt, sqlx.NamedStmt, pgx.Query are closed.
     - tagliatelle # Checks the struct tags.
     - testpackage # Linter that makes you use a separate _test package.
     - wsl # deprecated, replaced by wsl_v5 (whitespace linter)
-    - zerologlint # Detects the wrong usage of zerolog that a user forgets to dispatch with Send or Msg.
 
   ######################################################################################################
   # Linter Settings Configuration
   ######################################################################################################
   settings:
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#copyloopvar
+    copyloopvar:
+      # Check all assigning the loop variable to another variable.
+      # Default: false
+      check-alias: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#decorder
     decorder:
       # Required order of `type`, `const`, `var` and `func` declarations inside a file.
       # Default: types before constants before variables before functions.
@@ -182,7 +190,106 @@ linters:
       # If true, var declarations will be ignored for dec num check.
       # Default: false (var statements are not ignored)
       disable-var-dec-num-check: false
+
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#errcheck
+    errcheck:
+      # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
+      # Such cases aren't reported by default.
+      # Default: false
+      check-type-assertions: true
+      # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.
+      # Such cases aren't reported by default.
+      # Default: false
+      check-blank: true
+      # To disable the errcheck built-in exclude list.
+      # See `-excludeonly` option in https://github.com/kisielk/errcheck#excluding-functions for details.
+      # Default: false
+      # disable-default-exclusions: true
+      # List of functions to exclude from checking, where each entry is a single function to exclude.
+      # See https://github.com/kisielk/errcheck#excluding-functions for details.
+      exclude-functions:
+        - (*strings.Builder).Write
+        - (*strings.Builder).WriteString
+        - (*bytes.Buffer).Write
+        - (*bytes.Buffer).WriteString
+        - fmt.Fprintf
+        - fmt.Fprint
+      # Display function signature instead of selector.
+      # Default: false
+      verbose: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#exhaustruct
+    exhaustruct:
+      # List of regular expressions to match type names that should be processed.
+      # Anonymous structs can be matched by '<anonymous>' alias.
+      #
+      # Each regular expression must match the full type name, including package path.
+      # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
+      # but not `http\.Cookie`.
+      # Default: []
+      # include:
+      #   - '.+\.Test'
+      #   - 'example\.com/package\.ExampleStruct[\d]{1,2}'
+      # List of regular expressions to match type names that should be excluded from processing.
+      # Anonymous structs can be matched by '<anonymous>' alias.
+      # Has precedence over `include`.
+      # Each regular expression must match the full type name, including package path.
+      # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
+      # but not `http\.Cookie`.
+      # Default: []
+      exclude:
+        - '.+/cobra\.Command$'
+        - ".*_test.go"
+        - "internal/testutils/.*"
+      # Allows empty structures, effectively excluding them from the check.
+      # Default: false
+      # allow-empty: true
+      # List of regular expressions to match type names that should be allowed to be empty.
+      # Anonymous structs can be matched by '<anonymous>' alias.
+      # Each regular expression must match the full type name, including package path.
+      # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
+      # but not `http\.Cookie`.
+      # Default: []
+      # allow-empty-rx:
+      #   - '.*/http\.Cookie'
+      # Allows empty structures in return statements.
+      # Default: false
+      # allow-empty-returns: true
+      # Allows empty structures in variable declarations.
+      # Default: false
+      # allow-empty-declarations: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#forbidigo
+    forbidigo:
+      # Forbid the following identifiers (list of regexp).
+      # Default: ["^(fmt\\.Print(|f|ln)|print|println)$"]
+      forbid:
+        # Default
+        - pattern: ^(fmt\\.Print(|f|ln)|print|println)$
+        # Use new https://pkg.go.dev/math/rand/v2
+        - pattern: math/rand\.
+          msg: Use math/rand/v2 instead
+        # Prevent use of deprecated https://pkg.go.dev/io/ioutil
+        - pattern: io/ioutil
+          msg: Use io or os packages instead
+        # Prevent use of syscall package https://go.googlesource.com/proposal/+/refs/heads/master/design/freeze-syscall.md
+        - pattern: syscall\.
+          msg: Use golang.org/x/sys instead
+      # Exclude godoc examples from forbidigo checks.
+      # Default: true
+      # exclude-godoc-examples: false
+      # Instead of matching the literal source code,
+      # use type information to replace expressions with strings that contain the package name
+      # and (for methods and fields) the type name.
+      # This makes it possible to handle import renaming and forbid struct fields and methods.
+      # Default: false
+      # analyze-types: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#funcorder
     funcorder:
       # Checks that constructors are placed after the structure declaration.
       # Default: true
@@ -193,7 +300,73 @@ linters:
       # Checks if the constructors and/or structure methods are sorted alphabetically.
       # Default: false
       alphabetical: true
+
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#goconst
+    goconst:
+      # Minimal length of string constant.
+      # Default: 3
+      # min-len: 2
+      # Minimum occurrences of constant string count to trigger issue.
+      # Default: 3
+      # min-occurrences: 2
+      # Look for existing constants matching the values.
+      # Default: true
+      # match-constant: false
+      # Search also for duplicated numbers.
+      # Default: false
+      numbers: true
+      # Minimum value, only works with `goconst.numbers`.
+      # Default: 3
+      # min: 2
+      # Maximum value, only works with `goconst.numbers`.
+      # Default: 3
+      # max: 2
+      # Ignore when constant is not used as function argument.
+      # Default: true
+      # ignore-calls: false
+      # Exclude strings matching the given regular expression.
+      # Default: ""
+      # ignore-string-values:
+      #   - "foo.+"
+      # Detects constants with identical values.
+      # Default: false
+      find-duplicates: true
+      # Evaluates of constant expressions like Prefix + "suffix".
+      # Default: false
+      eval-const-expressions: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#gocritic
+    gocritic:
+      # Enable all checks.
+      # Default: false
+      enable-all: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#gosec
+    gosec:
+      # To select a subset of rules to run.
+      # Available rules: https://github.com/securego/gosec#available-rules
+      # Default: [] - means include all rules
+      # includes:
+      #   - G101 # Look for hardcoded credentials
+      # To specify a set of rules to explicitly exclude.
+      # Available rules: https://github.com/securego/gosec#available-rules
+      # Default: []
+      excludes:
+        # - G602 # Possible slice bounds out of range
+        - G705 # XSS via taint analysis (Taint) - false positives for CLI console output
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#nakedret
+    nakedret:
+      # Make an issue if func has more lines of code than this setting, and it has naked returns.
+      # Default: 30
+      max-func-lines: 10
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#revive
     revive:
       enable-all-rules: false
       # Configure rules
@@ -222,10 +395,67 @@ linters:
           exclude:
             - ".*pkg/api/metrics/.*"
             - ".*pkg/metrics/.*"
+
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#paralleltest
+    paralleltest:
+      # Ignore missing calls to `t.Parallel()` and only report incorrect uses of it.
+      # Default: false
+      # ignore-missing: true
+      # Ignore missing calls to `t.Parallel()` in subtests. Top-level tests are
+      # still required to have `t.Parallel`, but subtests are allowed to skip it.
+      # Default: false
+      ignore-missing-subtests: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#testifylint
     testifylint:
       enable-all: true
+
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#wrapcheck
+    wrapcheck:
+      # An array of strings specifying additional substrings of signatures to ignore.
+      # Unlike 'ignore-sigs', this option extends the default set (or the set specified in 'ignore-sigs') without replacing it entirely.
+      # This allows you to add specific signatures to the ignore list
+      # while retaining the defaults or any items in 'ignore-sigs'.
+      # Default: []
+      # extra-ignore-sigs:
+      #   - .CustomError(
+      #   - .SpecificWrap(
+      # An array of strings that specify substrings of signatures to ignore.
+      # If this set, it will override the default set of ignored signatures.
+      # See https://github.com/tomarrell/wrapcheck#configuration for more information.
+      # Default: [".Errorf(", "errors.New(", "errors.Unwrap(", "errors.Join(", ".Wrap(", ".Wrapf(", ".WithMessage(", ".WithMessagef(", ".WithStack("]
+      # ignore-sigs:
+      #   - .Errorf(
+      #   - errors.New(
+      #   - errors.Unwrap(
+      #   - errors.Join(
+      #   - .Wrap(
+      #   - .Wrapf(
+      #   - .WithMessage(
+      #   - .WithMessagef(
+      #   - .WithStack(
+      # An array of strings that specify regular expressions of signatures to ignore.
+      # Default: []
+      # ignore-sig-regexps:
+      #   - \.New.*Error\(
+      # An array of strings that specify globs of packages to ignore.
+      # Default: []
+      ignore-package-globs:
+        - github.com/nicholas-fedor/shoutrrr/internal/*
+        - github.com/nicholas-fedor/shoutrrr/pkg/*
+      # An array of strings that specify regular expressions of interfaces to ignore.
+      # Default: []
+      # ignore-interface-regexps:
+      #   - ^(?i)c(?-i)ach(ing|e)
+      # Determines whether wrapcheck should report errors returned from inside the package.
+      # Default: false
+      # report-internal-errors: true
+
+    ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#varnamelen
     varnamelen:
       max-distance: 5
       min-name-length: 3
