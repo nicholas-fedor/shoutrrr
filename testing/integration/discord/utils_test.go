@@ -15,6 +15,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// MockHTTPClient is a testify mock that implements the HTTPClient interface.
+type MockHTTPClient struct {
+	mock.Mock
+}
+
+// mockLogger is a simple logger implementation for testing.
+type mockLogger struct{}
+
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
+
 // createTestService creates a Discord service instance configured for testing.
 func createTestService(
 	t *testing.T,
@@ -38,13 +50,6 @@ func createTestService(
 
 	return service
 }
-
-// mockLogger is a simple logger implementation for testing.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
 
 // createTestMessageItem creates a test MessageItem with the given text.
 func createTestMessageItem(text string) types.MessageItem {
@@ -73,11 +78,6 @@ func createTestParams(pairs ...string) *types.Params {
 	}
 
 	return &params
-}
-
-// MockHTTPClient is a testify mock that implements the HTTPClient interface.
-type MockHTTPClient struct {
-	mock.Mock
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {

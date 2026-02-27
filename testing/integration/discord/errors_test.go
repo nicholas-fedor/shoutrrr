@@ -20,17 +20,17 @@ import (
 // noOpSleeper is a sleeper that does nothing, for testing.
 type noOpSleeper struct{}
 
-func (noOpSleeper) Sleep(_ time.Duration) {}
-
 type timeoutError struct{}
+
+var _ net.Error = timeoutError{}
+
+func (noOpSleeper) Sleep(_ time.Duration) {}
 
 func (timeoutError) Error() string { return "timeout" }
 
 func (timeoutError) Timeout() bool { return true }
 
 func (timeoutError) Temporary() bool { return false }
-
-var _ net.Error = timeoutError{}
 
 // computeExpectedBatches computes the number of batches for a message based on Discord limits.
 func computeExpectedBatches(message string, splitLines bool) int {

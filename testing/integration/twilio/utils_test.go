@@ -13,6 +13,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
 )
 
+// MockHTTPClient is a testify mock that implements the HTTPClient interface.
+type MockHTTPClient struct {
+	mock.Mock
+}
+
+// mockLogger is a simple logger implementation for testing.
+type mockLogger struct{}
+
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
+
 // createTestService creates a Twilio service instance configured for testing.
 func createTestService(
 	t *testing.T,
@@ -35,18 +47,6 @@ func createTestService(
 	}
 
 	return service
-}
-
-// mockLogger is a simple logger implementation for testing.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
-
-// MockHTTPClient is a testify mock that implements the HTTPClient interface.
-type MockHTTPClient struct {
-	mock.Mock
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
