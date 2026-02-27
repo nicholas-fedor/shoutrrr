@@ -193,7 +193,7 @@ var _ = ginkgo.Describe("Config", func() {
 
 		ginkgo.It("should handle default port for mqtts scheme", func() {
 			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:8883/test/topic")
+			testURL, err := url.Parse("mqtts://broker.example.com/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = config.SetURL(testURL)
