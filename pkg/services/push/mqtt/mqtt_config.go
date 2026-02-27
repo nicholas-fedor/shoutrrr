@@ -1,9 +1,7 @@
 package mqtt
 
 import (
-	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -34,14 +32,6 @@ const (
 	// duplicates must be avoided.
 	QoSExactlyOnce QoS = 2
 )
-
-// ErrTopicRequired is returned when a configuration URL lacks a required topic path.
-// The topic is mandatory for publishing messages and must be provided in the URL path.
-var ErrTopicRequired = errors.New("topic is required")
-
-// ErrInvalidQoS is returned when a QoS value is outside the valid range (0-2).
-// MQTT protocol only supports QoS levels 0, 1, and 2.
-var ErrInvalidQoS = errors.New("invalid QoS value: must be 0, 1, or 2")
 
 // QoS represents the Quality of Service (QoS) level for MQTT message delivery.
 // Higher QoS levels provide stronger delivery guarantees but with increased overhead.
@@ -130,6 +120,7 @@ type qosVals struct {
 // an identical service configuration.
 //
 // Returns a *url.URL in the format: mqtt://[user:pass@]host:port/topic?options
+// Returns nil if credential validation fails (password without username).
 func (c *Config) GetURL() *url.URL {
 	// Create a new property key resolver for building the query string
 	resolver := format.NewPropKeyResolver(c)
@@ -144,7 +135,13 @@ func (c *Config) GetURL() *url.URL {
 //   - resolver: The query resolver to use for building the URL query string
 //
 // Returns a complete URL representing the current configuration.
+// Returns nil if password is provided without username.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	// Validate credentials before building the URL
+	if err := c.ValidateCredentials(); err != nil {
+		return nil
+	}
+
 	// Build the base URL with scheme, host:port, and topic path
 	result := &url.URL{
 		Scheme:     Scheme,
@@ -152,13 +149,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		ForceQuery: true, // Always include the query string separator (?)
 		Path:       c.Topic,
 		RawQuery:   format.BuildQuery(resolver),
-	}
-
-	// Warn if password is provided without username for URL credentials
-	if c.Password != "" && c.Username == "" {
-		log.Printf(
-			"Warning: Password provided without username; password requires a username for URL credentials and will be ignored",
-		)
 	}
 
 	// Add user credentials if authentication is configured
@@ -173,6 +163,19 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
+}
+
+// ValidateCredentials validates that the configuration has valid credentials.
+// Returns an error if a password is provided without a username, as this
+// combination is invalid for URL-based authentication.
+//
+// Returns nil if credentials are valid or no credentials are provided.
+func (c *Config) ValidateCredentials() error {
+	if c.Password != "" && c.Username == "" {
+		return ErrPasswordWithoutUsername
+	}
+
+	return nil
 }
 
 // SetURL parses a configuration URL and populates the config fields.

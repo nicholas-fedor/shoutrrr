@@ -14,6 +14,20 @@ var (
 
 	// ErrConnectionNotInitialized is returned when the connection manager fails to initialize.
 	ErrConnectionNotInitialized = errors.New("MQTT connection manager not initialized")
+
+	// ErrTopicRequired is returned when a configuration URL lacks a required topic path.
+	// The topic is mandatory for publishing messages and must be provided in the URL path.
+	ErrTopicRequired = errors.New("topic is required")
+
+	// ErrInvalidQoS is returned when a QoS value is outside the valid range (0-2).
+	// MQTT protocol only supports QoS levels 0, 1, and 2.
+	ErrInvalidQoS = errors.New("invalid QoS value: must be 0, 1, or 2")
+
+	// ErrPasswordWithoutUsername is returned when a password is provided without a username.
+	// Password credentials require a username to be included in the URL.
+	ErrPasswordWithoutUsername = errors.New(
+		"password provided without username: username is required when using password authentication",
+	)
 )
 
 // reasonCodeFailureThreshold is the threshold at which MQTT v5 reason codes

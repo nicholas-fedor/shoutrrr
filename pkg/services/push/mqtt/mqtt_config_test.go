@@ -116,6 +116,82 @@ var _ = ginkgo.Describe("Config", func() {
 
 			gomega.Expect(result.Query().Get("qos")).To(gomega.Equal("ExactlyOnce"))
 		})
+
+		ginkgo.It("should return nil when password is provided without username", func() {
+			config := &Config{
+				Host:     "broker.example.com",
+				Port:     1883,
+				Topic:    "notifications/alerts",
+				Password: "secretpassword",
+				ClientID: "shoutrrr",
+				QoS:      QoSAtMostOnce,
+			}
+
+			result := config.GetURL()
+
+			gomega.Expect(result).To(gomega.BeNil())
+		})
+
+		ginkgo.It("should return valid URL when both username and password are provided", func() {
+			config := &Config{
+				Host:     "broker.example.com",
+				Port:     1883,
+				Topic:    "notifications/alerts",
+				Username: "testuser",
+				Password: "secretpassword",
+				ClientID: "shoutrrr",
+				QoS:      QoSAtMostOnce,
+			}
+
+			result := config.GetURL()
+
+			gomega.Expect(result).NotTo(gomega.BeNil())
+			gomega.Expect(result.User.Username()).To(gomega.Equal("testuser"))
+			pass, hasPass := result.User.Password()
+			gomega.Expect(hasPass).To(gomega.BeTrue())
+			gomega.Expect(pass).To(gomega.Equal("secretpassword"))
+		})
+	})
+
+	ginkgo.Context("ValidateCredentials", func() {
+		ginkgo.It("should return error when password is provided without username", func() {
+			config := &Config{
+				Password: "secretpassword",
+			}
+
+			err := config.ValidateCredentials()
+
+			gomega.Expect(err).To(gomega.Equal(ErrPasswordWithoutUsername))
+		})
+
+		ginkgo.It("should return nil when both username and password are provided", func() {
+			config := &Config{
+				Username: "testuser",
+				Password: "secretpassword",
+			}
+
+			err := config.ValidateCredentials()
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("should return nil when only username is provided", func() {
+			config := &Config{
+				Username: "testuser",
+			}
+
+			err := config.ValidateCredentials()
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("should return nil when no credentials are provided", func() {
+			config := &Config{}
+
+			err := config.ValidateCredentials()
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		})
 	})
 
 	ginkgo.Context("SetURL", func() {
