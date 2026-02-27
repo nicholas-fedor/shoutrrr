@@ -13,6 +13,15 @@ import (
 // Scheme identifies the URL scheme for MQTT service URLs.
 const Scheme = "mqtt"
 
+// SchemeTLS identifies the URL scheme for MQTT over TLS service URLs.
+const SchemeTLS = "mqtts"
+
+// DefaultPort is the standard MQTT port (1883).
+const DefaultPort = 1883
+
+// DefaultTLSPort is the standard MQTT over TLS port (8883).
+const DefaultTLSPort = 8883
+
 // QoS constants define the three MQTT Quality of Service levels.
 const (
 	// QoSAtMostOnce (fire-and-forget): The broker delivers the message at most once.
@@ -233,6 +242,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		}
 
 		c.Port = parsedPort
+	} else {
+		// Apply default ports based on URL scheme when no port is specified
+		switch url.Scheme {
+		case SchemeTLS:
+			c.Port = DefaultTLSPort
+		case Scheme:
+			c.Port = DefaultPort
+		}
 	}
 
 	// Extract topic from URL path, removing the leading slash
