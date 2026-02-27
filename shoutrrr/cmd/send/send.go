@@ -45,7 +45,6 @@ func init() {
 	Cmd.Flags().StringP("title", "t", "", "The title used for services that support it")
 }
 
-//nolint:gosec // G705: false positive - output goes to stderr (terminal), not HTML/web context where XSS could occur
 func logf(format string, a ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", a...)
 }
