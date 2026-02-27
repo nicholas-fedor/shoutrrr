@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -26,10 +26,10 @@ func createTestService(
 	service := &mqtt.Service{}
 
 	parsedURL, err := url.Parse(mqttURL)
-	assert.NoError(t, err) //nolint:testifylint
+	require.NoError(t, err)
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err) //nolint:testifylint
+	require.NoError(t, err)
 
 	// Inject mock connection manager if provided
 	if len(mockConnectionManager) > 0 && mockConnectionManager[0] != nil {
