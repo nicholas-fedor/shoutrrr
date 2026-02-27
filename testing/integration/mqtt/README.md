@@ -170,7 +170,7 @@ The MQTT service uses the following timeout constants:
 
 ## Related Files
 
-- MQTT Service Implementation: `pkg/services/push/mqtt/mqtt.go`
+- MQTT Service Implementation: `pkg/services/push/mqtt/mqtt_service.go`
 - MQTT Configuration: `pkg/services/push/mqtt/mqtt_config.go`
 - MQTT Errors: `pkg/services/push/mqtt/mqtt_errors.go`
 - Connection Manager Interface: `pkg/services/push/mqtt/mqtt_connection_manager.go`
