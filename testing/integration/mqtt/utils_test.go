@@ -13,6 +13,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// publishMethodName is the constant for the Publish method to avoid string duplication.
+const publishMethodName = "Publish"
+
 // createTestService creates an MQTT service instance configured for testing.
 // If a mockConnectionManager is provided, it will be injected into the service
 // to bypass the normal connection initialization.
@@ -120,7 +123,7 @@ func assertPublishCalled(t *testing.T, mockManager *MockConnectionManager, expec
 	found := false
 
 	for _, call := range mockManager.Calls {
-		if call.Method == "Publish" {
+		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.Topic == expectedTopic {
 				found = true
@@ -146,7 +149,7 @@ func assertPublishPayload(
 	found := false
 
 	for _, call := range mockManager.Calls {
-		if call.Method == "Publish" {
+		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if string(publish.Payload) == expectedPayload {
 				found = true
@@ -171,7 +174,7 @@ func assertPublishQoS(t *testing.T, mockManager *MockConnectionManager, expected
 	found := false
 
 	for _, call := range mockManager.Calls {
-		if call.Method == "Publish" {
+		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.QoS == expectedQoS {
 				found = true
@@ -197,7 +200,7 @@ func assertPublishRetained(
 	found := false
 
 	for _, call := range mockManager.Calls {
-		if call.Method == "Publish" {
+		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.Retain == expectedRetained {
 				found = true
@@ -219,7 +222,7 @@ func assertPublishRetained(
 // Returns nil if no Publish call was made.
 func getPublishCall(mockManager *MockConnectionManager) *paho.Publish {
 	for _, call := range mockManager.Calls {
-		if call.Method == "Publish" {
+		if call.Method == publishMethodName {
 			if publish, ok := call.Arguments[1].(*paho.Publish); ok {
 				return publish
 			}

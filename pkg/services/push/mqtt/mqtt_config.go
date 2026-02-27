@@ -69,6 +69,7 @@ type Config struct {
 
 	// Password for MQTT broker authentication.
 	// Optional: Leave empty for anonymous connections or username-only auth.
+	//nolint:gosec // Password field is intentionally used for MQTT broker authentication
 	Password string `desc:"Auth password" optional:"" url:"password"`
 
 	// ClientID is the unique identifier for this MQTT client connection.

@@ -357,7 +357,7 @@ func TestPublishMultipleConcurrentMessages(t *testing.T) {
 		done := make(chan error, 5)
 
 		for i := range 5 {
-			go func(idx int) {
+			go func(_ int) {
 				done <- service.Send("Message", nil)
 			}(i)
 		}
