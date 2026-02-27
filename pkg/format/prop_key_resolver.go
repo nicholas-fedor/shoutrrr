@@ -10,17 +10,17 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var (
-	ErrInvalidConfigKey    = errors.New("not a valid config key")
-	ErrInvalidValueForType = errors.New("invalid value for type")
-)
-
 // PropKeyResolver implements the ConfigQueryResolver interface for services that uses key tags for query props.
 type PropKeyResolver struct {
 	confValue reflect.Value
 	keyFields map[string]FieldInfo
 	keys      []string
 }
+
+var (
+	ErrInvalidConfigKey    = errors.New("not a valid config key")
+	ErrInvalidValueForType = errors.New("invalid value for type")
+)
 
 // NewPropKeyResolver creates a new PropKeyResolver and initializes it using the provided config.
 func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {

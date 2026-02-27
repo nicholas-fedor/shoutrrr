@@ -6,9 +6,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// EnumInvalid is the constant value that an enum gets assigned when it could not be parsed.
-const EnumInvalid = -1
-
 // EnumFormatter is the helper methods for enum-like types.
 type EnumFormatter struct {
 	names       []string
@@ -16,35 +13,8 @@ type EnumFormatter struct {
 	aliases     map[string]int
 }
 
-// Names is the list of the valid Enum string values.
-func (ef EnumFormatter) Names() []string {
-	return ef.names[ef.firstOffset:]
-}
-
-// Print takes a enum mapped int and returns it's string representation or "Invalid".
-func (ef EnumFormatter) Print(e int) string {
-	if e >= len(ef.names) || e < 0 {
-		return "Invalid"
-	}
-
-	return ef.names[e]
-}
-
-// Parse takes an enum mapped string and returns it's int representation or EnumInvalid (-1).
-func (ef EnumFormatter) Parse(mappedString string) int {
-	target := strings.ToLower(mappedString)
-	for index, name := range ef.names {
-		if target == strings.ToLower(name) {
-			return index
-		}
-	}
-
-	if index, found := ef.aliases[mappedString]; found {
-		return index
-	}
-
-	return EnumInvalid
-}
+// EnumInvalid is the constant value that an enum gets assigned when it could not be parsed.
+const EnumInvalid = -1
 
 // CreateEnumFormatter creates a EnumFormatter struct.
 func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.EnumFormatter {
@@ -68,4 +38,34 @@ func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.Enu
 		firstOffset,
 		aliases,
 	}
+}
+
+// Names is the list of the valid Enum string values.
+func (ef EnumFormatter) Names() []string {
+	return ef.names[ef.firstOffset:]
+}
+
+// Parse takes an enum mapped string and returns it's int representation or EnumInvalid (-1).
+func (ef EnumFormatter) Parse(mappedString string) int {
+	target := strings.ToLower(mappedString)
+	for index, name := range ef.names {
+		if strings.EqualFold(target, name) {
+			return index
+		}
+	}
+
+	if index, found := ef.aliases[mappedString]; found {
+		return index
+	}
+
+	return EnumInvalid
+}
+
+// Print takes a enum mapped int and returns it's string representation or "Invalid".
+func (ef EnumFormatter) Print(e int) string {
+	if e >= len(ef.names) || e < 0 {
+		return "Invalid"
+	}
+
+	return ef.names[e]
 }

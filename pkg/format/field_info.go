@@ -10,9 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-// DefaultBase represents the default numeric base (decimal) for fields.
-const DefaultBase = 10
-
 // FieldInfo is the meta data about a config field.
 type FieldInfo struct {
 	Name          string
@@ -28,6 +25,9 @@ type FieldInfo struct {
 	Keys          []string
 	ItemSeparator rune
 }
+
+// DefaultBase represents the default numeric base (decimal) for fields.
+const DefaultBase = 10
 
 // IsEnum returns whether a EnumFormatter has been assigned to the field and that it is of a suitable type.
 func (fi *FieldInfo) IsEnum() bool {

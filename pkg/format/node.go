@@ -11,8 +11,31 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
+// Node is the generic config tree item.
+type Node interface {
+	Field() *FieldInfo
+	TokenType() NodeTokenType
+	Update(tv reflect.Value)
+}
+
 // NodeTokenType is used to represent the type of value that a node has for syntax highlighting.
 type NodeTokenType int
+
+// ContainerNode is a Node with child items.
+type ContainerNode struct {
+	*FieldInfo
+
+	Items        []Node
+	MaxKeyLength int
+}
+
+// ValueNode is a Node without any child items.
+type ValueNode struct {
+	*FieldInfo
+
+	Value     string
+	tokenType NodeTokenType
+}
 
 const (
 	// UnknownToken represents all unknown/unspecified tokens.
@@ -41,21 +64,6 @@ const (
 	BaseHexLen     = 16
 )
 
-// Node is the generic config tree item.
-type Node interface {
-	Field() *FieldInfo
-	TokenType() NodeTokenType
-	Update(tv reflect.Value)
-}
-
-// ValueNode is a Node without any child items.
-type ValueNode struct {
-	*FieldInfo
-
-	Value     string
-	tokenType NodeTokenType
-}
-
 // Field returns the inner FieldInfo.
 func (n *ValueNode) Field() *FieldInfo {
 	return n.FieldInfo
@@ -71,14 +79,6 @@ func (n *ValueNode) Update(tv reflect.Value) {
 	value, token := getValueNodeValue(tv, n.FieldInfo)
 	n.Value = value
 	n.tokenType = token
-}
-
-// ContainerNode is a Node with child items.
-type ContainerNode struct {
-	*FieldInfo
-
-	Items        []Node
-	MaxKeyLength int
 }
 
 // Field returns the inner FieldInfo.
@@ -317,7 +317,7 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 		return PrintBool(val), FalseToken
 	case reflect.Array, reflect.Slice, reflect.Map:
 		return getContainerValueString(fieldValue, fieldInfo), UnknownToken
-	case reflect.Ptr, reflect.Struct:
+	case reflect.Pointer, reflect.Struct:
 		if val, err := GetConfigPropString(fieldValue); err == nil {
 			return val, PropToken
 		}
