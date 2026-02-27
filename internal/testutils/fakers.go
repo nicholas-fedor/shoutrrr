@@ -3,10 +3,27 @@ package testutils
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/textproto"
 	"strings"
 )
+
+// Eavesdropper is an interface that provides a way to get a summarized output of a connection RX and TX.
+type Eavesdropper interface {
+	GetConversation(includeGreeting bool) string
+	GetClientSentences() []string
+}
+
+type ioFaker struct {
+	io.ReadWriter
+}
+
+type failWriter struct {
+	writeLimit int
+	writeCount int
+}
 
 type textConFaker struct {
 	inputBuffer  *bytes.Buffer
@@ -14,6 +31,37 @@ type textConFaker struct {
 	outputReader *bufio.Reader
 	responses    []string
 	delim        string
+}
+
+// ErrWriteLimitReached is returned when the write limit has been reached.
+var ErrWriteLimitReached = errors.New("reached write limit")
+
+// Close is just a dummy function to implement the io.Closer interface.
+func (iof ioFaker) Close() error {
+	return nil
+}
+
+// Close is just a dummy function to implement io.Closer.
+func (fw *failWriter) Close() error {
+	return nil
+}
+
+// Write returns an error if the write limit has been reached.
+func (fw *failWriter) Write(data []byte) (int, error) {
+	fw.writeCount++
+	if fw.writeCount > fw.writeLimit {
+		return 0, fmt.Errorf("%w: %d", ErrWriteLimitReached, fw.writeLimit)
+	}
+
+	return len(data), nil
+}
+
+// CreateFailWriter returns a io.WriteCloser that returns an error after the amount of writes indicated by writeLimit.
+func CreateFailWriter(writeLimit int) io.WriteCloser {
+	return &failWriter{
+		writeLimit: writeLimit,
+		writeCount: 0,
+	}
 }
 
 // CreateReadWriter returns a ReadWriter from the textConFakers internal reader and writer.
@@ -73,7 +121,7 @@ func (tcf *textConFaker) GetConversation(includeGreeting bool) string {
 			responseIndex++
 		}
 
-		if len(resp) > 0 && resp[0] == '3' {
+		if resp != "" && resp[0] == '3' {
 			inSequence = true
 		}
 	}
@@ -99,14 +147,14 @@ func (tcf *textConFaker) init() {
 // CreateTextConFaker returns a textproto.Conn to fake textproto based connections.
 func CreateTextConFaker(responses []string, delim string) (*textproto.Conn, Eavesdropper) {
 	tcfaker := textConFaker{
-		responses: responses,
-		delim:     delim,
+		inputBuffer:  nil,
+		inputWriter:  nil,
+		outputReader: nil,
+		responses:    responses,
+		delim:        delim,
 	}
 	tcfaker.init()
 
-	// rx := iotest.NewReadLogger("TextConRx", tcfaker.outputReader)
-	// tx := iotest.NewWriteLogger("TextConTx", tcfaker.inputWriter)
-	// faker := CreateIOFaker(rx, tx)
 	faker := ioFaker{
 		ReadWriter: tcfaker.CreateReadWriter(),
 	}

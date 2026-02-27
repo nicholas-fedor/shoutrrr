@@ -1,7 +1,7 @@
-// Package testutils provides testing utilities for shoutrrr services and types.
+// Package testutils provides testing utilities for Shoutrrr services and types.
 //
 // This package contains helper functions, mock implementations, and test utilities
-// used throughout the shoutrrr test suite. It is designed to simplify common testing
+// used throughout the Shoutrrr test suite. It is designed to simplify common testing
 // patterns and provide reusable components for testing notification services.
 //
 // # Main Components
@@ -11,28 +11,25 @@
 // Provides functions to test ServiceConfig implementations including validation
 // of query values, default values, enum counts, and field counts.
 //
-// Service Testing (service.go)
+// Helper Functions (helpers.go)
 //
-// Offers utilities for testing Service implementations, including validation
-// of parameter handling and error conditions.
+// Contains various test helper utilities:
 //
-// I/O Utilities
+//   - TestLogger: Creates test loggers that output to GinkgoWriter
+//   - URLMust: Parses URLs and fails tests on error
+//   - JSONRespondMust: Creates HTTP mock responders
+//   - TestServiceSetInvalidParamValue: Tests service parameter validation
 //
-// Various utilities for mocking and testing I/O operations:
+// Faking/Mocking Utilities (fakers.go)
 //
-//   - failwriter.go: Simulates write failures for testing error handling
-//   - iofaker.go: Provides fake ReadWriter implementations
-//   - textconfaker.go: Creates fake textproto.Conn for protocol testing
+// Provides utilities for mocking I/O operations and network connections:
 //
-// HTTP Mocking (mockclientservice.go)
+//   - Eavesdropper: Interface for capturing connection conversations
+//   - CreateFailWriter: Simulates write failures for testing error handling
+//   - CreateTextConFaker: Creates fake textproto.Conn for protocol testing
+//
+// HTTP Mocking (mock_client_service.go)
 //
 // Defines the MockClientService interface for mocking HTTP client behavior
 // in integration tests.
-//
-// Test Helpers
-//
-//   - must.go: Provides "must" style functions (URLMust, JSONRespondMust)
-//     that fail tests on error rather than returning errors
-//   - logging.go: Creates test loggers that output to GinkgoWriter
-//   - eavesdropper.go: Interface for capturing connection conversations
 package testutils

@@ -1,4 +1,4 @@
-package testutils_test
+package testutils
 
 import (
 	"net/url"
@@ -7,16 +7,9 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
-
-type dummyService struct {
-	standard.Standard
-
-	Config dummyConfig
-}
 
 type dummyConfig struct {
 	standard.EnumlessConfig
@@ -24,20 +17,26 @@ type dummyConfig struct {
 	Foo uint64 `default:"-1" key:"foo"`
 }
 
+type dummyService struct {
+	standard.Standard
+
+	Config dummyConfig
+}
+
 var _ = ginkgo.Describe("the testutils package", func() {
 	ginkgo.When("calling function TestLogger", func() {
 		ginkgo.It("should not return nil", func() {
-			gomega.Expect(testutils.TestLogger()).NotTo(gomega.BeNil())
+			gomega.Expect(TestLogger()).NotTo(gomega.BeNil())
 		})
 		ginkgo.It(`should have the prefix "[Test] "`, func() {
-			gomega.Expect(testutils.TestLogger().Prefix()).To(gomega.Equal("[Test] "))
+			gomega.Expect(TestLogger().Prefix()).To(gomega.Equal("[Test] "))
 		})
 	})
 
 	ginkgo.Describe("Must helpers", func() {
 		ginkgo.Describe("URLMust", func() {
 			ginkgo.It("should panic when an invalid URL is passed", func() {
-				failures := gomega.InterceptGomegaFailures(func() { testutils.URLMust(":") })
+				failures := gomega.InterceptGomegaFailures(func() { URLMust(":") })
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
 		})
@@ -46,7 +45,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 			ginkgo.It("should panic when an invalid struct is passed", func() {
 				notAValidJSONSource := func() {}
 				failures := gomega.InterceptGomegaFailures(
-					func() { testutils.JSONRespondMust(200, notAValidJSONSource) },
+					func() { JSONRespondMust(200, notAValidJSONSource) },
 				)
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
@@ -57,12 +56,15 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		var config dummyConfig
 
 		ginkgo.BeforeEach(func() {
-			config = dummyConfig{}
+			config = dummyConfig{
+				EnumlessConfig: standard.EnumlessConfig{},
+				Foo:            0,
+			}
 		})
 		ginkgo.Describe("TestConfigSetInvalidQueryValue", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestConfigSetInvalidQueryValue(&config, "mock://host?invalid=value")
+					TestConfigSetInvalidQueryValue(&config, "mock://host?invalid=value")
 				})
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
@@ -71,7 +73,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		ginkgo.Describe("TestConfigGetInvalidQueryValue", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestConfigGetInvalidQueryValue(&config)
+					TestConfigGetInvalidQueryValue(&config)
 				})
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
@@ -80,7 +82,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		ginkgo.Describe("TestConfigSetDefaultValues", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestConfigSetDefaultValues(&config)
+					TestConfigSetDefaultValues(&config)
 				})
 				gomega.Expect(failures).NotTo(gomega.BeEmpty())
 			})
@@ -89,7 +91,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		ginkgo.Describe("TestConfigGetEnumsCount", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestConfigGetEnumsCount(&config, 99)
+					TestConfigGetEnumsCount(&config, 99)
 				})
 				gomega.Expect(failures).NotTo(gomega.BeEmpty())
 			})
@@ -98,7 +100,7 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		ginkgo.Describe("TestConfigGetFieldsCount", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestConfigGetFieldsCount(&config, 99)
+					TestConfigGetFieldsCount(&config, 99)
 				})
 				gomega.Expect(failures).NotTo(gomega.BeEmpty())
 			})
@@ -109,12 +111,21 @@ var _ = ginkgo.Describe("the testutils package", func() {
 		var service dummyService
 
 		ginkgo.BeforeEach(func() {
-			service = dummyService{}
+			service = dummyService{
+				Standard: standard.Standard{
+					Logger:    standard.Logger{},
+					Templater: standard.Templater{},
+				},
+				Config: dummyConfig{
+					EnumlessConfig: standard.EnumlessConfig{},
+					Foo:            0,
+				},
+			}
 		})
 		ginkgo.Describe("TestConfigSetInvalidQueryValue", func() {
 			ginkgo.It("should fail when not correctly implemented", func() {
 				failures := gomega.InterceptGomegaFailures(func() {
-					testutils.TestServiceSetInvalidParamValue(&service, "invalid", "value")
+					TestServiceSetInvalidParamValue(&service, "invalid", "value")
 				})
 				gomega.Expect(failures).To(gomega.HaveLen(1))
 			})
@@ -123,16 +134,31 @@ var _ = ginkgo.Describe("the testutils package", func() {
 })
 
 func (dc *dummyConfig) Get(string) (string, error) { return "", nil }
-func (dc *dummyConfig) GetURL() *url.URL           { return &url.URL{} }
-func (dc *dummyConfig) QueryFields() []string      { return []string{} }
-func (dc *dummyConfig) Set(string, string) error   { return nil }
-func (dc *dummyConfig) SetURL(_ *url.URL) error    { return nil }
+func (dc *dummyConfig) GetURL() *url.URL {
+	return &url.URL{
+		Scheme:      "",
+		Opaque:      "",
+		User:        nil,
+		Host:        "",
+		Path:        "",
+		RawPath:     "",
+		OmitHost:    false,
+		ForceQuery:  false,
+		RawQuery:    "",
+		Fragment:    "",
+		RawFragment: "",
+	}
+}
+func (dc *dummyConfig) QueryFields() []string    { return []string{} }
+func (dc *dummyConfig) Set(string, string) error { return nil }
+func (dc *dummyConfig) SetURL(_ *url.URL) error  { return nil }
 
 func (s *dummyService) GetID() string                                  { return "dummy" }
 func (s *dummyService) Initialize(_ *url.URL, _ types.StdLogger) error { return nil }
 func (s *dummyService) Send(_ string, _ *types.Params) error           { return nil }
 
 func TestTestUtils(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)
 
 	ginkgo.RunSpecs(t, "Shoutrrr TestUtils Suite")
