@@ -545,6 +545,7 @@ linters:
           - errcheck
           - errorlint
           - exhaustive
+          - exhaustruct
           - forcetypeassert
           - funlen
           - gocyclo

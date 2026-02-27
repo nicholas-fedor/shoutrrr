@@ -27,11 +27,11 @@ const (
 
 // Cmd sends a notification using a service URL.
 var Cmd = &cobra.Command{
-	Use:    "send",
-	Short:  "Send a notification using a service url",
-	Args:   cobra.MaximumNArgs(MaximumNArgs),
-	PreRun: internalUtil.LoadFlagsFromAltSources,
-	RunE:   Run,
+	Use:     "send",
+	Short:   "Send a notification using a service url",
+	Args:    cobra.MaximumNArgs(MaximumNArgs),
+	PreRunE: internalUtil.LoadFlagsFromAltSources,
+	RunE:    Run,
 }
 
 func init() {

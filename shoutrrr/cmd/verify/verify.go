@@ -16,11 +16,11 @@ import (
 
 // Cmd verifies the validity of a service url.
 var Cmd = &cobra.Command{
-	Use:    "verify",
-	Short:  "Verify the validity of a notification service URL",
-	PreRun: internalUtil.LoadFlagsFromAltSources,
-	Run:    Run,
-	Args:   cobra.MaximumNArgs(1),
+	Use:     "verify",
+	Short:   "Verify the validity of a notification service URL",
+	PreRunE: internalUtil.LoadFlagsFromAltSources,
+	Run:     Run,
+	Args:    cobra.MaximumNArgs(1),
 }
 
 var serviceRouter router.ServiceRouter
