@@ -51,6 +51,7 @@ const (
 type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
+
 	// Config holds the MQTT connection and publishing settings.
 	Config *Config
 	// pkr resolves property keys for configuration updates from URL parameters.
