@@ -18,9 +18,11 @@ const Scheme = "twilio"
 var (
 	ErrAccountSIDMissing = errors.New("account SID missing from config URL")
 	ErrAuthTokenMissing  = errors.New("auth token missing from config URL")
-	ErrFromNumberMissing = errors.New("from number or messaging service SID missing from config URL")
-	ErrToFromNumberSame  = errors.New("to and from phone numbers must not be the same")
-	ErrToNumbersMissing  = errors.New("recipient phone number(s) missing from config URL")
+	ErrFromNumberMissing = errors.New(
+		"from number or messaging service SID missing from config URL",
+	)
+	ErrToFromNumberSame = errors.New("to and from phone numbers must not be the same")
+	ErrToNumbersMissing = errors.New("recipient phone number(s) missing from config URL")
 )
 
 // Config for the Twilio SMS notification service.

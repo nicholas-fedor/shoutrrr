@@ -45,13 +45,37 @@ func TestValidURLFormats(t *testing.T) {
 		shouldError bool
 	}{
 		{"valid standard URL", validTwilioURL, false},
-		{"valid with messaging service SID", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543", false},
-		{"valid with multiple recipients", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543/+15551111111", false},
+		{
+			"valid with messaging service SID",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543",
+			false,
+		},
+		{
+			"valid with multiple recipients",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543/+15551111111",
+			false,
+		},
 		{"missing account SID", "twilio://:authToken@+15551234567/+15559876543", true},
-		{"missing auth token", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:@+15551234567/+15559876543", true},
-		{"missing from number", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@/+15559876543", true},
-		{"missing to number", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/", true},
-		{"same to and from", "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15551234567", true},
+		{
+			"missing auth token",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:@+15551234567/+15559876543",
+			true,
+		},
+		{
+			"missing from number",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@/+15559876543",
+			true,
+		},
+		{
+			"missing to number",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/",
+			true,
+		},
+		{
+			"same to and from",
+			"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15551234567",
+			true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -203,7 +227,11 @@ func TestMessagingServiceSIDCompliance(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify MessagingServiceSid is used instead of From
-		assertRequestContains(t, mockClient, "MessagingServiceSid=MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+		assertRequestContains(
+			t,
+			mockClient,
+			"MessagingServiceSid=MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+		)
 
 		// Should NOT contain a From field
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {

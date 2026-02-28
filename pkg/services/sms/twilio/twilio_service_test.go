@@ -45,12 +45,15 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 	ginkgo.Describe("Initialize", func() {
 		ginkgo.It("should initialize from a valid URL", func() {
 			svc := &Service{}
-			serviceURL, err := url.Parse("twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543")
+			serviceURL, err := url.Parse(
+				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543",
+			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = svc.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(svc.Config.AccountSID).To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
+			gomega.Expect(svc.Config.AccountSID).
+				To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
 			gomega.Expect(svc.HTTPClient).NotTo(gomega.BeNil())
 		})
 

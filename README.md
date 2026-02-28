@@ -227,6 +227,7 @@ jobs:
 | Logger       | Local logging (for testing)          |
 | Matrix       | Matrix rooms                         |
 | Mattermost   | Mattermost webhooks                  |
+| MQTT         | MQTT message broker                  |
 | Notifiarr    | Notifiarr message forwarding         |
 | Ntfy         | Ntfy push notifications              |
 | Opsgenie     | Opsgenie alerts                      |

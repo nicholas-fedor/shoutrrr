@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0 # Full history for GoReleaser versioning.
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417
+        uses: actions/setup-go@def8c394e3ad351a79bc93815e4a585520fe993b
         with:
           go-version-file: go.mod
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Generate artifact attestation # Generate attestations for prod builds.
         if: ${{ !inputs.dry-run && inputs.build-type == 'prod' }}
-        uses: actions/attest-build-provenance@02a49bdc410a809733602220c6f6275925d6b578
+        uses: actions/attest-build-provenance@c5efebd311e9a809e832398ca2b73bb429ff3508
         with:
           subject-checksums: ./dist/checksums.txt
 

@@ -70,7 +70,8 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 
 			err := service.sendToRecipient(service.Config, "+15559876543", "Test")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastRequest.Header.Get("Content-Type")).To(gomega.Equal(contentType))
+			gomega.Expect(mockClient.lastRequest.Header.Get("Content-Type")).
+				To(gomega.Equal(contentType))
 		})
 	})
 
@@ -79,12 +80,17 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 			res := &http.Response{
 				StatusCode: http.StatusBadRequest,
 				Status:     "400 Bad Request",
-				Body:       io.NopCloser(strings.NewReader(`{"code": 21211, "message": "The 'To' number is not a valid phone number.", "status": 400}`)),
+				Body: io.NopCloser(
+					strings.NewReader(
+						`{"code": 21211, "message": "The 'To' number is not a valid phone number.", "status": 400}`,
+					),
+				),
 			}
 
 			err := parseAPIError(res)
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("The 'To' number is not a valid phone number."))
+			gomega.Expect(err.Error()).
+				To(gomega.ContainSubstring("The 'To' number is not a valid phone number."))
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("21211"))
 		})
 
