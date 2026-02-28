@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strconv"
@@ -16,7 +17,11 @@ import (
 )
 
 // Generator is the Basic Generator implementation for creating service configurations.
-type Generator struct{}
+type Generator struct {
+	// Input is the reader used for user input during configuration generation.
+	// If nil, os.Stdin is used by default.
+	Input io.Reader
+}
 
 // Errors defined as static variables for better error handling.
 var (
@@ -36,7 +41,13 @@ func (g *Generator) Generate(
 		return nil, ErrInvalidConfigField
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
+	// Use injected Input if provided, otherwise fall back to os.Stdin
+	reader := g.Input
+	if reader == nil {
+		reader = os.Stdin
+	}
+
+	scanner := bufio.NewScanner(reader)
 	if err := g.promptUserForFields(configPtr, props, scanner); err != nil {
 		return nil, err
 	}
@@ -62,6 +73,7 @@ func (g *Generator) getInputValue(
 	field *format.FieldInfo,
 	propKey string,
 	props map[string]string,
+	consumed map[string]struct{},
 	scanner *bufio.Scanner,
 ) (string, error) {
 	cfg := color.DefaultConfig()
@@ -75,7 +87,8 @@ func (g *Generator) getInputValue(
 			color.HiMagentaString(field.Name),
 			" field\n",
 		)
-		props[propKey] = ""
+		// Mark this prop as consumed instead of mutating the original map
+		consumed[propKey] = struct{}{}
 
 		return propValue, nil
 	}
@@ -156,12 +169,15 @@ func (g *Generator) promptUserForFields(
 	configNode := format.GetConfigFormat(serviceConfig)
 	config := configPtr.Elem() // Dereference for setting fields
 
+	// Track which props have been consumed to avoid mutating the input map
+	consumed := make(map[string]struct{})
+
 	for _, item := range configNode.Items {
 		field := item.Field()
 		propKey := strings.ToLower(field.Name)
 
 		for {
-			inputValue, err := g.getInputValue(field, propKey, props, scanner)
+			inputValue, err := g.getInputValue(field, propKey, props, consumed, scanner)
 			if err != nil {
 				return err // Propagate the error immediately
 			}

@@ -4,6 +4,7 @@ package generators
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/basic"
@@ -12,22 +13,44 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var ErrUnknownGenerator = errors.New("unknown generator")
-
-var generatorMap = map[string]func() types.Generator{
-	"basic":    func() types.Generator { return &basic.Generator{} },
-	"oauth2":   func() types.Generator { return &xouath2.Generator{} },
-	"telegram": func() types.Generator { return &telegram.Generator{} },
+// generatorConfig holds configuration options for generator creation.
+type generatorConfig struct {
+	input io.Reader
 }
 
-// NewGenerator creates an instance of the generator that corresponds to the provided identifier.
-func NewGenerator(identifier string) (types.Generator, error) {
-	generatorFactory, valid := generatorMap[strings.ToLower(identifier)]
-	if !valid {
-		return nil, fmt.Errorf("%w: %q", ErrUnknownGenerator, identifier)
-	}
+// GeneratorOption configures how a generator is created.
+type GeneratorOption func(*generatorConfig)
 
-	return generatorFactory(), nil
+// ErrUnknownGenerator is returned when an unknown generator identifier is provided.
+var ErrUnknownGenerator = errors.New("unknown generator")
+
+// generatorMap is a registry that maps generator type names to their
+// factory functions. It is used by NewGenerator to create instances of
+// specific generator implementations based on the requested type.
+var generatorMap = map[string]func(config generatorConfig) types.Generator{
+	"basic": func(config generatorConfig) types.Generator {
+		return &basic.Generator{
+			Input: config.input,
+		}
+	},
+	"oauth2": func(config generatorConfig) types.Generator {
+		return &xouath2.Generator{}
+	},
+	"telegram": func(config generatorConfig) types.Generator {
+		return &telegram.Generator{
+			Reader: config.input,
+			Writer: nil,
+		}
+	},
+}
+
+// WithInput sets the input reader for generators that support it.
+// This is useful for dependency injection in tests or for providing
+// input from sources other than os.Stdin.
+func WithInput(reader io.Reader) GeneratorOption {
+	return func(c *generatorConfig) {
+		c.input = reader
+	}
 }
 
 // ListGenerators lists all available generators.
@@ -42,4 +65,22 @@ func ListGenerators() []string {
 	}
 
 	return generators
+}
+
+// NewGenerator creates an instance of the generator that corresponds to the provided identifier.
+// Optional GeneratorOption parameters can be used to configure the generator (e.g., WithInput).
+func NewGenerator(identifier string, opts ...GeneratorOption) (types.Generator, error) {
+	config := generatorConfig{
+		input: nil,
+	}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	generatorFactory, valid := generatorMap[strings.ToLower(identifier)]
+	if !valid {
+		return nil, fmt.Errorf("%w: %q", ErrUnknownGenerator, identifier)
+	}
+
+	return generatorFactory(config), nil
 }

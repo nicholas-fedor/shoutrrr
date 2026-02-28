@@ -144,6 +144,8 @@ func (m *mockServiceConfig) SetTemplateString(_, _ string) error {
 }
 
 func TestGenerator_Generate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		props   map[string]string
@@ -182,20 +184,18 @@ func TestGenerator_Generate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Generator{}
+			t.Parallel()
 
-			// Set up pipe for stdin
+			// Set up pipe for stdin simulation
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			originalStdin := os.Stdin
-			os.Stdin = r
+			// Use dependency injection instead of global os.Stdin manipulation
+			g := &Generator{Input: r}
 
 			defer func() {
-				os.Stdin = originalStdin
-
 				_ = w.Close()
 			}()
 
@@ -224,6 +224,8 @@ func TestGenerator_Generate(t *testing.T) {
 }
 
 func TestGenerator_promptUserForFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  reflect.Value
@@ -256,6 +258,8 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
 
@@ -283,6 +287,8 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 }
 
 func TestGenerator_getInputValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		field   *format.FieldInfo
@@ -323,10 +329,13 @@ func TestGenerator_getInputValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
+			consumed := make(map[string]struct{})
 
-			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, scanner)
+			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, consumed, scanner)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getInputValue() error = %v, wantErr %v", err, tt.wantErr)
 
@@ -337,14 +346,17 @@ func TestGenerator_getInputValue(t *testing.T) {
 				t.Errorf("getInputValue() = %v, want %v", got, tt.want)
 			}
 
-			if tt.props[tt.propKey] != "" {
-				t.Errorf("getInputValue() did not clear prop, got %v", tt.props[tt.propKey])
+			// Verify that props from input are marked as consumed
+			if _, wasConsumed := consumed[tt.propKey]; tt.props[tt.propKey] != "" && !wasConsumed {
+				t.Errorf("getInputValue() did not mark prop as consumed")
 			}
 		})
 	}
 }
 
 func TestGenerator_formatPrompt(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		field *format.FieldInfo
@@ -364,6 +376,8 @@ func TestGenerator_formatPrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			got := g.formatPrompt(tt.field)
@@ -375,6 +389,8 @@ func TestGenerator_formatPrompt(t *testing.T) {
 }
 
 func TestGenerator_setFieldValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     reflect.Value
@@ -411,6 +427,8 @@ func TestGenerator_setFieldValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			got, err := g.setFieldValue(tt.config, tt.field, tt.inputValue)
@@ -437,6 +455,8 @@ func TestGenerator_setFieldValue(t *testing.T) {
 }
 
 func TestGenerator_printError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		fieldName string
@@ -450,7 +470,9 @@ func TestGenerator_printError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(*testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			g.printError(tt.fieldName, tt.errorMsg)
@@ -459,6 +481,8 @@ func TestGenerator_printError(t *testing.T) {
 }
 
 func TestGenerator_printInvalidType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		fieldName string
@@ -472,7 +496,9 @@ func TestGenerator_printInvalidType(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(*testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			g.printInvalidType(tt.fieldName, tt.typeName)
@@ -481,6 +507,8 @@ func TestGenerator_printInvalidType(t *testing.T) {
 }
 
 func TestGenerator_validateAndReturnConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  reflect.Value
@@ -503,6 +531,8 @@ func TestGenerator_validateAndReturnConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			got, err := g.validateAndReturnConfig(tt.config)
