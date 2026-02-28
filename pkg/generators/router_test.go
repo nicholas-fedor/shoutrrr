@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/basic"
-	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xouath2"
+	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xoauth2"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -168,7 +168,7 @@ func TestNewGenerator(t *testing.T) {
 			verifyType: func(t *testing.T, g types.Generator) {
 				t.Helper()
 
-				_, ok := g.(*xouath2.Generator)
+				_, ok := g.(*xoauth2.Generator)
 				assert.True(t, ok, "generator should be *xouath2.Generator")
 			},
 		},
@@ -254,7 +254,7 @@ func TestNewGenerator(t *testing.T) {
 			verifyType: func(t *testing.T, g types.Generator) {
 				t.Helper()
 
-				_, ok := g.(*xouath2.Generator)
+				_, ok := g.(*xoauth2.Generator)
 				assert.True(t, ok, "generator should be *xouath2.Generator (case insensitive)")
 			},
 		},

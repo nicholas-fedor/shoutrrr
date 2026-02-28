@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators/basic"
-	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xouath2"
+	"github.com/nicholas-fedor/shoutrrr/pkg/generators/xoauth2"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -34,7 +34,7 @@ var generatorMap = map[string]func(config generatorConfig) types.Generator{
 		}
 	},
 	"oauth2": func(config generatorConfig) types.Generator {
-		return &xouath2.Generator{}
+		return &xoauth2.Generator{}
 	},
 	"telegram": func(config generatorConfig) types.Generator {
 		return &telegram.Generator{
@@ -42,15 +42,6 @@ var generatorMap = map[string]func(config generatorConfig) types.Generator{
 			Writer: nil,
 		}
 	},
-}
-
-// WithInput sets the input reader for generators that support it.
-// This is useful for dependency injection in tests or for providing
-// input from sources other than os.Stdin.
-func WithInput(reader io.Reader) GeneratorOption {
-	return func(c *generatorConfig) {
-		c.input = reader
-	}
 }
 
 // ListGenerators lists all available generators.
@@ -83,4 +74,13 @@ func NewGenerator(identifier string, opts ...GeneratorOption) (types.Generator, 
 	}
 
 	return generatorFactory(config), nil
+}
+
+// WithInput sets the input reader for generators that support it.
+// This is useful for dependency injection in tests or for providing
+// input from sources other than os.Stdin.
+func WithInput(reader io.Reader) GeneratorOption {
+	return func(c *generatorConfig) {
+		c.input = reader
+	}
 }
