@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Run gosec
-        uses: securego/gosec@271492bcd930ef72dfb9d00e5bb9544b3b407fb5 # v2.24.0
+        uses: securego/gosec@88835e86bba381290c2f60a1c73610995b1502eb # v2.24.6
         with:
           args: "-no-fail -fmt sarif -out results.raw.sarif -tests ./..."
       - name: Remove invalid AI fixes
