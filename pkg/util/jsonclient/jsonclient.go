@@ -12,7 +12,22 @@ import (
 	"net/http"
 )
 
-// Client wraps http.Client for JSON operations.
+// Client defines the interface for JSON HTTP operations.
+type Client interface {
+	Get(url string, response any) error
+	Post(url string, request, response any) error
+	Headers() http.Header
+	ErrorResponse(err error, response any) bool
+}
+
+// Error contains additional HTTP/JSON details.
+type Error struct {
+	StatusCode int
+	Body       string
+	err        error
+}
+
+// client wraps http.Client for JSON operations.
 type client struct {
 	httpClient *http.Client
 	headers    http.Header
@@ -26,12 +41,50 @@ const ContentType = "application/json"
 const HTTPClientErrorThreshold = 400
 
 // ErrUnexpectedStatus indicates an unexpected HTTP response status.
-var (
-	ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
-)
+var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 
 // DefaultClient provides a singleton JSON client using http.DefaultClient.
 var DefaultClient = NewClient()
+
+// Error returns the string representation of the error.
+func (je Error) Error() string {
+	return je.String()
+}
+
+// String provides a human-readable description of the error.
+func (je Error) String() string {
+	if je.err == nil {
+		return fmt.Sprintf("unknown error (HTTP %v)", je.StatusCode)
+	}
+
+	return je.err.Error()
+}
+
+// ErrorBody extracts the request body from an error if it's a jsonclient.Error.
+func ErrorBody(e error) string {
+	var jsonError Error
+	if errors.As(e, &jsonError) {
+		return jsonError.Body
+	}
+
+	return ""
+}
+
+// NewClient creates a new JSON client using the default http.Client.
+func NewClient() Client {
+	return NewWithHTTPClient(http.DefaultClient)
+}
+
+// NewWithHTTPClient creates a new JSON client using the specified http.Client.
+func NewWithHTTPClient(httpClient *http.Client) Client {
+	return &client{
+		httpClient: httpClient,
+		headers: http.Header{
+			"Content-Type": []string{ContentType},
+		},
+		indent: "",
+	}
+}
 
 // Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
 func Get(url string, response any) error {
@@ -51,24 +104,14 @@ func Post(url string, request, response any) error {
 	return nil
 }
 
-// NewClient creates a new JSON client using the default http.Client.
-func NewClient() Client {
-	return NewWithHTTPClient(http.DefaultClient)
-}
-
-// NewWithHTTPClient creates a new JSON client using the specified http.Client.
-func NewWithHTTPClient(httpClient *http.Client) Client {
-	return &client{
-		httpClient: httpClient,
-		headers: http.Header{
-			"Content-Type": []string{ContentType},
-		},
+// ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
+func (c *client) ErrorResponse(err error, response any) bool {
+	var errMsg Error
+	if errors.As(err, &errMsg) {
+		return json.Unmarshal([]byte(errMsg.Body), response) == nil
 	}
-}
 
-// Headers returns the default headers for requests.
-func (c *client) Headers() http.Header {
-	return c.headers
+	return false
 }
 
 // Get fetches a URL using GET and unmarshals the response into the provided object.
@@ -91,6 +134,11 @@ func (c *client) Get(url string, response any) error {
 	defer func() { _ = res.Body.Close() }()
 
 	return parseResponse(res, response)
+}
+
+// Headers returns the default headers for requests.
+func (c *client) Headers() http.Header {
+	return c.headers
 }
 
 // Post sends a request as JSON and unmarshals the response into the provided object.
@@ -132,16 +180,6 @@ func (c *client) Post(url string, request, response any) error {
 	defer func() { _ = res.Body.Close() }()
 
 	return parseResponse(res, response)
-}
-
-// ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
-func (c *client) ErrorResponse(err error, response any) bool {
-	var errMsg Error
-	if errors.As(err, &errMsg) {
-		return json.Unmarshal([]byte(errMsg.Body), response) == nil
-	}
-
-	return false
 }
 
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
