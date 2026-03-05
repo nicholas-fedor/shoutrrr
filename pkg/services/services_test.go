@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestServices(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Service Compliance Suite")
-}
-
 var serviceURLs = map[string]string{
 	"discord":    "discord://token@id",
 	"gotify":     "gotify://example.com/Aaa.bbb.ccc.ddd",
@@ -153,3 +148,9 @@ var _ = ginkgo.Describe("services", func() {
 		}
 	})
 })
+
+func TestServices(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Service Compliance Suite")
+}
