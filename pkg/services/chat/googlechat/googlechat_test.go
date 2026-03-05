@@ -18,28 +18,23 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestGooglechat runs the Ginkgo test suite for the Google Chat package.
-func TestGooglechat(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Google Chat Suite")
-}
-
 var (
 	service          *googlechat.Service
 	logger           *log.Logger
 	envGooglechatURL *url.URL
-	_                = ginkgo.BeforeSuite(func() {
-		service = &googlechat.Service{}
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-
-		var err error
-
-		envGooglechatURL, err = url.Parse(os.Getenv("SHOUTRRR_GOOGLECHAT_URL"))
-		if err != nil {
-			envGooglechatURL = &url.URL{} // Default to empty URL if parsing fails
-		}
-	})
 )
+
+var _ = ginkgo.BeforeSuite(func() {
+	service = &googlechat.Service{}
+	logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+
+	var err error
+
+	envGooglechatURL, err = url.Parse(os.Getenv("SHOUTRRR_GOOGLECHAT_URL"))
+	if err != nil {
+		envGooglechatURL = &url.URL{} // Default to empty URL if parsing fails
+	}
+})
 
 var _ = ginkgo.Describe("Google Chat Service", func() {
 	ginkgo.When("running integration tests", func() {
@@ -228,3 +223,11 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 		})
 	})
 })
+
+// TestGooglechat runs the Ginkgo test suite for the Google Chat package.
+func TestGooglechat(t *testing.T) {
+	t.Parallel()
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Google Chat Suite")
+}
