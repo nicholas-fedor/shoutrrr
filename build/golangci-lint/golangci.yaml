@@ -598,10 +598,10 @@ linters:
     # Which file paths to exclude: they will be analyzed, but issues from them won't be reported.
     # "/" will be replaced by the current OS file path separator to properly work on Windows.
     # Default: []
-    # paths:
-    # - ".*\\.my\\.go$"
-    # - lib/bad.go
-    # - ".*/mocks/.*"
+    paths:
+      # - ".*\\.my\\.go$"
+      # - lib/bad.go
+      - ".*/mocks/.*"
     # - third_party$
     # - builtin$
     # - examples$
