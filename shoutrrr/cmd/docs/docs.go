@@ -1,3 +1,5 @@
+// Package docs provides the "docs" CLI command for generating documentation
+// for Shoutrrr notification services.
 package docs
 
 import (
