@@ -110,6 +110,7 @@ var _ = ginkgo.Describe("the util package", func() {
 })
 
 func TestUtil(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Shoutrrr Util Suite")
 }

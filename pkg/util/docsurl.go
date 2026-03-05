@@ -10,7 +10,7 @@ import (
 // If the path contains a leading slash, it is stripped.
 func DocsURL(path string) string {
 	// strip leading slash if present
-	if len(path) > 0 && path[0] == '/' {
+	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
 

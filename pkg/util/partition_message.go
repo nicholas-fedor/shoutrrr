@@ -24,7 +24,7 @@ func PartitionMessage(
 	maxTotal := Min(len(runes), limits.TotalChunkSize)
 	maxCount := limits.ChunkCount - 1
 
-	if len(input) == 0 {
+	if input == "" {
 		// If the message is empty, return an empty array
 		return items, 0
 	}
