@@ -537,6 +537,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		{
 			name: "successful request on first attempt",
 			setupClient: func(t *testing.T) HTTPClient {
+				t.Helper()
 				mockClient := mocks.NewMockHTTPClient(t)
 				mockClient.On("Do", mock.Anything).Return(&http.Response{
 					StatusCode: http.StatusOK,
@@ -546,6 +547,8 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 				return mockClient
 			},
 			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 			expectedError:  false,
@@ -555,6 +558,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		{
 			name: "transient error with retry success",
 			setupClient: func(t *testing.T) HTTPClient {
+				t.Helper()
 				mockClient := mocks.NewMockHTTPClient(t)
 				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Once()
 				mockClient.On("Do", mock.Anything).Return(&http.Response{
@@ -565,6 +569,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 				return mockClient
 			},
 			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", time.Second).Return().Once()
 
@@ -577,6 +582,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		{
 			name: "persistent error after max retries",
 			setupClient: func(t *testing.T) HTTPClient {
+				t.Helper()
 				mockClient := mocks.NewMockHTTPClient(t)
 				// Expect 4 calls (maxTransportRetries + 1)
 				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Times(4)
@@ -584,6 +590,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 				return mockClient
 			},
 			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", time.Second).Return().Once()
 				sleeper.On("Sleep", 2*time.Second).Return().Once()
@@ -599,12 +606,15 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		{
 			name: "context canceled during retry",
 			setupClient: func(t *testing.T) HTTPClient {
+				t.Helper()
 				mockClient := mocks.NewMockHTTPClient(t)
 				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Once()
 
 				return mockClient
 			},
 			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 			expectedError:  true,
@@ -664,6 +674,8 @@ func TestHandleServerError(t *testing.T) {
 			attempt:       0,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 		},
@@ -673,6 +685,7 @@ func TestHandleServerError(t *testing.T) {
 			attempt:       0,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", time.Second).Return().Once()
 
@@ -685,6 +698,8 @@ func TestHandleServerError(t *testing.T) {
 			attempt:       maxRetries,
 			expectedError: true,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 		},
@@ -694,6 +709,7 @@ func TestHandleServerError(t *testing.T) {
 			attempt:       2,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", 4*time.Second).Return().Once()
 
@@ -706,6 +722,7 @@ func TestHandleServerError(t *testing.T) {
 			attempt:       4,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", 16*time.Second).Return().Once()
 
@@ -756,6 +773,7 @@ func TestWaitWithTimeout(t *testing.T) {
 			cancelContext: false,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", time.Second).Return().Once()
 
@@ -769,6 +787,8 @@ func TestWaitWithTimeout(t *testing.T) {
 			cancelContext: false,
 			expectedError: true,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 		},
@@ -779,6 +799,8 @@ func TestWaitWithTimeout(t *testing.T) {
 			cancelContext: true,
 			expectedError: true,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
+
 				return mocks.NewMockSleeper(t)
 			},
 		},
@@ -789,6 +811,7 @@ func TestWaitWithTimeout(t *testing.T) {
 			cancelContext: false,
 			expectedError: false,
 			setupSleeper: func(t *testing.T) Sleeper {
+				t.Helper()
 				sleeper := mocks.NewMockSleeper(t)
 				sleeper.On("Sleep", time.Duration(0)).Return().Once()
 
