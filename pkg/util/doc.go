@@ -1,16 +1,24 @@
 // Package util provides common utility functions for Shoutrrr.
 //
-// This package includes general-purpose utilities for:
+// This package includes general-purpose utilities organized by domain:
 //
-//   - Message partitioning: Splitting large messages into chunks that fit
-//     within service-specific limits
+//   - Math: Min, Max for basic numeric operations
 //
-//   - URL handling: Utilities for working with URLs and authentication
+//   - Reflection: IsUnsignedInt, IsSignedInt, IsCollection, IsNumeric
+//     for type checking via reflect.Kind
 //
-//   - Number parsing: Helper functions for parsing number strings with
-//     various prefix formats
+//   - Number parsing: StripNumberPrefix for parsing number strings with
+//     various prefix formats (#, 0x, 0X)
 //
-//   - Basic operations: Common functions like Min/Max and a discard logger
+//   - URL handling: URLUserPassword for creating url.Userinfo with
+//     empty string handling
 //
-//   - Documentation: URL generation for Shoutrrr documentation
+//   - Message partitioning: PartitionMessage, MessageItemsFromLines,
+//     and Ellipsis for splitting large messages into service-compatible chunks
+//
+//   - Logging: DiscardLogger for discarding log output
+//
+// Subpackages provide additional utilities:
+//   - jsonclient: HTTP client for JSON APIs
+//   - generator: Service configuration generation utilities
 package util
