@@ -39,8 +39,8 @@ func (_m *MockRequestPreparer) EXPECT() *MockRequestPreparer_Expecter {
 }
 
 // PrepareRequest provides a mock function for the type MockRequestPreparer
-func (_mock *MockRequestPreparer) PrepareRequest(ctx context.Context, url string) (*http.Request, error) {
-	ret := _mock.Called(ctx, url)
+func (_mock *MockRequestPreparer) PrepareRequest(ctx context.Context, requestURL string) (*http.Request, error) {
+	ret := _mock.Called(ctx, requestURL)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PrepareRequest")
@@ -49,17 +49,17 @@ func (_mock *MockRequestPreparer) PrepareRequest(ctx context.Context, url string
 	var r0 *http.Request
 	var r1 error
 	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*http.Request, error)); ok {
-		return returnFunc(ctx, url)
+		return returnFunc(ctx, requestURL)
 	}
 	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *http.Request); ok {
-		r0 = returnFunc(ctx, url)
+		r0 = returnFunc(ctx, requestURL)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*http.Request)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, url)
+		r1 = returnFunc(ctx, requestURL)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -73,12 +73,12 @@ type MockRequestPreparer_PrepareRequest_Call struct {
 
 // PrepareRequest is a helper method to define mock.On call
 //   - ctx context.Context
-//   - url string
-func (_e *MockRequestPreparer_Expecter) PrepareRequest(ctx interface{}, url interface{}) *MockRequestPreparer_PrepareRequest_Call {
-	return &MockRequestPreparer_PrepareRequest_Call{Call: _e.mock.On("PrepareRequest", ctx, url)}
+//   - requestURL string
+func (_e *MockRequestPreparer_Expecter) PrepareRequest(ctx interface{}, requestURL interface{}) *MockRequestPreparer_PrepareRequest_Call {
+	return &MockRequestPreparer_PrepareRequest_Call{Call: _e.mock.On("PrepareRequest", ctx, requestURL)}
 }
 
-func (_c *MockRequestPreparer_PrepareRequest_Call) Run(run func(ctx context.Context, url string)) *MockRequestPreparer_PrepareRequest_Call {
+func (_c *MockRequestPreparer_PrepareRequest_Call) Run(run func(ctx context.Context, requestURL string)) *MockRequestPreparer_PrepareRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -101,7 +101,7 @@ func (_c *MockRequestPreparer_PrepareRequest_Call) Return(request *http.Request,
 	return _c
 }
 
-func (_c *MockRequestPreparer_PrepareRequest_Call) RunAndReturn(run func(ctx context.Context, url string) (*http.Request, error)) *MockRequestPreparer_PrepareRequest_Call {
+func (_c *MockRequestPreparer_PrepareRequest_Call) RunAndReturn(run func(ctx context.Context, requestURL string) (*http.Request, error)) *MockRequestPreparer_PrepareRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }

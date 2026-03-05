@@ -10,9 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme defines the protocol identifier for this service's configuration URL.
-const Scheme = "discord"
-
 // Config holds the settings required for sending Discord notifications.
 type Config struct {
 	standard.EnumlessConfig
@@ -32,6 +29,16 @@ type Config struct {
 	ThreadID   string `           default:""         key:"thread_id"        desc:"The thread ID to send the message to"`
 }
 
+// Scheme defines the protocol identifier for this service's configuration URL.
+const Scheme = "discord"
+
+// GetURL generates a URL from the current configuration values.
+func (config *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(config)
+
+	return config.getURL(&resolver)
+}
+
 // LevelColors returns an array of colors indexed by MessageLevel.
 func (config *Config) LevelColors() [types.MessageLevelCount]uint {
 	var colors [types.MessageLevelCount]uint
@@ -45,23 +52,17 @@ func (config *Config) LevelColors() [types.MessageLevelCount]uint {
 	return colors
 }
 
-// GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.getURL(&resolver)
-}
-
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
+func (config *Config) SetURL(configURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(config)
 
-	return config.setURL(&resolver, url)
+	return config.setURL(&resolver, configURL)
 }
 
 // getURL constructs a URL from configuration using the provided resolver.
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	url := &url.URL{
+	//nolint:exhaustruct // Only required fields are initialized
+	result := &url.URL{
 		User:       url.User(config.Token),
 		Host:       config.WebhookID,
 		Scheme:     Scheme,
@@ -70,19 +71,19 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	if config.JSON {
-		url.Path = "/raw"
+		result.Path = "/raw"
 	}
 
-	return url
+	return result
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	config.WebhookID = url.Host
-	config.Token = url.User.Username()
+func (config *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
+	config.WebhookID = configURL.Host
+	config.Token = configURL.User.Username()
 
-	if len(url.Path) > 0 {
-		switch url.Path {
+	if configURL.Path != "" {
+		switch configURL.Path {
 		case "/raw":
 			config.JSON = true
 		default:
@@ -98,7 +99,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		return ErrMissingToken
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range configURL.Query() {
 		if key == "thread_id" {
 			// Trim whitespace from thread_id
 			config.ThreadID = strings.TrimSpace(vals[0])

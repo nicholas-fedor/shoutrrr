@@ -15,10 +15,18 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// mockTemporaryError implements net.Error for testing.
+type mockTemporaryError struct{}
+
+// mockTimeoutError implements net.Error for testing timeout.
+type mockTimeoutError struct{}
 
 var _ = ginkgo.Describe("Discord Sender", func() {
 	ginkgo.Describe("NewDefaultHTTPClient", func() {
@@ -110,7 +118,7 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 		var preparer *MultipartRequestPreparer
 
 		ginkgo.BeforeEach(func() {
-			payload := WebhookPayload{
+			payload := &WebhookPayload{
 				Content: "test message",
 			}
 			files := []types.File{
@@ -162,53 +170,52 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 	})
 
 	ginkgo.Describe("sendWithRetry", func() {
-		var (
-			mockClient *mockHTTPClient
-			preparer   *JSONRequestPreparer
-			sleeper    *mockSleeper
-		)
+		var preparer *JSONRequestPreparer
 
 		ginkgo.BeforeEach(func() {
-			mockClient = &mockHTTPClient{}
 			payload := []byte(`{"content":"test"}`)
 			preparer = &JSONRequestPreparer{payload: payload}
-			sleeper = newMockSleeper()
 		})
 
 		ginkgo.It("should succeed on first attempt", func() {
-			mockClient.response = &http.Response{
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
 				StatusCode: http.StatusNoContent,
 				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			}, nil).Once()
 
 			ctx := context.Background()
 			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should succeed on first attempt with StatusOK", func() {
-			mockClient.response = &http.Response{
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			}, nil).Once()
 
 			ctx := context.Background()
 			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle unexpected status codes", func() {
-			mockClient.response = &http.Response{
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
 				StatusCode: http.StatusBadRequest,
 				Status:     "400 Bad Request",
 				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			}, nil).Once()
 
 			ctx := context.Background()
 			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
@@ -216,28 +223,31 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).
 				To(gomega.ContainSubstring("unexpected response status code"))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle nil response", func() {
-			mockClient.response = nil
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return((*http.Response)(nil), nil).Once()
 
 			ctx := context.Background()
 			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrUnknownAPIError))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle HTTP client errors", func() {
-			mockClient.err = http.ErrHandlerTimeout
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return(nil, http.ErrHandlerTimeout).Once()
 
 			ctx := context.Background()
 			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("making HTTP POST request"))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 	})
 
@@ -251,11 +261,12 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			resp.Header.Set("Retry-After", "2")
 
 			startTime := time.Now()
-			sleeper := &mockSleeper{}
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.On("Sleep", 2*time.Second).Return().Once()
+
 			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{2 * time.Second}))
 		})
 
 		ginkgo.It("should handle invalid retry-after header", func() {
@@ -267,12 +278,13 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			resp.Header.Set("Retry-After", "invalid")
 
 			startTime := time.Now()
-			sleeper := &mockSleeper{}
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.On("Sleep", time.Second).Return().Once()
+
 			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// Should fall back to exponential backoff
-			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
 		})
 
 		ginkgo.It("should handle retry-after exceeding max timeout", func() {
@@ -284,12 +296,12 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
 
 			startTime := time.Now()
-			sleeper := &mockSleeper{}
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
 			err := handleRateLimitResponse(context.Background(), resp, 0, startTime, sleeper)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
-			gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should handle exponential backoff", func() {
@@ -301,7 +313,9 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			// No retry-after header
 
 			startTime := time.Now()
-			sleeper := &mockSleeper{}
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.On("Sleep", 4*time.Second).Return().Once()
+
 			err := handleRateLimitResponse(
 				context.Background(),
 				resp,
@@ -311,7 +325,6 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{4 * time.Second}))
 		})
 
 		ginkgo.It("should cap exponential backoff", func() {
@@ -322,7 +335,9 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			}
 
 			startTime := time.Now()
-			sleeper := &mockSleeper{}
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.On("Sleep", 64*time.Second).Return().Once()
+
 			err := handleRateLimitResponse(
 				context.Background(),
 				resp,
@@ -332,147 +347,107 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{64 * time.Second}))
 		})
 	})
 })
 
-// mockHTTPClient is a test helper that implements HTTPClient interface.
-type mockHTTPClient struct {
-	response  *http.Response
-	err       error
-	callCount int
-	doFunc    func(*http.Request) (*http.Response, error)
-}
-
-// mockSleeper is a test helper that implements Sleeper interface and records sleep durations.
-type mockSleeper struct {
-	slept []time.Duration
-}
-
-func newMockSleeper() *mockSleeper {
-	return &mockSleeper{slept: make([]time.Duration, 0)}
-}
-
-func (m *mockSleeper) Sleep(d time.Duration) {
-	m.slept = append(m.slept, d)
-}
-
-func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	m.callCount++
-	if m.doFunc != nil {
-		return m.doFunc(req)
-	}
-
-	if m.err != nil {
-		return nil, m.err
-	}
-
-	return m.response, nil
-}
-
 func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
 
-		mockClient := &mockHTTPClient{}
+		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
-		sleeper := &mockSleeper{}
+		sleeper := mocks.NewMockSleeper(t)
 
 		// First call returns 429 with retry-after
-		callCount := 0
-		mockClient.doFunc = func(_ *http.Request) (*http.Response, error) {
-			callCount++
-			if callCount == 1 {
-				resp := &http.Response{
-					StatusCode: http.StatusTooManyRequests,
-					Header:     make(http.Header),
-					Body:       io.NopCloser(strings.NewReader("")),
-				}
-				resp.Header.Set("Retry-After", "1")
-
-				return resp, nil
-			}
-
-			return &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil
+		resp1 := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("")),
 		}
+		resp1.Header.Set("Retry-After", "1")
+
+		mockClient.On("Do", mock.Anything).Return(resp1, nil).Once()
+		mockClient.On("Do", mock.Anything).Return(&http.Response{
+			StatusCode: http.StatusNoContent,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil).Once()
+		sleeper.On("Sleep", time.Second).Return().Once()
 
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		gomega.Expect(callCount).To(gomega.Equal(2))
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{time.Second}))
 	})
 }
 
 func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
 
-		mockClient := &mockHTTPClient{}
+		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
-		sleeper := &mockSleeper{}
+		sleeper := mocks.NewMockSleeper(t)
 
-		mockClient.response = &http.Response{
+		resp := &http.Response{
 			StatusCode: http.StatusInternalServerError,
 			Status:     "500 Internal Server Error",
 			Body:       io.NopCloser(strings.NewReader("")),
 		}
+
+		// Expect 6 calls (MaxRetries + 1)
+		mockClient.On("Do", mock.Anything).Return(resp, nil).Times(6)
+		// Expect 5 sleeps with exponential backoff
+		sleeper.On("Sleep", time.Second).Return().Once()
+		sleeper.On("Sleep", 2*time.Second).Return().Once()
+		sleeper.On("Sleep", 4*time.Second).Return().Once()
+		sleeper.On("Sleep", 8*time.Second).Return().Once()
+		sleeper.On("Sleep", 16*time.Second).Return().Once()
 
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err).To(gomega.MatchError(ErrMaxRetries))
-		gomega.Expect(mockClient.callCount).To(gomega.Equal(6)) // MaxRetries + 1 = 6
-		gomega.Expect(sleeper.slept).To(gomega.Equal([]time.Duration{
-			time.Second,
-			2 * time.Second,
-			4 * time.Second,
-			8 * time.Second,
-			16 * time.Second,
-		}))
 	})
 }
 
 func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
 
-		mockClient := &mockHTTPClient{}
+		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
 		preparer := &JSONRequestPreparer{payload: payload}
-		sleeper := &mockSleeper{}
+		sleeper := mocks.NewMockSleeper(t)
 
 		// Mock a very long retry-after that exceeds MaxRetryTimeout
-		mockClient.doFunc = func(_ *http.Request) (*http.Response, error) {
-			resp := &http.Response{
-				StatusCode: http.StatusTooManyRequests,
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
-			resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
-
-			return resp, nil
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("")),
 		}
+		resp.Header.Set("Retry-After", "400") // Exceeds 5 minutes
+
+		mockClient.On("Do", mock.Anything).Return(resp, nil).Once()
 
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
 		gomega.Expect(err).To(gomega.HaveOccurred())
 		gomega.Expect(err.Error()).To(gomega.ContainSubstring("rate limited by Discord"))
-		gomega.Expect(sleeper.slept).To(gomega.BeEmpty())
 	})
 }
 
 // TestIsTransientError tests the isTransientError function with table-driven tests.
 func TestIsTransientError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -531,44 +506,47 @@ func TestIsTransientError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := isTransientError(tt.err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-// mockTemporaryError implements net.Error for testing.
-type mockTemporaryError struct{}
-
 func (m *mockTemporaryError) Error() string   { return "temporary error" }
-func (m *mockTemporaryError) Timeout() bool   { return false }
 func (m *mockTemporaryError) Temporary() bool { return true }
-
-// mockTimeoutError implements net.Error for testing timeout.
-type mockTimeoutError struct{}
+func (m *mockTemporaryError) Timeout() bool   { return false }
 
 func (m *mockTimeoutError) Error() string   { return "timeout error" }
-func (m *mockTimeoutError) Timeout() bool   { return true }
 func (m *mockTimeoutError) Temporary() bool { return false }
+func (m *mockTimeoutError) Timeout() bool   { return true }
 
 // TestExecuteWithTransportRetry tests the executeWithTransportRetry function.
 func TestExecuteWithTransportRetry(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
-		setupClient    func() *mockHTTPClient
+		setupClient    func(t *testing.T) HTTPClient
+		setupSleeper   func(t *testing.T) *mocks.MockSleeper
 		expectedError  bool
 		expectedCalls  int
 		expectedSleeps []time.Duration
 	}{
 		{
 			name: "successful request on first attempt",
-			setupClient: func() *mockHTTPClient {
-				return &mockHTTPClient{
-					response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(strings.NewReader("")),
-					},
-				}
+			setupClient: func(t *testing.T) HTTPClient {
+				mockClient := mocks.NewMockHTTPClient(t)
+				mockClient.On("Do", mock.Anything).Return(&http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil).Once()
+
+				return mockClient
+			},
+			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				return mocks.NewMockSleeper(t)
 			},
 			expectedError:  false,
 			expectedCalls:  1,
@@ -576,22 +554,21 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		},
 		{
 			name: "transient error with retry success",
-			setupClient: func() *mockHTTPClient {
-				callCount := 0
+			setupClient: func(t *testing.T) HTTPClient {
+				mockClient := mocks.NewMockHTTPClient(t)
+				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Once()
+				mockClient.On("Do", mock.Anything).Return(&http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil).Once()
 
-				return &mockHTTPClient{
-					doFunc: func(_ *http.Request) (*http.Response, error) {
-						callCount++
-						if callCount == 1 {
-							return nil, context.DeadlineExceeded
-						}
+				return mockClient
+			},
+			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", time.Second).Return().Once()
 
-						return &http.Response{
-							StatusCode: http.StatusOK,
-							Body:       io.NopCloser(strings.NewReader("")),
-						}, nil
-					},
-				}
+				return sleeper
 			},
 			expectedError:  false,
 			expectedCalls:  2,
@@ -599,21 +576,36 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 		},
 		{
 			name: "persistent error after max retries",
-			setupClient: func() *mockHTTPClient {
-				return &mockHTTPClient{
-					err: context.DeadlineExceeded,
-				}
+			setupClient: func(t *testing.T) HTTPClient {
+				mockClient := mocks.NewMockHTTPClient(t)
+				// Expect 4 calls (maxTransportRetries + 1)
+				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Times(4)
+
+				return mockClient
 			},
-			expectedError:  true,
-			expectedCalls:  4, // maxTransportRetries + 1 = 4
+			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", time.Second).Return().Once()
+				sleeper.On("Sleep", 2*time.Second).Return().Once()
+				sleeper.On("Sleep", 4*time.Second).Return().Once()
+
+				return sleeper
+			},
+			expectedError: true,
+			// Expected calls: maxTransportRetries + 1 = 4
+			expectedCalls:  4,
 			expectedSleeps: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second},
 		},
 		{
 			name: "context canceled during retry",
-			setupClient: func() *mockHTTPClient {
-				return &mockHTTPClient{
-					err: context.DeadlineExceeded,
-				}
+			setupClient: func(t *testing.T) HTTPClient {
+				mockClient := mocks.NewMockHTTPClient(t)
+				mockClient.On("Do", mock.Anything).Return(nil, context.DeadlineExceeded).Once()
+
+				return mockClient
+			},
+			setupSleeper: func(t *testing.T) *mocks.MockSleeper {
+				return mocks.NewMockSleeper(t)
 			},
 			expectedError:  true,
 			expectedCalls:  1,
@@ -623,8 +615,10 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := tt.setupClient()
-			sleeper := &mockSleeper{}
+			t.Parallel()
+
+			client := tt.setupClient(t)
+			sleeper := tt.setupSleeper(t)
 			ctx := context.Background()
 
 			if tt.name == "context canceled during retry" {
@@ -649,71 +643,86 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-
-			assert.Equal(t, tt.expectedCalls, client.callCount)
-
-			if tt.expectedSleeps == nil {
-				assert.Nil(t, sleeper.slept)
-			} else {
-				assert.Equal(t, tt.expectedSleeps, sleeper.slept)
-			}
 		})
 	}
 }
 
 // TestHandleServerError tests the handleServerError function.
 func TestHandleServerError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name           string
-		statusCode     int
-		attempt        int
-		expectedError  bool
-		expectedSleeps []time.Duration
+		name          string
+		statusCode    int
+		attempt       int
+		expectedError bool
+		setupSleeper  func(t *testing.T) Sleeper
 	}{
 		{
-			name:           "status code below 500 should not wait",
-			statusCode:     404,
-			attempt:        0,
-			expectedError:  false,
-			expectedSleeps: nil,
+			name:          "status code below 500 should not wait",
+			statusCode:    404,
+			attempt:       0,
+			expectedError: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				return mocks.NewMockSleeper(t)
+			},
 		},
 		{
-			name:           "500 status code should wait",
-			statusCode:     500,
-			attempt:        0,
-			expectedError:  false,
-			expectedSleeps: []time.Duration{time.Second},
+			name:          "500 status code should wait",
+			statusCode:    500,
+			attempt:       0,
+			expectedError: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", time.Second).Return().Once()
+
+				return sleeper
+			},
 		},
 		{
-			name:           "max retries exceeded should return error",
-			statusCode:     500,
-			attempt:        maxRetries,
-			expectedError:  true,
-			expectedSleeps: nil,
+			name:          "max retries exceeded should return error",
+			statusCode:    500,
+			attempt:       maxRetries,
+			expectedError: true,
+			setupSleeper: func(t *testing.T) Sleeper {
+				return mocks.NewMockSleeper(t)
+			},
 		},
 		{
-			name:           "exponential backoff calculation",
-			statusCode:     502,
-			attempt:        2,
-			expectedError:  false,
-			expectedSleeps: []time.Duration{4 * time.Second},
+			name:          "exponential backoff calculation",
+			statusCode:    502,
+			attempt:       2,
+			expectedError: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", 4*time.Second).Return().Once()
+
+				return sleeper
+			},
 		},
 		{
-			name:           "exponential backoff calculation for higher attempt",
-			statusCode:     503,
-			attempt:        4,
-			expectedError:  false,
-			expectedSleeps: []time.Duration{16 * time.Second},
+			name:          "exponential backoff calculation for higher attempt",
+			statusCode:    503,
+			attempt:       4,
+			expectedError: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", 16*time.Second).Return().Once()
+
+				return sleeper
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp := &http.Response{
 				StatusCode: tt.statusCode,
 				Body:       io.NopCloser(strings.NewReader("")),
 			}
-			sleeper := &mockSleeper{}
+			sleeper := tt.setupSleeper(t)
 			startTime := time.Now()
 
 			err := handleServerError(context.Background(), resp, tt.attempt, startTime, sleeper)
@@ -724,21 +733,21 @@ func TestHandleServerError(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-
-			assert.Equal(t, tt.expectedSleeps, sleeper.slept)
 		})
 	}
 }
 
 // TestWaitWithTimeout tests the waitWithTimeout function.
 func TestWaitWithTimeout(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		wait          time.Duration
 		startTime     time.Time
 		cancelContext bool
 		expectedError bool
-		expectedSleep bool
+		setupSleeper  func(t *testing.T) Sleeper
 	}{
 		{
 			name:          "normal wait should succeed",
@@ -746,7 +755,12 @@ func TestWaitWithTimeout(t *testing.T) {
 			startTime:     time.Now(),
 			cancelContext: false,
 			expectedError: false,
-			expectedSleep: true,
+			setupSleeper: func(t *testing.T) Sleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", time.Second).Return().Once()
+
+				return sleeper
+			},
 		},
 		{
 			name:          "wait exceeding timeout should fail",
@@ -754,7 +768,9 @@ func TestWaitWithTimeout(t *testing.T) {
 			startTime:     time.Now(),
 			cancelContext: false,
 			expectedError: true,
-			expectedSleep: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				return mocks.NewMockSleeper(t)
+			},
 		},
 		{
 			name:          "context canceled should fail",
@@ -762,7 +778,9 @@ func TestWaitWithTimeout(t *testing.T) {
 			startTime:     time.Now(),
 			cancelContext: true,
 			expectedError: true,
-			expectedSleep: false,
+			setupSleeper: func(t *testing.T) Sleeper {
+				return mocks.NewMockSleeper(t)
+			},
 		},
 		{
 			name:          "zero wait should succeed",
@@ -770,13 +788,20 @@ func TestWaitWithTimeout(t *testing.T) {
 			startTime:     time.Now(),
 			cancelContext: false,
 			expectedError: false,
-			expectedSleep: true,
+			setupSleeper: func(t *testing.T) Sleeper {
+				sleeper := mocks.NewMockSleeper(t)
+				sleeper.On("Sleep", time.Duration(0)).Return().Once()
+
+				return sleeper
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sleeper := &mockSleeper{}
+			t.Parallel()
+
+			sleeper := tt.setupSleeper(t)
 			ctx := context.Background()
 
 			if tt.cancelContext {
@@ -792,12 +817,6 @@ func TestWaitWithTimeout(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-			}
-
-			if tt.expectedSleep {
-				assert.NotEmpty(t, sleeper.slept)
-			} else {
-				assert.Empty(t, sleeper.slept)
 			}
 		})
 	}

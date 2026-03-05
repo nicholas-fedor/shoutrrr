@@ -20,7 +20,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 	ginkgo.Describe("LevelColors method", func() {
 		ginkgo.It("should return correct color mapping for default colors", func() {
 			config := &Config{
-				Color:      0x50D9ff,
+				Color:      0x50d9ff,
 				ColorError: 0xd60510,
 				ColorWarn:  0xffc441,
 				ColorInfo:  0x2488ff,
@@ -29,7 +29,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 
 			colors := config.LevelColors()
 
-			gomega.Expect(colors[types.Unknown]).To(gomega.Equal(uint(0x50D9ff)))
+			gomega.Expect(colors[types.Unknown]).To(gomega.Equal(uint(0x50d9ff)))
 			gomega.Expect(colors[types.Error]).To(gomega.Equal(uint(0xd60510)))
 			gomega.Expect(colors[types.Warning]).To(gomega.Equal(uint(0xffc441)))
 			gomega.Expect(colors[types.Info]).To(gomega.Equal(uint(0x2488ff)))

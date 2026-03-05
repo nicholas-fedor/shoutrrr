@@ -8,6 +8,7 @@ import (
 )
 
 func TestDiscord(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Discord Suite")
 }
