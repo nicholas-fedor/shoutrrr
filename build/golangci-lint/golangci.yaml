@@ -243,6 +243,8 @@ linters:
         - '.+/cobra\.Command$'
         - ".*_test.go"
         - "internal/testutils/.*"
+        # Service types are initialized with empty structs in servicemap.go
+        - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.Service$'
       # Allows empty structures, effectively excluding them from the check.
       # Default: false
       # allow-empty: true

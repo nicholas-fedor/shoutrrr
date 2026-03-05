@@ -122,21 +122,21 @@ func (router *ServiceRouter) Send(message string, params *types.Params) []error 
 	}
 
 	serviceCount := len(router.services)
-	errors := make([]error, serviceCount)
+	errs := make([]error, serviceCount)
 	results := router.SendAsync(message, params)
 
 	for i := range router.services {
-		errors[i] = <-results
+		errs[i] = <-results
 	}
 
-	return errors
+	return errs
 }
 
 // SendAsync sends the specified message using the routers underlying services.
 func (router *ServiceRouter) SendAsync(message string, params *types.Params) chan error {
 	serviceCount := len(router.services)
 	proxy := make(chan error, serviceCount)
-	errors := make(chan error, serviceCount)
+	errs := make(chan error, serviceCount)
 
 	if params == nil {
 		params = &types.Params{}
@@ -148,13 +148,13 @@ func (router *ServiceRouter) SendAsync(message string, params *types.Params) cha
 
 	go func() {
 		for range serviceCount {
-			errors <- <-proxy
+			errs <- <-proxy
 		}
 
-		close(errors)
+		close(errs)
 	}()
 
-	return errors
+	return errs
 }
 
 // SendItems sends the specified message items using the routers underlying services.
@@ -170,14 +170,14 @@ func (router *ServiceRouter) SendItems(items []types.MessageItem, params types.P
 	}
 
 	serviceCount := len(router.services)
-	errors := make([]error, serviceCount)
+	errs := make([]error, serviceCount)
 	results := router.SendAsync(message.String(), &params)
 
 	for i := range router.services {
-		errors[i] = <-results
+		errs[i] = <-results
 	}
 
-	return errors
+	return errs
 }
 
 // SetLogger sets the logger that the services will use to write progress logs.
@@ -234,8 +234,10 @@ func (router *ServiceRouter) log(v ...any) {
 // New creates a new service router using the specified logger and service URLs.
 func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) {
 	router := ServiceRouter{
-		logger:  logger,
-		Timeout: DefaultTimeout,
+		logger:   logger,
+		services: nil,
+		queue:    nil,
+		Timeout:  DefaultTimeout,
 	}
 
 	for _, serviceURL := range serviceURLs {
