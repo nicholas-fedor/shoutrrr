@@ -20,6 +20,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to Lark.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // Constants for the Lark service configuration and limits.
 const (
 	apiFormat   = "https://%s/open-apis/bot/v2/hook/%s" // API endpoint format
@@ -45,14 +53,24 @@ var (
 )
 
 // httpClient is configured with a default timeout.
+//
+//nolint:exhaustruct // http.Client fields are optional; Timeout is the only required field
 var httpClient = &http.Client{Timeout: defaultTime}
 
-// Service sends notifications to Lark.
-type Service struct {
-	standard.Standard
+// GetID returns the service identifier.
+func (service *Service) GetID() string {
+	return Scheme
+}
 
-	Config *Config
-	pkr    format.PropKeyResolver
+// Initialize configures the service with a URL and logger.
+//
+//nolint:exhaustruct // Config fields are populated via SetURL
+func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	service.SetLogger(logger)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
+
+	return service.Config.SetURL(configURL)
 }
 
 // Send delivers a notification message to Lark.
@@ -74,25 +92,11 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return ErrNoPath
 	}
 
-	return service.doSend(config, message, params)
-}
-
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	return service.Config.SetURL(configURL)
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
+	return service.doSend(&config, message, params)
 }
 
 // doSend sends the notification to Lark using the configured API URL.
-func (service *Service) doSend(config Config, message string, params *types.Params) error {
+func (service *Service) doSend(config *Config, message string, params *types.Params) error {
 	if config.Host == "" {
 		return ErrMissingHost
 	}
@@ -107,46 +111,66 @@ func (service *Service) doSend(config Config, message string, params *types.Para
 	return service.sendRequest(postURL, payload)
 }
 
-// preparePayload constructs and marshals the request payload for the Lark API.
-func (service *Service) preparePayload(
-	message string,
-	config Config,
-	params *types.Params,
-) ([]byte, error) {
-	body := service.getRequestBody(message, config.Title, config.Secret, params)
+// genSign generates a signature for the request using the secret and timestamp.
+func (service *Service) genSign(secret string, timestamp int64) (string, error) {
+	stringToSign := fmt.Sprintf("%v\n%s", timestamp, secret)
 
-	data, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
+	h := hmac.New(sha256.New, []byte(stringToSign))
+	if _, err := h.Write([]byte{}); err != nil {
+		return "", fmt.Errorf("%w: computing HMAC: %w", ErrInvalidSignature, err)
 	}
 
-	service.Logf("Lark Request Body: %s", string(data))
-
-	return data, nil
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-// sendRequest performs the HTTP POST request to the Lark API and handles the response.
-func (service *Service) sendRequest(postURL string, payload []byte) error {
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		postURL,
-		bytes.NewReader(payload),
-	)
-	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+// getRequestBody constructs the request body for the Lark API, supporting rich content via params.
+func (service *Service) getRequestBody(
+	message, title, secret string,
+	params *types.Params,
+) *RequestBody {
+	//nolint:exhaustruct // Fields are populated conditionally below
+	body := &RequestBody{}
+
+	if secret != "" {
+		ts := time.Now().Unix()
+		body.Timestamp = strconv.FormatInt(ts, 10)
+
+		sign, err := service.genSign(secret, ts)
+		if err != nil {
+			sign = "" // Fallback to empty string on error
+		}
+
+		body.Sign = sign
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	if title == "" {
+		body.MsgType = MsgTypeText
+		body.Content.Text = message
+	} else {
+		body.MsgType = MsgTypePost
+		//nolint:exhaustruct // Item fields are populated inline; Link is optional
+		content := [][]Item{{{Tag: TagValueTextContent, Text: message}}}
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, err)
+		if params != nil {
+			if link, ok := (*params)["link"]; ok && link != "" {
+				content = append(
+					content,
+
+					[]Item{{Tag: TagValueLink, Text: "More Info", Link: link}},
+				)
+			}
+		}
+
+		//nolint:exhaustruct // Post fields are populated inline; Zh is optional
+		body.Content.Post = &Post{
+			En: &Message{
+				Title:   title,
+				Content: content,
+			},
+		}
 	}
 
-	defer func() { _ = resp.Body.Close() }()
-
-	return service.handleResponse(resp)
+	return body
 }
 
 // handleResponse processes the API response and checks for errors.
@@ -183,60 +207,46 @@ func (service *Service) handleResponse(resp *http.Response) error {
 	return nil
 }
 
-// genSign generates a signature for the request using the secret and timestamp.
-func (service *Service) genSign(secret string, timestamp int64) (string, error) {
-	stringToSign := fmt.Sprintf("%v\n%s", timestamp, secret)
+// preparePayload constructs and marshals the request payload for the Lark API.
+func (service *Service) preparePayload(
+	message string,
+	config *Config,
+	params *types.Params,
+) ([]byte, error) {
+	body := service.getRequestBody(message, config.Title, config.Secret, params)
 
-	h := hmac.New(sha256.New, []byte(stringToSign))
-	if _, err := h.Write([]byte{}); err != nil {
-		return "", fmt.Errorf("%w: computing HMAC: %w", ErrInvalidSignature, err)
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
+	service.Logf("Lark Request Body: %s", string(data))
+
+	return data, nil
 }
 
-// getRequestBody constructs the request body for the Lark API, supporting rich content via params.
-func (service *Service) getRequestBody(
-	message, title, secret string,
-	params *types.Params,
-) *RequestBody {
-	body := &RequestBody{}
-
-	if secret != "" {
-		ts := time.Now().Unix()
-		body.Timestamp = strconv.FormatInt(ts, 10)
-
-		sign, err := service.genSign(secret, ts)
-		if err != nil {
-			sign = "" // Fallback to empty string on error
-		}
-
-		body.Sign = sign
+// sendRequest performs the HTTP POST request to the Lark API and handles the response.
+//
+//nolint:gosec // G704: URL is validated through config validation before calling this function
+func (service *Service) sendRequest(postURL string, payload []byte) error {
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		postURL,
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
 	}
 
-	if title == "" {
-		body.MsgType = MsgTypeText
-		body.Content.Text = message
-	} else {
-		body.MsgType = MsgTypePost
-		content := [][]Item{{{Tag: TagValueText, Text: message}}}
+	req.Header.Set("Content-Type", "application/json")
 
-		if params != nil {
-			if link, ok := (*params)["link"]; ok && link != "" {
-				content = append(
-					content,
-					[]Item{{Tag: TagValueLink, Text: "More Info", Link: link}},
-				)
-			}
-		}
-
-		body.Content.Post = &Post{
-			En: &Message{
-				Title:   title,
-				Content: content,
-			},
-		}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, err)
 	}
 
-	return body
+	defer func() { _ = resp.Body.Close() }()
+
+	return service.handleResponse(resp)
 }
