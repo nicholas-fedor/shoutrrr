@@ -681,7 +681,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				err := service.Send(longMessage, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
-			//nolint:gosmopolitan // Intentional string literal containing rune in Han script (gosmopolitan)
+			//nolint:gosmopolitan // Intentional string literal containing rune in Han script
 			ginkgo.It("handles messages with special characters", func() {
 				specialMessage := "Message with special chars: éñüñ 中文 🚀 \n\t\"quotes\" 'single'"
 
