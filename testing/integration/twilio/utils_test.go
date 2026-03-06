@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
 )
@@ -36,10 +36,10 @@ func createTestService(
 	service := &twilio.Service{}
 
 	parsedURL, err := url.Parse(twilioURL)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
@@ -82,22 +82,25 @@ func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedCon
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				continue
-			}
-			// Reset the body for potential future reads
-			req.Body = io.NopCloser(bytes.NewReader(body))
+		req := call.Arguments[0].(*http.Request)
 
-			if bytes.Contains(body, []byte(expectedContent)) {
-				found = true
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			continue
+		}
+		// Reset the body for potential future reads
+		req.Body = io.NopCloser(bytes.NewReader(body))
 
-				break
-			}
+		if bytes.Contains(body, []byte(expectedContent)) {
+			found = true
+
+			break
 		}
 	}
 
@@ -117,14 +120,17 @@ func assertRequestMatches(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
-			if predicate(req) {
-				found = true
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-				break
-			}
+		req := call.Arguments[0].(*http.Request)
+		if predicate(req) {
+			found = true
+
+			break
 		}
 	}
 
@@ -143,14 +149,17 @@ func assertRequestMade(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
-			if req.Method == http.MethodPost && req.URL.String() == expectedURL {
-				found = true
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-				break
-			}
+		req := call.Arguments[0].(*http.Request)
+		if req.Method == http.MethodPost && req.URL.String() == expectedURL {
+			found = true
+
+			break
 		}
 	}
 
