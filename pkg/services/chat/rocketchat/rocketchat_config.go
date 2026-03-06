@@ -1,7 +1,6 @@
 package rocketchat
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -9,51 +8,64 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
-// Config for the Rocket.Chat service.
+// Config holds the configuration for the Rocket.Chat service.
 type Config struct {
 	standard.EnumlessConfig
 
+	// UserName is the username to display for the message (optional).
 	UserName string `optional:"" url:"user"`
-	Host     string `            url:"host"`
-	Port     string `            url:"port"`
-	TokenA   string `            url:"path1"`
-	Channel  string `            url:"path3"`
-	TokenB   string `            url:"path2"`
+	// Host is the Rocket.Chat server hostname (required).
+	Host string `url:"host"`
+	// Port is the Rocket.Chat server port (optional).
+	Port string `url:"port"`
+	// TokenA is the first part of the webhook token (required).
+	TokenA string `url:"path1"`
+	// Channel is the target channel or user (optional, can include # for channels or @ for users).
+	Channel string `url:"path3"`
+	// TokenB is the second part of the webhook token (required).
+	TokenB string `url:"path2"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "rocketchat"
 
-// Constants for URL path length checks.
+// Constants for URL path parsing and validation.
 const (
-	MinPathParts = 3 // Minimum number of path parts required (including empty first slash)
-	TokenBIndex  = 2 // Index for TokenB in path
-	ChannelIndex = 3 // Index for Channel in path
-)
-
-// Static errors for configuration validation.
-var (
-	ErrNotEnoughArguments = errors.New("the apiURL does not include enough arguments")
+	// MinPathParts is the minimum number of path parts required (including empty first slash).
+	MinPathParts = 3
+	// TokenBIndex is the index for TokenB in the URL path.
+	TokenBIndex = 2
+	// ChannelIndex is the index for Channel in the URL path.
+	ChannelIndex = 3
 )
 
 // GetURL returns a URL representation of the Config's current field values.
+//
+// Returns:
+//   - A pointer to a url.URL struct representing the current configuration
 func (c *Config) GetURL() *url.URL {
 	host := c.Host
 	if c.Port != "" {
 		host = fmt.Sprintf("%s:%s", c.Host, c.Port)
 	}
 
-	url := &url.URL{
+	configURL := &url.URL{
 		Host:       host,
 		Path:       fmt.Sprintf("%s/%s", c.TokenA, c.TokenB),
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
 
-	return url
+	return configURL
 }
 
 // SetURL updates the Config from a URL representation of its field values.
+//
+// Params:
+//   - serviceURL: The URL to parse and extract configuration from
+//
+// Returns:
+//   - error: An error if the URL is invalid or missing required components
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
 	host := serviceURL.Hostname()

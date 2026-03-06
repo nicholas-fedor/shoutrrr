@@ -15,6 +15,15 @@ type JSON struct {
 }
 
 // CreateJSONPayload generates a JSON payload compatible with the Rocket.Chat webhook API.
+//
+// Params:
+//   - config: The Rocket.Chat configuration containing user and channel settings
+//   - message: The message text to include in the payload
+//   - params: Optional parameters that can override config values (username, channel)
+//
+// Returns:
+//   - []byte: The JSON payload as a byte slice
+//   - error: An error if JSON marshaling fails
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
 	payload := JSON{
 		Text:     message,
