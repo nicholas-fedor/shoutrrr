@@ -61,7 +61,7 @@ func (c *Config) SetFromWebhookURL(webhookURL string) error {
 		return err
 	}
 
-	c.setFromWebhookParts(parts)
+	c.setFromWebhookParts(&parts)
 
 	return nil
 }
@@ -94,7 +94,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setFromWebhookParts sets Config fields from webhook parts.
-func (c *Config) setFromWebhookParts(parts [5]string) {
+func (c *Config) setFromWebhookParts(parts *[5]string) {
 	c.Group = parts[0]
 	c.Tenant = parts[1]
 	c.AltID = parts[2]
@@ -145,7 +145,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	c.setFromWebhookParts(parts)
+	c.setFromWebhookParts(&parts)
 
 	if err := c.setQueryParams(resolver, serviceURL.Query()); err != nil {
 		return err
@@ -162,9 +162,19 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // ConfigFromWebhookURL creates a new Config from a parsed Teams webhook URL.
-func ConfigFromWebhookURL(webhookURL url.URL) (*Config, error) {
+func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, error) {
 	webhookURL.RawQuery = ""
-	config := &Config{Host: webhookURL.Host}
+	config := &Config{
+		EnumlessConfig: standard.EnumlessConfig{},
+		Host:           webhookURL.Host,
+		Group:          "",
+		Tenant:         "",
+		AltID:          "",
+		GroupOwner:     "",
+		ExtraID:        "",
+		Title:          "",
+		Color:          "",
+	}
 
 	if err := config.SetFromWebhookURL(webhookURL.String()); err != nil {
 		return nil, err
@@ -196,7 +206,7 @@ func parseURLParts(serviceURL *url.URL) ([5]string, error) {
 		pathParts[1],
 		pathParts[2],
 	}
-	if err := verifyWebhookParts(parts); err != nil {
+	if err := verifyWebhookParts(&parts); err != nil {
 		return parts, fmt.Errorf("invalid URL format: %w", err)
 	}
 

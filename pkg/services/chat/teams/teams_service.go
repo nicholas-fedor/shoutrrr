@@ -2,11 +2,13 @@ package teams
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -17,15 +19,24 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient *http.Client
 }
+
+// defaultHTTPTimeout is the default timeout for HTTP requests.
+const defaultHTTPTimeout = 30 * time.Second
 
 // MaxSummaryLength defines the maximum length for a notification summary.
 const MaxSummaryLength = 20
 
 // TruncatedSummaryLen defines the length for a truncated summary.
 const TruncatedSummaryLen = 21
+
+// GetHTTPClient returns the service's HTTP client for testing purposes.
+func (s *Service) GetHTTPClient() *http.Client {
+	return s.httpClient
+}
 
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
@@ -47,7 +58,7 @@ func (s *Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) 
 		Path:   tempURL.Path,
 	}
 
-	config, err := ConfigFromWebhookURL(*webhookURL)
+	config, err := ConfigFromWebhookURL(webhookURL)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +89,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
+	s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+
 	return s.Config.SetURL(serviceURL)
 }
 
@@ -97,7 +110,16 @@ func (s *Service) doSend(config *Config, message string) error {
 	sections := make([]section, 0, len(lines))
 
 	for _, line := range lines {
-		sections = append(sections, section{Text: line})
+		sections = append(sections, section{
+			Text:             line,
+			ActivityTitle:    "",
+			ActivitySubtitle: "",
+			ActivityImage:    "",
+			Facts:            nil,
+			Images:           nil,
+			Actions:          nil,
+			HeroImage:        nil,
+		})
 	}
 
 	summary := config.Title
@@ -139,7 +161,7 @@ func (s *Service) doSend(config *Config, message string) error {
 		return err
 	}
 
-	res, err := safePost(postURL, payload)
+	res, err := s.postJSON(postURL, payload)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
@@ -153,14 +175,27 @@ func (s *Service) doSend(config *Config, message string) error {
 	return nil
 }
 
-// safePost performs an HTTP POST with a pre-validated URL.
-// Validation is already done; this wrapper isolates the call.
-func safePost(serviceURL string, payload []byte) (*http.Response, error) {
-	res, err := http.Post(
+// postJSON performs an HTTP POST with a pre-validated URL using the service's HTTP client.
+func (s *Service) postJSON(serviceURL string, payload []byte) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
 		serviceURL,
-		"application/json",
 		bytes.NewBuffer(payload),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("making HTTP POST request: %w", err)
 	}
