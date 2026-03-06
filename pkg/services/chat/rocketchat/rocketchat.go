@@ -72,7 +72,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	var err error
 
 	config := s.Config
-	apiURL := buildURL(config)
+	serviceURL := buildURL(config)
 
 	json, err := CreateJSONPayload(config, message, params)
 	if err != nil {
@@ -88,7 +88,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		apiURL,
+		serviceURL,
 		bytes.NewReader(json),
 	)
 	if err != nil {

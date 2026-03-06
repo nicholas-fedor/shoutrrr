@@ -71,7 +71,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	var firstErr error
 
 	if s.Config.JSON {
-		postURL := CreateAPIURLFromConfig(s.Config)
+		postURL := CreatePostURLFromConfig(s.Config)
 		if err := s.doSend([]byte(message), postURL); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
@@ -103,6 +103,86 @@ func (s *Service) Send(message string, params *types.Params) error {
 // SendItems delivers message items with enhanced metadata and formatting to Discord.
 func (s *Service) SendItems(items []types.MessageItem, params *types.Params) error {
 	return s.sendItems(items, params)
+}
+
+// doSend executes an HTTP POST request to deliver the payload to Discord.
+func (s *Service) doSend(payload []byte, postURL string) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	preparer := &JSONRequestPreparer{payload: payload}
+
+	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+}
+
+// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
+func (s *Service) doSendMultipart(
+	payload *WebhookPayload,
+	files []types.File,
+	postURL string,
+) error {
+	if err := validateDiscordWebhookURL(postURL); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	preparer := &MultipartRequestPreparer{
+		payload: payload,
+		files:   files,
+	}
+
+	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+}
+
+func (s *Service) sendItems(items []types.MessageItem, params *types.Params) error {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	payload, err := CreatePayloadFromItems(items, config.Title, config.LevelColors())
+	if err != nil {
+		return fmt.Errorf("creating payload: %w", err)
+	}
+
+	payload.Username = config.Username
+	payload.AvatarURL = config.Avatar
+
+	postURL := CreatePostURLFromConfig(&config)
+
+	// Check if any items have files
+	fileCount := 0
+
+	for _, item := range items {
+		if item.File != nil {
+			fileCount++
+		}
+	}
+
+	files := make([]types.File, 0, fileCount)
+
+	for _, item := range items {
+		if item.File != nil {
+			files = append(files, *item.File)
+		}
+	}
+
+	hasFiles := len(files) > 0
+
+	if hasFiles {
+		return s.doSendMultipart(&payload, files, postURL)
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshaling payload to JSON: %w", err)
+	}
+
+	return s.doSend(payloadBytes, postURL)
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
@@ -156,84 +236,4 @@ func validateDiscordWebhookURL(postURL string) error {
 	}
 
 	return nil
-}
-
-// doSend executes an HTTP POST request to deliver the payload to Discord.
-func (s *Service) doSend(payload []byte, postURL string) error {
-	if err := validateDiscordWebhookURL(postURL); err != nil {
-		return err
-	}
-
-	ctx := context.Background()
-
-	preparer := &JSONRequestPreparer{payload: payload}
-
-	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
-}
-
-// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
-func (s *Service) doSendMultipart(
-	payload *WebhookPayload,
-	files []types.File,
-	postURL string,
-) error {
-	if err := validateDiscordWebhookURL(postURL); err != nil {
-		return err
-	}
-
-	ctx := context.Background()
-
-	preparer := &MultipartRequestPreparer{
-		payload: payload,
-		files:   files,
-	}
-
-	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
-}
-
-func (s *Service) sendItems(items []types.MessageItem, params *types.Params) error {
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
-
-	payload, err := CreatePayloadFromItems(items, config.Title, config.LevelColors())
-	if err != nil {
-		return fmt.Errorf("creating payload: %w", err)
-	}
-
-	payload.Username = config.Username
-	payload.AvatarURL = config.Avatar
-
-	postURL := CreateAPIURLFromConfig(&config)
-
-	// Check if any items have files
-	fileCount := 0
-
-	for _, item := range items {
-		if item.File != nil {
-			fileCount++
-		}
-	}
-
-	files := make([]types.File, 0, fileCount)
-
-	for _, item := range items {
-		if item.File != nil {
-			files = append(files, *item.File)
-		}
-	}
-
-	hasFiles := len(files) > 0
-
-	if hasFiles {
-		return s.doSendMultipart(&payload, files, postURL)
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshaling payload to JSON: %w", err)
-	}
-
-	return s.doSend(payloadBytes, postURL)
 }

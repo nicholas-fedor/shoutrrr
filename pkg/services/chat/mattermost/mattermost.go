@@ -67,7 +67,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // Send delivers a notification message to Mattermost.
 func (s *Service) Send(message string, params *types.Params) error {
 	config := s.Config
-	apiURL := buildURL(config)
+	serviceURL := buildURL(config)
 
 	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
@@ -87,7 +87,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		apiURL.String(),
+		serviceURL.String(),
 		bytes.NewReader(json),
 	)
 	if err != nil {

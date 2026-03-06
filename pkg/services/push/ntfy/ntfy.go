@@ -40,7 +40,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	_ = s.pkr.SetDefaultProps(s.Config)
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
 
 	err := s.Config.setURL(&s.pkr, serviceURL)
 	if err != nil {
@@ -105,7 +107,7 @@ func (s *Service) SetHTTPClient(httpClient *http.Client) {
 
 // sendAPI sends a notification to the ntfy API.
 func (s *Service) sendAPI(config *Config, message string) error {
-	response := apiResponse{}
+	response := apiResponseError{}
 	request := message
 
 	// Prepare request headers

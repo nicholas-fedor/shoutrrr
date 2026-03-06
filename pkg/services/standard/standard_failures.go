@@ -17,9 +17,10 @@ const (
 	FailParseURL failures.FailureID = -2
 	// FailServiceInit is the FailureID used to represent failure of a service.Initialize method.
 	FailServiceInit failures.FailureID = -3
-	// FailUnknown is the default FailureID.
-	FailUnknown failures.FailureID = iota
 )
+
+// FailUnknown is the default FailureID.
+const FailUnknown failures.FailureID = iota
 
 // Failure creates a Failure instance corresponding to the provided failureID, wrapping the provided error.
 func Failure(failureID failures.FailureID, err error, args ...any) failures.Failure {

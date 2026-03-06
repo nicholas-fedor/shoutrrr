@@ -114,8 +114,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return nil
 }
 
-// CreateAPIURLFromConfig builds a POST URL from the Discord configuration.
-func CreateAPIURLFromConfig(config *Config) string {
+// CreatePostURLFromConfig builds a POST URL from the Discord configuration.
+func CreatePostURLFromConfig(config *Config) string {
 	if config.WebhookID == "" || config.Token == "" {
 		return "" // Invalid cases are caught in doSend
 	}
@@ -123,7 +123,7 @@ func CreateAPIURLFromConfig(config *Config) string {
 	webhookID := strings.TrimSpace(config.WebhookID)
 	token := strings.TrimSpace(config.Token)
 
-	baseURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+	postURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
 
 	query := url.Values{}
 
@@ -133,8 +133,8 @@ func CreateAPIURLFromConfig(config *Config) string {
 	}
 
 	if len(query) > 0 {
-		return baseURL + "?" + query.Encode()
+		return postURL + "?" + query.Encode()
 	}
 
-	return baseURL
+	return postURL
 }

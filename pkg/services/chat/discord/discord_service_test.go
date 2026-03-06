@@ -14,7 +14,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesMocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 const testWebhookURLAlt = "https://discord.com/api/webhooks/123/abc"
@@ -30,7 +30,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					Token:     "test-token",
 				},
 			}
-			service.SetLogger(&typesMocks.MockStdLogger{})
+			service.SetLogger(&mockTypes.MockStdLogger{})
 		})
 
 		ginkgo.It("should send plain text message successfully", func() {
@@ -120,7 +120,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 		ginkgo.It("should return error when first batch fails", func() {
 			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockLogger := &typesMocks.MockStdLogger{}
+			mockLogger := &mockTypes.MockStdLogger{}
 			service.HTTPClient = mockClient
 			service.SetLogger(mockLogger)
 			mockClient.On("Do", mock.Anything).Return(nil, ErrMaxRetries)
@@ -343,7 +343,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 		ginkgo.It("should initialize service successfully with valid URL", func() {
 			serviceURL, _ := url.Parse("discord://token@webhook?username=TestBot")
-			logger := &typesMocks.MockStdLogger{}
+			logger := &mockTypes.MockStdLogger{}
 
 			err := service.Initialize(serviceURL, logger)
 
@@ -358,7 +358,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		ginkgo.It("should handle URL parsing error", func() {
 			// Simulate config.SetURL error by using invalid URL
 			invalidURL, _ := url.Parse("discord://@") // Missing token
-			logger := &typesMocks.MockStdLogger{}
+			logger := &mockTypes.MockStdLogger{}
 
 			err := service.Initialize(invalidURL, logger)
 
@@ -367,7 +367,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 		ginkgo.It("should set default properties", func() {
 			serviceURL, _ := url.Parse("discord://token@webhook")
-			logger := &typesMocks.MockStdLogger{}
+			logger := &mockTypes.MockStdLogger{}
 
 			err := service.Initialize(serviceURL, logger)
 

@@ -30,9 +30,10 @@ const (
 	EncImplicitTLS // 2
 	// EncAuto represents automatic TLS selection based on port.
 	EncAuto // 3
-	// ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
-	ImplicitTLSPort = 465
 )
+
+// ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
+const ImplicitTLSPort = 465
 
 // EncMethods is the enum helper for populating the Encryption field.
 var EncMethods = &encMethodVals{

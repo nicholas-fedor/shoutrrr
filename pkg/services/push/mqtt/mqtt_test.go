@@ -394,7 +394,7 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should have correct SecureScheme constant", func() {
-			gomega.Expect(SecureScheme).To(gomega.Equal("mqtts"))
+			gomega.Expect(SchemeTLS).To(gomega.Equal("mqtts"))
 		})
 	})
 

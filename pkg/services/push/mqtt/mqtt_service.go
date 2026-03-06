@@ -71,17 +71,6 @@ const sessionExpiryInterval = 60
 // This prevents indefinite blocking when the broker is unresponsive during close operations.
 const disconnectTimeout = 5
 
-// SecureScheme identifies the TLS-secured MQTT protocol scheme.
-const SecureScheme = "mqtts"
-
-// Default ports for MQTT connections based on security level.
-const (
-	// defaultMQTTPort is the standard unencrypted MQTT port (1883).
-	defaultMQTTPort = 1883
-	// defaultMQTTSPort is the standard TLS-encrypted MQTT port (8883).
-	defaultMQTTSPort = 8883
-)
-
 // Close gracefully shuts down the MQTT service by disconnecting from the broker
 // and canceling the connection context.
 //
@@ -309,12 +298,12 @@ func (s *Service) getCancel() context.CancelFunc {
 // Returns the default port number (1883 for mqtt, 8883 for mqtts).
 func (s *Service) getDefaultPortForScheme(scheme string) int {
 	switch scheme {
-	case SecureScheme:
+	case SchemeTLS:
 		// Return the secure MQTT port for mqtts scheme
-		return defaultMQTTSPort
+		return DefaultTLSPort
 	default:
 		// Return the standard MQTT port for all other schemes
-		return defaultMQTTPort
+		return DefaultPort
 	}
 }
 
@@ -375,16 +364,16 @@ func (s *Service) initClient() error {
 	}
 
 	// Handle scheme/port mismatches with warnings (but don't change the scheme)
-	if scheme == SecureScheme && !s.Config.DisableTLS && port == defaultMQTTPort {
+	if scheme == SchemeTLS && !s.Config.DisableTLS && port == DefaultPort {
 		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
 		s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
-	} else if scheme == Scheme && port == defaultMQTTSPort {
+	} else if scheme == Scheme && port == DefaultTLSPort {
 		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
 		s.Logf("Warning: Using MQTT scheme with TLS port %d; TLS will not be used", port)
 	}
 
 	// Enable TLS when using secure scheme and TLS is not disabled
-	useTLS := scheme == SecureScheme && !s.Config.DisableTLS
+	useTLS := scheme == SchemeTLS && !s.Config.DisableTLS
 
 	// Build the broker URL
 	brokerURL := fmt.Sprintf("%s://%s:%d", scheme, s.Config.Host, port)
