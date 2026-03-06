@@ -46,34 +46,34 @@ var (
 )
 
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		Host:     config.WebHookID,
+		Host:     c.WebHookID,
 		Path:     "/",
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	if config.UseMessageAsValue == DisabledValue {
-		config.UseMessageAsValue = DefaultMessageValue
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	if c.UseMessageAsValue == DisabledValue {
+		c.UseMessageAsValue = DefaultMessageValue
 	}
 
-	config.WebHookID = url.Hostname()
+	c.WebHookID = url.Hostname()
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
@@ -81,25 +81,25 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		}
 	}
 
-	if config.UseMessageAsValue > MaxValueField || config.UseMessageAsValue < MinValueField {
+	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
 		return ErrInvalidMessageValue
 	}
 
-	if config.UseTitleAsValue > MaxValueField {
+	if c.UseTitleAsValue > MaxValueField {
 		return ErrInvalidTitleValue
 	}
 
-	if config.UseTitleAsValue != DisabledValue &&
-		config.UseTitleAsValue == config.UseMessageAsValue {
+	if c.UseTitleAsValue != DisabledValue &&
+		c.UseTitleAsValue == c.UseMessageAsValue {
 		return ErrTitleMessageConflict
 	}
 
 	if url.String() != "ifttt://dummy@dummy.com" {
-		if len(config.Events) < MinLength {
+		if len(c.Events) < MinLength {
 			return ErrMissingEvents
 		}
 
-		if len(config.WebHookID) < MinLength {
+		if len(c.WebHookID) < MinLength {
 			return ErrMissingWebhookID
 		}
 	}

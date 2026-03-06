@@ -32,29 +32,29 @@ type Config struct {
 }
 
 // Enums returns the fields that use an EnumFormatter for their values.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"ParseMode": ParseModes.Enum,
 	}
 }
 
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	tokenParts := strings.Split(config.Token, ":")
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	tokenParts := strings.Split(c.Token, ":")
 
 	return &url.URL{
 		User:       url.UserPassword(tokenParts[0], tokenParts[1]),
@@ -66,7 +66,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	password, _ := url.User.Password()
 
 	token := url.User.Username() + ":" + password
@@ -83,12 +83,12 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	if url.String() != "telegram://dummy@dummy.com" {
-		if len(config.Chats) < 1 {
+		if len(c.Chats) < 1 {
 			return ErrNoChannelsDefined
 		}
 	}
 
-	config.Token = token
+	c.Token = token
 
 	return nil
 }

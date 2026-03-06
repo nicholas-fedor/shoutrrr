@@ -20,10 +20,10 @@ type Service struct {
 }
 
 // Send delivers an SMS message via Twilio to all configured recipients.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
-	err := service.pkr.UpdateConfigFromParams(config, params)
+	err := s.pkr.UpdateConfigFromParams(config, params)
 	if err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
@@ -31,7 +31,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	var errs []error
 
 	for _, toNumber := range config.ToNumbers {
-		err := service.sendToRecipient(config, toNumber, message)
+		err := s.sendToRecipient(config, toNumber, message)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("sending to %s: %w", toNumber, err))
 		}
@@ -41,13 +41,13 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.HTTPClient = DefaultHTTPClient()
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.HTTPClient = DefaultHTTPClient()
 
-	err := service.Config.setURL(&service.pkr, configURL)
+	err := s.Config.setURL(&s.pkr, configURL)
 	if err != nil {
 		return err
 	}
@@ -56,6 +56,6 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }

@@ -77,13 +77,13 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 }
 
 // WebhookURL returns the configured webhook URL, adjusted for TLS settings.
-func (config *Config) WebhookURL() *url.URL {
+func (c *Config) WebhookURL() *url.URL {
 	// Copy the URL to modify
-	webhookURL := *config.webhookURL
+	webhookURL := *c.webhookURL
 	// Set default HTTPS scheme
 	webhookURL.Scheme = DefaultWebhookScheme
 
-	if config.DisableTLS {
+	if c.DisableTLS {
 		// Use HTTP if TLS is disabled
 		webhookURL.Scheme = "http"
 	}
@@ -92,33 +92,33 @@ func (config *Config) WebhookURL() *url.URL {
 }
 
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
+func (c *Config) GetURL() *url.URL {
 	// Create resolver for this config
-	resolver := format.NewPropKeyResolver(config)
+	resolver := format.NewPropKeyResolver(c)
 
 	// Generate URL using resolver
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a service URL.
-func (config *Config) SetURL(serviceURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	// Create resolver for this config
-	resolver := format.NewPropKeyResolver(config)
+	resolver := format.NewPropKeyResolver(c)
 
 	// Parse and set URL
-	return config.setURL(&resolver, serviceURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL generates a service URL from the configuration using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Copy webhook URL
-	serviceURL := *config.webhookURL
+	serviceURL := *c.webhookURL
 	// Get existing query params
-	webhookQuery := config.webhookURL.Query()
+	webhookQuery := c.webhookURL.Query()
 	// Build query with config fields
 	serviceQuery := format.BuildQueryWithCustomFields(resolver, webhookQuery)
 	// Add custom headers and extra data
-	appendCustomQueryValues(serviceQuery, config.headers, config.extraData)
+	appendCustomQueryValues(serviceQuery, c.headers, c.extraData)
 	// Encode the query
 	serviceURL.RawQuery = serviceQuery.Encode()
 	// Set service scheme
@@ -128,7 +128,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Copy service URL
 	webhookURL := *serviceURL
 	// Extract query parameters
@@ -145,11 +145,11 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 	// Update URL with remaining query
 	webhookURL.RawQuery = customQuery.Encode()
 	// Assign webhook URL
-	config.webhookURL = &webhookURL
+	c.webhookURL = &webhookURL
 	// Assign extracted headers
-	config.headers = headers
+	c.headers = headers
 	// Assign extracted extra data
-	config.extraData = extraData
+	c.extraData = extraData
 
 	return nil
 }

@@ -33,28 +33,28 @@ var ErrSendFailed = errors.New(
 )
 
 // GetHTTPClient returns the service's HTTP client for testing purposes.
-func (service *Service) GetHTTPClient() *http.Client {
-	return service.httpClient
+func (s *Service) GetHTTPClient() *http.Client {
+	return s.httpClient
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	err := service.Config.setURL(&service.pkr, configURL)
+	err := s.Config.setURL(&s.pkr, configURL)
 	if err != nil {
 		return err
 	}
 
 	var transport *http.Transport
-	if service.Config.DisableTLS {
+	if s.Config.DisableTLS {
 		transport = &http.Transport{
 			TLSClientConfig: nil, // Plain HTTP
 		}
@@ -67,17 +67,17 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		}
 	}
 
-	service.httpClient = &http.Client{Transport: transport}
+	s.httpClient = &http.Client{Transport: transport}
 
 	return nil
 }
 
 // Send delivers a notification message to Mattermost.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 	apiURL := buildURL(config)
 
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := service.httpClient.Do(req)
+	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
 	}

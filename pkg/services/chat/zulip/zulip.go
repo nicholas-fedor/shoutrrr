@@ -39,9 +39,9 @@ type Service struct {
 }
 
 // Send delivers a notification message to Zulip.
-func (service *Service) Send(message string, params *types.Params) error {
+func (s *Service) Send(message string, params *types.Params) error {
 	// Clone the config to avoid modifying the original for this send operation.
-	config := service.Config.Clone()
+	config := s.Config.Clone()
 
 	if params != nil {
 		if stream, found := (*params)["stream"]; found {
@@ -68,15 +68,15 @@ func (service *Service) Send(message string, params *types.Params) error {
 		)
 	}
 
-	return service.doSend(config, message)
+	return s.doSend(config, message)
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
 
-	if err := service.Config.setURL(nil, configURL); err != nil {
+	if err := s.Config.setURL(nil, configURL); err != nil {
 		return err
 	}
 
@@ -84,15 +84,15 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // doSend sends the notification to Zulip using the configured API URL.
 //
 //nolint:gosec,noctx // Ignoring G107: Potential HTTP request made with variable url
-func (service *Service) doSend(config *Config, message string) error {
-	apiURL := service.getAPIURL(config)
+func (s *Service) doSend(config *Config, message string) error {
+	apiURL := s.getAPIURL(config)
 
 	// Validate the host to mitigate SSRF risks
 	if !hostValidator.MatchString(config.Host) {
@@ -120,7 +120,7 @@ func (service *Service) doSend(config *Config, message string) error {
 }
 
 // getAPIURL constructs the API URL for Zulip based on the Config.
-func (service *Service) getAPIURL(config *Config) string {
+func (s *Service) getAPIURL(config *Config) string {
 	return (&url.URL{
 		User:   url.UserPassword(config.BotMail, config.BotKey),
 		Host:   config.Host,

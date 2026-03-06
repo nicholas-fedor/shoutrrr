@@ -30,29 +30,29 @@ type Service struct {
 }
 
 // Send delivers a notification message to Telegram.
-func (service *Service) Send(message string, params *types.Params) error {
+func (s *Service) Send(message string, params *types.Params) error {
 	if len(message) > maxlength {
 		return ErrMessageTooLong
 	}
 
-	config := *service.Config
-	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return service.sendMessageForChatIDs(message, &config)
+	return s.sendMessageForChatIDs(message, &config)
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{
 		Preview:      true,
 		Notification: true,
 	}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
 		return err
 	}
 
@@ -60,13 +60,13 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // sendMessageForChatIDs sends the message to all configured chat IDs.
-func (service *Service) sendMessageForChatIDs(message string, config *Config) error {
-	for _, chat := range service.Config.Chats {
+func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
+	for _, chat := range s.Config.Chats {
 		if err := sendMessageToAPI(message, chat, config); err != nil {
 			return err
 		}
@@ -76,8 +76,8 @@ func (service *Service) sendMessageForChatIDs(message string, config *Config) er
 }
 
 // GetConfig returns the current configuration for the service.
-func (service *Service) GetConfig() *Config {
-	return service.Config
+func (s *Service) GetConfig() *Config {
+	return s.Config
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.

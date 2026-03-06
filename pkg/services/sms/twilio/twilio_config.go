@@ -40,28 +40,28 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 }
 
 // GetURL returns a URL representation of its current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	config.AccountSID = url.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	c.AccountSID = url.User.Username()
 
 	password, _ := url.User.Password()
-	config.AuthToken = password
+	c.AuthToken = password
 
-	config.FromNumber = normalizePhoneNumber(url.Host)
-	config.ToNumbers = parseToNumbers(url.Path)
+	c.FromNumber = normalizePhoneNumber(url.Host)
+	c.ToNumbers = parseToNumbers(url.Path)
 
 	for key, vals := range url.Query() {
 		err := resolver.Set(key, vals[0])
@@ -71,7 +71,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	if url.String() != "twilio://dummy@dummy.com" {
-		return config.validate()
+		return c.validate()
 	}
 
 	return nil
@@ -98,26 +98,26 @@ func parseToNumbers(path string) []string {
 }
 
 // validate checks that all required Config fields are present and consistent.
-func (config *Config) validate() error {
-	if config.AccountSID == "" {
+func (c *Config) validate() error {
+	if c.AccountSID == "" {
 		return ErrAccountSIDMissing
 	}
 
-	if config.AuthToken == "" {
+	if c.AuthToken == "" {
 		return ErrAuthTokenMissing
 	}
 
-	if config.FromNumber == "" {
+	if c.FromNumber == "" {
 		return ErrFromNumberMissing
 	}
 
-	if len(config.ToNumbers) == 0 {
+	if len(c.ToNumbers) == 0 {
 		return ErrToNumbersMissing
 	}
 
 	// Twilio rejects calls/messages where To == From.
-	if !strings.HasPrefix(config.FromNumber, msgServicePrefix) {
-		if slices.Contains(config.ToNumbers, config.FromNumber) {
+	if !strings.HasPrefix(c.FromNumber, msgServicePrefix) {
+		if slices.Contains(c.ToNumbers, c.FromNumber) {
 			return ErrToFromNumberSame
 		}
 	}
@@ -126,13 +126,13 @@ func (config *Config) validate() error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	path := "/" + strings.Join(config.ToNumbers, "/")
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	path := "/" + strings.Join(c.ToNumbers, "/")
 
 	return &url.URL{
 		Scheme:     Scheme,
-		User:       url.UserPassword(config.AccountSID, config.AuthToken),
-		Host:       config.FromNumber,
+		User:       url.UserPassword(c.AccountSID, c.AuthToken),
+		Host:       c.FromNumber,
 		Path:       path,
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),

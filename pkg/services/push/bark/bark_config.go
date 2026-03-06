@@ -38,13 +38,13 @@ const (
 var ErrSetQueryFailed = errors.New("failed to set query parameter")
 
 // GetAPIURL constructs the API URL for the specified endpoint using the current configuration.
-func (config *Config) GetAPIURL(endpoint string) string {
+func (c *Config) GetAPIURL(endpoint string) string {
 	path := strings.Builder{}
-	if !strings.HasPrefix(config.Path, "/") {
+	if !strings.HasPrefix(c.Path, "/") {
 		path.WriteByte('/')
 	}
 
-	path.WriteString(config.Path)
+	path.WriteString(c.Path)
 
 	if !strings.HasSuffix(path.String(), "/") {
 		path.WriteByte('/')
@@ -53,8 +53,8 @@ func (config *Config) GetAPIURL(endpoint string) string {
 	path.WriteString(endpoint)
 
 	apiURL := url.URL{
-		Scheme: config.Scheme,
-		Host:   config.Host,
+		Scheme: c.Scheme,
+		Host:   c.Host,
 		Path:   path.String(),
 	}
 
@@ -62,35 +62,35 @@ func (config *Config) GetAPIURL(endpoint string) string {
 }
 
 // GetURL returns a URL representation of the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		User:       url.UserPassword("", config.DeviceKey),
-		Host:       config.Host,
+		User:       url.UserPassword("", c.DeviceKey),
+		Host:       c.Host,
 		Scheme:     Scheme,
 		ForceQuery: true,
-		Path:       config.Path,
+		Path:       c.Path,
 		RawQuery:   format.BuildQuery(resolver),
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	password, _ := url.User.Password()
-	config.DeviceKey = password
-	config.Host = url.Host
-	config.Path = url.Path
+	c.DeviceKey = password
+	c.Host = url.Host
+	c.Path = url.Path
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {

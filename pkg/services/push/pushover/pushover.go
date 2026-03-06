@@ -35,14 +35,14 @@ type Service struct {
 }
 
 // Send delivers a notification message to Pushover.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	device := strings.Join(config.Devices, ",")
-	if err := service.sendToDevice(device, message, config); err != nil {
+	if err := s.sendToDevice(device, message, config); err != nil {
 		return fmt.Errorf("failed to send notifications to pushover devices: %w", err)
 	}
 
@@ -50,7 +50,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // sendToDevice sends a notification to a specific Pushover device.
-func (service *Service) sendToDevice(device, message string, config *Config) error {
+func (s *Service) sendToDevice(device, message string, config *Config) error {
 	data := url.Values{}
 	data.Set("device", device)
 	data.Set("user", config.User)
@@ -80,7 +80,7 @@ func (service *Service) sendToDevice(device, message string, config *Config) err
 
 	req.Header.Set("Content-Type", contentType)
 
-	res, err := service.Client.Do(req)
+	res, err := s.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request to Pushover API: %w", err)
 	}
@@ -95,15 +95,15 @@ func (service *Service) sendToDevice(device, message string, config *Config) err
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.Client = &http.Client{
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.Client = &http.Client{
 		Timeout: defaultHTTPTimeout,
 	}
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
 		return err
 	}
 
@@ -111,6 +111,6 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }

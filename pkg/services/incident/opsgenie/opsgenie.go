@@ -36,7 +36,7 @@ type Service struct {
 }
 
 // sendAlert sends an alert to OpsGenie using the specified URL and API key.
-func (service *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
+func (s *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
@@ -80,35 +80,35 @@ func (service *Service) sendAlert(url, apiKey string, payload AlertPayload) erro
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return service.Config.setURL(&service.pkr, configURL)
+	return s.Config.setURL(&s.pkr, configURL)
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Send delivers a notification message to OpsGenie.
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 	endpointURL := fmt.Sprintf(alertEndpointTemplate, config.Host, config.Port)
 
-	payload, err := service.newAlertPayload(message, params)
+	payload, err := s.newAlertPayload(message, params)
 	if err != nil {
 		return err
 	}
 
-	return service.sendAlert(endpointURL, config.APIKey, payload)
+	return s.sendAlert(endpointURL, config.APIKey, payload)
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
-func (service *Service) newAlertPayload(
+func (s *Service) newAlertPayload(
 	message string,
 	params *types.Params,
 ) (AlertPayload, error) {
@@ -117,9 +117,9 @@ func (service *Service) newAlertPayload(
 	}
 
 	// Defensive copy
-	payloadFields := *service.Config
+	payloadFields := *s.Config
 
-	if err := service.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
 	}
 

@@ -31,8 +31,8 @@ type Service struct {
 }
 
 // Send delivers a notification message to Join devices.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
 	if params == nil {
 		params = &types.Params{}
@@ -50,11 +50,11 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	devices := strings.Join(config.Devices, ",")
 
-	return service.sendToDevices(devices, message, title, icon)
+	return s.sendToDevices(devices, message, title, icon)
 }
 
-func (service *Service) sendToDevices(devices, message, title, icon string) error {
-	config := service.Config
+func (s *Service) sendToDevices(devices, message, title, icon string) error {
+	config := s.Config
 
 	apiURL, err := url.Parse(hookURL)
 	if err != nil {
@@ -98,12 +98,12 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
 		return err
 	}
 
@@ -111,6 +111,6 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }

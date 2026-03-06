@@ -37,17 +37,17 @@ type Config struct {
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // GetURL returns a URL representation of the current configuration.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // getURL generates a URL from the current configuration values.
@@ -58,17 +58,17 @@ func (config *Config) GetURL() *url.URL {
 //   - resolver: Configuration resolver for building query parameters from config fields
 //
 // Returns: *url.URL containing the complete configuration as a URL.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Build base query string from configuration fields using the resolver
 	query := format.BuildQuery(resolver)
 
 	// Handle extras serialization if present
-	if config.Extras != nil {
+	if c.Extras != nil {
 		// Marshal extras map to JSON string
-		extrasJSON, err := json.Marshal(config.Extras)
+		extrasJSON, err := json.Marshal(c.Extras)
 		if err != nil {
 			// Skip adding extras when Extras cannot be serialized
-			log.Printf("Failed to marshal Extras %v: %v, skipping extras", config.Extras, err)
+			log.Printf("Failed to marshal Extras %v: %v, skipping extras", c.Extras, err)
 		} else {
 			// Append extras to query string with proper URL encoding
 			if query != "" {
@@ -81,11 +81,11 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	// Construct and return the complete URL
 	return &url.URL{
-		Host:       config.Host,                // Server hostname and port
-		Scheme:     Scheme,                     // URL scheme (gotify)
-		ForceQuery: false,                      // Don't force query string presence
-		Path:       config.Path + config.Token, // Path with token appended
-		RawQuery:   query,                      // Query parameters including extras
+		Host:       c.Host,           // Server hostname and port
+		Scheme:     Scheme,           // URL scheme (gotify)
+		ForceQuery: false,            // Don't force query string presence
+		Path:       c.Path + c.Token, // Path with token appended
+		RawQuery:   query,            // Query parameters including extras
 	}
 }
 
@@ -98,7 +98,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - url: The URL to parse configuration values from
 //
 // Returns: error if URL parsing or parameter processing fails.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	// Extract and clean the path from the URL
 	path := url.Path
 	if len(path) > 0 && path[len(path)-1] == '/' {
@@ -109,17 +109,17 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	tokenIndex := strings.LastIndex(path, "/") + 1
 
 	// Extract path component (everything before the token)
-	config.Path = path[:tokenIndex]
-	if config.Path == "/" {
-		config.Path = config.Path[1:] // Remove leading slash to normalize empty path
+	c.Path = path[:tokenIndex]
+	if c.Path == "/" {
+		c.Path = c.Path[1:] // Remove leading slash to normalize empty path
 	}
 
 	// Set host and token from URL components
-	config.Host = url.Host
-	config.Token = path[tokenIndex:]
+	c.Host = url.Host
+	c.Token = path[tokenIndex:]
 
 	// Process query parameters to set remaining configuration fields
-	if err := config.processQueryParameters(resolver, url.Query()); err != nil {
+	if err := c.processQueryParameters(resolver, url.Query()); err != nil {
 		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 
@@ -134,7 +134,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 //   - query: URL query parameters to process
 //
 // Returns: error if parameter parsing or setting fails.
-func (config *Config) processQueryParameters(
+func (c *Config) processQueryParameters(
 	resolver types.ConfigQueryResolver,
 	query url.Values,
 ) error {
@@ -144,9 +144,9 @@ func (config *Config) processQueryParameters(
 			// Special handling for extras JSON parameter
 			if query.Get(key) != "" {
 				// Initialize extras map
-				config.Extras = make(map[string]any)
+				c.Extras = make(map[string]any)
 				// Parse JSON string into map
-				if err := json.Unmarshal([]byte(query.Get(key)), &config.Extras); err != nil {
+				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras); err != nil {
 					return fmt.Errorf("%w", ErrExtrasParseFailed)
 				}
 			}

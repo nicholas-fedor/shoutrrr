@@ -30,24 +30,24 @@ type Config struct {
 }
 
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		Host:       config.Token,
-		Path:       "/" + strings.Join(config.Targets, "/"),
+		Host:       c.Token,
+		Path:       "/" + strings.Join(c.Targets, "/"),
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),
@@ -55,7 +55,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	path := url.Path
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
@@ -74,8 +74,8 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		}
 	}
 
-	config.Token = token
-	config.Targets = targets
+	c.Token = token
+	c.Targets = targets
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {

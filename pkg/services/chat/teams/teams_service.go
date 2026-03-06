@@ -28,7 +28,7 @@ const MaxSummaryLength = 20
 const TruncatedSummaryLen = 21
 
 // GetConfigURLFromCustom converts a custom URL to a service URL.
-func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+func (s *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	webhookURLStr := strings.TrimPrefix(customURL.String(), "teams+")
 
 	tempURL, err := url.Parse(webhookURLStr)
@@ -68,31 +68,31 @@ func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, er
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return service.Config.SetURL(configURL)
+	return s.Config.SetURL(configURL)
 }
 
 // Send delivers a notification message to Microsoft Teams.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		service.Logf("Failed to update params: %v", err)
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
+		s.Logf("Failed to update params: %v", err)
 	}
 
-	return service.doSend(config, message)
+	return s.doSend(config, message)
 }
 
 // doSend sends the notification to Teams using the configured webhook URL.
-func (service *Service) doSend(config *Config, message string) error {
+func (s *Service) doSend(config *Config, message string) error {
 	lines := strings.Split(message, "\n")
 	sections := make([]section, 0, len(lines))
 

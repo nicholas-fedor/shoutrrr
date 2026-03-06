@@ -30,22 +30,22 @@ type Service struct {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
-func (service *Service) SetHTTPClient(httpClient *http.Client) {
-	service.httpClient = httpClient
-	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
+func (s *Service) SetHTTPClient(httpClient *http.Client) {
+	s.httpClient = httpClient
+	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
 }
 
 // Send delivers a notification message to ntfy.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
 	// Update config with runtime parameters
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	// Execute the API request to send the notification
-	if err := service.sendAPI(config, message); err != nil {
+	if err := s.sendAPI(config, message); err != nil {
 		return fmt.Errorf("failed to send ntfy notification: %w", err)
 	}
 
@@ -53,63 +53,63 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	_ = service.pkr.SetDefaultProps(service.Config)
+	_ = s.pkr.SetDefaultProps(s.Config)
 
-	err := service.Config.setURL(&service.pkr, configURL)
+	err := s.Config.setURL(&s.pkr, configURL)
 	if err != nil {
 		return err
 	}
 
 	// Force HTTP scheme when DisableTLS is true
-	if service.Config.DisableTLS {
-		service.Config.Scheme = "http"
+	if s.Config.DisableTLS {
+		s.Config.Scheme = "http"
 	}
 
-	service.httpClient = &http.Client{
+	s.httpClient = &http.Client{
 		Timeout: HTTPTimeout * time.Second,
 	}
 
 	// Configure HTTP transport: skip TLS verification if disabled, enforce TLS 1.2 minimum
-	if service.Config.DisableTLSVerification {
-		service.httpClient.Transport = &http.Transport{
+	if s.Config.DisableTLSVerification {
+		s.httpClient.Transport = &http.Transport{
 			//nolint:gosec // TLS verification intentionally disabled
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,
 			},
 		}
-		service.Log("Warning: TLS verification is disabled, making connections insecure")
+		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	} else {
-		service.httpClient.Transport = &http.Transport{
+		s.httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		}
-		service.Log(
+		s.Log(
 			"Using custom HTTP transport with TLS verification enabled and TLS 1.2 enforced",
 		)
 	}
 
-	service.client = jsonclient.NewWithHTTPClient(service.httpClient)
+	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
 
 	return nil
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // sendAPI sends a notification to the ntfy API.
-func (service *Service) sendAPI(config *Config, message string) error {
+func (s *Service) sendAPI(config *Config, message string) error {
 	response := apiResponse{}
 	request := message
 
 	// Prepare request headers
-	headers := service.client.Headers()
+	headers := s.client.Headers()
 	headers.Del("Content-Type")
 	headers.Set("Content-Type", "text/plain; charset=utf-8")
 	headers.Set("User-Agent", "shoutrrr/"+meta.Version)
@@ -141,17 +141,17 @@ func (service *Service) sendAPI(config *Config, message string) error {
 	}
 
 	// Send the HTTP request
-	if err := service.client.Post(config.GetAPIURL(), request, &response); err != nil {
-		service.Logf("NTFY API request failed with error: %v", err)
+	if err := s.client.Post(config.GetAPIURL(), request, &response); err != nil {
+		s.Logf("NTFY API request failed with error: %v", err)
 		// Attempt to parse structured error response from API
-		if service.client.ErrorResponse(err, &response) {
+		if s.client.ErrorResponse(err, &response) {
 			return &response
 		}
 
 		return fmt.Errorf("posting to ntfy API: %w", err)
 	}
 
-	service.Logf("NTFY API request succeeded")
+	s.Logf("NTFY API request succeeded")
 
 	return nil
 }

@@ -27,52 +27,52 @@ type Config struct {
 }
 
 // Enums returns a map of enum formatters (none for this service).
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL constructs a URL from the Config fields.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // getURL constructs a URL using the provided resolver.
-func (config *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Scheme:     Scheme,
-		Host:       config.Key,
+		Host:       c.Key,
 		ForceQuery: false,
 	}
 }
 
 // SetURL updates the Config from a URL.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	// Handle dummy URL used for documentation generation
 	if url.String() == "wecom://dummy@dummy.com" {
-		config.Key = "dummy-webhook-key"
+		c.Key = "dummy-webhook-key"
 
 		return nil
 	}
 
 	// Extract key from host
-	config.Key = url.Host
+	c.Key = url.Host
 
 	// Validate key format (alphanumeric, hyphens, underscores only)
-	if config.Key == "" {
+	if c.Key == "" {
 		return ErrEmptyKey
 	}
 
-	if strings.ContainsAny(config.Key, "@!#$%^&*()+=[]{}|\\:;\"'<>?,./") {
-		return fmt.Errorf("%w: %s", ErrInvalidKey, config.Key)
+	if strings.ContainsAny(c.Key, "@!#$%^&*()+=[]{}|\\:;\"'<>?,./") {
+		return fmt.Errorf("%w: %s", ErrInvalidKey, c.Key)
 	}
 
 	// Handle query parameters

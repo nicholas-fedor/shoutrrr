@@ -42,13 +42,13 @@ type Service struct {
 }
 
 // Send delivers a notification message to WeCom.
-func (service *Service) Send(message string, params *types.Params) error {
+func (s *Service) Send(message string, params *types.Params) error {
 	if len(message) > maxLength {
 		return ErrLargeMessage
 	}
 
-	config := *service.Config
-	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating params: %w", err)
 	}
 
@@ -56,55 +56,55 @@ func (service *Service) Send(message string, params *types.Params) error {
 		return ErrKeyRequired
 	}
 
-	return service.doSend(config, message, params)
+	return s.doSend(config, message, params)
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return service.Config.SetURL(configURL)
+	return s.Config.SetURL(configURL)
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // doSend sends the notification to WeCom using the configured API URL.
-func (service *Service) doSend(config Config, message string, params *types.Params) error {
+func (s *Service) doSend(config Config, message string, params *types.Params) error {
 	postURL := fmt.Sprintf(apiURL, config.Key)
 
-	payload, err := service.preparePayload(message, config, params)
+	payload, err := s.preparePayload(message, config, params)
 	if err != nil {
 		return err
 	}
 
-	return service.sendRequest(postURL, payload)
+	return s.sendRequest(postURL, payload)
 }
 
 // preparePayload constructs and marshals the request payload for the WeCom API.
-func (service *Service) preparePayload(
+func (s *Service) preparePayload(
 	message string,
 	config Config,
 	params *types.Params,
 ) ([]byte, error) {
-	body := service.getRequestBody(message, config, params)
+	body := s.getRequestBody(message, config, params)
 
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	service.Logf("WeCom Request Body: %s", string(data))
+	s.Logf("WeCom Request Body: %s", string(data))
 
 	return data, nil
 }
 
 // sendRequest performs the HTTP POST request to the WeCom API and handles the response.
-func (service *Service) sendRequest(postURL string, payload []byte) error {
+func (s *Service) sendRequest(postURL string, payload []byte) error {
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -124,11 +124,11 @@ func (service *Service) sendRequest(postURL string, payload []byte) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	return service.handleResponse(resp)
+	return s.handleResponse(resp)
 }
 
 // handleResponse processes the API response and checks for errors.
-func (service *Service) handleResponse(resp *http.Response) error {
+func (s *Service) handleResponse(resp *http.Response) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: unexpected status %s", ErrSendFailed, resp.Status)
 	}
@@ -152,13 +152,13 @@ func (service *Service) handleResponse(resp *http.Response) error {
 		)
 	}
 
-	service.Logf("Notification sent successfully to WeCom webhook")
+	s.Logf("Notification sent successfully to WeCom webhook")
 
 	return nil
 }
 
 // getRequestBody constructs the request body for the WeCom API.
-func (service *Service) getRequestBody(
+func (s *Service) getRequestBody(
 	message string,
 	config Config,
 	_ *types.Params,

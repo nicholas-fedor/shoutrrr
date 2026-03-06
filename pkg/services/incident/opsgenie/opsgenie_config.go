@@ -39,29 +39,29 @@ const (
 var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
 
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var host string
-	if config.Port > 0 {
-		host = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	if c.Port > 0 {
+		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
 	} else {
-		host = config.Host
+		host = c.Host
 	}
 
 	result := &url.URL{
 		Host:     host,
-		Path:     "/" + config.APIKey,
+		Path:     "/" + c.APIKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
@@ -70,19 +70,19 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	config.Host = url.Hostname()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	c.Host = url.Hostname()
 
 	if url.String() != "opsgenie://dummy@dummy.com" {
 		if len(url.Path) > 0 {
-			config.APIKey = url.Path[1:]
+			c.APIKey = url.Path[1:]
 		} else {
 			return ErrAPIKeyMissing
 		}
@@ -94,9 +94,9 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 			return fmt.Errorf("parsing port %q: %w", url.Port(), err)
 		}
 
-		config.Port = uint16(port)
+		c.Port = uint16(port)
 	} else {
-		config.Port = defaultPort
+		c.Port = defaultPort
 	}
 
 	for key, vals := range url.Query() {

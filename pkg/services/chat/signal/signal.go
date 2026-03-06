@@ -35,17 +35,17 @@ var (
 )
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
 		return err
 	}
 
@@ -53,8 +53,8 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // Send delivers a notification message to Signal recipients.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := *service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := *s.Config
 
 	// Separate config params from message params (like attachments)
 	var (
@@ -68,7 +68,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 		for key, value := range *params {
 			// Check if this is a config parameter
-			if _, err := service.pkr.Get(key); err == nil {
+			if _, err := s.pkr.Get(key); err == nil {
 				// It's a valid config key
 				(*configParams)[key] = value
 			} else {
@@ -77,16 +77,16 @@ func (service *Service) Send(message string, params *types.Params) error {
 			}
 		}
 
-		if err := service.pkr.UpdateConfigFromParams(&config, configParams); err != nil {
+		if err := s.pkr.UpdateConfigFromParams(&config, configParams); err != nil {
 			return fmt.Errorf("updating config from params: %w", err)
 		}
 	}
 
-	return service.sendMessage(message, &config, messageParams)
+	return s.sendMessage(message, &config, messageParams)
 }
 
 // buildAPIURL constructs the Signal API endpoint URL.
-func (service *Service) buildAPIURL(config *Config) string {
+func (s *Service) buildAPIURL(config *Config) string {
 	scheme := "https"
 	if config.DisableTLS {
 		scheme = "http"
@@ -96,7 +96,7 @@ func (service *Service) buildAPIURL(config *Config) string {
 }
 
 // createPayload builds the JSON payload for the Signal API request.
-func (service *Service) createPayload(
+func (s *Service) createPayload(
 	message string,
 	config *Config,
 	params *types.Params,
@@ -126,11 +126,11 @@ func (service *Service) createPayload(
 }
 
 // createRequest builds the HTTP request for the Signal API.
-func (service *Service) createRequest(
+func (s *Service) createRequest(
 	config *Config,
 	payload sendMessagePayload,
 ) (*http.Request, context.CancelFunc, error) {
-	apiURL := service.buildAPIURL(config)
+	apiURL := s.buildAPIURL(config)
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -147,40 +147,40 @@ func (service *Service) createRequest(
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	service.setAuthentication(req, config)
+	s.setAuthentication(req, config)
 
 	return req, cancel, nil
 }
 
 // parseResponse extracts and logs response information.
-func (service *Service) parseResponse(resp *http.Response) {
+func (s *Service) parseResponse(resp *http.Response) {
 	var response sendMessageResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		service.Logf("Warning: failed to parse response: %v", err)
+		s.Logf("Warning: failed to parse response: %v", err)
 	} else {
-		service.Logf("Message sent successfully at timestamp %d", response.Timestamp)
+		s.Logf("Message sent successfully at timestamp %d", response.Timestamp)
 	}
 }
 
 // sendMessage sends a message to all configured recipients.
-func (service *Service) sendMessage(message string, config *Config, params *types.Params) error {
+func (s *Service) sendMessage(message string, config *Config, params *types.Params) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
 	}
 
-	payload := service.createPayload(message, config, params)
+	payload := s.createPayload(message, config, params)
 
-	req, cancel, err := service.createRequest(config, payload)
+	req, cancel, err := s.createRequest(config, payload)
 	if err != nil {
 		return err
 	}
 	defer cancel()
 
-	return service.sendRequest(req)
+	return s.sendRequest(req)
 }
 
 // sendRequest executes the HTTP request and handles the response.
-func (service *Service) sendRequest(req *http.Request) error {
+func (s *Service) sendRequest(req *http.Request) error {
 	client := &http.Client{}
 
 	resp, err := client.Do(req)
@@ -196,13 +196,13 @@ func (service *Service) sendRequest(req *http.Request) error {
 	}
 
 	// Parse response (optional, for logging)
-	service.parseResponse(resp)
+	s.parseResponse(resp)
 
 	return nil
 }
 
 // setAuthentication configures HTTP authentication headers.
-func (service *Service) setAuthentication(req *http.Request, config *Config) {
+func (s *Service) setAuthentication(req *http.Request, config *Config) {
 	// Add authentication - prefer Bearer token over Basic Auth
 	if config.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+config.Token)

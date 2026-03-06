@@ -48,12 +48,12 @@ var messageLevelStrings = [MessageLevelCount]string{
 	"Error",
 }
 
-func (level MessageLevel) String() string {
-	if level >= messageLevelCount {
+func (lvl MessageLevel) String() string {
+	if lvl >= messageLevelCount {
 		return messageLevelStrings[0]
 	}
 
-	return messageLevelStrings[level]
+	return messageLevelStrings[lvl]
 }
 
 // WithField appends the key/value pair to the message items fields.

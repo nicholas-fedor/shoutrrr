@@ -30,22 +30,22 @@ const defaultHTTPTimeout = 10 * time.Second
 var ErrNotificationFailed = errors.New("notification failed")
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
 
-	service.Config = &Config{}
-	if service.Client == nil {
-		service.Client = &http.Client{
+	s.Config = &Config{}
+	if s.Client == nil {
+		s.Client = &http.Client{
 			Timeout: defaultHTTPTimeout, // Set a default timeout
 		}
 	}
 
-	if err := service.Config.SetURL(configURL); err != nil {
+	if err := s.Config.SetURL(configURL); err != nil {
 		return err
 	}
 
@@ -53,12 +53,12 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // Send delivers a notification message to Rocket.Chat.
-func (service *Service) Send(message string, params *types.Params) error {
+func (s *Service) Send(message string, params *types.Params) error {
 	var res *http.Response
 
 	var err error
 
-	config := service.Config
+	config := s.Config
 	apiURL := buildURL(config)
 	json, _ := CreateJSONPayload(config, message, params)
 
@@ -72,7 +72,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err = service.Client.Do(req)
+	res, err = s.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf(
 			"posting to URL: %w\nHOST: %s\nPORT: %s",

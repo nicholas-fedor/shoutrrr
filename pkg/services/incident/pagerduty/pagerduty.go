@@ -36,12 +36,12 @@ type Service struct {
 
 // SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
 // requiring proxies, custom TLS configurations, etc.
-func (service *Service) SetHTTPClient(client *http.Client) {
-	service.httpClient = client
+func (s *Service) SetHTTPClient(client *http.Client) {
+	s.httpClient = client
 }
 
 // sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
-func (service *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
+func (s *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
 	// Marshal the payload into JSON format
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
@@ -60,12 +60,12 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 	req.Header.Add("Content-Type", "application/json")
 
 	// Use the custom HTTP client
-	if service.httpClient == nil {
+	if s.httpClient == nil {
 		return errServiceNotInitialized
 	}
 
 	// Send the HTTP request to PagerDuty
-	resp, err := service.httpClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
 	}
@@ -109,22 +109,22 @@ func (service *Service) sendAlert(ctx context.Context, url string, payload Event
 }
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.setDefaults(); err != nil {
+	if err := s.setDefaults(); err != nil {
 		return err
 	}
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
 		return err
 	}
 
-	if service.httpClient == nil {
+	if s.httpClient == nil {
 		// Initialize HTTP client with timeout
-		service.httpClient = &http.Client{
+		s.httpClient = &http.Client{
 			Timeout: defaultHTTPTimeout,
 		}
 	}
@@ -133,35 +133,35 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Send a notification message to PagerDuty
 // See: https://developer.pagerduty.com/docs/events-api-v2-overview
-func (service *Service) Send(message string, params *types.Params) error {
-	return service.SendWithContext(context.Background(), message, params)
+func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendWithContext(context.Background(), message, params)
 }
 
 // SendWithContext sends a notification message to PagerDuty with context support
 // See: https://developer.pagerduty.com/docs/events-api-v2-overview
-func (service *Service) SendWithContext(
+func (s *Service) SendWithContext(
 	ctx context.Context,
 	message string,
 	params *types.Params,
 ) error {
-	config := service.Config
+	config := s.Config
 	endpointURL := fmt.Sprintf(eventEndpointTemplate, config.Host, config.Port)
 
-	payload, err := service.newEventPayload(message, params)
+	payload, err := s.newEventPayload(message, params)
 	if err != nil {
 		return err
 	}
 
-	return service.sendAlert(ctx, endpointURL, payload)
+	return s.sendAlert(ctx, endpointURL, payload)
 }
 
-func (service *Service) newEventPayload(
+func (s *Service) newEventPayload(
 	message string,
 	params *types.Params,
 ) (EventPayload, error) {
@@ -170,9 +170,9 @@ func (service *Service) newEventPayload(
 	}
 
 	// Defensive copy
-	payloadFields := *service.Config
+	payloadFields := *s.Config
 
-	if err := service.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return EventPayload{}, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
@@ -272,8 +272,8 @@ func validateEventAction(action string) error {
 	return nil
 }
 
-func (service *Service) setDefaults() error {
-	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
+func (s *Service) setDefaults() error {
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("failed to set default props: %w", err)
 	}
 

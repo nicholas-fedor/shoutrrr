@@ -37,15 +37,15 @@ var (
 )
 
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	host := config.Host
-	if config.Port != "" {
-		host = fmt.Sprintf("%s:%s", config.Host, config.Port)
+func (c *Config) GetURL() *url.URL {
+	host := c.Host
+	if c.Port != "" {
+		host = fmt.Sprintf("%s:%s", c.Host, c.Port)
 	}
 
 	url := &url.URL{
 		Host:       host,
-		Path:       fmt.Sprintf("%s/%s", config.TokenA, config.TokenB),
+		Path:       fmt.Sprintf("%s/%s", c.TokenA, c.TokenB),
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
@@ -54,7 +54,7 @@ func (config *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(serviceURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
 	host := serviceURL.Hostname()
 
@@ -65,26 +65,26 @@ func (config *Config) SetURL(serviceURL *url.URL) error {
 		}
 	}
 
-	config.Port = serviceURL.Port()
-	config.UserName = userName
-	config.Host = host
+	c.Port = serviceURL.Port()
+	c.UserName = userName
+	c.Host = host
 
 	if len(path) > 1 {
-		config.TokenA = path[1]
+		c.TokenA = path[1]
 	}
 
 	if len(path) > TokenBIndex {
-		config.TokenB = path[TokenBIndex]
+		c.TokenB = path[TokenBIndex]
 	}
 
 	if len(path) > ChannelIndex {
 		switch {
 		case serviceURL.Fragment != "":
-			config.Channel = "#" + serviceURL.Fragment
+			c.Channel = "#" + serviceURL.Fragment
 		case !strings.HasPrefix(path[ChannelIndex], "@"):
-			config.Channel = "#" + path[ChannelIndex]
+			c.Channel = "#" + path[ChannelIndex]
 		default:
-			config.Channel = path[ChannelIndex]
+			c.Channel = path[ChannelIndex]
 		}
 	}
 

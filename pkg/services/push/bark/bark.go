@@ -27,37 +27,37 @@ var (
 )
 
 // GetID returns the identifier for the Bark service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize sets up the Service with configuration from configURL and assigns a logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	_ = service.pkr.SetDefaultProps(service.Config)
+	_ = s.pkr.SetDefaultProps(s.Config)
 
-	return service.Config.setURL(&service.pkr, configURL)
+	return s.Config.setURL(&s.pkr, configURL)
 }
 
 // Send transmits a notification message to Bark.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
 	}
 
-	if err := service.sendAPI(config, message); err != nil {
+	if err := s.sendAPI(config, message); err != nil {
 		return fmt.Errorf("failed to send bark notification: %w", err)
 	}
 
 	return nil
 }
 
-func (service *Service) sendAPI(config *Config, message string) error {
+func (s *Service) sendAPI(config *Config, message string) error {
 	response := APIResponse{}
 	request := PushPayload{
 		Body:      message,

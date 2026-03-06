@@ -28,30 +28,30 @@ const (
 )
 
 // GetURL returns a URL representation of it's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates a ServiceConfig from a URL representation of it's field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		User:       config.Token.UserInfo(),
-		Host:       config.Channel,
+		User:       c.Token.UserInfo(),
+		Host:       c.Channel,
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var token string
 
 	var err error
@@ -59,19 +59,19 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 	if len(serviceURL.Path) > 1 {
 		// Reading legacy config URL format
 		token = serviceURL.Hostname() + serviceURL.Path
-		config.Channel = "webhook"
-		config.BotName = serviceURL.User.Username()
+		c.Channel = "webhook"
+		c.BotName = serviceURL.User.Username()
 	} else {
 		token = serviceURL.User.String()
-		config.Channel = serviceURL.Hostname()
+		c.Channel = serviceURL.Hostname()
 	}
 
 	if serviceURL.String() != "slack://dummy@dummy.com" {
-		if err = config.Token.SetFromProp(token); err != nil {
+		if err = c.Token.SetFromProp(token); err != nil {
 			return err
 		}
 	} else {
-		config.Token.raw = token // Set raw token without validation
+		c.Token.raw = token // Set raw token without validation
 	}
 
 	for key, vals := range serviceURL.Query() {

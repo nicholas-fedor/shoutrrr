@@ -28,29 +28,29 @@ type Config struct {
 }
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL returns a URL representation of its current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	password, _ := url.User.Password()
-	config.User = url.Host
-	config.Token = password
+	c.User = url.Host
+	c.Token = password
 
 	for key, vals := range url.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
@@ -59,11 +59,11 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	}
 
 	if url.String() != "pushover://dummy@dummy.com" {
-		if len(config.User) < 1 {
+		if len(c.User) < 1 {
 			return ErrUserMissing
 		}
 
-		if len(config.Token) < 1 {
+		if len(c.Token) < 1 {
 			return ErrTokenMissing
 		}
 	}
@@ -72,10 +72,10 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		User:       url.UserPassword("Token", config.Token),
-		Host:       config.User,
+		User:       url.UserPassword("Token", c.Token),
+		Host:       c.User,
 		Scheme:     Scheme,
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),

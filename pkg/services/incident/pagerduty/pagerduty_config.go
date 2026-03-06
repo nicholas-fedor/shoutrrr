@@ -33,58 +33,58 @@ type Config struct {
 }
 
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var host string
-	if config.Port > 0 {
-		host = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	if c.Port > 0 {
+		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
 	} else {
-		host = config.Host
+		host = c.Host
 	}
 
 	return &url.URL{
 		Host:     host,
-		Path:     "/" + config.IntegrationKey,
+		Path:     "/" + c.IntegrationKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	if len(url.Path) <= 1 {
 		return errMissingIntegrationKey
 	}
 
-	config.IntegrationKey = url.Path[1:]
+	c.IntegrationKey = url.Path[1:]
 
 	// Validate integration key format
-	if matched, err := regexp.MatchString(integrationKeyRegex, config.IntegrationKey); err != nil {
+	if matched, err := regexp.MatchString(integrationKeyRegex, c.IntegrationKey); err != nil {
 		return fmt.Errorf("failed to validate integration key: %w", err)
 	} else if !matched {
 		return errInvalidIntegrationKey
 	}
 
 	if url.Hostname() != "" {
-		config.Host = url.Hostname()
+		c.Host = url.Hostname()
 	}
 
 	if url.Port() != "" {
@@ -93,7 +93,7 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 			return fmt.Errorf("failed to parse port: %w", err)
 		}
 
-		config.Port = uint16(port)
+		c.Port = uint16(port)
 	}
 
 	for key, vals := range url.Query() {
