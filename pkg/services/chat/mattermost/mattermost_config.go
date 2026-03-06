@@ -1,7 +1,6 @@
 package mattermost
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,9 +9,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
-
-// ErrorMessage represents error events within the Mattermost service.
-type ErrorMessage string
 
 // Config holds all configuration information for the Mattermost service.
 type Config struct {
@@ -29,13 +25,6 @@ type Config struct {
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "mattermost"
-
-// Static errors for configuration validation.
-var (
-	ErrNotEnoughArguments = errors.New(
-		"the apiURL does not include enough arguments, either provide 1 or 3 arguments (they may be empty)",
-	)
-)
 
 // CreateConfigFromURL creates a new Config instance from a URL representation.
 //

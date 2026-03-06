@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -26,11 +25,6 @@ type Service struct {
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
 const defaultHTTPTimeout = 10 * time.Second
-
-// ErrSendFailed indicates that the notification failed due to an unexpected response status code.
-var ErrSendFailed = errors.New(
-	"failed to send notification to service, response status code unexpected",
-)
 
 // GetHTTPClient returns the service's HTTP client for testing purposes.
 func (s *Service) GetHTTPClient() *http.Client {
@@ -55,9 +49,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 
 	var transport *http.Transport
 	if s.Config.DisableTLS {
-		transport = &http.Transport{
-			TLSClientConfig: nil, // Plain HTTP
-		}
+		transport = &http.Transport{} // Plain HTTP
 	} else {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -81,18 +73,30 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	json, _ := CreateJSONPayload(config, message, params)
+	json, err := CreateJSONPayload(config, message, params)
+	if err != nil {
+		return fmt.Errorf("creating JSON payload: %w", err)
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		apiURL.String(),
+		bytes.NewReader(json),
+	)
 	if err != nil {
 		return fmt.Errorf("creating POST request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	//nolint:gosec // URL is built safely using url.URL struct
 	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
@@ -108,11 +112,16 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // buildURL constructs the API URL for Mattermost based on the Config.
-func buildURL(config *Config) string {
+// Returns a *url.URL that is valid by construction.
+func buildURL(config *Config) *url.URL {
 	scheme := "https"
 	if config.DisableTLS {
 		scheme = "http"
 	}
 
-	return fmt.Sprintf("%s://%s/hooks/%s", scheme, config.Host, config.Token)
+	return &url.URL{
+		Scheme: scheme,
+		Host:   config.Host,
+		Path:   "/hooks/" + config.Token,
+	}
 }
