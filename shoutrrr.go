@@ -31,11 +31,6 @@ var defaultRouter = router.ServiceRouter{
 	Timeout: router.DefaultTimeout,
 }
 
-// SetLogger configures the logger for all services in the default router.
-func SetLogger(logger types.StdLogger) {
-	defaultRouter.SetLogger(logger)
-}
-
 // Send delivers a notification message using the specified URL.
 func Send(rawURL, message string) error {
 	service, err := defaultRouter.Locate(rawURL)
@@ -68,6 +63,11 @@ func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRo
 	}
 
 	return sr, nil
+}
+
+// SetLogger configures the logger for all services in the default router.
+func SetLogger(logger types.StdLogger) {
+	defaultRouter.SetLogger(logger)
 }
 
 // Version returns the current Shoutrrr version.
