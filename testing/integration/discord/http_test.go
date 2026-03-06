@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -182,7 +182,7 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 			Net: "tcp",
 			Err: &os.SyscallError{
 				Syscall: "connect",
-				Err:     syscall.ETIMEDOUT,
+				Err:     unix.ETIMEDOUT,
 			},
 		}
 		mockClient.On("Do", mock.Anything).

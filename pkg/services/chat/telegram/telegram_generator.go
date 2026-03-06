@@ -8,7 +8,8 @@ import (
 	"os/signal"
 	"slices"
 	"strconv"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -93,12 +94,17 @@ func (g *Generator) Generate(
 	signals := make(chan os.Signal, 1)
 
 	// Subscribe to system signals
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signals, unix.SIGINT, unix.SIGTERM)
 
 	for !g.done {
 		userDialog.Writelnf("Waiting for messages to arrive...")
 
-		updates, err := g.client.GetUpdates(lastUpdate, UpdatesLimit, UpdatesTimeout, nil)
+		updates, err := g.client.GetUpdates(
+			lastUpdate,
+			UpdatesLimit,
+			UpdatesTimeout,
+			nil,
+		)
 		if err != nil {
 			panic(err)
 		}
