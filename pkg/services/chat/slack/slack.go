@@ -126,7 +126,11 @@ func (s *Service) sendWebhook(config *Config, payload any) error {
 
 	defer func() { _ = res.Body.Close() }()
 
-	resBytes, _ := io.ReadAll(res.Body)
+	resBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	response := string(resBytes)
 
 	switch response {

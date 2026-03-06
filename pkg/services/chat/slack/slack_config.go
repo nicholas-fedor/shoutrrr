@@ -54,8 +54,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var token string
 
-	var err error
-
 	if len(serviceURL.Path) > 1 {
 		// Reading legacy config URL format
 		token = serviceURL.Hostname() + serviceURL.Path
@@ -67,7 +65,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	if serviceURL.String() != "slack://dummy@dummy.com" {
-		if err = c.Token.SetFromProp(token); err != nil {
+		if err := c.Token.SetFromProp(token); err != nil {
 			return err
 		}
 	} else {

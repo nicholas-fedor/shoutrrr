@@ -75,8 +75,13 @@ func CreateJSONPayload(config *Config, message string) any {
 		}
 
 		atts = append(atts, attachment{
-			Text:  line,
-			Color: config.Color,
+			Text:     line,
+			Color:    config.Color,
+			Title:    "",
+			Fallback: "",
+			Fields:   nil,
+			Footer:   "",
+			Time:     0,
 		})
 	}
 
@@ -90,6 +95,10 @@ func CreateJSONPayload(config *Config, message string) any {
 		Text:        config.Title,
 		BotName:     config.BotName,
 		Attachments: atts,
+		Blocks:      nil,
+		Channel:     "",
+		IconEmoji:   "",
+		IconURL:     "",
 	}
 
 	payload.SetIcon(config.Icon)
