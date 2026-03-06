@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -29,17 +28,22 @@ const (
 	defaultHTTPTimeout = 30 * time.Second
 )
 
-// ErrSendFailed indicates a failure to send a Signal message.
-var (
-	ErrSendFailed = errors.New("failed to send Signal message")
-)
-
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service identifier.
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - configURL: the configuration URL for the Signal service
+//   - logger: the logger to use for logging
+//
+// Returns:
+//   - error: if configuration fails, nil otherwise
 func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -53,6 +57,13 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 }
 
 // Send delivers a notification message to Signal recipients.
+//
+// Parameters:
+//   - message: the text message to send
+//   - params: optional parameters (e.g., attachments)
+//
+// Returns:
+//   - error: if the send operation fails, nil otherwise
 func (s *Service) Send(message string, params *types.Params) error {
 	config := *s.Config
 
@@ -85,7 +96,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.sendMessage(message, &config, messageParams)
 }
 
-// buildAPIURL constructs the Signal API endpoint URL.
+// buildAPIURL constructs the Signal API endpoint URL from the configuration.
+//
+// Parameters:
+//   - config: the service configuration
+//
+// Returns:
+//   - string: the full API endpoint URL
 func (s *Service) buildAPIURL(config *Config) string {
 	scheme := "https"
 	if config.DisableTLS {
@@ -96,15 +113,24 @@ func (s *Service) buildAPIURL(config *Config) string {
 }
 
 // createPayload builds the JSON payload for the Signal API request.
+//
+// Parameters:
+//   - message: the message text
+//   - config: the service configuration
+//   - params: optional parameters (may include attachments)
+//
+// Returns:
+//   - sendMessagePayload: the payload struct to be sent
 func (s *Service) createPayload(
 	message string,
 	config *Config,
 	params *types.Params,
 ) sendMessagePayload {
 	payload := sendMessagePayload{
-		Message:    message,
-		Number:     config.Source,
-		Recipients: config.Recipients,
+		Message:           message,
+		Number:            config.Source,
+		Recipients:        config.Recipients,
+		Base64Attachments: nil, // will be set if attachments provided
 	}
 
 	// Check for attachments in params (passed during Send call)
@@ -126,9 +152,18 @@ func (s *Service) createPayload(
 }
 
 // createRequest builds the HTTP request for the Signal API.
+//
+// Parameters:
+//   - config: the service configuration
+//   - payload: the payload to send (passed as pointer for efficiency)
+//
+// Returns:
+//   - *http.Request: the constructed HTTP request
+//   - context.CancelFunc: a function to cancel the request context
+//   - error: if request creation fails, nil otherwise
 func (s *Service) createRequest(
 	config *Config,
-	payload sendMessagePayload,
+	payload *sendMessagePayload,
 ) (*http.Request, context.CancelFunc, error) {
 	apiURL := s.buildAPIURL(config)
 
@@ -137,9 +172,17 @@ func (s *Service) createRequest(
 		return nil, nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		apiURL,
+		bytes.NewBuffer(jsonData),
+	)
 	if err != nil {
 		cancel()
 
@@ -152,7 +195,10 @@ func (s *Service) createRequest(
 	return req, cancel, nil
 }
 
-// parseResponse extracts and logs response information.
+// parseResponse reads and logs the response from the Signal API.
+//
+// Parameters:
+//   - resp: the HTTP response to parse
 func (s *Service) parseResponse(resp *http.Response) {
 	var response sendMessageResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -163,6 +209,14 @@ func (s *Service) parseResponse(resp *http.Response) {
 }
 
 // sendMessage sends a message to all configured recipients.
+//
+// Parameters:
+//   - message: the message text to send
+//   - config: the service configuration
+//   - params: optional parameters (e.g., attachments)
+//
+// Returns:
+//   - error: if sending fails, nil otherwise
 func (s *Service) sendMessage(message string, config *Config, params *types.Params) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
@@ -170,7 +224,7 @@ func (s *Service) sendMessage(message string, config *Config, params *types.Para
 
 	payload := s.createPayload(message, config, params)
 
-	req, cancel, err := s.createRequest(config, payload)
+	req, cancel, err := s.createRequest(config, &payload)
 	if err != nil {
 		return err
 	}
@@ -179,7 +233,13 @@ func (s *Service) sendMessage(message string, config *Config, params *types.Para
 	return s.sendRequest(req)
 }
 
-// sendRequest executes the HTTP request and handles the response.
+// sendRequest executes the HTTP request and processes the response.
+//
+// Parameters:
+//   - req: the HTTP request to execute
+//
+// Returns:
+//   - error: if the request fails or returns a non-success status, nil otherwise
 func (s *Service) sendRequest(req *http.Request) error {
 	client := &http.Client{}
 
@@ -201,7 +261,11 @@ func (s *Service) sendRequest(req *http.Request) error {
 	return nil
 }
 
-// setAuthentication configures HTTP authentication headers.
+// setAuthentication configures HTTP authentication headers on the request.
+//
+// Parameters:
+//   - req: the HTTP request to modify
+//   - config: the service configuration containing credentials
 func (s *Service) setAuthentication(req *http.Request, config *Config) {
 	// Add authentication - prefer Bearer token over Basic Auth
 	if config.Token != "" {

@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -15,13 +14,15 @@ import (
 )
 
 // Config holds settings for the Signal notification service.
+//
+//nolint:gosec // Password field has sensitive tag to prevent accidental logging
 type Config struct {
 	standard.EnumlessConfig
 
 	Host       string   `default:"localhost" desc:"Signal REST API server hostname or IP"      key:"host"`
 	Port       int      `default:"8080"      desc:"Signal REST API server port"                key:"port"`
 	User       string   `                    desc:"Username for HTTP Basic Auth"               key:"user"`
-	Password   string   `                    desc:"Password for HTTP Basic Auth"               key:"password"`
+	Password   string   `                    desc:"Password for HTTP Basic Auth"               key:"password"      sensitive:"true"`
 	Token      string   `                    desc:"API token for Bearer authentication"        key:"token,apikey"`
 	Source     string   `                    desc:"Source phone number (with country code)"    key:"source"`
 	Recipients []string `                    desc:"Recipient phone numbers or group IDs"       key:"recipients,to"`
@@ -41,15 +42,10 @@ var phoneRegex = regexp.MustCompile(`^\+?[0-9\s)(+-]+$`)
 // groupRegex validates group ID format.
 var groupRegex = regexp.MustCompile(`^group\.[a-zA-Z0-9_+/=-]+$`)
 
-// ErrInvalidPhoneNumber indicates an invalid phone number format.
-var (
-	ErrInvalidPhoneNumber = errors.New("invalid phone number format")
-	ErrInvalidGroupID     = errors.New("invalid group ID format")
-	ErrNoRecipients       = errors.New("no recipients specified")
-	ErrInvalidRecipient   = errors.New("invalid recipient: must be phone number or group ID")
-)
-
 // GetURL generates a URL from the current configuration values.
+//
+// Returns:
+//   - *url.URL: the generated URL representing the configuration.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -57,13 +53,25 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
-func (c *Config) SetURL(url *url.URL) error {
+//
+// Parameters:
+//   - configURL: the URL to parse configuration from
+//
+// Returns:
+//   - error: if parsing fails, nil otherwise
+func (c *Config) SetURL(configURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, configURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the configuration query resolver for property resolution
+//
+// Returns:
+//   - *url.URL: the constructed URL
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	recipients := strings.Join(c.Recipients, "/")
 
@@ -87,6 +95,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // parseAuth extracts user and password from the URL.
+//
+// Parameters:
+//   - serviceURL: the URL to extract authentication from
+//
+// Returns:
+//   - error: if extraction fails, nil otherwise
 func (c *Config) parseAuth(serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		c.User = serviceURL.User.Username()
@@ -99,6 +113,12 @@ func (c *Config) parseAuth(serviceURL *url.URL) error {
 }
 
 // parseHostPort extracts host and port from the URL.
+//
+// Parameters:
+//   - serviceURL: the URL to extract host and port from
+//
+// Returns:
+//   - error: if parsing fails, nil otherwise
 func (c *Config) parseHostPort(serviceURL *url.URL) error {
 	host, portStr, err := net.SplitHostPort(serviceURL.Host)
 	if err != nil {
@@ -119,6 +139,12 @@ func (c *Config) parseHostPort(serviceURL *url.URL) error {
 }
 
 // parsePath extracts source phone number and recipients from the URL path.
+//
+// Parameters:
+//   - serviceURL: the URL to extract path from
+//
+// Returns:
+//   - error: if parsing fails, nil otherwise
 func (c *Config) parsePath(serviceURL *url.URL) error {
 	pathParts := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
 	if len(pathParts) < minPathParts {
@@ -146,6 +172,13 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 
 // parseRecipients parses recipient phone numbers and group IDs from URL path segments.
 // It handles group IDs that may contain "/" characters by accumulating consecutive segments.
+//
+// Parameters:
+//   - pathParts: the URL path segments to parse
+//
+// Returns:
+//   - []string: the parsed recipients
+//   - error: if parsing fails, nil otherwise
 func parseRecipients(pathParts []string) ([]string, error) {
 	if len(pathParts) == 0 {
 		return nil, ErrNoRecipients
@@ -202,6 +235,13 @@ func parseRecipients(pathParts []string) ([]string, error) {
 }
 
 // parseQuery processes query parameters using the resolver.
+//
+// Parameters:
+//   - resolver: the configuration query resolver
+//   - serviceURL: the URL containing query parameters
+//
+// Returns:
+//   - error: if parsing fails, nil otherwise
 func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
@@ -213,6 +253,13 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the configuration query resolver
+//   - serviceURL: the URL to parse
+//
+// Returns:
+//   - error: if parsing fails, nil otherwise
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Handle dummy URL used for documentation generation
 	if serviceURL.String() == "signal://dummy@dummy.com" {
@@ -245,11 +292,23 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // isValidPhoneNumber checks if the string is a valid phone number.
+//
+// Parameters:
+//   - phone: the phone number string to validate
+//
+// Returns:
+//   - bool: true if valid, false otherwise
 func isValidPhoneNumber(phone string) bool {
 	return phoneRegex.MatchString(phone)
 }
 
 // isValidGroupID checks if the string is a valid group ID.
+//
+// Parameters:
+//   - groupID: the group ID string to validate
+//
+// Returns:
+//   - bool: true if valid, false otherwise
 func isValidGroupID(groupID string) bool {
 	return groupRegex.MatchString(groupID)
 }
