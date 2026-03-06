@@ -24,22 +24,22 @@ type Service struct {
 var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	//nolint:exhaustruct // Config is initialized with default values
-	service.Config = &Config{}
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
 
-	return service.Config.SetURL(configURL)
+	s.Config = &Config{}
+
+	return s.Config.SetURL(configURL)
 }
 
 // Send delivers a notification message to Google Chat.
-func (service *Service) Send(message string, _ *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, _ *types.Params) error {
+	config := s.Config
 
 	jsonBody, err := json.Marshal(JSON{Text: message})
 	if err != nil {
@@ -82,7 +82,6 @@ func getAPIURL(config *Config) *url.URL {
 	query.Set("key", config.Key)
 	query.Set("token", config.Token)
 
-	//nolint:exhaustruct // Only required fields are set
 	return &url.URL{
 		Path:     config.Path,
 		Host:     config.Host,

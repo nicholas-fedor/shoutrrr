@@ -6,21 +6,6 @@ type (
 	identifierType string
 )
 
-const (
-	apiLogin       = "/_matrix/client/r0/login"
-	apiRoomJoin    = "/_matrix/client/r0/join/%s"
-	apiSendMessage = "/_matrix/client/r0/rooms/%s/send/m.room.message"
-	apiJoinedRooms = "/_matrix/client/r0/joined_rooms"
-
-	contentType = "application/json"
-
-	accessTokenKey = "access_token"
-
-	msgTypeText       messageType    = "m.text"
-	flowLoginPassword flowType       = "m.login.password"
-	idTypeUser        identifierType = "m.id.user"
-)
-
 type apiResLoginFlows struct {
 	Flows []flow `json:"flows"`
 }
@@ -28,11 +13,13 @@ type apiResLoginFlows struct {
 type apiReqLogin struct {
 	Type       flowType    `json:"type"`
 	Identifier *identifier `json:"identifier"`
-	Password   string      `json:"password,omitempty"`
-	Token      string      `json:"token,omitempty"`
+	//nolint:gosec // Password is an API struct field for Matrix protocol authentication
+	Password string `json:"password,omitempty"`
+	Token    string `json:"token,omitempty"`
 }
 
 type apiResLogin struct {
+	//nolint:gosec // AccessToken is an API struct field for Matrix protocol authentication
 	AccessToken string `json:"access_token"`
 	HomeServer  string `json:"home_server"`
 	UserID      string `json:"user_id"`
@@ -61,10 +48,6 @@ type apiResError struct {
 	Code    string `json:"errcode"`
 }
 
-func (e *apiResError) Error() string {
-	return e.Message
-}
-
 type flow struct {
 	Type flowType `json:"type"`
 }
@@ -72,6 +55,25 @@ type flow struct {
 type identifier struct {
 	Type identifierType `json:"type"`
 	User string         `json:"user,omitempty"`
+}
+
+const (
+	apiLogin       = "/_matrix/client/r0/login"
+	apiRoomJoin    = "/_matrix/client/r0/join/%s"
+	apiSendMessage = "/_matrix/client/r0/rooms/%s/send/m.room.message"
+	apiJoinedRooms = "/_matrix/client/r0/joined_rooms"
+
+	contentType = "application/json"
+
+	accessTokenKey = "access_token"
+
+	msgTypeText       messageType    = "m.text"
+	flowLoginPassword flowType       = "m.login.password"
+	idTypeUser        identifierType = "m.id.user"
+)
+
+func (e *apiResError) Error() string {
+	return e.Message
 }
 
 func newUserIdentifier(user string) *identifier {

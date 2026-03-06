@@ -9,6 +9,18 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
+// Config for the Rocket.Chat service.
+type Config struct {
+	standard.EnumlessConfig
+
+	UserName string `optional:"" url:"user"`
+	Host     string `            url:"host"`
+	Port     string `            url:"port"`
+	TokenA   string `            url:"path1"`
+	Channel  string `            url:"path3"`
+	TokenB   string `            url:"path2"`
+}
+
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "rocketchat"
 
@@ -23,18 +35,6 @@ const (
 var (
 	ErrNotEnoughArguments = errors.New("the apiURL does not include enough arguments")
 )
-
-// Config for the Rocket.Chat service.
-type Config struct {
-	standard.EnumlessConfig
-
-	UserName string `optional:"" url:"user"`
-	Host     string `            url:"host"`
-	Port     string `            url:"port"`
-	TokenA   string `            url:"path1"`
-	Channel  string `            url:"path3"`
-	TokenB   string `            url:"path2"`
-}
 
 // GetURL returns a URL representation of the Config's current field values.
 func (config *Config) GetURL() *url.URL {

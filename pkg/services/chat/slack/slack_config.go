@@ -9,11 +9,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "slack"
-)
-
 // Config for the slack service.
 type Config struct {
 	standard.EnumlessConfig
@@ -26,6 +21,11 @@ type Config struct {
 	Channel  string `desc:"Channel to send messages to in Cxxxxxxxxxx format"                                                                                             url:"host"`
 	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                optional:""`
 }
+
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "slack"
+)
 
 // GetURL returns a URL representation of it's current field values.
 func (config *Config) GetURL() *url.URL {

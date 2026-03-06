@@ -15,14 +15,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// defaultHTTPTimeout is the default timeout for HTTP requests.
-const defaultHTTPTimeout = 10 * time.Second
-
-// ErrSendFailed indicates that the notification failed due to an unexpected response status code.
-var ErrSendFailed = errors.New(
-	"failed to send notification to service, response status code unexpected",
-)
-
 // Service sends notifications to a pre-configured Mattermost channel or user.
 type Service struct {
 	standard.Standard
@@ -32,9 +24,22 @@ type Service struct {
 	httpClient *http.Client
 }
 
+// defaultHTTPTimeout is the default timeout for HTTP requests.
+const defaultHTTPTimeout = 10 * time.Second
+
+// ErrSendFailed indicates that the notification failed due to an unexpected response status code.
+var ErrSendFailed = errors.New(
+	"failed to send notification to service, response status code unexpected",
+)
+
 // GetHTTPClient returns the service's HTTP client for testing purposes.
 func (service *Service) GetHTTPClient() *http.Client {
 	return service.httpClient
+}
+
+// GetID returns the service identifier.
+func (service *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
@@ -65,11 +70,6 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	service.httpClient = &http.Client{Transport: transport}
 
 	return nil
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
 }
 
 // Send delivers a notification message to Mattermost.

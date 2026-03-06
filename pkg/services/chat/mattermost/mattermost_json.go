@@ -8,9 +8,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// iconURLPattern matches URLs starting with http or https for icon detection.
-var iconURLPattern = regexp.MustCompile(`https?://`)
-
 // JSON represents the payload structure for Mattermost notifications.
 type JSON struct {
 	Text      string `json:"text"`
@@ -19,6 +16,9 @@ type JSON struct {
 	IconEmoji string `json:"icon_emoji,omitempty"`
 	IconURL   string `json:"icon_url,omitempty"`
 }
+
+// iconURLPattern matches URLs starting with http or https for icon detection.
+var iconURLPattern = regexp.MustCompile(`https?://`)
 
 // SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
 func (j *JSON) SetIcon(icon string) {

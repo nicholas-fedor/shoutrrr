@@ -14,6 +14,20 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config holds settings for the Signal notification service.
+type Config struct {
+	standard.EnumlessConfig
+
+	Host       string   `default:"localhost" desc:"Signal REST API server hostname or IP"      key:"host"`
+	Port       int      `default:"8080"      desc:"Signal REST API server port"                key:"port"`
+	User       string   `                    desc:"Username for HTTP Basic Auth"               key:"user"`
+	Password   string   `                    desc:"Password for HTTP Basic Auth"               key:"password"`
+	Token      string   `                    desc:"API token for Bearer authentication"        key:"token,apikey"`
+	Source     string   `                    desc:"Source phone number (with country code)"    key:"source"`
+	Recipients []string `                    desc:"Recipient phone numbers or group IDs"       key:"recipients,to"`
+	DisableTLS bool     `default:"No"        desc:"Disable TLS for Signal REST API connection" key:"disabletls"`
+}
+
 // Scheme identifies this service in configuration URLs.
 const (
 	Scheme = "signal"
@@ -34,20 +48,6 @@ var (
 	ErrNoRecipients       = errors.New("no recipients specified")
 	ErrInvalidRecipient   = errors.New("invalid recipient: must be phone number or group ID")
 )
-
-// Config holds settings for the Signal notification service.
-type Config struct {
-	standard.EnumlessConfig
-
-	Host       string   `default:"localhost" desc:"Signal REST API server hostname or IP"      key:"host"`
-	Port       int      `default:"8080"      desc:"Signal REST API server port"                key:"port"`
-	User       string   `                    desc:"Username for HTTP Basic Auth"               key:"user"`
-	Password   string   `                    desc:"Password for HTTP Basic Auth"               key:"password"`
-	Token      string   `                    desc:"API token for Bearer authentication"        key:"token,apikey"`
-	Source     string   `                    desc:"Source phone number (with country code)"    key:"source"`
-	Recipients []string `                    desc:"Recipient phone numbers or group IDs"       key:"recipients,to"`
-	DisableTLS bool     `default:"No"        desc:"Disable TLS for Signal REST API connection" key:"disabletls"`
-}
 
 // GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {
@@ -84,38 +84,6 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
-}
-
-// setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// Handle dummy URL used for documentation generation
-	if serviceURL.String() == "signal://dummy@dummy.com" {
-		config.Host = "localhost"
-		config.Port = 8080
-		config.Source = "+1234567890"
-		config.Recipients = []string{"+0987654321"}
-		config.DisableTLS = false
-
-		return nil
-	}
-
-	if err := config.parseAuth(serviceURL); err != nil {
-		return err
-	}
-
-	if err := config.parseHostPort(serviceURL); err != nil {
-		return err
-	}
-
-	if err := config.parsePath(serviceURL); err != nil {
-		return err
-	}
-
-	if err := config.parseQuery(resolver, serviceURL); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // parseAuth extracts user and password from the URL.
@@ -239,6 +207,38 @@ func (config *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL 
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
+	}
+
+	return nil
+}
+
+// setURL updates the Config from a URL using the provided resolver.
+func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	// Handle dummy URL used for documentation generation
+	if serviceURL.String() == "signal://dummy@dummy.com" {
+		config.Host = "localhost"
+		config.Port = 8080
+		config.Source = "+1234567890"
+		config.Recipients = []string{"+0987654321"}
+		config.DisableTLS = false
+
+		return nil
+	}
+
+	if err := config.parseAuth(serviceURL); err != nil {
+		return err
+	}
+
+	if err := config.parseHostPort(serviceURL); err != nil {
+		return err
+	}
+
+	if err := config.parsePath(serviceURL); err != nil {
+		return err
+	}
+
+	if err := config.parseQuery(resolver, serviceURL); err != nil {
+		return err
 	}
 
 	return nil

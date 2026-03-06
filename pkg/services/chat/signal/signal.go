@@ -16,6 +16,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to Signal recipients via signal-cli-rest-api.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // HTTP request timeout duration.
 const (
 	defaultHTTPTimeout = 30 * time.Second
@@ -26,12 +34,22 @@ var (
 	ErrSendFailed = errors.New("failed to send Signal message")
 )
 
-// Service sends notifications to Signal recipients via signal-cli-rest-api.
-type Service struct {
-	standard.Standard
+// GetID returns the identifier for this service.
+func (service *Service) GetID() string {
+	return Scheme
+}
 
-	Config *Config
-	pkr    format.PropKeyResolver
+// Initialize configures the service with a URL and logger.
+func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	service.SetLogger(logger)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
+
+	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Signal recipients.
@@ -67,39 +85,14 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return service.sendMessage(message, &config, messageParams)
 }
 
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
-		return err
+// buildAPIURL constructs the Signal API endpoint URL.
+func (service *Service) buildAPIURL(config *Config) string {
+	scheme := "https"
+	if config.DisableTLS {
+		scheme = "http"
 	}
 
-	return nil
-}
-
-// GetID returns the identifier for this service.
-func (service *Service) GetID() string {
-	return Scheme
-}
-
-// sendMessage sends a message to all configured recipients.
-func (service *Service) sendMessage(message string, config *Config, params *types.Params) error {
-	if len(config.Recipients) == 0 {
-		return ErrNoRecipients
-	}
-
-	payload := service.createPayload(message, config, params)
-
-	req, cancel, err := service.createRequest(config, payload)
-	if err != nil {
-		return err
-	}
-	defer cancel()
-
-	return service.sendRequest(req)
+	return fmt.Sprintf("%s://%s:%d/v2/send", scheme, config.Host, config.Port)
 }
 
 // createPayload builds the JSON payload for the Signal API request.
@@ -159,24 +152,31 @@ func (service *Service) createRequest(
 	return req, cancel, nil
 }
 
-// buildAPIURL constructs the Signal API endpoint URL.
-func (service *Service) buildAPIURL(config *Config) string {
-	scheme := "https"
-	if config.DisableTLS {
-		scheme = "http"
+// parseResponse extracts and logs response information.
+func (service *Service) parseResponse(resp *http.Response) {
+	var response sendMessageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		service.Logf("Warning: failed to parse response: %v", err)
+	} else {
+		service.Logf("Message sent successfully at timestamp %d", response.Timestamp)
 	}
-
-	return fmt.Sprintf("%s://%s:%d/v2/send", scheme, config.Host, config.Port)
 }
 
-// setAuthentication configures HTTP authentication headers.
-func (service *Service) setAuthentication(req *http.Request, config *Config) {
-	// Add authentication - prefer Bearer token over Basic Auth
-	if config.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+config.Token)
-	} else if config.User != "" {
-		req.SetBasicAuth(config.User, config.Password)
+// sendMessage sends a message to all configured recipients.
+func (service *Service) sendMessage(message string, config *Config, params *types.Params) error {
+	if len(config.Recipients) == 0 {
+		return ErrNoRecipients
 	}
+
+	payload := service.createPayload(message, config, params)
+
+	req, cancel, err := service.createRequest(config, payload)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+
+	return service.sendRequest(req)
 }
 
 // sendRequest executes the HTTP request and handles the response.
@@ -201,12 +201,12 @@ func (service *Service) sendRequest(req *http.Request) error {
 	return nil
 }
 
-// parseResponse extracts and logs response information.
-func (service *Service) parseResponse(resp *http.Response) {
-	var response sendMessageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		service.Logf("Warning: failed to parse response: %v", err)
-	} else {
-		service.Logf("Message sent successfully at timestamp %d", response.Timestamp)
+// setAuthentication configures HTTP authentication headers.
+func (service *Service) setAuthentication(req *http.Request, config *Config) {
+	// Add authentication - prefer Bearer token over Basic Auth
+	if config.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+config.Token)
+	} else if config.User != "" {
+		req.SetBasicAuth(config.User, config.Password)
 	}
 }

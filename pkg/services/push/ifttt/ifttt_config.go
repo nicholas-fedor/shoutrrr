@@ -10,6 +10,20 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config holds settings for the IFTTT notification service.
+type Config struct {
+	standard.EnumlessConfig
+
+	WebHookID         string   `required:"true" url:"host"`
+	Events            []string `required:"true"            key:"events"`
+	Value1            string   `                           key:"value1"       optional:""`
+	Value2            string   `                           key:"value2"       optional:""`
+	Value3            string   `                           key:"value3"       optional:""`
+	UseMessageAsValue uint8    `                           key:"messagevalue"             default:"2" desc:"Sets the corresponding value field to the notification message"`
+	UseTitleAsValue   uint8    `                           key:"titlevalue"               default:"0" desc:"Sets the corresponding value field to the notification title"`
+	Title             string   `                           key:"title"                    default:""  desc:"Notification title, optionally set by the sender"`
+}
+
 const (
 	Scheme              = "ifttt" // Scheme identifies this service in configuration URLs.
 	DefaultMessageValue = 2       // Default value field (1-3) for the notification message
@@ -30,20 +44,6 @@ var (
 	ErrMissingEvents        = errors.New("events missing from config URL")
 	ErrMissingWebhookID     = errors.New("webhook ID missing from config URL")
 )
-
-// Config holds settings for the IFTTT notification service.
-type Config struct {
-	standard.EnumlessConfig
-
-	WebHookID         string   `required:"true" url:"host"`
-	Events            []string `required:"true"            key:"events"`
-	Value1            string   `                           key:"value1"       optional:""`
-	Value2            string   `                           key:"value2"       optional:""`
-	Value3            string   `                           key:"value3"       optional:""`
-	UseMessageAsValue uint8    `                           key:"messagevalue"             default:"2" desc:"Sets the corresponding value field to the notification message"`
-	UseTitleAsValue   uint8    `                           key:"titlevalue"               default:"0" desc:"Sets the corresponding value field to the notification title"`
-	Title             string   `                           key:"title"                    default:""  desc:"Notification title, optionally set by the sender"`
-}
 
 // GetURL generates a URL from the current configuration values.
 func (config *Config) GetURL() *url.URL {

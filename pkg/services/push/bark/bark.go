@@ -12,18 +12,34 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-var (
-	ErrFailedAPIRequest   = errors.New("failed to make API request")
-	ErrUnexpectedStatus   = errors.New("unexpected status code")
-	ErrUpdateParamsFailed = errors.New("failed to update config from params")
-)
-
 // Service sends notifications to Bark.
 type Service struct {
 	standard.Standard
 
 	Config *Config
 	pkr    format.PropKeyResolver
+}
+
+var (
+	ErrFailedAPIRequest   = errors.New("failed to make API request")
+	ErrUnexpectedStatus   = errors.New("unexpected status code")
+	ErrUpdateParamsFailed = errors.New("failed to update config from params")
+)
+
+// GetID returns the identifier for the Bark service.
+func (service *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize sets up the Service with configuration from configURL and assigns a logger.
+func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	service.SetLogger(logger)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
+
+	_ = service.pkr.SetDefaultProps(service.Config)
+
+	return service.Config.setURL(&service.pkr, configURL)
 }
 
 // Send transmits a notification message to Bark.
@@ -39,22 +55,6 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
-}
-
-// Initialize sets up the Service with configuration from configURL and assigns a logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	_ = service.pkr.SetDefaultProps(service.Config)
-
-	return service.Config.setURL(&service.pkr, configURL)
-}
-
-// GetID returns the identifier for the Bark service.
-func (service *Service) GetID() string {
-	return Scheme
 }
 
 func (service *Service) sendAPI(config *Config, message string) error {

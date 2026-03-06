@@ -84,21 +84,18 @@ func processEmbedFields(
 		switch field.Key {
 		case "embed_author_name":
 			if author == nil {
-				//nolint:exhaustruct // Fields are set individually based on input
 				author = &embedAuthor{}
 			}
 
 			author.Name = field.Value
 		case "embed_author_url":
 			if author == nil {
-				//nolint:exhaustruct // Fields are set individually based on input
 				author = &embedAuthor{}
 			}
 
 			author.URL = field.Value
 		case "embed_author_icon_url":
 			if author == nil {
-				//nolint:exhaustruct // Fields are set individually based on input
 				author = &embedAuthor{}
 			}
 

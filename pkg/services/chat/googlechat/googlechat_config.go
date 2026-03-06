@@ -30,49 +30,48 @@ var (
 )
 
 // GetURL returns the URL representation of the configuration.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL.
-func (config *Config) SetURL(serviceURL *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, serviceURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs the URL from the configuration using the provided resolver.
-func (config *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	query := url.Values{}
-	query.Set("key", config.Key)
-	query.Set("token", config.Token)
+	query.Set("key", c.Key)
+	query.Set("token", c.Token)
 
-	//nolint:exhaustruct // Only required fields are set
 	return &url.URL{
-		Host:     config.Host,
-		Path:     config.Path,
+		Host:     c.Host,
+		Path:     c.Path,
 		RawQuery: query.Encode(),
 		Scheme:   Scheme,
 	}
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
-func (config *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
-	config.Host = serviceURL.Host
-	config.Path = serviceURL.Path
+func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Host
+	c.Path = serviceURL.Path
 
 	query := serviceURL.Query()
-	config.Key = query.Get("key")
-	config.Token = query.Get("token")
+	c.Key = query.Get("key")
+	c.Token = query.Get("token")
 
 	// Only enforce if explicitly provided but empty
-	if query.Has("key") && config.Key == "" {
+	if query.Has("key") && c.Key == "" {
 		return ErrMissingKey
 	}
 
-	if query.Has("token") && config.Token == "" {
+	if query.Has("token") && c.Token == "" {
 		return ErrMissingToken
 	}
 

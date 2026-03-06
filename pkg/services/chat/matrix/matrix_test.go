@@ -15,10 +15,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 )
 
-func TestMatrix(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Matrix Suite")
-}
+// Package-level constants for mock server URLs.
+const (
+	mockServerURLHTTPS = "https://mockserver"
+	mockServerURLHTTP  = "http://mockserver"
+)
 
 var _ = ginkgo.Describe("the matrix service", func() {
 	var service *Service
@@ -503,9 +504,15 @@ var _ = ginkgo.Describe("the matrix service", func() {
 	})
 })
 
+func TestMatrix(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Matrix Suite")
+}
+
 // setupMockResponders for HTTPS.
 func setupMockResponders() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -550,7 +557,7 @@ func setupMockResponders() {
 
 // setupMockRespondersHTTP for HTTP.
 func setupMockRespondersHTTP() {
-	const mockServer = "http://mockserver"
+	mockServer := mockServerURLHTTP
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -577,7 +584,7 @@ func setupMockRespondersHTTP() {
 
 // setupMockRespondersLoginFail for testing line 69.
 func setupMockRespondersLoginFail() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -587,7 +594,7 @@ func setupMockRespondersLoginFail() {
 
 // setupMockRespondersUnsupportedFlows for testing line 84.
 func setupMockRespondersUnsupportedFlows() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -597,7 +604,7 @@ func setupMockRespondersUnsupportedFlows() {
 
 // setupMockRespondersJoinedRoomsFail for testing lines 137, 154, and 267.
 func setupMockRespondersJoinedRoomsFail() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -621,7 +628,7 @@ func setupMockRespondersJoinedRoomsFail() {
 
 // setupMockRespondersJoinFail for testing lines 147 and 188.
 func setupMockRespondersJoinFail() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -652,7 +659,7 @@ func setupMockRespondersJoinFail() {
 
 // setupMockRespondersBodyFail for testing lines 204, 223, and 230.
 func setupMockRespondersBodyFail() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",
@@ -679,7 +686,7 @@ func setupMockRespondersBodyFail() {
 
 // setupMockRespondersPostFail for testing line 204 and HTTP failure.
 func setupMockRespondersPostFail() {
-	const mockServer = "https://mockserver"
+	mockServer := mockServerURLHTTPS
 
 	httpmock.RegisterResponder(
 		"GET",

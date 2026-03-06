@@ -76,7 +76,6 @@ func (RealSleeper) Sleep(d time.Duration) {
 
 // NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
-	//nolint:exhaustruct // Only Timeout is needed, other fields use defaults
 	return &DefaultHTTPClient{
 		client: &http.Client{
 			Timeout: defaultHTTPTimeout, // Default timeout for Discord requests

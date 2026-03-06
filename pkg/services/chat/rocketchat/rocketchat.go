@@ -15,18 +15,23 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// defaultHTTPTimeout is the default timeout for HTTP requests.
-const defaultHTTPTimeout = 10 * time.Second
-
-// ErrNotificationFailed indicates a failure in sending the notification.
-var ErrNotificationFailed = errors.New("notification failed")
-
 // Service sends notifications to a pre-configured Rocket.Chat channel or user.
 type Service struct {
 	standard.Standard
 
 	Config *Config
 	Client *http.Client
+}
+
+// defaultHTTPTimeout is the default timeout for HTTP requests.
+const defaultHTTPTimeout = 10 * time.Second
+
+// ErrNotificationFailed indicates a failure in sending the notification.
+var ErrNotificationFailed = errors.New("notification failed")
+
+// GetID returns the service identifier.
+func (service *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
@@ -45,11 +50,6 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	}
 
 	return nil
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
 }
 
 // Send delivers a notification message to Rocket.Chat.

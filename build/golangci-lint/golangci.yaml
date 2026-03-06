@@ -240,14 +240,27 @@ linters:
       # but not `http\.Cookie`.
       # Default: []
       exclude:
+        # Exclude test files - pattern matches type names from test files
+        - '.*_test\.\w+$'
+        # Exclude cobra.Command - typically used with partial initialization
         - '.+/cobra\.Command$'
-        - ".*_test.go"
-        - "internal/testutils/.*"
-        # Service types are initialized with empty structs in servicemap.go
+        # Exclude internal/testutils package - test utilities
+        - 'github\.com/nicholas-fedor/shoutrrr/internal/testutils/.*'
+        # Exclude service types - initialized via factory functions
         - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.Service$'
+        # Exclude standard library types that don't require full initialization
+        - '.*/url\.URL$'
+        - '.*/http\.Client$'
+        - '.*/http\.Transport$'
+        - '.*/http\.Request$'
+        - '.*/http\.Response$'
+        - '.*/tls\.Config$'
+        # Exclude third-party OAuth types
+        - '.*/oauth2\.Endpoint$'
+        - '.*/oauth2\.Config$'
       # Allows empty structures, effectively excluding them from the check.
       # Default: false
-      # allow-empty: true
+      allow-empty: true
       # List of regular expressions to match type names that should be allowed to be empty.
       # Anonymous structs can be matched by '<anonymous>' alias.
       # Each regular expression must match the full type name, including package path.
@@ -258,10 +271,10 @@ linters:
       #   - '.*/http\.Cookie'
       # Allows empty structures in return statements.
       # Default: false
-      # allow-empty-returns: true
+      allow-empty-returns: true
       # Allows empty structures in variable declarations.
       # Default: false
-      # allow-empty-declarations: true
+      allow-empty-declarations: true
 
     ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#forbidigo

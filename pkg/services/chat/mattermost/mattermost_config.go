@@ -11,16 +11,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "mattermost"
-
-// Static errors for configuration validation.
-var (
-	ErrNotEnoughArguments = errors.New(
-		"the apiURL does not include enough arguments, either provide 1 or 3 arguments (they may be empty)",
-	)
-)
-
 // ErrorMessage represents error events within the Mattermost service.
 type ErrorMessage string
 
@@ -37,10 +27,23 @@ type Config struct {
 	DisableTLS bool   `                                                                                                     default:"No" key:"disabletls"`
 }
 
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "mattermost"
+
+// Static errors for configuration validation.
+var (
+	ErrNotEnoughArguments = errors.New(
+		"the apiURL does not include enough arguments, either provide 1 or 3 arguments (they may be empty)",
+	)
+)
+
 // CreateConfigFromURL creates a new Config instance from a URL representation.
-func CreateConfigFromURL(url *url.URL) (*Config, error) {
+//
+
+func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
+	// Config has embedded EnumlessConfig and URL-tagged fields are set via SetURL
 	config := &Config{}
-	if err := config.SetURL(url); err != nil {
+	if err := config.SetURL(serviceURL); err != nil {
 		return nil, err
 	}
 
@@ -55,10 +58,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url) // Pass pointer to resolver
+	return c.setURL(&resolver, serviceURL) // Pass pointer to resolver
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -73,6 +76,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		user = url.User(c.UserName)
 	}
 
+	// URL is constructed with only the fields needed for service URL representation
 	return &url.URL{
 		User:       user,
 		Host:       c.Host,
@@ -83,28 +87,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-// setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	c.Host = url.Host
-	c.UserName = url.User.Username()
-
-	if err := c.parsePath(url); err != nil {
-		return err
-	}
-
-	for key, vals := range url.Query() {
-		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
-		}
-	}
-
-	return nil
-}
-
 // parsePath extracts Token and Channel from the URL path and validates arguments.
-func (c *Config) parsePath(url *url.URL) error {
-	path := strings.Split(strings.Trim(url.Path, "/"), "/")
-	isDummy := url.String() == "mattermost://dummy@dummy.com"
+func (c *Config) parsePath(serviceURL *url.URL) error {
+	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+	isDummy := serviceURL.String() == "mattermost://dummy@dummy.com"
 
 	if !isDummy && (len(path) < 1 || path[0] == "") {
 		return ErrNotEnoughArguments
@@ -116,6 +102,24 @@ func (c *Config) parsePath(url *url.URL) error {
 
 	if len(path) > 1 && path[1] != "" {
 		c.Channel = path[1]
+	}
+
+	return nil
+}
+
+// setURL updates the Config from a URL using the provided resolver.
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Host
+	c.UserName = serviceURL.User.Username()
+
+	if err := c.parsePath(serviceURL); err != nil {
+		return err
+	}
+
+	for key, vals := range serviceURL.Query() {
+		if err := resolver.Set(key, vals[0]); err != nil {
+			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
+		}
 	}
 
 	return nil

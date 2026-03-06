@@ -11,14 +11,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const (
-	Scheme = "bark"
-)
-
-// ErrSetQueryFailed indicates a failure to set a configuration value from a query parameter.
-var ErrSetQueryFailed = errors.New("failed to set query parameter")
-
 // Config holds configuration settings for the Bark service.
 type Config struct {
 	standard.EnumlessConfig
@@ -37,19 +29,13 @@ type Config struct {
 	Copy      string `default:""      desc:"The value to be copied"                                     key:"copy"`
 }
 
-// GetURL returns a URL representation of the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+// Scheme is the identifying part of this service's configuration URL.
+const (
+	Scheme = "bark"
+)
 
-	return config.getURL(&resolver)
-}
-
-// SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.setURL(&resolver, url)
-}
+// ErrSetQueryFailed indicates a failure to set a configuration value from a query parameter.
+var ErrSetQueryFailed = errors.New("failed to set query parameter")
 
 // GetAPIURL constructs the API URL for the specified endpoint using the current configuration.
 func (config *Config) GetAPIURL(endpoint string) string {
@@ -73,6 +59,20 @@ func (config *Config) GetAPIURL(endpoint string) string {
 	}
 
 	return apiURL.String()
+}
+
+// GetURL returns a URL representation of the current configuration values.
+func (config *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(config)
+
+	return config.getURL(&resolver)
+}
+
+// SetURL updates the configuration from a URL representation.
+func (config *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(config)
+
+	return config.setURL(&resolver, url)
 }
 
 func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {

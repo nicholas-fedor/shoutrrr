@@ -10,12 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const Scheme = "matrix"
-
-// ErrClientNotInitialized indicates that the client is not initialized for sending messages.
-var ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
-
 // Service sends notifications via the Matrix protocol.
 type Service struct {
 	standard.Standard
@@ -25,10 +19,29 @@ type Service struct {
 	pkr    format.PropKeyResolver
 }
 
+// Scheme identifies this service in configuration URLs.
+const Scheme = "matrix"
+
+// ErrClientNotInitialized indicates that the client is not initialized for sending messages.
+var ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
+
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
 // Initialize configures the service with a URL and logger.
 func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.Config = &Config{}
+	s.Config = &Config{
+		EnumlessConfig: standard.EnumlessConfig{},
+		User:           "",
+		Password:       "",
+		DisableTLS:     false,
+		Host:           "",
+		Rooms:          nil,
+		Title:          "",
+	}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
 	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
@@ -47,11 +60,6 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	return nil
 }
 
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
 // Send delivers a notification message to Matrix rooms.
 func (s *Service) Send(message string, params *types.Params) error {
 	config := *s.Config
@@ -63,16 +71,16 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return ErrClientNotInitialized
 	}
 
-	errors := s.client.sendMessage(message, s.Config.Rooms)
-	if len(errors) > 0 {
-		for _, err := range errors {
+	sendErrors := s.client.sendMessage(message, s.Config.Rooms)
+	if len(sendErrors) > 0 {
+		for _, err := range sendErrors {
 			s.Logf("error sending message: %w", err)
 		}
 
 		return fmt.Errorf(
 			"%v error(s) sending message, with initial error: %w",
-			len(errors),
-			errors[0],
+			len(sendErrors),
+			sendErrors[0],
 		)
 	}
 

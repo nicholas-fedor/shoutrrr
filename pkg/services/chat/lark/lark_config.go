@@ -23,31 +23,31 @@ type Config struct {
 const Scheme = "lark"
 
 // Enums returns a map of enum formatters (none for this service).
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL constructs a URL from the Config fields.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the Config from a URL.
-func (config *Config) SetURL(configURL *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(configURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, configURL)
+	return c.setURL(&resolver, configURL)
 }
 
 // getURL constructs a URL using the provided resolver.
 //
-//nolint:exhaustruct // url.URL fields are optional; only required fields are populated
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		Host:       config.Host,
-		Path:       "/" + config.Path,
+		Host:       c.Host,
+		Path:       "/" + c.Path,
 		Scheme:     Scheme,
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
@@ -56,20 +56,20 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // setURL updates the Config from a URL using the provided resolver.
 // It sets the host, path, and query parameters, validating host and path, and returns an error if parsing or validation fails.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
-	config.Host = configURL.Host
+func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
+	c.Host = configURL.Host
 	// Handle documentation generation or empty host
-	if config.Host == "" || (configURL.User != nil && configURL.User.Username() == "dummy") {
-		config.Host = "open.larksuite.com"
-	} else if config.Host != larkHost && config.Host != feishuHost {
+	if c.Host == "" || (configURL.User != nil && configURL.User.Username() == "dummy") {
+		c.Host = "open.larksuite.com"
+	} else if c.Host != larkHost && c.Host != feishuHost {
 		return ErrInvalidHost
 	}
 
-	config.Path = strings.Trim(configURL.Path, "/")
+	c.Path = strings.Trim(configURL.Path, "/")
 	// Handle documentation generation with empty path
-	if config.Path == "" && (configURL.User != nil && configURL.User.Username() == "dummy") {
-		config.Path = "token"
-	} else if config.Path == "" {
+	if c.Path == "" && (configURL.User != nil && configURL.User.Username() == "dummy") {
+		c.Path = "token"
+	} else if c.Path == "" {
 		return ErrNoPath
 	}
 

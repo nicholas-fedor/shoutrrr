@@ -223,7 +223,7 @@ func oauth2Generator() (*smtp.Config, error) {
 	conf := oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		//nolint:exhaustruct // DeviceAuthURL is optional for this OAuth2 flow
+
 		Endpoint: oauth2.Endpoint{
 			AuthURL:   authURL,
 			TokenURL:  tokenURL,
@@ -261,7 +261,7 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 	conf := oauth2.Config{
 		ClientID:     providerConfig.ClientID,
 		ClientSecret: providerConfig.ClientSecret,
-		//nolint:exhaustruct // DeviceAuthURL is optional for this OAuth2 flow
+
 		Endpoint: oauth2.Endpoint{
 			AuthURL:   providerConfig.AuthURL,
 			TokenURL:  providerConfig.TokenURL,

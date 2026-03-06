@@ -23,11 +23,6 @@ var (
 	})
 )
 
-func TestMattermost(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Mattermost Suite")
-}
-
 var _ = ginkgo.Describe("the mattermost service", func() {
 	ginkgo.When("running integration tests", func() {
 		ginkgo.It("should work without errors", func() {
@@ -449,3 +444,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("mattermost"))
 	})
 })
+
+func TestMattermost(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Mattermost Suite")
+}

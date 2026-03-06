@@ -13,12 +13,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// MaxSummaryLength defines the maximum length for a notification summary.
-const MaxSummaryLength = 20
-
-// TruncatedSummaryLen defines the length for a truncated summary.
-const TruncatedSummaryLen = 21
-
 // Service sends notifications to Microsoft Teams.
 type Service struct {
 	standard.Standard
@@ -27,29 +21,11 @@ type Service struct {
 	pkr    format.PropKeyResolver
 }
 
-// Send delivers a notification message to Microsoft Teams.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		service.Logf("Failed to update params: %v", err)
-	}
+// MaxSummaryLength defines the maximum length for a notification summary.
+const MaxSummaryLength = 20
 
-	return service.doSend(config, message)
-}
-
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	return service.Config.SetURL(configURL)
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
-}
+// TruncatedSummaryLen defines the length for a truncated summary.
+const TruncatedSummaryLen = 21
 
 // GetConfigURLFromCustom converts a custom URL to a service URL.
 func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
@@ -89,6 +65,30 @@ func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, er
 	}
 
 	return config.GetURL(), nil
+}
+
+// GetID returns the service identifier.
+func (service *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	service.SetLogger(logger)
+	service.Config = &Config{}
+	service.pkr = format.NewPropKeyResolver(service.Config)
+
+	return service.Config.SetURL(configURL)
+}
+
+// Send delivers a notification message to Microsoft Teams.
+func (service *Service) Send(message string, params *types.Params) error {
+	config := service.Config
+	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+		service.Logf("Failed to update params: %v", err)
+	}
+
+	return service.doSend(config, message)
 }
 
 // doSend sends the notification to Teams using the configured webhook URL.

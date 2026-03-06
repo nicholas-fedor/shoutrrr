@@ -10,14 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	defaultPort = 443        // defaultPort is the default port for OpsGenie API connections.
-	Scheme      = "opsgenie" // Scheme is the identifying part of this service's configuration URL.
-)
-
-// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
-var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
-
 // Config holds the configuration for the OpsGenie service.
 type Config struct {
 	APIKey      string            `desc:"The OpsGenie API key"                                                                                   url:"path"`
@@ -37,6 +29,14 @@ type Config struct {
 	User        string            `desc:"Display name of the request owner"                                                                                                            key:"user"        optional:"true"`
 	Title       string            `desc:"notification title, optionally set by the sender"                                                                  default:""                 key:"title"`
 }
+
+const (
+	defaultPort = 443        // defaultPort is the default port for OpsGenie API connections.
+	Scheme      = "opsgenie" // Scheme is the identifying part of this service's configuration URL.
+)
+
+// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
+var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
 
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
 func (config *Config) Enums() map[string]types.EnumFormatter {

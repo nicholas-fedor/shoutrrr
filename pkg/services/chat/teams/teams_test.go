@@ -21,12 +21,6 @@ const (
 
 var logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
 
-// TestTeams runs the test suite for the Teams package.
-func TestTeams(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Teams Suite")
-}
-
 var _ = ginkgo.Describe("the teams service", func() {
 	ginkgo.When("creating the webhook URL", func() {
 		ginkgo.It("should match the expected output for custom URLs", func() {
@@ -269,3 +263,10 @@ var _ = ginkgo.Describe("the teams service", func() {
 		})
 	})
 })
+
+// TestTeams runs the test suite for the Teams package.
+func TestTeams(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Teams Suite")
+}

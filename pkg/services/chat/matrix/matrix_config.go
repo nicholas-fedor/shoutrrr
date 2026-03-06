@@ -13,12 +13,13 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	User       string   `desc:"Username or empty when using access token" optional:"" url:"user"`
-	Password   string   `desc:"Password or access token"                              url:"password"`
-	DisableTLS bool     `                                                                            default:"No" key:"disableTLS"`
-	Host       string   `                                                             url:"host"`
-	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs"  optional:""                             key:"rooms,room"`
-	Title      string   `                                                                            default:""   key:"title"`
+	User string `desc:"Username or empty when using access token" optional:"" url:"user"`
+	//nolint:gosec // Password is intentionally a user-configurable field
+	Password   string   `desc:"Password or access token"                 url:"password"`
+	DisableTLS bool     `                                                               default:"No" key:"disableTLS"`
+	Host       string   `                                                url:"host"`
+	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs"                             key:"rooms,room" optional:""`
+	Title      string   `                                                               default:""   key:"title"`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -29,10 +30,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates a ServiceConfig from a URL representation of it's field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(configURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, configURL)
 }
 
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
