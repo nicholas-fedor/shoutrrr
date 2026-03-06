@@ -94,10 +94,15 @@ func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
 	return pingUsers, pingRoles
 }
 
-// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 	// Copy the URL to modify
-	webhookURL := *customURL
+	webhookURL := *serviceURL
 	if strings.HasPrefix(webhookURL.Scheme, Scheme) && len(webhookURL.Scheme) > len(Scheme) &&
 		webhookURL.Scheme[len(Scheme)] == '+' {
 		// Remove the scheme prefix if present
@@ -114,13 +119,8 @@ func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	return config.getURL(&pkr), nil
 }
 
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
 	// Initialize service config
@@ -134,7 +134,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	}
 
 	// Set URL and return any error
-	if err := s.Config.SetURL(configURL); err != nil {
+	if err := s.Config.SetURL(serviceURL); err != nil {
 		return fmt.Errorf("setting config URL: %w", err)
 	}
 

@@ -192,8 +192,8 @@ func createURL(username, token string) *url.URL {
 	}
 }
 
-func expectErrorMessageGivenURL(msg pushover.ErrorMessage, url *url.URL) {
-	err := config.SetURL(url)
+func expectErrorMessageGivenURL(msg pushover.ErrorMessage, serviceURL *url.URL) {
+	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
 	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
 }

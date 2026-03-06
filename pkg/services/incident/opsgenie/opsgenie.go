@@ -41,12 +41,12 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return s.Config.setURL(&s.pkr, configURL)
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to OpsGenie.

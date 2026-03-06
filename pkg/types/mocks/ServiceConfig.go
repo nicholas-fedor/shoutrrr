@@ -131,8 +131,8 @@ func (_c *MockServiceConfig_GetURL_Call) RunAndReturn(run func() *url.URL) *Mock
 }
 
 // SetURL provides a mock function for the type MockServiceConfig
-func (_mock *MockServiceConfig) SetURL(url1 *url.URL) error {
-	ret := _mock.Called(url1)
+func (_mock *MockServiceConfig) SetURL(serviceURL *url.URL) error {
+	ret := _mock.Called(serviceURL)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetURL")
@@ -140,7 +140,7 @@ func (_mock *MockServiceConfig) SetURL(url1 *url.URL) error {
 
 	var r0 error
 	if returnFunc, ok := ret.Get(0).(func(*url.URL) error); ok {
-		r0 = returnFunc(url1)
+		r0 = returnFunc(serviceURL)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -153,12 +153,12 @@ type MockServiceConfig_SetURL_Call struct {
 }
 
 // SetURL is a helper method to define mock.On call
-//   - url1 *url.URL
-func (_e *MockServiceConfig_Expecter) SetURL(url1 interface{}) *MockServiceConfig_SetURL_Call {
-	return &MockServiceConfig_SetURL_Call{Call: _e.mock.On("SetURL", url1)}
+//   - serviceURL *url.URL
+func (_e *MockServiceConfig_Expecter) SetURL(serviceURL interface{}) *MockServiceConfig_SetURL_Call {
+	return &MockServiceConfig_SetURL_Call{Call: _e.mock.On("SetURL", serviceURL)}
 }
 
-func (_c *MockServiceConfig_SetURL_Call) Run(run func(url1 *url.URL)) *MockServiceConfig_SetURL_Call {
+func (_c *MockServiceConfig_SetURL_Call) Run(run func(serviceURL *url.URL)) *MockServiceConfig_SetURL_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 *url.URL
 		if args[0] != nil {
@@ -176,7 +176,7 @@ func (_c *MockServiceConfig_SetURL_Call) Return(err error) *MockServiceConfig_Se
 	return _c
 }
 
-func (_c *MockServiceConfig_SetURL_Call) RunAndReturn(run func(url1 *url.URL) error) *MockServiceConfig_SetURL_Call {
+func (_c *MockServiceConfig_SetURL_Call) RunAndReturn(run func(serviceURL *url.URL) error) *MockServiceConfig_SetURL_Call {
 	_c.Call.Return(run)
 	return _c
 }

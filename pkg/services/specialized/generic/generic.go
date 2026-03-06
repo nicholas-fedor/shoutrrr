@@ -37,25 +37,6 @@ var (
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
 )
 
-// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	// Copy the URL to modify
-	webhookURL := *customURL
-	if strings.HasPrefix(webhookURL.Scheme, Scheme) {
-		// Remove the scheme prefix if present
-		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
-	}
-
-	// Parse config from webhook URL
-	config, pkr, err := ConfigFromWebhookURL(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate and return the service URL
-	return config.getURL(&pkr), nil
-}
-
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
 	return Scheme
@@ -96,8 +77,27 @@ func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, er
 	return bb, nil
 }
 
+// GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
+	// Copy the URL to modify
+	webhookURL := *customURL
+	if strings.HasPrefix(webhookURL.Scheme, Scheme) {
+		// Remove the scheme prefix if present
+		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
+	}
+
+	// Parse config from webhook URL
+	config, pkr, err := ConfigFromWebhookURL(webhookURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate and return the service URL
+	return config.getURL(&pkr), nil
+}
+
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
 
@@ -109,7 +109,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.pkr = pkr
 
 	// Set URL and return any error
-	return s.Config.setURL(&s.pkr, configURL)
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to a generic webhook endpoint.

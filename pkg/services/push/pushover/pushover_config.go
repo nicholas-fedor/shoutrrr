@@ -40,10 +40,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -58,18 +58,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	password, _ := url.User.Password()
-	c.User = url.Host
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	password, _ := serviceURL.User.Password()
+	c.User = serviceURL.Host
 	c.Token = password
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
-	if url.String() != "pushover://dummy@dummy.com" {
+	if serviceURL.String() != "pushover://dummy@dummy.com" {
 		if len(c.User) < 1 {
 			return ErrUserMissing
 		}

@@ -51,10 +51,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -77,21 +77,21 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	c.Host = url.Hostname()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Hostname()
 
-	if url.String() != "opsgenie://dummy@dummy.com" {
-		if url.Path != "" {
-			c.APIKey = url.Path[1:]
+	if serviceURL.String() != "opsgenie://dummy@dummy.com" {
+		if serviceURL.Path != "" {
+			c.APIKey = serviceURL.Path[1:]
 		} else {
 			return ErrAPIKeyMissing
 		}
 	}
 
-	if url.Port() != "" {
-		port, err := strconv.ParseUint(url.Port(), 10, 16)
+	if serviceURL.Port() != "" {
+		port, err := strconv.ParseUint(serviceURL.Port(), 10, 16)
 		if err != nil {
-			return fmt.Errorf("parsing port %q: %w", url.Port(), err)
+			return fmt.Errorf("parsing port %q: %w", serviceURL.Port(), err)
 		}
 
 		c.Port = uint16(port)
@@ -99,7 +99,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		c.Port = defaultPort
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}

@@ -55,14 +55,14 @@ func (c *Config) GetURL() *url.URL {
 // SetURL updates the configuration from a URL representation.
 //
 // Parameters:
-//   - configURL: the URL to parse configuration from
+//   - serviceURL: the URL to parse configuration from
 //
 // Returns:
 //   - error: if parsing fails, nil otherwise
-func (c *Config) SetURL(configURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, configURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.

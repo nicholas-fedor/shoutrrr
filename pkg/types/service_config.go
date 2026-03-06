@@ -11,7 +11,7 @@ type Enummer interface {
 type ServiceConfig interface {
 	Enummer
 	GetURL() *url.URL
-	SetURL(url *url.URL) error
+	SetURL(serviceURL *url.URL) error
 }
 
 // ConfigQueryResolver is the interface used to get/set and list service config query fields.

@@ -31,7 +31,7 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
 		EnumlessConfig: standard.EnumlessConfig{},
@@ -44,11 +44,11 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 
-	if configURL.String() != "matrix://dummy@dummy.com" {
+	if serviceURL.String() != "matrix://dummy@dummy.com" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
 		if s.Config.User != "" {
 			return s.client.login(s.Config.User, s.Config.Password)

@@ -39,17 +39,17 @@ func (s *Service) GetID() string {
 // Initialize configures the service with a URL and logger.
 //
 // Parameters:
-//   - configURL: the configuration URL for the Signal service
+//   - serviceURL: the configuration URL for the Signal service
 //   - logger: the logger to use for logging
 //
 // Returns:
 //   - error: if configuration fails, nil otherwise
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 

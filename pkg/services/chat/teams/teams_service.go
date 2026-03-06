@@ -27,8 +27,13 @@ const MaxSummaryLength = 20
 // TruncatedSummaryLen defines the length for a truncated summary.
 const TruncatedSummaryLen = 21
 
-// GetConfigURLFromCustom converts a custom URL to a service URL.
-func (s *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// GetServiceURLFromCustom converts a custom URL to a service URL.
+func (s *Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	webhookURLStr := strings.TrimPrefix(customURL.String(), "teams+")
 
 	tempURL, err := url.Parse(webhookURLStr)
@@ -67,18 +72,13 @@ func (s *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	return config.GetURL(), nil
 }
 
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return s.Config.SetURL(configURL)
+	return s.Config.SetURL(serviceURL)
 }
 
 // Send delivers a notification message to Microsoft Teams.
@@ -155,8 +155,12 @@ func (s *Service) doSend(config *Config, message string) error {
 
 // safePost performs an HTTP POST with a pre-validated URL.
 // Validation is already done; this wrapper isolates the call.
-func safePost(url string, payload []byte) (*http.Response, error) {
-	res, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+func safePost(serviceURL string, payload []byte) (*http.Response, error) {
+	res, err := http.Post(
+		serviceURL,
+		"application/json",
+		bytes.NewBuffer(payload),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("making HTTP POST request: %w", err)
 	}

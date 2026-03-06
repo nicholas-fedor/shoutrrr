@@ -28,12 +28,12 @@
 //		logger := log.New(log.Writer(), "smtp: ", log.LstdFlags)
 //		service := &smtp.Service{}
 //
-//		configURL, err := url.Parse("smtp://user:password@example.com:587/?fromAddress=sender@example.com&toAddresses=recipient@example.com&subject=Test%20Notification&useStartTLS=yes&useHTML=no")
+//		serviceURL, err := url.Parse("smtp://user:password@example.com:587/?fromAddress=sender@example.com&toAddresses=recipient@example.com&subject=Test%20Notification&useStartTLS=yes&useHTML=no")
 //		if err != nil {
 //			log.Fatalf("Failed to parse URL: %v", err)
 //		}
 //
-//		err = service.Initialize(configURL, logger)
+//		err = service.Initialize(serviceURL, logger)
 //		if err != nil {
 //			log.Fatalf("Failed to initialize service: %v", err)
 //		}

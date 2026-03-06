@@ -65,7 +65,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 
 		ginkgo.It("correctly sets API key from custom URL", func() {
 			customURL := testutils.URLMust("notifiarr://apikey123")
-			serviceURL, err := service.GetConfigURLFromCustom(customURL)
+			serviceURL, err := service.GetServiceURLFromCustom(customURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

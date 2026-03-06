@@ -43,7 +43,7 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
@@ -55,7 +55,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 		return fmt.Errorf("setting default properties: %w", err)
 	}
 
-	if err := s.Config.SetURL(configURL); err != nil {
+	if err := s.Config.SetURL(serviceURL); err != nil {
 		return fmt.Errorf("setting config URL: %w", err)
 	}
 

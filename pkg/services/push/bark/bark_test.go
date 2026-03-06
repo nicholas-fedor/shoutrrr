@@ -40,8 +40,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 				return
 			}
 
-			configURL := testutils.URLMust(envBarkURL.String())
-			gomega.Expect(service.Initialize(configURL, logger)).To(gomega.Succeed())
+			serviceURL := testutils.URLMust(envBarkURL.String())
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("This is an integration test message", nil)).
 				To(gomega.Succeed())
 		})

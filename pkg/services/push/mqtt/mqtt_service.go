@@ -139,18 +139,18 @@ func (s *Service) GetID() string {
 // settings can be modified through params in the first Send call.
 //
 // Parameters:
-//   - configURL: The configuration URL containing broker address, credentials, and topic
+//   - serviceURL: The configuration URL containing broker address, credentials, and topic
 //   - logger: The logger instance for recording service events and errors
 //
 // Returns an error if URL parsing fails or required fields are missing.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set up logging for the service
 	s.SetLogger(logger)
 
 	// Store the URL scheme for use in initClient()
 	// This allows the scheme (mqtt or mqtts) to be used as the primary
 	// determinant for TLS handling
-	s.urlScheme = configURL.Scheme
+	s.urlScheme = serviceURL.Scheme
 
 	// Initialize the configuration struct with default values
 	s.Config = &Config{}
@@ -164,7 +164,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	}
 
 	// Parse the configuration URL and populate the config struct
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return fmt.Errorf("parsing configuration URL: %w", err)
 	}
 

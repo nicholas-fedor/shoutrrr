@@ -16,9 +16,9 @@ func TestLogger() *log.Logger {
 	return log.New(ginkgo.GinkgoWriter, "[Test] ", 0)
 }
 
-// URLMust creates a url.URL from the given rawURL and fails the test if it cannot be parsed.
-func URLMust(rawURL string) *url.URL {
-	parsed, err := url.Parse(rawURL)
+// URLMust creates a url.URL from the given serviceURL and fails the test if it cannot be parsed.
+func URLMust(serviceURL string) *url.URL {
+	parsed, err := url.Parse(serviceURL)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	return parsed

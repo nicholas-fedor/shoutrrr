@@ -39,10 +39,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL using the provided resolver.
@@ -55,16 +55,16 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Handle dummy URL used for documentation generation
-	if url.String() == "wecom://dummy@dummy.com" {
+	if serviceURL.String() == "wecom://dummy@dummy.com" {
 		c.Key = "dummy-webhook-key"
 
 		return nil
 	}
 
 	// Extract key from host
-	c.Key = url.Host
+	c.Key = serviceURL.Host
 
 	// Validate key format (alphanumeric, hyphens, underscores only)
 	if c.Key == "" {
@@ -76,7 +76,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	// Handle query parameters
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

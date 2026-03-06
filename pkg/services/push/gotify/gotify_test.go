@@ -103,33 +103,33 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			service.SetLogger(logger)
 		})
 		ginkgo.It("builds a valid Gotify URL without path", func() {
-			configURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(configURL.String()))
+			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
 		})
 		ginkgo.When("TLS is disabled", func() {
 			ginkgo.It("uses http scheme", func() {
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?disabletls=yes",
 				)
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
 			})
 		})
 		ginkgo.When("a custom path is provided", func() {
 			ginkgo.It("includes the path in the URL", func() {
-				configURL := testutils.URLMust("gotify://my.gotify.tld/gotify/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify://my.gotify.tld/gotify/Aaa.bbb.ccc.ddd")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(configURL.String()))
+				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
 			})
 		})
 		ginkgo.When("the token has an invalid length", func() {
 			ginkgo.It("reports an error during send", func() {
-				configURL := testutils.URLMust("gotify://my.gotify.tld/short") // Length < 15
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify://my.gotify.tld/short") // Length < 15
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
 				gomega.Expect(err).
@@ -138,10 +138,10 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 		ginkgo.When("the token has an invalid prefix", func() {
 			ginkgo.It("reports an error during send", func() {
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Chwbsdyhwwgarxd",
 				) // Starts with 'C', not 'A'
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
 				gomega.Expect(err).
@@ -163,20 +163,20 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(testURL))
 		})
 		ginkgo.It("allows slash at the end of the token", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd/")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd/")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Token).To(gomega.Equal("Aaa.bbb.ccc.ddd"))
 		})
 		ginkgo.It("allows slash at the end of the token with additional path", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/path/to/gotify/Aaa.bbb.ccc.ddd/")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/path/to/gotify/Aaa.bbb.ccc.ddd/")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Token).To(gomega.Equal("Aaa.bbb.ccc.ddd"))
 		})
 		ginkgo.It("does not crash on empty token or path slash", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld//")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld//")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Token).To(gomega.Equal(""))
 		})
@@ -210,29 +210,29 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 			ginkgo.It("handles malformed JSON in extras parameter", func() {
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras={invalid}",
 				)
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).
 					To(gomega.ContainSubstring("failed to parse extras JSON from URL query"))
 			})
 			ginkgo.It("handles empty host in URL", func() {
-				configURL := testutils.URLMust("gotify:///Aaa.bbb.ccc.ddd")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify:///Aaa.bbb.ccc.ddd")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.Config.Host).To(gomega.Equal(""))
 			})
 			ginkgo.It("handles URL with only host and no token", func() {
-				configURL := testutils.URLMust("gotify://my.gotify.tld/")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify://my.gotify.tld/")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(service.Config.Token).To(gomega.Equal(""))
 			})
 			ginkgo.It("handles extreme priority values", func() {
-				configURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				params := types.Params{"priority": "-100"}
@@ -251,8 +251,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 
 				defer httpmock.DeactivateAndReset()
 
-				configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				mockManager := &MockHTTPClientManager{}
@@ -290,10 +290,10 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 		ginkgo.It("parses valid extras JSON from URL parameters", func() {
 			extrasJSON := `{"key1":"value1","key2":42}`
-			configURL := testutils.URLMust(
+			serviceURL := testutils.URLMust(
 				"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=" + url.QueryEscape(extrasJSON),
 			)
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Extras).To(gomega.Equal(map[string]any{
 				"key1": "value1",
@@ -301,23 +301,23 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			}))
 		})
 		ginkgo.It("reports error on invalid extras JSON from URL parameters", func() {
-			configURL := testutils.URLMust(
+			serviceURL := testutils.URLMust(
 				"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=invalid-json",
 			)
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).
 				To(gomega.ContainSubstring("failed to parse extras JSON from URL query"))
 		})
 		ginkgo.It("handles empty extras JSON from URL parameters", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Extras).To(gomega.BeNil())
 		})
 		ginkgo.It("parses useheader parameter from URL", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.UseHeader).To(gomega.BeTrue())
 		})
@@ -330,8 +330,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 		ginkgo.It("builds URL without token when useheader is enabled", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			builtURL, err := service.urlBuilder.BuildURL(service.Config)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -342,8 +342,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 
 	ginkgo.When("the token contains invalid characters", func() {
 		ginkgo.It("reports an error during send", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
@@ -352,10 +352,10 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 	})
 	ginkgo.When("the token has exactly 15 chars but invalid prefix", func() {
 		ginkgo.It("reports an error during send", func() {
-			configURL := testutils.URLMust(
+			serviceURL := testutils.URLMust(
 				"gotify://my.gotify.tld/Baa.bbb.ccc.ddd",
 			) // Starts with 'B', not 'A'
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
@@ -364,24 +364,24 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 	})
 	ginkgo.When("the token has valid prefix but invalid characters at different positions", func() {
 		ginkgo.It("reports an error for invalid char at position 5", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa!bbb.ccc.ddd")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa!bbb.ccc.ddd")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
 				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa!bbb.ccc.ddd\""))
 		})
 		ginkgo.It("reports an error for invalid char at position 10", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb!ccc.ddd")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb!ccc.ddd")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
 				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa.bbb!ccc.ddd\""))
 		})
 		ginkgo.It("reports an error for invalid char at position 15", func() {
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
@@ -397,8 +397,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			service.SetLogger(logger)
 			httpmock.Activate()
 
-			configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			mockManager = &MockHTTPClientManager{}
@@ -1152,10 +1152,10 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				service.SetLogger(logger)
 				httpmock.Activate()
 
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes",
 				)
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				mockManager = &MockHTTPClientManager{}
@@ -1517,8 +1517,8 @@ func TestSend(t *testing.T) {
 
 	httpmock.Activate()
 
-	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-	err := service.Initialize(configURL, logger)
+	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(serviceURL, logger)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	mockManager := &MockHTTPClientManager{}
@@ -1556,8 +1556,8 @@ func TestSendWithPriority(t *testing.T) {
 
 	httpmock.Activate()
 
-	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-	err := service.Initialize(configURL, logger)
+	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(serviceURL, logger)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	mockManager := &MockHTTPClientManager{}
@@ -1605,8 +1605,8 @@ func TestSendWithTitle(t *testing.T) {
 
 	httpmock.Activate()
 
-	configURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-	err := service.Initialize(configURL, logger)
+	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+	err := service.Initialize(serviceURL, logger)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	mockManager := &MockHTTPClientManager{}
@@ -1661,8 +1661,8 @@ func TestTimeout(t *testing.T) {
 		logger := log.New(os.Stderr, "Test", log.LstdFlags)
 		service.SetLogger(logger)
 
-		configURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-		err := service.Initialize(configURL, logger)
+		serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
+		err := service.Initialize(serviceURL, logger)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		// Use MockHTTPClientManager with custom transport for fake connection

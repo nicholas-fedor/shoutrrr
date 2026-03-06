@@ -75,15 +75,15 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates a ServiceConfig from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	configURL := &url.URL{
+	serviceURL := &url.URL{
 		User:       util.URLUserPassword(c.Username, c.Password),
 		Host:       fmt.Sprintf("%s:%d", c.Host, c.Port),
 		Path:       "/",
@@ -131,23 +131,23 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		queryParts = append(queryParts, "skiptlsverify=Yes")
 	}
 
-	configURL.RawQuery = strings.Join(queryParts, "&")
+	serviceURL.RawQuery = strings.Join(queryParts, "&")
 
-	return configURL
+	return serviceURL
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	password, _ := url.User.Password()
-	c.Username = url.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	password, _ := serviceURL.User.Password()
+	c.Username = serviceURL.User.Username()
 	c.Password = password
-	c.Host = url.Hostname()
+	c.Host = serviceURL.Hostname()
 
-	if port, err := strconv.ParseUint(url.Port(), 10, 16); err == nil {
+	if port, err := strconv.ParseUint(serviceURL.Port(), 10, 16); err == nil {
 		c.Port = uint16(port)
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if key == "timeout" {
 			duration, err := time.ParseDuration(vals[0])
 			if err != nil {
@@ -164,7 +164,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		}
 	}
 
-	if url.String() != "smtp://dummy@dummy.com" {
+	if serviceURL.String() != "smtp://dummy@dummy.com" {
 		if len(c.FromAddress) < 1 {
 			return ErrFromAddressMissing
 		}

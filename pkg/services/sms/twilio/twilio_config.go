@@ -44,10 +44,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -65,23 +65,23 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	c.AccountSID = url.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.AccountSID = serviceURL.User.Username()
 
-	password, _ := url.User.Password()
+	password, _ := serviceURL.User.Password()
 	c.AuthToken = password
 
-	c.FromNumber = normalizePhoneNumber(url.Host)
-	c.ToNumbers = parseToNumbers(url.Path)
+	c.FromNumber = normalizePhoneNumber(serviceURL.Host)
+	c.ToNumbers = parseToNumbers(serviceURL.Path)
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		err := resolver.Set(key, vals[0])
 		if err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
-	if url.String() != "twilio://dummy@dummy.com" {
+	if serviceURL.String() != "twilio://dummy@dummy.com" {
 		return c.validate()
 	}
 

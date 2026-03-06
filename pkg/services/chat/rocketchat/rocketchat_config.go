@@ -49,14 +49,14 @@ func (c *Config) GetURL() *url.URL {
 		host = fmt.Sprintf("%s:%s", c.Host, c.Port)
 	}
 
-	configURL := &url.URL{
+	serviceURL := &url.URL{
 		Host:       host,
 		Path:       fmt.Sprintf("%s/%s", c.TokenA, c.TokenB),
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
 
-	return configURL
+	return serviceURL
 }
 
 // SetURL updates the Config from a URL representation of its field values.

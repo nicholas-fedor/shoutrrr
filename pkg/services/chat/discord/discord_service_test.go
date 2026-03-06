@@ -342,10 +342,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should initialize service successfully with valid URL", func() {
-			configURL, _ := url.Parse("discord://token@webhook?username=TestBot")
+			serviceURL, _ := url.Parse("discord://token@webhook?username=TestBot")
 			logger := &typesMocks.MockStdLogger{}
 
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(service.Config).NotTo(gomega.BeNil())
@@ -366,10 +366,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should set default properties", func() {
-			configURL, _ := url.Parse("discord://token@webhook")
+			serviceURL, _ := url.Parse("discord://token@webhook")
 			logger := &typesMocks.MockStdLogger{}
 
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// Verify default properties are set

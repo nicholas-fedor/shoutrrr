@@ -138,12 +138,12 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 			config.FromNumber = "+15551234567"
 			config.ToNumbers = []string{"+15559876543"}
 
-			configURL := config.GetURL()
-			password, _ := configURL.User.Password()
-			gomega.Expect(configURL.Scheme).To(gomega.Equal("twilio"))
-			gomega.Expect(configURL.User.Username()).To(gomega.Equal(config.AccountSID))
+			serviceURL := config.GetURL()
+			password, _ := serviceURL.User.Password()
+			gomega.Expect(serviceURL.Scheme).To(gomega.Equal("twilio"))
+			gomega.Expect(serviceURL.User.Username()).To(gomega.Equal(config.AccountSID))
 			gomega.Expect(password).To(gomega.Equal(config.AuthToken))
-			gomega.Expect(configURL.Host).To(gomega.Equal(config.FromNumber))
+			gomega.Expect(serviceURL.Host).To(gomega.Equal(config.FromNumber))
 		})
 
 		ginkgo.It("should encode multiple recipients in the path", func() {
@@ -152,8 +152,8 @@ var _ = ginkgo.Describe("Config Unit Tests", func() {
 			config.FromNumber = "+15551234567"
 			config.ToNumbers = []string{"+15559876543", "+15551111111"}
 
-			configURL := config.GetURL()
-			gomega.Expect(configURL.Path).To(gomega.Equal("/+15559876543/+15551111111"))
+			serviceURL := config.GetURL()
+			gomega.Expect(serviceURL.Path).To(gomega.Equal("/+15559876543/+15551111111"))
 		})
 	})
 

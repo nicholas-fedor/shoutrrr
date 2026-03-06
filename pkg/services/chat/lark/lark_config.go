@@ -35,15 +35,13 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL.
-func (c *Config) SetURL(configURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, configURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL using the provided resolver.
-//
-
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Host:       c.Host,
@@ -55,25 +53,26 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-// It sets the host, path, and query parameters, validating host and path, and returns an error if parsing or validation fails.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
-	c.Host = configURL.Host
+// It sets the host, path, and query parameters, validating host and path, and
+// returns an error if parsing or validation fails.
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Host
 	// Handle documentation generation or empty host
-	if c.Host == "" || (configURL.User != nil && configURL.User.Username() == "dummy") {
+	if c.Host == "" || (serviceURL.User != nil && serviceURL.User.Username() == "dummy") {
 		c.Host = "open.larksuite.com"
 	} else if c.Host != larkHost && c.Host != feishuHost {
 		return ErrInvalidHost
 	}
 
-	c.Path = strings.Trim(configURL.Path, "/")
+	c.Path = strings.Trim(serviceURL.Path, "/")
 	// Handle documentation generation with empty path
-	if c.Path == "" && (configURL.User != nil && configURL.User.Username() == "dummy") {
+	if c.Path == "" && (serviceURL.User != nil && serviceURL.User.Username() == "dummy") {
 		c.Path = "token"
 	} else if c.Path == "" {
 		return ErrNoPath
 	}
 
-	for key, vals := range configURL.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

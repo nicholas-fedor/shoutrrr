@@ -53,10 +53,10 @@ func (c *Config) LevelColors() [types.MessageLevelCount]uint {
 }
 
 // SetURL updates the configuration from a URL representation.
-func (c *Config) SetURL(configURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, configURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from configuration using the provided resolver.
@@ -77,12 +77,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
-	c.WebhookID = configURL.Host
-	c.Token = configURL.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.WebhookID = serviceURL.Host
+	c.Token = serviceURL.User.Username()
 
-	if configURL.Path != "" {
-		switch configURL.Path {
+	if serviceURL.Path != "" {
+		switch serviceURL.Path {
 		case "/raw":
 			c.JSON = true
 		default:
@@ -98,7 +98,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) 
 		return ErrMissingToken
 	}
 
-	for key, vals := range configURL.Query() {
+	for key, vals := range serviceURL.Query() {
 		if key == "thread_id" {
 			// Trim whitespace from thread_id
 			c.ThreadID = strings.TrimSpace(vals[0])

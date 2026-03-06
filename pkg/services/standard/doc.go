@@ -117,7 +117,7 @@
 //	    }
 //	}
 //
-//	func (s *Service) Initialize(url *url.URL, logger types.StdLogger) error {
+//	func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 //	    s.SetLogger(logger)
 //	    s.Log("Initializing service")
 //	    // service-specific initialization

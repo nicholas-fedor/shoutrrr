@@ -39,68 +39,6 @@ func (_m *MockCustomURLService) EXPECT() *MockCustomURLService_Expecter {
 	return &MockCustomURLService_Expecter{mock: &_m.Mock}
 }
 
-// GetConfigURLFromCustom provides a mock function for the type MockCustomURLService
-func (_mock *MockCustomURLService) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	ret := _mock.Called(customURL)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetConfigURLFromCustom")
-	}
-
-	var r0 *url.URL
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(*url.URL) (*url.URL, error)); ok {
-		return returnFunc(customURL)
-	}
-	if returnFunc, ok := ret.Get(0).(func(*url.URL) *url.URL); ok {
-		r0 = returnFunc(customURL)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*url.URL)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(*url.URL) error); ok {
-		r1 = returnFunc(customURL)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// MockCustomURLService_GetConfigURLFromCustom_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConfigURLFromCustom'
-type MockCustomURLService_GetConfigURLFromCustom_Call struct {
-	*mock.Call
-}
-
-// GetConfigURLFromCustom is a helper method to define mock.On call
-//   - customURL *url.URL
-func (_e *MockCustomURLService_Expecter) GetConfigURLFromCustom(customURL interface{}) *MockCustomURLService_GetConfigURLFromCustom_Call {
-	return &MockCustomURLService_GetConfigURLFromCustom_Call{Call: _e.mock.On("GetConfigURLFromCustom", customURL)}
-}
-
-func (_c *MockCustomURLService_GetConfigURLFromCustom_Call) Run(run func(customURL *url.URL)) *MockCustomURLService_GetConfigURLFromCustom_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *url.URL
-		if args[0] != nil {
-			arg0 = args[0].(*url.URL)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *MockCustomURLService_GetConfigURLFromCustom_Call) Return(serviceURL *url.URL, err error) *MockCustomURLService_GetConfigURLFromCustom_Call {
-	_c.Call.Return(serviceURL, err)
-	return _c
-}
-
-func (_c *MockCustomURLService_GetConfigURLFromCustom_Call) RunAndReturn(run func(customURL *url.URL) (*url.URL, error)) *MockCustomURLService_GetConfigURLFromCustom_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetID provides a mock function for the type MockCustomURLService
 func (_mock *MockCustomURLService) GetID() string {
 	ret := _mock.Called()
@@ -141,6 +79,68 @@ func (_c *MockCustomURLService_GetID_Call) Return(s string) *MockCustomURLServic
 }
 
 func (_c *MockCustomURLService_GetID_Call) RunAndReturn(run func() string) *MockCustomURLService_GetID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetServiceURLFromCustom provides a mock function for the type MockCustomURLService
+func (_mock *MockCustomURLService) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
+	ret := _mock.Called(customURL)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetServiceURLFromCustom")
+	}
+
+	var r0 *url.URL
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(*url.URL) (*url.URL, error)); ok {
+		return returnFunc(customURL)
+	}
+	if returnFunc, ok := ret.Get(0).(func(*url.URL) *url.URL); ok {
+		r0 = returnFunc(customURL)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*url.URL)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(*url.URL) error); ok {
+		r1 = returnFunc(customURL)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockCustomURLService_GetServiceURLFromCustom_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetServiceURLFromCustom'
+type MockCustomURLService_GetServiceURLFromCustom_Call struct {
+	*mock.Call
+}
+
+// GetServiceURLFromCustom is a helper method to define mock.On call
+//   - customURL *url.URL
+func (_e *MockCustomURLService_Expecter) GetServiceURLFromCustom(customURL interface{}) *MockCustomURLService_GetServiceURLFromCustom_Call {
+	return &MockCustomURLService_GetServiceURLFromCustom_Call{Call: _e.mock.On("GetServiceURLFromCustom", customURL)}
+}
+
+func (_c *MockCustomURLService_GetServiceURLFromCustom_Call) Run(run func(customURL *url.URL)) *MockCustomURLService_GetServiceURLFromCustom_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *url.URL
+		if args[0] != nil {
+			arg0 = args[0].(*url.URL)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockCustomURLService_GetServiceURLFromCustom_Call) Return(serviceURL *url.URL, err error) *MockCustomURLService_GetServiceURLFromCustom_Call {
+	_c.Call.Return(serviceURL, err)
+	return _c
+}
+
+func (_c *MockCustomURLService_GetServiceURLFromCustom_Call) RunAndReturn(run func(customURL *url.URL) (*url.URL, error)) *MockCustomURLService_GetServiceURLFromCustom_Call {
 	_c.Call.Return(run)
 	return _c
 }

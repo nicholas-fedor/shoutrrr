@@ -190,11 +190,11 @@ func (c *Config) QueryFields() []string {
 //   - url: The configuration URL to parse
 //
 // Returns an error if the URL is malformed or required fields are missing.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	// Create a new property key resolver for parsing query parameters
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // ValidateCredentials validates that the configuration has valid credentials.
@@ -259,13 +259,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - url: The configuration URL to parse
 //
 // Returns an error if parsing fails or required fields are missing.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Extract authentication credentials from URL user info if present
-	if url.User != nil {
+	if serviceURL.User != nil {
 		// Get the password (may be empty if only username is provided)
-		password, _ := url.User.Password()
+		password, _ := serviceURL.User.Password()
 		c.Password = password
-		c.Username = url.User.Username()
+		c.Username = serviceURL.User.Username()
 	} else {
 		// Clear credentials if not present in URL
 		c.Password = ""
@@ -273,13 +273,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	// Extract hostname from the URL
-	host := url.Hostname()
+	host := serviceURL.Hostname()
 	if host != "" {
 		c.Host = host
 	}
 
 	// Extract and parse port number from the URL
-	port := url.Port()
+	port := serviceURL.Port()
 	if port != "" {
 		// Parse the port string to an integer
 		parsedPort, err := strconv.Atoi(port)
@@ -290,7 +290,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		c.Port = parsedPort
 	} else {
 		// Apply default ports based on URL scheme when no port is specified
-		switch url.Scheme {
+		switch serviceURL.Scheme {
 		case SchemeTLS:
 			c.Port = DefaultTLSPort
 		case Scheme:
@@ -300,18 +300,18 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 
 	// Extract topic from URL path, removing the leading slash
 	// Example: "/notifications/alerts" becomes "notifications/alerts"
-	c.Topic = strings.TrimPrefix(url.Path, "/")
+	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 
 	// Process all query parameters through the resolver
 	// This handles optional parameters like qos, retained, clientid, etc.
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
 	// Validate that a topic was provided (skip for dummy URL used in docs generation)
-	if url.String() != "mqtt://dummy@dummy.com" {
+	if serviceURL.String() != "mqtt://dummy@dummy.com" {
 		if c.Topic == "" {
 			return ErrTopicRequired
 		}

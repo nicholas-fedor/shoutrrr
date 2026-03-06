@@ -10,20 +10,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigURLRoundTrip(t *testing.T) {
+func TestServiceURLRoundTrip(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
 
-		configURL := service.Config.GetURL()
-		assert.Equal(t, "twilio", configURL.Scheme)
-		assert.Equal(t, "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", configURL.User.Username())
+		serviceURL := service.Config.GetURL()
+		assert.Equal(t, "twilio", serviceURL.Scheme)
+		assert.Equal(t, "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", serviceURL.User.Username())
 
-		password, hasPassword := configURL.User.Password()
+		password, hasPassword := serviceURL.User.Password()
 		assert.True(t, hasPassword)
 		assert.Equal(t, "authToken", password)
-		assert.Equal(t, "+15551234567", configURL.Host)
+		assert.Equal(t, "+15551234567", serviceURL.Host)
 
 		mockClient.AssertExpectations(t)
 	})
@@ -41,8 +41,8 @@ func TestConfigMultipleRecipients(t *testing.T) {
 
 		assert.Equal(t, []string{"+15559876543", "+15551111111"}, service.Config.ToNumbers)
 
-		configURL := service.Config.GetURL()
-		assert.Equal(t, "/+15559876543/+15551111111", configURL.Path)
+		serviceURL := service.Config.GetURL()
+		assert.Equal(t, "/+15559876543/+15551111111", serviceURL.Path)
 
 		mockClient.AssertExpectations(t)
 	})

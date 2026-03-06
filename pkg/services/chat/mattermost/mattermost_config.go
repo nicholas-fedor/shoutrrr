@@ -27,8 +27,6 @@ type Config struct {
 const Scheme = "mattermost"
 
 // CreateConfigFromURL creates a new Config instance from a URL representation.
-//
-
 func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	// Config has embedded EnumlessConfig and URL-tagged fields are set via SetURL
 	config := &Config{}

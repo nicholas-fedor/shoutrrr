@@ -169,8 +169,8 @@ func createURL(username, token, devices string) *url.URL {
 	}
 }
 
-func expectErrorMessageGivenURL(msg join.ErrorMessage, url *url.URL) {
-	err := config.SetURL(url)
+func expectErrorMessageGivenURL(msg join.ErrorMessage, serviceURL *url.URL) {
+	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
 	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
 }

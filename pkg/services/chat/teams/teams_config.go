@@ -67,10 +67,10 @@ func (c *Config) SetFromWebhookURL(webhookURL string) error {
 }
 
 // SetURL updates the Config from a URL.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // WebhookParts returns the webhook components as an array.
@@ -139,20 +139,20 @@ func (c *Config) setQueryParams(resolver types.ConfigQueryResolver, query url.Va
 // setURL updates the Config from a URL using the provided resolver.
 // It parses the URL parts, sets query parameters, and ensures the host is specified.
 // Returns an error if the URL is invalid or the host is missing.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	parts, err := parseURLParts(url)
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	parts, err := parseURLParts(serviceURL)
 	if err != nil {
 		return err
 	}
 
 	c.setFromWebhookParts(parts)
 
-	if err := c.setQueryParams(resolver, url.Query()); err != nil {
+	if err := c.setQueryParams(resolver, serviceURL.Query()); err != nil {
 		return err
 	}
 
 	// Allow dummy URL during documentation generation
-	if c.Host == "" && (url.User != nil && url.User.Username() == "dummy") {
+	if c.Host == "" && (serviceURL.User != nil && serviceURL.User.Username() == "dummy") {
 		c.Host = "dummy.webhook.office.com"
 	} else if c.Host == "" {
 		return ErrMissingHostParameter
@@ -174,13 +174,13 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, error) {
 }
 
 // parseURLParts extracts and validates webhook components from a URL.
-func parseURLParts(url *url.URL) ([5]string, error) {
+func parseURLParts(serviceURL *url.URL) ([5]string, error) {
 	var parts [5]string
-	if url.String() == DummyURL {
+	if serviceURL.String() == DummyURL {
 		return parts, nil
 	}
 
-	pathParts := strings.Split(url.Path, "/")
+	pathParts := strings.Split(serviceURL.Path, "/")
 	if pathParts[0] == "" {
 		pathParts = pathParts[1:]
 	}
@@ -190,8 +190,8 @@ func parseURLParts(url *url.URL) ([5]string, error) {
 	}
 
 	parts = [5]string{
-		url.User.Username(),
-		url.Hostname(),
+		serviceURL.User.Username(),
+		serviceURL.Hostname(),
 		pathParts[0],
 		pathParts[1],
 		pathParts[2],

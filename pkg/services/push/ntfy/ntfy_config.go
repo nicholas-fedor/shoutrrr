@@ -77,10 +77,10 @@ func (c *Config) QueryFields() []string {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -109,27 +109,27 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	if url.User != nil {
-		password, _ := url.User.Password()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	if serviceURL.User != nil {
+		password, _ := serviceURL.User.Password()
 		c.Password = password
-		c.Username = url.User.Username()
+		c.Username = serviceURL.User.Username()
 	} else {
 		c.Password = ""
 		c.Username = ""
 	}
 
-	c.Host = url.Host
-	c.Topic = strings.TrimPrefix(url.Path, "/")
+	c.Host = serviceURL.Host
+	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 
-	url.RawQuery = strings.ReplaceAll(url.RawQuery, ";", "%3b")
-	for key, vals := range url.Query() {
+	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
-	if url.String() != "ntfy://dummy@dummy.com" {
+	if serviceURL.String() != "ntfy://dummy@dummy.com" {
 		if c.Topic == "" {
 			return ErrTopicRequired
 		}

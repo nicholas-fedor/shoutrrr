@@ -36,12 +36,12 @@ func (s *Service) GetID() string {
 // Initialize configures the service with a URL and logger.
 //
 // Params:
-//   - configURL: The configuration URL containing Rocket.Chat connection details
+//   - serviceURL: The configuration URL containing Rocket.Chat connection details
 //   - logger: The logger to use for this service
 //
 // Returns:
 //   - error: An error if configuration fails, nil otherwise
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
@@ -51,7 +51,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 		}
 	}
 
-	if err := s.Config.SetURL(configURL); err != nil {
+	if err := s.Config.SetURL(serviceURL); err != nil {
 		return err
 	}
 

@@ -37,10 +37,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -55,20 +55,20 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	path := url.Path
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	path := serviceURL.Path
 	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
 
-	if url.Fragment != "" {
-		path += "/#" + url.Fragment
+	if serviceURL.Fragment != "" {
+		path += "/#" + serviceURL.Fragment
 	}
 
 	targets := strings.Split(path, "/")
 
-	token := url.Hostname()
-	if url.String() != "pushbullet://dummy@dummy.com" {
+	token := serviceURL.Hostname()
+	if serviceURL.String() != "pushbullet://dummy@dummy.com" {
 		if err := validateToken(token); err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	c.Token = token
 	c.Targets = targets
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}

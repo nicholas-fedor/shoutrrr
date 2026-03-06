@@ -47,11 +47,11 @@ func (s *Service) GetID() string {
 // This method sets up the entire service infrastructure including configuration parsing,
 // HTTP client creation with appropriate TLS settings, and logging capabilities.
 // Parameters:
-//   - configURL: The URL containing Gotify server configuration (host, token, path, etc.)
+//   - serviceURL: The URL containing Gotify server configuration (host, token, path, etc.)
 //   - logger: Logger instance for recording service operations and warnings
 //
 // Returns: error if configuration parsing or setup fails, nil on success.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for this service instance to enable logging throughout the service lifecycle
 	s.SetLogger(logger)
 
@@ -64,7 +64,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
 	// Parse the configuration URL to extract host, token, path, and other settings
-	err := s.Config.SetURL(configURL)
+	err := s.Config.SetURL(serviceURL)
 	if err != nil {
 		return fmt.Errorf("failed to set URL: %w", err)
 	}

@@ -29,12 +29,12 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
 
-	return s.Config.SetURL(configURL)
+	return s.Config.SetURL(serviceURL)
 }
 
 // Send delivers a notification message to Google Chat.
@@ -75,7 +75,7 @@ func (s *Service) Send(message string, _ *types.Params) error {
 	return nil
 }
 
-// getAPIURL constructs the API URL for Google Chat notifications.
+// getAPIURL constructs the service URL for Google Chat notifications.
 func getAPIURL(config *Config) *url.URL {
 	query := url.Values{}
 	query.Set("key", config.Key)

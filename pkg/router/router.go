@@ -51,7 +51,7 @@ func (r *ServiceRouter) Enqueue(message string, v ...any) {
 	r.queue = append(r.queue, message)
 }
 
-// ExtractServiceName from a notification URL.
+// ExtractServiceName from a service URL.
 func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, error) {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -68,7 +68,7 @@ func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, err
 	return scheme, serviceURL, nil
 }
 
-// Flush sends all messages that have been queued up as a combined message. This method should be deferred!
+// Flush sends all messages that have been queued up as a combined message.
 func (r *ServiceRouter) Flush(params *types.Params) {
 	// Since this method is supposed to be deferred we just have to ignore errors
 	_ = r.Send(strings.Join(r.queue, "\n"), params)
@@ -189,7 +189,7 @@ func (r *ServiceRouter) SetLogger(logger types.StdLogger) {
 }
 
 func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
-	scheme, configURL, err := r.ExtractServiceName(rawURL)
+	scheme, serviceURL, err := r.ExtractServiceName(rawURL)
 	if err != nil {
 		return nil, err
 	}
@@ -199,23 +199,23 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 		return nil, err
 	}
 
-	if configURL.Scheme != scheme {
-		r.log("Got custom URL:", configURL.String())
+	if serviceURL.Scheme != scheme {
+		r.log("Got custom URL:", serviceURL.String())
 
 		customURLService, ok := service.(types.CustomURLService)
 		if !ok {
 			return nil, fmt.Errorf("%w: '%s' service", ErrCustomURLsNotSupported, scheme)
 		}
 
-		configURL, err = customURLService.GetConfigURLFromCustom(configURL)
+		serviceURL, err = customURLService.GetServiceURLFromCustom(serviceURL)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", configURL.String(), ErrCustomURLConversion)
+			return nil, fmt.Errorf("%s: %w", serviceURL.String(), ErrCustomURLConversion)
 		}
 
-		r.log("Converted service URL:", configURL.String())
+		r.log("Converted service URL:", serviceURL.String())
 	}
 
-	err = service.Initialize(configURL, r.logger)
+	err = service.Initialize(serviceURL, r.logger)
 	if err != nil {
 		return service, fmt.Errorf("%s: %w", scheme, ErrInitializeFailed)
 	}

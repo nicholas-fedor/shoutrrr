@@ -22,7 +22,7 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
 func (s *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}

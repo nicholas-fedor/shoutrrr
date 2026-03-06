@@ -53,10 +53,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
@@ -68,14 +68,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if c.UseMessageAsValue == DisabledValue {
 		c.UseMessageAsValue = DefaultMessageValue
 	}
 
-	c.WebHookID = url.Hostname()
+	c.WebHookID = serviceURL.Hostname()
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
@@ -94,7 +94,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		return ErrTitleMessageConflict
 	}
 
-	if url.String() != "ifttt://dummy@dummy.com" {
+	if serviceURL.String() != "ifttt://dummy@dummy.com" {
 		if len(c.Events) < MinLength {
 			return ErrMissingEvents
 		}

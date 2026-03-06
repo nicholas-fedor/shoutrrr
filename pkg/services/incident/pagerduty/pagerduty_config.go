@@ -45,10 +45,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -69,12 +69,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	if len(url.Path) <= 1 {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	if len(serviceURL.Path) <= 1 {
 		return errMissingIntegrationKey
 	}
 
-	c.IntegrationKey = url.Path[1:]
+	c.IntegrationKey = serviceURL.Path[1:]
 
 	// Validate integration key format
 	if matched, err := regexp.MatchString(integrationKeyRegex, c.IntegrationKey); err != nil {
@@ -83,12 +83,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		return errInvalidIntegrationKey
 	}
 
-	if url.Hostname() != "" {
-		c.Host = url.Hostname()
+	if serviceURL.Hostname() != "" {
+		c.Host = serviceURL.Hostname()
 	}
 
-	if url.Port() != "" {
-		port, err := strconv.ParseUint(url.Port(), 10, 16)
+	if serviceURL.Port() != "" {
+		port, err := strconv.ParseUint(serviceURL.Port(), 10, 16)
 		if err != nil {
 			return fmt.Errorf("failed to parse port: %w", err)
 		}
@@ -96,7 +96,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 		c.Port = uint16(port)
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("failed to set query parameter %q: %w", key, err)
 		}

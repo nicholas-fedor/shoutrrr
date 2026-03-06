@@ -31,15 +31,15 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize sets up the Service with configuration from configURL and assigns a logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+// Initialize sets up the Service with configuration from serviceURL and assigns a logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
 	_ = s.pkr.SetDefaultProps(s.Config)
 
-	return s.Config.setURL(&s.pkr, configURL)
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send transmits a notification message to Bark.

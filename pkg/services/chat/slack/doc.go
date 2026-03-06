@@ -31,7 +31,7 @@
 // # Usage Example
 //
 //	service := &slack.Service{}
-//	err := service.Initialize(configURL, logger)
+//	err := service.Initialize(serviceURL, logger)
 //	if err != nil {
 //	    // handle error
 //	}

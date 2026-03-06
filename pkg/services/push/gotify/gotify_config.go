@@ -44,10 +44,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
-func (c *Config) SetURL(url *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL generates a URL from the current configuration values.
@@ -133,9 +133,9 @@ func (c *Config) processQueryParameters(
 //   - url: The URL to parse configuration values from
 //
 // Returns: error if URL parsing or parameter processing fails.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
-	path := url.Path
+	path := serviceURL.Path
 	if path != "" && path[len(path)-1] == '/' {
 		path = path[:len(path)-1] // Remove trailing slash if present
 	}
@@ -150,11 +150,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	// Set host and token from URL components
-	c.Host = url.Host
+	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
 
 	// Process query parameters to set remaining configuration fields
-	if err := c.processQueryParameters(resolver, url.Query()); err != nil {
+	if err := c.processQueryParameters(resolver, serviceURL.Query()); err != nil {
 		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 

@@ -74,7 +74,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 		})
 		ginkgo.It("correctly sets webhook URL from custom URL", func() {
 			customURL := testutils.URLMust("generic+https://test.tld")
-			serviceURL, err := service.GetConfigURLFromCustom(customURL)
+			serviceURL, err := service.GetServiceURLFromCustom(customURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

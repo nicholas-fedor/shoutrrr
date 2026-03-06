@@ -73,7 +73,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				_, err = service.GetConfigURLFromCustom(customURL)
+				_, err = service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).To(gomega.HaveOccurred(), "converting")
 			})
 		})
@@ -84,7 +84,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				serviceURL, err := service.GetConfigURLFromCustom(customURL)
+				serviceURL, err := service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
 				gomega.Expect(serviceURL.String()).To(gomega.Equal(scopedURLBase))
 			})
@@ -94,7 +94,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				serviceURL, err := service.GetConfigURLFromCustom(customURL)
+				serviceURL, err := service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
 
 				expectedURL := testURLBase + "?color=f008c1&host=test.webhook.office.com&title=TheTitle"

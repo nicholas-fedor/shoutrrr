@@ -30,10 +30,10 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates a ServiceConfig from a URL representation of it's field values.
-func (c *Config) SetURL(configURL *url.URL) error {
+func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
-	return c.setURL(&resolver, configURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
@@ -46,13 +46,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-func (c *Config) setURL(resolver types.ConfigQueryResolver, configURL *url.URL) error {
-	c.User = configURL.User.Username()
-	password, _ := configURL.User.Password()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.User = serviceURL.User.Username()
+	password, _ := serviceURL.User.Password()
 	c.Password = password
-	c.Host = configURL.Host
+	c.Host = serviceURL.Host
 
-	for key, vals := range configURL.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}

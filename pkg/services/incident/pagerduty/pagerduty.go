@@ -39,8 +39,8 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
@@ -49,7 +49,7 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 		return err
 	}
 
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 
