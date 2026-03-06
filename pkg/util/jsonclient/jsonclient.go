@@ -125,7 +125,6 @@ func (c *client) Get(url string, response any) error {
 		req.Header.Set(key, val[0])
 	}
 
-	//nolint:gosec // This is an HTTP client library; making HTTP requests is the intended functionality
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request to %q: %w", url, err)
@@ -171,7 +170,6 @@ func (c *client) Post(url string, request, response any) error {
 		req.Header.Set(key, val[0])
 	}
 
-	//nolint:gosec // This is an HTTP client library; making HTTP requests is the intended functionality
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending POST request to %q: %w", url, err)

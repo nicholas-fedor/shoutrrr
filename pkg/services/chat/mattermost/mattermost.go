@@ -96,7 +96,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	//nolint:gosec // URL is built safely using url.URL struct
 	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", err)

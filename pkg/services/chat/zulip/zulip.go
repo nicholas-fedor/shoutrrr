@@ -89,8 +89,6 @@ func (s *Service) GetID() string {
 }
 
 // doSend sends the notification to Zulip using the configured API URL.
-//
-//nolint:gosec,noctx // Ignoring G107: Potential HTTP request made with variable url
 func (s *Service) doSend(config *Config, message string) error {
 	apiURL := s.getAPIURL(config)
 

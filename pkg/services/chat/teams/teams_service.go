@@ -155,8 +155,6 @@ func (s *Service) doSend(config *Config, message string) error {
 
 // safePost performs an HTTP POST with a pre-validated URL.
 // Validation is already done; this wrapper isolates the call.
-//
-//nolint:gosec,noctx // Ignoring G107: Potential HTTP request made with variable url
 func safePost(url string, payload []byte) (*http.Response, error) {
 	res, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
 	if err != nil {

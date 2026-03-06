@@ -80,7 +80,6 @@ func (c *client) apiGet(path string, response any) error {
 		return fmt.Errorf("creating GET request: %w", err)
 	}
 
-	//nolint:gosec // G704: URL is constructed from trusted configuration, not user input
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request: %w", err)
@@ -133,7 +132,6 @@ func (c *client) apiPost(path string, request, response any) error {
 
 	req.Header.Set("Content-Type", contentType)
 
-	//nolint:gosec // G704: URL is constructed from trusted configuration, not user input
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request: %w", err)

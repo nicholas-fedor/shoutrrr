@@ -225,8 +225,6 @@ func (s *Service) preparePayload(
 }
 
 // sendRequest performs the HTTP POST request to the Lark API and handles the response.
-//
-//nolint:gosec // G704: URL is validated through config validation before calling this function
 func (s *Service) sendRequest(postURL string, payload []byte) error {
 	req, err := http.NewRequestWithContext(
 		context.Background(),

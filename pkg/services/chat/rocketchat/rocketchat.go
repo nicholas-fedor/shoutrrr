@@ -97,7 +97,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	//nolint:gosec // URL scheme is validated to be https before this call
 	res, err = s.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf(

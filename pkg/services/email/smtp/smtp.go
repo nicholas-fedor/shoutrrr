@@ -124,8 +124,8 @@ func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, err
 		dialer := &tls.Dialer{
 			Config: &tls.Config{
 				ServerName:         config.Host,
-				MinVersion:         tls.VersionTLS12,     // Enforce TLS 1.2 or higher
-				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
+				MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
+				InsecureSkipVerify: config.SkipTLSVerify,
 			},
 		}
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
@@ -179,7 +179,7 @@ func (s *Service) doSend(client *smtp.Client, message string, config *Config) fa
 				ServerName:         config.Host,
 				MinVersion:         tls.VersionTLS12,
 				MaxVersion:         tls.VersionTLS13,
-				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
+				InsecureSkipVerify: config.SkipTLSVerify,
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
 			}

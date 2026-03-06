@@ -374,8 +374,8 @@ linters:
       # Available rules: https://github.com/securego/gosec#available-rules
       # Default: []
       excludes:
-        # - G602 # Possible slice bounds out of range
-        - G705 # XSS via taint analysis (Taint) - false positives for CLI console output
+        - G704 # SSRF via taint analysis - this is a http client library
+        - G705 # XSS via taint analysis - false positives for CLI console output
 
     ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#nakedret

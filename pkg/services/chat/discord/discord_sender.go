@@ -85,7 +85,6 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 
 // Do performs the HTTP request.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	//nolint:gosec // G704: URL is validated before calling this function
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("performing HTTP request: %w", err)

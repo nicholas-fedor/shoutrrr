@@ -61,7 +61,6 @@ func (s *Service) Send(message string, _ *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	//nolint:gosec // URL is constructed from validated config, not user input
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending notification to Google Chat: %w", err)

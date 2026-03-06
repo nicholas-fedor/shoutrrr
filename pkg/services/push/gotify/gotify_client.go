@@ -26,11 +26,13 @@ type DefaultHTTPClientManager struct{}
 // This method configures the underlying HTTP transport layer with appropriate security settings
 // based on the service configuration, particularly handling TLS verification preferences.
 // Returns: *http.Transport configured with TLS settings for secure or insecure connections.
+//
+//nolint:gosec // Intentionally allow insecure connections when TLS is disabled or explicitly configured
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
 	return &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
-			InsecureSkipVerify: config.DisableTLS || //nolint:gosec // Intentionally allow insecure connections when TLS is disabled or explicitly configured
+			InsecureSkipVerify: config.DisableTLS ||
 				config.InsecureSkipVerify,
 		},
 	}
