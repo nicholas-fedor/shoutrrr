@@ -1,7 +1,6 @@
 package zulip
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,18 +11,17 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to a pre-configured Zulip channel or user.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+}
+
 // contentMaxSize defines the maximum allowed message size in bytes.
 const (
 	contentMaxSize = 10000 // bytes
 	topicMaxLength = 60    // characters
-)
-
-// ErrTopicTooLong indicates the topic exceeds the maximum allowed length.
-var (
-	ErrTopicTooLong          = errors.New("topic exceeds max length")
-	ErrMessageTooLong        = errors.New("message exceeds max size")
-	ErrResponseStatusFailure = errors.New("response status code unexpected")
-	ErrInvalidHost           = errors.New("invalid host format")
 )
 
 // hostValidator ensures the host is a valid hostname or domain.
@@ -31,11 +29,21 @@ var hostValidator = regexp.MustCompile(
 	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`,
 )
 
-// Service sends notifications to a pre-configured Zulip channel or user.
-type Service struct {
-	standard.Standard
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
 
-	Config *Config
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+
+	if err := s.Config.setURL(nil, configURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Zulip.
@@ -69,23 +77,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.doSend(config, message)
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-
-	if err := s.Config.setURL(nil, configURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
 }
 
 // doSend sends the notification to Zulip using the configured API URL.

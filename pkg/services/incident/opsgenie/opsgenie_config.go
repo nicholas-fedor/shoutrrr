@@ -50,6 +50,13 @@ func (c *Config) GetURL() *url.URL {
 	return c.getURL(&resolver)
 }
 
+// SetURL updates the Config from a URL representation of its field values.
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
+}
+
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var host string
@@ -69,19 +76,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return result
 }
 
-// SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
-}
-
 // setURL updates the Config from a URL using the provided resolver.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	c.Host = url.Hostname()
 
 	if url.String() != "opsgenie://dummy@dummy.com" {
-		if len(url.Path) > 0 {
+		if url.Path != "" {
 			c.APIKey = url.Path[1:]
 		} else {
 			return ErrAPIKeyMissing

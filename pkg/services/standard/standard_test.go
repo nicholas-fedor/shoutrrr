@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
-func TestStandard(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Standard Suite")
-}
-
 var (
 	logger       *Logger
 	builder      *strings.Builder
@@ -205,3 +200,9 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 		})
 	})
 })
+
+func TestStandard(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Standard Suite")
+}

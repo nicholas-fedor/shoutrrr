@@ -1,7 +1,6 @@
 package twilio
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -9,20 +8,6 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-)
-
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "twilio"
-
-// Static errors for configuration validation.
-var (
-	ErrAccountSIDMissing = errors.New("account SID missing from config URL")
-	ErrAuthTokenMissing  = errors.New("auth token missing from config URL")
-	ErrFromNumberMissing = errors.New(
-		"from number or messaging service SID missing from config URL",
-	)
-	ErrToFromNumberSame = errors.New("to and from phone numbers must not be the same")
-	ErrToNumbersMissing = errors.New("recipient phone number(s) missing from config URL")
 )
 
 // Config for the Twilio SMS notification service.
@@ -33,6 +18,18 @@ type Config struct {
 	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:"" url:"path"`
 	Title      string   `desc:"Notification title"                                                      default:"" key:"title" optional:""`
 }
+
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "twilio"
+
+// phoneReplacer strips common formatting characters from phone numbers.
+var phoneReplacer = strings.NewReplacer(
+	" ", "",
+	"-", "",
+	"(", "",
+	")", "",
+	".", "",
+)
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
 func (*Config) Enums() map[string]types.EnumFormatter {
@@ -51,6 +48,20 @@ func (c *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, url)
+}
+
+// getURL constructs a URL from the Config's fields using the provided resolver.
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	path := "/" + strings.Join(c.ToNumbers, "/")
+
+	return &url.URL{
+		Scheme:     Scheme,
+		User:       url.UserPassword(c.AccountSID, c.AuthToken),
+		Host:       c.FromNumber,
+		Path:       path,
+		ForceQuery: true,
+		RawQuery:   format.BuildQuery(resolver),
+	}
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -75,26 +86,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	return nil
-}
-
-// parseToNumbers extracts and normalizes recipient phone numbers from the URL path.
-func parseToNumbers(path string) []string {
-	rawPath := strings.TrimPrefix(path, "/")
-	if rawPath == "" {
-		return nil
-	}
-
-	parts := strings.Split(rawPath, "/")
-	numbers := make([]string, 0, len(parts))
-
-	for _, p := range parts {
-		n := normalizePhoneNumber(strings.TrimSpace(p))
-		if n != "" {
-			numbers = append(numbers, n)
-		}
-	}
-
-	return numbers
 }
 
 // validate checks that all required Config fields are present and consistent.
@@ -125,29 +116,6 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// getURL constructs a URL from the Config's fields using the provided resolver.
-func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	path := "/" + strings.Join(c.ToNumbers, "/")
-
-	return &url.URL{
-		Scheme:     Scheme,
-		User:       url.UserPassword(c.AccountSID, c.AuthToken),
-		Host:       c.FromNumber,
-		Path:       path,
-		ForceQuery: true,
-		RawQuery:   format.BuildQuery(resolver),
-	}
-}
-
-// phoneReplacer strips common formatting characters from phone numbers.
-var phoneReplacer = strings.NewReplacer(
-	" ", "",
-	"-", "",
-	"(", "",
-	")", "",
-	".", "",
-)
-
 // normalizePhoneNumber strips common formatting characters (spaces, dashes,
 // parentheses, dots) from a phone number string, leaving only digits and a
 // leading '+'. Messaging Service SIDs (starting with "MG") are returned as-is.
@@ -157,4 +125,24 @@ func normalizePhoneNumber(number string) string {
 	}
 
 	return phoneReplacer.Replace(number)
+}
+
+// parseToNumbers extracts and normalizes recipient phone numbers from the URL path.
+func parseToNumbers(path string) []string {
+	rawPath := strings.TrimPrefix(path, "/")
+	if rawPath == "" {
+		return nil
+	}
+
+	parts := strings.Split(rawPath, "/")
+	numbers := make([]string, 0, len(parts))
+
+	for _, p := range parts {
+		n := normalizePhoneNumber(strings.TrimSpace(p))
+		if n != "" {
+			numbers = append(numbers, n)
+		}
+	}
+
+	return numbers
 }

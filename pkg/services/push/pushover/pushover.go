@@ -2,7 +2,6 @@ package pushover
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,16 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// hookURL is the Pushover API endpoint for sending messages.
-const (
-	hookURL            = "https://api.pushover.net/1/messages.json"
-	contentType        = "application/x-www-form-urlencoded"
-	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
-)
-
-// ErrSendFailed indicates a failure in sending the notification to a Pushover device.
-var ErrSendFailed = errors.New("failed to send notification to pushover device")
-
 // Service provides the Pushover notification service.
 type Service struct {
 	standard.Standard
@@ -32,6 +21,34 @@ type Service struct {
 	Config *Config
 	pkr    format.PropKeyResolver
 	Client *http.Client
+}
+
+// hookURL is the Pushover API endpoint for sending messages.
+const (
+	hookURL            = "https://api.pushover.net/1/messages.json"
+	contentType        = "application/x-www-form-urlencoded"
+	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+)
+
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.Client = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Pushover.
@@ -57,7 +74,7 @@ func (s *Service) sendToDevice(device, message string, config *Config) error {
 	data.Set("token", config.Token)
 	data.Set("message", message)
 
-	if len(config.Title) > 0 {
+	if config.Title != "" {
 		data.Set("title", config.Title)
 	}
 
@@ -92,25 +109,4 @@ func (s *Service) sendToDevice(device, message string, config *Config) error {
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.Client = &http.Client{
-		Timeout: defaultHTTPTimeout,
-	}
-
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }

@@ -20,6 +20,7 @@ const (
 )
 
 func TestAPIURLFormatCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -39,6 +40,8 @@ func TestAPIURLFormatCompliance(t *testing.T) {
 }
 
 func TestValidURLFormats(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		url         string
@@ -80,6 +83,7 @@ func TestValidURLFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
 				parsedURL, err := url.Parse(tt.url)
 				if err != nil {
@@ -104,6 +108,7 @@ func TestValidURLFormats(t *testing.T) {
 }
 
 func TestPayloadStructureCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -125,6 +130,7 @@ func TestPayloadStructureCompliance(t *testing.T) {
 }
 
 func TestBasicAuthCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -148,6 +154,7 @@ func TestBasicAuthCompliance(t *testing.T) {
 }
 
 func TestContentTypeCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -169,6 +176,7 @@ func TestContentTypeCompliance(t *testing.T) {
 }
 
 func TestHTTPMethodCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -190,6 +198,7 @@ func TestHTTPMethodCompliance(t *testing.T) {
 }
 
 func TestHTTPSRequirementCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -211,6 +220,7 @@ func TestHTTPSRequirementCompliance(t *testing.T) {
 }
 
 func TestMessagingServiceSIDCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

@@ -31,31 +31,6 @@ type MockHTTPClientManager struct {
 	Transport *http.Transport
 }
 
-// CreateTransport creates a basic HTTP transport for the mock manager.
-func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
-	if m.Transport != nil {
-		return m.Transport
-	}
-
-	// Return nil to use the default transport, avoiding nil dereferences
-	return nil
-}
-
-// CreateClient creates a client with the given transport.
-func (m *MockHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
-	if transport == nil {
-		return &http.Client{
-			Transport: http.DefaultTransport,
-			Timeout:   10 * time.Second,
-		}
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   10 * time.Second,
-	}
-}
-
 // Test constants.
 // These constants define test URLs and endpoints used throughout the test suite
 // for mocking Gotify API interactions and verifying URL construction.
@@ -1499,14 +1474,41 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 	})
 })
 
+// CreateClient creates a client with the given transport.
+func (m *MockHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
+	if transport == nil {
+		return &http.Client{
+			Transport: http.DefaultTransport,
+			Timeout:   10 * time.Second,
+		}
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
+}
+
+// CreateTransport creates a basic HTTP transport for the mock manager.
+func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
+	if m.Transport != nil {
+		return m.Transport
+	}
+
+	// Return nil to use the default transport, avoiding nil dereferences
+	return nil
+}
+
 // TestGotify runs the Ginkgo test suite for the Gotify package.
 func TestGotify(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Shoutrrr Gotify Suite")
 }
 
 // TestSend tests basic message sending functionality.
 func TestSend(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterTestingT(t)
 
 	service := &Service{}
@@ -1545,6 +1547,7 @@ func TestSend(t *testing.T) {
 
 // TestSendWithPriority tests sending a message with a custom priority.
 func TestSendWithPriority(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterTestingT(t)
 
 	service := &Service{}
@@ -1593,6 +1596,7 @@ func TestSendWithPriority(t *testing.T) {
 
 // TestSendWithTitle tests sending a message with a custom title.
 func TestSendWithTitle(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterTestingT(t)
 
 	service := &Service{}
@@ -1641,6 +1645,7 @@ func TestSendWithTitle(t *testing.T) {
 
 // TestTimeout tests timeout handling using synctest for instant execution.
 func TestTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		gomega.RegisterTestingT(t)
 		// Create fake network connection

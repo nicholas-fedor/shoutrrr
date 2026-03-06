@@ -4,9 +4,6 @@ import (
 	"regexp"
 )
 
-var emailPattern = regexp.MustCompile(`.*@.*\..*`)
-
-// PushRequest ...
 type PushRequest struct {
 	Type  string `json:"type"`
 	Title string `json:"title"`
@@ -44,24 +41,10 @@ type ResponseError struct {
 	} `json:"error"`
 }
 
+var emailPattern = regexp.MustCompile(`.*@.*\..*`)
+
 func (err *ResponseError) Error() string {
 	return err.ErrorData.Message
-}
-
-func (p *PushRequest) SetTarget(target string) {
-	if emailPattern.MatchString(target) {
-		p.Email = target
-
-		return
-	}
-
-	if len(target) > 0 && string(target[0]) == "#" {
-		p.ChannelTag = target[1:]
-
-		return
-	}
-
-	p.DeviceIden = target
 }
 
 // NewNotePush creates a new push request.
@@ -71,4 +54,20 @@ func NewNotePush(message, title string) *PushRequest {
 		Title: title,
 		Body:  message,
 	}
+}
+
+func (p *PushRequest) SetTarget(target string) {
+	if emailPattern.MatchString(target) {
+		p.Email = target
+
+		return
+	}
+
+	if target != "" && string(target[0]) == "#" {
+		p.ChannelTag = target[1:]
+
+		return
+	}
+
+	p.DeviceIden = target
 }

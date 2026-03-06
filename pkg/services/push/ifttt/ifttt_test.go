@@ -19,10 +19,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
-func TestIFTTT(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr IFTTT Suite")
+type jsonPayload struct {
+	Value1 string `json:"value1"`
+	Value2 string `json:"value2"`
+	Value3 string `json:"value3"`
 }
 
 var (
@@ -345,8 +345,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 	})
 })
 
-type jsonPayload struct {
-	Value1 string `json:"value1"`
-	Value2 string `json:"value2"`
-	Value3 string `json:"value3"`
+// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
+func TestIFTTT(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr IFTTT Suite")
 }

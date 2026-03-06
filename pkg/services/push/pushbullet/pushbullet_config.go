@@ -11,15 +11,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the scheme part of the service configuration URL.
-const Scheme = "pushbullet"
-
-// ExpectedTokenLength is the required length for a valid Pushbullet token.
-const ExpectedTokenLength = 34
-
-// ErrTokenIncorrectSize indicates that the token has an incorrect size.
-var ErrTokenIncorrectSize = errors.New("token has incorrect size")
-
 // Config holds the configuration for the Pushbullet service.
 type Config struct {
 	standard.EnumlessConfig
@@ -28,6 +19,15 @@ type Config struct {
 	Token   string   `url:"host"`
 	Title   string   `           default:"Shoutrrr notification" key:"title"`
 }
+
+// Scheme is the scheme part of the service configuration URL.
+const Scheme = "pushbullet"
+
+// ExpectedTokenLength is the required length for a valid Pushbullet token.
+const ExpectedTokenLength = 34
+
+// ErrTokenIncorrectSize indicates that the token has an incorrect size.
+var ErrTokenIncorrectSize = errors.New("token has incorrect size")
 
 // GetURL returns a URL representation of the Config's current field values.
 func (c *Config) GetURL() *url.URL {
@@ -57,7 +57,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // setURL updates the Config from a URL using the provided resolver.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
 	path := url.Path
-	if len(path) > 0 && path[0] == '/' {
+	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
 

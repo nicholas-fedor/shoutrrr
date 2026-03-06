@@ -25,24 +25,6 @@ var (
 	userInMono io.Writer
 )
 
-func mockTyped(a ...any) {
-	_, _ = fmt.Fprintf(userOut, "%v\n", fmt.Sprint(a...))
-}
-
-func dumpBuffers() {
-	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
-		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "> %s\n", line)
-	}
-
-	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
-		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "< %s\n", line)
-	}
-}
-
-func mockAPI(endpoint string) string {
-	return mockAPIBase + endpoint
-}
-
 var _ = ginkgo.Describe("TelegramGenerator", func() {
 	ginkgo.BeforeEach(func() {
 		userOut = gbytes.NewBuffer()
@@ -131,3 +113,21 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 			Should(gomega.Receive(gomega.Equal(`telegram://0:MockToken@telegram?chats=667&preview=No`)))
 	})
 })
+
+func mockAPI(endpoint string) string {
+	return mockAPIBase + endpoint
+}
+
+func mockTyped(a ...any) {
+	_, _ = fmt.Fprintf(userOut, "%v\n", fmt.Sprint(a...))
+}
+
+func dumpBuffers() {
+	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
+		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "> %s\n", line)
+	}
+
+	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
+		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "< %s\n", line)
+	}
+}

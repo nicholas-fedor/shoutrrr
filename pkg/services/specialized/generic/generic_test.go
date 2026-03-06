@@ -23,12 +23,6 @@ const (
 	TestWebhookURL = "https://host.tld/webhook" // Default test webhook URL
 )
 
-// TestGeneric runs the Ginkgo test suite for the generic package.
-func TestGeneric(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Generic Webhook Suite")
-}
-
 var (
 	service       *generic.Service
 	logger        *log.Logger
@@ -405,3 +399,10 @@ var _ = ginkgo.Describe("the generic service", func() {
 		})
 	})
 })
+
+// TestGeneric runs the Ginkgo test suite for the generic package.
+func TestGeneric(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Generic Webhook Suite")
+}

@@ -16,9 +16,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// HTTPTimeout defines the HTTP client timeout in seconds.
-const HTTPTimeout = 10
-
 // Service sends notifications to ntfy.
 type Service struct {
 	standard.Standard
@@ -29,27 +26,12 @@ type Service struct {
 	client     jsonclient.Client
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
-func (s *Service) SetHTTPClient(httpClient *http.Client) {
-	s.httpClient = httpClient
-	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
-}
+// HTTPTimeout defines the HTTP client timeout in seconds.
+const HTTPTimeout = 10
 
-// Send delivers a notification message to ntfy.
-func (s *Service) Send(message string, params *types.Params) error {
-	config := s.Config
-
-	// Update config with runtime parameters
-	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
-
-	// Execute the API request to send the notification
-	if err := s.sendAPI(config, message); err != nil {
-		return fmt.Errorf("failed to send ntfy notification: %w", err)
-	}
-
-	return nil
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
@@ -98,9 +80,27 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	return nil
 }
 
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
+// Send delivers a notification message to ntfy.
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+
+	// Update config with runtime parameters
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// Execute the API request to send the notification
+	if err := s.sendAPI(config, message); err != nil {
+		return fmt.Errorf("failed to send ntfy notification: %w", err)
+	}
+
+	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(httpClient *http.Client) {
+	s.httpClient = httpClient
+	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
 }
 
 // sendAPI sends a notification to the ntfy API.

@@ -10,7 +10,8 @@ import (
 	"github.com/onsi/gomega"
 )
 
-func TestTwilioE2E(t *testing.T) {
+//nolint:paralleltest // Avoid using parallel test when making external calls
+func Test_Twilio_E2E(t *testing.T) {
 	// Load .env file if it exists
 	loadEnvFile(".env")
 

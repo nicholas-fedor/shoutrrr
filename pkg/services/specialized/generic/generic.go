@@ -17,6 +17,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service implements a generic notification service for custom webhooks.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // JSONTemplate identifies the JSON format for webhook payloads.
 const (
 	JSONTemplate = "JSON"
@@ -29,12 +37,79 @@ var (
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
 )
 
-// Service implements a generic notification service for custom webhooks.
-type Service struct {
-	standard.Standard
+// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+	// Copy the URL to modify
+	webhookURL := *customURL
+	if strings.HasPrefix(webhookURL.Scheme, Scheme) {
+		// Remove the scheme prefix if present
+		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
+	}
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	// Parse config from webhook URL
+	config, pkr, err := ConfigFromWebhookURL(webhookURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate and return the service URL
+	return config.getURL(&pkr), nil
+}
+
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// GetPayload prepares the request payload based on the configured template.
+func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, error) {
+	switch config.Template {
+	case "":
+		// No template, send message directly
+		return bytes.NewBufferString(params[config.MessageKey]), nil
+	case "json", JSONTemplate:
+		// JSON template, marshal params to JSON
+		// Add extra data to params
+		maps.Copy(params, config.extraData)
+
+		// Marshal to JSON
+		jsonBytes, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling params to JSON: %w", err)
+		}
+
+		return bytes.NewBuffer(jsonBytes), nil
+	}
+
+	// Get the template
+	tpl, found := s.GetTemplate(config.Template)
+	if !found {
+		return nil, fmt.Errorf("%w: %q", ErrTemplateNotLoaded, config.Template)
+	}
+
+	// Buffer for template execution
+	bb := &bytes.Buffer{}
+	if err := tpl.Execute(bb, params); err != nil {
+		return nil, fmt.Errorf("executing template %q: %w", config.Template, err)
+	}
+
+	return bb, nil
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	// Set the logger for the service
+	s.SetLogger(logger)
+
+	// Get default config and property key resolver
+	config, pkr := DefaultConfig()
+	// Assign config to service
+	s.Config = config
+	// Assign resolver
+	s.pkr = pkr
+
+	// Set URL and return any error
+	return s.Config.setURL(&s.pkr, configURL)
 }
 
 // Send delivers a notification message to a generic webhook endpoint.
@@ -63,46 +138,6 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	// Set the logger for the service
-	s.SetLogger(logger)
-
-	// Get default config and property key resolver
-	config, pkr := DefaultConfig()
-	// Assign config to service
-	s.Config = config
-	// Assign resolver
-	s.pkr = pkr
-
-	// Set URL and return any error
-	return s.Config.setURL(&s.pkr, configURL)
-}
-
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
-// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	// Copy the URL to modify
-	webhookURL := *customURL
-	if strings.HasPrefix(webhookURL.Scheme, Scheme) {
-		// Remove the scheme prefix if present
-		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
-	}
-
-	// Parse config from webhook URL
-	config, pkr, err := ConfigFromWebhookURL(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate and return the service URL
-	return config.getURL(&pkr), nil
 }
 
 // doSend executes the HTTP request to send a notification to the webhook.
@@ -165,41 +200,6 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 	}
 
 	return nil
-}
-
-// GetPayload prepares the request payload based on the configured template.
-func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, error) {
-	switch config.Template {
-	case "":
-		// No template, send message directly
-		return bytes.NewBufferString(params[config.MessageKey]), nil
-	case "json", JSONTemplate:
-		// JSON template, marshal params to JSON
-		// Add extra data to params
-		maps.Copy(params, config.extraData)
-
-		// Marshal to JSON
-		jsonBytes, err := json.Marshal(params)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling params to JSON: %w", err)
-		}
-
-		return bytes.NewBuffer(jsonBytes), nil
-	}
-
-	// Get the template
-	tpl, found := s.GetTemplate(config.Template)
-	if !found {
-		return nil, fmt.Errorf("%w: %q", ErrTemplateNotLoaded, config.Template)
-	}
-
-	// Buffer for template execution
-	bb := &bytes.Buffer{}
-	if err := tpl.Execute(bb, params); err != nil {
-		return nil, fmt.Errorf("executing template %q: %w", config.Template, err)
-	}
-
-	return bb, nil
 }
 
 // createSendParams constructs parameters for sending a notification.

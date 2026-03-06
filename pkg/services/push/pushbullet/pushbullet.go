@@ -11,6 +11,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// Service providing Pushbullet as a notification service.
+type Service struct {
+	standard.Standard
+
+	client jsonclient.Client
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // Constants.
 const (
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
@@ -24,13 +33,9 @@ var (
 	ErrPushNotActive          = errors.New("push notification is not active")
 )
 
-// Service providing Pushbullet as a notification service.
-type Service struct {
-	standard.Standard
-
-	client jsonclient.Client
-	Config *Config
-	pkr    format.PropKeyResolver
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
@@ -50,11 +55,6 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.client.Headers().Set("Access-Token", s.Config.Token)
 
 	return nil
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }
 
 // Send a push notification via Pushbullet.

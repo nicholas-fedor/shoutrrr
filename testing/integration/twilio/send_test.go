@@ -12,6 +12,7 @@ import (
 )
 
 func TestSendBasicMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -30,6 +31,7 @@ func TestSendBasicMessage(t *testing.T) {
 }
 
 func TestSendToMultipleRecipients(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -51,6 +53,7 @@ func TestSendToMultipleRecipients(t *testing.T) {
 }
 
 func TestSendWithTitle(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -75,6 +78,7 @@ func TestSendWithTitle(t *testing.T) {
 }
 
 func TestSendWithTitleParam(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -95,6 +99,7 @@ func TestSendWithTitleParam(t *testing.T) {
 }
 
 func TestSendWithUnicodeContent(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -111,6 +116,7 @@ func TestSendWithUnicodeContent(t *testing.T) {
 }
 
 func TestSendWithEmptyMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -127,6 +133,7 @@ func TestSendWithEmptyMessage(t *testing.T) {
 }
 
 func TestServiceInitialization(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)

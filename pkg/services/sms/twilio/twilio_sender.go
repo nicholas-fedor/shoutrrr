@@ -11,17 +11,24 @@ import (
 	"time"
 )
 
+// HTTPClient defines the interface for making HTTP requests.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// apiErrorResponse represents an error response from the Twilio REST API.
+type apiErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Status  int    `json:"status"`
+}
+
 const (
 	apiBaseURL         = "https://api.twilio.com/2010-04-01/Accounts"
 	contentType        = "application/x-www-form-urlencoded"
 	defaultHTTPTimeout = 10 * time.Second
 	msgServicePrefix   = "MG"
 )
-
-// HTTPClient defines the interface for making HTTP requests.
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
 
 // DefaultHTTPClient returns a new HTTP client with a default timeout.
 func DefaultHTTPClient() HTTPClient {
@@ -96,11 +103,4 @@ func parseAPIError(res *http.Response) error {
 	}
 
 	return fmt.Errorf("%w: response status %q", ErrSendFailed, res.Status)
-}
-
-// apiErrorResponse represents an error response from the Twilio REST API.
-type apiErrorResponse struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Status  int    `json:"status"`
 }

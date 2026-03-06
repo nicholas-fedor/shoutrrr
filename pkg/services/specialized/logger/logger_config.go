@@ -6,15 +6,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "logger"
-)
-
 // Config is the configuration object for the Logger Service.
 type Config struct {
 	standard.EnumlessConfig
 }
+
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "logger"
+)
 
 // GetURL returns a URL representation of it's current field values.
 func (c *Config) GetURL() *url.URL {

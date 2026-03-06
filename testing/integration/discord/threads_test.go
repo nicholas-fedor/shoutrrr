@@ -12,6 +12,7 @@ import (
 )
 
 func TestSendMessageToThread(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -39,6 +40,7 @@ func TestSendMessageToThread(t *testing.T) {
 }
 
 func TestSendItemsToThread(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -70,6 +72,7 @@ func TestSendItemsToThread(t *testing.T) {
 }
 
 func TestSendMessageToThreadWithParams(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -99,6 +102,7 @@ func TestSendMessageToThreadWithParams(t *testing.T) {
 }
 
 func TestSendFileToThread(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -134,6 +138,7 @@ func TestSendFileToThread(t *testing.T) {
 }
 
 func TestThreadIDWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -161,6 +166,7 @@ func TestThreadIDWithSpecialCharacters(t *testing.T) {
 }
 
 func TestThreadIDValidation(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		// Test that invalid thread IDs are handled properly
@@ -184,6 +190,7 @@ func TestThreadIDValidation(t *testing.T) {
 }
 
 func TestThreadMessageWithEmbed(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -231,6 +238,7 @@ func TestThreadMessageWithEmbed(t *testing.T) {
 }
 
 func TestThreadMessageWithMultipleFiles(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -268,6 +276,7 @@ func TestThreadMessageWithMultipleFiles(t *testing.T) {
 }
 
 func TestThreadMessageWithUsernameAvatar(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).

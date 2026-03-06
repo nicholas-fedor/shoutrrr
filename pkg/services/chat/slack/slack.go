@@ -16,12 +16,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// apiPostMessage is the Slack API endpoint for sending messages.
-const (
-	apiPostMessage     = "https://slack.com/api/chat.postMessage"
-	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
-)
-
 // Service sends notifications to a pre-configured Slack channel or user.
 type Service struct {
 	standard.Standard
@@ -29,6 +23,29 @@ type Service struct {
 	Config *Config
 	pkr    format.PropKeyResolver
 	client *http.Client
+}
+
+// apiPostMessage is the Slack API endpoint for sending messages.
+const (
+	apiPostMessage     = "https://slack.com/api/chat.postMessage"
+	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+)
+
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.client = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	return s.Config.setURL(&s.pkr, configURL)
 }
 
 // Send delivers a notification message to Slack.
@@ -53,23 +70,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.client = &http.Client{
-		Timeout: defaultHTTPTimeout,
-	}
-
-	return s.Config.setURL(&s.pkr, configURL)
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }
 
 // sendAPI sends a notification using the Slack API.

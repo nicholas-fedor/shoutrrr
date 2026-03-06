@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// Entity represents an OpsGenie entity (e.g., user, team) with type and identifier.
+// Example JSON: { "username":"trinity@opsgenie.com", "type":"user" }.
+type Entity struct {
+	Type     string `json:"type"`
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Username string `json:"username,omitempty"`
+}
+
 // EntityPartsCount is the expected number of parts in an entity string (type:identifier).
 const (
 	EntityPartsCount = 2 // Expected number of parts in an entity string (type:identifier)
@@ -22,13 +31,22 @@ var (
 	ErrMissingEntityIdentity = errors.New("invalid entity, should have either ID, name or username")
 )
 
-// Entity represents an OpsGenie entity (e.g., user, team) with type and identifier.
-// Example JSON: { "username":"trinity@opsgenie.com", "type":"user" }.
-type Entity struct {
-	Type     string `json:"type"`
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Username string `json:"username,omitempty"`
+// GetPropValue serializes an entity back into a string in the format "type:identifier".
+func (e *Entity) GetPropValue() (string, error) {
+	var identifier string
+
+	switch {
+	case e.ID != "":
+		identifier = e.ID
+	case e.Name != "":
+		identifier = e.Name
+	case e.Username != "":
+		identifier = e.Username
+	default:
+		return "", ErrMissingEntityIdentity
+	}
+
+	return fmt.Sprintf("%s:%s", e.Type, identifier), nil
 }
 
 // SetFromProp deserializes an entity from a string in the format "type:identifier".
@@ -59,24 +77,6 @@ func (e *Entity) SetFromProp(propValue string) error {
 	}
 
 	return nil
-}
-
-// GetPropValue serializes an entity back into a string in the format "type:identifier".
-func (e *Entity) GetPropValue() (string, error) {
-	var identifier string
-
-	switch {
-	case e.ID != "":
-		identifier = e.ID
-	case e.Name != "":
-		identifier = e.Name
-	case e.Username != "":
-		identifier = e.Username
-	default:
-		return "", ErrMissingEntityIdentity
-	}
-
-	return fmt.Sprintf("%s:%s", e.Type, identifier), nil
 }
 
 // isOpsGenieID checks if a string matches the OpsGenie ID format (e.g., 4513b7ea-3b91-438f-b7e4-e3e54af9147c).

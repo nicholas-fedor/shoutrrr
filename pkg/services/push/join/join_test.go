@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
 )
 
-func TestJoin(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Join Suite")
-}
-
 var (
 	service    *join.Service
 	config     *join.Config
@@ -159,6 +154,12 @@ var _ = ginkgo.Describe("the join config", func() {
 		})
 	})
 })
+
+func TestJoin(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Join Suite")
+}
 
 func createURL(username, token, devices string) *url.URL {
 	return &url.URL{

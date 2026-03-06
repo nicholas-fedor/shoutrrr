@@ -11,6 +11,7 @@ import (
 )
 
 func TestConfigURLRoundTrip(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -29,6 +30,7 @@ func TestConfigURLRoundTrip(t *testing.T) {
 }
 
 func TestConfigMultipleRecipients(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -47,6 +49,8 @@ func TestConfigMultipleRecipients(t *testing.T) {
 }
 
 func TestConfigPhoneNumberNormalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		url          string
@@ -75,6 +79,7 @@ func TestConfigPhoneNumberNormalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
 				mockClient := &MockHTTPClient{}
 				service := createTestService(t, tt.url, mockClient)
@@ -89,6 +94,7 @@ func TestConfigPhoneNumberNormalization(t *testing.T) {
 }
 
 func TestConfigMessagingServiceSID(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -104,6 +110,7 @@ func TestConfigMessagingServiceSID(t *testing.T) {
 }
 
 func TestConfigTitleParameter(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -129,6 +136,7 @@ func TestConfigTitleParameter(t *testing.T) {
 }
 
 func TestConfigEmptyTitle(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)

@@ -15,17 +15,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
-// UpdatesLimit defines the number of updates to retrieve per API call.
-const (
-	UpdatesLimit   = 10  // Number of updates to retrieve per call
-	UpdatesTimeout = 120 // Timeout in seconds for long polling
-)
-
-// ErrNoChatsSelected indicates that no chats were selected during generation.
-var (
-	ErrNoChatsSelected = errors.New("no chats were selected")
-)
-
 // Generator facilitates Telegram-specific URL generation via user interaction.
 type Generator struct {
 	userDialog *generator.UserDialog
@@ -38,6 +27,17 @@ type Generator struct {
 	Reader     io.Reader
 	Writer     io.Writer
 }
+
+// UpdatesLimit defines the number of updates to retrieve per API call.
+const (
+	UpdatesLimit   = 10  // Number of updates to retrieve per call
+	UpdatesTimeout = 120 // Timeout in seconds for long polling
+)
+
+// ErrNoChatsSelected indicates that no chats were selected during generation.
+var (
+	ErrNoChatsSelected = errors.New("no chats were selected")
+)
 
 // Generate creates a Telegram Shoutrrr configuration from user dialog input.
 func (g *Generator) Generate(

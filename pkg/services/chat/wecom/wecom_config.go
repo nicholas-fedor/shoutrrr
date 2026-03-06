@@ -10,6 +10,13 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config represents the configuration for the WeCom service.
+type Config struct {
+	Key                 string `desc:"Bot webhook key"                             key:"key"`
+	MentionedList       string `desc:"Users to mention (comma-separated)"          key:"mentioned_list"`
+	MentionedMobileList string `desc:"Mobile numbers to mention (comma-separated)" key:"mentioned_mobile_list"`
+}
+
 // Scheme is the identifier for the WeCom service protocol.
 const Scheme = "wecom"
 
@@ -18,13 +25,6 @@ var (
 	ErrEmptyKey   = errors.New("WeCom webhook key cannot be empty")
 	ErrInvalidKey = errors.New("invalid WeCom webhook key format")
 )
-
-// Config represents the configuration for the WeCom service.
-type Config struct {
-	Key                 string `desc:"Bot webhook key"                             key:"key"`
-	MentionedList       string `desc:"Users to mention (comma-separated)"          key:"mentioned_list"`
-	MentionedMobileList string `desc:"Mobile numbers to mention (comma-separated)" key:"mentioned_mobile_list"`
-}
 
 // Enums returns a map of enum formatters (none for this service).
 func (c *Config) Enums() map[string]types.EnumFormatter {
@@ -38,6 +38,13 @@ func (c *Config) GetURL() *url.URL {
 	return c.getURL(&resolver)
 }
 
+// SetURL updates the Config from a URL.
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
+}
+
 // getURL constructs a URL using the provided resolver.
 func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
@@ -45,13 +52,6 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 		Host:       c.Key,
 		ForceQuery: false,
 	}
-}
-
-// SetURL updates the Config from a URL.
-func (c *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.

@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
 )
 
-func TestPushbullet(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Pushbullet Suite")
-}
-
 var (
 	service          *pushbullet.Service
 	envPushbulletURL *url.URL
@@ -240,6 +235,12 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 		})
 	})
 })
+
+func TestPushbullet(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Pushbullet Suite")
+}
 
 // initService initializes the service with a fixed test configuration.
 func initService() error {

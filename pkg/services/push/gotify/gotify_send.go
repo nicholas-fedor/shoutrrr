@@ -72,6 +72,25 @@ func (s *DefaultSender) SendRequest(
 	return nil
 }
 
+// extractErrorResponse attempts to extract a structured error from a failed request.
+func (s *DefaultSender) extractErrorResponse(body []byte, errorRes *responseError) bool {
+	return json.Unmarshal(body, errorRes) == nil
+}
+
+// handleResponseError checks the response status and extracts error information if present.
+func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
+	if res.StatusCode >= 400 {
+		errorRes := &responseError{}
+		if s.extractErrorResponse(body, errorRes) {
+			return fmt.Errorf("server error: %w", errorRes)
+		}
+
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
+	}
+
+	return nil
+}
+
 // sendRequestWithHeaders sends a request with custom headers using the underlying HTTP client.
 // This method is used when per-request headers are needed, bypassing the jsonclient
 // to avoid modifying shared header state.
@@ -133,23 +152,4 @@ func (s *DefaultSender) setRequestHeaders(req *http.Request, headers http.Header
 			req.Header.Add(key, value)
 		}
 	}
-}
-
-// handleResponseError checks the response status and extracts error information if present.
-func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
-	if res.StatusCode >= 400 { //nolint:mnd
-		errorRes := &responseError{}
-		if s.extractErrorResponse(body, errorRes) {
-			return fmt.Errorf("server error: %w", errorRes)
-		}
-
-		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
-	}
-
-	return nil
-}
-
-// extractErrorResponse attempts to extract a structured error from a failed request.
-func (s *DefaultSender) extractErrorResponse(body []byte, errorRes *responseError) bool {
-	return json.Unmarshal(body, errorRes) == nil
 }

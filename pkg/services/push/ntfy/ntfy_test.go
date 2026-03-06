@@ -29,13 +29,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-func TestNtfy(t *testing.T) {
-	gomegaformat.CharactersAroundMismatchToInclude = 20
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Ntfy Suite")
-}
-
 var (
 	service    = &Service{}
 	envBarkURL *url.URL
@@ -1512,3 +1505,12 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		})
 	})
 })
+
+func TestNtfy(t *testing.T) {
+	t.Parallel()
+
+	gomegaformat.CharactersAroundMismatchToInclude = 20
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Ntfy Suite")
+}

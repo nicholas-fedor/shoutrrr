@@ -4,6 +4,12 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
+// failure is an interface for SMTP-specific errors, implementing failures.Failure
+// to provide detailed error messages and IDs for debugging within the shoutrrr framework.
+type failure interface {
+	failures.Failure
+}
+
 const (
 	// FailUnknown is the default FailureID.
 	FailUnknown failures.FailureID = iota
@@ -48,12 +54,6 @@ const (
 	// FailHandshake is returned when the initial HELLO handshake returned an error.
 	FailHandshake
 )
-
-// failure is an interface for SMTP-specific errors, implementing failures.Failure
-// to provide detailed error messages and IDs for debugging within the shoutrrr framework.
-type failure interface {
-	failures.Failure
-}
 
 // fail creates an SMTP-specific failure with a descriptive message and ID,
 // wrapping the provided error and optional arguments for additional context.

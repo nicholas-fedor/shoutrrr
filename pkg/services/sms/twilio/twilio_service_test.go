@@ -15,7 +15,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const testHookURL = "https://api.twilio.com/2010-04-01/Accounts/ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/Messages.json"
+// mockLogger is a test helper that implements StdLogger interface.
+type mockLogger struct{}
+
+// mockServiceHTTPClient is a test helper that implements HTTPClient interface.
+type mockServiceHTTPClient struct {
+	response       *http.Response
+	err            error
+	callCount      int
+	captureBody    bool
+	captureHeaders bool
+	lastBody       string
+	lastRequest    *http.Request
+}
 
 var _ = ginkgo.Describe("Service Unit Tests", func() {
 	var (
@@ -139,17 +151,6 @@ func initPKR(config *Config) *format.PropKeyResolver {
 	return &pkr
 }
 
-// mockServiceHTTPClient is a test helper that implements HTTPClient interface.
-type mockServiceHTTPClient struct {
-	response       *http.Response
-	err            error
-	callCount      int
-	captureBody    bool
-	captureHeaders bool
-	lastBody       string
-	lastRequest    *http.Request
-}
-
 func (m *mockServiceHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	m.callCount++
 
@@ -178,9 +179,6 @@ func (m *mockServiceHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	return m.response, nil
 }
-
-// mockLogger is a test helper that implements StdLogger interface.
-type mockLogger struct{}
 
 func (m *mockLogger) Print(_ ...any)            {}
 func (m *mockLogger) Printf(_ string, _ ...any) {}

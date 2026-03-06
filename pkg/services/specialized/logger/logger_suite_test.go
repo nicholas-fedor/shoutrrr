@@ -13,11 +13,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestLogger(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Logger Suite")
-}
-
 var _ = ginkgo.Describe("the logger service", func() {
 	ginkgo.When("sending a notification", func() {
 		ginkgo.It("should output the message to the log", func() {
@@ -105,3 +100,9 @@ var _ = ginkgo.Describe("the logger service", func() {
 		})
 	})
 })
+
+func TestLogger(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Logger Suite")
+}

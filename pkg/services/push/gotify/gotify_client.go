@@ -8,11 +8,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-const (
-	// HTTPTimeout defines the HTTP client timeout in seconds.
-	HTTPTimeout = 10
-)
-
 // HTTPClientManager handles HTTP client creation and configuration.
 type HTTPClientManager interface {
 	CreateTransport(config *Config) *http.Transport
@@ -21,6 +16,25 @@ type HTTPClientManager interface {
 
 // DefaultHTTPClientManager provides the default implementation of HTTPClientManager.
 type DefaultHTTPClientManager struct{}
+
+const (
+	// HTTPTimeout defines the HTTP client timeout in seconds.
+	HTTPTimeout = 10
+)
+
+// CreateClient creates an HTTP client with timeout and transport.
+// This method assembles an HTTP client with the configured transport and timeout settings
+// to ensure reliable API communication with appropriate performance characteristics.
+// Parameters:
+//   - transport: The HTTP transport with TLS and proxy configuration
+//
+// Returns: *http.Client ready for making API requests with proper timeout and transport settings.
+func (m *DefaultHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
+	return &http.Client{
+		Transport: transport,                 // Use the configured transport for TLS and proxy handling
+		Timeout:   HTTPTimeout * time.Second, // Set timeout to prevent hanging requests
+	}
+}
 
 // CreateTransport sets up the HTTP transport with TLS configuration and proxy settings.
 // This method configures the underlying HTTP transport layer with appropriate security settings
@@ -35,20 +49,6 @@ func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transpo
 			InsecureSkipVerify: config.DisableTLS ||
 				config.InsecureSkipVerify,
 		},
-	}
-}
-
-// CreateClient creates an HTTP client with timeout and transport.
-// This method assembles an HTTP client with the configured transport and timeout settings
-// to ensure reliable API communication with appropriate performance characteristics.
-// Parameters:
-//   - transport: The HTTP transport with TLS and proxy configuration
-//
-// Returns: *http.Client ready for making API requests with proper timeout and transport settings.
-func (m *DefaultHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
-	return &http.Client{
-		Transport: transport,                 // Use the configured transport for TLS and proxy handling
-		Timeout:   HTTPTimeout * time.Second, // Set timeout to prevent hanging requests
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 )
 
 func TestEmptyMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -33,6 +34,7 @@ func TestEmptyMessage(t *testing.T) {
 }
 
 func TestNilMessageItems(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -51,6 +53,7 @@ func TestNilMessageItems(t *testing.T) {
 }
 
 func TestEmptyMessageItems(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -68,6 +71,7 @@ func TestEmptyMessageItems(t *testing.T) {
 
 //nolint:gosmopolitan // Intentional string literal containing rune in Han script
 func TestUnicodeMessages(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -105,6 +109,7 @@ func TestUnicodeMessages(t *testing.T) {
 }
 
 func TestControlCharacters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -143,6 +148,7 @@ func TestControlCharacters(t *testing.T) {
 }
 
 func TestVeryLongMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -167,6 +173,7 @@ func TestVeryLongMessage(t *testing.T) {
 }
 
 func TestMessageWithMaximumLength(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -191,6 +198,7 @@ func TestMessageWithMaximumLength(t *testing.T) {
 }
 
 func TestMessageWithNullBytes(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -214,6 +222,7 @@ func TestMessageWithNullBytes(t *testing.T) {
 }
 
 func TestInvalidUTF8(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -241,6 +250,7 @@ func TestInvalidUTF8(t *testing.T) {
 }
 
 func TestExtremelyLargeFile(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -272,6 +282,7 @@ func TestExtremelyLargeFile(t *testing.T) {
 }
 
 func TestFileWithEmptyName(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -297,6 +308,7 @@ func TestFileWithEmptyName(t *testing.T) {
 }
 
 func TestFileWithSpecialCharactersInName(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -352,6 +364,7 @@ func TestFileWithSpecialCharactersInName(t *testing.T) {
 }
 
 func TestConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test multiple concurrent requests
 		done := make(chan bool, 3)
@@ -382,6 +395,7 @@ func TestConcurrentRequests(t *testing.T) {
 }
 
 func TestMemoryExhaustionSimulation(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -415,6 +429,7 @@ func TestMemoryExhaustionSimulation(t *testing.T) {
 }
 
 func TestRapidSuccessionRequests(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

@@ -18,6 +18,16 @@ func (t *Templater) GetTemplate(id string) (*template.Template, bool) {
 	return tpl, found
 }
 
+// SetTemplateFile creates a new template from the file and assigns it the id.
+func (t *Templater) SetTemplateFile(templateID, file string) error {
+	bytes, err := os.ReadFile(file)
+	if err != nil {
+		return fmt.Errorf("reading template file %q for ID %q: %w", file, templateID, err)
+	}
+
+	return t.SetTemplateString(templateID, string(bytes))
+}
+
 // SetTemplateString creates a new template from the body and assigns it the id.
 func (t *Templater) SetTemplateString(templateID, body string) error {
 	tpl, err := template.New("").Parse(body)
@@ -32,14 +42,4 @@ func (t *Templater) SetTemplateString(templateID, body string) error {
 	t.templates[templateID] = tpl
 
 	return nil
-}
-
-// SetTemplateFile creates a new template from the file and assigns it the id.
-func (t *Templater) SetTemplateFile(templateID, file string) error {
-	bytes, err := os.ReadFile(file)
-	if err != nil {
-		return fmt.Errorf("reading template file %q for ID %q: %w", file, templateID, err)
-	}
-
-	return t.SetTemplateString(templateID, string(bytes))
 }

@@ -23,11 +23,6 @@ const (
 	mockHost   = "api.opsgenie.com"
 )
 
-func TestOpsGenie(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr OpsGenie Suite")
-}
-
 var _ = ginkgo.Describe("the OpsGenie service", func() {
 	var (
 		// a simulated http server to mock out OpsGenie itself
@@ -422,3 +417,9 @@ var _ = ginkgo.Describe("the OpsGenie Config struct", func() {
 		})
 	})
 })
+
+func TestOpsGenie(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr OpsGenie Suite")
+}

@@ -13,49 +13,30 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// publishMethodName is the constant for the Publish method to avoid string duplication.
-const publishMethodName = "Publish"
-
-// createTestService creates an MQTT service instance configured for testing.
-// If a mockConnectionManager is provided, it will be injected into the service
-// to bypass the normal connection initialization.
-func createTestService(
-	t *testing.T,
-	mqttURL string,
-	mockConnectionManager ...mqtt.ConnectionManager,
-) *mqtt.Service {
-	t.Helper()
-
-	service := &mqtt.Service{}
-
-	parsedURL, err := url.Parse(mqttURL)
-	require.NoError(t, err)
-
-	err = service.Initialize(parsedURL, &mockLogger{})
-	require.NoError(t, err)
-
-	// Inject mock connection manager if provided
-	if len(mockConnectionManager) > 0 && mockConnectionManager[0] != nil {
-		service.SetConnectionManager(mockConnectionManager[0])
-	}
-
-	return service
-}
-
-// mockLogger is a simple logger implementation for testing.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
-
 // MockConnectionManager is a testify mock that implements the ConnectionManager interface.
 type MockConnectionManager struct {
 	mock.Mock
 }
 
+// mockLogger is a simple logger implementation for testing.
+type mockLogger struct{}
+
+// publishMethodName is the constant for the Publish method to avoid string duplication.
+const publishMethodName = "Publish"
+
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
+
 // AwaitConnection mocks waiting for the MQTT connection to be established.
 func (m *MockConnectionManager) AwaitConnection(ctx context.Context) error {
+	args := m.Called(ctx)
+
+	return args.Error(0)
+}
+
+// Disconnect mocks gracefully closing the MQTT connection.
+func (m *MockConnectionManager) Disconnect(ctx context.Context) error {
 	args := m.Called(ctx)
 
 	return args.Error(0)
@@ -73,47 +54,6 @@ func (m *MockConnectionManager) Publish(
 	}
 
 	return args.Get(0).(*paho.PublishResponse), args.Error(1)
-}
-
-// Disconnect mocks gracefully closing the MQTT connection.
-func (m *MockConnectionManager) Disconnect(ctx context.Context) error {
-	args := m.Called(ctx)
-
-	return args.Error(0)
-}
-
-// createMockPublishResponse creates a mock publish response with the given reason code.
-func createMockPublishResponse(reasonCode byte) *paho.PublishResponse {
-	return &paho.PublishResponse{
-		ReasonCode: reasonCode,
-		Properties: &paho.PublishResponseProperties{},
-	}
-}
-
-// createMockPublishResponseWithReason creates a mock publish response with reason code and string.
-func createMockPublishResponseWithReason(
-	reasonCode byte,
-	reasonString string,
-) *paho.PublishResponse {
-	return &paho.PublishResponse{
-		ReasonCode: reasonCode,
-		Properties: &paho.PublishResponseProperties{
-			ReasonString: reasonString,
-		},
-	}
-}
-
-// createTestParams creates test parameters with the given key-value pairs.
-func createTestParams(pairs ...string) *types.Params {
-	params := make(types.Params)
-
-	for i := 0; i < len(pairs); i += 2 {
-		if i+1 < len(pairs) {
-			params[pairs[i]] = pairs[i+1]
-		}
-	}
-
-	return &params
 }
 
 // assertPublishCalled asserts that Publish was called with the expected topic.
@@ -216,6 +156,66 @@ func assertPublishRetained(
 			expectedRetained,
 		)
 	}
+}
+
+// createMockPublishResponse creates a mock publish response with the given reason code.
+func createMockPublishResponse(reasonCode byte) *paho.PublishResponse {
+	return &paho.PublishResponse{
+		ReasonCode: reasonCode,
+		Properties: &paho.PublishResponseProperties{},
+	}
+}
+
+// createMockPublishResponseWithReason creates a mock publish response with reason code and string.
+func createMockPublishResponseWithReason(
+	reasonCode byte,
+	reasonString string,
+) *paho.PublishResponse {
+	return &paho.PublishResponse{
+		ReasonCode: reasonCode,
+		Properties: &paho.PublishResponseProperties{
+			ReasonString: reasonString,
+		},
+	}
+}
+
+// createTestParams creates test parameters with the given key-value pairs.
+func createTestParams(pairs ...string) *types.Params {
+	params := make(types.Params)
+
+	for i := 0; i < len(pairs); i += 2 {
+		if i+1 < len(pairs) {
+			params[pairs[i]] = pairs[i+1]
+		}
+	}
+
+	return &params
+}
+
+// createTestService creates an MQTT service instance configured for testing.
+// If a mockConnectionManager is provided, it will be injected into the service
+// to bypass the normal connection initialization.
+func createTestService(
+	t *testing.T,
+	mqttURL string,
+	mockConnectionManager ...mqtt.ConnectionManager,
+) *mqtt.Service {
+	t.Helper()
+
+	service := &mqtt.Service{}
+
+	parsedURL, err := url.Parse(mqttURL)
+	require.NoError(t, err)
+
+	err = service.Initialize(parsedURL, &mockLogger{})
+	require.NoError(t, err)
+
+	// Inject mock connection manager if provided
+	if len(mockConnectionManager) > 0 && mockConnectionManager[0] != nil {
+		service.SetConnectionManager(mockConnectionManager[0])
+	}
+
+	return service
 }
 
 // getPublishCall retrieves the publish struct from the first Publish call.

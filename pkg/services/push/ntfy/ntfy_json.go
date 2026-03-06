@@ -2,7 +2,6 @@ package ntfy
 
 import "fmt"
 
-//nolint:errname
 type apiResponse struct {
 	Code    int64  `json:"code"`
 	Message string `json:"error"`

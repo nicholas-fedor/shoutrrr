@@ -13,15 +13,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "smtp"
-
-// Static errors for configuration validation.
-var (
-	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
-	ErrToAddressMissing   = errors.New("toAddress missing from config URL")
-)
-
 // Config is the configuration needed to send e-mail notifications over SMTP.
 type Config struct {
 	Host            string        `desc:"SMTP server hostname or IP address"                     url:"Host"`
@@ -40,6 +31,40 @@ type Config struct {
 	RequireStartTLS bool          `desc:"Fail if StartTLS is enabled but unsupported"                       default:"No"                    key:"requirestarttls"`
 	SkipTLSVerify   bool          `desc:"Whether to skip TLS certificate verification"                      default:"No"                    key:"skiptlsverify"`
 	Timeout         time.Duration `desc:"Timeout for SMTP operations"                                       default:"10s"                   key:"timeout"`
+}
+
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "smtp"
+
+// Static errors for configuration validation.
+var (
+	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
+	ErrToAddressMissing   = errors.New("toAddress missing from config URL")
+)
+
+// Clone returns a copy of the config.
+func (c *Config) Clone() Config {
+	clone := *c
+	clone.ToAddresses = make([]string, len(c.ToAddresses))
+	copy(clone.ToAddresses, c.ToAddresses)
+
+	return clone
+}
+
+// Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
+func (c *Config) Enums() map[string]types.EnumFormatter {
+	return map[string]types.EnumFormatter{
+		"Auth":       AuthTypes.Enum,
+		"Encryption": EncMethods.Enum,
+	}
+}
+
+// FixEmailTags replaces parsed spaces (+) in e-mail addresses with '+'.
+func (c *Config) FixEmailTags() {
+	c.FromAddress = strings.ReplaceAll(c.FromAddress, " ", "+")
+	for i, adr := range c.ToAddresses {
+		c.ToAddresses[i] = strings.ReplaceAll(adr, " ", "+")
+	}
 }
 
 // GetURL returns a URL representation of its current field values.
@@ -150,29 +175,4 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	return nil
-}
-
-// Clone returns a copy of the config.
-func (c *Config) Clone() Config {
-	clone := *c
-	clone.ToAddresses = make([]string, len(c.ToAddresses))
-	copy(clone.ToAddresses, c.ToAddresses)
-
-	return clone
-}
-
-// FixEmailTags replaces parsed spaces (+) in e-mail addresses with '+'.
-func (c *Config) FixEmailTags() {
-	c.FromAddress = strings.ReplaceAll(c.FromAddress, " ", "+")
-	for i, adr := range c.ToAddresses {
-		c.ToAddresses[i] = strings.ReplaceAll(adr, " ", "+")
-	}
-}
-
-// Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
-func (c *Config) Enums() map[string]types.EnumFormatter {
-	return map[string]types.EnumFormatter{
-		"Auth":       AuthTypes.Enum,
-		"Encryption": EncMethods.Enum,
-	}
 }

@@ -13,6 +13,7 @@ import (
 )
 
 func TestSendEmbedWithAuthor(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -50,6 +51,7 @@ func TestSendEmbedWithAuthor(t *testing.T) {
 }
 
 func TestSendEmbedWithImage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -85,6 +87,7 @@ func TestSendEmbedWithImage(t *testing.T) {
 }
 
 func TestSendEmbedWithThumbnail(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -120,6 +123,7 @@ func TestSendEmbedWithThumbnail(t *testing.T) {
 }
 
 func TestSendEmbedWithFields(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -158,6 +162,7 @@ func TestSendEmbedWithFields(t *testing.T) {
 }
 
 func TestSendEmbedWithTimestamp(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -188,6 +193,7 @@ func TestSendEmbedWithTimestamp(t *testing.T) {
 }
 
 func TestSendEmbedWithColors(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -225,6 +231,7 @@ func TestSendEmbedWithColors(t *testing.T) {
 }
 
 func TestSendMultipleEmbeds(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

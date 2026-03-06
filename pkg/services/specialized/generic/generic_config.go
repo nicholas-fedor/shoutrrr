@@ -9,12 +9,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const (
-	Scheme               = "generic"
-	DefaultWebhookScheme = "https"
-)
-
 // Config holds settings for the generic notification service.
 type Config struct {
 	standard.EnumlessConfig
@@ -33,6 +27,12 @@ type Config struct {
 	MessageKey    string `default:"message"          desc:"The key that will be used for the message value"                                        key:"messagekey"`
 	RequestMethod string `default:"POST"                                                                                                           key:"method"`
 }
+
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme               = "generic"
+	DefaultWebhookScheme = "https"
+)
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
@@ -76,21 +76,6 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 	return config, pkr, nil
 }
 
-// WebhookURL returns the configured webhook URL, adjusted for TLS settings.
-func (c *Config) WebhookURL() *url.URL {
-	// Copy the URL to modify
-	webhookURL := *c.webhookURL
-	// Set default HTTPS scheme
-	webhookURL.Scheme = DefaultWebhookScheme
-
-	if c.DisableTLS {
-		// Use HTTP if TLS is disabled
-		webhookURL.Scheme = "http"
-	}
-
-	return &webhookURL
-}
-
 // GetURL generates a URL from the current configuration values.
 func (c *Config) GetURL() *url.URL {
 	// Create resolver for this config
@@ -107,6 +92,21 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 	// Parse and set URL
 	return c.setURL(&resolver, serviceURL)
+}
+
+// WebhookURL returns the configured webhook URL, adjusted for TLS settings.
+func (c *Config) WebhookURL() *url.URL {
+	// Copy the URL to modify
+	webhookURL := *c.webhookURL
+	// Set default HTTPS scheme
+	webhookURL.Scheme = DefaultWebhookScheme
+
+	if c.DisableTLS {
+		// Use HTTP if TLS is disabled
+		webhookURL.Scheme = "http"
+	}
+
+	return &webhookURL
 }
 
 // getURL generates a service URL from the configuration using the provided resolver.

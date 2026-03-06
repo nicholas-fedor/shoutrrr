@@ -10,14 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const (
-	Scheme = "ntfy"
-)
-
-// ErrTopicRequired indicates that the topic is missing from the config URL.
-var ErrTopicRequired = errors.New("topic is required")
-
 // Config holds the configuration for the Ntfy service.
 type Config struct {
 	Title                  string   `default:""        desc:"Message title"                                                                                    key:"title"`
@@ -41,25 +33,19 @@ type Config struct {
 	DisableTLS             bool     `default:"no"      desc:"Disable TLS entirely (force HTTP scheme)"                                                         key:"disabletls"`
 }
 
+// Scheme is the identifying part of this service's configuration URL.
+const (
+	Scheme = "ntfy"
+)
+
+// ErrTopicRequired indicates that the topic is missing from the config URL.
+var ErrTopicRequired = errors.New("topic is required")
+
 // Enums returns the fields that use an EnumFormatter for their values.
 func (*Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"Priority": Priority.Enum,
 	}
-}
-
-// GetURL returns a URL representation of the Config's current field values.
-func (c *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.getURL(&resolver)
-}
-
-// SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
 }
 
 // GetAPIURL constructs the API URL for the Ntfy service based on the configuration.
@@ -76,6 +62,25 @@ func (c *Config) GetAPIURL() string {
 	}
 
 	return apiURL.String()
+}
+
+// GetURL returns a URL representation of the Config's current field values.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
+}
+
+// QueryFields returns the list of query parameter names for the Config struct.
+func (c *Config) QueryFields() []string {
+	return format.GetConfigQueryResolver(c).QueryFields()
+}
+
+// SetURL updates the Config from a URL representation of its field values.
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -131,9 +136,4 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	return nil
-}
-
-// QueryFields returns the list of query parameter names for the Config struct.
-func (c *Config) QueryFields() []string {
-	return format.GetConfigQueryResolver(c).QueryFields()
 }

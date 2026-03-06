@@ -10,13 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "pagerduty"
-	// integrationKeyRegex validates that integration keys are 32-character hexadecimal strings.
-	integrationKeyRegex = `^[a-fA-F0-9]{32}$`
-)
-
 // Config holds the configuration for the PagerDuty service.
 type Config struct {
 	IntegrationKey string `desc:"The PagerDuty API integration key"                                                            url:"path"`
@@ -32,6 +25,13 @@ type Config struct {
 	ClientURL      string `desc:"The URL of the monitoring client that is triggering this event"                                                                         key:"client_url"`
 }
 
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "pagerduty"
+	// integrationKeyRegex validates that integration keys are 32-character hexadecimal strings.
+	integrationKeyRegex = `^[a-fA-F0-9]{32}$`
+)
+
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
@@ -42,6 +42,13 @@ func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.getURL(&resolver)
+}
+
+// SetURL updates the Config from a URL representation of its field values.
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -59,13 +66,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
-}
-
-// SetURL updates the Config from a URL representation of its field values.
-func (c *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
 }
 
 // setURL updates the Config from a URL using the provided resolver.

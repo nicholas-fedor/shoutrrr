@@ -17,6 +17,7 @@ import (
 )
 
 func TestHTTPMethodCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -41,6 +42,7 @@ func TestHTTPMethodCompliance(t *testing.T) {
 }
 
 func TestHTTPTimeoutConfiguration(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -66,6 +68,7 @@ func TestHTTPTimeoutConfiguration(t *testing.T) {
 }
 
 func TestHTTPHeaders(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -93,6 +96,7 @@ func TestHTTPHeaders(t *testing.T) {
 }
 
 func TestHTTPURLConstruction(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 
@@ -136,6 +140,7 @@ func TestHTTPURLConstruction(t *testing.T) {
 }
 
 func TestHTTPRetryMechanism(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -162,6 +167,7 @@ func TestHTTPRetryMechanism(t *testing.T) {
 }
 
 func TestHTTPRetryOnNetworkError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -196,6 +202,8 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 }
 
 func TestHTTPMaxRetries(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockHTTPClient{}
 	service := createTestService(
 		t,
@@ -221,6 +229,7 @@ func TestHTTPMaxRetries(t *testing.T) {
 }
 
 func TestHTTPContextCancellation(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -244,6 +253,8 @@ func TestHTTPContextCancellation(t *testing.T) {
 }
 
 func TestHTTPResponseStatusHandling(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockHTTPClient{}
 	service := createTestService(
 		t,
@@ -294,6 +305,7 @@ func TestHTTPResponseStatusHandling(t *testing.T) {
 }
 
 func TestHTTPMultipartUpload(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -322,6 +334,7 @@ func TestHTTPMultipartUpload(t *testing.T) {
 }
 
 func TestHTTPConnectionReuse(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

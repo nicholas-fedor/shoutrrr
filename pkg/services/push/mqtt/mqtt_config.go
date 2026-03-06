@@ -10,42 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies the URL scheme for MQTT service URLs.
-const Scheme = "mqtt"
-
-// SchemeTLS identifies the URL scheme for MQTT over TLS service URLs.
-const SchemeTLS = "mqtts"
-
-// DefaultPort is the standard MQTT port (1883).
-const DefaultPort = 1883
-
-// DefaultTLSPort is the standard MQTT over TLS port (8883).
-const DefaultTLSPort = 8883
-
-// QoS constants define the three MQTT Quality of Service levels.
-const (
-	// QoSAtMostOnce (fire-and-forget): The broker delivers the message at most once.
-	// No acknowledgment is required. Messages may be lost if the client disconnects
-	// or the broker fails. Best for high-throughput, non-critical data.
-	QoSAtMostOnce QoS = 0
-
-	// QoSAtLeastOnce: The broker delivers the message at least once.
-	// Requires acknowledgment from the subscriber. Duplicates may occur if
-	// acknowledgments are lost. Suitable for important data where occasional
-	// duplicates are acceptable.
-	QoSAtLeastOnce QoS = 1
-
-	// QoSExactlyOnce: The broker delivers the message exactly once.
-	// Uses a two-phase commit handshake to guarantee exactly-once delivery.
-	// Highest overhead but strongest guarantee. Best for critical data where
-	// duplicates must be avoided.
-	QoSExactlyOnce QoS = 2
-)
-
-// QoS represents the Quality of Service (QoS) level for MQTT message delivery.
-// Higher QoS levels provide stronger delivery guarantees but with increased overhead.
-type QoS int
-
 // Config holds all configuration settings for the MQTT service.
 // Each field can be set via URL parameters or struct tags, with defaults
 // applied when values are not explicitly provided.
@@ -112,6 +76,10 @@ type Config struct {
 	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
 }
 
+// QoS represents the Quality of Service (QoS) level for MQTT message delivery.
+// Higher QoS levels provide stronger delivery guarantees but with increased overhead.
+type QoS int
+
 // qosVals holds the QoS enum value constants and formatter.
 // This struct enables type-safe QoS value handling with flexible parsing.
 type qosVals struct {
@@ -125,6 +93,75 @@ type qosVals struct {
 	Enum types.EnumFormatter
 }
 
+// Scheme identifies the URL scheme for MQTT service URLs.
+const Scheme = "mqtt"
+
+// SchemeTLS identifies the URL scheme for MQTT over TLS service URLs.
+const SchemeTLS = "mqtts"
+
+// DefaultPort is the standard MQTT port (1883).
+const DefaultPort = 1883
+
+// DefaultTLSPort is the standard MQTT over TLS port (8883).
+const DefaultTLSPort = 8883
+
+// QoS constants define the three MQTT Quality of Service levels.
+const (
+	// QoSAtMostOnce (fire-and-forget): The broker delivers the message at most once.
+	// No acknowledgment is required. Messages may be lost if the client disconnects
+	// or the broker fails. Best for high-throughput, non-critical data.
+	QoSAtMostOnce QoS = 0
+
+	// QoSAtLeastOnce: The broker delivers the message at least once.
+	// Requires acknowledgment from the subscriber. Duplicates may occur if
+	// acknowledgments are lost. Suitable for important data where occasional
+	// duplicates are acceptable.
+	QoSAtLeastOnce QoS = 1
+
+	// QoSExactlyOnce: The broker delivers the message exactly once.
+	// Uses a two-phase commit handshake to guarantee exactly-once delivery.
+	// Highest overhead but strongest guarantee. Best for critical data where
+	// duplicates must be avoided.
+	QoSExactlyOnce QoS = 2
+)
+
+// QoSValues holds the QoS enum values and their associated formatter.
+// This provides both the concrete enum values and the machinery for
+// parsing and formatting QoS values from strings.
+var QoSValues = &qosVals{
+	AtMostOnce:  QoSAtMostOnce,
+	AtLeastOnce: QoSAtLeastOnce,
+	ExactlyOnce: QoSExactlyOnce,
+	// Create an enum formatter that accepts multiple string representations:
+	// - Standard names: "AtMostOnce", "AtLeastOnce", "ExactlyOnce"
+	// - Numeric strings: "0", "1", "2"
+	// - Snake case: "at_most_once", "at_least_once", "exactly_once"
+	Enum: format.CreateEnumFormatter(
+		[]string{
+			"AtMostOnce",
+			"AtLeastOnce",
+			"ExactlyOnce",
+		}, map[string]int{
+			"0":             int(QoSAtMostOnce),
+			"1":             int(QoSAtLeastOnce),
+			"2":             int(QoSExactlyOnce),
+			"at_most_once":  int(QoSAtMostOnce),
+			"at_least_once": int(QoSAtLeastOnce),
+			"exactly_once":  int(QoSExactlyOnce),
+		}),
+}
+
+// Enums returns a map of enum type names to their formatters.
+// This enables proper parsing and formatting of enum values like QoS.
+//
+// Returns a map where keys are enum type names and values are formatters
+// that can convert between string representations and enum values.
+func (c *Config) Enums() map[string]types.EnumFormatter {
+	return map[string]types.EnumFormatter{
+		"QoS": QoSValues.Enum,
+	}
+}
+
 // GetURL constructs a configuration URL from the current config settings.
 // The URL contains all configuration values and can be used to recreate
 // an identical service configuration.
@@ -136,6 +173,41 @@ func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.getURL(&resolver)
+}
+
+// QueryFields returns a list of all configurable query parameter names.
+// This is used for documentation generation and validation of URL parameters.
+//
+// Returns a slice of query parameter field names.
+func (c *Config) QueryFields() []string {
+	return format.GetConfigQueryResolver(c).QueryFields()
+}
+
+// SetURL parses a configuration URL and populates the config fields.
+// This is the public entry point for URL-based configuration.
+//
+// Parameters:
+//   - url: The configuration URL to parse
+//
+// Returns an error if the URL is malformed or required fields are missing.
+func (c *Config) SetURL(url *url.URL) error {
+	// Create a new property key resolver for parsing query parameters
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
+}
+
+// ValidateCredentials validates that the configuration has valid credentials.
+// Returns an error if a password is provided without a username, as this
+// combination is invalid for URL-based authentication.
+//
+// Returns nil if credentials are valid or no credentials are provided.
+func (c *Config) ValidateCredentials() error {
+	if c.Password != "" && c.Username == "" {
+		return ErrPasswordWithoutUsername
+	}
+
+	return nil
 }
 
 // getURL is the internal implementation of GetURL that accepts a resolver interface.
@@ -173,33 +245,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
-}
-
-// ValidateCredentials validates that the configuration has valid credentials.
-// Returns an error if a password is provided without a username, as this
-// combination is invalid for URL-based authentication.
-//
-// Returns nil if credentials are valid or no credentials are provided.
-func (c *Config) ValidateCredentials() error {
-	if c.Password != "" && c.Username == "" {
-		return ErrPasswordWithoutUsername
-	}
-
-	return nil
-}
-
-// SetURL parses a configuration URL and populates the config fields.
-// This is the public entry point for URL-based configuration.
-//
-// Parameters:
-//   - url: The configuration URL to parse
-//
-// Returns an error if the URL is malformed or required fields are missing.
-func (c *Config) SetURL(url *url.URL) error {
-	// Create a new property key resolver for parsing query parameters
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
 }
 
 // setURL is the internal implementation of SetURL that accepts a resolver interface.
@@ -280,49 +325,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	return nil
 }
 
-// QueryFields returns a list of all configurable query parameter names.
-// This is used for documentation generation and validation of URL parameters.
+// IsValid reports whether the QoS value is within the valid MQTT range.
+// MQTT protocol only supports QoS levels 0 (at most once), 1 (at least once),
+// and 2 (exactly once). Any value outside this range is invalid.
 //
-// Returns a slice of query parameter field names.
-func (c *Config) QueryFields() []string {
-	return format.GetConfigQueryResolver(c).QueryFields()
-}
-
-// Enums returns a map of enum type names to their formatters.
-// This enables proper parsing and formatting of enum values like QoS.
-//
-// Returns a map where keys are enum type names and values are formatters
-// that can convert between string representations and enum values.
-func (c *Config) Enums() map[string]types.EnumFormatter {
-	return map[string]types.EnumFormatter{
-		"QoS": QoSValues.Enum,
-	}
-}
-
-// QoSValues holds the QoS enum values and their associated formatter.
-// This provides both the concrete enum values and the machinery for
-// parsing and formatting QoS values from strings.
-var QoSValues = &qosVals{
-	AtMostOnce:  QoSAtMostOnce,
-	AtLeastOnce: QoSAtLeastOnce,
-	ExactlyOnce: QoSExactlyOnce,
-	// Create an enum formatter that accepts multiple string representations:
-	// - Standard names: "AtMostOnce", "AtLeastOnce", "ExactlyOnce"
-	// - Numeric strings: "0", "1", "2"
-	// - Snake case: "at_most_once", "at_least_once", "exactly_once"
-	Enum: format.CreateEnumFormatter(
-		[]string{
-			"AtMostOnce",
-			"AtLeastOnce",
-			"ExactlyOnce",
-		}, map[string]int{
-			"0":             int(QoSAtMostOnce),
-			"1":             int(QoSAtLeastOnce),
-			"2":             int(QoSExactlyOnce),
-			"at_most_once":  int(QoSAtMostOnce),
-			"at_least_once": int(QoSAtLeastOnce),
-			"exactly_once":  int(QoSExactlyOnce),
-		}),
+// Returns true if q is between QoSAtMostOnce (0) and QoSExactlyOnce (2) inclusive.
+func (q QoS) IsValid() bool {
+	return q >= QoSAtMostOnce && q <= QoSExactlyOnce
 }
 
 // String returns the human-readable name of the QoS level.
@@ -331,13 +340,4 @@ var QoSValues = &qosVals{
 // Returns one of "AtMostOnce", "AtLeastOnce", or "ExactlyOnce".
 func (q QoS) String() string {
 	return QoSValues.Enum.Print(int(q))
-}
-
-// IsValid reports whether the QoS value is within the valid MQTT range.
-// MQTT protocol only supports QoS levels 0 (at most once), 1 (at least once),
-// and 2 (exactly once). Any value outside this range is invalid.
-//
-// Returns true if q is between QoSAtMostOnce (0) and QoSExactlyOnce (2) inclusive.
-func (q QoS) IsValid() bool {
-	return q >= QoSAtMostOnce && q <= QoSExactlyOnce
 }

@@ -19,6 +19,26 @@ type Service struct {
 	HTTPClient HTTPClient
 }
 
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.HTTPClient = DefaultHTTPClient()
+
+	err := s.Config.setURL(&s.pkr, configURL)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Send delivers an SMS message via Twilio to all configured recipients.
 func (s *Service) Send(message string, params *types.Params) error {
 	config := s.Config
@@ -38,24 +58,4 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return errors.Join(errs...)
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.HTTPClient = DefaultHTTPClient()
-
-	err := s.Config.setURL(&s.pkr, configURL)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }

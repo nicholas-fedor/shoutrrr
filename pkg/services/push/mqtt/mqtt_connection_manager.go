@@ -1,4 +1,3 @@
-// Package mqtt provides a notification service for MQTT message brokers.
 package mqtt
 
 import (

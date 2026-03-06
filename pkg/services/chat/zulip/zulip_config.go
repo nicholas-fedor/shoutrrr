@@ -1,22 +1,11 @@
 package zulip
 
 import (
-	"errors"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-)
-
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "zulip"
-
-// Static errors for configuration validation.
-var (
-	ErrMissingBotMail = errors.New("bot mail missing from config URL")
-	ErrMissingAPIKey  = errors.New("API key missing from config URL")
-	ErrMissingHost    = errors.New("host missing from config URL")
 )
 
 // Config for the zulip service.
@@ -28,6 +17,20 @@ type Config struct {
 	Host    string `desc:"API server hostname" url:"host,port"`
 	Stream  string `                                           description:"Target stream name" key:"stream"      optional:""`
 	Topic   string `                                                                            key:"topic,title"             default:""`
+}
+
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "zulip"
+
+// Clone creates a copy of the Config.
+func (c *Config) Clone() *Config {
+	return &Config{
+		BotMail: c.BotMail,
+		BotKey:  c.BotKey,
+		Host:    c.Host,
+		Stream:  c.Stream,
+		Topic:   c.Topic,
+	}
 }
 
 // GetURL returns a URL representation of its current field values.
@@ -89,17 +92,6 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Topic = serviceURL.Query().Get("topic")
 
 	return nil
-}
-
-// Clone creates a copy of the Config.
-func (c *Config) Clone() *Config {
-	return &Config{
-		BotMail: c.BotMail,
-		BotKey:  c.BotKey,
-		Host:    c.Host,
-		Stream:  c.Stream,
-		Topic:   c.Topic,
-	}
 }
 
 // CreateConfigFromURL creates a new Config from a URL for use within the zulip service.

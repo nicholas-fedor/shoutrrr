@@ -8,6 +8,7 @@ import (
 )
 
 func TestTwilio(t *testing.T) {
+	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Twilio Suite")
 }

@@ -12,11 +12,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const (
-	Scheme = "gotify"
-)
-
 // Config holds settings for the Gotify notification service.
 // This struct contains all configuration parameters needed to connect to and authenticate
 // with a Gotify server, including connection details, authentication credentials,
@@ -36,18 +31,23 @@ type Config struct {
 	Extras             map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 }
 
-// SetURL updates the configuration from a URL representation.
-func (c *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
-
-	return c.setURL(&resolver, url)
-}
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme = "gotify"
+)
 
 // GetURL returns a URL representation of the current configuration.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.getURL(&resolver)
+}
+
+// SetURL updates the configuration from a URL representation.
+func (c *Config) SetURL(url *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, url)
 }
 
 // getURL generates a URL from the current configuration values.
@@ -89,43 +89,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-// setURL updates the configuration from a URL representation.
-// This internal method parses a URL and extracts configuration values including
-// host, path, token, and query parameters, populating the config struct fields.
-// Used for deserialization from URL format.
-// Parameters:
-//   - resolver: Configuration resolver for setting config fields from query parameters
-//   - url: The URL to parse configuration values from
-//
-// Returns: error if URL parsing or parameter processing fails.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	// Extract and clean the path from the URL
-	path := url.Path
-	if len(path) > 0 && path[len(path)-1] == '/' {
-		path = path[:len(path)-1] // Remove trailing slash if present
-	}
-
-	// Find the last slash to separate path from token
-	tokenIndex := strings.LastIndex(path, "/") + 1
-
-	// Extract path component (everything before the token)
-	c.Path = path[:tokenIndex]
-	if c.Path == "/" {
-		c.Path = c.Path[1:] // Remove leading slash to normalize empty path
-	}
-
-	// Set host and token from URL components
-	c.Host = url.Host
-	c.Token = path[tokenIndex:]
-
-	// Process query parameters to set remaining configuration fields
-	if err := c.processQueryParameters(resolver, url.Query()); err != nil {
-		return fmt.Errorf("failed to process query parameters: %w", err)
-	}
-
-	return nil
-}
-
 // processQueryParameters processes query parameters from URL.
 // This function handles both standard configuration parameters and the special 'extras'
 // JSON parameter, setting appropriate config fields through the resolver or direct assignment.
@@ -156,6 +119,43 @@ func (c *Config) processQueryParameters(
 				return fmt.Errorf("%w", ErrConfigPropertyFailed)
 			}
 		}
+	}
+
+	return nil
+}
+
+// setURL updates the configuration from a URL representation.
+// This internal method parses a URL and extracts configuration values including
+// host, path, token, and query parameters, populating the config struct fields.
+// Used for deserialization from URL format.
+// Parameters:
+//   - resolver: Configuration resolver for setting config fields from query parameters
+//   - url: The URL to parse configuration values from
+//
+// Returns: error if URL parsing or parameter processing fails.
+func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
+	// Extract and clean the path from the URL
+	path := url.Path
+	if path != "" && path[len(path)-1] == '/' {
+		path = path[:len(path)-1] // Remove trailing slash if present
+	}
+
+	// Find the last slash to separate path from token
+	tokenIndex := strings.LastIndex(path, "/") + 1
+
+	// Extract path component (everything before the token)
+	c.Path = path[:tokenIndex]
+	if c.Path == "/" {
+		c.Path = c.Path[1:] // Remove leading slash to normalize empty path
+	}
+
+	// Set host and token from URL components
+	c.Host = url.Host
+	c.Token = path[tokenIndex:]
+
+	// Process query parameters to set remaining configuration fields
+	if err := c.processQueryParameters(resolver, url.Query()); err != nil {
+		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 
 	return nil

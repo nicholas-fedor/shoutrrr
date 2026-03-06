@@ -10,13 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const (
-	Scheme = "notifiarr"
-	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
-	expectedPartsAfterSplit = 2
-)
-
 // Config holds settings for the Notifiarr notification service.
 type Config struct {
 	standard.EnumlessConfig
@@ -36,6 +29,13 @@ type Config struct {
 	// Custom query parameters from webhook URL
 	webhookQuery url.Values
 }
+
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme = "notifiarr"
+	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
+	expectedPartsAfterSplit = 2
+)
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
 func DefaultConfig() (*Config, format.PropKeyResolver) {

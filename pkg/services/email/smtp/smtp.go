@@ -22,6 +22,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to given email addresses via SMTP.
+type Service struct {
+	standard.Standard
+	standard.Templater
+
+	Config            *Config
+	multipartBoundary string
+	propKeyResolver   format.PropKeyResolver
+}
+
 const (
 	contentHTML                 = "text/html; charset=\"UTF-8\""
 	contentPlain                = "text/plain; charset=\"UTF-8\""
@@ -40,14 +50,9 @@ var (
 	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
 )
 
-// Service sends notifications to given email addresses via SMTP.
-type Service struct {
-	standard.Standard
-	standard.Templater
-
-	Config            *Config
-	multipartBoundary string
-	propKeyResolver   format.PropKeyResolver
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
@@ -82,11 +87,6 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	s.propKeyResolver = pkr
 
 	return nil
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }
 
 // Send sends a notification message to email recipients.
@@ -235,22 +235,6 @@ func (s *Service) doSend(client *smtp.Client, message string, config *Config) fa
 	return nil
 }
 
-// resolveClientHost determines the client hostname to use in the SMTP handshake.
-func (s *Service) resolveClientHost(config *Config) string {
-	if config.ClientHost != "auto" {
-		return config.ClientHost
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		s.Logf("Failed to get hostname, falling back to localhost: %v", err)
-
-		return "localhost"
-	}
-
-	return hostname
-}
-
 // getAuth returns the appropriate SMTP authentication mechanism based on the configuration.
 //
 //nolint:exhaustive,nilnil
@@ -269,6 +253,43 @@ func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
 	default:
 		return nil, fail(FailAuthType, nil, config.Auth.String())
 	}
+}
+
+// getHeaders constructs email headers for the SMTP message.
+func (s *Service) getHeaders(toAddress, subject string) map[string]string {
+	conf := s.Config
+
+	var contentType string
+	if conf.UseHTML {
+		contentType = fmt.Sprintf(contentMultipart, s.multipartBoundary)
+	} else {
+		contentType = contentPlain
+	}
+
+	return map[string]string{
+		"Subject":      subject,
+		"Date":         time.Now().Format(time.RFC1123Z),
+		"To":           toAddress,
+		"From":         fmt.Sprintf("%s <%s>", conf.FromName, conf.FromAddress),
+		"MIME-version": "1.0",
+		"Content-Type": contentType,
+	}
+}
+
+// resolveClientHost determines the client hostname to use in the SMTP handshake.
+func (s *Service) resolveClientHost(config *Config) string {
+	if config.ClientHost != "auto" {
+		return config.ClientHost
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		s.Logf("Failed to get hostname, falling back to localhost: %v", err)
+
+		return "localhost"
+	}
+
+	return hostname
 }
 
 // sendToRecipient sends an email to a single recipient using the provided SMTP client.
@@ -315,25 +336,31 @@ func (s *Service) sendToRecipient(
 	return nil
 }
 
-// getHeaders constructs email headers for the SMTP message.
-func (s *Service) getHeaders(toAddress, subject string) map[string]string {
-	conf := s.Config
+// writeMessagePart writes a single part of an email message using the specified template.
+func (s *Service) writeMessagePart(
+	writeCloser io.WriteCloser,
+	message string,
+	template string,
+) failure {
+	if tpl, found := s.GetTemplate(template); found {
+		data := make(map[string]string)
 
-	var contentType string
-	if conf.UseHTML {
-		contentType = fmt.Sprintf(contentMultipart, s.multipartBoundary)
+		data["message"] = message
+		if err := tpl.Execute(writeCloser, data); err != nil {
+			return fail(FailMessageTemplate, err)
+		}
 	} else {
-		contentType = contentPlain
+		content := message
+		if template == "HTML" {
+			content = fmt.Sprintf("<pre>%s</pre>", message)
+		}
+
+		if _, err := fmt.Fprint(writeCloser, content); err != nil {
+			return fail(FailMessageRaw, err)
+		}
 	}
 
-	return map[string]string{
-		"Subject":      subject,
-		"Date":         time.Now().Format(time.RFC1123Z),
-		"To":           toAddress,
-		"From":         fmt.Sprintf("%s <%s>", conf.FromName, conf.FromAddress),
-		"MIME-version": "1.0",
-		"Content-Type": contentType,
-	}
+	return nil
 }
 
 // writeMultipartMessage writes a multipart email message to the provided writer.
@@ -369,33 +396,6 @@ func (s *Service) writeMultipartMessage(writeCloser io.WriteCloser, message stri
 	return nil
 }
 
-// writeMessagePart writes a single part of an email message using the specified template.
-func (s *Service) writeMessagePart(
-	writeCloser io.WriteCloser,
-	message string,
-	template string,
-) failure {
-	if tpl, found := s.GetTemplate(template); found {
-		data := make(map[string]string)
-
-		data["message"] = message
-		if err := tpl.Execute(writeCloser, data); err != nil {
-			return fail(FailMessageTemplate, err)
-		}
-	} else {
-		content := message
-		if template == "HTML" {
-			content = fmt.Sprintf("<pre>%s</pre>", message)
-		}
-
-		if _, err := fmt.Fprint(writeCloser, content); err != nil {
-			return fail(FailMessageRaw, err)
-		}
-	}
-
-	return nil
-}
-
 // writeMultipartHeader writes a multipart boundary header to the provided writer.
 func writeMultipartHeader(writeCloser io.WriteCloser, boundary, contentType string) error {
 	suffix := "\n"
@@ -407,7 +407,7 @@ func writeMultipartHeader(writeCloser io.WriteCloser, boundary, contentType stri
 		return fmt.Errorf("writing multipart boundary: %w", err)
 	}
 
-	if len(contentType) > 0 {
+	if contentType != "" {
 		if _, err := fmt.Fprintf(writeCloser, "Content-Type: %s\n\n", contentType); err != nil {
 			return fmt.Errorf("writing content type header: %w", err)
 		}

@@ -17,6 +17,19 @@ type Service struct {
 	Config *Config
 }
 
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize loads ServiceConfig from configURL and sets logger for this Service.
+func (s *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+
+	return nil
+}
+
 // Send a notification message to log.
 func (s *Service) Send(message string, params *types.Params) error {
 	data := types.Params{}
@@ -45,17 +58,4 @@ func (s *Service) doSend(data types.Params) error {
 	s.Log(msg)
 
 	return nil
-}
-
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
-func (s *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-
-	return nil
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
 }

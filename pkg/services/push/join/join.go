@@ -2,7 +2,6 @@ package join
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,21 +12,36 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	// hookURL defines the Join API endpoint for sending push notifications.
-	hookURL     = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
-	contentType = "text/plain"
-)
-
-// ErrSendFailed indicates a failure to send a notification to Join devices.
-var ErrSendFailed = errors.New("failed to send notification to join devices")
-
 // Service sends notifications to Join devices.
 type Service struct {
 	standard.Standard
 
 	Config *Config
 	pkr    format.PropKeyResolver
+}
+
+const (
+	// hookURL defines the Join API endpoint for sending push notifications.
+	hookURL     = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
+	contentType = "text/plain"
+)
+
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Join devices.
@@ -66,17 +80,22 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 	data.Set("apikey", config.APIKey)
 	data.Set("text", message)
 
-	if len(title) > 0 {
+	if title != "" {
 		data.Set("title", title)
 	}
 
-	if len(icon) > 0 {
+	if title != "" {
 		data.Set("icon", icon)
 	}
 
 	apiURL.RawQuery = data.Encode()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL.String(), http.NoBody)
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		apiURL.String(),
+		http.NoBody,
+	)
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -91,26 +110,13 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, devices, res.Status)
+		return fmt.Errorf(
+			"%w: %q, response status %q",
+			ErrSendFailed,
+			devices,
+			res.Status,
+		)
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-	s.pkr = format.NewPropKeyResolver(s.Config)
-
-	if err := s.Config.setURL(&s.pkr, configURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
 }

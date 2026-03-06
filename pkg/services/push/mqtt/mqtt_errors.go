@@ -1,10 +1,24 @@
-// Package mqtt provides a notification service for MQTT message brokers.
 package mqtt
 
 import (
 	"errors"
 	"fmt"
 )
+
+// PublishError represents an MQTT v5 publish failure with a reason code.
+// MQTT v5 reason codes >= 0x80 indicate failures, while codes < 0x80 indicate
+// success or non-fatal conditions that should be logged but not treated as errors.
+type PublishError struct {
+	// ReasonCode is the MQTT v5 reason code returned by the broker.
+	ReasonCode byte
+	// ReasonString is the optional human-readable reason description from the broker.
+	ReasonString string
+}
+
+// reasonCodeFailureThreshold is the threshold at which MQTT v5 reason codes
+// indicate failure. Codes >= 0x80 are failure/error codes per the MQTT v5 specification.
+// Codes 0x00-0x7F are success or non-fatal warning codes.
+const reasonCodeFailureThreshold = 0x80
 
 // Error definitions for the MQTT service.
 var (
@@ -29,21 +43,6 @@ var (
 		"password provided without username: username is required when using password authentication",
 	)
 )
-
-// reasonCodeFailureThreshold is the threshold at which MQTT v5 reason codes
-// indicate failure. Codes >= 0x80 are failure/error codes per the MQTT v5 specification.
-// Codes 0x00-0x7F are success or non-fatal warning codes.
-const reasonCodeFailureThreshold = 0x80
-
-// PublishError represents an MQTT v5 publish failure with a reason code.
-// MQTT v5 reason codes >= 0x80 indicate failures, while codes < 0x80 indicate
-// success or non-fatal conditions that should be logged but not treated as errors.
-type PublishError struct {
-	// ReasonCode is the MQTT v5 reason code returned by the broker.
-	ReasonCode byte
-	// ReasonString is the optional human-readable reason description from the broker.
-	ReasonString string
-}
 
 // Error implements the error interface for PublishError.
 // It returns a formatted error message including the reason code in hex format

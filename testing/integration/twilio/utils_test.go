@@ -36,10 +36,10 @@ func createTestService(
 	service := &twilio.Service{}
 
 	parsedURL, err := url.Parse(twilioURL)
-	assert.NoError(t, err) //nolint:testifylint
+	assert.NoError(t, err)
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err) //nolint:testifylint
+	assert.NoError(t, err)
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {

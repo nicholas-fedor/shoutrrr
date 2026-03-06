@@ -9,15 +9,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "pushover"
-
-// Static errors for configuration validation.
-var (
-	ErrUserMissing  = errors.New("user missing from config URL")
-	ErrTokenMissing = errors.New("token missing from config URL")
-)
-
 // Config for the Pushover notification service.
 type Config struct {
 	Token    string   `desc:"API Token/Key" url:"pass"`
@@ -26,6 +17,15 @@ type Config struct {
 	Priority int8     `                                key:"priority"             default:"0"`
 	Title    string   `                                key:"title"    optional:""`
 }
+
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "pushover"
+
+// Static errors for configuration validation.
+var (
+	ErrUserMissing  = errors.New("user missing from config URL")
+	ErrTokenMissing = errors.New("token missing from config URL")
+)
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
 func (c *Config) Enums() map[string]types.EnumFormatter {
@@ -44,6 +44,17 @@ func (c *Config) SetURL(url *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, url)
+}
+
+// getURL constructs a URL from the Config's fields using the provided resolver.
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	return &url.URL{
+		User:       url.UserPassword("Token", c.Token),
+		Host:       c.User,
+		Scheme:     Scheme,
+		ForceQuery: true,
+		RawQuery:   format.BuildQuery(resolver),
+	}
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -69,15 +80,4 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error 
 	}
 
 	return nil
-}
-
-// getURL constructs a URL from the Config's fields using the provided resolver.
-func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	return &url.URL{
-		User:       url.UserPassword("Token", c.Token),
-		Host:       c.User,
-		Scheme:     Scheme,
-		ForceQuery: true,
-		RawQuery:   format.BuildQuery(resolver),
-	}
 }

@@ -12,6 +12,7 @@ import (
 )
 
 func TestSendSingleFileAttachment(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -43,6 +44,7 @@ func TestSendSingleFileAttachment(t *testing.T) {
 }
 
 func TestSendMultipleFileAttachments(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -76,6 +78,7 @@ func TestSendMultipleFileAttachments(t *testing.T) {
 }
 
 func TestSendLargeFileAttachment(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -108,6 +111,7 @@ func TestSendLargeFileAttachment(t *testing.T) {
 }
 
 func TestSendFileWithSpecialCharactersInName(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -147,6 +151,7 @@ func TestSendFileWithSpecialCharactersInName(t *testing.T) {
 }
 
 func TestSendFileWithDifferentTypes(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -190,6 +195,7 @@ func TestSendFileWithDifferentTypes(t *testing.T) {
 }
 
 func TestSendFileWithEmptyContent(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -216,6 +222,7 @@ func TestSendFileWithEmptyContent(t *testing.T) {
 }
 
 func TestSendFileWithUnicodeContent(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -244,6 +251,7 @@ func TestSendFileWithUnicodeContent(t *testing.T) {
 }
 
 func TestSendFileWithMessageText(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

@@ -17,12 +17,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestNotifiarr runs the Notifiarr service test suite using Ginkgo.
-func TestNotifiarr(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Notifiarr Suite")
-}
-
 var (
 	service         *notifiarr.Service
 	envNotifiarrURL *url.URL
@@ -1506,3 +1500,10 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 		})
 	})
 })
+
+// TestNotifiarr runs the Notifiarr service test suite using Ginkgo.
+func TestNotifiarr(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Notifiarr Suite")
+}

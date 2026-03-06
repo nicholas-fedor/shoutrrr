@@ -13,6 +13,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to an IFTTT webhook.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // apiURLFormat defines the IFTTT webhook URL template.
 const (
 	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
@@ -24,12 +32,9 @@ var (
 	ErrUnexpectedStatus = errors.New("got unexpected response status code")
 )
 
-// Service sends notifications to an IFTTT webhook.
-type Service struct {
-	standard.Standard
-
-	Config *Config
-	pkr    format.PropKeyResolver
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
@@ -45,11 +50,6 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	}
 
 	return nil
-}
-
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
 }
 
 // Send delivers a notification message to an IFTTT webhook.

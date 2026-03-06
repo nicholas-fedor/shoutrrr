@@ -16,6 +16,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to WeCom.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // Constants for the WeCom service configuration and limits.
 const (
 	apiURL      = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=%s"
@@ -33,12 +41,18 @@ var (
 // httpClient is configured with a default timeout.
 var httpClient = &http.Client{Timeout: defaultTime}
 
-// Service sends notifications to WeCom.
-type Service struct {
-	standard.Standard
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
 
-	Config *Config
-	pkr    format.PropKeyResolver
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	return s.Config.SetURL(configURL)
 }
 
 // Send delivers a notification message to WeCom.
@@ -59,20 +73,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.doSend(config, message, params)
 }
 
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	s.SetLogger(logger)
-	s.Config = &Config{}
-	s.pkr = format.NewPropKeyResolver(s.Config)
-
-	return s.Config.SetURL(configURL)
-}
-
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
 // doSend sends the notification to WeCom using the configured API URL.
 func (s *Service) doSend(config Config, message string, params *types.Params) error {
 	postURL := fmt.Sprintf(apiURL, config.Key)
@@ -83,6 +83,62 @@ func (s *Service) doSend(config Config, message string, params *types.Params) er
 	}
 
 	return s.sendRequest(postURL, payload)
+}
+
+// getRequestBody constructs the request body for the WeCom API.
+func (s *Service) getRequestBody(
+	message string,
+	config Config,
+	_ *types.Params,
+) *RequestBody {
+	body := &RequestBody{
+		MsgType: "text",
+		Text: TextContent{
+			Content: message,
+		},
+	}
+
+	// Handle mentions from config
+	if config.MentionedList != "" {
+		// Parse comma-separated list
+		body.Text.MentionedList = []string{config.MentionedList}
+	}
+
+	if config.MentionedMobileList != "" {
+		body.Text.MentionedMobileList = []string{config.MentionedMobileList}
+	}
+
+	return body
+}
+
+// handleResponse processes the API response and checks for errors.
+func (s *Service) handleResponse(resp *http.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%w: unexpected status %s", ErrSendFailed, resp.Status)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response body: %w", err)
+	}
+
+	var response Response
+	if err := json.Unmarshal(data, &response); err != nil {
+		return fmt.Errorf("unmarshaling response: %w", err)
+	}
+
+	if response.ErrCode != 0 {
+		return fmt.Errorf(
+			"%w: server returned error code %d: %s",
+			ErrSendFailed,
+			response.ErrCode,
+			response.ErrMsg,
+		)
+	}
+
+	s.Logf("Notification sent successfully to WeCom webhook")
+
+	return nil
 }
 
 // preparePayload constructs and marshals the request payload for the WeCom API.
@@ -125,60 +181,4 @@ func (s *Service) sendRequest(postURL string, payload []byte) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	return s.handleResponse(resp)
-}
-
-// handleResponse processes the API response and checks for errors.
-func (s *Service) handleResponse(resp *http.Response) error {
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: unexpected status %s", ErrSendFailed, resp.Status)
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("reading response body: %w", err)
-	}
-
-	var response Response
-	if err := json.Unmarshal(data, &response); err != nil {
-		return fmt.Errorf("unmarshaling response: %w", err)
-	}
-
-	if response.ErrCode != 0 {
-		return fmt.Errorf(
-			"%w: server returned error code %d: %s",
-			ErrSendFailed,
-			response.ErrCode,
-			response.ErrMsg,
-		)
-	}
-
-	s.Logf("Notification sent successfully to WeCom webhook")
-
-	return nil
-}
-
-// getRequestBody constructs the request body for the WeCom API.
-func (s *Service) getRequestBody(
-	message string,
-	config Config,
-	_ *types.Params,
-) *RequestBody {
-	body := &RequestBody{
-		MsgType: "text",
-		Text: TextContent{
-			Content: message,
-		},
-	}
-
-	// Handle mentions from config
-	if config.MentionedList != "" {
-		// Parse comma-separated list
-		body.Text.MentionedList = []string{config.MentionedList}
-	}
-
-	if config.MentionedMobileList != "" {
-		body.Text.MentionedMobileList = []string{config.MentionedMobileList}
-	}
-
-	return body
 }

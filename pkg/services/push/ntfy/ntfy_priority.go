@@ -5,6 +5,17 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+type priority int
+
+type priorityVals struct {
+	Min     priority
+	Low     priority
+	Default priority
+	High    priority
+	Max     priority
+	Enum    types.EnumFormatter
+}
+
 // Priority levels as constants.
 const (
 	PriorityMin     priority = 1
@@ -37,17 +48,6 @@ var Priority = &priorityVals{
 			"5":      int(PriorityMax),
 			"urgent": int(PriorityMax),
 		}),
-}
-
-type priority int
-
-type priorityVals struct {
-	Min     priority
-	Low     priority
-	Default priority
-	High    priority
-	Max     priority
-	Enum    types.EnumFormatter
 }
 
 func (p priority) String() string {

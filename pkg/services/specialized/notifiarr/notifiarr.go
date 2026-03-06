@@ -19,6 +19,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service implements a Notifiarr notification service.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
+// presenceFlags holds boolean flags indicating presence of Discord fields.
+type presenceFlags struct {
+	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
+}
+
 const (
 	// APIBaseURL is the base URL for Notifiarr API.
 	APIBaseURL = "https://notifiarr.com/api/v1/notification/passthrough"
@@ -54,19 +67,6 @@ var (
 // mentionRegex is a compiled regular expression for parsing Discord user/role mentions.
 var mentionRegex = regexp.MustCompile(`<@!?(\d+)>|<@&(\d+)>`)
 
-// Service implements a Notifiarr notification service.
-type Service struct {
-	standard.Standard
-
-	Config *Config
-	pkr    format.PropKeyResolver
-}
-
-// presenceFlags holds boolean flags indicating presence of Discord fields.
-type presenceFlags struct {
-	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
-}
-
 // HasAny returns true if any of the boolean fields are true, false otherwise.
 func (pf presenceFlags) HasAny() bool {
 	return pf.channel || pf.color || pf.thumbnail || pf.image || pf.title || pf.icon ||
@@ -75,6 +75,108 @@ func (pf presenceFlags) HasAny() bool {
 		pf.footer ||
 		pf.fields ||
 		pf.mentions
+}
+
+// ExtractPingIDs extracts user and role IDs from mention strings.
+func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
+	var pingUsers, pingRoles []int
+
+	for _, mention := range mentions {
+		mentionType, id := ParseMention(mention)
+		switch mentionType {
+		case MentionTypeUser:
+			pingUsers = append(pingUsers, id)
+		case MentionTypeRole:
+			pingRoles = append(pingRoles, id)
+		}
+	}
+
+	return pingUsers, pingRoles
+}
+
+// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+	// Copy the URL to modify
+	webhookURL := *customURL
+	if strings.HasPrefix(webhookURL.Scheme, Scheme) && len(webhookURL.Scheme) > len(Scheme) &&
+		webhookURL.Scheme[len(Scheme)] == '+' {
+		// Remove the scheme prefix if present
+		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
+	}
+
+	// Parse config from webhook URL
+	config, pkr, err := ConfigFromWebhookURL(webhookURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate and return the service URL
+	return config.getURL(&pkr), nil
+}
+
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
+	// Set the logger for the service
+	s.SetLogger(logger)
+	// Initialize service config
+	s.Config = &Config{}
+	// Initialize property key resolver
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	// Set default properties
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
+		return fmt.Errorf("setting default properties: %w", err)
+	}
+
+	// Set URL and return any error
+	if err := s.Config.SetURL(configURL); err != nil {
+		return fmt.Errorf("setting config URL: %w", err)
+	}
+
+	return nil
+}
+
+// ParseChannelID parses the channel string to an integer.
+func (s *Service) ParseChannelID(channelStr string) (int, error) {
+	var channelID int
+
+	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
+	if err != nil {
+		return 0, fmt.Errorf("invalid channel ID format '%s': %w", channelStr, ErrInvalidChannelID)
+	}
+
+	return channelID, nil
+}
+
+// ParseFields parses a JSON string into a slice of Field structs.
+func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
+	var fields []Field
+	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
+		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
+	}
+
+	return fields, nil
+}
+
+// ParseMentions extracts Discord user and role mentions from the message content.
+func (s *Service) ParseMentions(message string) []string {
+	var mentions []string
+
+	matches := mentionRegex.FindAllStringSubmatch(message, -1)
+	for _, match := range matches {
+		if match[1] != "" {
+			mentions = append(mentions, fmt.Sprintf("<@%s>", match[1]))
+		} else if match[2] != "" {
+			mentions = append(mentions, fmt.Sprintf("<@&%s>", match[2]))
+		}
+	}
+
+	return mentions
 }
 
 // Send delivers a notification message to Notifiarr.
@@ -128,177 +230,6 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	// Set the logger for the service
-	s.SetLogger(logger)
-	// Initialize service config
-	s.Config = &Config{}
-	// Initialize property key resolver
-	s.pkr = format.NewPropKeyResolver(s.Config)
-
-	// Set default properties
-	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
-		return fmt.Errorf("setting default properties: %w", err)
-	}
-
-	// Set URL and return any error
-	if err := s.Config.SetURL(configURL); err != nil {
-		return fmt.Errorf("setting config URL: %w", err)
-	}
-
-	return nil
-}
-
-// GetID returns the identifier for this service.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
-// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	// Copy the URL to modify
-	webhookURL := *customURL
-	if strings.HasPrefix(webhookURL.Scheme, Scheme) && len(webhookURL.Scheme) > len(Scheme) &&
-		webhookURL.Scheme[len(Scheme)] == '+' {
-		// Remove the scheme prefix if present
-		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
-	}
-
-	// Parse config from webhook URL
-	config, pkr, err := ConfigFromWebhookURL(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate and return the service URL
-	return config.getURL(&pkr), nil
-}
-
-// ParseChannelID parses the channel string to an integer.
-func (s *Service) ParseChannelID(channelStr string) (int, error) {
-	var channelID int
-
-	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
-	if err != nil {
-		return 0, fmt.Errorf("invalid channel ID format '%s': %w", channelStr, ErrInvalidChannelID)
-	}
-
-	return channelID, nil
-}
-
-// ParseMentions extracts Discord user and role mentions from the message content.
-func (s *Service) ParseMentions(message string) []string {
-	var mentions []string
-
-	matches := mentionRegex.FindAllStringSubmatch(message, -1)
-	for _, match := range matches {
-		if match[1] != "" {
-			mentions = append(mentions, fmt.Sprintf("<@%s>", match[1]))
-		} else if match[2] != "" {
-			mentions = append(mentions, fmt.Sprintf("<@&%s>", match[2]))
-		}
-	}
-
-	return mentions
-}
-
-// ParseFields parses a JSON string into a slice of Field structs.
-func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
-	var fields []Field
-	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
-		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
-	}
-
-	return fields, nil
-}
-
-// ParseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
-func ParseMention(mention string) (int, int) {
-	if !strings.HasPrefix(mention, "<@") || !strings.HasSuffix(mention, ">") {
-		return MentionTypeNone, 0
-	}
-
-	idStr := mention[2 : len(mention)-1]
-	if strings.HasPrefix(idStr, "&") {
-		roleIDStr := idStr[1:]
-		if roleID, err := strconv.Atoi(roleIDStr); err == nil {
-			return MentionTypeRole, roleID
-		}
-	} else {
-		// Handle user mentions, which may have a "!" prefix for nicknames
-		userIDStr := strings.TrimPrefix(idStr, "!")
-
-		if userID, err := strconv.Atoi(userIDStr); err == nil {
-			return MentionTypeUser, userID
-		}
-	}
-
-	return MentionTypeNone, 0
-}
-
-// ExtractPingIDs extracts user and role IDs from mention strings.
-func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
-	var pingUsers, pingRoles []int
-
-	for _, mention := range mentions {
-		mentionType, id := ParseMention(mention)
-		switch mentionType {
-		case MentionTypeUser:
-			pingUsers = append(pingUsers, id)
-		case MentionTypeRole:
-			pingRoles = append(pingRoles, id)
-		}
-	}
-
-	return pingUsers, pingRoles
-}
-
-// ParseUpdateFlag parses the update parameter from params.
-func ParseUpdateFlag(params types.Params) *bool {
-	if updateStr, exists := params["update"]; exists && updateStr != "" {
-		switch updateStr {
-		case "true":
-			return &[]bool{true}[0]
-		case "false":
-			return &[]bool{false}[0]
-		}
-	}
-
-	return nil
-}
-
-// buildNotificationData creates the notification data structure.
-func buildNotificationData(updatePtr *bool, config *Config, params types.Params) NotificationData {
-	return NotificationData{
-		Update: updatePtr,
-		Name:   config.Name,
-		Event:  params["id"],
-	}
-}
-
-// checkPresenceFlags determines which Discord fields are present.
-func checkPresenceFlags(
-	message string,
-	params types.Params,
-	config *Config,
-	service *Service,
-) presenceFlags {
-	return presenceFlags{
-		channel:     config.Channel != "",
-		color:       config.Color != "",
-		thumbnail:   config.Thumbnail != "",
-		image:       config.Image != "",
-		title:       params[types.TitleKey] != "",
-		icon:        params["icon"] != "",
-		content:     params["content"] != "",
-		description: message != "",
-		footer:      params["footer"] != "",
-		fields:      params["fields"] != "",
-		mentions:    len(service.ParseMentions(message)) > 0,
-	}
 }
 
 // buildDiscordPayload constructs the Discord payload if any fields are present.
@@ -464,4 +395,73 @@ func (s *Service) doSend(payload []byte) error {
 	}
 
 	return nil
+}
+
+// ParseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
+func ParseMention(mention string) (int, int) {
+	if !strings.HasPrefix(mention, "<@") || !strings.HasSuffix(mention, ">") {
+		return MentionTypeNone, 0
+	}
+
+	idStr := mention[2 : len(mention)-1]
+	if strings.HasPrefix(idStr, "&") {
+		roleIDStr := idStr[1:]
+		if roleID, err := strconv.Atoi(roleIDStr); err == nil {
+			return MentionTypeRole, roleID
+		}
+	} else {
+		// Handle user mentions, which may have a "!" prefix for nicknames
+		userIDStr := strings.TrimPrefix(idStr, "!")
+
+		if userID, err := strconv.Atoi(userIDStr); err == nil {
+			return MentionTypeUser, userID
+		}
+	}
+
+	return MentionTypeNone, 0
+}
+
+// ParseUpdateFlag parses the update parameter from params.
+func ParseUpdateFlag(params types.Params) *bool {
+	if updateStr, exists := params["update"]; exists && updateStr != "" {
+		switch updateStr {
+		case "true":
+			return &[]bool{true}[0]
+		case "false":
+			return &[]bool{false}[0]
+		}
+	}
+
+	return nil
+}
+
+// buildNotificationData creates the notification data structure.
+func buildNotificationData(updatePtr *bool, config *Config, params types.Params) NotificationData {
+	return NotificationData{
+		Update: updatePtr,
+		Name:   config.Name,
+		Event:  params["id"],
+	}
+}
+
+// checkPresenceFlags determines which Discord fields are present.
+func checkPresenceFlags(
+	message string,
+	params types.Params,
+	config *Config,
+	service *Service,
+) presenceFlags {
+	return presenceFlags{
+		channel:     config.Channel != "",
+		color:       config.Color != "",
+		thumbnail:   config.Thumbnail != "",
+		image:       config.Image != "",
+		title:       params[types.TitleKey] != "",
+		icon:        params["icon"] != "",
+		content:     params["content"] != "",
+		description: message != "",
+		footer:      params["footer"] != "",
+		fields:      params["fields"] != "",
+		mentions:    len(service.ParseMentions(message)) > 0,
+	}
 }

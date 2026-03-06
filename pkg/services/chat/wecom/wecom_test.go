@@ -16,10 +16,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestWeCom(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr WeCom Suite")
-}
+const fullURL = "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa"
 
 var (
 	service *Service
@@ -28,8 +25,6 @@ var (
 		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
 	})
 )
-
-const fullURL = "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa"
 
 var _ = ginkgo.Describe("WeCom Test", func() {
 	ginkgo.BeforeEach(func() {
@@ -206,3 +201,9 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 		})
 	})
 })
+
+func TestWeCom(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr WeCom Suite")
+}

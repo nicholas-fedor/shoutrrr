@@ -12,6 +12,7 @@ import (
 )
 
 func TestSendWithCustomUsername(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -48,6 +49,7 @@ func TestSendWithCustomUsername(t *testing.T) {
 }
 
 func TestSendWithCustomAvatar(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -87,6 +89,7 @@ func TestSendWithCustomAvatar(t *testing.T) {
 }
 
 func TestSendWithCustomColors(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -125,6 +128,7 @@ func TestSendWithCustomColors(t *testing.T) {
 }
 
 func TestSendWithJSONMode(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -150,6 +154,7 @@ func TestSendWithJSONMode(t *testing.T) {
 }
 
 func TestSendWithSplitLines(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name          string
@@ -189,6 +194,7 @@ func TestSendWithSplitLines(t *testing.T) {
 }
 
 func TestSendWithTitle(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -212,6 +218,7 @@ func TestSendWithTitle(t *testing.T) {
 }
 
 func TestSendWithComplexParameterCombination(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -247,6 +254,7 @@ func TestSendWithComplexParameterCombination(t *testing.T) {
 }
 
 func TestSendWithEmptyParameters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -270,6 +278,7 @@ func TestSendWithEmptyParameters(t *testing.T) {
 }
 
 func TestSendWithNilParameters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -292,6 +301,7 @@ func TestSendWithNilParameters(t *testing.T) {
 }
 
 func TestSendWithURLParameters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).

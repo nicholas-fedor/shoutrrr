@@ -16,15 +16,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	eventEndpointTemplate = "https://%s:%d/v2/enqueue"
-	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
-	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
-
-	contextTypeLink  = "link"
-	contextTypeImage = "image"
-)
-
 // Service provides PagerDuty as a notification service.
 type Service struct {
 	standard.Standard
@@ -34,78 +25,18 @@ type Service struct {
 	httpClient *http.Client
 }
 
-// SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
-// requiring proxies, custom TLS configurations, etc.
-func (s *Service) SetHTTPClient(client *http.Client) {
-	s.httpClient = client
-}
+const (
+	eventEndpointTemplate = "https://%s:%d/v2/enqueue"
+	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
 
-// sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
-func (s *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
-	// Marshal the payload into JSON format
-	jsonBody, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %w", err)
-	}
+	contextTypeLink  = "link"
+	contextTypeImage = "image"
+)
 
-	jsonBuffer := bytes.NewBuffer(jsonBody)
-
-	// Create a new HTTP POST request with the JSON body
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	// Set the Content-Type header to application/json
-	req.Header.Add("Content-Type", "application/json")
-
-	// Use the custom HTTP client
-	if s.httpClient == nil {
-		return errServiceNotInitialized
-	}
-
-	// Send the HTTP request to PagerDuty
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	// Check if the response status indicates success (2xx)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Parse error response body for better error reporting
-		errorMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
-		if resp.Body != nil {
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err == nil && len(bodyBytes) > 0 {
-				// Try to parse as PagerDuty error response
-				var errorResponse struct {
-					Status  string   `json:"status"`
-					Message string   `json:"message"`
-					Error   string   `json:"error"`
-					Errors  []string `json:"errors"`
-				}
-				if jsonErr := json.Unmarshal(bodyBytes, &errorResponse); jsonErr == nil {
-					switch {
-					case errorResponse.Message != "":
-						errorMsg = errorResponse.Message
-					case errorResponse.Error != "":
-						errorMsg = errorResponse.Error
-					case len(errorResponse.Errors) > 0:
-						errorMsg = strings.Join(errorResponse.Errors, "; ")
-					}
-				} else {
-					// Fallback to raw body if JSON parsing fails
-					errorMsg = string(bodyBytes)
-				}
-			}
-		}
-
-		return fmt.Errorf("%w: %s", errPagerDutyNotificationFailed, errorMsg)
-	}
-
-	return nil
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize loads ServiceConfig from configURL and sets logger for this Service.
@@ -132,11 +63,6 @@ func (s *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
 	return nil
 }
 
-// GetID returns the service identifier.
-func (s *Service) GetID() string {
-	return Scheme
-}
-
 // Send a notification message to PagerDuty
 // See: https://developer.pagerduty.com/docs/events-api-v2-overview
 func (s *Service) Send(message string, params *types.Params) error {
@@ -159,6 +85,12 @@ func (s *Service) SendWithContext(
 	}
 
 	return s.sendAlert(ctx, endpointURL, payload)
+}
+
+// SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
+// requiring proxies, custom TLS configurations, etc.
+func (s *Service) SetHTTPClient(client *http.Client) {
+	s.httpClient = client
 }
 
 func (s *Service) newEventPayload(
@@ -241,32 +173,69 @@ func (s *Service) newEventPayload(
 	return result, nil
 }
 
-// validateSeverity checks if the provided severity is one of the allowed values.
-func validateSeverity(severity string) error {
-	validSeverities := map[string]bool{
-		"critical": true,
-		"error":    true,
-		"warning":  true,
-		"info":     true,
+// sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
+func (s *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
+	// Marshal the payload into JSON format
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	if !validSeverities[severity] {
-		return errInvalidSeverity
+	jsonBuffer := bytes.NewBuffer(jsonBody)
+
+	// Create a new HTTP POST request with the JSON body
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	return nil
-}
+	// Set the Content-Type header to application/json
+	req.Header.Add("Content-Type", "application/json")
 
-// validateEventAction checks if the provided event action is one of the allowed values.
-func validateEventAction(action string) error {
-	validActions := map[string]bool{
-		"trigger":     true,
-		"acknowledge": true,
-		"resolve":     true,
+	// Use the custom HTTP client
+	if s.httpClient == nil {
+		return errServiceNotInitialized
 	}
 
-	if !validActions[action] {
-		return errInvalidEventAction
+	// Send the HTTP request to PagerDuty
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send notification to PagerDuty: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check if the response status indicates success (2xx)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Parse error response body for better error reporting
+		errorMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
+		if resp.Body != nil {
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err == nil && len(bodyBytes) > 0 {
+				// Try to parse as PagerDuty error response
+				var errorResponse struct {
+					Status  string   `json:"status"`
+					Message string   `json:"message"`
+					Error   string   `json:"error"`
+					Errors  []string `json:"errors"`
+				}
+				if jsonErr := json.Unmarshal(bodyBytes, &errorResponse); jsonErr == nil {
+					switch {
+					case errorResponse.Message != "":
+						errorMsg = errorResponse.Message
+					case errorResponse.Error != "":
+						errorMsg = errorResponse.Error
+					case len(errorResponse.Errors) > 0:
+						errorMsg = strings.Join(errorResponse.Errors, "; ")
+					}
+				} else {
+					// Fallback to raw body if JSON parsing fails
+					errorMsg = string(bodyBytes)
+				}
+			}
+		}
+
+		return fmt.Errorf("%w: %s", errPagerDutyNotificationFailed, errorMsg)
 	}
 
 	return nil
@@ -367,4 +336,35 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	}
 
 	return result, nil
+}
+
+// validateSeverity checks if the provided severity is one of the allowed values.
+func validateSeverity(severity string) error {
+	validSeverities := map[string]bool{
+		"critical": true,
+		"error":    true,
+		"warning":  true,
+		"info":     true,
+	}
+
+	if !validSeverities[severity] {
+		return errInvalidSeverity
+	}
+
+	return nil
+}
+
+// validateEventAction checks if the provided event action is one of the allowed values.
+func validateEventAction(action string) error {
+	validActions := map[string]bool{
+		"trigger":     true,
+		"acknowledge": true,
+		"resolve":     true,
+	}
+
+	if !validActions[action] {
+		return errInvalidEventAction
+	}
+
+	return nil
 }

@@ -18,11 +18,6 @@ import (
 
 const hookURL = "https://api.pushover.net/1/messages.json"
 
-func TestPushover(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Pushover Suite")
-}
-
 var (
 	service        *pushover.Service
 	config         *pushover.Config
@@ -183,6 +178,12 @@ var _ = ginkgo.Describe("the pushover config", func() {
 		})
 	})
 })
+
+func TestPushover(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Pushover Suite")
+}
 
 func createURL(username, token string) *url.URL {
 	return &url.URL{

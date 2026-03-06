@@ -1,21 +1,11 @@
 package join
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-)
-
-// Scheme identifies this service in configuration URLs.
-const Scheme = "join"
-
-// ErrDevicesMissing indicates that no devices are specified in the configuration.
-var (
-	ErrDevicesMissing = errors.New("devices missing from config URL")
-	ErrAPIKeyMissing  = errors.New("API key missing from config URL")
 )
 
 // Config holds settings for the Join notification service.
@@ -25,6 +15,9 @@ type Config struct {
 	Title   string   `           desc:"If set creates a notification"      key:"title"   optional:""`
 	Icon    string   `           desc:"Icon URL"                           key:"icon"    optional:""`
 }
+
+// Scheme identifies this service in configuration URLs.
+const Scheme = "join"
 
 // Enums returns the fields that should use an EnumFormatter for their values.
 func (c *Config) Enums() map[string]types.EnumFormatter {
