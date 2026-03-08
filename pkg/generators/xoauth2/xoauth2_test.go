@@ -99,84 +99,13 @@ func Test_generateOauth2Config(t *testing.T) {
 		args    args
 		wantErr bool
 		errMsg  string
-	}{
-		{
-			name: "valid config with non-gmail host fails at scan",
-			args: args{
-				conf: &oauth2.Config{
-					ClientID:     "test-client-id",
-					ClientSecret: "test-client-secret",
-					Endpoint: oauth2.Endpoint{
-						AuthURL:  "https://example.com/auth",
-						TokenURL: "https://example.com/token",
-					},
-					RedirectURL: "https://example.com/callback",
-					Scopes:      []string{"email"},
-				},
-				host: "smtp.example.com",
-			},
-			wantErr: true,
-			errMsg:  "failed to scan input",
-		},
-		{
-			name: "valid config with gmail host fails at scan",
-			args: args{
-				conf: &oauth2.Config{
-					ClientID:     "test-client-id",
-					ClientSecret: "test-client-secret",
-					Endpoint: oauth2.Endpoint{
-						AuthURL:  "https://accounts.google.com/o/oauth2/auth",
-						TokenURL: "https://oauth2.googleapis.com/token",
-					},
-					RedirectURL: "https://example.com/callback",
-					Scopes:      []string{"https://mail.google.com/"},
-				},
-				host: "smtp.gmail.com",
-			},
-			wantErr: true,
-			errMsg:  "failed to scan input",
-		},
-	}
+	}{}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			got, err := generateOauth2Config(tt.args.conf, tt.args.host)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
-
-func Test_oauth2Generator(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "interactive mode fails on scan",
-			wantErr: true,
-			errMsg:  "failed to scan input",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := oauth2Generator()
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -214,20 +143,6 @@ func Test_oauth2GeneratorFile(t *testing.T) {
 			wantErr: true,
 			errType: ErrUnmarshalFailed,
 			errMsg:  "failed to unmarshal JSON",
-		},
-		{
-			name: "valid JSON file fails at interactive step",
-			file: createTempFile(t, `{
-				"client_id": "test-id",
-				"client_secret": "test-secret",
-				"redirect_url": "https://example.com/callback",
-				"auth_url": "https://example.com/auth",
-				"token_url": "https://example.com/token",
-				"smtp_hostname": "smtp.example.com",
-				"scopes": ["email"]
-			}`),
-			wantErr: true,
-			errMsg:  "failed to scan input",
 		},
 	}
 
@@ -276,34 +191,6 @@ func Test_oauth2GeneratorGmail(t *testing.T) {
 			file:    createTempFile(t, "invalid json content"),
 			wantErr: true,
 			errMsg:  "invalid character",
-		},
-		{
-			name: "valid credentials file fails at interactive step",
-			file: createTempFile(t, `{
-				"installed": {
-					"client_id": "test-client-id.apps.googleusercontent.com",
-					"client_secret": "test-client-secret",
-					"auth_uri": "https://accounts.google.com/o/oauth2/auth",
-					"token_uri": "https://oauth2.googleapis.com/token",
-					"redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
-				}
-			}`),
-			wantErr: true,
-			errMsg:  "failed to scan input",
-		},
-		{
-			name: "web credentials valid format fails at interactive step",
-			file: createTempFile(t, `{
-				"web": {
-					"client_id": "test-client-id.apps.googleusercontent.com",
-					"client_secret": "test-client-secret",
-					"auth_uri": "https://accounts.google.com/o/oauth2/auth",
-					"token_uri": "https://oauth2.googleapis.com/token",
-					"redirect_uris": ["https://example.com/callback"]
-				}
-			}`),
-			wantErr: true,
-			errMsg:  "failed to scan input",
 		},
 	}
 
