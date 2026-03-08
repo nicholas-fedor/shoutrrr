@@ -1,6 +1,6 @@
 module github.com/nicholas-fedor/shoutrrr
 
-go 1.25
+go 1.25.0
 
 toolchain go1.26.1
 
@@ -13,7 +13,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.40.0
 )
