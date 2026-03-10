@@ -186,7 +186,8 @@ func (s *Service) doSend(client *smtp.Client, message string, config *Config) fa
 		}
 	}
 
-	if auth, err := s.getAuth(config); err != nil {
+	auth, err := s.getAuth(config)
+	if err != nil && !errors.Is(err, ErrNoAuth) {
 		return err
 	} else if auth != nil {
 		if err := client.Auth(auth); err != nil {
@@ -237,11 +238,11 @@ func (s *Service) doSend(client *smtp.Client, message string, config *Config) fa
 
 // getAuth returns the appropriate SMTP authentication mechanism based on the configuration.
 //
-//nolint:exhaustive,nilnil
+//nolint:exhaustive // false positive: switch covers all AuthTypes, linter confuses local authType with net/smtp.authType
 func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
 	switch config.Auth {
 	case AuthTypes.None:
-		return nil, nil // No auth required, proceed without error
+		return nil, fail(FailAuthType, ErrNoAuth)
 	case AuthTypes.Plain:
 		return smtp.PlainAuth("", config.Username, config.Password, config.Host), nil
 	case AuthTypes.CRAMMD5:

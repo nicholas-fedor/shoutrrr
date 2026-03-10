@@ -53,7 +53,6 @@ func computeExpectedBatches(message string, splitLines bool) int {
 	return batches
 }
 
-//nolint:funlen
 func TestSendWithHTTPError(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
