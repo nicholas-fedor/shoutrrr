@@ -247,11 +247,13 @@ linters:
         # Exclude internal/testutils package - test utilities
         - 'github\.com/nicholas-fedor/shoutrrr/internal/testutils/.*'
         # Exclude service types - initialized via factory functions
-        - 'github\.com/nicholas-fedor/shoutrrr/pkg/.+\.Service'
+        - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.Service'
         # Exclude config types - initialized via URL parsing (setURL method)
-        - 'github\.com/nicholas-fedor/shoutrrr/pkg/.+\.Config'
+        - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.Config'
         # Exclude payload types - initialized via URL parsing (setURL method)
-        - 'github\.com/nicholas-fedor/shoutrrr/pkg/.+Payload'
+        - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+Payload'
+        # Exclude message/body types - partially initialized with fields set conditionally
+        - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.(TextContent|RequestBody|Message)$'
         # Exclude standard library types that don't require full initialization
         - '.*/url\.URL$'
         - '.*/http\.Client$'
