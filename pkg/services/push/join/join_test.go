@@ -58,7 +58,7 @@ var _ = ginkgo.Describe("the join config", func() {
 		})
 		ginkgo.It("should error if supplied with an empty token", func() {
 			url := createURL("user", "", "testDevice")
-			expectErrorMessageGivenURL(join.APIKeyMissing, url)
+			expectErrorGivenURL(join.ErrAPIKeyMissing, url)
 		})
 	})
 	ginkgo.When("getting the current config", func() {
@@ -169,8 +169,8 @@ func createURL(username, token, devices string) *url.URL {
 	}
 }
 
-func expectErrorMessageGivenURL(msg join.ErrorMessage, serviceURL *url.URL) {
+func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
 	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
 }

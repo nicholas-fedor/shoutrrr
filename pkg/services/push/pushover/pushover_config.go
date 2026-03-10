@@ -1,7 +1,6 @@
 package pushover
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 
@@ -20,12 +19,6 @@ type Config struct {
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "pushover"
-
-// Static errors for configuration validation.
-var (
-	ErrUserMissing  = errors.New("user missing from config URL")
-	ErrTokenMissing = errors.New("token missing from config URL")
-)
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
 func (c *Config) Enums() map[string]types.EnumFormatter {

@@ -70,11 +70,11 @@ var _ = ginkgo.Describe("the pushover config", func() {
 		})
 		ginkgo.It("should error if supplied with an empty username", func() {
 			url := createURL("", "token")
-			expectErrorMessageGivenURL(pushover.UserMissing, url)
+			expectErrorGivenURL(pushover.ErrUserMissing, url)
 		})
 		ginkgo.It("should error if supplied with an empty token", func() {
 			url := createURL("user", "")
-			expectErrorMessageGivenURL(pushover.TokenMissing, url)
+			expectErrorGivenURL(pushover.ErrTokenMissing, url)
 		})
 	})
 	ginkgo.When("getting the current config", func() {
@@ -192,8 +192,8 @@ func createURL(username, token string) *url.URL {
 	}
 }
 
-func expectErrorMessageGivenURL(msg pushover.ErrorMessage, serviceURL *url.URL) {
+func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
 	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
 }

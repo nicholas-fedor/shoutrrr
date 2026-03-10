@@ -2,33 +2,23 @@ package zulip
 
 import "errors"
 
-// TODO: Cleanup
+// ErrMissingHost indicates the host is not specified in the configuration.
+var ErrMissingHost = errors.New("host missing from config URL")
 
-// ErrorMessage for error events within the zulip service.
-type ErrorMessage string
+// ErrMissingAPIKey indicates the API key is missing from the configuration.
+var ErrMissingAPIKey = errors.New("API key missing from config URL")
 
-const (
-	// MissingAPIKey from the service URL.
-	MissingAPIKey ErrorMessage = "missing API key"
-	// MissingHost from the service URL.
-	MissingHost ErrorMessage = "missing Zulip host"
-	// MissingBotMail from the service URL.
-	MissingBotMail ErrorMessage = "missing Bot mail address"
-	// TopicTooLong if topic is more than 60 characters.
-	TopicTooLong ErrorMessage = "topic exceeds max length (%d characters): was %d characters"
-)
+// ErrMissingBotMail indicates the bot mail address is missing from the configuration.
+var ErrMissingBotMail = errors.New("bot mail missing from config URL")
 
-var (
-	// ErrTopicTooLong indicates the topic exceeds the maximum allowed length.
-	ErrTopicTooLong          = errors.New("topic exceeds max length")
-	ErrMessageTooLong        = errors.New("message exceeds max size")
-	ErrResponseStatusFailure = errors.New("response status code unexpected")
-	ErrInvalidHost           = errors.New("invalid host format")
-)
+// ErrTopicTooLong indicates the topic exceeds the maximum allowed length.
+var ErrTopicTooLong = errors.New("topic exceeds max length")
 
-// Static errors for configuration validation.
-var (
-	ErrMissingBotMail = errors.New("bot mail missing from config URL")
-	ErrMissingAPIKey  = errors.New("API key missing from config URL")
-	ErrMissingHost    = errors.New("host missing from config URL")
-)
+// ErrMessageTooLong indicates the message exceeds the maximum allowed size.
+var ErrMessageTooLong = errors.New("message exceeds max size")
+
+// ErrResponseStatusFailure indicates an unexpected HTTP response status code.
+var ErrResponseStatusFailure = errors.New("response status code unexpected")
+
+// ErrInvalidHost indicates the host format is invalid.
+var ErrInvalidHost = errors.New("invalid host format")

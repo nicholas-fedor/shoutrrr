@@ -408,8 +408,8 @@ func createZulipURL(botMail, botKey, host, stream, topic string) *url.URL {
 	return u
 }
 
-func expectErrorMessageGivenURL(msg ErrorMessage, zulipURL *url.URL) {
+func expectErrorMessageGivenURL(msg string, zulipURL *url.URL) {
 	err := service.Initialize(zulipURL, testutils.TestLogger())
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(msg))
 }
