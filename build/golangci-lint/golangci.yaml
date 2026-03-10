@@ -262,8 +262,10 @@ linters:
         - '.*/http\.Response$'
         - '.*/tls\.Config$'
         # Exclude third-party OAuth types
-        - '.*/oauth2\.Endpoint$'
-        - '.*/oauth2\.Config$'
+        - '.*/oauth2\.Endpoint'
+        - '.*/oauth2\.Config'
+        # Exclude tls.Dialer - embedded net.Dialer with zero-value defaults
+        - '.*/tls\.Dialer'
       # Allows empty structures, effectively excluding them from the check.
       # Default: false
       allow-empty: true

@@ -89,7 +89,10 @@ func (s *Service) Close() error {
 		// Disconnect the connection manager if it was initialized.
 		if s.connectionManager != nil {
 			// Create a context with timeout for the disconnect operation.
-			ctx, cancel := context.WithTimeout(context.Background(), disconnectTimeout*time.Second)
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				disconnectTimeout*time.Second,
+			)
 			defer cancel()
 
 			// Attempt to disconnect from the broker.
@@ -186,7 +189,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	// Validate QoS value is within MQTT protocol range (0-2)
 	if !s.Config.QoS.IsValid() {
-		return fmt.Errorf("validating QoS value %d: %w", s.Config.QoS, ErrInvalidQoS)
+		return fmt.Errorf(
+			"validating QoS value %d: %w",
+			s.Config.QoS,
+			ErrInvalidQoS,
+		)
 	}
 
 	// Ensure the MQTT client is initialized.
@@ -196,7 +203,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Create a context with timeout for the publish operation
-	ctx, cancel := context.WithTimeout(context.Background(), publishTimeout*time.Second)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		publishTimeout*time.Second,
+	)
 	defer cancel()
 
 	// Wait for connection to be established
@@ -205,14 +215,22 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Publish the message to the configured topic with QoS and retention settings
-	resp, err := s.connectionManager.Publish(ctx, &paho.Publish{
-		Topic:   s.Config.Topic,
-		QoS:     byte(s.Config.QoS), //nolint:gosec // QoS validated to 0-2
-		Retain:  s.Config.Retained,
-		Payload: []byte(message),
-	})
+	//nolint:exhaustruct // paho.Publish PacketID is auto-generated, Properties optional for MQTT v5
+	resp, err := s.connectionManager.Publish(
+		ctx,
+		&paho.Publish{
+			Topic:   s.Config.Topic,
+			QoS:     byte(s.Config.QoS), //nolint:gosec // QoS validated to 0-2
+			Retain:  s.Config.Retained,
+			Payload: []byte(message),
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("publishing to MQTT topic %q: %w", s.Config.Topic, err)
+		return fmt.Errorf(
+			"publishing to MQTT topic %q: %w",
+			s.Config.Topic,
+			err,
+		)
 	}
 
 	// Handle MQTT v5 reason codes from the publish response.
@@ -376,12 +394,21 @@ func (s *Service) initClient() error {
 	useTLS := scheme == SchemeTLS && !s.Config.DisableTLS
 
 	// Build the broker URL
-	brokerURL := fmt.Sprintf("%s://%s:%d", scheme, s.Config.Host, port)
+	brokerURL := fmt.Sprintf(
+		"%s://%s:%d",
+		scheme,
+		s.Config.Host,
+		port,
+	)
 
 	// Parse the broker URL for autopaho
 	serverURL, err := url.Parse(brokerURL)
 	if err != nil {
-		return fmt.Errorf("parsing broker URL %q: %w", brokerURL, err)
+		return fmt.Errorf(
+			"parsing broker URL %q: %w",
+			brokerURL,
+			err,
+		)
 	}
 
 	// Use the service's context for connection lifecycle management.
@@ -390,6 +417,7 @@ func (s *Service) initClient() error {
 	ctx := s.ctx
 
 	// Create autopaho client configuration
+	//nolint:exhaustruct // autopaho.ClientConfig has many optional fields with library defaults
 	cliCfg := autopaho.ClientConfig{
 		ServerUrls:                    []*url.URL{serverURL},
 		KeepAlive:                     keepAliveInterval,
