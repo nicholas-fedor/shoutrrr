@@ -143,7 +143,6 @@ func CreatePayloadFromItems(
 		items[0].Timestamp.IsZero() &&
 		!hasEmbedFields(items[0].Fields) &&
 		!hasFiles {
-		//nolint:exhaustruct // Simple payload with only content field
 		return WebhookPayload{
 			Content: items[0].Text,
 		}, nil
@@ -204,7 +203,6 @@ func CreatePayloadFromItems(
 		embeds[0].Title = title
 	}
 
-	//nolint:exhaustruct // Content and other fields are optional
 	return WebhookPayload{
 		Embeds:      embeds,
 		Attachments: attachments,

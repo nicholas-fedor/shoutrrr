@@ -115,7 +115,6 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 		port = GmailSMTPPortStartTLS // Use 587 for Gmail with STARTTLS
 	}
 
-	//nolint:exhaustruct // Missing fields have sensible defaults
 	svcConf := &smtp.Config{
 		Host:        host,
 		Port:        port,
