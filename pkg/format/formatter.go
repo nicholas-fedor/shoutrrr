@@ -49,7 +49,7 @@ func GetServiceConfig(service types.Service) types.ServiceConfig {
 	configRef := serviceValue.FieldByIndex(configField.Index)
 	if configRef.IsNil() {
 		configType := configField.Type
-		if configType.Kind() == reflect.Ptr {
+		if configType.Kind() == reflect.Pointer {
 			configType = configType.Elem()
 		}
 
@@ -233,7 +233,7 @@ func setSliceOrArrayField(
 	elemType := field.Type.Elem()
 	elemKind := elemType.Kind()
 
-	if elemKind == reflect.Ptr {
+	if elemKind == reflect.Pointer {
 		elemKind = elemType.Elem().Kind()
 	}
 
@@ -256,7 +256,7 @@ func setSliceOrArrayValues(
 	elemType reflect.Type,
 	values []string,
 ) (bool, error) {
-	isPtrSlice := elemType.Kind() == reflect.Ptr
+	isPtrSlice := elemType.Kind() == reflect.Pointer
 	baseType := elemType
 
 	if isPtrSlice {

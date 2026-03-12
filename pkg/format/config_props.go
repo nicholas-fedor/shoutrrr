@@ -28,7 +28,7 @@ func GetConfigPropFromString(structType reflect.Type, value string) (reflect.Val
 
 // GetConfigPropString serializes a config property to a string representation using the ConfigProp interface.
 func GetConfigPropString(propPtr reflect.Value) (string, error) {
-	if propPtr.Kind() != reflect.Ptr {
+	if propPtr.Kind() != reflect.Pointer {
 		propVal := propPtr
 		propPtr = reflect.New(propVal.Type())
 		propPtr.Elem().Set(propVal)

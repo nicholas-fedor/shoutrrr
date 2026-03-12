@@ -268,7 +268,7 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 				t.Errorf("promptUserForFields() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if err == nil && tt.config.Kind() == reflect.Ptr &&
+			if err == nil && tt.config.Kind() == reflect.Pointer &&
 				tt.config.Type().Elem().Kind() == reflect.Struct {
 				got := tt.config.Interface().(*mockConfig)
 				if tt.props["host"] != "" && got.Host != tt.props["host"] {

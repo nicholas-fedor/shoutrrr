@@ -48,7 +48,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	sort.Strings(keys)
 
 	confValue := reflect.ValueOf(config)
-	if confValue.Kind() == reflect.Ptr {
+	if confValue.Kind() == reflect.Pointer {
 		confValue = confValue.Elem()
 	}
 

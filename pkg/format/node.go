@@ -210,7 +210,7 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 }
 
 func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
-	if mapValue.Kind() == reflect.Ptr {
+	if mapValue.Kind() == reflect.Pointer {
 		mapValue = mapValue.Elem()
 	}
 
@@ -262,7 +262,7 @@ func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 
 func getRootNode(value any) *ContainerNode {
 	structValue := reflect.ValueOf(value)
-	if structValue.Kind() == reflect.Ptr {
+	if structValue.Kind() == reflect.Pointer {
 		structValue = structValue.Elem()
 	}
 
