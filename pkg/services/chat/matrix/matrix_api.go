@@ -13,13 +13,12 @@ type apiResLoginFlows struct {
 type apiReqLogin struct {
 	Type       flowType    `json:"type"`
 	Identifier *identifier `json:"identifier"`
-	//nolint:gosec // Password is an API struct field for Matrix protocol authentication
+
 	Password string `json:"password,omitempty"`
 	Token    string `json:"token,omitempty"`
 }
 
 type apiResLogin struct {
-	//nolint:gosec // AccessToken is an API struct field for Matrix protocol authentication
 	AccessToken string `json:"access_token"`
 	HomeServer  string `json:"home_server"`
 	UserID      string `json:"user_id"`

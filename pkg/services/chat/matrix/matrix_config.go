@@ -14,7 +14,7 @@ type Config struct {
 	standard.EnumlessConfig
 
 	User string `desc:"Username or empty when using access token" optional:"" url:"user"`
-	//nolint:gosec // Password is intentionally a user-configurable field
+
 	Password   string   `desc:"Password or access token"                 url:"password"`
 	DisableTLS bool     `                                                               default:"No" key:"disableTLS"`
 	Host       string   `                                                url:"host"`

@@ -12,7 +12,7 @@ import (
 // Config represents the configuration for the Lark service.
 type Config struct {
 	Host string `default:"open.larksuite.com" desc:"Custom bot URL Host" url:"Host"`
-	//nolint:gosec // G117: Secret is a configuration field name, not a hardcoded credential
+
 	Secret string `default:"" desc:"Custom bot secret" key:"secret"`
 	Path   string `           desc:"Custom bot token"               url:"Path"`
 	Title  string `default:"" desc:"Message Title"     key:"title"`

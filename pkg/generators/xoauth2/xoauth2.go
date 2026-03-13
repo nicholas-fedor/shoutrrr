@@ -244,7 +244,7 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 
 	var providerConfig struct {
 		ClientID string `json:"client_id"`
-		//nolint:gosec // ClientSecret is standard OAuth2 field name, not a hardcoded credential
+
 		ClientSecret string   `json:"client_secret"`
 		RedirectURL  string   `json:"redirect_url"`
 		AuthURL      string   `json:"auth_url"`

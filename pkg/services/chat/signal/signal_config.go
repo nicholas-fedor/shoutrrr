@@ -14,8 +14,6 @@ import (
 )
 
 // Config holds settings for the Signal notification service.
-//
-//nolint:gosec // Password field has sensitive tag to prevent accidental logging
 type Config struct {
 	standard.EnumlessConfig
 
