@@ -1249,7 +1249,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			})
 		})
 		ginkgo.When("extras contain non-marshallable data", func() {
-			ginkgo.It("fails with marshalling error", func() {
+			ginkgo.It("fails with marshaling error", func() {
 				service.Config.Extras = map[string]any{"bad": make(chan int)}
 				err := service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())

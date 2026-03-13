@@ -9,7 +9,7 @@ import (
 // ConnectionManager defines the interface for MQTT connection management.
 type ConnectionManager interface {
 	// AwaitConnection waits for the MQTT connection to be established.
-	// It blocks until the connection is ready or the context is cancelled.
+	// It blocks until the connection is ready or the context is canceled.
 	AwaitConnection(ctx context.Context) error
 
 	// Publish sends an MQTT message to the broker.
@@ -19,6 +19,6 @@ type ConnectionManager interface {
 
 	// Disconnect gracefully closes the MQTT connection.
 	// It sends a DISCONNECT packet to the broker and waits for the operation
-	// to complete or the context to be cancelled.
+	// to complete or the context to be canceled.
 	Disconnect(ctx context.Context) error
 }

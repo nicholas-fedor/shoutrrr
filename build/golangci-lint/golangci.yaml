@@ -386,6 +386,11 @@ linters:
         - G705 # XSS via taint analysis - false positives for CLI console output
 
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#misspell
+    misspell:
+      locale: US
+
+    ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#nakedret
     nakedret:
       # Make an issue if func has more lines of code than this setting, and it has naked returns.
