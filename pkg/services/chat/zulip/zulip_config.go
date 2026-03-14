@@ -15,8 +15,8 @@ type Config struct {
 	BotMail string `desc:"Bot e-mail address"  url:"user"`
 	BotKey  string `desc:"API Key"             url:"pass"`
 	Host    string `desc:"API server hostname" url:"host,port"`
-	Stream  string `                                           description:"Target stream name" key:"stream"      optional:""`
-	Topic   string `                                                                            key:"topic,title"             default:""`
+	Stream  string `desc:"Target stream name"                  key:"stream"      optional:""`
+	Topic   string `desc:"Message topic"                       key:"topic,title" optional:""`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -74,7 +74,8 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.BotKey, isSet = serviceURL.User.Password()
 	c.Host = serviceURL.Hostname()
 
-	if serviceURL.String() != "zulip://dummy@dummy.com" {
+	// Allow dummy URL during documentation generation
+	if !isDummyURL(serviceURL) {
 		if c.BotMail == "" {
 			return ErrMissingBotMail
 		}
@@ -100,4 +101,11 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	err := config.setURL(nil, serviceURL)
 
 	return &config, err
+}
+
+// isDummyURL checks if the given URL is the dummy URL used for documentation generation.
+// It compares URL components instead of string comparison to avoid issues with
+// URL formatting differences.
+func isDummyURL(u *url.URL) bool {
+	return u.Host == "dummy.com" && u.User.Username() == "dummy"
 }
