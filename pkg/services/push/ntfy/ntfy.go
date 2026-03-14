@@ -61,7 +61,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	// Configure HTTP transport: skip TLS verification if disabled, enforce TLS 1.2 minimum
 	if s.Config.DisableTLSVerification {
 		s.httpClient.Transport = &http.Transport{
-			//nolint:gosec // TLS verification intentionally disabled
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,

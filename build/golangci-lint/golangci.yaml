@@ -382,6 +382,7 @@ linters:
       # Available rules: https://github.com/securego/gosec#available-rules
       # Default: []
       excludes:
+        - G402 # TLS InsecureSkipVerify - intentional for dev/testing/internal networks
         - G704 # SSRF via taint analysis - this is a http client library
         - G705 # XSS via taint analysis - false positives for CLI console output
 

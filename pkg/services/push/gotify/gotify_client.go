@@ -41,7 +41,7 @@ func (m *DefaultHTTPClientManager) CreateClient(transport *http.Transport) *http
 // based on the service configuration, particularly handling TLS verification preferences.
 // Returns: *http.Transport configured with TLS settings for secure or insecure connections.
 //
-//nolint:gosec // Intentionally allow insecure connections when TLS is disabled or explicitly configured
+
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
 	return &http.Transport{
 		TLSClientConfig: &tls.Config{
