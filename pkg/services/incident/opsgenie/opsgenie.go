@@ -53,14 +53,18 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
 func (s *Service) Send(message string, params *types.Params) error {
 	config := s.Config
-	endpointURL := fmt.Sprintf(alertEndpointTemplate, config.Host, config.Port)
+	serviceURL := fmt.Sprintf(
+		alertEndpointTemplate,
+		config.Host,
+		config.Port,
+	)
 
 	payload, err := s.newAlertPayload(message, params)
 	if err != nil {
 		return err
 	}
 
-	return s.sendAlert(endpointURL, config.APIKey, payload)
+	return s.sendAlert(serviceURL, config.APIKey, &payload)
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
@@ -117,7 +121,7 @@ func (s *Service) newAlertPayload(
 }
 
 // sendAlert sends an alert to OpsGenie using the specified URL and API key.
-func (s *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
+func (s *Service) sendAlert(serviceURL, apiKey string, payload *AlertPayload) error {
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
@@ -125,10 +129,18 @@ func (s *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
 
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		serviceURL,
+		jsonBuffer,
+	)
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -154,7 +166,12 @@ func (s *Service) sendAlert(url, apiKey string, payload AlertPayload) error {
 			)
 		}
 
-		return fmt.Errorf("%w: %d - %s", ErrUnexpectedStatus, resp.StatusCode, body)
+		return fmt.Errorf(
+			"%w: %d - %s",
+			ErrUnexpectedStatus,
+			resp.StatusCode,
+			body,
+		)
 	}
 
 	return nil

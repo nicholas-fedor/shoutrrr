@@ -89,7 +89,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	if serviceURL.Port() != "" {
-		port, err := strconv.ParseUint(serviceURL.Port(), 10, 16)
+		port, err := strconv.ParseUint(
+			serviceURL.Port(),
+			10,
+			16,
+		)
 		if err != nil {
 			return fmt.Errorf("parsing port %q: %w", serviceURL.Port(), err)
 		}
@@ -101,7 +105,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
+			return fmt.Errorf(
+				"setting query parameter %q to %q: %w",
+				key,
+				vals[0],
+				err,
+			)
 		}
 	}
 
