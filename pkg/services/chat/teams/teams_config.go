@@ -31,10 +31,12 @@ const Scheme = "teams"
 
 // Config constants.
 const (
-	DummyURL           = "teams://dummy@dummy.com" // Default placeholder URL
-	ExpectedOrgMatches = 2                         // Full match plus organization domain capture group
-	MinPathComponents  = 3                         // Minimum required path components: AltID, GroupOwner, ExtraID
+	ExpectedOrgMatches = 2 // Full match plus organization domain capture group
+	MinPathComponents  = 3 // Minimum required path components: AltID, GroupOwner, ExtraID
 )
+
+// dummyURL is a placeholder URL used during documentation generation.
+const dummyURL = "teams://dummy@dummy.com"
 
 // GetURL constructs a URL from the Config fields.
 func (c *Config) GetURL() *url.URL {
@@ -186,7 +188,7 @@ func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, error) {
 // parseURLParts extracts and validates webhook components from a URL.
 func parseURLParts(serviceURL *url.URL) ([5]string, error) {
 	var parts [5]string
-	if serviceURL.String() == DummyURL {
+	if serviceURL.String() == dummyURL {
 		return parts, nil
 	}
 
