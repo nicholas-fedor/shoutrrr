@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strconv"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
@@ -93,8 +91,8 @@ func (g *Generator) Generate(
 
 	signals := make(chan os.Signal, 1)
 
-	// Subscribe to system signals
-	signal.Notify(signals, unix.SIGINT, unix.SIGTERM)
+	// Subscribe to system signals for graceful shutdown
+	signal.Notify(signals, os.Interrupt)
 
 	for !g.done {
 		userDialog.Writelnf("Waiting for messages to arrive...")

@@ -1,9 +1,7 @@
 package discord_test
 
 import (
-	"net"
 	"net/http"
-	"os"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -11,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -177,16 +174,9 @@ func TestHTTPRetryOnNetworkError(t *testing.T) {
 		)
 
 		// Use a timeout error which is considered transient
-		timeoutError := &net.OpError{
-			Op:  "dial",
-			Net: "tcp",
-			Err: &os.SyscallError{
-				Syscall: "connect",
-				Err:     unix.ETIMEDOUT,
-			},
-		}
+		timeoutErr := timeoutError{}
 		mockClient.On("Do", mock.Anything).
-			Return((*http.Response)(nil), timeoutError).
+			Return(nil, timeoutErr).
 			Once()
 		mockClient.On("Do", mock.Anything).
 			Return(createMockResponse(http.StatusNoContent, ""), nil).

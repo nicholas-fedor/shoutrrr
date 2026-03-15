@@ -1,6 +1,7 @@
 package util
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -8,6 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// viperMu protects viper state during parallel test execution.
+var viperMu sync.Mutex
+
+// Test names that must run sequentially due to viper global state.
+var sequentialTests = map[string]bool{
+	"env_var_set_with_existing_message_flag": true,
+}
 
 func TestLoadFlagsFromAltSources(t *testing.T) {
 	t.Parallel()
@@ -82,6 +91,12 @@ func TestLoadFlagsFromAltSources(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Use mutex for tests that require sequential execution due to viper global state
+			if sequentialTests[tt.name] {
+				viperMu.Lock()
+				defer viperMu.Unlock()
+			}
 
 			// Reset viper state before each test
 			viper.Reset()
