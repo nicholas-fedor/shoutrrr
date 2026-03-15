@@ -10,14 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const (
-	Scheme = "ntfy"
-)
-
-// ErrTopicRequired indicates that the topic is missing from the config URL.
-var ErrTopicRequired = errors.New("topic is required")
-
 // Config holds the configuration for the Ntfy service.
 type Config struct {
 	Title                  string   `default:""        desc:"Message title"                                                                                    key:"title"`
@@ -41,6 +33,14 @@ type Config struct {
 	DisableTLS             bool     `default:"no"      desc:"Disable TLS entirely (force HTTP scheme)"                                                         key:"disabletls"`
 }
 
+// Scheme is the identifying part of this service's configuration URL.
+const (
+	Scheme = "ntfy"
+)
+
+// ErrTopicRequired indicates that the topic is missing from the config URL.
+var ErrTopicRequired = errors.New("topic is required")
+
 // Enums returns the fields that use an EnumFormatter for their values.
 func (*Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
@@ -48,55 +48,60 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 	}
 }
 
-// GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.getURL(&resolver)
-}
-
-// SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.setURL(&resolver, url)
-}
-
 // GetAPIURL constructs the API URL for the Ntfy service based on the configuration.
-func (config *Config) GetAPIURL() string {
-	path := config.Topic
-	if !strings.HasPrefix(config.Topic, "/") {
+func (c *Config) GetAPIURL() string {
+	path := c.Topic
+	if !strings.HasPrefix(c.Topic, "/") {
 		path = "/" + path
 	}
 
 	apiURL := url.URL{
-		Scheme: config.Scheme,
-		Host:   config.Host,
+		Scheme: c.Scheme,
+		Host:   c.Host,
 		Path:   path,
 	}
 
 	return apiURL.String()
 }
 
+// GetURL returns a URL representation of the Config's current field values.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
+}
+
+// QueryFields returns the list of query parameter names for the Config struct.
+func (c *Config) QueryFields() []string {
+	return format.GetConfigQueryResolver(c).QueryFields()
+}
+
+// SetURL updates the Config from a URL representation of its field values.
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, serviceURL)
+}
+
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	path := config.Topic
-	if !strings.HasPrefix(config.Topic, "/") {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	path := c.Topic
+	if !strings.HasPrefix(c.Topic, "/") {
 		path = "/" + path
 	}
 
 	result := &url.URL{
-		Host:       config.Host,
+		Host:       c.Host,
 		Scheme:     Scheme,
 		ForceQuery: true,
 		Path:       path,
 		RawQuery:   format.BuildQuery(resolver),
 	}
-	if config.Username != "" {
-		if config.Password != "" {
-			result.User = url.UserPassword(config.Username, config.Password)
+	if c.Username != "" {
+		if c.Password != "" {
+			result.User = url.UserPassword(c.Username, c.Password)
 		} else {
-			result.User = url.User(config.Username)
+			result.User = url.User(c.Username)
 		}
 	}
 
@@ -104,36 +109,31 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	if url.User != nil {
-		password, _ := url.User.Password()
-		config.Password = password
-		config.Username = url.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	if serviceURL.User != nil {
+		password, _ := serviceURL.User.Password()
+		c.Password = password
+		c.Username = serviceURL.User.Username()
 	} else {
-		config.Password = ""
-		config.Username = ""
+		c.Password = ""
+		c.Username = ""
 	}
 
-	config.Host = url.Host
-	config.Topic = strings.TrimPrefix(url.Path, "/")
+	c.Host = serviceURL.Host
+	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 
-	url.RawQuery = strings.ReplaceAll(url.RawQuery, ";", "%3b")
-	for key, vals := range url.Query() {
+	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
 	}
 
-	if url.String() != "ntfy://dummy@dummy.com" {
-		if config.Topic == "" {
+	if serviceURL.String() != "ntfy://dummy@dummy.com" {
+		if c.Topic == "" {
 			return ErrTopicRequired
 		}
 	}
 
 	return nil
-}
-
-// QueryFields returns the list of query parameter names for the Config struct.
-func (config *Config) QueryFields() []string {
-	return format.GetConfigQueryResolver(config).QueryFields()
 }

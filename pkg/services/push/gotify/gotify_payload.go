@@ -7,6 +7,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// DefaultPayloadBuilder provides the default implementation of PayloadBuilder.
+type DefaultPayloadBuilder struct{}
+
 // PayloadBuilder handles request payload construction and extras parsing.
 type PayloadBuilder interface {
 	PrepareRequest(
@@ -16,39 +19,6 @@ type PayloadBuilder interface {
 		date string,
 	) *MessageRequest
 	ParseExtras(params *types.Params, config *Config) (map[string]any, error)
-}
-
-// DefaultPayloadBuilder provides the default implementation of PayloadBuilder.
-type DefaultPayloadBuilder struct{}
-
-// PrepareRequest builds the request payload.
-// This function constructs the JSON payload that will be sent to the Gotify API,
-// combining the message content with configuration settings and any additional extras.
-// Parameters:
-//   - message: The main notification message text
-//   - config: Configuration containing title, priority, and other settings
-//   - extras: Additional key-value pairs to include in the notification
-//   - date: Optional custom timestamp in ISO 8601 format
-//
-// Returns: *MessageRequest containing all data to be sent to the API.
-func (b *DefaultPayloadBuilder) PrepareRequest(
-	message string,
-	config *Config,
-	extras map[string]any,
-	date string,
-) *MessageRequest {
-	var datePtr *string
-	if date != "" {
-		datePtr = &date
-	}
-
-	return &MessageRequest{
-		Message:  message,         // The notification message content
-		Title:    config.Title,    // Notification title from configuration
-		Priority: config.Priority, // Priority level for the notification
-		Date:     datePtr,         // Optional custom timestamp
-		Extras:   extras,          // Additional metadata or custom fields
-	}
 }
 
 // ParseExtras handles extras parsing from params.
@@ -86,4 +56,34 @@ func (b *DefaultPayloadBuilder) ParseExtras(
 
 	// Return the resolved extras (either from params or config)
 	return requestExtras, nil
+}
+
+// PrepareRequest builds the request payload.
+// This function constructs the JSON payload that will be sent to the Gotify API,
+// combining the message content with configuration settings and any additional extras.
+// Parameters:
+//   - message: The main notification message text
+//   - config: Configuration containing title, priority, and other settings
+//   - extras: Additional key-value pairs to include in the notification
+//   - date: Optional custom timestamp in ISO 8601 format
+//
+// Returns: *MessageRequest containing all data to be sent to the API.
+func (b *DefaultPayloadBuilder) PrepareRequest(
+	message string,
+	config *Config,
+	extras map[string]any,
+	date string,
+) *MessageRequest {
+	var datePtr *string
+	if date != "" {
+		datePtr = &date
+	}
+
+	return &MessageRequest{
+		Message:  message,         // The notification message content
+		Title:    config.Title,    // Notification title from configuration
+		Priority: config.Priority, // Priority level for the notification
+		Date:     datePtr,         // Optional custom timestamp
+		Extras:   extras,          // Additional metadata or custom fields
+	}
 }

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -23,35 +22,13 @@ type mockConfig struct {
 	url  *url.URL
 }
 
+// mockServiceConfig is a test implementation of Service.
+type mockServiceConfig struct {
+	Config *mockConfig
+}
+
 func (m *mockConfig) Enums() map[string]types.EnumFormatter {
 	return nil
-}
-
-func (m *mockConfig) GetURL() *url.URL {
-	if m.url == nil {
-		u, _ := url.Parse("mock://url")
-		m.url = u
-	}
-
-	return m.url
-}
-
-func (m *mockConfig) SetURL(u *url.URL) error {
-	m.url = u
-
-	return nil
-}
-
-func (m *mockConfig) SetTemplateFile(_ string, _ string) error {
-	return nil
-}
-
-func (m *mockConfig) SetTemplateString(_ string, _ string) error {
-	return nil
-}
-
-func (m *mockConfig) SetLogger(_ types.StdLogger) {
-	// Minimal implementation, no-op
 }
 
 // ConfigQueryResolver methods.
@@ -66,7 +43,25 @@ func (m *mockConfig) Get(key string) (string, error) {
 	}
 }
 
-func (m *mockConfig) Set(key string, value string) error {
+func (m *mockConfig) GetPropValue() (string, error) {
+	// Minimal implementation for testing
+	return fmt.Sprintf("%s:%d", m.Host, m.Port), nil
+}
+
+func (m *mockConfig) GetURL() *url.URL {
+	if m.url == nil {
+		u, _ := url.Parse("mock://url")
+		m.url = u
+	}
+
+	return m.url
+}
+
+func (m *mockConfig) QueryFields() []string {
+	return []string{"host", "port"}
+}
+
+func (m *mockConfig) Set(key, value string) error {
 	switch strings.ToLower(key) {
 	case "host":
 		m.Host = value
@@ -86,41 +81,6 @@ func (m *mockConfig) Set(key string, value string) error {
 	}
 }
 
-func (m *mockConfig) QueryFields() []string {
-	return []string{"host", "port"}
-}
-
-// mockServiceConfig is a test implementation of Service.
-type mockServiceConfig struct {
-	Config *mockConfig
-}
-
-func (m *mockServiceConfig) GetID() string {
-	return "mockID"
-}
-
-func (m *mockServiceConfig) GetTemplate(_ string) (*template.Template, bool) {
-	return nil, false
-}
-
-func (m *mockServiceConfig) SetTemplateFile(_ string, _ string) error {
-	return nil
-}
-
-func (m *mockServiceConfig) SetTemplateString(_ string, _ string) error {
-	return nil
-}
-
-func (m *mockServiceConfig) Initialize(_ *url.URL, _ types.StdLogger) error {
-	return nil
-}
-
-func (m *mockServiceConfig) Send(_ string, _ *types.Params) error {
-	return nil
-}
-
-func (m *mockServiceConfig) SetLogger(_ types.StdLogger) {}
-
 // ConfigProp methods.
 func (m *mockConfig) SetFromProp(propValue string) error {
 	// Minimal implementation for testing; typically parses propValue
@@ -139,19 +99,53 @@ func (m *mockConfig) SetFromProp(propValue string) error {
 	return nil
 }
 
-func (m *mockConfig) GetPropValue() (string, error) {
-	// Minimal implementation for testing
-	return fmt.Sprintf("%s:%d", m.Host, m.Port), nil
+func (m *mockConfig) SetLogger(_ types.StdLogger) {
+	// Minimal implementation, no-op
 }
 
-// newMockServiceConfig creates a new mockServiceConfig with an initialized Config.
-func newMockServiceConfig() *mockServiceConfig {
-	return &mockServiceConfig{
-		Config: &mockConfig{},
-	}
+func (m *mockConfig) SetTemplateFile(_, _ string) error {
+	return nil
+}
+
+func (m *mockConfig) SetTemplateString(_, _ string) error {
+	return nil
+}
+
+func (m *mockConfig) SetURL(u *url.URL) error {
+	m.url = u
+
+	return nil
+}
+
+func (m *mockServiceConfig) GetID() string {
+	return "mockID"
+}
+
+func (m *mockServiceConfig) GetTemplate(_ string) (*template.Template, bool) {
+	return nil, false
+}
+
+func (m *mockServiceConfig) Initialize(_ *url.URL, _ types.StdLogger) error {
+	return nil
+}
+
+func (m *mockServiceConfig) Send(_ string, _ *types.Params) error {
+	return nil
+}
+
+func (m *mockServiceConfig) SetLogger(_ types.StdLogger) {}
+
+func (m *mockServiceConfig) SetTemplateFile(_, _ string) error {
+	return nil
+}
+
+func (m *mockServiceConfig) SetTemplateString(_, _ string) error {
+	return nil
 }
 
 func TestGenerator_Generate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		props   map[string]string
@@ -190,20 +184,18 @@ func TestGenerator_Generate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Generator{}
+			t.Parallel()
 
-			// Set up pipe for stdin
+			// Set up pipe for stdin simulation
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			originalStdin := os.Stdin
-			os.Stdin = r
+			// Use dependency injection instead of global os.Stdin manipulation
+			g := &Generator{Input: r}
 
 			defer func() {
-				os.Stdin = originalStdin
-
 				_ = w.Close()
 			}()
 
@@ -216,7 +208,6 @@ func TestGenerator_Generate(t *testing.T) {
 			_ = w.Close()
 
 			service := newMockServiceConfig()
-			color.NoColor = true
 
 			got, err := g.Generate(service, tt.props, nil)
 			if (err != nil) != tt.wantErr {
@@ -233,6 +224,8 @@ func TestGenerator_Generate(t *testing.T) {
 }
 
 func TestGenerator_promptUserForFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  reflect.Value
@@ -265,16 +258,17 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			color.NoColor = true
 
 			err := g.promptUserForFields(tt.config, tt.props, scanner)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("promptUserForFields() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if err == nil && tt.config.Kind() == reflect.Ptr &&
+			if err == nil && tt.config.Kind() == reflect.Pointer &&
 				tt.config.Type().Elem().Kind() == reflect.Struct {
 				got := tt.config.Interface().(*mockConfig)
 				if tt.props["host"] != "" && got.Host != tt.props["host"] {
@@ -293,6 +287,8 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 }
 
 func TestGenerator_getInputValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		field   *format.FieldInfo
@@ -313,7 +309,7 @@ func TestGenerator_getInputValue(t *testing.T) {
 		},
 		{
 			name:    "from user input",
-			field:   &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0)}, // Add Type
+			field:   &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int]()}, // Add Type
 			propKey: "port",
 			props:   map[string]string{},
 			input:   "8080\n",
@@ -333,11 +329,13 @@ func TestGenerator_getInputValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			color.NoColor = true
+			consumed := make(map[string]struct{})
 
-			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, scanner)
+			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, consumed, scanner)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getInputValue() error = %v, wantErr %v", err, tt.wantErr)
 
@@ -348,14 +346,17 @@ func TestGenerator_getInputValue(t *testing.T) {
 				t.Errorf("getInputValue() = %v, want %v", got, tt.want)
 			}
 
-			if tt.props[tt.propKey] != "" {
-				t.Errorf("getInputValue() did not clear prop, got %v", tt.props[tt.propKey])
+			// Verify that props from input are marked as consumed
+			if _, wasConsumed := consumed[tt.propKey]; tt.props[tt.propKey] != "" && !wasConsumed {
+				t.Errorf("getInputValue() did not mark prop as consumed")
 			}
 		})
 	}
 }
 
 func TestGenerator_formatPrompt(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		field *format.FieldInfo
@@ -364,19 +365,20 @@ func TestGenerator_formatPrompt(t *testing.T) {
 		{
 			name:  "field with default",
 			field: &format.FieldInfo{Name: "Host", DefaultValue: "localhost"},
-			want:  "\x1b[97mHost\x1b[0m[localhost]: ",
+			want:  "Host[localhost]: ",
 		},
 		{
 			name:  "field without default",
 			field: &format.FieldInfo{Name: "Port"},
-			want:  "\x1b[97mPort\x1b[0m: ",
+			want:  "Port: ",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
-			color.NoColor = false
 
 			got := g.formatPrompt(tt.field)
 			if got != tt.want {
@@ -387,6 +389,8 @@ func TestGenerator_formatPrompt(t *testing.T) {
 }
 
 func TestGenerator_setFieldValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     reflect.Value
@@ -398,7 +402,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "valid value",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0), Required: true},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int](), Required: true},
 			inputValue: "8080",
 			want:       true,
 			wantErr:    false,
@@ -406,7 +410,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "required field empty",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0), Required: true},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int](), Required: true},
 			inputValue: "",
 			want:       false,
 			wantErr:    false,
@@ -414,7 +418,7 @@ func TestGenerator_setFieldValue(t *testing.T) {
 		{
 			name:       "invalid value",
 			config:     reflect.ValueOf(newMockServiceConfig().Config).Elem(),
-			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeOf(0)},
+			field:      &format.FieldInfo{Name: "Port", Type: reflect.TypeFor[int]()},
 			inputValue: "invalid",
 			want:       false,
 			wantErr:    true,
@@ -423,8 +427,9 @@ func TestGenerator_setFieldValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
-			color.NoColor = true
 
 			got, err := g.setFieldValue(tt.config, tt.field, tt.inputValue)
 			if (err != nil) != tt.wantErr {
@@ -450,6 +455,8 @@ func TestGenerator_setFieldValue(t *testing.T) {
 }
 
 func TestGenerator_printError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		fieldName string
@@ -463,9 +470,10 @@ func TestGenerator_printError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(*testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
-			color.NoColor = true
 
 			g.printError(tt.fieldName, tt.errorMsg)
 		})
@@ -473,6 +481,8 @@ func TestGenerator_printError(t *testing.T) {
 }
 
 func TestGenerator_printInvalidType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		fieldName string
@@ -486,9 +496,10 @@ func TestGenerator_printInvalidType(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(*testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
-			color.NoColor = true
 
 			g.printInvalidType(tt.fieldName, tt.typeName)
 		})
@@ -496,6 +507,8 @@ func TestGenerator_printInvalidType(t *testing.T) {
 }
 
 func TestGenerator_validateAndReturnConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		config  reflect.Value
@@ -518,6 +531,8 @@ func TestGenerator_validateAndReturnConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			g := &Generator{}
 
 			got, err := g.validateAndReturnConfig(tt.config)
@@ -539,4 +554,11 @@ func atoiOrZero(s string) int {
 	i, _ := strconv.Atoi(s)
 
 	return i
+}
+
+// newMockServiceConfig creates a new mockServiceConfig with an initialized Config.
+func newMockServiceConfig() *mockServiceConfig {
+	return &mockServiceConfig{
+		Config: &mockConfig{},
+	}
 }

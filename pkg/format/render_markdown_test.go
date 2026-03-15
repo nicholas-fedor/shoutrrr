@@ -18,14 +18,13 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 		expected := `
 ### URL Fields
 
-*  __Host__ (**Required**)  
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>  
+* __Host__ (__Required__)
+  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+
 ### Query/Param Props
 
-
-*  __Name__  
-  Default: `[1:] + "`notempty`" + `  
-
+* __Name__
+  Default: `[1:] + "`notempty`" + `
 `
 
 		gomega.Expect(actual).To(gomega.Equal(expected))
@@ -42,16 +41,16 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 		expected := `
 ### URL Fields
 
-*  __Host__ (**Required**)  
-  URL part: <code class="service-url">mock://<strong>host</strong>/path1/path2/path3</code>  
-*  __Path1__ (**Required**)  
-  URL part: <code class="service-url">mock://host/<strong>path1</strong>/path2/path3</code>  
-*  __Path2__ (**Required**)  
-  URL part: <code class="service-url">mock://host/path1/<strong>path2</strong>/path3</code>  
-*  __Path3__ (**Required**)  
-  URL part: <code class="service-url">mock://host/path1/path2/<strong>path3</strong></code>  
-### Query/Param Props
+* __Host__ (__Required__)
+  URL part: <code class="service-url">mock://<strong>host</strong>/path1/path2/path3</code>
+* __Path1__ (__Required__)
+  URL part: <code class="service-url">mock://host/<strong>path1</strong>/path2/path3</code>
+* __Path2__ (__Required__)
+  URL part: <code class="service-url">mock://host/path1/<strong>path2</strong>/path3</code>
+* __Path3__ (__Required__)
+  URL part: <code class="service-url">mock://host/path1/path2/<strong>path3</strong></code>
 
+### Query/Param Props
 
 `[1:] // Remove initial newline
 
@@ -68,10 +67,8 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 ### Query/Param Props
 
-
-*  __Name__ (**Required**)  
-  Aliases: `[1:] + "`handle`, `title`, `target`" + `  
-
+* __Name__ (__Required__)
+  Aliases: `[1:] + "`handle`, `title`, `target`" + `
 `
 
 		gomega.Expect(actual).To(gomega.Equal(expected))
@@ -85,11 +82,9 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 ### Query/Param Props
 
-
-*  __Choice__  
-  Default: `[1:] + "`Maybe`" + `  
-  Possible values: ` + "`Yes`, `No`, `Maybe`" + `  
-
+* __Choice__
+  Default: `[1:] + "`Maybe`" + `
+  Possible values: ` + "`Yes`, `No`, `Maybe`" + `
 `
 
 		gomega.Expect(actual).To(gomega.Equal(expected))
@@ -108,12 +103,12 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 			expected := `
 ### URL Fields
 
-*  __Host__ (**Required**)  
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>  
+* __Host__ (__Required__)
+  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+
 ### Query/Param Props
 
-There is nothing to set!
-`[1:] // Remove initial newline
+There is nothing to set!`[1:] // Remove initial newline
 
 			gomega.Expect(actual).To(gomega.Equal(expected))
 		})
@@ -133,14 +128,15 @@ There is nothing to set!
 			expected := `
 ### URL Fields
 
-*  __Host__ (**Required**)  
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>  
+* __Host__ (__Required__)
+  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+
 ### Query/Param Props
 
 Feel free to set these:
-*  __CoolMode__  
-  Default: *empty*  
 
+* __CoolMode__
+  Default: *empty*
 `[1:] // Remove initial newline
 
 			gomega.Expect(actual).To(gomega.Equal(expected))

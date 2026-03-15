@@ -3,7 +3,6 @@ package standard
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -14,11 +13,6 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
-
-func TestStandard(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Standard Suite")
-}
 
 var (
 	logger       *Logger
@@ -77,7 +71,7 @@ var _ = ginkgo.Describe("the standard template implementation", func() {
 			defer func() { _ = file.Close() }()
 			defer func() { _ = os.Remove(fileName) }()
 
-			_, err = io.WriteString(file, "template content")
+			_, err = file.WriteString("template content")
 			if err != nil {
 				ginkgo.Skip(fmt.Sprintf("Could not write to temp file: %s", err))
 
@@ -206,3 +200,9 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 		})
 	})
 })
+
+func TestStandard(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Standard Suite")
+}

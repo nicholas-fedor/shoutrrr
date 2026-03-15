@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-shoutrrr
+/bin/shoutrrr
 *.snap
 
 # Test binaries and coverage
@@ -19,6 +19,7 @@ dist
 site/
 
 # IDE and editor files
+.vscode/settings.json
 .idea
 
 # Generated documentation

@@ -14,6 +14,7 @@ import (
 )
 
 func TestServiceInitialization(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -31,6 +32,7 @@ func TestServiceInitialization(t *testing.T) {
 }
 
 func TestSendItemsWithPlainText(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -56,6 +58,7 @@ func TestSendItemsWithPlainText(t *testing.T) {
 }
 
 func TestSendItemsWithEmptyMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -81,6 +84,7 @@ func TestSendItemsWithEmptyMessage(t *testing.T) {
 }
 
 func TestSendItemsWithMultipleItems(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -108,6 +112,7 @@ func TestSendItemsWithMultipleItems(t *testing.T) {
 }
 
 func TestSendItemsWithParams(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -139,6 +144,7 @@ func TestSendItemsWithParams(t *testing.T) {
 }
 
 func TestSendItemsWithTimestamp(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -167,6 +173,7 @@ func TestSendItemsWithTimestamp(t *testing.T) {
 }
 
 func TestSendItemsWithLevel(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

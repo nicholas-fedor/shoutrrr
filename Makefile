@@ -7,6 +7,7 @@ GO=go
 DOCKER=docker
 GORELEASER=goreleaser
 GOLANGCI_LINT=golangci-lint
+MOCKERY=mockery
 
 # Default target
 help: ## Show this help message
@@ -28,6 +29,9 @@ help: ## Show this help message
 
 build: ## Build the application binary
 	bash ./scripts/build.sh
+
+mocks: ## Generate mocks
+	$(MOCKERY) --config build/mockery/mockery.yaml
 
 test: ## Run unit tests only
 	$(GO) test -timeout 30s -v -coverprofile coverage.out -covermode atomic $(shell go list ./... | grep -v testing/...)

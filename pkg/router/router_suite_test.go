@@ -10,16 +10,11 @@ import (
 	"github.com/onsi/gomega"
 )
 
-func TestRouter(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Router Suite")
-}
-
-var sr ServiceRouter
-
 const (
 	mockCustomURL = "teams+https://publicservice.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=publicservice.webhook.office.com"
 )
+
+var sr ServiceRouter
 
 var _ = ginkgo.Describe("the router suite", func() {
 	ginkgo.BeforeEach(func() {
@@ -71,11 +66,8 @@ var _ = ginkgo.Describe("the router suite", func() {
 			services := (&ServiceRouter{}).ListServices()
 
 			for _, scheme := range services {
-				// copy ref to local closure
-				serviceScheme := scheme
-
-				ginkgo.It(fmt.Sprintf("should return a Service for '%s'", serviceScheme), func() {
-					service, err := newService(serviceScheme)
+				ginkgo.It(fmt.Sprintf("should return a Service for '%s'", scheme), func() {
+					service, err := newService(scheme)
 
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(service).ToNot(gomega.BeNil())
@@ -156,4 +148,10 @@ func ExampleServiceRouter_Enqueue() {
 	// Output:
 	// hello
 	// world
+}
+
+func TestRouter(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Router Suite")
 }

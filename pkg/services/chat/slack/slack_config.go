@@ -9,14 +9,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	// Scheme is the identifying part of this service's configuration URL.
-	Scheme = "slack"
-)
-
 // Config for the slack service.
 type Config struct {
 	standard.EnumlessConfig
+
 	BotName  string `desc:"Bot name"                                                            key:"botname,username"         optional:"uses bot default"`
 	Icon     string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)"   key:"icon,icon_emoji,icon_url" optional:""                     default:""`
 	Token    Token  `desc:"API Bot token"                                                                                                                                 url:"user,pass"`
@@ -26,51 +22,54 @@ type Config struct {
 	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                optional:""`
 }
 
-// GetURL returns a URL representation of it's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "slack"
+)
 
-	return config.getURL(&resolver)
+// GetURL returns a URL representation of it's current field values.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
 }
 
 // SetURL updates a ServiceConfig from a URL representation of it's field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		User:       config.Token.UserInfo(),
-		Host:       config.Channel,
+		User:       c.Token.UserInfo(),
+		Host:       c.Channel,
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var token string
-
-	var err error
 
 	if len(serviceURL.Path) > 1 {
 		// Reading legacy config URL format
 		token = serviceURL.Hostname() + serviceURL.Path
-		config.Channel = "webhook"
-		config.BotName = serviceURL.User.Username()
+		c.Channel = "webhook"
+		c.BotName = serviceURL.User.Username()
 	} else {
 		token = serviceURL.User.String()
-		config.Channel = serviceURL.Hostname()
+		c.Channel = serviceURL.Hostname()
 	}
 
 	if serviceURL.String() != "slack://dummy@dummy.com" {
-		if err = config.Token.SetFromProp(token); err != nil {
+		if err := c.Token.SetFromProp(token); err != nil {
 			return err
 		}
 	} else {
-		config.Token.raw = token // Set raw token without validation
+		c.Token.raw = token // Set raw token without validation
 	}
 
 	for key, vals := range serviceURL.Query() {

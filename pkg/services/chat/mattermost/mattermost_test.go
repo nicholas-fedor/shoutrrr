@@ -23,11 +23,6 @@ var (
 	})
 )
 
-func TestMattermost(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Mattermost Suite")
-}
-
 var _ = ginkgo.Describe("the mattermost service", func() {
 	ginkgo.When("running integration tests", func() {
 		ginkgo.It("should work without errors", func() {
@@ -139,7 +134,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
 			})
 			ginkgo.It("should generate http URL", func() {
-				gomega.Expect(buildURL(config)).To(gomega.Equal("http://home.lan:8065/hooks/token"))
+				gomega.Expect(buildURL(config).String()).To(gomega.Equal("http://home.lan:8065/hooks/token"))
 			})
 			ginkgo.It("should serialize back correctly", func() {
 				gomega.Expect(config.GetURL().String()).
@@ -168,7 +163,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 
 				err = service.Send("Test message", nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(buildURL(service.Config)).
+				gomega.Expect(buildURL(service.Config).String()).
 					To(gomega.Equal("http://host:8080/hooks/token"))
 			})
 		})
@@ -282,7 +277,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
 			ginkgo.It("should generate the correct url to call", func() {
 				generatedURL := buildURL(config)
-				gomega.Expect(generatedURL).
+				gomega.Expect(generatedURL.String()).
 					To(gomega.Equal("https://mattermost.my-domain.com/hooks/thisshouldbeanapitoken"))
 			})
 			ginkgo.It("should generate the correct JSON body", func() {
@@ -449,3 +444,9 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("mattermost"))
 	})
 })
+
+func TestMattermost(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Mattermost Suite")
+}

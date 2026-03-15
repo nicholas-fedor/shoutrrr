@@ -53,7 +53,7 @@ func ParseAndVerifyWebhookURL(webhookURL string) ([5]string, error) {
 	}
 
 	parts := [5]string{groups[2], groups[3], groups[4], groups[5], groups[6]}
-	if err := verifyWebhookParts(parts); err != nil {
+	if err := verifyWebhookParts(&parts); err != nil {
 		return [5]string{}, err
 	}
 
@@ -61,7 +61,7 @@ func ParseAndVerifyWebhookURL(webhookURL string) ([5]string, error) {
 }
 
 // verifyWebhookParts ensures webhook components meet format requirements.
-func verifyWebhookParts(parts [5]string) error {
+func verifyWebhookParts(parts *[5]string) error {
 	type partSpec struct {
 		name     string
 		length   int

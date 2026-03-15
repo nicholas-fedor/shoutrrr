@@ -22,13 +22,6 @@ const (
 	TestWebhookURL = "https://hooks.slack.com/services/AAAAAAAAA/BBBBBBBBB/123456789123456789123456"
 )
 
-func TestSlack(t *testing.T) {
-	format.CharactersAroundMismatchToInclude = 20
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Slack Suite")
-}
-
 var (
 	service     *slack.Service
 	envSlackURL *url.URL
@@ -322,6 +315,15 @@ var _ = ginkgo.Describe("the slack service", func() {
 		})
 	})
 })
+
+func TestSlack(t *testing.T) {
+	t.Parallel()
+
+	format.CharactersAroundMismatchToInclude = 20
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Slack Suite")
+}
 
 func tokenMust(rawToken string) *slack.Token {
 	token, err := slack.ParseToken(rawToken)

@@ -5,30 +5,6 @@ import (
 	"time"
 )
 
-const (
-	// Unknown is the default message level.
-	Unknown MessageLevel = iota
-	// Debug is the lowest kind of known message level.
-	Debug
-	// Info is generally used as the "normal" message level.
-	Info
-	// Warning is generally used to denote messages that might be OK, but can cause problems.
-	Warning
-	// Error is generally used for messages about things that did not go as planned.
-	Error
-	messageLevelCount
-	// MessageLevelCount is used to create arrays that maps levels to other values.
-	MessageLevelCount = int(messageLevelCount)
-)
-
-var messageLevelStrings = [MessageLevelCount]string{
-	"Unknown",
-	"Debug",
-	"Info",
-	"Warning",
-	"Error",
-}
-
 // MessageLevel is used to denote the urgency of a message item.
 type MessageLevel uint8
 
@@ -47,12 +23,37 @@ type MessageItem struct {
 	File      *File
 }
 
-func (level MessageLevel) String() string {
-	if level >= messageLevelCount {
+const (
+	// Unknown is the default message level.
+	Unknown MessageLevel = iota
+	// Debug is the lowest kind of known message level.
+	Debug
+	// Info is generally used as the "normal" message level.
+	Info
+	// Warning is generally used to denote messages that might be OK, but can cause problems.
+	Warning
+	// Error is generally used for messages about things that did not go as planned.
+	Error
+	messageLevelCount
+)
+
+// MessageLevelCount is used to create arrays that maps levels to other values.
+const MessageLevelCount = int(messageLevelCount)
+
+var messageLevelStrings = [MessageLevelCount]string{
+	"Unknown",
+	"Debug",
+	"Info",
+	"Warning",
+	"Error",
+}
+
+func (lvl MessageLevel) String() string {
+	if lvl >= messageLevelCount {
 		return messageLevelStrings[0]
 	}
 
-	return messageLevelStrings[level]
+	return messageLevelStrings[lvl]
 }
 
 // WithField appends the key/value pair to the message items fields.

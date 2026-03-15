@@ -7,10 +7,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-const (
-	MaxEmbeds = 10
-)
-
 // WebhookPayload is the webhook endpoint payload.
 type WebhookPayload struct {
 	Content     string       `json:"content,omitempty"`
@@ -64,6 +60,10 @@ type attachment struct {
 	Filename string `json:"filename"`
 }
 
+const (
+	MaxEmbeds = 10
+)
+
 // hasEmbedFields checks if the fields contain any fields that should trigger embed processing.
 func hasEmbedFields(fields []types.Field) bool {
 	return len(fields) > 0
@@ -106,6 +106,7 @@ func processEmbedFields(
 			thumbnail = &embedThumbnail{URL: field.Value}
 		default:
 			// Regular fields become embed fields
+			//nolint:exhaustruct // Inline is optional and defaults to false
 			embedFields = append(embedFields, embedField{
 				Name:  field.Key,
 				Value: field.Value,
@@ -165,6 +166,7 @@ func CreatePayloadFromItems(
 
 		author, image, thumbnail, embedFields := processEmbedFields(item.Fields)
 
+		//nolint:exhaustruct // Fields are conditionally set below
 		embeddedItem := embedItem{
 			Content:   item.Text,
 			Color:     color,
@@ -175,6 +177,7 @@ func CreatePayloadFromItems(
 		}
 
 		if item.Level != types.Unknown {
+			//nolint:exhaustruct // IconURL is optional
 			embeddedItem.Footer = &embedFooter{
 				Text: item.Level.String(),
 			}

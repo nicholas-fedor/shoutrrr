@@ -16,10 +16,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestLark(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Lark Suite")
-}
+const fullURL = "lark://open.larksuite.com/token?secret=sss"
 
 var (
 	service *Service
@@ -29,8 +26,6 @@ var (
 	})
 )
 
-const fullURL = "lark://open.larksuite.com/token?secret=sss"
-
 var _ = ginkgo.Describe("Lark Test", func() {
 	ginkgo.BeforeEach(func() {
 		service = &Service{}
@@ -38,10 +33,10 @@ var _ = ginkgo.Describe("Lark Test", func() {
 
 	ginkgo.When("parsing the configuration URL", func() {
 		ginkgo.It("should be identical after de-/serialization", func() {
-			url := testutils.URLMust(fullURL)
+			urlStr := testutils.URLMust(fullURL)
 			config := &Config{}
 			pkr := format.NewPropKeyResolver(config)
-			err := config.setURL(&pkr, url)
+			err := config.setURL(&pkr, urlStr)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 
 			outputURL := config.GetURL()
@@ -223,3 +218,10 @@ var _ = ginkgo.Describe("Lark Test", func() {
 		})
 	})
 })
+
+func TestLark(t *testing.T) {
+	t.Parallel()
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Lark Suite")
+}

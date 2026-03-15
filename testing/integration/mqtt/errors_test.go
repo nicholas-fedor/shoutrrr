@@ -13,6 +13,7 @@ import (
 )
 
 func TestSendWithConnectionError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).
@@ -30,6 +31,7 @@ func TestSendWithConnectionError(t *testing.T) {
 }
 
 func TestSendWithPublishError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -48,6 +50,7 @@ func TestSendWithPublishError(t *testing.T) {
 }
 
 func TestSendWithFailureReasonCode(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name         string
@@ -120,6 +123,7 @@ func TestSendWithFailureReasonCode(t *testing.T) {
 }
 
 func TestSendWithReasonCodeNoReasonString(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -142,6 +146,7 @@ func TestSendWithReasonCodeNoReasonString(t *testing.T) {
 }
 
 func TestSendWithInvalidQoS(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Create service without mock manager - it should fail before connection
 		service := createTestService(t, "mqtt://broker.example.com/test/topic")
@@ -156,6 +161,7 @@ func TestSendWithInvalidQoS(t *testing.T) {
 }
 
 func TestSendWithNegativeQoS(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Create service without mock manager - it should fail before connection
 		service := createTestService(t, "mqtt://broker.example.com/test/topic")
@@ -170,6 +176,7 @@ func TestSendWithNegativeQoS(t *testing.T) {
 }
 
 func TestDisconnectError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -196,6 +203,7 @@ func TestDisconnectError(t *testing.T) {
 }
 
 func TestCloseWithoutConnection(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Create service without initializing connection
 		service := createTestService(t, "mqtt://broker.example.com/test/topic")
@@ -207,6 +215,7 @@ func TestCloseWithoutConnection(t *testing.T) {
 }
 
 func TestCloseIdempotent(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -235,6 +244,7 @@ func TestCloseIdempotent(t *testing.T) {
 }
 
 func TestContextCancellationDuringAwaitConnection(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).
@@ -252,6 +262,7 @@ func TestContextCancellationDuringAwaitConnection(t *testing.T) {
 }
 
 func TestContextDeadlineExceededDuringAwaitConnection(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).
@@ -269,6 +280,8 @@ func TestContextDeadlineExceededDuringAwaitConnection(t *testing.T) {
 }
 
 func TestPublishErrorErrorMethod(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		reasonCode   byte
@@ -300,6 +313,8 @@ func TestPublishErrorErrorMethod(t *testing.T) {
 }
 
 func TestIsFailureCode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		code     byte
 		expected bool

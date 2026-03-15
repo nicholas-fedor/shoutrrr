@@ -9,19 +9,19 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 const testWebhookURLAlt = "https://discord.com/api/webhooks/123/abc"
 
 var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	ginkgo.Describe("Service.Send method", func() {
-		var (
-			service    *Service
-			mockClient *mockServiceHTTPClient
-		)
+		var service *Service
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
@@ -29,35 +29,44 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					WebhookID: "123456789",
 					Token:     "test-token",
 				},
-				HTTPClient: &mockServiceHTTPClient{},
 			}
-			service.SetLogger(&mockLogger{})
-			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			service.SetLogger(&mockTypes.MockStdLogger{})
 		})
 
 		ginkgo.It("should send plain text message successfully", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			message := "Hello, Discord!"
 			params := &types.Params{}
 
 			err := service.Send(message, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should send JSON message in JSON mode", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
 			service.Config.JSON = true
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			jsonMessage := `{"content":"JSON message"}`
 			params := &types.Params{}
 
 			err := service.Send(jsonMessage, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should handle empty message", func() {
@@ -71,6 +80,13 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should handle large message with chunking", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			// Create a message larger than TotalChunkSize to force multiple batches
 			largeMessage := strings.Repeat("a", TotalChunkSize+100)
 			params := &types.Params{}
@@ -79,24 +95,37 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// Should make multiple calls for chunks
-			gomega.Expect(mockClient.callCount).To(gomega.BeNumerically(">=", 2))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 2)
 		})
 
 		ginkgo.It("should handle split lines option", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
 			service.Config.SplitLines = true
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			message := "Line 1\nLine 2\nLine 3"
 			params := &types.Params{}
 
 			err := service.Send(message, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).
-				To(gomega.Equal(1))
 			// One call for the batch of lines
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should return error when first batch fails", func() {
-			mockClient.err = ErrMaxRetries
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			mockLogger := &mockTypes.MockStdLogger{}
+			service.HTTPClient = mockClient
+			service.SetLogger(mockLogger)
+			mockClient.On("Do", mock.Anything).Return(nil, ErrMaxRetries)
+			mockLogger.On("Print", mock.Anything).Return()
+
 			message := "Test message"
 			params := &types.Params{}
 
@@ -109,24 +138,20 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.SendItems method", func() {
-		var service *Service
-
-		ginkgo.BeforeEach(func() {
-			service = &Service{
+		ginkgo.It("should delegate to sendItems method", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service := &Service{
 				Config: &Config{
 					WebhookID: "123456789",
 					Token:     "test-token",
 				},
-				HTTPClient: &mockServiceHTTPClient{
-					response: &http.Response{
-						StatusCode: http.StatusNoContent,
-						Body:       io.NopCloser(strings.NewReader("")),
-					},
-				},
+				HTTPClient: mockClient,
 			}
-		})
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
 
-		ginkgo.It("should delegate to sendItems method", func() {
 			items := []types.MessageItem{
 				{Text: "Test message"},
 			}
@@ -139,10 +164,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.sendItems method", func() {
-		var (
-			service    *Service
-			mockClient *mockServiceHTTPClient
-		)
+		var service *Service
 
 		ginkgo.BeforeEach(func() {
 			service = &Service{
@@ -150,17 +172,18 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 					WebhookID: "123456789",
 					Token:     "test-token",
 				},
-				pkr:        format.NewPropKeyResolver(&Config{}),
-				HTTPClient: &mockServiceHTTPClient{},
-			}
-			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
+				pkr: format.NewPropKeyResolver(&Config{}),
 			}
 		})
 
 		ginkgo.It("should send simple message item successfully", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			items := []types.MessageItem{
 				{Text: "Simple message"},
 			}
@@ -169,10 +192,17 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			err := service.sendItems(items, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should handle message with file attachment", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			items := []types.MessageItem{
 				{
 					Text: "Message with file",
@@ -187,11 +217,19 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			err := service.sendItems(items, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should update config from params", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
 			service.pkr = format.NewPropKeyResolver(service.Config)
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			items := []types.MessageItem{
 				{Text: "Test message"},
 			}
@@ -216,8 +254,9 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should handle config update error", func() {
-			// Use invalid params to trigger an error
 			service.pkr = format.NewPropKeyResolver(service.Config)
+
+			// Use invalid params to trigger an error
 			items := []types.MessageItem{
 				{Text: "Test message"},
 			}
@@ -303,10 +342,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should initialize service successfully with valid URL", func() {
-			configURL, _ := url.Parse("discord://token@webhook?username=TestBot")
-			logger := &mockLogger{}
+			serviceURL, _ := url.Parse("discord://token@webhook?username=TestBot")
+			logger := &mockTypes.MockStdLogger{}
 
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(service.Config).NotTo(gomega.BeNil())
@@ -319,7 +358,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		ginkgo.It("should handle URL parsing error", func() {
 			// Simulate config.SetURL error by using invalid URL
 			invalidURL, _ := url.Parse("discord://@") // Missing token
-			logger := &mockLogger{}
+			logger := &mockTypes.MockStdLogger{}
 
 			err := service.Initialize(invalidURL, logger)
 
@@ -327,10 +366,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should set default properties", func() {
-			configURL, _ := url.Parse("discord://token@webhook")
-			logger := &mockLogger{}
+			serviceURL, _ := url.Parse("discord://token@webhook")
+			logger := &mockTypes.MockStdLogger{}
 
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// Verify default properties are set
@@ -354,30 +393,27 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.doSend method", func() {
-		var (
-			service    *Service
-			mockClient *mockServiceHTTPClient
-		)
+		var service *Service
 
 		ginkgo.BeforeEach(func() {
-			service = &Service{
-				HTTPClient: &mockServiceHTTPClient{},
-			}
-			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			service = &Service{}
 		})
 
 		ginkgo.It("should send payload successfully", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			payload := []byte(`{"content":"test"}`)
 			postURL := testWebhookURLAlt
 
 			err := service.doSend(payload, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should handle empty URL", func() {
@@ -426,7 +462,10 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 
 		ginkgo.It("should handle HTTP client error", func() {
-			mockClient.err = errors.New("network error")
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(nil, errors.New("network error"))
+
 			payload := []byte(`{"content":"test"}`)
 			postURL := testWebhookURLAlt
 
@@ -437,23 +476,20 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Service.doSendMultipart method", func() {
-		var (
-			service    *Service
-			mockClient *mockServiceHTTPClient
-		)
+		var service *Service
 
 		ginkgo.BeforeEach(func() {
-			service = &Service{
-				HTTPClient: &mockServiceHTTPClient{},
-			}
-			mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
+			service = &Service{}
 		})
 
 		ginkgo.It("should send multipart payload with files successfully", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			payload := WebhookPayload{
 				Content: "Message with files",
 			}
@@ -462,59 +498,46 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(payload, files, postURL)
+			err := service.doSendMultipart(&payload, files, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should handle empty files array", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil)
+
 			payload := WebhookPayload{
 				Content: "Message without files",
 			}
 			files := []types.File{}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(payload, files, postURL)
+			err := service.doSendMultipart(&payload, files, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
+			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
 		})
 
 		ginkgo.It("should handle HTTP client error", func() {
-			mockClient.err = errors.New("network error")
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			service.HTTPClient = mockClient
+			mockClient.On("Do", mock.Anything).Return(nil, errors.New("network error"))
+
 			payload := WebhookPayload{
 				Content: "Test message",
 			}
 			files := []types.File{}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(payload, files, postURL)
+			err := service.doSendMultipart(&payload, files, postURL)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 	})
 })
-
-// mockServiceHTTPClient is a test helper that implements HTTPClient interface.
-type mockServiceHTTPClient struct {
-	response  *http.Response
-	err       error
-	callCount int
-}
-
-func (m *mockServiceHTTPClient) Do(_ *http.Request) (*http.Response, error) {
-	m.callCount++
-	if m.err != nil {
-		return nil, m.err
-	}
-
-	return m.response, nil
-}
-
-// mockLogger is a test helper that implements StdLogger interface.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}

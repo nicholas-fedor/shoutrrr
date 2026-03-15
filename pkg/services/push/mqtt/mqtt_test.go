@@ -98,12 +98,12 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should parse query parameters", func() {
-			configURL, err := url.Parse(
+			serviceURL, err := url.Parse(
 				"mqtt://broker.example.com:1883/test/topic?clientid=myclient&qos=1&retained=yes",
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.ClientID).To(gomega.Equal("myclient"))
 			gomega.Expect(service.Config.QoS).To(gomega.Equal(QoSAtLeastOnce))
@@ -111,12 +111,12 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should store config correctly", func() {
-			configURL, err := url.Parse(
+			serviceURL, err := url.Parse(
 				"mqtt://user:pass@broker.example.com:1883/notifications/alerts",
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Host).To(gomega.Equal("broker.example.com"))
 			gomega.Expect(service.Config.Port).To(gomega.Equal(1883))
@@ -132,39 +132,39 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should parse URL with username only", func() {
-			configURL, err := url.Parse("mqtt://user@broker.example.com:1883/test/topic")
+			serviceURL, err := url.Parse("mqtt://user@broker.example.com:1883/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Username).To(gomega.Equal("user"))
 			gomega.Expect(service.Config.Password).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should parse URL without credentials", func() {
-			configURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
+			serviceURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Username).To(gomega.BeEmpty())
 			gomega.Expect(service.Config.Password).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should parse URL with custom port", func() {
-			configURL, err := url.Parse("mqtt://broker.example.com:9999/test/topic")
+			serviceURL, err := url.Parse("mqtt://broker.example.com:9999/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Port).To(gomega.Equal(9999))
 		})
 
 		ginkgo.It("should apply default values from struct tags", func() {
-			configURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
+			serviceURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.ClientID).To(gomega.Equal("shoutrrr"))
 			gomega.Expect(service.Config.QoS).To(gomega.Equal(QoSAtMostOnce))
@@ -173,41 +173,41 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should parse URL with DisableTLS parameter", func() {
-			configURL, err := url.Parse("mqtts://broker.example.com:8883/test/topic?disabletls=yes")
+			serviceURL, err := url.Parse("mqtts://broker.example.com:8883/test/topic?disabletls=yes")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should parse URL with DisableTLSVerification parameter", func() {
-			configURL, err := url.Parse(
+			serviceURL, err := url.Parse(
 				"mqtts://broker.example.com:8883/test/topic?disabletlsverification=yes",
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.DisableTLSVerification).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should parse URL with CleanSession=false", func() {
-			configURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?cleansession=no")
+			serviceURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?cleansession=no")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.CleanSession).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("should handle deeply nested topic paths", func() {
-			configURL, err := url.Parse(
+			serviceURL, err := url.Parse(
 				"mqtt://broker.example.com:1883/level1/level2/level3/level4/level5",
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Initialize(configURL, logger)
+			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Topic).
 				To(gomega.Equal("level1/level2/level3/level4/level5"))
@@ -394,7 +394,7 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should have correct SecureScheme constant", func() {
-			gomega.Expect(SecureScheme).To(gomega.Equal("mqtts"))
+			gomega.Expect(SchemeTLS).To(gomega.Equal("mqtts"))
 		})
 	})
 
@@ -408,10 +408,10 @@ var _ = ginkgo.Describe("Service", func() {
 
 		ginkgo.It("should have correct default state after initialization", func() {
 			svc := &Service{}
-			configURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
+			serviceURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = svc.Initialize(configURL, logger)
+			err = svc.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(svc.Config).NotTo(gomega.BeNil())
 			gomega.Expect(svc.connectionInitialized).To(gomega.BeFalse())

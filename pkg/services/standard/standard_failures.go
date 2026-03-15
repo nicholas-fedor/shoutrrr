@@ -6,6 +6,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
+type failureLike interface {
+	failures.Failure
+}
+
 const (
 	// FailTestSetup is the FailureID used to represent an error that is part of the setup for tests.
 	FailTestSetup failures.FailureID = -1
@@ -13,13 +17,10 @@ const (
 	FailParseURL failures.FailureID = -2
 	// FailServiceInit is the FailureID used to represent failure of a service.Initialize method.
 	FailServiceInit failures.FailureID = -3
-	// FailUnknown is the default FailureID.
-	FailUnknown failures.FailureID = iota
 )
 
-type failureLike interface {
-	failures.Failure
-}
+// FailUnknown is the default FailureID.
+const FailUnknown failures.FailureID = iota
 
 // Failure creates a Failure instance corresponding to the provided failureID, wrapping the provided error.
 func Failure(failureID failures.FailureID, err error, args ...any) failures.Failure {

@@ -2,7 +2,6 @@ package pushover
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,6 +14,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service provides the Pushover notification service.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+	Client *http.Client
+}
+
 // hookURL is the Pushover API endpoint for sending messages.
 const (
 	hookURL            = "https://api.pushover.net/1/messages.json"
@@ -22,26 +30,36 @@ const (
 	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 )
 
-// ErrSendFailed indicates a failure in sending the notification to a Pushover device.
-var ErrSendFailed = errors.New("failed to send notification to pushover device")
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
 
-// Service provides the Pushover notification service.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-	Client *http.Client
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.Client = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Pushover.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	device := strings.Join(config.Devices, ",")
-	if err := service.sendToDevice(device, message, config); err != nil {
+	if err := s.sendToDevice(device, message, config); err != nil {
 		return fmt.Errorf("failed to send notifications to pushover devices: %w", err)
 	}
 
@@ -49,14 +67,14 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // sendToDevice sends a notification to a specific Pushover device.
-func (service *Service) sendToDevice(device string, message string, config *Config) error {
+func (s *Service) sendToDevice(device, message string, config *Config) error {
 	data := url.Values{}
 	data.Set("device", device)
 	data.Set("user", config.User)
 	data.Set("token", config.Token)
 	data.Set("message", message)
 
-	if len(config.Title) > 0 {
+	if config.Title != "" {
 		data.Set("title", config.Title)
 	}
 
@@ -79,7 +97,7 @@ func (service *Service) sendToDevice(device string, message string, config *Conf
 
 	req.Header.Set("Content-Type", contentType)
 
-	res, err := service.Client.Do(req)
+	res, err := s.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request to Pushover API: %w", err)
 	}
@@ -91,25 +109,4 @@ func (service *Service) sendToDevice(device string, message string, config *Conf
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.Client = &http.Client{
-		Timeout: defaultHTTPTimeout,
-	}
-
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
 }

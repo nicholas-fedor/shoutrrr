@@ -1,3 +1,6 @@
+// Package failures provides a structured error handling mechanism with unique identifiers
+// for categorizing and identifying different error types. It implements the Failure interface
+// to support Go's error wrapping conventions, allowing for rich error chaining and comparison.
 package failures
 
 import "fmt"
@@ -14,7 +17,7 @@ type failure struct {
 }
 
 // Failure extends the error interface with an ID and methods for unwrapping and comparison.
-// It allows errors to be identified by a unique ID and supports Go’s error wrapping conventions.
+// It allows errors to be identified by a unique ID and supports Go's error wrapping conventions.
 type Failure interface {
 	error
 	ID() FailureID        // Returns the unique identifier for this failure
@@ -22,18 +25,18 @@ type Failure interface {
 	Is(target error) bool // Checks if the target error matches this failure by ID
 }
 
-// Error returns the failure’s message, appending the wrapped error’s message if present.
+// Ensure failure implements the error interface at compile time.
+//
+//nolint:errcheck // Compile-time type assertion, not an error check
+var _ error = (*failure)(nil)
+
+// Error returns the failure's message, appending the wrapped error's message if present.
 func (f *failure) Error() string {
 	if f.wrapped == nil {
 		return f.message
 	}
 
 	return fmt.Sprintf("%s: %v", f.message, f.wrapped)
-}
-
-// Unwrap returns the underlying error wrapped by this failure, or nil if none exists.
-func (f *failure) Unwrap() error {
-	return f.wrapped
 }
 
 // ID returns the unique identifier assigned to this failure.
@@ -49,9 +52,14 @@ func (f *failure) Is(target error) bool {
 	return ok && targetFailure.id == f.id
 }
 
+// Unwrap returns the underlying error wrapped by this failure, or nil if none exists.
+func (f *failure) Unwrap() error {
+	return f.wrapped
+}
+
 // Wrap creates a new failure with the given message, ID, and optional wrapped error.
 // If variadic arguments are provided, they are used to format the message using fmt.Sprintf.
-// This supports Go’s error wrapping pattern while adding a unique ID for identification.
+// This supports Go's error wrapping pattern while adding a unique ID for identification.
 func Wrap(message string, failureID FailureID, wrappedError error, v ...any) Failure {
 	if len(v) > 0 {
 		message = fmt.Sprintf(message, v...)
@@ -63,6 +71,3 @@ func Wrap(message string, failureID FailureID, wrappedError error, v ...any) Fai
 		wrapped: wrappedError,
 	}
 }
-
-// Ensure failure implements the error interface at compile time.
-var _ error = &failure{}

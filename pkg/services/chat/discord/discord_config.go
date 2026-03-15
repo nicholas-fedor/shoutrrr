@@ -10,12 +10,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme defines the protocol identifier for this service's configuration URL.
-const Scheme = "discord"
-
 // Config holds the settings required for sending Discord notifications.
 type Config struct {
 	standard.EnumlessConfig
+
 	WebhookID  string `url:"host"`
 	Token      string `url:"user"`
 	Title      string `           default:""         key:"title"`
@@ -31,76 +29,79 @@ type Config struct {
 	ThreadID   string `           default:""         key:"thread_id"        desc:"The thread ID to send the message to"`
 }
 
+// Scheme defines the protocol identifier for this service's configuration URL.
+const Scheme = "discord"
+
+// GetURL generates a URL from the current configuration values.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
+}
+
 // LevelColors returns an array of colors indexed by MessageLevel.
-func (config *Config) LevelColors() [types.MessageLevelCount]uint {
+func (c *Config) LevelColors() [types.MessageLevelCount]uint {
 	var colors [types.MessageLevelCount]uint
 
-	colors[types.Unknown] = config.Color
-	colors[types.Error] = config.ColorError
-	colors[types.Warning] = config.ColorWarn
-	colors[types.Info] = config.ColorInfo
-	colors[types.Debug] = config.ColorDebug
+	colors[types.Unknown] = c.Color
+	colors[types.Error] = c.ColorError
+	colors[types.Warning] = c.ColorWarn
+	colors[types.Info] = c.ColorInfo
+	colors[types.Debug] = c.ColorDebug
 
 	return colors
 }
 
-// GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.getURL(&resolver)
-}
-
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from configuration using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	url := &url.URL{
-		User:       url.User(config.Token),
-		Host:       config.WebhookID,
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	result := &url.URL{
+		User:       url.User(c.Token),
+		Host:       c.WebhookID,
 		Scheme:     Scheme,
 		RawQuery:   format.BuildQuery(resolver),
 		ForceQuery: false,
 	}
 
-	if config.JSON {
-		url.Path = "/raw"
+	if c.JSON {
+		result.Path = "/raw"
 	}
 
-	return url
+	return result
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	config.WebhookID = url.Host
-	config.Token = url.User.Username()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.WebhookID = serviceURL.Host
+	c.Token = serviceURL.User.Username()
 
-	if len(url.Path) > 0 {
-		switch url.Path {
+	if serviceURL.Path != "" {
+		switch serviceURL.Path {
 		case "/raw":
-			config.JSON = true
+			c.JSON = true
 		default:
 			return ErrIllegalURLArgument
 		}
 	}
 
-	if config.WebhookID == "" {
+	if c.WebhookID == "" {
 		return ErrMissingWebhookID
 	}
 
-	if len(config.Token) < 1 {
+	if len(c.Token) < 1 {
 		return ErrMissingToken
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if key == "thread_id" {
 			// Trim whitespace from thread_id
-			config.ThreadID = strings.TrimSpace(vals[0])
+			c.ThreadID = strings.TrimSpace(vals[0])
 
 			continue
 		}
@@ -113,8 +114,8 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 	return nil
 }
 
-// CreateAPIURLFromConfig builds a POST URL from the Discord configuration.
-func CreateAPIURLFromConfig(config *Config) string {
+// CreatePostURLFromConfig builds a POST URL from the Discord configuration.
+func CreatePostURLFromConfig(config *Config) string {
 	if config.WebhookID == "" || config.Token == "" {
 		return "" // Invalid cases are caught in doSend
 	}
@@ -122,7 +123,7 @@ func CreateAPIURLFromConfig(config *Config) string {
 	webhookID := strings.TrimSpace(config.WebhookID)
 	token := strings.TrimSpace(config.Token)
 
-	baseURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
+	postURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
 
 	query := url.Values{}
 
@@ -132,8 +133,8 @@ func CreateAPIURLFromConfig(config *Config) string {
 	}
 
 	if len(query) > 0 {
-		return baseURL + "?" + query.Encode()
+		return postURL + "?" + query.Encode()
 	}
 
-	return baseURL
+	return postURL
 }

@@ -1,21 +1,11 @@
 package join
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-)
-
-// Scheme identifies this service in configuration URLs.
-const Scheme = "join"
-
-// ErrDevicesMissing indicates that no devices are specified in the configuration.
-var (
-	ErrDevicesMissing = errors.New("devices missing from config URL")
-	ErrAPIKeyMissing  = errors.New("API key missing from config URL")
 )
 
 // Config holds settings for the Join notification service.
@@ -26,28 +16,31 @@ type Config struct {
 	Icon    string   `           desc:"Icon URL"                           key:"icon"    optional:""`
 }
 
+// Scheme identifies this service in configuration URLs.
+const Scheme = "join"
+
 // Enums returns the fields that should use an EnumFormatter for their values.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		User:       url.UserPassword("Token", config.APIKey),
+		User:       url.UserPassword("Token", c.APIKey),
 		Host:       "join",
 		Scheme:     Scheme,
 		ForceQuery: true,
@@ -55,22 +48,22 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	password, _ := url.User.Password()
-	config.APIKey = password
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	password, _ := serviceURL.User.Password()
+	c.APIKey = password
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
 	}
 
-	if url.String() != "join://dummy@dummy.com" {
-		if len(config.Devices) < 1 {
+	if serviceURL.String() != "join://dummy@dummy.com" {
+		if len(c.Devices) < 1 {
 			return ErrDevicesMissing
 		}
 
-		if len(config.APIKey) < 1 {
+		if len(c.APIKey) < 1 {
 			return ErrAPIKeyMissing
 		}
 	}

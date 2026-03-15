@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
 )
 
-func TestJoin(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Join Suite")
-}
-
 var (
 	service    *join.Service
 	config     *join.Config
@@ -63,7 +58,7 @@ var _ = ginkgo.Describe("the join config", func() {
 		})
 		ginkgo.It("should error if supplied with an empty token", func() {
 			url := createURL("user", "", "testDevice")
-			expectErrorMessageGivenURL(join.APIKeyMissing, url)
+			expectErrorGivenURL(join.ErrAPIKeyMissing, url)
 		})
 	})
 	ginkgo.When("getting the current config", func() {
@@ -160,7 +155,13 @@ var _ = ginkgo.Describe("the join config", func() {
 	})
 })
 
-func createURL(username string, token string, devices string) *url.URL {
+func TestJoin(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Join Suite")
+}
+
+func createURL(username, token, devices string) *url.URL {
 	return &url.URL{
 		User:     url.UserPassword("Token", token),
 		Host:     username,
@@ -168,8 +169,8 @@ func createURL(username string, token string, devices string) *url.URL {
 	}
 }
 
-func expectErrorMessageGivenURL(msg join.ErrorMessage, url *url.URL) {
-	err := config.SetURL(url)
+func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
+	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
 }

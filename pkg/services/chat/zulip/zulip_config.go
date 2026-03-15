@@ -1,7 +1,6 @@
 package zulip
 
 import (
-	"errors"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -9,69 +8,75 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "zulip"
-
-// Static errors for configuration validation.
-var (
-	ErrMissingBotMail = errors.New("bot mail missing from config URL")
-	ErrMissingAPIKey  = errors.New("API key missing from config URL")
-	ErrMissingHost    = errors.New("host missing from config URL")
-)
-
 // Config for the zulip service.
 type Config struct {
 	standard.EnumlessConfig
+
 	BotMail string `desc:"Bot e-mail address"  url:"user"`
 	BotKey  string `desc:"API Key"             url:"pass"`
 	Host    string `desc:"API server hostname" url:"host,port"`
-	Stream  string `                                           description:"Target stream name" key:"stream"      optional:""`
-	Topic   string `                                                                            key:"topic,title"             default:""`
+	Stream  string `desc:"Target stream name"                  key:"stream"      optional:""`
+	Topic   string `desc:"Message topic"                       key:"topic,title" optional:""`
+}
+
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "zulip"
+
+// Clone creates a copy of the Config.
+func (c *Config) Clone() *Config {
+	return &Config{
+		BotMail: c.BotMail,
+		BotKey:  c.BotKey,
+		Host:    c.Host,
+		Stream:  c.Stream,
+		Topic:   c.Topic,
+	}
 }
 
 // GetURL returns a URL representation of its current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates a ServiceConfig from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	query := &url.Values{}
-	if config.Stream != "" {
-		query.Set("stream", config.Stream)
+	if c.Stream != "" {
+		query.Set("stream", c.Stream)
 	}
 
-	if config.Topic != "" {
-		query.Set("topic", config.Topic)
+	if c.Topic != "" {
+		query.Set("topic", c.Topic)
 	}
 
 	return &url.URL{
-		User:     url.UserPassword(config.BotMail, config.BotKey),
-		Host:     config.Host,
+		User:     url.UserPassword(c.BotMail, c.BotKey),
+		Host:     c.Host,
 		RawQuery: query.Encode(),
 		Scheme:   Scheme,
 	}
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var isSet bool
 
-	config.BotMail = serviceURL.User.Username()
-	config.BotKey, isSet = serviceURL.User.Password()
-	config.Host = serviceURL.Hostname()
+	c.BotMail = serviceURL.User.Username()
+	c.BotKey, isSet = serviceURL.User.Password()
+	c.Host = serviceURL.Hostname()
 
-	if serviceURL.String() != "zulip://dummy@dummy.com" {
-		if config.BotMail == "" {
+	// Allow dummy URL during documentation generation
+	if !isDummyURL(serviceURL) {
+		if c.BotMail == "" {
 			return ErrMissingBotMail
 		}
 
@@ -79,26 +84,15 @@ func (config *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) e
 			return ErrMissingAPIKey
 		}
 
-		if config.Host == "" {
+		if c.Host == "" {
 			return ErrMissingHost
 		}
 	}
 
-	config.Stream = serviceURL.Query().Get("stream")
-	config.Topic = serviceURL.Query().Get("topic")
+	c.Stream = serviceURL.Query().Get("stream")
+	c.Topic = serviceURL.Query().Get("topic")
 
 	return nil
-}
-
-// Clone creates a copy of the Config.
-func (config *Config) Clone() *Config {
-	return &Config{
-		BotMail: config.BotMail,
-		BotKey:  config.BotKey,
-		Host:    config.Host,
-		Stream:  config.Stream,
-		Topic:   config.Topic,
-	}
 }
 
 // CreateConfigFromURL creates a new Config from a URL for use within the zulip service.
@@ -107,4 +101,11 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	err := config.setURL(nil, serviceURL)
 
 	return &config, err
+}
+
+// isDummyURL checks if the given URL is the dummy URL used for documentation generation.
+// It compares URL components instead of string comparison to avoid issues with
+// URL formatting differences.
+func isDummyURL(u *url.URL) bool {
+	return u.Host == "dummy.com" && u.User.Username() == "dummy"
 }

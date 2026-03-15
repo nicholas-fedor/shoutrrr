@@ -11,6 +11,7 @@ import (
 )
 
 func TestPublishBasicMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -33,6 +34,7 @@ func TestPublishBasicMessage(t *testing.T) {
 }
 
 func TestPublishWithDifferentQoSLevels(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name string
@@ -64,6 +66,7 @@ func TestPublishWithDifferentQoSLevels(t *testing.T) {
 }
 
 func TestPublishWithRetainedFlag(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name             string
@@ -95,6 +98,7 @@ func TestPublishWithRetainedFlag(t *testing.T) {
 }
 
 func TestPublishWithParamsOverride(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -119,6 +123,7 @@ func TestPublishWithParamsOverride(t *testing.T) {
 }
 
 func TestPublishMultipleMessages(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -148,6 +153,7 @@ func TestPublishMultipleMessages(t *testing.T) {
 }
 
 func TestPublishTopicVariations(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name          string
@@ -183,6 +189,7 @@ func TestPublishTopicVariations(t *testing.T) {
 }
 
 func TestPublishVerifyPublishStructFields(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -212,6 +219,7 @@ func TestPublishVerifyPublishStructFields(t *testing.T) {
 }
 
 func TestPublishWithReasonCodeZero(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -229,6 +237,7 @@ func TestPublishWithReasonCodeZero(t *testing.T) {
 }
 
 func TestPublishWithNonFailureReasonCode(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -248,6 +257,7 @@ func TestPublishWithNonFailureReasonCode(t *testing.T) {
 }
 
 func TestPublishServiceConfigAfterInit(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)

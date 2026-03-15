@@ -29,13 +29,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-func TestNtfy(t *testing.T) {
-	gomegaformat.CharactersAroundMismatchToInclude = 20
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Ntfy Suite")
-}
-
 var (
 	service    = &Service{}
 	envBarkURL *url.URL
@@ -54,8 +47,8 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				return
 			}
 
-			configURL := testutils.URLMust(envBarkURL.String())
-			gomega.Expect(service.Initialize(configURL, logger)).To(gomega.Succeed())
+			serviceURL := testutils.URLMust(envBarkURL.String())
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("This is an integration test message", nil)).
 				To(gomega.Succeed())
 		})
@@ -116,7 +109,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			httpmock.RegisterResponder(
 				"POST",
 				service.Config.GetAPIURL(),
-				testutils.JSONRespondMust(200, apiResponse{
+				testutils.JSONRespondMust(200, apiResponseError{
 					Code:    http.StatusOK,
 					Message: "OK",
 				}),
@@ -128,7 +121,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			httpmock.RegisterResponder(
 				"POST",
 				service.Config.GetAPIURL(),
-				testutils.JSONRespondMust(500, apiResponse{
+				testutils.JSONRespondMust(500, apiResponseError{
 					Code:    500,
 					Message: "someone turned off the internet",
 				}),
@@ -307,7 +300,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						// Simulate successful ntfy API response
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -383,7 +376,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						// Simulate successful ntfy API response
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -511,7 +504,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			// Create a test server with the certificate signed by modern CA
 			server := httptest.NewUnstartedServer(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					response := apiResponse{
+					response := apiResponseError{
 						Code:    http.StatusOK,
 						Message: "OK",
 					}
@@ -651,7 +644,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			// Create a test server with ONLY the server certificate (missing intermediate)
 			server := httptest.NewUnstartedServer(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					response := apiResponse{
+					response := apiResponseError{
 						Code:    http.StatusOK,
 						Message: "OK",
 					}
@@ -745,7 +738,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 			server := httptest.NewUnstartedServer(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					// Simulate proxy interference - might return different response
-					response := apiResponse{
+					response := apiResponseError{
 						Code:    http.StatusOK,
 						Message: "Intercepted by proxy",
 					}
@@ -872,7 +865,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server with the complete certificate chain
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -954,7 +947,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// using httptest.NewTLSServer which provides a properly trusted certificate
 				server := httptest.NewTLSServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1026,7 +1019,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server that only supports TLS 1.0
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1113,7 +1106,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server that only supports TLS 1.1
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1203,7 +1196,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server that supports TLS 1.2
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1289,7 +1282,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server that supports TLS 1.2+
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1373,7 +1366,7 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 				// Create a test server that supports only TLS 1.2
 				server := httptest.NewUnstartedServer(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						response := apiResponse{
+						response := apiResponseError{
 							Code:    http.StatusOK,
 							Message: "OK",
 						}
@@ -1512,3 +1505,12 @@ var _ = ginkgo.Describe("the ntfy service", func() {
 		})
 	})
 })
+
+func TestNtfy(t *testing.T) {
+	t.Parallel()
+
+	gomegaformat.CharactersAroundMismatchToInclude = 20
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Ntfy Suite")
+}

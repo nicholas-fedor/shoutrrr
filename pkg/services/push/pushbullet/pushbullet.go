@@ -11,6 +11,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// Service providing Pushbullet as a notification service.
+type Service struct {
+	standard.Standard
+
+	client jsonclient.Client
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // Constants.
 const (
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
@@ -24,47 +33,39 @@ var (
 	ErrPushNotActive          = errors.New("push notification is not active")
 )
 
-// Service providing Pushbullet as a notification service.
-type Service struct {
-	standard.Standard
-	client jsonclient.Client
-	Config *Config
-	pkr    format.PropKeyResolver
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
+// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
 
-	service.Config = &Config{
+	s.Config = &Config{
 		Title: "Shoutrrr notification", // Explicitly set default
 	}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 
-	service.client = jsonclient.NewClient()
-	service.client.Headers().Set("Access-Token", service.Config.Token)
+	s.client = jsonclient.NewClient()
+	s.client.Headers().Set("Access-Token", s.Config.Token)
 
 	return nil
 }
 
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
-}
-
 // Send a push notification via Pushbullet.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := *service.Config
-	if err := service.pkr.UpdateConfigFromParams(&config, params); err != nil {
+func (s *Service) Send(message string, params *types.Params) error {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	for _, target := range config.Targets {
-		if err := doSend(&config, target, message, service.client); err != nil {
+		if err := doSend(&config, target, message, s.client); err != nil {
 			return err
 		}
 	}
@@ -73,7 +74,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // doSend sends a push notification to a specific target and validates the response.
-func doSend(config *Config, target string, message string, client jsonclient.Client) error {
+func doSend(config *Config, target, message string, client jsonclient.Client) error {
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 

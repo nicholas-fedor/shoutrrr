@@ -19,10 +19,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
-func TestIFTTT(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr IFTTT Suite")
+type jsonPayload struct {
+	Value1 string `json:"value1"`
+	Value2 string `json:"value2"`
+	Value3 string `json:"value3"`
 }
 
 var (
@@ -129,24 +129,24 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 		ginkgo.When("given multiple events", func() {
 			ginkgo.It("returns an URL with all events comma-separated", func() {
-				configURL := testutils.URLMust("ifttt://dummyID/?events=foo%2Cbar%2Cbaz")
-				err := service.Initialize(configURL, logger)
+				serviceURL := testutils.URLMust("ifttt://dummyID/?events=foo%2Cbar%2Cbaz")
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				resultURL := service.Config.GetURL().String()
-				gomega.Expect(resultURL).To(gomega.Equal(configURL.String()))
+				gomega.Expect(resultURL).To(gomega.Equal(serviceURL.String()))
 			})
 		})
 		ginkgo.When("given values", func() {
 			ginkgo.It("returns an URL with all values", func() {
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					"ifttt://dummyID/?events=event1&value1=v1&value2=v2&value3=v3",
 				)
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				resultURL := service.Config.GetURL().String()
-				gomega.Expect(resultURL).To(gomega.Equal(configURL.String()))
+				gomega.Expect(resultURL).To(gomega.Equal(serviceURL.String()))
 			})
 		})
 	})
@@ -163,8 +163,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			httpmock.DeactivateAndReset()
 		})
 		ginkgo.It("errors if the response code is not 200-299", func() {
-			configURL := testutils.URLMust("ifttt://dummy/?events=foo")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=foo")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.RegisterResponder(
 				"POST",
@@ -176,8 +176,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 		ginkgo.It("does not error if the response code is 200", func() {
-			configURL := testutils.URLMust("ifttt://dummy/?events=foo")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=foo")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.RegisterResponder(
 				"POST",
@@ -189,8 +189,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("returns an error if params update fails", func() { // Line 55
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			params := types.Params{"messagevalue": "invalid"}
@@ -199,10 +199,10 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 		ginkgo.DescribeTable("sets message to correct value field based on messagevalue",
 			func(messageValue int, expectedField string) { // Lines 30, 32, 34
-				configURL := testutils.URLMust(
+				serviceURL := testutils.URLMust(
 					fmt.Sprintf("ifttt://dummy/?events=event1&messagevalue=%d", messageValue),
 				)
-				err := service.Initialize(configURL, logger)
+				err := service.Initialize(serviceURL, logger)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				httpmock.RegisterResponder(
 					"POST",
@@ -243,8 +243,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			ginkgo.Entry("messagevalue=3 sets Value3", 3, "Value3"),
 		)
 		ginkgo.It("overrides Value2 with params when messagevalue is 1", func() { // Line 36
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1&messagevalue=1")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1&messagevalue=1")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.RegisterResponder(
 				"POST",
@@ -272,10 +272,10 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("overrides payload values with params", func() { // Lines 17, 21, 25
-			configURL := testutils.URLMust(
+			serviceURL := testutils.URLMust(
 				"ifttt://dummy/?events=event1&value1=a&value2=b&value3=c&messagevalue=2",
 			)
-			err := service.Initialize(configURL, logger)
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			httpmock.RegisterResponder(
 				"POST",
@@ -305,8 +305,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 		ginkgo.It("should fail with multiple events when one errors", func() {
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1,event2")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1,event2")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.RegisterResponder(
@@ -327,8 +327,8 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 		})
 
 		ginkgo.It("should fail with network error", func() {
-			configURL := testutils.URLMust("ifttt://dummy/?events=event1")
-			err := service.Initialize(configURL, logger)
+			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1")
+			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.RegisterResponder(
@@ -345,8 +345,9 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 	})
 })
 
-type jsonPayload struct {
-	Value1 string `json:"value1"`
-	Value2 string `json:"value2"`
-	Value3 string `json:"value3"`
+// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
+func TestIFTTT(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr IFTTT Suite")
 }

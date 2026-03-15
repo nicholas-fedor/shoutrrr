@@ -11,6 +11,15 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config holds the configuration for the Pushbullet service.
+type Config struct {
+	standard.EnumlessConfig
+
+	Targets []string `url:"path"`
+	Token   string   `url:"host"`
+	Title   string   `           default:"Shoutrrr notification" key:"title"`
+}
+
 // Scheme is the scheme part of the service configuration URL.
 const Scheme = "pushbullet"
 
@@ -20,33 +29,25 @@ const ExpectedTokenLength = 34
 // ErrTokenIncorrectSize indicates that the token has an incorrect size.
 var ErrTokenIncorrectSize = errors.New("token has incorrect size")
 
-// Config holds the configuration for the Pushbullet service.
-type Config struct {
-	standard.EnumlessConfig
-	Targets []string `url:"path"`
-	Token   string   `url:"host"`
-	Title   string   `           default:"Shoutrrr notification" key:"title"`
-}
-
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		Host:       config.Token,
-		Path:       "/" + strings.Join(config.Targets, "/"),
+		Host:       c.Token,
+		Path:       "/" + strings.Join(c.Targets, "/"),
 		Scheme:     Scheme,
 		ForceQuery: false,
 		RawQuery:   format.BuildQuery(resolver),
@@ -54,29 +55,29 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	path := url.Path
-	if len(path) > 0 && path[0] == '/' {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	path := serviceURL.Path
+	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
 
-	if url.Fragment != "" {
-		path += "/#" + url.Fragment
+	if serviceURL.Fragment != "" {
+		path += "/#" + serviceURL.Fragment
 	}
 
 	targets := strings.Split(path, "/")
 
-	token := url.Hostname()
-	if url.String() != "pushbullet://dummy@dummy.com" {
+	token := serviceURL.Hostname()
+	if serviceURL.String() != "pushbullet://dummy@dummy.com" {
 		if err := validateToken(token); err != nil {
 			return err
 		}
 	}
 
-	config.Token = token
-	config.Targets = targets
+	c.Token = token
+	c.Targets = targets
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}

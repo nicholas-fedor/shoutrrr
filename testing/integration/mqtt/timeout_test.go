@@ -11,6 +11,7 @@ import (
 )
 
 func TestPublishTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -31,6 +32,7 @@ func TestPublishTimeout(t *testing.T) {
 }
 
 func TestAwaitConnectionTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 
@@ -50,6 +52,7 @@ func TestAwaitConnectionTimeout(t *testing.T) {
 }
 
 func TestDisconnectTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -77,6 +80,7 @@ func TestDisconnectTimeout(t *testing.T) {
 }
 
 func TestContextCancellationDuringPublish(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -97,6 +101,7 @@ func TestContextCancellationDuringPublish(t *testing.T) {
 }
 
 func TestContextCancellationDuringDisconnect(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -122,6 +127,7 @@ func TestContextCancellationDuringDisconnect(t *testing.T) {
 }
 
 func TestFastOperationCompletesBeforeTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -139,6 +145,7 @@ func TestFastOperationCompletesBeforeTimeout(t *testing.T) {
 }
 
 func TestTimeoutErrorWrapping(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).
@@ -159,6 +166,7 @@ func TestTimeoutErrorWrapping(t *testing.T) {
 }
 
 func TestCancelledContextErrorWrapping(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).
@@ -179,6 +187,7 @@ func TestCancelledContextErrorWrapping(t *testing.T) {
 }
 
 func TestMultipleOperationsWithTimeouts(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 
@@ -209,6 +218,7 @@ func TestMultipleOperationsWithTimeouts(t *testing.T) {
 }
 
 func TestTimeoutWithCustomNetworkError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		customErr := errors.New("custom network timeout error")
 

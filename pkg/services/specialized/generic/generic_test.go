@@ -23,12 +23,6 @@ const (
 	TestWebhookURL = "https://host.tld/webhook" // Default test webhook URL
 )
 
-// TestGeneric runs the Ginkgo test suite for the generic package.
-func TestGeneric(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Generic Webhook Suite")
-}
-
 var (
 	service       *generic.Service
 	logger        *log.Logger
@@ -80,7 +74,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 		})
 		ginkgo.It("correctly sets webhook URL from custom URL", func() {
 			customURL := testutils.URLMust("generic+https://test.tld")
-			serviceURL, err := service.GetConfigURLFromCustom(customURL)
+			serviceURL, err := service.GetServiceURLFromCustom(customURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -172,7 +166,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					"https://example.com/webhook?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
 				)
 
-				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				// Verify config properties are set correctly
@@ -191,7 +185,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
 				)
 
-				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				// Verify template is set
@@ -405,3 +399,10 @@ var _ = ginkgo.Describe("the generic service", func() {
 		})
 	})
 })
+
+// TestGeneric runs the Ginkgo test suite for the generic package.
+func TestGeneric(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Generic Webhook Suite")
+}

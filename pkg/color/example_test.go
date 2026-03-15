@@ -8,21 +8,17 @@ import (
 )
 
 // Example demonstrates basic color printing using helper functions.
+// The helper functions use the default configuration internally.
 func Example() {
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	// Disable color via environment variable for predictable test output
+	os.Setenv("NO_COLOR", "true")
 
-	defer func() { color.NoColor = originalNoColor }()
-
-	originalOutput := color.Output
-	color.Output = os.Stdout
+	defer os.Unsetenv("NO_COLOR")
 
 	fmt.Println(color.RedString("This is red text"))
 	fmt.Println(color.GreenString("This is green text"))
 	fmt.Println(color.BlueString("This is blue text"))
 	fmt.Println(color.YellowString("This is yellow text"))
-
-	color.Output = originalOutput
 
 	// Output:
 	// This is red text
@@ -32,14 +28,13 @@ func Example() {
 }
 
 // ExampleRGB demonstrates using RGB colors for foreground and background.
+// Uses the default configuration via helper functions.
 func ExampleRGB() {
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	// Disable color via environment variable for predictable test output
+	os.Setenv("NO_COLOR", "true")
 
-	defer func() { color.NoColor = originalNoColor }()
+	defer os.Unsetenv("NO_COLOR")
 
-	originalOutput := color.Output
-	color.Output = os.Stdout
 	orange := color.RGB(255, 128, 0)
 	fmt.Println(orange.Sprint("Orange foreground text"))
 
@@ -49,8 +44,6 @@ func ExampleRGB() {
 	custom := color.RGB(128, 64, 255).AddBgRGB(255, 255, 0)
 	fmt.Println(custom.Sprint("Purple text on yellow background"))
 
-	color.Output = originalOutput
-
 	// Output:
 	// Orange foreground text
 	// Text with blue background
@@ -58,14 +51,12 @@ func ExampleRGB() {
 }
 
 // ExampleNew demonstrates creating and mixing custom colors.
+// Uses the default configuration via the New() constructor.
 func ExampleNew() {
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	// Disable color via environment variable for predictable test output
+	os.Setenv("NO_COLOR", "true")
 
-	defer func() { color.NoColor = originalNoColor }()
-
-	originalOutput := color.Output
-	color.Output = os.Stdout
+	defer os.Unsetenv("NO_COLOR")
 
 	// Create a bold red color
 	boldRed := color.New(color.FgRed, color.Bold)
@@ -79,8 +70,6 @@ func ExampleNew() {
 	fancy := color.New(color.FgCyan, color.BgBlack, color.Bold, color.Underline)
 	fmt.Println(fancy.Sprint("Fancy cyan text"))
 
-	color.Output = originalOutput
-
 	// Output:
 	// Bold red text
 	// Underlined green text
@@ -88,14 +77,12 @@ func ExampleNew() {
 }
 
 // ExampleColor_PrintFunc demonstrates using custom print functions.
+// Uses the default configuration via the New() constructor.
 func ExampleColor_PrintFunc() {
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	// Disable color via environment variable for predictable test output
+	os.Setenv("NO_COLOR", "true")
 
-	defer func() { color.NoColor = originalNoColor }()
-
-	originalOutput := color.Output
-	color.Output = os.Stdout
+	defer os.Unsetenv("NO_COLOR")
 
 	// Create custom print functions
 	warn := color.New(color.FgYellow).PrintlnFunc()
@@ -109,8 +96,6 @@ func ExampleColor_PrintFunc() {
 	message := "Info: " + info("system ready")
 	fmt.Println(message)
 
-	color.Output = originalOutput
-
 	// Output:
 	// This is a warning
 	// Error code: 404
@@ -118,11 +103,12 @@ func ExampleColor_PrintFunc() {
 }
 
 // ExampleColor_SprintFunc demonstrates string functions for mixing with non-colored text.
+// Uses the default configuration via the New() constructor.
 func ExampleColor_SprintFunc() {
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	// Disable color via environment variable for predictable test output
+	os.Setenv("NO_COLOR", "true")
 
-	defer func() { color.NoColor = originalNoColor }()
+	defer os.Unsetenv("NO_COLOR")
 
 	// Create color string functions
 	red := color.New(color.FgRed).SprintFunc()
@@ -147,52 +133,91 @@ func ExampleColor_SprintFunc() {
 	// Details: Value is 42
 }
 
-// ExampleSet demonstrates global color control using Set and Unset.
-func ExampleSet() {
-	fmt.Print("Normal text, ")
-	color.Set(color.FgRed)
-	fmt.Print("red text")
-	color.Unset()
-	fmt.Println(", back to normal")
+// ExampleNewWithConfig demonstrates creating a Color with a custom Config
+// for thread-safe, instance-based color management.
+func ExampleNewWithConfig() {
+	// Create a custom configuration with color disabled for predictable output
+	cfg := &color.Config{
+		NoColor: true,
+		Output:  os.Stdout,
+	}
 
-	// Multiple sets
-	color.Set(color.FgGreen)
-	fmt.Print("Green, ")
-	color.Set(color.FgBlue)
-	fmt.Print("then blue")
-	color.Unset()
-	fmt.Println(", normal again")
+	// Create color instances with the custom config
+	red := color.NewWithConfig(cfg, color.FgRed)
+	green := color.NewWithConfig(cfg, color.FgGreen)
+	blue := color.NewWithConfig(cfg, color.FgBlue)
+
+	fmt.Println(red.Sprint("Red text (disabled)"))
+	fmt.Println(green.Sprint("Green text (disabled)"))
+	fmt.Println(blue.Sprint("Blue text (disabled)"))
+
+	// Output:
+	// Red text (disabled)
+	// Green text (disabled)
+	// Blue text (disabled)
+}
+
+// ExampleConfig demonstrates using the Config struct for thread-safe
+// color configuration that can be passed to color constructors.
+func ExampleConfig() {
+	// Create a custom configuration
+	cfg := &color.Config{
+		NoColor: false,
+		Output:  os.Stdout,
+	}
+
+	// The configuration provides safe defaults
+	fmt.Fprintf(cfg.Output, "Output is stdout: %v\n", cfg.Output == os.Stdout)
+	fmt.Fprintf(cfg.Output, "NoColor value: %v\n", cfg.NoColor)
+
+	// Output:
+	// Output is stdout: true
+	// NoColor value: false
+}
+
+// ExampleColor_setUnset demonstrates using Set and Unset methods on a Color instance
+// for temporary color changes in a thread-safe manner.
+func ExampleColor_setUnset() {
+	// Create a configuration with color enabled but output to stdout
+	cfg := &color.Config{
+		NoColor: true, // Disabled for predictable test output
+		Output:  os.Stdout,
+	}
+
+	// Create a color instance with the config
+	c := color.NewWithConfig(cfg, color.FgRed)
+
+	fmt.Print("Normal text, ")
+	c.Set()
+	fmt.Fprint(cfg.Output, "red text")
+	c.Unset()
+	fmt.Println(", back to normal")
 
 	// Output:
 	// Normal text, red text, back to normal
-	// Green, then blue, normal again
 }
 
-// ExampleColor_DisableColor demonstrates how to disable colors.
+// ExampleColor_DisableColor demonstrates how to disable colors on individual
+// Color instances using the thread-safe DisableColor method.
 func ExampleColor_DisableColor() {
-	originalOutput := color.Output
-	color.Output = os.Stdout
+	// Disable color globally via environment variable
+	os.Setenv("NO_COLOR", "true")
 
-	originalNoColor := color.NoColor
-	color.NoColor = true
+	defer os.Unsetenv("NO_COLOR")
 
-	defer func() { color.NoColor = originalNoColor }()
+	// Create color with default config (which respects NO_COLOR)
+	red := color.New(color.FgRed)
+	fmt.Println(red.Sprint("This should not be red"))
 
-	color.Redf("This should not be red")
-	color.Greenf("This should not be green")
-
-	// Disable on individual color objects
-	c := color.New(color.FgYellow)
-	c.DisableColor()
-	_, _ = c.Println("This yellow text is disabled")
-
-	_, _ = c.Println("Now it's yellow again")
-
-	color.Output = originalOutput
+	// Create a color with explicit config
+	cfg := &color.Config{
+		NoColor: true,
+		Output:  os.Stdout,
+	}
+	yellow := color.NewWithConfig(cfg, color.FgYellow)
+	fmt.Println(yellow.Sprint("This yellow text is disabled"))
 
 	// Output:
 	// This should not be red
-	// This should not be green
 	// This yellow text is disabled
-	// Now it's yellow again
 }

@@ -20,7 +20,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 	ginkgo.Describe("LevelColors method", func() {
 		ginkgo.It("should return correct color mapping for default colors", func() {
 			config := &Config{
-				Color:      0x50D9ff,
+				Color:      0x50d9ff,
 				ColorError: 0xd60510,
 				ColorWarn:  0xffc441,
 				ColorInfo:  0x2488ff,
@@ -29,7 +29,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 
 			colors := config.LevelColors()
 
-			gomega.Expect(colors[types.Unknown]).To(gomega.Equal(uint(0x50D9ff)))
+			gomega.Expect(colors[types.Unknown]).To(gomega.Equal(uint(0x50d9ff)))
 			gomega.Expect(colors[types.Error]).To(gomega.Equal(uint(0xd60510)))
 			gomega.Expect(colors[types.Warning]).To(gomega.Equal(uint(0xffc441)))
 			gomega.Expect(colors[types.Info]).To(gomega.Equal(uint(0x2488ff)))
@@ -216,13 +216,13 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 		})
 	})
 
-	ginkgo.Describe("CreateAPIURLFromConfig function", func() {
+	ginkgo.Describe("CreatePostURLFromConfig function", func() {
 		ginkgo.It("should create correct API URL without thread ID", func() {
 			config := &Config{
 				WebhookID: "123456789",
 				Token:     "test-token",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := testWebhookURL
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})
@@ -233,7 +233,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				Token:     "test-token",
 				ThreadID:  "987654321",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := testWebhookURLWithThread
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})
@@ -243,7 +243,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				WebhookID: "  123456789  ",
 				Token:     "  test-token  ",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := testWebhookURL
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})
@@ -254,7 +254,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				Token:     "test-token",
 				ThreadID:  "  987654321  ",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := testWebhookURLWithThread
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})
@@ -264,7 +264,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				WebhookID: "",
 				Token:     "",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			gomega.Expect(apiURL).To(gomega.BeEmpty())
 		})
 
@@ -274,7 +274,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				Token:     "test-token",
 				ThreadID:  "",
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := testWebhookURL
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})
@@ -286,7 +286,7 @@ var _ = ginkgo.Describe("Discord Config Unit Tests", func() {
 				WebhookID: longID,
 				Token:     longToken,
 			}
-			apiURL := CreateAPIURLFromConfig(config)
+			apiURL := CreatePostURLFromConfig(config)
 			expected := "https://discord.com/api/webhooks/" + longID + "/" + longToken
 			gomega.Expect(apiURL).To(gomega.Equal(expected))
 		})

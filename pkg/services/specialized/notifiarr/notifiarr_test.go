@@ -17,12 +17,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestNotifiarr runs the Notifiarr service test suite using Ginkgo.
-func TestNotifiarr(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Notifiarr Suite")
-}
-
 var (
 	service         *notifiarr.Service
 	envNotifiarrURL *url.URL
@@ -71,7 +65,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 
 		ginkgo.It("correctly sets API key from custom URL", func() {
 			customURL := testutils.URLMust("notifiarr://apikey123")
-			serviceURL, err := service.GetConfigURLFromCustom(customURL)
+			serviceURL, err := service.GetServiceURLFromCustom(customURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -98,7 +92,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 					"https://notifiarr.com/api/v1/notification/passthrough/apikey123?channel=123456789",
 				)
 
-				config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				gomega.Expect(config.APIKey).To(gomega.Equal("apikey123"))
@@ -112,7 +106,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 						"https://notifiarr.com/api/v1/notification/watchtower?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
 					)
 
-					config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+					config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 					gomega.Expect(config.APIKey).To(gomega.Equal(""))
@@ -127,7 +121,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
 				)
 
-				config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				gomega.Expect(config.APIKey).To(gomega.Equal(""))
@@ -1506,3 +1500,10 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 		})
 	})
 })
+
+// TestNotifiarr runs the Notifiarr service test suite using Ginkgo.
+func TestNotifiarr(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Notifiarr Suite")
+}

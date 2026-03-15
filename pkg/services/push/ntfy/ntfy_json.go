@@ -2,14 +2,13 @@ package ntfy
 
 import "fmt"
 
-//nolint:errname
-type apiResponse struct {
+type apiResponseError struct {
 	Code    int64  `json:"code"`
 	Message string `json:"error"`
 	Link    string `json:"link"`
 }
 
-func (e *apiResponse) Error() string {
+func (e *apiResponseError) Error() string {
 	msg := fmt.Sprintf("server response: %v (%v)", e.Message, e.Code)
 	if e.Link != "" {
 		return msg + ", see: " + e.Link

@@ -26,14 +26,12 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var tt *testing.T
-
-func TestSMTP(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-
-	tt = t
-	ginkgo.RunSpecs(t, "Shoutrrr SMTP Suite")
+// mockConn is a mock implementation of net.Conn that fails on Close for testing purposes.
+type mockConn struct {
+	closeCount int
 }
+
+var tt *testing.T
 
 var (
 	service    *Service
@@ -51,44 +49,6 @@ var (
 	// BasePlusURL is a config with plus signs in email addresses.
 	BasePlusURL = "smtp://user:password@example.com:2225/?useStartTLS=no&fromAddress=sender+tag@example.com&toAddresses=rec1+tag@example.com,rec2@example.com&useHTML=yes&timeout=10s"
 )
-
-// mockConn is a mock implementation of net.Conn that fails on Close for testing purposes.
-type mockConn struct {
-	closeCount int
-}
-
-func (m *mockConn) Read(_ []byte) (int, error)  { return 0, nil }
-func (m *mockConn) Write(b []byte) (int, error) { return len(b), nil }
-func (m *mockConn) Close() error {
-	m.closeCount++
-
-	_, _ = ginkgo.GinkgoWriter.Write([]byte("mockConn.Close called\n"))
-
-	if m.closeCount > 1 {
-		return errors.New("mock close error")
-	}
-
-	return nil
-}
-func (m *mockConn) LocalAddr() net.Addr                { return nil }
-func (m *mockConn) RemoteAddr() net.Addr               { return nil }
-func (m *mockConn) SetDeadline(_ time.Time) error      { return nil }
-func (m *mockConn) SetReadDeadline(_ time.Time) error  { return nil }
-func (m *mockConn) SetWriteDeadline(_ time.Time) error { return nil }
-
-// modifyURL modifies a base URL by updating query parameters as specified.
-func modifyURL(base string, params map[string]string) string {
-	u := testutils.URLMust(base)
-
-	q := u.Query()
-	for k, v := range params {
-		q.Set(k, v)
-	}
-
-	u.RawQuery = q.Encode()
-
-	return u.String()
-}
 
 var _ = ginkgo.Describe("the SMTP service", func() {
 	ginkgo.BeforeEach(func() {
@@ -744,36 +704,64 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 	})
 })
 
-func testSendRecipient(testURL string, responses []string) failures.Failure {
-	serviceURL, err := url.Parse(testURL)
-	if err != nil {
-		return standard.Failure(standard.FailParseURL, err)
-	}
+func (m *mockConn) Close() error {
+	m.closeCount++
 
-	err = service.Initialize(serviceURL, logger)
-	if err != nil {
-		return failures.Wrap("error parsing URL", standard.FailTestSetup, err)
-	}
+	_, _ = ginkgo.GinkgoWriter.Write([]byte("mockConn.Close called\n"))
 
-	if err := service.SetTemplateString("plain", "{{.message}}"); err != nil {
-		return failures.Wrap("error setting plain template", standard.FailTestSetup, err)
-	}
-
-	textCon, tcfaker := testutils.CreateTextConFaker(responses, "\r\n")
-	client := &smtp.Client{Text: textCon}
-	fakeTLSEnabled(client, serviceURL.Hostname())
-
-	config := &Config{}
-	message := "message body"
-	ferr := service.sendToRecipient(client, "r@example.com", config, message)
-
-	logger.Printf("\n%s", tcfaker.GetConversation(false))
-
-	if ferr != nil {
-		return ferr
+	if m.closeCount > 1 {
+		return errors.New("mock close error")
 	}
 
 	return nil
+}
+func (m *mockConn) LocalAddr() net.Addr                { return nil }
+func (m *mockConn) Read(_ []byte) (int, error)         { return 0, nil }
+func (m *mockConn) RemoteAddr() net.Addr               { return nil }
+func (m *mockConn) SetDeadline(_ time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (m *mockConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (m *mockConn) Write(b []byte) (int, error)        { return len(b), nil }
+
+func TestSMTP(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+
+	tt = t
+	ginkgo.RunSpecs(t, "Shoutrrr SMTP Suite")
+}
+
+// fakeTLSEnabled tricks a given client into believing that TLS is enabled even though it's not
+// this is needed because the SMTP library won't allow plain authentication without TLS being turned on.
+// having it turned on would of course mean that we cannot test the communication since it will be encrypted.
+func fakeTLSEnabled(client *smtp.Client, hostname string) {
+	// set the "tls" flag on the client which indicates that TLS encryption is enabled (even though it's not)
+	cr := reflect.ValueOf(client).Elem().FieldByName("tls")
+	cr = reflect.NewAt(cr.Type(), unsafe.Pointer(cr.UnsafeAddr())).Elem()
+	cr.SetBool(true)
+	// set the serverName field on the client which is used to identify the server and has to equal the hostname
+	cr = reflect.ValueOf(client).Elem().FieldByName("serverName")
+	cr = reflect.NewAt(cr.Type(), unsafe.Pointer(cr.UnsafeAddr())).Elem()
+	cr.SetString(hostname)
+}
+
+// matchFailure is a simple wrapper around `fail` and `gomega.MatchError` to make it easier to use in tests.
+func matchFailure(id failures.FailureID) gomegaTypes.GomegaMatcher {
+	return gomega.MatchError(fail(id, nil))
+}
+
+// modifyURL modifies a base URL by updating query parameters as specified.
+func modifyURL(base string, params map[string]string) string {
+	u := testutils.URLMust(base)
+
+	q := u.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
 
 func testIntegration(
@@ -823,21 +811,34 @@ func testIntegration(
 	return nil
 }
 
-// fakeTLSEnabled tricks a given client into believing that TLS is enabled even though it's not
-// this is needed because the SMTP library won't allow plain authentication without TLS being turned on.
-// having it turned on would of course mean that we cannot test the communication since it will be encrypted.
-func fakeTLSEnabled(client *smtp.Client, hostname string) {
-	// set the "tls" flag on the client which indicates that TLS encryption is enabled (even though it's not)
-	cr := reflect.ValueOf(client).Elem().FieldByName("tls")
-	cr = reflect.NewAt(cr.Type(), unsafe.Pointer(cr.UnsafeAddr())).Elem()
-	cr.SetBool(true)
-	// set the serverName field on the client which is used to identify the server and has to equal the hostname
-	cr = reflect.ValueOf(client).Elem().FieldByName("serverName")
-	cr = reflect.NewAt(cr.Type(), unsafe.Pointer(cr.UnsafeAddr())).Elem()
-	cr.SetString(hostname)
-}
+func testSendRecipient(testURL string, responses []string) failures.Failure {
+	serviceURL, err := url.Parse(testURL)
+	if err != nil {
+		return standard.Failure(standard.FailParseURL, err)
+	}
 
-// matchFailure is a simple wrapper around `fail` and `gomega.MatchError` to make it easier to use in tests.
-func matchFailure(id failures.FailureID) gomegaTypes.GomegaMatcher {
-	return gomega.MatchError(fail(id, nil))
+	err = service.Initialize(serviceURL, logger)
+	if err != nil {
+		return failures.Wrap("error parsing URL", standard.FailTestSetup, err)
+	}
+
+	if err := service.SetTemplateString("plain", "{{.message}}"); err != nil {
+		return failures.Wrap("error setting plain template", standard.FailTestSetup, err)
+	}
+
+	textCon, tcfaker := testutils.CreateTextConFaker(responses, "\r\n")
+	client := &smtp.Client{Text: textCon}
+	fakeTLSEnabled(client, serviceURL.Hostname())
+
+	config := &Config{}
+	message := "message body"
+	ferr := service.sendToRecipient(client, "r@example.com", config, message)
+
+	logger.Printf("\n%s", tcfaker.GetConversation(false))
+
+	if ferr != nil {
+		return ferr
+	}
+
+	return nil
 }

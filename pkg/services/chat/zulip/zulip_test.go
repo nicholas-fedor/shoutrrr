@@ -16,11 +16,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestZulip(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Zulip Suite")
-}
-
 var (
 	service     *Service
 	envZulipURL *url.URL
@@ -30,27 +25,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	service = &Service{}
 	envZulipURL, _ = url.Parse(os.Getenv("SHOUTRRR_ZULIP_URL"))
 })
-
-// Helper function to create Zulip URLs with optional overrides.
-func createZulipURL(botMail, botKey, host, stream, topic string) *url.URL {
-	query := url.Values{}
-	if stream != "" {
-		query.Set("stream", stream)
-	}
-
-	if topic != "" {
-		query.Set("topic", topic)
-	}
-
-	u := &url.URL{
-		Scheme:   "zulip",
-		User:     url.UserPassword(botMail, botKey),
-		Host:     host,
-		RawQuery: query.Encode(),
-	}
-
-	return u
-}
 
 var _ = ginkgo.Describe("the zulip service", func() {
 	ginkgo.When("running integration tests", func() {
@@ -407,8 +381,35 @@ var _ = ginkgo.Describe("the zulip service", func() {
 	})
 })
 
-func expectErrorMessageGivenURL(msg ErrorMessage, zulipURL *url.URL) {
+func TestZulip(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Zulip Suite")
+}
+
+// Helper function to create Zulip URLs with optional overrides.
+func createZulipURL(botMail, botKey, host, stream, topic string) *url.URL {
+	query := url.Values{}
+	if stream != "" {
+		query.Set("stream", stream)
+	}
+
+	if topic != "" {
+		query.Set("topic", topic)
+	}
+
+	u := &url.URL{
+		Scheme:   "zulip",
+		User:     url.UserPassword(botMail, botKey),
+		Host:     host,
+		RawQuery: query.Encode(),
+	}
+
+	return u
+}
+
+func expectErrorMessageGivenURL(msg string, zulipURL *url.URL) {
 	err := service.Initialize(zulipURL, testutils.TestLogger())
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(msg))
 }

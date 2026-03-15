@@ -6,12 +6,8 @@ import (
 	"time"
 )
 
-const (
-	// TokenLength defines the expected length of a Gotify token, which must be exactly 15 characters and start with 'A'.
-	TokenLength = 15
-	// TokenChars specifies the valid characters for a Gotify token.
-	TokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
-)
+// DefaultValidator provides the default implementation of Validator.
+type DefaultValidator struct{}
 
 // Validator handles input validation for the Gotify service.
 type Validator interface {
@@ -22,35 +18,12 @@ type Validator interface {
 	ValidateToken(token string) bool
 }
 
-// DefaultValidator provides the default implementation of Validator.
-type DefaultValidator struct{}
-
-// ValidateMessage checks if the message is not empty.
-func (v *DefaultValidator) ValidateMessage(message string) error {
-	if message == "" {
-		return ErrEmptyMessage
-	}
-
-	return nil
-}
-
-// ValidateServiceInitialized checks if the service configuration is initialized.
-func (v *DefaultValidator) ValidateServiceInitialized(config *Config) error {
-	if config == nil {
-		return ErrServiceNotInitialized
-	}
-
-	return nil
-}
-
-// ValidatePriority checks if the priority is within the valid range (-2 to 10).
-func (v *DefaultValidator) ValidatePriority(priority int) error {
-	if priority < -2 || priority > 10 {
-		return ErrInvalidPriority
-	}
-
-	return nil
-}
+const (
+	// TokenLength defines the expected length of a Gotify token, which must be exactly 15 characters and start with 'A'.
+	TokenLength = 15
+	// TokenChars specifies the valid characters for a Gotify token.
+	TokenChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
+)
 
 // ValidateDate validates and converts the provided date string to RFC3339 format.
 // It attempts parsing multiple formats in order of preference: RFC3339, RFC3339 without timezone,
@@ -85,6 +58,33 @@ func (v *DefaultValidator) ValidateDate(date string) (string, error) {
 	}
 
 	return "", ErrInvalidDate
+}
+
+// ValidateMessage checks if the message is not empty.
+func (v *DefaultValidator) ValidateMessage(message string) error {
+	if message == "" {
+		return ErrEmptyMessage
+	}
+
+	return nil
+}
+
+// ValidatePriority checks if the priority is within the valid range (-2 to 10).
+func (v *DefaultValidator) ValidatePriority(priority int) error {
+	if priority < -2 || priority > 10 {
+		return ErrInvalidPriority
+	}
+
+	return nil
+}
+
+// ValidateServiceInitialized checks if the service configuration is initialized.
+func (v *DefaultValidator) ValidateServiceInitialized(config *Config) error {
+	if config == nil {
+		return ErrServiceNotInitialized
+	}
+
+	return nil
 }
 
 // ValidateToken checks if a Gotify token meets length and character requirements.

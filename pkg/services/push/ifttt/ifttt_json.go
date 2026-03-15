@@ -7,19 +7,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// ValueFieldOne represents the Value1 field in the IFTTT payload.
-const (
-	ValueFieldOne   = 1 // Represents Value1 field
-	ValueFieldTwo   = 2 // Represents Value2 field
-	ValueFieldThree = 3 // Represents Value3 field
-)
-
 // jsonPayload represents the notification payload sent to the IFTTT webhook API.
 type jsonPayload struct {
 	Value1 string `json:"value1"`
 	Value2 string `json:"value2"`
 	Value3 string `json:"value3"`
 }
+
+// ValueFieldOne represents the Value1 field in the IFTTT payload.
+const (
+	ValueFieldOne   = 1 // Represents Value1 field
+	ValueFieldTwo   = 2 // Represents Value2 field
+	ValueFieldThree = 3 // Represents Value3 field
+)
 
 // createJSONToSend generates a JSON payload for the IFTTT webhook API.
 func createJSONToSend(config *Config, message string, params *types.Params) ([]byte, error) {

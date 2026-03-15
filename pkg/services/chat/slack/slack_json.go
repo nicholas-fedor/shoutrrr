@@ -5,13 +5,6 @@ import (
 	"strings"
 )
 
-// Constants for Slack API limits.
-const (
-	MaxAttachments = 100 // Maximum number of attachments allowed by Slack API
-)
-
-var iconURLPattern = regexp.MustCompile(`https?://`)
-
 // MessagePayload used within the Slack service.
 type MessagePayload struct {
 	Text        string       `json:"text"`
@@ -60,6 +53,13 @@ type APIResponse struct {
 	} `json:"response_metadata"`
 }
 
+// Constants for Slack API limits.
+const (
+	MaxAttachments = 100 // Maximum number of attachments allowed by Slack API
+)
+
+var iconURLPattern = regexp.MustCompile(`https?://`)
+
 // CreateJSONPayload compatible with the slack post message API.
 func CreateJSONPayload(config *Config, message string) any {
 	lines := strings.Split(message, "\n")
@@ -75,8 +75,13 @@ func CreateJSONPayload(config *Config, message string) any {
 		}
 
 		atts = append(atts, attachment{
-			Text:  line,
-			Color: config.Color,
+			Text:     line,
+			Color:    config.Color,
+			Title:    "",
+			Fallback: "",
+			Fields:   nil,
+			Footer:   "",
+			Time:     0,
 		})
 	}
 
@@ -90,6 +95,10 @@ func CreateJSONPayload(config *Config, message string) any {
 		Text:        config.Title,
 		BotName:     config.BotName,
 		Attachments: atts,
+		Blocks:      nil,
+		Channel:     "",
+		IconEmoji:   "",
+		IconURL:     "",
 	}
 
 	payload.SetIcon(config.Icon)

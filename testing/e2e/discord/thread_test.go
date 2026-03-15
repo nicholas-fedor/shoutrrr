@@ -12,15 +12,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 )
 
-// redact masks sensitive string values for logging.
-func redact(value string) string {
-	if len(value) <= 4 {
-		return "****"
-	}
-
-	return "****" + value[len(value)-4:]
-}
-
 var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 	ginkgo.When("running e2e tests", func() {
 		ginkgo.It("should post message to existing thread using thread_id", func() {
@@ -84,3 +75,12 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 		})
 	})
 })
+
+// redact masks sensitive string values for logging.
+func redact(value string) string {
+	if len(value) <= 4 {
+		return "****"
+	}
+
+	return "****" + value[len(value)-4:]
+}

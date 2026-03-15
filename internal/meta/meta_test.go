@@ -9,6 +9,8 @@ import (
 )
 
 func TestGetVersionInfo(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		setVars      func()
@@ -27,6 +29,7 @@ func TestGetVersionInfo(t *testing.T) {
 				Commit:  "abc1234",
 				Date:    "2025-05-07",
 			},
+			partialMatch: false,
 		},
 		{
 			name: "Source build with default values",
@@ -54,6 +57,7 @@ func TestGetVersionInfo(t *testing.T) {
 				Commit:  unknownValue,
 				Date:    time.Now().UTC().Format("2006-01-02"),
 			},
+			partialMatch: false,
 		},
 		{
 			name: "Invalid GoReleaser version",
@@ -67,11 +71,13 @@ func TestGetVersionInfo(t *testing.T) {
 				Commit:  unknownValue,
 				Date:    time.Now().UTC().Format("2006-01-02"),
 			},
+			partialMatch: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.setVars()
 
 			info := GetMetaInfo()
@@ -97,6 +103,8 @@ func TestGetVersionInfo(t *testing.T) {
 }
 
 func TestGetVersionInfo_VCSData(t *testing.T) {
+	t.Parallel()
+
 	Version = devVersion
 	Commit = unknownValue
 	Date = unknownValue
@@ -186,6 +194,8 @@ func TestGetVersionInfo_VCSData(t *testing.T) {
 }
 
 func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
+	t.Parallel()
+
 	Version = devVersion
 	Commit = unknownValue
 	Date = unknownValue
@@ -198,6 +208,8 @@ func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
 }
 
 func TestGetMetaStr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		setVars func()
@@ -234,6 +246,7 @@ func TestGetMetaStr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.setVars()
 
 			result := GetMetaStr()
@@ -246,6 +259,8 @@ func TestGetMetaStr(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		s        string
@@ -280,6 +295,8 @@ func TestContains(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := contains(tt.s, tt.substr)
 			if result != tt.expected {
 				t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, result, tt.expected)

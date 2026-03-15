@@ -10,14 +10,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const (
-	defaultPort = 443        // defaultPort is the default port for OpsGenie API connections.
-	Scheme      = "opsgenie" // Scheme is the identifying part of this service's configuration URL.
-)
-
-// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
-var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
-
 // Config holds the configuration for the OpsGenie service.
 type Config struct {
 	APIKey      string            `desc:"The OpsGenie API key"                                                                                   url:"path"`
@@ -38,30 +30,45 @@ type Config struct {
 	Title       string            `desc:"notification title, optionally set by the sender"                                                                  default:""                 key:"title"`
 }
 
+const (
+	defaultPort = 443        // defaultPort is the default port for OpsGenie API connections.
+	Scheme      = "opsgenie" // Scheme is the identifying part of this service's configuration URL.
+)
+
+// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
+var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
+
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
-func (config *Config) Enums() map[string]types.EnumFormatter {
+func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL returns a URL representation of the Config's current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
+}
+
+// SetURL updates the Config from a URL representation of its field values.
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var host string
-	if config.Port > 0 {
-		host = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	if c.Port > 0 {
+		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
 	} else {
-		host = config.Host
+		host = c.Host
 	}
 
 	result := &url.URL{
 		Host:     host,
-		Path:     "/" + config.APIKey,
+		Path:     "/" + c.APIKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
@@ -69,39 +76,41 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return result
 }
 
-// SetURL updates the Config from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
-
-	return config.setURL(&resolver, url)
-}
-
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	config.Host = url.Hostname()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Hostname()
 
-	if url.String() != "opsgenie://dummy@dummy.com" {
-		if len(url.Path) > 0 {
-			config.APIKey = url.Path[1:]
+	if serviceURL.String() != "opsgenie://dummy@dummy.com" {
+		if serviceURL.Path != "" {
+			c.APIKey = serviceURL.Path[1:]
 		} else {
 			return ErrAPIKeyMissing
 		}
 	}
 
-	if url.Port() != "" {
-		port, err := strconv.ParseUint(url.Port(), 10, 16)
+	if serviceURL.Port() != "" {
+		port, err := strconv.ParseUint(
+			serviceURL.Port(),
+			10,
+			16,
+		)
 		if err != nil {
-			return fmt.Errorf("parsing port %q: %w", url.Port(), err)
+			return fmt.Errorf("parsing port %q: %w", serviceURL.Port(), err)
 		}
 
-		config.Port = uint16(port)
+		c.Port = uint16(port)
 	} else {
-		config.Port = defaultPort
+		c.Port = defaultPort
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
+			return fmt.Errorf(
+				"setting query parameter %q to %q: %w",
+				key,
+				vals[0],
+				err,
+			)
 		}
 	}
 

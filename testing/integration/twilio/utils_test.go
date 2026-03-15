@@ -7,11 +7,23 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
 )
+
+// MockHTTPClient is a testify mock that implements the HTTPClient interface.
+type MockHTTPClient struct {
+	mock.Mock
+}
+
+// mockLogger is a simple logger implementation for testing.
+type mockLogger struct{}
+
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
 
 // createTestService creates a Twilio service instance configured for testing.
 func createTestService(
@@ -24,10 +36,10 @@ func createTestService(
 	service := &twilio.Service{}
 
 	parsedURL, err := url.Parse(twilioURL)
-	assert.NoError(t, err) //nolint:testifylint
+	require.NoError(t, err)
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err) //nolint:testifylint
+	require.NoError(t, err)
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
@@ -35,18 +47,6 @@ func createTestService(
 	}
 
 	return service
-}
-
-// mockLogger is a simple logger implementation for testing.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
-
-// MockHTTPClient is a testify mock that implements the HTTPClient interface.
-type MockHTTPClient struct {
-	mock.Mock
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -82,22 +82,25 @@ func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedCon
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				continue
-			}
-			// Reset the body for potential future reads
-			req.Body = io.NopCloser(bytes.NewReader(body))
+		req := call.Arguments[0].(*http.Request)
 
-			if bytes.Contains(body, []byte(expectedContent)) {
-				found = true
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			continue
+		}
+		// Reset the body for potential future reads
+		req.Body = io.NopCloser(bytes.NewReader(body))
 
-				break
-			}
+		if bytes.Contains(body, []byte(expectedContent)) {
+			found = true
+
+			break
 		}
 	}
 
@@ -117,14 +120,17 @@ func assertRequestMatches(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
-			if predicate(req) {
-				found = true
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-				break
-			}
+		req := call.Arguments[0].(*http.Request)
+		if predicate(req) {
+			found = true
+
+			break
 		}
 	}
 
@@ -143,14 +149,17 @@ func assertRequestMade(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
-		if call.Method == "Do" {
-			req := call.Arguments[0].(*http.Request)
-			if req.Method == http.MethodPost && req.URL.String() == expectedURL {
-				found = true
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method != "Do" {
+			continue
+		}
 
-				break
-			}
+		req := call.Arguments[0].(*http.Request)
+		if req.Method == http.MethodPost && req.URL.String() == expectedURL {
+			found = true
+
+			break
 		}
 	}
 

@@ -15,6 +15,22 @@ import (
 // envValueTrue is the string value for boolean true in environment variables.
 const envValueTrue = "true"
 
+//nolint:paralleltest // Avoid using parallel test when making external calls
+func Test_MQTT_E2E(t *testing.T) {
+	// Load .env file if it exists
+	loadEnvFile(".env")
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+
+	// Add delay between tests to respect broker rate limits
+	ginkgo.BeforeEach(func() {
+		// Add a small delay between tests to avoid overwhelming the broker
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	ginkgo.RunSpecs(t, "MQTT E2E Tests")
+}
+
 // addCredentialsToURL adds username and password from environment variables to the URL
 // if they are set. Returns the modified URL string.
 func addCredentialsToURL(envURL string) string {
@@ -63,21 +79,6 @@ func addTLSParam(rawURL string) string {
 	}
 
 	return rawURL
-}
-
-func TestMQTT_E2E(t *testing.T) {
-	// Load .env file if it exists
-	loadEnvFile(".env")
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-
-	// Add delay between tests to respect broker rate limits
-	ginkgo.BeforeEach(func() {
-		// Add a small delay between tests to avoid overwhelming the broker
-		time.Sleep(100 * time.Millisecond)
-	})
-
-	ginkgo.RunSpecs(t, "MQTT E2E Tests")
 }
 
 // loadEnvFile loads environment variables from a .env file.

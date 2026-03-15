@@ -12,10 +12,6 @@ type Client struct {
 	token string
 }
 
-func (c *Client) apiURL(endpoint string) string {
-	return fmt.Sprintf(apiFormat, c.token, endpoint)
-}
-
 // GetBotInfo returns the bot User info.
 func (c *Client) GetBotInfo() (*User, error) {
 	response := &userResponse{}
@@ -61,6 +57,10 @@ func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
 	}
 
 	return response.Result, nil
+}
+
+func (c *Client) apiURL(endpoint string) string {
+	return fmt.Sprintf(apiFormat, c.token, endpoint)
 }
 
 // GetErrorResponse retrieves the error message from a failed request.

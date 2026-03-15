@@ -2,7 +2,6 @@ package join
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,25 +12,41 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to Join devices.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 const (
 	// hookURL defines the Join API endpoint for sending push notifications.
 	hookURL     = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
 	contentType = "text/plain"
 )
 
-// ErrSendFailed indicates a failure to send a notification to Join devices.
-var ErrSendFailed = errors.New("failed to send notification to join devices")
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
 
-// Service sends notifications to Join devices.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Send delivers a notification message to Join devices.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
 	if params == nil {
 		params = &types.Params{}
@@ -49,11 +64,11 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	devices := strings.Join(config.Devices, ",")
 
-	return service.sendToDevices(devices, message, title, icon)
+	return s.sendToDevices(devices, message, title, icon)
 }
 
-func (service *Service) sendToDevices(devices, message, title, icon string) error {
-	config := service.Config
+func (s *Service) sendToDevices(devices, message, title, icon string) error {
+	config := s.Config
 
 	apiURL, err := url.Parse(hookURL)
 	if err != nil {
@@ -65,11 +80,11 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 	data.Set("apikey", config.APIKey)
 	data.Set("text", message)
 
-	if len(title) > 0 {
+	if title != "" {
 		data.Set("title", title)
 	}
 
-	if len(icon) > 0 {
+	if title != "" {
 		data.Set("icon", icon)
 	}
 
@@ -79,7 +94,7 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 		context.Background(),
 		http.MethodPost,
 		apiURL.String(),
-		nil,
+		http.NoBody,
 	)
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", err)
@@ -95,26 +110,13 @@ func (service *Service) sendToDevices(devices, message, title, icon string) erro
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, devices, res.Status)
+		return fmt.Errorf(
+			"%w: %q, response status %q",
+			ErrSendFailed,
+			devices,
+			res.Status,
+		)
 	}
 
 	return nil
-}
-
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetID returns the identifier for this service.
-func (service *Service) GetID() string {
-	return Scheme
 }

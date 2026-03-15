@@ -14,11 +14,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestServices(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Service Compliance Suite")
-}
-
 var serviceURLs = map[string]string{
 	"discord":    "discord://token@id",
 	"gotify":     "gotify://example.com/Aaa.bbb.ccc.ddd",
@@ -78,7 +73,7 @@ var _ = ginkgo.Describe("services", func() {
 			httpmock.DeactivateAndReset()
 		})
 
-		for key, configURL := range serviceURLs {
+		for key, serviceURL := range serviceURLs {
 			serviceRouter, _ = router.New(logger)
 
 			ginkgo.It("should not throw an error for "+key, func() {
@@ -90,7 +85,7 @@ var _ = ginkgo.Describe("services", func() {
 					ginkgo.Skip("not supported")
 				}
 
-				service, err := serviceRouter.Locate(configURL)
+				service, err := serviceRouter.Locate(serviceURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				httpmock.Activate()
@@ -128,7 +123,7 @@ var _ = ginkgo.Describe("services", func() {
 
 			if key == "mattermost" {
 				ginkgo.It("should not throw an error for "+key+" with DisableTLS", func() {
-					modifiedURL := configURL + "?disabletls=yes"
+					modifiedURL := serviceURL + "?disabletls=yes"
 					service, err := serviceRouter.Locate(modifiedURL)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -153,3 +148,9 @@ var _ = ginkgo.Describe("services", func() {
 		}
 	})
 })
+
+func TestServices(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Service Compliance Suite")
+}

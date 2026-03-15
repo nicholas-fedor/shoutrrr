@@ -130,7 +130,7 @@ func getPayloadFromURL(
 		return SendMessagePayload{}, err
 	}
 
-	if err = telegram.Initialize(serviceURL, logger); err != nil {
+	if err := telegram.Initialize(serviceURL, logger); err != nil {
 		return SendMessagePayload{}, err
 	}
 
@@ -141,7 +141,7 @@ func getPayloadFromURL(
 	return createSendMessagePayload(message, telegram.Config.Chats[0], telegram.Config), nil
 }
 
-func getPayloadStringFromURL(testURL string, message string, logger *log.Logger) ([]byte, error) {
+func getPayloadStringFromURL(testURL, message string, logger *log.Logger) ([]byte, error) {
 	payload, err := getPayloadFromURL(testURL, message, logger)
 	if err != nil {
 		return nil, err

@@ -22,6 +22,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to given email addresses via SMTP.
+type Service struct {
+	standard.Standard
+	standard.Templater
+
+	Config            *Config
+	multipartBoundary string
+	propKeyResolver   format.PropKeyResolver
+}
+
 const (
 	contentHTML                 = "text/html; charset=\"UTF-8\""
 	contentPlain                = "text/plain; charset=\"UTF-8\""
@@ -40,19 +50,15 @@ var (
 	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
 )
 
-// Service sends notifications to given email addresses via SMTP.
-type Service struct {
-	standard.Standard
-	standard.Templater
-	Config            *Config
-	multipartBoundary string
-	propKeyResolver   format.PropKeyResolver
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
-// Initialize loads ServiceConfig from configURL and sets logger for this Service.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{
+// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{
 		Port:        DefaultSMTPPort,
 		ToAddresses: nil,
 		Subject:     "",
@@ -64,50 +70,45 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 		Timeout:     DefaultTimeout * time.Second,
 	}
 
-	pkr := format.NewPropKeyResolver(service.Config)
+	pkr := format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&pkr, configURL); err != nil {
+	if err := s.Config.setURL(&pkr, serviceURL); err != nil {
 		return err
 	}
 
-	if service.Config.Auth == AuthTypes.Unknown {
-		if service.Config.Username != "" {
-			service.Config.Auth = AuthTypes.Plain
+	if s.Config.Auth == AuthTypes.Unknown {
+		if s.Config.Username != "" {
+			s.Config.Auth = AuthTypes.Plain
 		} else {
-			service.Config.Auth = AuthTypes.None
+			s.Config.Auth = AuthTypes.None
 		}
 	}
 
-	service.propKeyResolver = pkr
+	s.propKeyResolver = pkr
 
 	return nil
 }
 
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
-}
-
 // Send sends a notification message to email recipients.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config.Clone()
-	if err := service.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config.Clone()
+	if err := s.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
 		return fail(FailApplySendParams, err)
 	}
 
 	if config.SkipTLSVerify {
-		service.Log("Warning: TLS verification is disabled, making connections insecure")
+		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	client, err := getClientConnection(ctx, service.Config)
+	client, err := getClientConnection(ctx, s.Config)
 	if err != nil {
 		return fail(FailGetSMTPClient, err)
 	}
 
-	return service.doSend(client, message, &config)
+	return s.doSend(client, message, &config)
 }
 
 // getClientConnection establishes a connection to the SMTP server using the provided configuration.
@@ -123,8 +124,8 @@ func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, err
 		dialer := &tls.Dialer{
 			Config: &tls.Config{
 				ServerName:         config.Host,
-				MinVersion:         tls.VersionTLS12,     // Enforce TLS 1.2 or higher
-				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
+				MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
+				InsecureSkipVerify: config.SkipTLSVerify,
 			},
 		}
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
@@ -146,10 +147,10 @@ func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, err
 }
 
 // doSend sends an email message using the provided SMTP client and configuration.
-func (service *Service) doSend(client *smtp.Client, message string, config *Config) failure {
+func (s *Service) doSend(client *smtp.Client, message string, config *Config) failure {
 	config.FixEmailTags()
 
-	clientHost := service.resolveClientHost(config)
+	clientHost := s.resolveClientHost(config)
 
 	if err := client.Hello(clientHost); err != nil {
 		return fail(FailHandshake, err)
@@ -161,7 +162,7 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 			return fail(FailUnknown, err) // Fallback error for rare case
 		}
 
-		service.multipartBoundary = hex.EncodeToString(b)
+		s.multipartBoundary = hex.EncodeToString(b)
 	}
 
 	if config.UseStartTLS && !useImplicitTLS(config.Encryption, config.Port) {
@@ -170,7 +171,7 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 				return fail(FailEnableStartTLS, ErrServerNoStartTLS)
 			}
 
-			service.Logf(
+			s.Logf(
 				"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted",
 			)
 		} else {
@@ -178,14 +179,15 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 				ServerName:         config.Host,
 				MinVersion:         tls.VersionTLS12,
 				MaxVersion:         tls.VersionTLS13,
-				InsecureSkipVerify: config.SkipTLSVerify, //nolint:gosec
+				InsecureSkipVerify: config.SkipTLSVerify,
 			}); err != nil {
 				return fail(FailEnableStartTLS, err)
 			}
 		}
 	}
 
-	if auth, err := service.getAuth(config); err != nil {
+	auth, err := s.getAuth(config)
+	if err != nil && !errors.Is(err, ErrNoAuth) {
 		return err
 	} else if auth != nil {
 		if err := client.Auth(auth); err != nil {
@@ -196,14 +198,14 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 	var errs []error
 
 	for _, toAddress := range config.ToAddresses {
-		if err := service.sendToRecipient(client, toAddress, config, message); err != nil {
+		if err := s.sendToRecipient(client, toAddress, config, message); err != nil {
 			errs = append(errs, fail(FailSendRecipient, err, toAddress))
-			service.Logf("Failed to send to %q: %v", toAddress, err)
+			s.Logf("Failed to send to %q: %v", toAddress, err)
 
 			continue
 		}
 
-		service.Logf("Mail successfully sent to %q!", toAddress)
+		s.Logf("Mail successfully sent to %q!", toAddress)
 	}
 
 	// Send the QUIT command and close the connection.
@@ -211,7 +213,7 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 		// Ignore known "short response" errors from quirky servers (e.g., Office 365 on close),
 		// as they don't impact delivery.
 		if strings.Contains(err.Error(), shortResponseErrorSubstring) {
-			service.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
+			s.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
 		} else {
 			// Bubble up other close errors (e.g., network drops)
 			errs = append(errs, fail(FailClosingSession, err))
@@ -220,7 +222,7 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 
 	// Best-effort cleanup to avoid descriptor leaks
 	if closeErr := client.Close(); closeErr != nil {
-		service.Logf("Warning: Failed to close SMTP client connection: %v", closeErr)
+		s.Logf("Warning: Failed to close SMTP client connection: %v", closeErr)
 	}
 
 	if len(errs) > 0 {
@@ -234,29 +236,13 @@ func (service *Service) doSend(client *smtp.Client, message string, config *Conf
 	return nil
 }
 
-// resolveClientHost determines the client hostname to use in the SMTP handshake.
-func (service *Service) resolveClientHost(config *Config) string {
-	if config.ClientHost != "auto" {
-		return config.ClientHost
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		service.Logf("Failed to get hostname, falling back to localhost: %v", err)
-
-		return "localhost"
-	}
-
-	return hostname
-}
-
 // getAuth returns the appropriate SMTP authentication mechanism based on the configuration.
 //
-//nolint:exhaustive,nilnil
-func (service *Service) getAuth(config *Config) (smtp.Auth, failure) {
+//nolint:exhaustive // false positive: switch covers all AuthTypes, linter confuses local authType with net/smtp.authType
+func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
 	switch config.Auth {
 	case AuthTypes.None:
-		return nil, nil // No auth required, proceed without error
+		return nil, fail(FailAuthType, ErrNoAuth)
 	case AuthTypes.Plain:
 		return smtp.PlainAuth("", config.Username, config.Password, config.Host), nil
 	case AuthTypes.CRAMMD5:
@@ -270,8 +256,45 @@ func (service *Service) getAuth(config *Config) (smtp.Auth, failure) {
 	}
 }
 
+// getHeaders constructs email headers for the SMTP message.
+func (s *Service) getHeaders(toAddress, subject string) map[string]string {
+	conf := s.Config
+
+	var contentType string
+	if conf.UseHTML {
+		contentType = fmt.Sprintf(contentMultipart, s.multipartBoundary)
+	} else {
+		contentType = contentPlain
+	}
+
+	return map[string]string{
+		"Subject":      subject,
+		"Date":         time.Now().Format(time.RFC1123Z),
+		"To":           toAddress,
+		"From":         fmt.Sprintf("%s <%s>", conf.FromName, conf.FromAddress),
+		"MIME-version": "1.0",
+		"Content-Type": contentType,
+	}
+}
+
+// resolveClientHost determines the client hostname to use in the SMTP handshake.
+func (s *Service) resolveClientHost(config *Config) string {
+	if config.ClientHost != "auto" {
+		return config.ClientHost
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		s.Logf("Failed to get hostname, falling back to localhost: %v", err)
+
+		return "localhost"
+	}
+
+	return hostname
+}
+
 // sendToRecipient sends an email to a single recipient using the provided SMTP client.
-func (service *Service) sendToRecipient(
+func (s *Service) sendToRecipient(
 	client *smtp.Client,
 	toAddress string,
 	config *Config,
@@ -292,15 +315,15 @@ func (service *Service) sendToRecipient(
 		return fail(FailOpenDataStream, err)
 	}
 
-	if err := writeHeaders(writeCloser, service.getHeaders(toAddress, config.Subject)); err != nil {
+	if err := writeHeaders(writeCloser, s.getHeaders(toAddress, config.Subject)); err != nil {
 		return err
 	}
 
 	var ferr failure
 	if config.UseHTML {
-		ferr = service.writeMultipartMessage(writeCloser, message)
+		ferr = s.writeMultipartMessage(writeCloser, message)
 	} else {
-		ferr = service.writeMessagePart(writeCloser, message, "plain")
+		ferr = s.writeMessagePart(writeCloser, message, "plain")
 	}
 
 	if ferr != nil {
@@ -314,67 +337,13 @@ func (service *Service) sendToRecipient(
 	return nil
 }
 
-// getHeaders constructs email headers for the SMTP message.
-func (service *Service) getHeaders(toAddress string, subject string) map[string]string {
-	conf := service.Config
-
-	var contentType string
-	if conf.UseHTML {
-		contentType = fmt.Sprintf(contentMultipart, service.multipartBoundary)
-	} else {
-		contentType = contentPlain
-	}
-
-	return map[string]string{
-		"Subject":      subject,
-		"Date":         time.Now().Format(time.RFC1123Z),
-		"To":           toAddress,
-		"From":         fmt.Sprintf("%s <%s>", conf.FromName, conf.FromAddress),
-		"MIME-version": "1.0",
-		"Content-Type": contentType,
-	}
-}
-
-// writeMultipartMessage writes a multipart email message to the provided writer.
-func (service *Service) writeMultipartMessage(writeCloser io.WriteCloser, message string) failure {
-	if err := writeMultipartHeader(
-		writeCloser,
-		service.multipartBoundary,
-		contentPlain,
-	); err != nil {
-		return fail(FailPlainHeader, err)
-	}
-
-	if err := service.writeMessagePart(writeCloser, message, "plain"); err != nil {
-		return err
-	}
-
-	if err := writeMultipartHeader(
-		writeCloser,
-		service.multipartBoundary,
-		contentHTML,
-	); err != nil {
-		return fail(FailHTMLHeader, err)
-	}
-
-	if err := service.writeMessagePart(writeCloser, message, "HTML"); err != nil {
-		return err
-	}
-
-	if err := writeMultipartHeader(writeCloser, service.multipartBoundary, ""); err != nil {
-		return fail(FailMultiEndHeader, err)
-	}
-
-	return nil
-}
-
 // writeMessagePart writes a single part of an email message using the specified template.
-func (service *Service) writeMessagePart(
+func (s *Service) writeMessagePart(
 	writeCloser io.WriteCloser,
 	message string,
 	template string,
 ) failure {
-	if tpl, found := service.GetTemplate(template); found {
+	if tpl, found := s.GetTemplate(template); found {
 		data := make(map[string]string)
 
 		data["message"] = message
@@ -395,8 +364,41 @@ func (service *Service) writeMessagePart(
 	return nil
 }
 
+// writeMultipartMessage writes a multipart email message to the provided writer.
+func (s *Service) writeMultipartMessage(writeCloser io.WriteCloser, message string) failure {
+	if err := writeMultipartHeader(
+		writeCloser,
+		s.multipartBoundary,
+		contentPlain,
+	); err != nil {
+		return fail(FailPlainHeader, err)
+	}
+
+	if err := s.writeMessagePart(writeCloser, message, "plain"); err != nil {
+		return err
+	}
+
+	if err := writeMultipartHeader(
+		writeCloser,
+		s.multipartBoundary,
+		contentHTML,
+	); err != nil {
+		return fail(FailHTMLHeader, err)
+	}
+
+	if err := s.writeMessagePart(writeCloser, message, "HTML"); err != nil {
+		return err
+	}
+
+	if err := writeMultipartHeader(writeCloser, s.multipartBoundary, ""); err != nil {
+		return fail(FailMultiEndHeader, err)
+	}
+
+	return nil
+}
+
 // writeMultipartHeader writes a multipart boundary header to the provided writer.
-func writeMultipartHeader(writeCloser io.WriteCloser, boundary string, contentType string) error {
+func writeMultipartHeader(writeCloser io.WriteCloser, boundary, contentType string) error {
 	suffix := "\n"
 	if len(contentType) < 1 {
 		suffix = "--"
@@ -406,7 +408,7 @@ func writeMultipartHeader(writeCloser io.WriteCloser, boundary string, contentTy
 		return fmt.Errorf("writing multipart boundary: %w", err)
 	}
 
-	if len(contentType) > 0 {
+	if contentType != "" {
 		if _, err := fmt.Fprintf(writeCloser, "Content-Type: %s\n\n", contentType); err != nil {
 			return fmt.Errorf("writing content type header: %w", err)
 		}

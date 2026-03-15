@@ -10,16 +10,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const (
-	Scheme = "notifiarr"
-	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
-	expectedPartsAfterSplit = 2
-)
-
 // Config holds settings for the Notifiarr notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	// The API key for Notifiarr authentication
 	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true"`
 	// Optional name of the app/script for notifications
@@ -36,17 +30,28 @@ type Config struct {
 	webhookQuery url.Values
 }
 
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme = "notifiarr"
+	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
+	expectedPartsAfterSplit = 2
+)
+
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	config := &Config{}
 	pkr := format.NewPropKeyResolver(config)
-	_ = pkr.SetDefaultProps(config)
+	// Panic on error since failure indicates a programming error in struct tags
+	// that would be caught during development
+	if err := pkr.SetDefaultProps(config); err != nil {
+		panic(fmt.Sprintf("setting default properties: %v", err))
+	}
 
 	return config, pkr
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
-func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, error) {
+func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	config, pkr := DefaultConfig()
 
 	// Extract query parameters
@@ -76,32 +81,32 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 }
 
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a service URL.
-func (config *Config) SetURL(serviceURL *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, serviceURL)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL generates a service URL from the configuration using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var query url.Values
-	if config.webhookQuery == nil {
+	if c.webhookQuery == nil {
 		query = format.BuildQueryWithCustomFields(resolver, url.Values{})
 	} else {
-		query = format.BuildQueryWithCustomFields(resolver, config.webhookQuery)
+		query = format.BuildQueryWithCustomFields(resolver, c.webhookQuery)
 	}
 
 	query.Del("apikey")
 	serviceURL := &url.URL{
 		Scheme:   Scheme,
-		Host:     config.APIKey,
+		Host:     c.APIKey,
 		RawQuery: query.Encode(),
 	}
 
@@ -109,8 +114,8 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	config.APIKey = serviceURL.Host
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.APIKey = serviceURL.Host
 
 	// Set config properties from query
 	serviceQuery := serviceURL.Query()

@@ -12,6 +12,7 @@ import (
 )
 
 func TestConfigValidURLParsing(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name         string
@@ -56,6 +57,7 @@ func TestConfigValidURLParsing(t *testing.T) {
 }
 
 func TestConfigQueryParameters(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name                 string
@@ -162,6 +164,7 @@ func TestConfigQueryParameters(t *testing.T) {
 }
 
 func TestConfigUsernamePassword(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name             string
@@ -206,6 +209,7 @@ func TestConfigUsernamePassword(t *testing.T) {
 }
 
 func TestConfigTLSOptions(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name                     string
@@ -250,6 +254,7 @@ func TestConfigTLSOptions(t *testing.T) {
 }
 
 func TestConfigInvalidURLs(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name        string
@@ -290,6 +295,7 @@ func TestConfigInvalidURLs(t *testing.T) {
 }
 
 func TestConfigInvalidQoS(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name string

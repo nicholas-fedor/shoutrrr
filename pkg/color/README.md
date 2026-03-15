@@ -75,7 +75,21 @@ blue := color.New(color.FgBlue)
 blue.Fprint(writer, "This will print text in blue.")
 ```
 
+### Direct print methods
+
+The Color type provides direct print methods for convenience:
+
+```go
+// Direct print methods on Color instances
+red := color.New(color.FgRed)
+red.Print("This prints in red")
+red.Printf("This prints %s in red", "text")
+red.Println("This prints in red with newline")
+```
+
 ### Custom print functions (PrintFunc)
+
+You can also create reusable print functions:
 
 ```go
 // Create a custom print function for convenience
@@ -171,9 +185,50 @@ c.EnableColor()
 c.Println("This prints again cyan...")
 ```
 
+## Comparing Colors
+
+The `Equals()` method allows you to compare two Color objects for equality:
+
+```go
+red1 := color.New(color.FgRed)
+red2 := color.New(color.FgRed)
+blue := color.New(color.FgBlue)
+
+red1.Equals(red2) // true - same attributes
+red1.Equals(blue) // false - different attributes
+
+// Works with nil values
+var nilColor *Color
+nilColor.Equals(nil) // true
+red1.Equals(nil)    // false
+```
+
+## Performance: Color Caching
+
+The color package uses a caching mechanism to improve performance. Single-attribute colors are cached in a `colorsCache` map to reduce object allocation. The cache uses read-write mutexes for thread-safe access:
+
+```go
+// First call creates and caches the color
+c := color.New(color.FgRed)  // May create new object
+
+// Subsequent calls with same attribute return cached object
+c2 := color.New(color.FgRed) // Returns cached object
+
+c.Equals(c2) // true - same cached instance
+```
+
+Note: Only single-attribute colors are cached. Combined attributes create new Color objects.
+
 ## GitHub Actions
 
-To output color in GitHub Actions (or other CI systems that support ANSI colors), make sure to set `color.NoColor = false` so that it bypasses the check for non-tty output streams.
+Modern versions of the color package automatically detect terminal support using `go-isatty`, which checks if the output is connected to a terminal. For GitHub Actions and other CI systems that support ANSI colors, you may need to explicitly enable colors if auto-detection fails:
+
+```go
+// Force color output in CI environments
+color.NoColor = false
+```
+
+Alternatively, set the `FORCECOLOR` environment variable (if your terminal/CLI supports it) or ensure the CI configuration enables ANSI color output.
 
 ## Credits
 

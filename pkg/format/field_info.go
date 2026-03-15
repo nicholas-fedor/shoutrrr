@@ -2,15 +2,13 @@ package format
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
-
-// DefaultBase represents the default numeric base (decimal) for fields.
-const DefaultBase = 10
 
 // FieldInfo is the meta data about a config field.
 type FieldInfo struct {
@@ -28,6 +26,9 @@ type FieldInfo struct {
 	ItemSeparator rune
 }
 
+// DefaultBase represents the default numeric base (decimal) for fields.
+const DefaultBase = 10
+
 // IsEnum returns whether a EnumFormatter has been assigned to the field and that it is of a suitable type.
 func (fi *FieldInfo) IsEnum() bool {
 	return fi.EnumFormatter != nil && fi.Type.Kind() == reflect.Int
@@ -35,13 +36,7 @@ func (fi *FieldInfo) IsEnum() bool {
 
 // IsURLPart returns whether the field is serialized as the specified part of an URL.
 func (fi *FieldInfo) IsURLPart(part URLPart) bool {
-	for _, up := range fi.URLParts {
-		if up == part {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(fi.URLParts, part)
 }
 
 func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumFormatter) []FieldInfo {
@@ -52,11 +47,12 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 	for i := range numFields {
 		fieldDef := structType.Field(i)
 
-		if isHiddenField(fieldDef) {
+		if isHiddenField(&fieldDef) {
 			// This is an embedded or private field, which should not be part of the Config output
 			continue
 		}
 
+		//nolint:exhaustruct // Partial initialization is intentional, other fields are set below
 		info := FieldInfo{
 			Name:          fieldDef.Name,
 			Type:          fieldDef.Type,
@@ -66,7 +62,7 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 		}
 
 		if util.IsNumeric(fieldDef.Type.Kind()) {
-			info.Base = getFieldBase(fieldDef)
+			info.Base = getFieldBase(&fieldDef)
 		}
 
 		if tag, ok := fieldDef.Tag.Lookup("desc"); ok {
@@ -118,11 +114,11 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 	return fields
 }
 
-func isHiddenField(field reflect.StructField) bool {
+func isHiddenField(field *reflect.StructField) bool {
 	return field.Anonymous || strings.ToUpper(field.Name[0:1]) != field.Name[0:1]
 }
 
-func getFieldBase(field reflect.StructField) int {
+func getFieldBase(field *reflect.StructField) int {
 	if tag, ok := field.Tag.Lookup("base"); ok {
 		if base, err := strconv.ParseUint(tag, 10, 8); err == nil {
 			return int(base)

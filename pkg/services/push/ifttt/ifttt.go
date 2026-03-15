@@ -13,6 +13,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service sends notifications to an IFTTT webhook.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // apiURLFormat defines the IFTTT webhook URL template.
 const (
 	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
@@ -24,37 +32,30 @@ var (
 	ErrUnexpectedStatus = errors.New("got unexpected response status code")
 )
 
-// Service sends notifications to an IFTTT webhook.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{
 		UseMessageAsValue: DefaultMessageValue,
 	}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := service.Config.setURL(&service.pkr, configURL); err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// GetID returns the identifier for this service.
-func (service *Service) GetID() string {
-	return Scheme
-}
-
 // Send delivers a notification message to an IFTTT webhook.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -64,7 +65,7 @@ func (service *Service) Send(message string, params *types.Params) error {
 	}
 
 	for _, event := range config.Events {
-		apiURL := service.createAPIURLForEvent(event)
+		apiURL := s.createAPIURLForEvent(event)
 		if err := doSend(payload, apiURL); err != nil {
 			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
 		}
@@ -74,8 +75,8 @@ func (service *Service) Send(message string, params *types.Params) error {
 }
 
 // createAPIURLForEvent builds an IFTTT webhook URL for a specific event.
-func (service *Service) createAPIURLForEvent(event string) string {
-	return fmt.Sprintf(apiURLFormat, event, service.Config.WebHookID)
+func (s *Service) createAPIURLForEvent(event string) string {
+	return fmt.Sprintf(apiURLFormat, event, s.Config.WebHookID)
 }
 
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.

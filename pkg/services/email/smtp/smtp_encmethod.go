@@ -5,6 +5,22 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+type encMethod int
+
+type encMethodVals struct {
+	// None means no encryption
+	None encMethod
+	// ExplicitTLS means that TLS needs to be initiated by using StartTLS
+	ExplicitTLS encMethod
+	// ImplicitTLS means that TLS is used for the whole session
+	ImplicitTLS encMethod
+	// Auto means that TLS will be implicitly used for port 465, otherwise explicit TLS will be used if supported
+	Auto encMethod
+
+	// Enum is the EnumFormatter instance for EncMethods
+	Enum types.EnumFormatter
+}
+
 const (
 	// EncNone represents no encryption.
 	EncNone encMethod = iota // 0
@@ -14,9 +30,10 @@ const (
 	EncImplicitTLS // 2
 	// EncAuto represents automatic TLS selection based on port.
 	EncAuto // 3
-	// ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
-	ImplicitTLSPort = 465
 )
+
+// ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
+const ImplicitTLSPort = 465
 
 // EncMethods is the enum helper for populating the Encryption field.
 var EncMethods = &encMethodVals{
@@ -32,22 +49,6 @@ var EncMethods = &encMethodVals{
 			"ImplicitTLS",
 			"Auto",
 		}),
-}
-
-type encMethod int
-
-type encMethodVals struct {
-	// None means no encryption
-	None encMethod
-	// ExplicitTLS means that TLS needs to be initiated by using StartTLS
-	ExplicitTLS encMethod
-	// ImplicitTLS means that TLS is used for the whole session
-	ImplicitTLS encMethod
-	// Auto means that TLS will be implicitly used for port 465, otherwise explicit TLS will be used if supported
-	Auto encMethod
-
-	// Enum is the EnumFormatter instance for EncMethods
-	Enum types.EnumFormatter
 }
 
 func (at encMethod) String() string {

@@ -16,6 +16,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service provides OpsGenie as a notification service.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
 // alertEndpointTemplate is the OpsGenie API endpoint template for sending alerts.
 const (
 	alertEndpointTemplate = "https://%s:%d/v2/alerts"
@@ -27,87 +35,40 @@ const (
 // ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
 var ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected HTTP status code")
 
-// Service provides OpsGenie as a notification service.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-}
-
-// sendAlert sends an alert to OpsGenie using the specified URL and API key.
-func (service *Service) sendAlert(url string, apiKey string, payload AlertPayload) error {
-	jsonBody, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
-	}
-
-	jsonBuffer := bytes.NewBuffer(jsonBody)
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
-	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
-	}
-
-	req.Header.Add("Authorization", "GenieKey "+apiKey)
-	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send notification to OpsGenie: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf(
-				"%w: %d, cannot read body: %w",
-				ErrUnexpectedStatus,
-				resp.StatusCode,
-				err,
-			)
-		}
-
-		return fmt.Errorf("%w: %d - %s", ErrUnexpectedStatus, resp.StatusCode, body)
-	}
-
-	return nil
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	return service.Config.setURL(&service.pkr, configURL)
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to OpsGenie.
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	endpointURL := fmt.Sprintf(alertEndpointTemplate, config.Host, config.Port)
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	serviceURL := fmt.Sprintf(
+		alertEndpointTemplate,
+		config.Host,
+		config.Port,
+	)
 
-	payload, err := service.newAlertPayload(message, params)
+	payload, err := s.newAlertPayload(message, params)
 	if err != nil {
 		return err
 	}
 
-	return service.sendAlert(endpointURL, config.APIKey, payload)
+	return s.sendAlert(serviceURL, config.APIKey, &payload)
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
-func (service *Service) newAlertPayload(
+func (s *Service) newAlertPayload(
 	message string,
 	params *types.Params,
 ) (AlertPayload, error) {
@@ -116,9 +77,9 @@ func (service *Service) newAlertPayload(
 	}
 
 	// Defensive copy
-	payloadFields := *service.Config
+	payloadFields := *s.Config
 
-	if err := service.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
 	}
 
@@ -157,4 +118,61 @@ func (service *Service) newAlertPayload(
 	}
 
 	return result, nil
+}
+
+// sendAlert sends an alert to OpsGenie using the specified URL and API key.
+func (s *Service) sendAlert(serviceURL, apiKey string, payload *AlertPayload) error {
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
+	}
+
+	jsonBuffer := bytes.NewBuffer(jsonBody)
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		serviceURL,
+		jsonBuffer,
+	)
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "GenieKey "+apiKey)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send notification to OpsGenie: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf(
+				"%w: %d, cannot read body: %w",
+				ErrUnexpectedStatus,
+				resp.StatusCode,
+				err,
+			)
+		}
+
+		return fmt.Errorf(
+			"%w: %d - %s",
+			ErrUnexpectedStatus,
+			resp.StatusCode,
+			body,
+		)
+	}
+
+	return nil
 }

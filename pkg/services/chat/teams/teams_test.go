@@ -16,22 +16,15 @@ const (
 	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
 	scopedDomainHost = "test.webhook.office.com"
 	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
-	scopedURLBase    = testURLBase + "?host=" + scopedDomainHost
 )
 
 var logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-
-// TestTeams runs the test suite for the Teams package.
-func TestTeams(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Teams Suite")
-}
 
 var _ = ginkgo.Describe("the teams service", func() {
 	ginkgo.When("creating the webhook URL", func() {
 		ginkgo.It("should match the expected output for custom URLs", func() {
 			config := Config{}
-			config.setFromWebhookParts([5]string{
+			config.setFromWebhookParts(&[5]string{
 				"11111111-4444-4444-8444-cccccccccccc",
 				"22222222-4444-4444-8444-cccccccccccc",
 				"33333301222222222233333333333344",
@@ -79,7 +72,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				_, err = service.GetConfigURLFromCustom(customURL)
+				_, err = service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).To(gomega.HaveOccurred(), "converting")
 			})
 		})
@@ -90,9 +83,9 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				serviceURL, err := service.GetConfigURLFromCustom(customURL)
+				serviceURL, err := service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
-				gomega.Expect(serviceURL.String()).To(gomega.Equal(scopedURLBase))
+				gomega.Expect(serviceURL.String()).To(gomega.Equal(testURLBase + "?host=" + scopedDomainHost))
 			})
 			ginkgo.It("should preserve the query params in the generated service URL", func() {
 				service := Service{}
@@ -100,7 +93,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 				customURL, err := url.Parse(testURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
 
-				serviceURL, err := service.GetConfigURLFromCustom(customURL)
+				serviceURL, err := service.GetServiceURLFromCustom(customURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
 
 				expectedURL := testURLBase + "?color=f008c1&host=test.webhook.office.com&title=TheTitle"
@@ -122,7 +115,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 			httpmock.DeactivateAndReset()
 		})
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, _ := url.Parse(scopedURLBase)
+			serviceURL, _ := url.Parse(testURLBase + "?host=" + scopedDomainHost)
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -230,7 +223,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 					"44444444-4444-4444-8444-cccccccccccc",
 					extraIDValue,
 				}
-				err := verifyWebhookParts(parts)
+				err := verifyWebhookParts(&parts)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 
@@ -242,7 +235,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 					"44444444-4444-4444-8444-cccccccccccc",
 					extraIDValue,
 				}
-				err := verifyWebhookParts(parts)
+				err := verifyWebhookParts(&parts)
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 		})
@@ -269,3 +262,10 @@ var _ = ginkgo.Describe("the teams service", func() {
 		})
 	})
 })
+
+// TestTeams runs the test suite for the Teams package.
+func TestTeams(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Teams Suite")
+}

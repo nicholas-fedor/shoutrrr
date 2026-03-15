@@ -18,11 +18,6 @@ import (
 
 const hookURL = "https://api.pushover.net/1/messages.json"
 
-func TestPushover(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Pushover Suite")
-}
-
 var (
 	service        *pushover.Service
 	config         *pushover.Config
@@ -75,11 +70,11 @@ var _ = ginkgo.Describe("the pushover config", func() {
 		})
 		ginkgo.It("should error if supplied with an empty username", func() {
 			url := createURL("", "token")
-			expectErrorMessageGivenURL(pushover.UserMissing, url)
+			expectErrorGivenURL(pushover.ErrUserMissing, url)
 		})
 		ginkgo.It("should error if supplied with an empty token", func() {
 			url := createURL("user", "")
-			expectErrorMessageGivenURL(pushover.TokenMissing, url)
+			expectErrorGivenURL(pushover.ErrTokenMissing, url)
 		})
 	})
 	ginkgo.When("getting the current config", func() {
@@ -184,15 +179,21 @@ var _ = ginkgo.Describe("the pushover config", func() {
 	})
 })
 
-func createURL(username string, token string) *url.URL {
+func TestPushover(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Pushover Suite")
+}
+
+func createURL(username, token string) *url.URL {
 	return &url.URL{
 		User: url.UserPassword("Token", token),
 		Host: username,
 	}
 }
 
-func expectErrorMessageGivenURL(msg pushover.ErrorMessage, url *url.URL) {
-	err := config.SetURL(url)
+func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
+	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(string(msg)))
+	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
 }

@@ -19,6 +19,19 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Service implements a Notifiarr notification service.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+}
+
+// presenceFlags holds boolean flags indicating presence of Discord fields.
+type presenceFlags struct {
+	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
+}
+
 const (
 	// APIBaseURL is the base URL for Notifiarr API.
 	APIBaseURL = "https://notifiarr.com/api/v1/notification/passthrough"
@@ -54,18 +67,6 @@ var (
 // mentionRegex is a compiled regular expression for parsing Discord user/role mentions.
 var mentionRegex = regexp.MustCompile(`<@!?(\d+)>|<@&(\d+)>`)
 
-// Service implements a Notifiarr notification service.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-}
-
-// presenceFlags holds boolean flags indicating presence of Discord fields.
-type presenceFlags struct {
-	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
-}
-
 // HasAny returns true if any of the boolean fields are true, false otherwise.
 func (pf presenceFlags) HasAny() bool {
 	return pf.channel || pf.color || pf.thumbnail || pf.image || pf.title || pf.icon ||
@@ -76,15 +77,117 @@ func (pf presenceFlags) HasAny() bool {
 		pf.mentions
 }
 
+// ExtractPingIDs extracts user and role IDs from mention strings.
+func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
+	var pingUsers, pingRoles []int
+
+	for _, mention := range mentions {
+		mentionType, id := ParseMention(mention)
+		switch mentionType {
+		case MentionTypeUser:
+			pingUsers = append(pingUsers, id)
+		case MentionTypeRole:
+			pingRoles = append(pingRoles, id)
+		}
+	}
+
+	return pingUsers, pingRoles
+}
+
+// GetID returns the identifier for this service.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
+func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
+	// Copy the URL to modify
+	webhookURL := *serviceURL
+	if strings.HasPrefix(webhookURL.Scheme, Scheme) && len(webhookURL.Scheme) > len(Scheme) &&
+		webhookURL.Scheme[len(Scheme)] == '+' {
+		// Remove the scheme prefix if present
+		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
+	}
+
+	// Parse config from webhook URL
+	config, pkr, err := ConfigFromWebhookURL(&webhookURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate and return the service URL
+	return config.getURL(&pkr), nil
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	// Set the logger for the service
+	s.SetLogger(logger)
+	// Initialize service config
+	s.Config = &Config{}
+	// Initialize property key resolver
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	// Set default properties
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
+		return fmt.Errorf("setting default properties: %w", err)
+	}
+
+	// Set URL and return any error
+	if err := s.Config.SetURL(serviceURL); err != nil {
+		return fmt.Errorf("setting config URL: %w", err)
+	}
+
+	return nil
+}
+
+// ParseChannelID parses the channel string to an integer.
+func (s *Service) ParseChannelID(channelStr string) (int, error) {
+	var channelID int
+
+	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
+	if err != nil {
+		return 0, fmt.Errorf("invalid channel ID format '%s': %w", channelStr, ErrInvalidChannelID)
+	}
+
+	return channelID, nil
+}
+
+// ParseFields parses a JSON string into a slice of Field structs.
+func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
+	var fields []Field
+	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
+		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
+	}
+
+	return fields, nil
+}
+
+// ParseMentions extracts Discord user and role mentions from the message content.
+func (s *Service) ParseMentions(message string) []string {
+	var mentions []string
+
+	matches := mentionRegex.FindAllStringSubmatch(message, -1)
+	for _, match := range matches {
+		if match[1] != "" {
+			mentions = append(mentions, fmt.Sprintf("<@%s>", match[1]))
+		} else if match[2] != "" {
+			mentions = append(mentions, fmt.Sprintf("<@&%s>", match[2]))
+		}
+	}
+
+	return mentions
+}
+
 // Send delivers a notification message to Notifiarr.
-func (service *Service) Send(message string, paramsPtr *types.Params) error {
+func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	// Check for empty message
 	if message == "" {
 		return ErrEmptyMessage
 	}
 
 	// Create a copy of the config to avoid modifying the original
-	config := *service.Config
+	config := *s.Config
 
 	var params types.Params
 	// Handle nil params by creating empty map
@@ -111,107 +214,187 @@ func (service *Service) Send(message string, paramsPtr *types.Params) error {
 	}
 
 	// Update config with filtered parameters
-	if err := service.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
-		service.Logf("Failed to update params: %v", err)
+	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
+		s.Logf("Failed to update params: %v", err)
 	}
 
 	// Create the payload
-	payload, err := service.createPayload(message, params, &config)
+	payload, err := s.createPayload(message, params, &config)
 	if err != nil {
 		return fmt.Errorf("creating payload: %w", err)
 	}
 
 	// Send the notification
-	if err := service.doSend(payload); err != nil {
+	if err := s.doSend(payload); err != nil {
 		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
 
 	return nil
 }
 
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	// Set the logger for the service
-	service.SetLogger(logger)
-	// Initialize service config
-	service.Config = &Config{}
-	// Initialize property key resolver
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	// Set default properties
-	if err := service.pkr.SetDefaultProps(service.Config); err != nil {
-		return fmt.Errorf("setting default properties: %w", err)
+// buildDiscordPayload constructs the Discord payload if any fields are present.
+func (s *Service) buildDiscordPayload(
+	flags presenceFlags,
+	message string,
+	params types.Params,
+	config *Config,
+) (*DiscordPayload, error) {
+	if !flags.HasAny() {
+		return nil, ErrNoDiscordFields
 	}
 
-	// Set URL and return any error
-	if err := service.Config.SetURL(configURL); err != nil {
-		return fmt.Errorf("setting config URL: %w", err)
+	discord := &DiscordPayload{}
+
+	if flags.channel {
+		// Parse channel ID from config string to integer
+		channelID, err := s.ParseChannelID(config.Channel)
+		if err != nil {
+			return nil, fmt.Errorf("parsing channel ID: %w", err)
+		}
+
+		discord.IDs = &IDPayload{Channel: channelID}
 	}
 
-	return nil
+	if flags.color {
+		// Assign color from config
+		discord.Color = config.Color
+	}
+
+	if flags.thumbnail || flags.image {
+		// Set thumbnail and image URLs from config
+		discord.Images = &ImagePayload{
+			Thumbnail: config.Thumbnail,
+			Image:     config.Image,
+		}
+	}
+
+	// Construct text payload with title, icon, content, description, and footer from params
+	textPayload := &TextPayload{
+		Title:       params[types.TitleKey],
+		Icon:        params["icon"],
+		Content:     params["content"],
+		Description: message,
+		Footer:      params["footer"],
+	}
+
+	if flags.fields {
+		// Parse JSON fields string into Field structs
+		fields, err := s.ParseFields(params["fields"])
+		if err != nil {
+			return nil, fmt.Errorf("parsing fields: %w", err)
+		}
+
+		textPayload.Fields = fields
+	}
+
+	discord.Text = textPayload
+
+	if flags.mentions {
+		// Extract Discord mentions from message content
+		mentions := s.ParseMentions(message)
+
+		// Extract user and role IDs for ping setup (collects all mentions)
+		pingUsers, pingRoles := s.ExtractPingIDs(mentions)
+		if len(pingUsers) > 0 || len(pingRoles) > 0 {
+			pingPayload := &PingPayload{}
+			if len(pingUsers) > 0 {
+				pingPayload.PingUser = &pingUsers[0] // Use first user mention
+			}
+
+			if len(pingRoles) > 0 {
+				pingPayload.PingRole = &pingRoles[0] // Use first role mention
+			}
+
+			discord.Ping = pingPayload
+		}
+	}
+
+	return discord, nil
 }
 
-// GetID returns the identifier for this service.
-func (service *Service) GetID() string {
-	return Scheme
-}
+// createPayload creates the JSON payload for Notifiarr API.
+func (s *Service) createPayload(
+	message string,
+	params types.Params,
+	config *Config,
+) ([]byte, error) {
+	// Parse the update parameter from params
+	updatePtr := ParseUpdateFlag(params)
+	// Build the notification data structure
+	notificationData := buildNotificationData(updatePtr, config, params)
+	// Check presence flags for Discord fields
+	flags := checkPresenceFlags(message, params, config, s)
 
-// GetConfigURLFromCustom converts a custom webhook URL into a standard service URL.
-func (*Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	// Copy the URL to modify
-	webhookURL := *customURL
-	if strings.HasPrefix(webhookURL.Scheme, Scheme) && len(webhookURL.Scheme) > len(Scheme) &&
-		webhookURL.Scheme[len(Scheme)] == '+' {
-		// Remove the scheme prefix if present
-		webhookURL.Scheme = webhookURL.Scheme[len(Scheme)+1:]
-	}
-
-	// Parse config from webhook URL
-	config, pkr, err := ConfigFromWebhookURL(webhookURL)
+	// Build the Discord payload if fields are present
+	discord, err := s.buildDiscordPayload(flags, message, params, config)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate and return the service URL
-	return config.getURL(&pkr), nil
-}
-
-// ParseChannelID parses the channel string to an integer.
-func (service *Service) ParseChannelID(channelStr string) (int, error) {
-	var channelID int
-
-	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
-	if err != nil {
-		return 0, fmt.Errorf("invalid channel ID format '%s': %w", channelStr, ErrInvalidChannelID)
+	notification := NotificationPayload{
+		Notification: notificationData,
+		Discord:      discord,
 	}
 
-	return channelID, nil
+	// Marshal the notification to JSON
+	payloadBytes, err := json.Marshal(notification)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
+	}
+
+	return payloadBytes, nil
 }
 
-// ParseMentions extracts Discord user and role mentions from the message content.
-func (service *Service) ParseMentions(message string) []string {
-	var mentions []string
+// doSend executes the HTTP request to send a notification to Notifiarr.
+// It includes a timeout to prevent hangs and differentiates between authentication failures and other errors.
+func (s *Service) doSend(payload []byte) error {
+	// Build the API URL with API key
+	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, s.Config.APIKey)
 
-	matches := mentionRegex.FindAllStringSubmatch(message, -1)
-	for _, match := range matches {
-		if match[1] != "" {
-			mentions = append(mentions, fmt.Sprintf("<@%s>", match[1]))
-		} else if match[2] != "" {
-			mentions = append(mentions, fmt.Sprintf("<@&%s>", match[2]))
+	// Create context with timeout to prevent request hangs
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(requestTimeout)*time.Second,
+	)
+	defer cancel()
+
+	// Create HTTP request with context and timeout
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
+	if err != nil {
+		return fmt.Errorf("creating HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	// Send the HTTP request
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("sending HTTP request: %w", err)
+	}
+
+	if res != nil && res.Body != nil {
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if body, err := io.ReadAll(res.Body); err == nil {
+			s.Log("Server response: ", string(body))
 		}
 	}
 
-	return mentions
-}
-
-// ParseFields parses a JSON string into a slice of Field structs.
-func (service *Service) ParseFields(fieldsStr string) ([]Field, error) {
-	var fields []Field
-	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
-		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
+	// Check for authentication failure (401 Unauthorized)
+	if res.StatusCode == http.StatusUnauthorized {
+		return ErrAuthenticationFailed
 	}
 
-	return fields, nil
+	// Check for other unexpected status codes
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
+	}
+
+	return nil
 }
 
 // ParseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
@@ -236,23 +419,6 @@ func ParseMention(mention string) (int, int) {
 	}
 
 	return MentionTypeNone, 0
-}
-
-// ExtractPingIDs extracts user and role IDs from mention strings.
-func (service *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
-	var pingUsers, pingRoles []int
-
-	for _, mention := range mentions {
-		mentionType, id := ParseMention(mention)
-		switch mentionType {
-		case MentionTypeUser:
-			pingUsers = append(pingUsers, id)
-		case MentionTypeRole:
-			pingRoles = append(pingRoles, id)
-		}
-	}
-
-	return pingUsers, pingRoles
 }
 
 // ParseUpdateFlag parses the update parameter from params.
@@ -298,169 +464,4 @@ func checkPresenceFlags(
 		fields:      params["fields"] != "",
 		mentions:    len(service.ParseMentions(message)) > 0,
 	}
-}
-
-// buildDiscordPayload constructs the Discord payload if any fields are present.
-func (service *Service) buildDiscordPayload(
-	flags presenceFlags,
-	message string,
-	params types.Params,
-	config *Config,
-) (*DiscordPayload, error) {
-	if !flags.HasAny() {
-		return nil, ErrNoDiscordFields
-	}
-
-	discord := &DiscordPayload{}
-
-	if flags.channel {
-		// Parse channel ID from config string to integer
-		channelID, err := service.ParseChannelID(config.Channel)
-		if err != nil {
-			return nil, fmt.Errorf("parsing channel ID: %w", err)
-		}
-
-		discord.IDs = &IDPayload{Channel: channelID}
-	}
-
-	if flags.color {
-		// Assign color from config
-		discord.Color = config.Color
-	}
-
-	if flags.thumbnail || flags.image {
-		// Set thumbnail and image URLs from config
-		discord.Images = &ImagePayload{
-			Thumbnail: config.Thumbnail,
-			Image:     config.Image,
-		}
-	}
-
-	// Construct text payload with title, icon, content, description, and footer from params
-	textPayload := &TextPayload{
-		Title:       params[types.TitleKey],
-		Icon:        params["icon"],
-		Content:     params["content"],
-		Description: message,
-		Footer:      params["footer"],
-	}
-
-	if flags.fields {
-		// Parse JSON fields string into Field structs
-		fields, err := service.ParseFields(params["fields"])
-		if err != nil {
-			return nil, fmt.Errorf("parsing fields: %w", err)
-		}
-
-		textPayload.Fields = fields
-	}
-
-	discord.Text = textPayload
-
-	if flags.mentions {
-		// Extract Discord mentions from message content
-		mentions := service.ParseMentions(message)
-
-		// Extract user and role IDs for ping setup (collects all mentions)
-		pingUsers, pingRoles := service.ExtractPingIDs(mentions)
-		if len(pingUsers) > 0 || len(pingRoles) > 0 {
-			pingPayload := &PingPayload{}
-			if len(pingUsers) > 0 {
-				pingPayload.PingUser = &pingUsers[0] // Use first user mention
-			}
-
-			if len(pingRoles) > 0 {
-				pingPayload.PingRole = &pingRoles[0] // Use first role mention
-			}
-
-			discord.Ping = pingPayload
-		}
-	}
-
-	return discord, nil
-}
-
-// createPayload creates the JSON payload for Notifiarr API.
-func (service *Service) createPayload(
-	message string,
-	params types.Params,
-	config *Config,
-) ([]byte, error) {
-	// Parse the update parameter from params
-	updatePtr := ParseUpdateFlag(params)
-	// Build the notification data structure
-	notificationData := buildNotificationData(updatePtr, config, params)
-	// Check presence flags for Discord fields
-	flags := checkPresenceFlags(message, params, config, service)
-
-	// Build the Discord payload if fields are present
-	discord, err := service.buildDiscordPayload(flags, message, params, config)
-	if err != nil {
-		return nil, err
-	}
-
-	notification := NotificationPayload{
-		Notification: notificationData,
-		Discord:      discord,
-	}
-
-	// Marshal the notification to JSON
-	payloadBytes, err := json.Marshal(notification)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
-	}
-
-	return payloadBytes, nil
-}
-
-// doSend executes the HTTP request to send a notification to Notifiarr.
-// It includes a timeout to prevent hangs and differentiates between authentication failures and other errors.
-func (service *Service) doSend(payload []byte) error {
-	// Build the API URL with API key
-	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, service.Config.APIKey)
-
-	// Create context with timeout to prevent request hangs
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		time.Duration(requestTimeout)*time.Second,
-	)
-	defer cancel()
-
-	// Create HTTP request with context and timeout
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	// Send the HTTP request
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("sending HTTP request: %w", err)
-	}
-
-	if res != nil && res.Body != nil {
-		defer func() {
-			_ = res.Body.Close()
-		}()
-
-		if body, err := io.ReadAll(res.Body); err == nil {
-			service.Log("Server response: ", string(body))
-		}
-	}
-
-	// Check for authentication failure (401 Unauthorized)
-	if res.StatusCode == http.StatusUnauthorized {
-		return ErrAuthenticationFailed
-	}
-
-	// Check for other unexpected status codes
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
-	}
-
-	return nil
 }

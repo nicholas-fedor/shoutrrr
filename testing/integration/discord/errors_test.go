@@ -20,17 +20,15 @@ import (
 // noOpSleeper is a sleeper that does nothing, for testing.
 type noOpSleeper struct{}
 
-func (noOpSleeper) Sleep(_ time.Duration) {}
-
 type timeoutError struct{}
 
-func (timeoutError) Error() string { return "timeout" }
-
-func (timeoutError) Timeout() bool { return true }
-
-func (timeoutError) Temporary() bool { return false }
-
 var _ net.Error = timeoutError{}
+
+func (noOpSleeper) Sleep(_ time.Duration) {}
+
+func (timeoutError) Error() string   { return "timeout" }
+func (timeoutError) Temporary() bool { return false }
+func (timeoutError) Timeout() bool   { return true }
 
 // computeExpectedBatches computes the number of batches for a message based on Discord limits.
 func computeExpectedBatches(message string, splitLines bool) int {
@@ -55,8 +53,8 @@ func computeExpectedBatches(message string, splitLines bool) int {
 	return batches
 }
 
-//nolint:funlen
 func TestSendWithHTTPError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name            string
@@ -145,6 +143,7 @@ func TestSendWithHTTPError(t *testing.T) {
 }
 
 func TestSendWithNetworkError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -167,6 +166,7 @@ func TestSendWithNetworkError(t *testing.T) {
 }
 
 func TestSendWithMalformedResponse(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -189,6 +189,7 @@ func TestSendWithMalformedResponse(t *testing.T) {
 }
 
 func TestSendWithRetryOnRateLimit(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -218,6 +219,7 @@ func TestSendWithRetryOnRateLimit(t *testing.T) {
 }
 
 func TestSendWithNonExistentWebhook(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		invalidService := createTestService(t, "discord://token@invalid", mockClient)
@@ -236,6 +238,7 @@ func TestSendWithNonExistentWebhook(t *testing.T) {
 }
 
 func TestSendWithUnknownWebhook(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		emptyService := createTestService(t, "discord://token@empty", mockClient)
@@ -254,6 +257,7 @@ func TestSendWithUnknownWebhook(t *testing.T) {
 }
 
 func TestSendWithInvalidScheme(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		service := &discord.Service{}
 
@@ -267,6 +271,7 @@ func TestSendWithInvalidScheme(t *testing.T) {
 }
 
 func TestSendWithInvalidHost(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		service := &discord.Service{}
 
@@ -280,6 +285,7 @@ func TestSendWithInvalidHost(t *testing.T) {
 }
 
 func TestSendWithInvalidPath(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		service := &discord.Service{}
 
@@ -293,6 +299,7 @@ func TestSendWithInvalidPath(t *testing.T) {
 }
 
 func TestSendItemsWithInvalidPayload(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -323,6 +330,7 @@ func TestSendItemsWithInvalidPayload(t *testing.T) {
 }
 
 func TestSendWithTimeout(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -350,6 +358,7 @@ func TestSendWithTimeout(t *testing.T) {
 }
 
 func TestSendWithLargePayload(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -380,6 +389,7 @@ func TestSendWithLargePayload(t *testing.T) {
 }
 
 func TestSendWithInvalidJSONMode(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		// Create service with JSON mode
@@ -399,6 +409,7 @@ func TestSendWithInvalidJSONMode(t *testing.T) {
 }
 
 func TestSendWithFileUploadError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

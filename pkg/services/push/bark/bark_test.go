@@ -16,14 +16,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark"
 )
 
-// TestBark runs the Ginkgo test suite for the bark package.
-func TestBark(t *testing.T) {
-	format.CharactersAroundMismatchToInclude = 20 // Show more context in failure output
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Bark Suite")
-}
-
 var (
 	service    *bark.Service = &bark.Service{}        // Bark service instance for testing
 	envBarkURL *url.URL                               // Environment-provided URL for integration tests
@@ -48,8 +40,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 				return
 			}
 
-			configURL := testutils.URLMust(envBarkURL.String())
-			gomega.Expect(service.Initialize(configURL, logger)).To(gomega.Succeed())
+			serviceURL := testutils.URLMust(envBarkURL.String())
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("This is an integration test message", nil)).
 				To(gomega.Succeed())
 		})
@@ -174,6 +166,16 @@ var _ = ginkgo.Describe("the bark service", func() {
 		})
 	})
 })
+
+// TestBark runs the Ginkgo test suite for the bark package.
+func TestBark(t *testing.T) {
+	t.Parallel()
+
+	format.CharactersAroundMismatchToInclude = 20 // Show more context in failure output
+
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Bark Suite")
+}
 
 // getAPIForPath is a helper to construct an API URL for testing.
 func getAPIForPath(path string) string {

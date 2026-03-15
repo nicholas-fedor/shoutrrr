@@ -201,9 +201,9 @@ func ExampleService_withParams() {
 	// Output: Service ready for parameterized messages
 }
 
-// ExampleService_configURL demonstrates accessing the service configuration
+// ExampleService_serviceURL demonstrates accessing the service configuration
 // after initialization.
-func ExampleService_configURL() {
+func ExampleService_serviceURL() {
 	// Create a new MQTT service
 	service := &mqtt.Service{}
 

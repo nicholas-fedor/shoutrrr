@@ -13,11 +13,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-func TestSignal(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Signal Suite")
-}
-
 var (
 	logger *log.Logger
 
@@ -329,6 +324,12 @@ var _ = ginkgo.Describe("the signal service", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("signal"))
 	})
 })
+
+func TestSignal(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Signal Suite")
+}
 
 func setupResponder(code int, body string) {
 	targetURL := "https://localhost:8080/v2/send"

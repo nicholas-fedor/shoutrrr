@@ -25,11 +25,6 @@ const (
 	mockHost           = "events.pagerduty.com"
 )
 
-func TestPagerDuty(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Pagerduty Suite")
-}
-
 var _ = ginkgo.Describe("the PagerDuty service", func() {
 	var (
 		// a simulated http server to mock out PagerDuty itself
@@ -531,3 +526,9 @@ var _ = ginkgo.Describe("the PagerDuty Config struct", func() {
 		})
 	})
 })
+
+func TestPagerDuty(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Pagerduty Suite")
+}

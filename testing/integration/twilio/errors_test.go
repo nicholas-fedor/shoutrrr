@@ -11,6 +11,7 @@ import (
 )
 
 func TestSendWithHTTPError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name       string
@@ -61,6 +62,7 @@ func TestSendWithHTTPError(t *testing.T) {
 }
 
 func TestSendWithNetworkError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -78,6 +80,7 @@ func TestSendWithNetworkError(t *testing.T) {
 }
 
 func TestSendWithAPIErrorParsing(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -99,6 +102,7 @@ func TestSendWithAPIErrorParsing(t *testing.T) {
 }
 
 func TestSendWithMalformedAPIErrorResponse(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)
@@ -115,6 +119,7 @@ func TestSendWithMalformedAPIErrorResponse(t *testing.T) {
 }
 
 func TestSendPartialFailure(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -140,6 +145,7 @@ func TestSendPartialFailure(t *testing.T) {
 }
 
 func TestSendWithEmptyErrorResponseBody(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(t, validTwilioURL, mockClient)

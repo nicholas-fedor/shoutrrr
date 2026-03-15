@@ -16,6 +16,7 @@ import (
 const contentTypeJSON = "application/json"
 
 func TestWebhookURLFormatCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 
@@ -78,6 +79,7 @@ func TestWebhookURLFormatCompliance(t *testing.T) {
 }
 
 func TestPayloadStructureCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -100,6 +102,7 @@ func TestPayloadStructureCompliance(t *testing.T) {
 }
 
 func TestEmbedStructureCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -154,6 +157,7 @@ func TestEmbedStructureCompliance(t *testing.T) {
 }
 
 func TestFileUploadCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -184,6 +188,7 @@ func TestFileUploadCompliance(t *testing.T) {
 }
 
 func TestThreadParameterCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -210,6 +215,7 @@ func TestThreadParameterCompliance(t *testing.T) {
 }
 
 func TestUsernameAvatarCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -243,6 +249,7 @@ func TestUsernameAvatarCompliance(t *testing.T) {
 }
 
 func TestJSONModeCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		mockClient.On("Do", mock.Anything).
@@ -267,6 +274,7 @@ func TestJSONModeCompliance(t *testing.T) {
 }
 
 func TestRateLimitHeaderCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -293,6 +301,7 @@ func TestRateLimitHeaderCompliance(t *testing.T) {
 }
 
 func TestContentTypeHeaderCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -318,6 +327,7 @@ func TestContentTypeHeaderCompliance(t *testing.T) {
 }
 
 func TestUserAgentHeaderCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(
@@ -343,6 +353,7 @@ func TestUserAgentHeaderCompliance(t *testing.T) {
 }
 
 func TestHTTPSRequirementCompliance(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &MockHTTPClient{}
 		service := createTestService(

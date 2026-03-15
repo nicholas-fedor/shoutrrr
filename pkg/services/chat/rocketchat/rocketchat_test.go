@@ -16,6 +16,12 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Constants for repeated test values.
+const (
+	testTokenA = "tokenA"
+	testTokenB = "tokenB"
+)
+
 var (
 	service          *Service
 	envRocketchatURL *url.URL
@@ -24,17 +30,6 @@ var (
 		envRocketchatURL, _ = url.Parse(os.Getenv("SHOUTRRR_ROCKETCHAT_URL"))
 	})
 )
-
-// Constants for repeated test values.
-const (
-	testTokenA = "tokenA"
-	testTokenB = "tokenB"
-)
-
-func TestRocketchat(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Rocketchat Suite")
-}
 
 var _ = ginkgo.Describe("the rocketchat service", func() {
 	// Add tests for Initialize()
@@ -251,3 +246,9 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 		})
 	})
 })
+
+func TestRocketchat(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Rocketchat Suite")
+}

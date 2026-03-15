@@ -20,6 +20,40 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// HTTPClient defines the interface for HTTP operations.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// Sleeper defines the interface for sleep operations.
+type Sleeper interface {
+	Sleep(d time.Duration)
+}
+
+// RealSleeper is the default implementation using time.Sleep.
+type RealSleeper struct{}
+
+// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+type DefaultHTTPClient struct {
+	client *http.Client
+}
+
+// RequestPreparer defines the interface for preparing HTTP requests.
+type RequestPreparer interface {
+	PrepareRequest(ctx context.Context, requestURL string) (*http.Request, error)
+}
+
+// JSONRequestPreparer prepares JSON requests.
+type JSONRequestPreparer struct {
+	payload []byte
+}
+
+// MultipartRequestPreparer prepares multipart/form-data requests.
+type MultipartRequestPreparer struct {
+	payload *WebhookPayload
+	files   []types.File
+}
+
 const (
 	// defaultHTTPTimeout is the default timeout for HTTP requests to Discord.
 	defaultHTTPTimeout = 30 * time.Second
@@ -36,26 +70,8 @@ const (
 	backoffBase     = 2
 )
 
-// HTTPClient defines the interface for HTTP operations.
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-// Sleeper defines the interface for sleep operations.
-type Sleeper interface {
-	Sleep(d time.Duration)
-}
-
-// RealSleeper is the default implementation using time.Sleep.
-type RealSleeper struct{}
-
 func (RealSleeper) Sleep(d time.Duration) {
 	time.Sleep(d)
-}
-
-// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
-type DefaultHTTPClient struct {
-	client *http.Client
 }
 
 // NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.
@@ -77,22 +93,12 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// RequestPreparer defines the interface for preparing HTTP requests.
-type RequestPreparer interface {
-	PrepareRequest(ctx context.Context, url string) (*http.Request, error)
-}
-
-// JSONRequestPreparer prepares JSON requests.
-type JSONRequestPreparer struct {
-	payload []byte
-}
-
 // PrepareRequest creates a JSON POST request.
 func (p *JSONRequestPreparer) PrepareRequest(
 	ctx context.Context,
-	url string,
+	requestURL string,
 ) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(p.payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(p.payload))
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -103,16 +109,10 @@ func (p *JSONRequestPreparer) PrepareRequest(
 	return req, nil
 }
 
-// MultipartRequestPreparer prepares multipart/form-data requests.
-type MultipartRequestPreparer struct {
-	payload WebhookPayload
-	files   []types.File
-}
-
 // PrepareRequest creates a multipart POST request.
 func (p *MultipartRequestPreparer) PrepareRequest(
 	ctx context.Context,
-	url string,
+	requestURL string,
 ) (*http.Request, error) {
 	var body bytes.Buffer
 
@@ -146,7 +146,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 		return nil, fmt.Errorf("closing multipart writer: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, &body)
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -280,7 +280,7 @@ func handleServerError(
 func sendWithRetry(
 	ctx context.Context,
 	preparer RequestPreparer,
-	url string,
+	requestURL string,
 	httpClient HTTPClient,
 	sleeper Sleeper,
 ) error {
@@ -297,7 +297,7 @@ func sendWithRetry(
 		}
 
 		// Prepare the request
-		req, err := preparer.PrepareRequest(ctx, url)
+		req, err := preparer.PrepareRequest(ctx, requestURL)
 		if err != nil {
 			return fmt.Errorf("preparing request: %w", err)
 		}
@@ -320,29 +320,39 @@ func sendWithRetry(
 			return ErrUnknownAPIError
 		}
 
-		defer func() { _ = res.Body.Close() }()
-
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
+				_ = res.Body.Close()
+
 				return err
 			}
+
+			_ = res.Body.Close()
 
 			continue
 		}
 
 		// Handle server errors
 		if err := handleServerError(ctx, res, attempt, startTime, sleeper); err != nil {
+			_ = res.Body.Close()
+
 			return err
 		}
 
 		if res.StatusCode >= serverErrorStatusCode {
+			_ = res.Body.Close()
+
 			continue
 		}
 
 		if res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusOK {
+			_ = res.Body.Close()
+
 			return fmt.Errorf("%w: %s", ErrUnexpectedStatus, res.Status)
 		}
+
+		_ = res.Body.Close()
 
 		return nil
 	}

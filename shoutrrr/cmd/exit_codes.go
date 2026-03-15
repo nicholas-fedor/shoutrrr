@@ -1,4 +1,13 @@
+// Package cmd provides exit codes and result types for the Shoutrrr CLI.
 package cmd
+
+// ExitError contains the final exit message and code for a CLI session.
+type ExitError struct {
+	// ExitCode is the numeric exit code returned to the operating system.
+	ExitCode int
+	// Message is the human-readable error message.
+	Message string
+}
 
 const (
 	// ExSuccess is the exit code that signals that everything went as expected.
@@ -11,42 +20,55 @@ const (
 	ExConfig = 78
 )
 
-// Success is the empty Result that is used whenever the command ran successfully.
-//
-//nolint:errname
-var Success = Result{}
-
-// Result contains the final exit message and code for a CLI session.
-//
-//nolint:errname
-type Result struct {
-	ExitCode int
-	Message  string
+// ErrNil is the empty ExitError that is used whenever the command ran successfully.
+var ErrNil = ExitError{
+	ExitCode: 0,
+	Message:  "",
 }
 
-func (e Result) Error() string {
+// Error returns the error message for the ExitError.
+// This implements the error interface.
+func (e ExitError) Error() string {
 	return e.Message
 }
 
-// InvalidUsage returns a Result with the exit code ExUsage.
-func InvalidUsage(message string) Result {
-	return Result{
+// InvalidUsage returns an ExitError with the exit code ExUsage.
+//
+// Parameters:
+//   - message: The error message describing the invalid usage.
+//
+// Returns:
+//   - ExitError: An ExitError with ExitCode set to ExUsage.
+func InvalidUsage(message string) ExitError {
+	return ExitError{
 		ExUsage,
 		message,
 	}
 }
 
-// TaskUnavailable returns a Result with the exit code ExUnavailable.
-func TaskUnavailable(message string) Result {
-	return Result{
+// TaskUnavailable returns an ExitError with the exit code ExUnavailable.
+//
+// Parameters:
+//   - message: The error message describing why the task was unavailable.
+//
+// Returns:
+//   - ExitError: An ExitError with ExitCode set to ExUnavailable.
+func TaskUnavailable(message string) ExitError {
+	return ExitError{
 		ExUnavailable,
 		message,
 	}
 }
 
-// ConfigurationError returns a Result with the exit code ExConfig.
-func ConfigurationError(message string) Result {
-	return Result{
+// ConfigurationError returns an ExitError with the exit code ExConfig.
+//
+// Parameters:
+//   - message: The error message describing the configuration error.
+//
+// Returns:
+//   - ExitError: An ExitError with ExitCode set to ExConfig.
+func ConfigurationError(message string) ExitError {
+	return ExitError{
 		ExConfig,
 		message,
 	}

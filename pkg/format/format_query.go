@@ -7,11 +7,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// KeyPrefix is the prefix used to escape custom URL query keys that conflict with service config prop keys.
+// It consists of two underscore characters ("__").
+const KeyPrefix = "__"
+
 // BuildQuery converts the fields of a config object to a delimited query string.
 func BuildQuery(cqr types.ConfigQueryResolver) string {
 	return BuildQueryWithCustomFields(cqr, url.Values{}).Encode()
 }
 
+// BuildQueryWithCustomFields converts the fields of a config object to a delimited query string,
 // escaping any custom fields that share the same key as a config prop using a "__" prefix.
 func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values) url.Values {
 	fields := cqr.QueryFields()
@@ -45,9 +50,8 @@ func BuildQueryWithCustomFields(cqr types.ConfigQueryResolver, query url.Values)
 }
 
 // SetConfigPropsFromQuery iterates over all the config prop keys and sets the config prop to the corresponding
-// query value based on the key.
-// SetConfigPropsFromQuery returns a non-nil url.Values query with all config prop keys removed, even if any of
-// them could not be used to set a config field, and with any escaped keys unescaped.
+// query value based on the key. It returns a non-nil url.Values query with all config prop keys removed,
+// even if any of them could not be used to set a config field, and with any escaped keys unescaped.
 // The error returned is the first error that occurred, subsequent errors are just discarded.
 func SetConfigPropsFromQuery(cqr types.ConfigQueryResolver, query url.Values) (url.Values, error) {
 	var firstError error
@@ -89,6 +93,3 @@ func EscapeKey(key string) string {
 func UnescapeKey(key string) string {
 	return strings.TrimPrefix(key, KeyPrefix)
 }
-
-// consisting of two underscore characters ("__").
-const KeyPrefix = "__"

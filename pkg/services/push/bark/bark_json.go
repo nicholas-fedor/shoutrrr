@@ -1,6 +1,7 @@
 package bark
 
-// PushPayload represents the notification payload for the Bark notification service.
+// PushPayload represents the JSON payload sent to the Bark server API.
+// This structure contains all notification parameters that can be customized.
 type PushPayload struct {
 	Body      string `json:"body"`
 	DeviceKey string `json:"device_key"`
@@ -14,16 +15,21 @@ type PushPayload struct {
 	Copy      string `json:"copy,omitempty"`
 }
 
-// APIResponse represents a response from the Bark API.
+// APIResponse represents the response structure returned by the Bark server API.
+// The server responds with a JSON object containing status code, message, and timestamp.
 //
-//nolint:errname
+//nolint:errname // APIResponse name is mandated by the Bark API response format
 type APIResponse struct {
 	Code      int64  `json:"code"`
 	Message   string `json:"message"`
 	Timestamp int64  `json:"timestamp"`
 }
 
-// Error returns the error message from the API response when applicable.
+// Error returns the error message from the Bark API response.
+// This method implements the error interface for APIResponse.
+//
+// Returns:
+//   - A formatted error string containing the server message.
 func (e *APIResponse) Error() string {
 	return "server response: " + e.Message
 }

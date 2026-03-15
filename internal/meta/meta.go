@@ -1,3 +1,5 @@
+// Package meta provides functionality to parse and manage metadata information
+// for Shoutrrr using Go's debug.ReadBuildInfo and GoReleaser build flags.
 package meta
 
 import (
@@ -5,6 +7,13 @@ import (
 	"runtime/debug"
 	"time"
 )
+
+// Info holds version information for Shoutrrr.
+type Info struct {
+	Version string
+	Commit  string
+	Date    string
+}
 
 // Constants for repeated string values.
 const (
@@ -23,13 +32,6 @@ var (
 	// Date is the build or commit timestamp in RFC3339 format (e.g., "2025-05-07T00:00:00Z").
 	Date = unknownValue
 )
-
-// Info holds version information for Shoutrrr.
-type Info struct {
-	Version string
-	Commit  string
-	Date    string
-}
 
 // GetMetaStr returns the formatted version string, including commit info only if available.
 func GetMetaStr() string {

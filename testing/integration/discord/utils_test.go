@@ -8,12 +8,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// MockHTTPClient is a testify mock that implements the HTTPClient interface.
+type MockHTTPClient struct {
+	mock.Mock
+}
+
+// mockLogger is a simple logger implementation for testing.
+type mockLogger struct{}
+
+func (m *mockLogger) Print(_ ...any)            {}
+func (m *mockLogger) Printf(_ string, _ ...any) {}
+func (m *mockLogger) Println(_ ...any)          {}
 
 // createTestService creates a Discord service instance configured for testing.
 func createTestService(
@@ -26,10 +37,14 @@ func createTestService(
 	service := &discord.Service{}
 
 	parsedURL, err := url.Parse(webhookURL)
-	assert.NoError(t, err) //nolint:testifylint
+	if err != nil {
+		t.Fatalf("failed to parse webhook URL: %v", err)
+	}
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err) //nolint:testifylint
+	if err != nil {
+		t.Fatalf("failed to initialize service: %v", err)
+	}
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
@@ -39,20 +54,13 @@ func createTestService(
 	return service
 }
 
-// mockLogger is a simple logger implementation for testing.
-type mockLogger struct{}
-
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
-
 // createTestMessageItem creates a test MessageItem with the given text.
 func createTestMessageItem(text string) types.MessageItem {
 	return types.MessageItem{Text: text}
 }
 
 // createTestMessageItemWithFile creates a test MessageItem with a file attachment.
-func createTestMessageItemWithFile(text string, filename string, data []byte) types.MessageItem {
+func createTestMessageItemWithFile(text, filename string, data []byte) types.MessageItem {
 	return types.MessageItem{
 		Text: text,
 		File: &types.File{
@@ -73,11 +81,6 @@ func createTestParams(pairs ...string) *types.Params {
 	}
 
 	return &params
-}
-
-// MockHTTPClient is a testify mock that implements the HTTPClient interface.
-type MockHTTPClient struct {
-	mock.Mock
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -125,7 +128,8 @@ func assertRequestMade(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 			if req.Method == http.MethodPost && req.URL.String() == expectedURL {
@@ -147,7 +151,8 @@ func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedCon
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 
@@ -176,7 +181,8 @@ func assertRequestBody(t *testing.T, mockClient *MockHTTPClient, expectedBody st
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 
@@ -210,7 +216,8 @@ func assertRequestMatches(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 			if predicate(req) {

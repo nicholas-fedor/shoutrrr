@@ -16,25 +16,43 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// Service sends notifications to a pre-configured Slack channel or user.
+type Service struct {
+	standard.Standard
+
+	Config *Config
+	pkr    format.PropKeyResolver
+	client *http.Client
+}
+
 // apiPostMessage is the Slack API endpoint for sending messages.
 const (
 	apiPostMessage     = "https://slack.com/api/chat.postMessage"
 	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 )
 
-// Service sends notifications to a pre-configured Slack channel or user.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-	client *http.Client
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
+}
+
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.client = &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to Slack.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
 
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -42,9 +60,9 @@ func (service *Service) Send(message string, params *types.Params) error {
 
 	var err error
 	if config.Token.IsAPIToken() {
-		err = service.sendAPI(config, payload)
+		err = s.sendAPI(config, payload)
 	} else {
-		err = service.sendWebhook(config, payload)
+		err = s.sendWebhook(config, payload)
 	}
 
 	if err != nil {
@@ -54,25 +72,8 @@ func (service *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.client = &http.Client{
-		Timeout: defaultHTTPTimeout,
-	}
-
-	return service.Config.setURL(&service.pkr, configURL)
-}
-
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
-}
-
 // sendAPI sends a notification using the Slack API.
-func (service *Service) sendAPI(config *Config, payload any) error {
+func (s *Service) sendAPI(config *Config, payload any) error {
 	response := APIResponse{}
 	jsonClient := jsonclient.NewClient()
 	jsonClient.Headers().Set("Authorization", config.Token.Authorization())
@@ -90,14 +91,14 @@ func (service *Service) sendAPI(config *Config, payload any) error {
 	}
 
 	if response.Warning != "" {
-		service.Logf("Slack API warning: %q", response.Warning)
+		s.Logf("Slack API warning: %q", response.Warning)
 	}
 
 	return nil
 }
 
 // sendWebhook sends a notification using a Slack webhook.
-func (service *Service) sendWebhook(config *Config, payload any) error {
+func (s *Service) sendWebhook(config *Config, payload any) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -118,14 +119,18 @@ func (service *Service) sendWebhook(config *Config, payload any) error {
 
 	req.Header.Set("Content-Type", jsonclient.ContentType)
 
-	res, err := service.client.Do(req)
+	res, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to invoke webhook: %w", err)
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
-	resBytes, _ := io.ReadAll(res.Body)
+	resBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	response := string(resBytes)
 
 	switch response {

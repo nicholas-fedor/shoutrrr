@@ -1,3 +1,4 @@
+// Package verify provides the CLI command for verifying notification service URLs.
 package verify
 
 import (
@@ -13,27 +14,51 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
-// Cmd verifies the validity of a service url.
-var Cmd = &cobra.Command{
-	Use:    "verify",
-	Short:  "Verify the validity of a notification service URL",
-	PreRun: internalUtil.LoadFlagsFromAltSources,
-	Run:    Run,
-	Args:   cobra.MaximumNArgs(1),
-}
+var (
+	// Cmd is the cobra command for verifying notification service URLs.
+	// It validates that a URL is properly formatted and the service can be located.
+	Cmd = &cobra.Command{
+		Use:     "verify",
+		Short:   "Verify the validity of a notification service URL",
+		PreRunE: internalUtil.LoadFlagsFromAltSources,
+		Run:     Run,
+		Args:    cobra.MaximumNArgs(1),
+	}
 
-var serviceRouter router.ServiceRouter
+	// serviceRouter manages service lookup and initialization.
+	serviceRouter router.ServiceRouter
+)
 
+// init initializes the command flags for the verify command.
 func init() {
-	Cmd.Flags().StringP("url", "u", "", "The notification url")
-	_ = Cmd.MarkFlagRequired("url")
+	Cmd.Flags().StringP("url", "u", "", "The notification URL to verify")
+
+	if err := Cmd.MarkFlagRequired("url"); err != nil {
+		fmt.Fprintf(os.Stderr, "Error marking URL flag as required: %v\n", err)
+	}
 }
 
-// Run the verify command.
+// Run executes the verify command, validating the specified notification URL.
+// It locates the service, initializes it, and displays the parsed configuration.
+//
+// Parameters:
+//   - cmd: The cobra command containing the parsed flags.
+//   - _: Unused positional arguments.
 func Run(cmd *cobra.Command, _ []string) {
-	URL, _ := cmd.Flags().GetString("url")
-	serviceRouter = router.ServiceRouter{}
+	// Retrieve the URL flag.
+	URL, err := cmd.Flags().GetString("url")
+	if err != nil {
+		_, _ = fmt.Fprint(os.Stderr, "Error getting URL flag: ", err, "\n")
 
+		os.Exit(1)
+	}
+
+	// Initialize the service router with default timeout (0 = no timeout).
+	serviceRouter = router.ServiceRouter{
+		Timeout: 0,
+	}
+
+	// Locate the service for the provided URL.
 	service, err := serviceRouter.Locate(URL)
 	if err != nil {
 		wrappedErr := fmt.Errorf("locating service for URL: %w", err)
@@ -42,16 +67,26 @@ func Run(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
+	// Retrieve and display the service configuration.
 	config := format.GetServiceConfig(service)
 	configNode := format.GetConfigFormat(config)
 
-	_, _ = fmt.Fprint(color.Output, format.ColorFormatTree(configNode, true))
+	cfg := color.DefaultConfig()
+	_, _ = fmt.Fprint(cfg.Output, format.ColorFormatTree(configNode, true))
 }
 
 // sanitizeError removes sensitive details from an error message.
+// It replaces specific error patterns with generic messages to avoid leaking URL details.
+//
+// Parameters:
+//   - err: The error to sanitize.
+//
+// Returns:
+//   - string: A sanitized error message safe for display.
 func sanitizeError(err error) string {
 	errStr := err.Error()
-	// Check for common error patterns without exposing URL details
+
+	// Check for common error patterns without exposing URL details.
 	if strings.Contains(errStr, "unknown service") {
 		return "service not recognized"
 	}
@@ -59,6 +94,7 @@ func sanitizeError(err error) string {
 	if strings.Contains(errStr, "parse") || strings.Contains(errStr, "invalid") {
 		return "invalid URL format"
 	}
-	// Fallback for other errors
+
+	// Fallback for other errors.
 	return "unable to process URL"
 }

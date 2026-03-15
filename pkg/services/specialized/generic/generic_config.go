@@ -9,15 +9,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Scheme identifies this service in configuration URLs.
-const (
-	Scheme               = "generic"
-	DefaultWebhookScheme = "https"
-)
-
 // Config holds settings for the generic notification service.
 type Config struct {
 	standard.EnumlessConfig
+
 	// The webhook URL to send notifications to
 	webhookURL *url.URL
 	// Custom HTTP headers to include in requests
@@ -33,6 +28,12 @@ type Config struct {
 	RequestMethod string `default:"POST"                                                                                                           key:"method"`
 }
 
+// Scheme identifies this service in configuration URLs.
+const (
+	Scheme               = "generic"
+	DefaultWebhookScheme = "https"
+)
+
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	// Initialize empty config
@@ -40,13 +41,15 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 	// Create property key resolver
 	pkr := format.NewPropKeyResolver(config)
 	// Set default properties from struct tags
-	_ = pkr.SetDefaultProps(config)
+	if err := pkr.SetDefaultProps(config); err != nil {
+		panic(fmt.Sprintf("setting default properties: %v", err))
+	}
 
 	return config, pkr
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
-func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, error) {
+func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	// Get default config and resolver
 	config, pkr := DefaultConfig()
 
@@ -64,7 +67,7 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 	// Update URL with modified query
 	webhookURL.RawQuery = webhookQuery.Encode()
 	// Assign webhook URL
-	config.webhookURL = &webhookURL
+	config.webhookURL = webhookURL
 	// Assign extracted headers
 	config.headers = headers
 	// Assign extracted extra data
@@ -75,14 +78,32 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 	return config, pkr, nil
 }
 
+// GetURL generates a URL from the current configuration values.
+func (c *Config) GetURL() *url.URL {
+	// Create resolver for this config
+	resolver := format.NewPropKeyResolver(c)
+
+	// Generate URL using resolver
+	return c.getURL(&resolver)
+}
+
+// SetURL updates the configuration from a service URL.
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	// Create resolver for this config
+	resolver := format.NewPropKeyResolver(c)
+
+	// Parse and set URL
+	return c.setURL(&resolver, serviceURL)
+}
+
 // WebhookURL returns the configured webhook URL, adjusted for TLS settings.
-func (config *Config) WebhookURL() *url.URL {
+func (c *Config) WebhookURL() *url.URL {
 	// Copy the URL to modify
-	webhookURL := *config.webhookURL
+	webhookURL := *c.webhookURL
 	// Set default HTTPS scheme
 	webhookURL.Scheme = DefaultWebhookScheme
 
-	if config.DisableTLS {
+	if c.DisableTLS {
 		// Use HTTP if TLS is disabled
 		webhookURL.Scheme = "http"
 	}
@@ -90,34 +111,16 @@ func (config *Config) WebhookURL() *url.URL {
 	return &webhookURL
 }
 
-// GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	// Create resolver for this config
-	resolver := format.NewPropKeyResolver(config)
-
-	// Generate URL using resolver
-	return config.getURL(&resolver)
-}
-
-// SetURL updates the configuration from a service URL.
-func (config *Config) SetURL(serviceURL *url.URL) error {
-	// Create resolver for this config
-	resolver := format.NewPropKeyResolver(config)
-
-	// Parse and set URL
-	return config.setURL(&resolver, serviceURL)
-}
-
 // getURL generates a service URL from the configuration using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Copy webhook URL
-	serviceURL := *config.webhookURL
+	serviceURL := *c.webhookURL
 	// Get existing query params
-	webhookQuery := config.webhookURL.Query()
+	webhookQuery := c.webhookURL.Query()
 	// Build query with config fields
 	serviceQuery := format.BuildQueryWithCustomFields(resolver, webhookQuery)
 	// Add custom headers and extra data
-	appendCustomQueryValues(serviceQuery, config.headers, config.extraData)
+	appendCustomQueryValues(serviceQuery, c.headers, c.extraData)
 	// Encode the query
 	serviceURL.RawQuery = serviceQuery.Encode()
 	// Set service scheme
@@ -127,7 +130,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Copy service URL
 	webhookURL := *serviceURL
 	// Extract query parameters
@@ -144,11 +147,11 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url
 	// Update URL with remaining query
 	webhookURL.RawQuery = customQuery.Encode()
 	// Assign webhook URL
-	config.webhookURL = &webhookURL
+	c.webhookURL = &webhookURL
 	// Assign extracted headers
-	config.headers = headers
+	c.headers = headers
 	// Assign extracted extra data
-	config.extraData = extraData
+	c.extraData = extraData
 
 	return nil
 }

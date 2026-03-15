@@ -34,7 +34,7 @@ type Payload struct {
 }
 
 // PagerDutyContext provides additional context about the incident, such as links to related resources.
-type PagerDutyContext struct { //nolint:revive
+type PagerDutyContext struct {
 	// Type specifies the type of context (e.g., "link", "image").
 	Type string `json:"type"`
 	// Href is the URL for link-type contexts.

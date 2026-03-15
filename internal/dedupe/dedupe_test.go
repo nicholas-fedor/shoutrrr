@@ -8,6 +8,8 @@ import (
 )
 
 func TestRemoveDuplicates(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]struct {
 		input []string
 		want  []string
@@ -32,6 +34,8 @@ func TestRemoveDuplicates(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			got := dedupe.RemoveDuplicates(tc.input)
 			if !reflect.DeepEqual(tc.want, got) {
 				t.Fatalf("expected: %#v, got: %#v", tc.want, got)

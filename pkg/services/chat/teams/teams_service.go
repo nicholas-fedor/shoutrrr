@@ -2,16 +2,30 @@ package teams
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// Service sends notifications to Microsoft Teams.
+type Service struct {
+	standard.Standard
+
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient *http.Client
+}
+
+// defaultHTTPTimeout is the default timeout for HTTP requests.
+const defaultHTTPTimeout = 30 * time.Second
 
 // MaxSummaryLength defines the maximum length for a notification summary.
 const MaxSummaryLength = 20
@@ -19,39 +33,18 @@ const MaxSummaryLength = 20
 // TruncatedSummaryLen defines the length for a truncated summary.
 const TruncatedSummaryLen = 21
 
-// Service sends notifications to Microsoft Teams.
-type Service struct {
-	standard.Standard
-	Config *Config
-	pkr    format.PropKeyResolver
-}
-
-// Send delivers a notification message to Microsoft Teams.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-	if err := service.pkr.UpdateConfigFromParams(config, params); err != nil {
-		service.Logf("Failed to update params: %v", err)
-	}
-
-	return service.doSend(config, message)
-}
-
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-
-	return service.Config.SetURL(configURL)
+// GetHTTPClient returns the service's HTTP client for testing purposes.
+func (s *Service) GetHTTPClient() *http.Client {
+	return s.httpClient
 }
 
 // GetID returns the service identifier.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
-// GetConfigURLFromCustom converts a custom URL to a service URL.
-func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, error) {
+// GetServiceURLFromCustom converts a custom URL to a service URL.
+func (s *Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	webhookURLStr := strings.TrimPrefix(customURL.String(), "teams+")
 
 	tempURL, err := url.Parse(webhookURLStr)
@@ -65,7 +58,7 @@ func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, er
 		Path:   tempURL.Path,
 	}
 
-	config, err := ConfigFromWebhookURL(*webhookURL)
+	config, err := ConfigFromWebhookURL(webhookURL)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +83,43 @@ func (service *Service) GetConfigURLFromCustom(customURL *url.URL) (*url.URL, er
 	return config.GetURL(), nil
 }
 
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+
+	s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+
+	return s.Config.SetURL(serviceURL)
+}
+
+// Send delivers a notification message to Microsoft Teams.
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
+		s.Logf("Failed to update params: %v", err)
+	}
+
+	return s.doSend(config, message)
+}
+
 // doSend sends the notification to Teams using the configured webhook URL.
-func (service *Service) doSend(config *Config, message string) error {
+func (s *Service) doSend(config *Config, message string) error {
 	lines := strings.Split(message, "\n")
 	sections := make([]section, 0, len(lines))
 
 	for _, line := range lines {
-		sections = append(sections, section{Text: line})
+		sections = append(sections, section{
+			Text:             line,
+			ActivityTitle:    "",
+			ActivitySubtitle: "",
+			ActivityImage:    "",
+			Facts:            nil,
+			Images:           nil,
+			Actions:          nil,
+			HeroImage:        nil,
+		})
 	}
 
 	summary := config.Title
@@ -138,7 +161,7 @@ func (service *Service) doSend(config *Config, message string) error {
 		return err
 	}
 
-	res, err := safePost(postURL, payload)
+	res, err := s.postJSON(postURL, payload)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
@@ -152,12 +175,27 @@ func (service *Service) doSend(config *Config, message string) error {
 	return nil
 }
 
-// safePost performs an HTTP POST with a pre-validated URL.
-// Validation is already done; this wrapper isolates the call.
-//
-//nolint:gosec,noctx // Ignoring G107: Potential HTTP request made with variable url
-func safePost(url string, payload []byte) (*http.Response, error) {
-	res, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+// postJSON performs an HTTP POST with a pre-validated URL using the service's HTTP client.
+func (s *Service) postJSON(serviceURL string, payload []byte) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		serviceURL,
+		bytes.NewBuffer(payload),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("making HTTP POST request: %w", err)
 	}

@@ -10,6 +10,20 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config holds settings for the IFTTT notification service.
+type Config struct {
+	standard.EnumlessConfig
+
+	WebHookID         string   `required:"true" url:"host"`
+	Events            []string `required:"true"            key:"events"`
+	Value1            string   `                           key:"value1"       optional:""`
+	Value2            string   `                           key:"value2"       optional:""`
+	Value3            string   `                           key:"value3"       optional:""`
+	UseMessageAsValue uint8    `                           key:"messagevalue"             default:"2" desc:"Sets the corresponding value field to the notification message"`
+	UseTitleAsValue   uint8    `                           key:"titlevalue"               default:"0" desc:"Sets the corresponding value field to the notification title"`
+	Title             string   `                           key:"title"                    default:""  desc:"Notification title, optionally set by the sender"`
+}
+
 const (
 	Scheme              = "ifttt" // Scheme identifies this service in configuration URLs.
 	DefaultMessageValue = 2       // Default value field (1-3) for the notification message
@@ -31,74 +45,61 @@ var (
 	ErrMissingWebhookID     = errors.New("webhook ID missing from config URL")
 )
 
-// Config holds settings for the IFTTT notification service.
-type Config struct {
-	standard.EnumlessConfig
-	WebHookID         string   `required:"true" url:"host"`
-	Events            []string `required:"true"            key:"events"`
-	Value1            string   `                           key:"value1"       optional:""`
-	Value2            string   `                           key:"value2"       optional:""`
-	Value3            string   `                           key:"value3"       optional:""`
-	UseMessageAsValue uint8    `                           key:"messagevalue"             default:"2" desc:"Sets the corresponding value field to the notification message"`
-	UseTitleAsValue   uint8    `                           key:"titlevalue"               default:"0" desc:"Sets the corresponding value field to the notification title"`
-	Title             string   `                           key:"title"                    default:""  desc:"Notification title, optionally set by the sender"`
-}
-
 // GetURL generates a URL from the current configuration values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
-		Host:     config.WebHookID,
+		Host:     c.WebHookID,
 		Path:     "/",
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
 }
 
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	if config.UseMessageAsValue == DisabledValue {
-		config.UseMessageAsValue = DefaultMessageValue
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	if c.UseMessageAsValue == DisabledValue {
+		c.UseMessageAsValue = DefaultMessageValue
 	}
 
-	config.WebHookID = url.Hostname()
+	c.WebHookID = serviceURL.Hostname()
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}
 	}
 
-	if config.UseMessageAsValue > MaxValueField || config.UseMessageAsValue < MinValueField {
+	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
 		return ErrInvalidMessageValue
 	}
 
-	if config.UseTitleAsValue > MaxValueField {
+	if c.UseTitleAsValue > MaxValueField {
 		return ErrInvalidTitleValue
 	}
 
-	if config.UseTitleAsValue != DisabledValue &&
-		config.UseTitleAsValue == config.UseMessageAsValue {
+	if c.UseTitleAsValue != DisabledValue &&
+		c.UseTitleAsValue == c.UseMessageAsValue {
 		return ErrTitleMessageConflict
 	}
 
-	if url.String() != "ifttt://dummy@dummy.com" {
-		if len(config.Events) < MinLength {
+	if serviceURL.String() != "ifttt://dummy@dummy.com" {
+		if len(c.Events) < MinLength {
 			return ErrMissingEvents
 		}
 
-		if len(config.WebHookID) < MinLength {
+		if len(c.WebHookID) < MinLength {
 			return ErrMissingWebhookID
 		}
 	}

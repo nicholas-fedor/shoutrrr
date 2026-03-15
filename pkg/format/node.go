@@ -11,8 +11,31 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
+// Node is the generic config tree item.
+type Node interface {
+	Field() *FieldInfo
+	TokenType() NodeTokenType
+	Update(tv reflect.Value)
+}
+
 // NodeTokenType is used to represent the type of value that a node has for syntax highlighting.
 type NodeTokenType int
+
+// ContainerNode is a Node with child items.
+type ContainerNode struct {
+	*FieldInfo
+
+	Items        []Node
+	MaxKeyLength int
+}
+
+// ValueNode is a Node without any child items.
+type ValueNode struct {
+	*FieldInfo
+
+	Value     string
+	tokenType NodeTokenType
+}
 
 const (
 	// UnknownToken represents all unknown/unspecified tokens.
@@ -41,20 +64,6 @@ const (
 	BaseHexLen     = 16
 )
 
-// Node is the generic config tree item.
-type Node interface {
-	Field() *FieldInfo
-	TokenType() NodeTokenType
-	Update(tv reflect.Value)
-}
-
-// ValueNode is a Node without any child items.
-type ValueNode struct {
-	*FieldInfo
-	Value     string
-	tokenType NodeTokenType
-}
-
 // Field returns the inner FieldInfo.
 func (n *ValueNode) Field() *FieldInfo {
 	return n.FieldInfo
@@ -70,13 +79,6 @@ func (n *ValueNode) Update(tv reflect.Value) {
 	value, token := getValueNodeValue(tv, n.FieldInfo)
 	n.Value = value
 	n.tokenType = token
-}
-
-// ContainerNode is a Node with child items.
-type ContainerNode struct {
-	*FieldInfo
-	Items        []Node
-	MaxKeyLength int
 }
 
 // Field returns the inner FieldInfo.
@@ -136,8 +138,18 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 		key := strconv.Itoa(i)
 		val := arrayValue.Index(i)
 		n.Items = append(n.Items, getValueNode(val, &FieldInfo{
-			Name: key,
-			Type: elemType,
+			Name:          key,
+			Type:          elemType,
+			EnumFormatter: nil,
+			Description:   "",
+			DefaultValue:  "",
+			Template:      "",
+			Required:      false,
+			URLParts:      nil,
+			Title:         false,
+			Base:          0,
+			Keys:          nil,
+			ItemSeparator: 0,
 		}))
 	}
 }
@@ -145,6 +157,7 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	node := &ContainerNode{
 		FieldInfo:    fieldInfo,
+		Items:        nil,
 		MaxKeyLength: 0,
 	}
 	node.updateArrayNode(arrayValue)
@@ -174,9 +187,18 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 		key := keyVal.String()
 		val := mapValue.MapIndex(keyVal)
 		nodeItems[i] = getValueNode(val, &FieldInfo{
-			Name: key,
-			Type: elemType,
-			Base: base,
+			Name:          key,
+			Type:          elemType,
+			EnumFormatter: nil,
+			Description:   "",
+			DefaultValue:  "",
+			Template:      "",
+			Required:      false,
+			URLParts:      nil,
+			Title:         false,
+			Base:          base,
+			Keys:          nil,
+			ItemSeparator: 0,
 		})
 		maxKeyLength = util.Max(len(key), maxKeyLength)
 	}
@@ -188,12 +210,14 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 }
 
 func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
-	if mapValue.Kind() == reflect.Ptr {
+	if mapValue.Kind() == reflect.Pointer {
 		mapValue = mapValue.Elem()
 	}
 
 	node := &ContainerNode{
-		FieldInfo: fieldInfo,
+		FieldInfo:    fieldInfo,
+		Items:        nil,
+		MaxKeyLength: 0,
 	}
 	node.updateMapNode(mapValue)
 
@@ -238,7 +262,7 @@ func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 
 func getRootNode(value any) *ContainerNode {
 	structValue := reflect.ValueOf(value)
-	if structValue.Kind() == reflect.Ptr {
+	if structValue.Kind() == reflect.Pointer {
 		structValue = structValue.Elem()
 	}
 
@@ -253,20 +277,33 @@ func getRootNode(value any) *ContainerNode {
 	nodeItems := make([]Node, 0, len(infoFields))
 	maxKeyLength := 0
 
-	for _, fieldInfo := range infoFields {
-		fieldValue := structValue.FieldByName(fieldInfo.Name)
+	for i := range infoFields {
+		fieldValue := structValue.FieldByName(infoFields[i].Name)
 		if !fieldValue.IsValid() {
-			fieldValue = reflect.Zero(fieldInfo.Type)
+			fieldValue = reflect.Zero(infoFields[i].Type)
 		}
 
-		nodeItems = append(nodeItems, getNode(fieldValue, &fieldInfo))
-		maxKeyLength = util.Max(len(fieldInfo.Name), maxKeyLength)
+		nodeItems = append(nodeItems, getNode(fieldValue, &infoFields[i]))
+		maxKeyLength = util.Max(len(infoFields[i].Name), maxKeyLength)
 	}
 
 	sortNodeItems(nodeItems)
 
 	return &ContainerNode{
-		FieldInfo:    &FieldInfo{Type: structType},
+		FieldInfo: &FieldInfo{
+			Name:          "",
+			Type:          structType,
+			EnumFormatter: nil,
+			Description:   "",
+			DefaultValue:  "",
+			Template:      "",
+			Required:      false,
+			URLParts:      nil,
+			Title:         false,
+			Base:          0,
+			Keys:          nil,
+			ItemSeparator: 0,
+		},
 		Items:        nodeItems,
 		MaxKeyLength: maxKeyLength,
 	}
@@ -315,7 +352,7 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 		return PrintBool(val), FalseToken
 	case reflect.Array, reflect.Slice, reflect.Map:
 		return getContainerValueString(fieldValue, fieldInfo), UnknownToken
-	case reflect.Ptr, reflect.Struct:
+	case reflect.Pointer, reflect.Struct:
 		if val, err := GetConfigPropString(fieldValue); err == nil {
 			return val, PropToken
 		}
@@ -372,9 +409,19 @@ func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) str
 
 		if i == 0 {
 			itemFieldInfo = &FieldInfo{
-				Type: itemValue.Type(),
+				Name:          "",
+				Type:          itemValue.Type(),
+				EnumFormatter: nil,
+				Description:   "",
+				DefaultValue:  "",
+				Template:      "",
+				Required:      false,
+				URLParts:      nil,
+				Title:         false,
 				// Inherit the base from the container
-				Base: fieldInfo.Base,
+				Base:          fieldInfo.Base,
+				Keys:          nil,
+				ItemSeparator: 0,
 			}
 
 			if itemFieldInfo.Base == 0 {

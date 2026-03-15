@@ -9,6 +9,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Config holds the configuration for the Google Chat service.
+type Config struct {
+	standard.EnumlessConfig
+
+	Host  string `default:"chat.googleapis.com"`
+	Path  string
+	Token string
+	Key   string
+}
+
 const (
 	Scheme = "googlechat"
 )
@@ -19,55 +29,51 @@ var (
 	ErrMissingToken = errors.New("missing field 'token'")
 )
 
-type Config struct {
-	standard.EnumlessConfig
-	Host  string `default:"chat.googleapis.com"`
-	Path  string
-	Token string
-	Key   string
+// GetURL returns the URL representation of the configuration.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
 }
 
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+// SetURL updates the configuration from a URL.
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.getURL(&resolver)
+	return c.setURL(&resolver, serviceURL)
 }
 
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+// getURL constructs the URL from the configuration using the provided resolver.
+func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
+	query := url.Values{}
+	query.Set("key", c.Key)
+	query.Set("token", c.Token)
 
-	return config.setURL(&resolver, url)
+	return &url.URL{
+		Host:     c.Host,
+		Path:     c.Path,
+		RawQuery: query.Encode(),
+		Scheme:   Scheme,
+	}
 }
 
-func (config *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
-	config.Host = serviceURL.Host
-	config.Path = serviceURL.Path
+// setURL updates the configuration from a URL using the provided resolver.
+func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.Host = serviceURL.Host
+	c.Path = serviceURL.Path
 
 	query := serviceURL.Query()
-	config.Key = query.Get("key")
-	config.Token = query.Get("token")
+	c.Key = query.Get("key")
+	c.Token = query.Get("token")
 
 	// Only enforce if explicitly provided but empty
-	if query.Has("key") && config.Key == "" {
+	if query.Has("key") && c.Key == "" {
 		return ErrMissingKey
 	}
 
-	if query.Has("token") && config.Token == "" {
+	if query.Has("token") && c.Token == "" {
 		return ErrMissingToken
 	}
 
 	return nil
-}
-
-func (config *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
-	query := url.Values{}
-	query.Set("key", config.Key)
-	query.Set("token", config.Token)
-
-	return &url.URL{
-		Host:     config.Host,
-		Path:     config.Path,
-		RawQuery: query.Encode(),
-		Scheme:   Scheme,
-	}
 }

@@ -2,14 +2,11 @@ package mattermost
 
 import (
 	"encoding/json"
-	"fmt" // Add this import
-	"regexp"
+	"fmt"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
-
-// iconURLPattern matches URLs starting with http or https for icon detection.
-var iconURLPattern = regexp.MustCompile(`https?://`)
 
 // JSON represents the payload structure for Mattermost notifications.
 type JSON struct {
@@ -26,7 +23,8 @@ func (j *JSON) SetIcon(icon string) {
 	j.IconEmoji = ""
 
 	if icon != "" {
-		if iconURLPattern.MatchString(icon) {
+		lower := strings.ToLower(icon)
+		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
 			j.IconURL = icon
 		} else {
 			j.IconEmoji = icon
@@ -37,9 +35,11 @@ func (j *JSON) SetIcon(icon string) {
 // CreateJSONPayload generates a JSON payload for the Mattermost service.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
 	payload := JSON{
-		Text:     message,
-		UserName: config.UserName,
-		Channel:  config.Channel,
+		Text:      message,
+		UserName:  config.UserName,
+		Channel:   config.Channel,
+		IconEmoji: "",
+		IconURL:   "",
 	}
 
 	if params != nil {

@@ -11,12 +11,6 @@ type RequestBody struct {
 // MsgType defines the type of message to send.
 type MsgType string
 
-// Constants for message types supported by Lark.
-const (
-	MsgTypeText MsgType = "text"
-	MsgTypePost MsgType = "post"
-)
-
 // Content holds the message content, supporting text or post formats.
 type Content struct {
 	Text string `json:"text,omitempty"`
@@ -45,15 +39,23 @@ type Item struct {
 // TagValue specifies the type of content item.
 type TagValue string
 
-// Constants for tag values supported by Lark.
-const (
-	TagValueText TagValue = "text"
-	TagValueLink TagValue = "a"
-)
-
 // Response represents the API response from Lark.
 type Response struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 	Data any    `json:"data"`
 }
+
+// Constants for message types supported by Lark.
+const (
+	MsgTypeText MsgType = "text"
+	MsgTypePost MsgType = "post"
+)
+
+// Constants for tag values supported by Lark.
+//
+//nolint:goconst // TagValueTextContent and MsgTypeText have same value but represent different concepts
+const (
+	TagValueTextContent TagValue = "text"
+	TagValueLink        TagValue = "a"
+)

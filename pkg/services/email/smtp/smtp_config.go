@@ -13,15 +13,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "smtp"
-
-// Static errors for configuration validation.
-var (
-	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
-	ErrToAddressMissing   = errors.New("toAddress missing from config URL")
-)
-
 // Config is the configuration needed to send e-mail notifications over SMTP.
 type Config struct {
 	Host            string        `desc:"SMTP server hostname or IP address"                     url:"Host"`
@@ -42,25 +33,59 @@ type Config struct {
 	Timeout         time.Duration `desc:"Timeout for SMTP operations"                                       default:"10s"                   key:"timeout"`
 }
 
-// GetURL returns a URL representation of its current field values.
-func (config *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(config)
+// Scheme is the identifying part of this service's configuration URL.
+const Scheme = "smtp"
 
-	return config.getURL(&resolver)
+// Static errors for configuration validation.
+var (
+	ErrFromAddressMissing = errors.New("fromAddress missing from config URL")
+	ErrToAddressMissing   = errors.New("toAddress missing from config URL")
+)
+
+// Clone returns a copy of the config.
+func (c *Config) Clone() Config {
+	clone := *c
+	clone.ToAddresses = make([]string, len(c.ToAddresses))
+	copy(clone.ToAddresses, c.ToAddresses)
+
+	return clone
+}
+
+// Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
+func (c *Config) Enums() map[string]types.EnumFormatter {
+	return map[string]types.EnumFormatter{
+		"Auth":       AuthTypes.Enum,
+		"Encryption": EncMethods.Enum,
+	}
+}
+
+// FixEmailTags replaces parsed spaces (+) in e-mail addresses with '+'.
+func (c *Config) FixEmailTags() {
+	c.FromAddress = strings.ReplaceAll(c.FromAddress, " ", "+")
+	for i, adr := range c.ToAddresses {
+		c.ToAddresses[i] = strings.ReplaceAll(adr, " ", "+")
+	}
+}
+
+// GetURL returns a URL representation of its current field values.
+func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
+	return c.getURL(&resolver)
 }
 
 // SetURL updates a ServiceConfig from a URL representation of its field values.
-func (config *Config) SetURL(url *url.URL) error {
-	resolver := format.NewPropKeyResolver(config)
+func (c *Config) SetURL(serviceURL *url.URL) error {
+	resolver := format.NewPropKeyResolver(c)
 
-	return config.setURL(&resolver, url)
+	return c.setURL(&resolver, serviceURL)
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
-func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	configURL := &url.URL{
-		User:       util.URLUserPassword(config.Username, config.Password),
-		Host:       fmt.Sprintf("%s:%d", config.Host, config.Port),
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	serviceURL := &url.URL{
+		User:       util.URLUserPassword(c.Username, c.Password),
+		Host:       fmt.Sprintf("%s:%d", c.Host, c.Port),
 		Path:       "/",
 		Scheme:     Scheme,
 		ForceQuery: true,
@@ -84,7 +109,7 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		if key == "timeout" {
 			queryParts = append(
 				queryParts,
-				fmt.Sprintf("%s=%s", key, url.QueryEscape(config.Timeout.String())),
+				fmt.Sprintf("%s=%s", key, url.QueryEscape(c.Timeout.String())),
 			)
 
 			continue
@@ -98,38 +123,38 @@ func (config *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
 	}
 	// Only include requirestarttls if explicitly set to true
-	if config.RequireStartTLS {
+	if c.RequireStartTLS {
 		queryParts = append(queryParts, "requirestarttls=Yes")
 	}
 	// Only include skiptlsverify if explicitly set to true
-	if config.SkipTLSVerify {
+	if c.SkipTLSVerify {
 		queryParts = append(queryParts, "skiptlsverify=Yes")
 	}
 
-	configURL.RawQuery = strings.Join(queryParts, "&")
+	serviceURL.RawQuery = strings.Join(queryParts, "&")
 
-	return configURL
+	return serviceURL
 }
 
 // setURL updates the Config from a URL using the provided resolver.
-func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) error {
-	password, _ := url.User.Password()
-	config.Username = url.User.Username()
-	config.Password = password
-	config.Host = url.Hostname()
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	password, _ := serviceURL.User.Password()
+	c.Username = serviceURL.User.Username()
+	c.Password = password
+	c.Host = serviceURL.Hostname()
 
-	if port, err := strconv.ParseUint(url.Port(), 10, 16); err == nil {
-		config.Port = uint16(port)
+	if port, err := strconv.ParseUint(serviceURL.Port(), 10, 16); err == nil {
+		c.Port = uint16(port)
 	}
 
-	for key, vals := range url.Query() {
+	for key, vals := range serviceURL.Query() {
 		if key == "timeout" {
 			duration, err := time.ParseDuration(vals[0])
 			if err != nil {
 				return fmt.Errorf("parsing timeout parameter %q: %w", vals[0], err)
 			}
 
-			config.Timeout = duration
+			c.Timeout = duration
 
 			continue
 		}
@@ -139,40 +164,15 @@ func (config *Config) setURL(resolver types.ConfigQueryResolver, url *url.URL) e
 		}
 	}
 
-	if url.String() != "smtp://dummy@dummy.com" {
-		if len(config.FromAddress) < 1 {
+	if serviceURL.String() != "smtp://dummy@dummy.com" {
+		if len(c.FromAddress) < 1 {
 			return ErrFromAddressMissing
 		}
 
-		if len(config.ToAddresses) < 1 {
+		if len(c.ToAddresses) < 1 {
 			return ErrToAddressMissing
 		}
 	}
 
 	return nil
-}
-
-// Clone returns a copy of the config.
-func (config *Config) Clone() Config {
-	clone := *config
-	clone.ToAddresses = make([]string, len(config.ToAddresses))
-	copy(clone.ToAddresses, config.ToAddresses)
-
-	return clone
-}
-
-// FixEmailTags replaces parsed spaces (+) in e-mail addresses with '+'.
-func (config *Config) FixEmailTags() {
-	config.FromAddress = strings.ReplaceAll(config.FromAddress, " ", "+")
-	for i, adr := range config.ToAddresses {
-		config.ToAddresses[i] = strings.ReplaceAll(adr, " ", "+")
-	}
-}
-
-// Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
-func (config *Config) Enums() map[string]types.EnumFormatter {
-	return map[string]types.EnumFormatter{
-		"Auth":       AuthTypes.Enum,
-		"Encryption": EncMethods.Enum,
-	}
 }

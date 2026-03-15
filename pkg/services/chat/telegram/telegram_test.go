@@ -15,11 +15,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 )
 
-func TestTelegram(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Telegram Suite")
-}
-
 var (
 	envTelegramURL string
 	logger         *log.Logger
@@ -177,6 +172,12 @@ var _ = ginkgo.Describe("the telegram service", func() {
 	})
 })
 
+func TestTelegram(t *testing.T) {
+	t.Parallel()
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "Shoutrrr Telegram Suite")
+}
+
 func expectErrorAndEmptyObject(telegram *Service, rawURL string, logger *log.Logger) {
 	serviceURL, _ := url.Parse(rawURL)
 	err := telegram.Initialize(serviceURL, logger)
@@ -187,7 +188,7 @@ func expectErrorAndEmptyObject(telegram *Service, rawURL string, logger *log.Log
 	gomega.Expect(config.Chats).To(gomega.BeEmpty())
 }
 
-func setupResponder(endpoint string, token string, code int, body string) {
+func setupResponder(endpoint, token string, code int, body string) {
 	targetURL := fmt.Sprintf("https://api.telegram.org/bot%s/%s", token, endpoint)
 	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, body))
 }

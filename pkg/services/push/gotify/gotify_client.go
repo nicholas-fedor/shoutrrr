@@ -8,11 +8,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-const (
-	// HTTPTimeout defines the HTTP client timeout in seconds.
-	HTTPTimeout = 10
-)
-
 // HTTPClientManager handles HTTP client creation and configuration.
 type HTTPClientManager interface {
 	CreateTransport(config *Config) *http.Transport
@@ -22,19 +17,10 @@ type HTTPClientManager interface {
 // DefaultHTTPClientManager provides the default implementation of HTTPClientManager.
 type DefaultHTTPClientManager struct{}
 
-// CreateTransport sets up the HTTP transport with TLS configuration and proxy settings.
-// This method configures the underlying HTTP transport layer with appropriate security settings
-// based on the service configuration, particularly handling TLS verification preferences.
-// Returns: *http.Transport configured with TLS settings for secure or insecure connections.
-func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
-	return &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			InsecureSkipVerify: config.DisableTLS || //nolint:gosec // Intentionally allow insecure connections when TLS is disabled or explicitly configured
-				config.InsecureSkipVerify,
-		},
-	}
-}
+const (
+	// HTTPTimeout defines the HTTP client timeout in seconds.
+	HTTPTimeout = 10
+)
 
 // CreateClient creates an HTTP client with timeout and transport.
 // This method assembles an HTTP client with the configured transport and timeout settings
@@ -47,6 +33,22 @@ func (m *DefaultHTTPClientManager) CreateClient(transport *http.Transport) *http
 	return &http.Client{
 		Transport: transport,                 // Use the configured transport for TLS and proxy handling
 		Timeout:   HTTPTimeout * time.Second, // Set timeout to prevent hanging requests
+	}
+}
+
+// CreateTransport sets up the HTTP transport with TLS configuration and proxy settings.
+// This method configures the underlying HTTP transport layer with appropriate security settings
+// based on the service configuration, particularly handling TLS verification preferences.
+// Returns: *http.Transport configured with TLS settings for secure or insecure connections.
+//
+
+func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			InsecureSkipVerify: config.DisableTLS ||
+				config.InsecureSkipVerify,
+		},
 	}
 }
 

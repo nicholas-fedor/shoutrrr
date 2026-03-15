@@ -13,31 +13,33 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
-var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
-
 // Service implements a Google Chat notification service.
 type Service struct {
 	standard.Standard
+
 	Config *Config
 }
 
-// Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-
-	return service.Config.SetURL(configURL)
-}
+// ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
+var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
 
 // GetID returns the identifier for this service.
-func (service *Service) GetID() string {
+func (s *Service) GetID() string {
 	return Scheme
 }
 
+// Initialize configures the service with a URL and logger.
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+
+	s.Config = &Config{}
+
+	return s.Config.SetURL(serviceURL)
+}
+
 // Send delivers a notification message to Google Chat.
-func (service *Service) Send(message string, _ *types.Params) error {
-	config := service.Config
+func (s *Service) Send(message string, _ *types.Params) error {
+	config := s.Config
 
 	jsonBody, err := json.Marshal(JSON{Text: message})
 	if err != nil {
@@ -73,7 +75,7 @@ func (service *Service) Send(message string, _ *types.Params) error {
 	return nil
 }
 
-// getAPIURL constructs the API URL for Google Chat notifications.
+// getAPIURL constructs the service URL for Google Chat notifications.
 func getAPIURL(config *Config) *url.URL {
 	query := url.Values{}
 	query.Set("key", config.Key)

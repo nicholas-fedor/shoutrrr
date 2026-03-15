@@ -26,6 +26,7 @@ var _ = ginkgo.Describe("Discord E2E Special Characters Test", func() {
 			err := service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+			//nolint:gosmopolitan // Intentional string literal containing rune in Han script
 			specialMessage := "E2E Test: Special characters - éñüñ 中文 🚀 @everyone #channel <@123456> ||spoiler|| `code`"
 			err = service.Send(specialMessage, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

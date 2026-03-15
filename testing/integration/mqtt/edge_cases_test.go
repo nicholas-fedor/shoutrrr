@@ -10,6 +10,7 @@ import (
 )
 
 func TestPublishEmptyMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -30,6 +31,7 @@ func TestPublishEmptyMessage(t *testing.T) {
 }
 
 func TestPublishVeryLongMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -53,6 +55,7 @@ func TestPublishVeryLongMessage(t *testing.T) {
 }
 
 func TestPublishSpecialCharactersInTopic(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name          string
@@ -101,7 +104,9 @@ func TestPublishSpecialCharactersInTopic(t *testing.T) {
 	})
 }
 
+//nolint:gosmopolitan // Unicode characters used intentionally for testing rune handling
 func TestPublishUnicodeInMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -136,6 +141,7 @@ func TestPublishUnicodeInMessage(t *testing.T) {
 }
 
 func TestPublishNewlinesInMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -167,6 +173,7 @@ func TestPublishNewlinesInMessage(t *testing.T) {
 }
 
 func TestPublishTabsInMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -187,6 +194,7 @@ func TestPublishTabsInMessage(t *testing.T) {
 }
 
 func TestPublishJSONMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -207,6 +215,7 @@ func TestPublishJSONMessage(t *testing.T) {
 }
 
 func TestPublishXMLMessage(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -227,6 +236,7 @@ func TestPublishXMLMessage(t *testing.T) {
 }
 
 func TestPublishHTMLEntities(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -247,6 +257,7 @@ func TestPublishHTMLEntities(t *testing.T) {
 }
 
 func TestPublishWhitespaceOnly(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -278,6 +289,7 @@ func TestPublishWhitespaceOnly(t *testing.T) {
 }
 
 func TestPublishBinaryLikeData(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -305,6 +317,7 @@ func TestPublishBinaryLikeData(t *testing.T) {
 }
 
 func TestPublishWithNilParams(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -322,6 +335,7 @@ func TestPublishWithNilParams(t *testing.T) {
 }
 
 func TestPublishWithEmptyParams(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -340,6 +354,7 @@ func TestPublishWithEmptyParams(t *testing.T) {
 }
 
 func TestPublishMultipleConcurrentMessages(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -373,6 +388,7 @@ func TestPublishMultipleConcurrentMessages(t *testing.T) {
 }
 
 func TestPublishWithEscapedCharactersInURL(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -398,6 +414,7 @@ func TestPublishWithEscapedCharactersInURL(t *testing.T) {
 }
 
 func TestPublishWithPortInURL(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)
@@ -417,6 +434,7 @@ func TestPublishWithPortInURL(t *testing.T) {
 }
 
 func TestPublishDeepTopicPath(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockManager := &MockConnectionManager{}
 		mockManager.On("AwaitConnection", mock.Anything).Return(nil)

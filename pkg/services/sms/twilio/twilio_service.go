@@ -13,40 +13,25 @@ import (
 // Service provides the Twilio SMS notification service.
 type Service struct {
 	standard.Standard
+
 	Config     *Config
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
 }
 
-// Send delivers an SMS message via Twilio to all configured recipients.
-func (service *Service) Send(message string, params *types.Params) error {
-	config := service.Config
-
-	err := service.pkr.UpdateConfigFromParams(config, params)
-	if err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
-
-	var errs []error
-
-	for _, toNumber := range config.ToNumbers {
-		err := service.sendToRecipient(config, toNumber, message)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("sending to %s: %w", toNumber, err))
-		}
-	}
-
-	return errors.Join(errs...)
+// GetID returns the service identifier.
+func (s *Service) GetID() string {
+	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
-func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) error {
-	service.SetLogger(logger)
-	service.Config = &Config{}
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.HTTPClient = DefaultHTTPClient()
+func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
+	s.SetLogger(logger)
+	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.HTTPClient = DefaultHTTPClient()
 
-	err := service.Config.setURL(&service.pkr, configURL)
+	err := s.Config.setURL(&s.pkr, serviceURL)
 	if err != nil {
 		return err
 	}
@@ -54,7 +39,23 @@ func (service *Service) Initialize(configURL *url.URL, logger types.StdLogger) e
 	return nil
 }
 
-// GetID returns the service identifier.
-func (service *Service) GetID() string {
-	return Scheme
+// Send delivers an SMS message via Twilio to all configured recipients.
+func (s *Service) Send(message string, params *types.Params) error {
+	config := s.Config
+
+	err := s.pkr.UpdateConfigFromParams(config, params)
+	if err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	var errs []error
+
+	for _, toNumber := range config.ToNumbers {
+		err := s.sendToRecipient(config, toNumber, message)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("sending to %s: %w", toNumber, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
