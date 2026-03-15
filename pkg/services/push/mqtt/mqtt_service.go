@@ -301,7 +301,11 @@ func (s *Service) getCancel() context.CancelFunc {
 		// Create a cancellable context for managing the connection lifecycle.
 		// Both ctx and cancel are stored so that cancel() can terminate
 		// operations using this context.
-		s.ctx, s.cancel = context.WithCancel(context.Background())
+		//nolint:gosec // G118: cancel is called in Close() method
+		s.ctx, s.cancel = context.WithTimeout(
+			context.Background(),
+			publishTimeout*time.Second,
+		)
 	})
 
 	return s.cancel
