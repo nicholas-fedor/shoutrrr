@@ -36,9 +36,20 @@ func (g *Generator) Generate(
 	props map[string]string,
 	_ []string,
 ) (types.ServiceConfig, error) {
+	// Get the Config field from the service using reflection
 	configPtr := reflect.ValueOf(service).Elem().FieldByName("Config")
-	if !configPtr.IsValid() || configPtr.IsNil() {
+	if !configPtr.IsValid() {
 		return nil, ErrInvalidConfigField
+	}
+
+	// If Config is nil, initialize it with a new Config instance, as services
+	// created via NewService() are not initialized and have their Config
+	// field set to nil
+	// Only check IsNil() if Config is a pointer to avoid panic on non-pointer kinds
+	if configPtr.Kind() == reflect.Pointer && configPtr.IsNil() {
+		// Get the type of the pointer (Config) and create a new instance
+		newConfig := reflect.New(configPtr.Type().Elem())
+		configPtr.Set(newConfig)
 	}
 
 	// Use injected Input if provided, otherwise fall back to os.Stdin
@@ -228,14 +239,4 @@ func (g *Generator) setFieldValue(
 	}
 
 	return valid, nil
-}
-
-// validateAndReturnConfig ensures the config implements ServiceConfig and returns it.
-func (g *Generator) validateAndReturnConfig(config reflect.Value) (types.ServiceConfig, error) {
-	configInterface := config.Interface()
-	if serviceConfig, ok := configInterface.(types.ServiceConfig); ok {
-		return serviceConfig, nil
-	}
-
-	return nil, ErrInvalidConfigType
 }
