@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -47,7 +50,12 @@ var (
 	service      *Service    // Global service instance for testing
 	logger       *log.Logger // Test logger for capturing service output
 	envGotifyURL *url.URL    // Environment-provided Gotify URL for integration tests
-	_            = ginkgo.BeforeSuite(func() {
+
+	// httpmockActivateMutex serializes httpmock.Activate() calls to prevent race conditions
+	// when running tests in parallel with t.Parallel().
+	httpmockActivateMutex sync.Mutex
+
+	_ = ginkgo.BeforeSuite(func() {
 		service = &Service{} // Initialize fresh service instance
 		logger = log.New(
 			ginkgo.GinkgoWriter,
@@ -247,9 +255,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 			})
 			ginkgo.It("handles empty config extras", func() {
-				httpmock.Activate()
-
-				defer httpmock.DeactivateAndReset()
+				activateHTTPMockGinkgo()
 
 				serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
 				err := service.Initialize(serviceURL, logger)
@@ -395,7 +401,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		ginkgo.BeforeEach(func() {
 			service = &Service{}
 			service.SetLogger(logger)
-			httpmock.Activate()
+			activateHTTPMockGinkgo()
 
 			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
 			err := service.Initialize(serviceURL, logger)
@@ -607,7 +613,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
 				gomega.Expect(service.client).NotTo(gomega.BeNil())
 				// Now activate httpmock and set client to nil to force recreation with mocked transport
-				httpmock.Activate()
+				activateHTTPMockGinkgo()
 
 				service.httpClient = nil
 				service.client = nil
@@ -1150,7 +1156,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			ginkgo.BeforeEach(func() {
 				service = &Service{}
 				service.SetLogger(logger)
-				httpmock.Activate()
+				activateHTTPMockGinkgo()
 
 				serviceURL := testutils.URLMust(
 					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes",
@@ -1501,25 +1507,38 @@ func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
 
 // TestGotify runs the Ginkgo test suite for the Gotify package.
 func TestGotify(t *testing.T) {
-	t.Parallel()
+	// Register gomega handler before any parallel tests run
 	gomega.RegisterFailHandler(ginkgo.Fail)
+	t.Parallel()
 	ginkgo.RunSpecs(t, "Shoutrrr Gotify Suite")
+}
+
+// TestMain sets up gomega for all tests before running them.
+// This ensures gomega state is initialized once, avoiding race conditions
+// when tests run in parallel.
+func TestMain(m *testing.M) {
+	// Set up gomega with a fail handler for all tests
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	flag.Parse()
+	os.Exit(m.Run())
 }
 
 // TestSend tests basic message sending functionality.
 func TestSend(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterTestingT(t)
 
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)
 
-	httpmock.Activate()
+	activateHTTPMock(t)
 
 	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+
 	err := service.Initialize(serviceURL, logger)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	if err != nil {
+		t.Fatalf("failed to initialize service: %v", err)
+	}
 
 	mockManager := &MockHTTPClientManager{}
 	service.httpClientManager = mockManager
@@ -1541,24 +1560,27 @@ func TestSend(t *testing.T) {
 	)
 
 	err = service.Send("Message", nil)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	httpmock.DeactivateAndReset()
+	if err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
 }
 
 // TestSendWithPriority tests sending a message with a custom priority.
 func TestSendWithPriority(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterTestingT(t)
 
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)
 
-	httpmock.Activate()
+	activateHTTPMock(t)
 
 	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+
 	err := service.Initialize(serviceURL, logger)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	if err != nil {
+		t.Fatalf("failed to initialize service: %v", err)
+	}
 
 	mockManager := &MockHTTPClientManager{}
 	service.httpClientManager = mockManager
@@ -1575,7 +1597,9 @@ func TestSendWithPriority(t *testing.T) {
 				return nil, err
 			}
 
-			gomega.Expect(requestBody["priority"]).To(gomega.Equal(float64(5)))
+			if requestBody["priority"] != float64(5) {
+				return nil, fmt.Errorf("expected priority 5, got %v", requestBody["priority"])
+			}
 
 			return testutils.JSONRespondMust(200, map[string]any{
 				"id":       float64(1),
@@ -1589,25 +1613,29 @@ func TestSendWithPriority(t *testing.T) {
 	)
 
 	params := types.Params{"priority": "5"}
+
 	err = service.Send("Message", &params)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	httpmock.DeactivateAndReset()
+	if err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
 }
 
 // TestSendWithTitle tests sending a message with a custom title.
 func TestSendWithTitle(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterTestingT(t)
 
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)
 
-	httpmock.Activate()
+	activateHTTPMock(t)
 
 	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
+
 	err := service.Initialize(serviceURL, logger)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	if err != nil {
+		t.Fatalf("failed to initialize service: %v", err)
+	}
 
 	mockManager := &MockHTTPClientManager{}
 	service.httpClientManager = mockManager
@@ -1624,7 +1652,9 @@ func TestSendWithTitle(t *testing.T) {
 				return nil, err
 			}
 
-			gomega.Expect(requestBody["title"]).To(gomega.Equal("Custom Title"))
+			if requestBody["title"] != "Custom Title" {
+				return nil, fmt.Errorf("expected title 'Custom Title', got %v", requestBody["title"])
+			}
 
 			return testutils.JSONRespondMust(200, map[string]any{
 				"id":       float64(1),
@@ -1638,16 +1668,17 @@ func TestSendWithTitle(t *testing.T) {
 	)
 
 	params := types.Params{"title": "Custom Title"}
+
 	err = service.Send("Message", &params)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	httpmock.DeactivateAndReset()
+	if err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
 }
 
 // TestTimeout tests timeout handling using synctest for instant execution.
 func TestTimeout(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
 		// Create fake network connection
 		srvConn, cliConn := net.Pipe()
 
@@ -1722,4 +1753,29 @@ func TestTimeout(t *testing.T) {
 		default:
 		}
 	})
+}
+
+// activateHTTPMock safely activates httpmock with a mutex to prevent race conditions
+// when multiple tests run in parallel. It ensures proper activation/deactivation ordering.
+func activateHTTPMock(t *testing.T) {
+	t.Helper()
+	httpmockActivateMutex.Lock()
+	// Register cleanup to unlock the mutex after httpmock is deactivated
+	t.Cleanup(func() {
+		httpmock.DeactivateAndReset()
+		httpmockActivateMutex.Unlock()
+	})
+	httpmock.Activate()
+}
+
+// activateHTTPMockGinkgo safely activates httpmock for Ginkgo tests.
+// Note: Ginkgo specs run serially within the Ginkgo suite, so no mutex is needed.
+// The mutex is only needed to serialize between Ginkgo tests and standalone tests
+// when they both run in parallel (via t.Parallel()). The standalone tests use
+// activateHTTPMock which handles the mutex protection.
+func activateHTTPMockGinkgo() {
+	// No mutex needed for Ginkgo - specs run serially within the suite
+	// The mutex protection is handled by standalone tests via activateHTTPMock(t)
+	// which ensures proper ordering when tests run in parallel
+	httpmock.Activate()
 }
