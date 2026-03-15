@@ -87,7 +87,7 @@ func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	}
 
 	// Parse config from webhook URL
-	config, pkr, err := ConfigFromWebhookURL(webhookURL)
+	config, pkr, err := ConfigFromWebhookURL(&webhookURL)
 	if err != nil {
 		return nil, err
 	}

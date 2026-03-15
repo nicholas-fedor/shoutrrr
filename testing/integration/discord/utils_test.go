@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
@@ -38,10 +37,14 @@ func createTestService(
 	service := &discord.Service{}
 
 	parsedURL, err := url.Parse(webhookURL)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to parse webhook URL: %v", err)
+	}
 
 	err = service.Initialize(parsedURL, &mockLogger{})
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to initialize service: %v", err)
+	}
 
 	// Override the HTTPClient if provided (after Initialize sets the default)
 	if len(httpClients) > 0 && httpClients[0] != nil {
@@ -125,7 +128,8 @@ func assertRequestMade(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 			if req.Method == http.MethodPost && req.URL.String() == expectedURL {
@@ -147,7 +151,8 @@ func assertRequestContains(t *testing.T, mockClient *MockHTTPClient, expectedCon
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 
@@ -176,7 +181,8 @@ func assertRequestBody(t *testing.T, mockClient *MockHTTPClient, expectedBody st
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 
@@ -210,7 +216,8 @@ func assertRequestMatches(
 
 	found := false
 
-	for _, call := range mockClient.Calls {
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
 		if call.Method == "Do" {
 			req := call.Arguments[0].(*http.Request)
 			if predicate(req) {

@@ -62,7 +62,8 @@ func assertPublishCalled(t *testing.T, mockManager *MockConnectionManager, expec
 
 	found := false
 
-	for _, call := range mockManager.Calls {
+	for i := range mockManager.Calls {
+		call := &mockManager.Calls[i]
 		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.Topic == expectedTopic {
@@ -88,7 +89,8 @@ func assertPublishPayload(
 
 	found := false
 
-	for _, call := range mockManager.Calls {
+	for i := range mockManager.Calls {
+		call := &mockManager.Calls[i]
 		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if string(publish.Payload) == expectedPayload {
@@ -113,7 +115,8 @@ func assertPublishQoS(t *testing.T, mockManager *MockConnectionManager, expected
 
 	found := false
 
-	for _, call := range mockManager.Calls {
+	for i := range mockManager.Calls {
+		call := &mockManager.Calls[i]
 		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.QoS == expectedQoS {
@@ -139,7 +142,8 @@ func assertPublishRetained(
 
 	found := false
 
-	for _, call := range mockManager.Calls {
+	for i := range mockManager.Calls {
+		call := &mockManager.Calls[i]
 		if call.Method == publishMethodName {
 			publish := call.Arguments[1].(*paho.Publish)
 			if publish.Retain == expectedRetained {
@@ -221,7 +225,8 @@ func createTestService(
 // getPublishCall retrieves the publish struct from the first Publish call.
 // Returns nil if no Publish call was made.
 func getPublishCall(mockManager *MockConnectionManager) *paho.Publish {
-	for _, call := range mockManager.Calls {
+	for i := range mockManager.Calls {
+		call := &mockManager.Calls[i]
 		if call.Method == publishMethodName {
 			if publish, ok := call.Arguments[1].(*paho.Publish); ok {
 				return publish

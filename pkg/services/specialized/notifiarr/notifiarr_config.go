@@ -41,13 +41,17 @@ const (
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	config := &Config{}
 	pkr := format.NewPropKeyResolver(config)
-	_ = pkr.SetDefaultProps(config)
+	// Panic on error since failure indicates a programming error in struct tags
+	// that would be caught during development
+	if err := pkr.SetDefaultProps(config); err != nil {
+		panic(fmt.Sprintf("setting default properties: %v", err))
+	}
 
 	return config, pkr
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
-func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, error) {
+func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	config, pkr := DefaultConfig()
 
 	// Extract query parameters

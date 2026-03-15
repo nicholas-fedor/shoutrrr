@@ -41,13 +41,15 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 	// Create property key resolver
 	pkr := format.NewPropKeyResolver(config)
 	// Set default properties from struct tags
-	_ = pkr.SetDefaultProps(config)
+	if err := pkr.SetDefaultProps(config); err != nil {
+		panic(fmt.Sprintf("setting default properties: %v", err))
+	}
 
 	return config, pkr
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
-func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, error) {
+func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	// Get default config and resolver
 	config, pkr := DefaultConfig()
 
@@ -65,7 +67,7 @@ func ConfigFromWebhookURL(webhookURL url.URL) (*Config, format.PropKeyResolver, 
 	// Update URL with modified query
 	webhookURL.RawQuery = webhookQuery.Encode()
 	// Assign webhook URL
-	config.webhookURL = &webhookURL
+	config.webhookURL = webhookURL
 	// Assign extracted headers
 	config.headers = headers
 	// Assign extracted extra data

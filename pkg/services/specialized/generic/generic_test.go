@@ -166,7 +166,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					"https://example.com/webhook?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
 				)
 
-				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				// Verify config properties are set correctly
@@ -185,7 +185,7 @@ var _ = ginkgo.Describe("the generic service", func() {
 					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
 				)
 
-				config, _, err := generic.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				// Verify template is set

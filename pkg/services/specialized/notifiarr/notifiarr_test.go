@@ -92,7 +92,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 					"https://notifiarr.com/api/v1/notification/passthrough/apikey123?channel=123456789",
 				)
 
-				config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				gomega.Expect(config.APIKey).To(gomega.Equal("apikey123"))
@@ -106,7 +106,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 						"https://notifiarr.com/api/v1/notification/watchtower?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
 					)
 
-					config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+					config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 					gomega.Expect(config.APIKey).To(gomega.Equal(""))
@@ -121,7 +121,7 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
 				)
 
-				config, _, err := notifiarr.ConfigFromWebhookURL(*webhookURL)
+				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				gomega.Expect(config.APIKey).To(gomega.Equal(""))
