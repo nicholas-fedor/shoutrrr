@@ -28,7 +28,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
       - name: Setup Go
-        uses: actions/setup-go@def8c394e3ad351a79bc93815e4a585520fe993b
+        uses: actions/setup-go@27fdb267c15a8835f1ead03dfa07f89be2bb741a
         with:
           go-version-file: go.mod
 
@@ -42,7 +42,7 @@ jobs:
           ./scripts/generate-service-config-docs.sh
 
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec
         with:
           python-version: "3.14.3"
           cache: "pip"

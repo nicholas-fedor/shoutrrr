@@ -4,7 +4,7 @@ description: "Run govulncheck vulnerability scanner and upload SARIF report"
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@def8c394e3ad351a79bc93815e4a585520fe993b
+    - uses: actions/setup-go@27fdb267c15a8835f1ead03dfa07f89be2bb741a
       with:
         go-version-file: go.mod
 
@@ -37,6 +37,6 @@ runs:
         fi
 
     - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
+      uses: github/codeql-action/upload-sarif@0d579ffd059c29b07949a3cce3983f0780820c98 # v4
       with:
         sarif_file: results.sarif

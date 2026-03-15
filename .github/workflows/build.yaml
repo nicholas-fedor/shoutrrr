@@ -42,17 +42,17 @@ jobs:
           fetch-depth: 0 # Full history for GoReleaser versioning.
 
       - name: Set up Go
-        uses: actions/setup-go@def8c394e3ad351a79bc93815e4a585520fe993b
+        uses: actions/setup-go@27fdb267c15a8835f1ead03dfa07f89be2bb741a
         with:
           go-version-file: go.mod
 
       - name: Set up QEMU # Enable multi-platform emulation.
-        uses: docker/setup-qemu-action@7e10951aea186e886cef2f1a25a7bbf4e593d710
+        uses: docker/setup-qemu-action@a4bc6cde7eccda2bdcfac02ca3348c91290880bd
         with:
           platforms: linux/amd64,linux/386,linux/arm/v6,linux/arm64/v8,linux/riscv64
 
       - name: Set up Docker Buildx # Configure multi-platform builds.
-        uses: docker/setup-buildx-action@7c525be6cc8a882d5163ce04293cac18617c709f
+        uses: docker/setup-buildx-action@c8ad1c5d0f6f39c2bc446b807fa8ea2afadcddb6
         with:
           driver: docker-container
           platforms: linux/amd64,linux/386,linux/arm/v6,linux/arm64/v8,linux/riscv64
@@ -69,21 +69,21 @@ jobs:
 
       - name: Login to Docker Hub # Authenticate to Docker Hub
         if: ${{ !inputs.dry-run }}
-        uses: docker/login-action@3227f5311cb93ffd14d13e65d8cc400d30f4dd8a
+        uses: docker/login-action@9fe7774c8f8ebfade96f0a62aa10f3882309d517
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GHCR # Authenticate to GHCR
         if: ${{ !inputs.dry-run }}
-        uses: docker/login-action@3227f5311cb93ffd14d13e65d8cc400d30f4dd8a
+        uses: docker/login-action@9fe7774c8f8ebfade96f0a62aa10f3882309d517
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@6c92f1d3507cdfe919183912a95e9a64c05f5ff5
+        uses: goreleaser/goreleaser-action@4be059cdedc660b9567bdf0a6f2824c3d2fe653f
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -109,7 +109,7 @@ jobs:
 
       - name: Generate artifact attestation # Generate attestations for prod builds.
         if: ${{ !inputs.dry-run && inputs.build-type == 'prod' }}
-        uses: actions/attest-build-provenance@c5efebd311e9a809e832398ca2b73bb429ff3508
+        uses: actions/attest-build-provenance@10334b5f1e684784025c3fc0a277c88c19089275
         with:
           subject-checksums: ./dist/checksums.txt
 
