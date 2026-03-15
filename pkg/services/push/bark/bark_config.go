@@ -29,15 +29,20 @@ type Config struct {
 	Copy      string `default:""      desc:"The value to be copied"                                     key:"copy"`
 }
 
-// Scheme is the identifying part of this service's configuration URL.
-const (
-	Scheme = "bark"
-)
+// Scheme is the URL scheme identifier for the Bark service.
+const Scheme = "bark"
 
 // ErrSetQueryFailed indicates a failure to set a configuration value from a query parameter.
 var ErrSetQueryFailed = errors.New("failed to set query parameter")
 
-// GetAPIURL constructs the API URL for the specified endpoint using the current configuration.
+// GetAPIURL constructs the full API URL for a given endpoint.
+// The endpoint is appended to the configured host and path.
+//
+// Parameters:
+//   - endpoint: The API endpoint to access (e.g., "push", "register").
+//
+// Returns:
+//   - The complete URL string for the API request.
 func (c *Config) GetAPIURL(endpoint string) string {
 	path := strings.Builder{}
 	if !strings.HasPrefix(c.Path, "/") {
@@ -61,7 +66,11 @@ func (c *Config) GetAPIURL(endpoint string) string {
 	return apiURL.String()
 }
 
-// GetURL returns a URL representation of the current configuration values.
+// GetURL returns a URL representation of the current configuration.
+// This URL can be used to share or persist the service configuration.
+//
+// Returns:
+//   - A URL struct containing the configuration as query parameters.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -69,12 +78,27 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
+// The URL should contain the device key as the password and optional query parameters.
+//
+// Parameters:
+//   - serviceURL: URL containing the service configuration.
+//
+// Returns:
+//   - An error if the URL is invalid or missing required parameters.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
 }
 
+// getURL generates a URL representation using the provided resolver.
+// This internal method handles the actual URL construction logic.
+//
+// Parameters:
+//   - resolver: Configuration query resolver for building URL parameters.
+//
+// Returns:
+//   - A URL struct with embedded credentials and query parameters.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		User:       url.UserPassword("", c.DeviceKey),
@@ -86,11 +110,29 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL parses a service URL and updates the configuration accordingly.
+// It extracts the device key from the password field and host from the URL.
+//
+// Parameters:
+//   - resolver: Configuration query resolver for setting query parameters.
+//   - serviceURL: URL containing the service configuration.
+//
+// Returns:
+//   - An error if required fields are missing or query parameters are invalid.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.DeviceKey = password
 	c.Host = serviceURL.Host
 	c.Path = serviceURL.Path
+
+	// Validate required fields
+	if c.DeviceKey == "" {
+		return ErrMissingDeviceKey
+	}
+
+	if c.Host == "" {
+		return ErrMissingHost
+	}
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
