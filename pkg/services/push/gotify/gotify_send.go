@@ -79,10 +79,22 @@ func (s *DefaultSender) extractErrorResponse(body []byte, errorRes *responseErro
 
 // handleResponseError checks the response status and extracts error information if present.
 func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
-	if res.StatusCode >= 400 {
+	// Handle all HTTP error status codes (>= 400 covers both 4xx client errors and 5xx server errors)
+	if res.StatusCode >= http.StatusBadRequest {
 		errorRes := &responseError{}
 		if s.extractErrorResponse(body, errorRes) {
-			return fmt.Errorf("server error: %w", errorRes)
+			// Segment based on error category for more deterministic error handling
+			if res.StatusCode >= http.StatusInternalServerError {
+				// 5xx: Server-side errors (e.g., internal server error, bad gateway)
+				return fmt.Errorf("server error (%d): %w", res.StatusCode, errorRes)
+			}
+			// 4xx: Client-side errors (e.g., bad request, unauthorized, not found)
+			return fmt.Errorf("client error (%d): %w", res.StatusCode, errorRes)
+		}
+
+		// Fallback when no structured error response is available
+		if res.StatusCode >= http.StatusInternalServerError {
+			return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 		}
 
 		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
