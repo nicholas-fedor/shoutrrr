@@ -84,7 +84,7 @@ func (s *Service) SendWithContext(
 		return err
 	}
 
-	return s.sendAlert(ctx, endpointURL, payload)
+	return s.sendAlert(ctx, endpointURL, &payload)
 }
 
 // SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
@@ -174,7 +174,7 @@ func (s *Service) newEventPayload(
 }
 
 // sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
-func (s *Service) sendAlert(ctx context.Context, url string, payload EventPayload) error {
+func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *EventPayload) error {
 	// Marshal the payload into JSON format
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
@@ -184,7 +184,12 @@ func (s *Service) sendAlert(ctx context.Context, url string, payload EventPayloa
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
 	// Create a new HTTP POST request with the JSON body
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, jsonBuffer)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		endpoint,
+		jsonBuffer,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -310,18 +315,18 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 			return nil, fmt.Errorf("%w: %q", errEmptyContextTypeOrValue, ctx)
 		}
 
-		var context PagerDutyContext
+		var ctxVar PagerDutyContext
 
 		// Map context types to appropriate PagerDutyContext fields
 		switch contextType {
 		case "link":
 			// Create a link context with href
 			//nolint:exhaustruct // link type only needs Type+Href
-			context = PagerDutyContext{Type: "link", Href: value}
+			ctxVar = PagerDutyContext{Type: "link", Href: value}
 		case "image":
 			// Create an image context with src
 			//nolint:exhaustruct // image type only needs Type+Src
-			context = PagerDutyContext{Type: "image", Src: value}
+			ctxVar = PagerDutyContext{Type: "image", Src: value}
 		case "text":
 			// Skip text contexts
 			continue
@@ -334,7 +339,7 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 		}
 
 		// Add the parsed context to the result slice
-		result = append(result, context)
+		result = append(result, ctxVar)
 	}
 
 	return result, nil
