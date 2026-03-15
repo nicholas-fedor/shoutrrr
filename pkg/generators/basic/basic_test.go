@@ -258,6 +258,7 @@ func TestGenerator_Generate(t *testing.T) {
 
 			defer func() {
 				_ = w.Close()
+				_ = r.Close()
 			}()
 
 			// Write input to the pipe
@@ -640,6 +641,7 @@ func TestGenerator_NilConfigInitialization(t *testing.T) {
 
 			defer func() {
 				_ = w.Close()
+				_ = r.Close()
 			}()
 
 			// Write input to the pipe
@@ -678,6 +680,22 @@ func TestGenerator_NilConfigInitialization(t *testing.T) {
 
 				if gotConfig.Port != tt.want.Port {
 					t.Errorf("Generate() port = %v, want %v", gotConfig.Port, tt.want.Port)
+				}
+
+				// Also verify that the service's internal Config field was initialized
+				if mockSvc, ok := tt.service.(*mockServiceNilConfig); ok {
+					if mockSvc.Config == nil {
+						t.Error("Generate() left service.Config nil, expected initialized config")
+					}
+
+					// Optionally verify Host/Port match
+					if mockSvc.Config != nil && mockSvc.Config.Host != tt.want.Host {
+						t.Errorf("service.Config.Host = %v, want %v", mockSvc.Config.Host, tt.want.Host)
+					}
+
+					if mockSvc.Config != nil && mockSvc.Config.Port != tt.want.Port {
+						t.Errorf("service.Config.Port = %v, want %v", mockSvc.Config.Port, tt.want.Port)
+					}
 				}
 			}
 		})
@@ -735,6 +753,7 @@ func TestGenerator_DefaultsAndPropsOverrideExistingConfig(t *testing.T) {
 
 			defer func() {
 				_ = w.Close()
+				_ = r.Close()
 			}()
 
 			// Write input to the pipe
@@ -787,6 +806,7 @@ func TestGenerator_ServiceWithoutConfigField(t *testing.T) {
 
 	defer func() {
 		_ = w.Close()
+		_ = r.Close()
 	}()
 
 	// Write empty input to the pipe
@@ -810,9 +830,9 @@ func TestGenerator_ServiceWithoutConfigField(t *testing.T) {
 	}
 }
 
-// TestGenerator_InvalidFieldName tests that invalid field names in props
-// return appropriate errors.
-func TestGenerator_InvalidFieldName(t *testing.T) {
+// TestGenerator_IgnoresInvalidFieldNames tests that invalid/unknown field names
+// in props are silently ignored and do not cause errors.
+func TestGenerator_IgnoresInvalidFieldNames(t *testing.T) {
 	t.Parallel()
 
 	// Set up pipe for stdin simulation
@@ -825,6 +845,7 @@ func TestGenerator_InvalidFieldName(t *testing.T) {
 
 	defer func() {
 		_ = w.Close()
+		_ = r.Close()
 	}()
 
 	// Write input to the pipe
