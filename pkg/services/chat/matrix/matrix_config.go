@@ -81,7 +81,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	for r, room := range c.Rooms {
 		// If room does not begin with a '#' let's prepend it
-		if room[0] != '#' && room[0] != '!' {
+		if room != "" && room[0] != '#' && room[0] != '!' {
 			c.Rooms[r] = "#" + room
 		}
 	}
