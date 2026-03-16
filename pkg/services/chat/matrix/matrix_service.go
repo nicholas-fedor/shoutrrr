@@ -44,7 +44,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if serviceURL.String() != "matrix://dummy@dummy.com" {
+	if serviceURL.Host != "dummy.com" && serviceURL.Host != "" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
 		if s.Config.User != "" {
 			return s.client.login(s.Config.User, s.Config.Password)

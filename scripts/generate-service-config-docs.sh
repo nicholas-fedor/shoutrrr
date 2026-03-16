@@ -76,8 +76,8 @@ for CATEGORY_DIR in "$SERVICES_PATH"/*; do
     fi
     # Extract the service name.
     SERVICE=$(basename "$SERVICE_DIR")
-    # Skip specific services ('standard' and 'xmpp').
-    if [[ "$SERVICE" == "standard" ]] || [[ "$SERVICE" == "xmpp" ]]; then
+    # Skip specific services ('standard', 'xmpp', and directories named 'mocks').
+    if [[ "$SERVICE" == "standard" ]] || [[ "$SERVICE" == "xmpp" ]] || [[ "$SERVICE" == "mocks" ]]; then
       continue
     fi
     # Debug: Print the service being processed.
