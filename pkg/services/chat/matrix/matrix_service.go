@@ -1,7 +1,6 @@
 package matrix
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 
@@ -21,9 +20,6 @@ type Service struct {
 
 // Scheme identifies this service in configuration URLs.
 const Scheme = "matrix"
-
-// ErrClientNotInitialized indicates that the client is not initialized for sending messages.
-var ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
 
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {

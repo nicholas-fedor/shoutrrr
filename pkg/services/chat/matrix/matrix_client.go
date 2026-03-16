@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,12 +15,22 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
+// HTTPClient defines the interface for HTTP operations.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // client manages interactions with the Matrix API.
 type client struct {
 	apiURL      url.URL
 	accessToken string
 	logger      types.StdLogger
-	httpClient  *http.Client
+	httpClient  HTTPClient
+}
+
+// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+type DefaultHTTPClient struct {
+	client *http.Client
 }
 
 // schemeHTTPPrefixLength is the length of "http" in "https", used to strip TLS suffix.
@@ -33,11 +42,15 @@ const (
 	defaultHTTPTimeout     = 10 * time.Second // defaultHTTPTimeout is the timeout for HTTP requests.
 )
 
-// ErrUnsupportedLoginFlows indicates that none of the server login flows are supported.
-var (
-	ErrUnsupportedLoginFlows = errors.New("none of the server login flows are supported")
-	ErrUnexpectedStatus      = errors.New("unexpected HTTP status")
-)
+// Do performs the HTTP request.
+func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("performing HTTP request: %w", err)
+	}
+
+	return resp, nil
+}
 
 // newClient creates a new Matrix client with the specified host and TLS settings.
 func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
@@ -49,9 +62,10 @@ func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 			Host:   host,
 			Scheme: "https",
 		},
-		//nolint:exhaustruct // Intentional partial initialization for http.Client
-		httpClient: &http.Client{
-			Timeout: defaultHTTPTimeout,
+		httpClient: &DefaultHTTPClient{
+			client: &http.Client{
+				Timeout: defaultHTTPTimeout,
+			},
 		},
 	}
 
@@ -199,10 +213,16 @@ func (c *client) login(user, password string) error {
 	for _, flow := range resLogin.Flows {
 		flows = append(flows, string(flow.Type))
 
-		if flow.Type == flowLoginPassword {
+		if flow.Type == flowLoginPassword && user != "" {
 			c.logf("Using login flow '%v'", flow.Type)
 
 			return c.loginPassword(user, password)
+		}
+
+		if flow.Type == flowLoginToken {
+			c.logf("Using login flow '%v'", flow.Type)
+
+			return c.loginToken(password)
 		}
 	}
 
@@ -219,6 +239,31 @@ func (c *client) loginPassword(user, password string) error {
 		Identifier: newUserIdentifier(user),
 	}, &response); err != nil {
 		return fmt.Errorf("failed to log in: %w", err)
+	}
+
+	c.accessToken = response.AccessToken
+
+	tokenHint := ""
+	if len(response.AccessToken) > tokenHintLength {
+		tokenHint = response.AccessToken[:tokenHintLength]
+	}
+
+	c.logf("AccessToken: %v...\n", tokenHint)
+	c.logf("HomeServer: %v\n", response.HomeServer)
+	c.logf("User: %v\n", response.UserID)
+
+	return nil
+}
+
+// loginToken performs a token-based login to the Matrix server.
+func (c *client) loginToken(token string) error {
+	response := apiResLogin{}
+	//nolint:exhaustruct // Intentional zero-value initialization for apiReqLogin
+	if err := c.apiPost(apiLogin, apiReqLogin{
+		Type:  flowLoginToken,
+		Token: token,
+	}, &response); err != nil {
+		return fmt.Errorf("failed to log in with token: %w", err)
 	}
 
 	c.accessToken = response.AccessToken

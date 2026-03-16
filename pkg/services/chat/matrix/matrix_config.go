@@ -48,9 +48,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.User = serviceURL.User.Username()
-	password, _ := serviceURL.User.Password()
+
+	password, ok := serviceURL.User.Password()
+	if !ok {
+		return ErrMissingCredentials
+	}
+
 	c.Password = password
 	c.Host = serviceURL.Host
+
+	if c.Host == "" {
+		return ErrMissingHost
+	}
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
