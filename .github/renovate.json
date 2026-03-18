@@ -12,6 +12,12 @@
       "semanticCommitType": "chore"
     },
     {
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "semanticCommitType": "chore",
+      "enabled": true
+    },
+    {
       "description": "Handle Go toolchain updates",
       "matchManagers": ["gomod"],
       "matchDepNames": ["toolchain"],
