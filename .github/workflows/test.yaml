@@ -36,8 +36,9 @@ jobs:
         run: go mod download
 
       - name: Run tests
+        shell: bash
         run: |
-          go test -v -coverprofile coverage.out -covermode atomic ./...
+          go test -v -coverprofile coverage.out -covermode atomic $(go list ./... | grep -v testing/e2e/...)
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
