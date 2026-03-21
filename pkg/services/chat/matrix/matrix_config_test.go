@@ -97,7 +97,7 @@ var _ = ginkgo.Describe("Config", func() {
 			err = cfg.SetURL(testURL)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(cfg.Rooms).ToNot(gomega.BeEmpty())
-			gomega.Expect(cfg.Rooms[0]).To(gomega.ContainSubstring("testroom"))
+			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("#testroom"))
 		})
 
 		ginkgo.It("should not prepend # to room aliases that already have ! prefix", func() {

@@ -715,7 +715,7 @@ var _ = ginkgo.Describe("client", func() {
 
 		ginkgo.It("should handle title with only whitespace", func() {
 			result := createMessage("Hello world", "   ")
-			gomega.Expect(result).To(gomega.Equal("\n\nHello world"))
+			gomega.Expect(result).To(gomega.Equal("Hello world"))
 		})
 
 		ginkgo.It("should preserve message with existing newlines", func() {

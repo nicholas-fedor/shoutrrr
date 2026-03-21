@@ -180,10 +180,10 @@ Run specific test suites:
 
 ```bash
 # Run service initialization tests
-go test ./testing/e2e/matrix/ -v -run "Service Initialization"
+go test ./testing/e2e/matrix/ -v -ginkgo.focus "Service Initialization"
 
 # Run send message tests
-go test ./testing/e2e/matrix/ -v -run "Send Messages"
+go test ./testing/e2e/matrix/ -v -ginkgo.focus "Send Messages"
 ```
 
 ### Using .env File

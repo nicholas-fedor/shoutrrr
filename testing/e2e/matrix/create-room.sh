@@ -86,7 +86,7 @@ login() {
     
     local response
     response=$(
-        curl -s -X POST "${base_url}/_matrix/client/r0/login" \
+        curl -s -X POST "${base_url}/_matrix/client/v3/login" \
             -H "Content-Type: application/json" \
             -d "{
                 \"type\": \"m.login.password\",
@@ -98,7 +98,7 @@ login() {
             }" 2>&1
     ) || error "Failed to connect to Matrix server at ${base_url}"
     
-    info "Login response: ${response}"
+    info "Login response received"
     
     # Check for errors in response
     local error_msg
@@ -112,7 +112,7 @@ login() {
     local access_token
     access_token=$(echo "$response" | jq -r '.access_token' 2>/dev/null) || error "Failed to parse login response"
     
-    info "Access token received: ${access_token:0:20}..."
+    info "Access token received successfully"
     
     if [[ -z "$access_token" || "$access_token" == "null" ]]; then
         error "No access token received from login"
@@ -136,7 +136,7 @@ create_room() {
     
     local response
     response=$(
-        curl -s -X POST "${base_url}/_matrix/client/r0/createRoom" \
+        curl -s -X POST "${base_url}/_matrix/client/v3/createRoom" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${access_token}" \
             -d "{

@@ -18,7 +18,7 @@ func TestServiceSendWithCancelledContext(t *testing.T) {
 	t.Parallel()
 
 	// Create a service with dummy URL (client won't be initialized)
-	service := createTestService(t, "matrix://dummy@dummy.com")
+	service, _ := createTestService(t, "matrix://dummy@dummy.com")
 
 	// Create a canceled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -26,15 +26,11 @@ func TestServiceSendWithCancelledContext(t *testing.T) {
 
 	// Attempting to send with an uninitialized client should return
 	// ErrClientNotInitialized, regardless of context state
-	err := service.Send("Test message", nil)
+	err := service.SendWithContext(ctx, "Test message", nil)
 
 	require.Error(t, err, "Expected error when sending with uninitialized client")
 	require.ErrorIs(t, err, matrix.ErrClientNotInitialized,
 		"Expected ErrClientNotInitialized, got %v", err)
-
-	// The context cancellation doesn't affect the outcome because the
-	// client check happens before any network operation
-	_ = ctx // ctx is canceled but not used in the current implementation
 }
 
 // TestServiceSendToMultipleRooms tests that sending to multiple rooms
@@ -185,7 +181,7 @@ func TestServiceSendWithSpecialCharacters(t *testing.T) {
 				serviceURL += "?title=" + url.QueryEscape(tt.title)
 			}
 
-			service := createTestService(t, serviceURL)
+			service, _ := createTestService(t, serviceURL)
 
 			// The service should accept any message content
 			// The actual sending would fail with uninitialized client,
@@ -252,7 +248,7 @@ func TestServiceSendWithoutRooms(t *testing.T) {
 	t.Parallel()
 
 	// Create service without room configuration
-	service := createTestService(t, "matrix://dummy@dummy.com")
+	service, _ := createTestService(t, "matrix://dummy@dummy.com")
 
 	// Verify no rooms are configured
 	require.Empty(t, service.Config.Rooms, "Rooms should be empty when not configured")

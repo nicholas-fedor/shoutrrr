@@ -19,24 +19,9 @@ var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
 	ginkgo.Describe("Concurrent Sends", func() {
 		ginkgo.It("should send multiple messages concurrently", func() {
 			// Use shared service if available
-			if sharedService == nil {
-				serviceURL := buildServiceURL()
-				if serviceURL == "" {
-					ginkgo.Skip("Matrix server not configured, skipping test. " +
-						"Set SHOUTRRR_MATRIX_USER and SHOUTRRR_MATRIX_PASSWORD environment variables")
-				}
-
-				parsedURL, err := url.Parse(serviceURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				var initErr error
-
-				sharedService = &matrix.Service{}
-
-				initErr = sharedService.Initialize(parsedURL, testutils.TestLogger())
-				if initErr != nil {
-					ginkgo.Skip("Cannot initialize service, skipping test")
-				}
+			err := getOrInitSharedService()
+			if err != nil {
+				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
 			}
 
 			// Number of concurrent messages to send
@@ -78,21 +63,9 @@ var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
 		})
 
 		ginkgo.It("should handle rapid sequential sends without race conditions", func() {
-			if sharedService == nil {
-				serviceURL := buildServiceURL()
-				if serviceURL == "" {
-					ginkgo.Skip("Matrix server not configured, skipping test")
-				}
-
-				parsedURL, err := url.Parse(serviceURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				sharedService = &matrix.Service{}
-
-				err = sharedService.Initialize(parsedURL, testutils.TestLogger())
-				if err != nil {
-					ginkgo.Skip("Cannot initialize service, skipping test")
-				}
+			err := getOrInitSharedService()
+			if err != nil {
+				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
 			}
 
 			// Send messages in quick succession
@@ -162,21 +135,9 @@ var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
 			// Test the transaction ID generation by looking at the internal behavior
 			// We verify that rapid sends don't result in duplicate transaction IDs
 			// which could cause message duplication on the Matrix server
-			if sharedService == nil {
-				serviceURL := buildServiceURL()
-				if serviceURL == "" {
-					ginkgo.Skip("Matrix server not configured, skipping test")
-				}
-
-				parsedURL, err := url.Parse(serviceURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				sharedService = &matrix.Service{}
-
-				err = sharedService.Initialize(parsedURL, testutils.TestLogger())
-				if err != nil {
-					ginkgo.Skip("Cannot initialize service, skipping test")
-				}
+			err := getOrInitSharedService()
+			if err != nil {
+				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
 			}
 
 			// Track transaction IDs indirectly by checking for duplicates in error messages
@@ -211,21 +172,9 @@ var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
 
 		ginkgo.It("should handle multiple goroutines accessing service concurrently", func() {
 			// This is a stress test to ensure thread-safety
-			if sharedService == nil {
-				serviceURL := buildServiceURL()
-				if serviceURL == "" {
-					ginkgo.Skip("Matrix server not configured, skipping test")
-				}
-
-				parsedURL, err := url.Parse(serviceURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				sharedService = &matrix.Service{}
-
-				err = sharedService.Initialize(parsedURL, testutils.TestLogger())
-				if err != nil {
-					ginkgo.Skip("Cannot initialize service, skipping test")
-				}
+			err := getOrInitSharedService()
+			if err != nil {
+				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
 			}
 
 			numGoroutines := 10

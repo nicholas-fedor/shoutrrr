@@ -13,7 +13,7 @@
 #   Password: admin
 #
 # API endpoint: http://localhost:8008
-# Client API: http://localhost:8008/_matrix/client/r0
+# Client API: http://localhost:8008/_matrix/client/v3
 
 services:
   synapse:

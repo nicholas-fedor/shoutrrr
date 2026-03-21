@@ -30,7 +30,7 @@ func (l *testLogger) Println(v ...any) {
 
 // createTestService creates a matrix service with the given URL string.
 // Uses the "dummy" URL special case to avoid actual client initialization.
-func createTestService(t *testing.T, serviceURL string) *matrix.Service {
+func createTestService(t *testing.T, serviceURL string) (*matrix.Service, error) {
 	t.Helper()
 
 	parsedURL, err := url.Parse(serviceURL)
@@ -42,10 +42,8 @@ func createTestService(t *testing.T, serviceURL string) *matrix.Service {
 
 	err = service.Initialize(parsedURL, &testLogger{})
 	if err != nil {
-		// For dummy URLs, we expect no error during initialization
-		// but some tests may intentionally test invalid URLs
-		t.Logf("initialize error (expected for some tests): %v", err)
+		return nil, err
 	}
 
-	return service
+	return service, nil
 }

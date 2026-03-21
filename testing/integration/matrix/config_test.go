@@ -120,6 +120,14 @@ func TestConfigGetURL(t *testing.T) {
 
 			require.Equal(t, tt.expectedHost, resultURL.Host,
 				"Host mismatch for %s", tt.name)
+
+			require.Equal(t, tt.expectedUser, resultURL.User.Username(),
+				"User mismatch for %s", tt.name)
+
+			actualPass, ok := resultURL.User.Password()
+			require.True(t, ok, "Password should be present for %s", tt.name)
+			require.Equal(t, tt.expectedPass, actualPass,
+				"Password mismatch for %s", tt.name)
 		})
 	}
 }

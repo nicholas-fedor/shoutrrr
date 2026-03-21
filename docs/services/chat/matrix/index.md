@@ -73,6 +73,7 @@ The service passes the access token via the `Authorization: Bearer <token>` HTTP
 The Matrix service now supports the `title` parameter. When provided, the title is prepended to the message body.
 
 !!! Example "With Title"
+
     ```bash
     shoutrrr send --title "Notification Title" --message "This is the message body" matrix://...
     ```
@@ -81,6 +82,7 @@ The Matrix service now supports the `title` parameter. When provided, the title 
 
     ```text
     Notification Title
+
     This is the message body
     ```
 

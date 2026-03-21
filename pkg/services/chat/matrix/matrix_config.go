@@ -47,8 +47,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// Skip credential validation for dummy URLs used in docs generation
-	if serviceURL.Host == "dummy.com" {
+	// Skip credential validation and query parameter parsing for dummy URLs
+	// used in docs generation. Query params (rooms, title, disableTLS) are
+	// intentionally ignored for dummy.com to avoid validation errors.
+	if serviceURL.Hostname() == "dummy.com" {
 		c.User = serviceURL.User.Username()
 		if password, ok := serviceURL.User.Password(); ok {
 			c.Password = password

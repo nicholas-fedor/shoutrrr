@@ -2,10 +2,12 @@ package e2e_test
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +22,11 @@ const envValueTrue = "true"
 
 // sharedService is the authenticated Matrix service shared across tests.
 // Initialized once in BeforeSuite to avoid repeated login operations.
-var sharedService *matrix.Service
+var (
+	sharedService        *matrix.Service
+	sharedServiceOnce    sync.Once
+	errSharedServiceInit error
+)
 
 // Test_Matrix_E2E runs the Matrix E2E test suite using Ginkgo.
 // These tests connect to a real Matrix server and verify actual behavior.
@@ -158,7 +164,37 @@ func loadEnvFile(filename string) {
 			value := strings.TrimSpace(parts[1])
 			// Remove quotes if present
 			value = strings.Trim(value, `"'`)
-			_ = os.Setenv(key, value) // Ignore error as it's test setup
+			// Only set if not already present in the environment
+			if _, exists := os.LookupEnv(key); !exists {
+				_ = os.Setenv(key, value) // Ignore error as it's test setup
+			}
 		}
 	}
+}
+
+// getOrInitSharedService initializes the shared Matrix service once in a
+// thread-safe manner if it hasn't been initialized yet.
+func getOrInitSharedService() error {
+	sharedServiceOnce.Do(func() {
+		serviceURL := buildServiceURL()
+		if serviceURL == "" {
+			errSharedServiceInit = errors.New("Matrix server not configured")
+
+			return
+		}
+
+		parsedURL, err := url.Parse(serviceURL)
+		if err != nil {
+			errSharedServiceInit = fmt.Errorf("parsing service URL: %w", err)
+
+			return
+		}
+
+		sharedService = &matrix.Service{}
+		if err := sharedService.Initialize(parsedURL, testutils.TestLogger()); err != nil {
+			errSharedServiceInit = fmt.Errorf("initializing service: %w", err)
+		}
+	})
+
+	return errSharedServiceInit
 }

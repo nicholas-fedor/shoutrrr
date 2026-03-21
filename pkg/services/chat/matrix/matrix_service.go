@@ -46,7 +46,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if serviceURL.Host != "dummy.com" && serviceURL.Host != "" {
+	if serviceURL.Hostname() != "dummy.com" && serviceURL.Host != "" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
 		if s.Config.User != "" {
 			return s.client.login(context.Background(), s.Config.User, s.Config.Password)
@@ -65,21 +65,24 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendWithContext delivers a notification message to Matrix rooms with the provided context.
 func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
-	if err := s.pkr.UpdateConfigFromParams(s.Config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
-
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}
 
-	// Create message with title if provided
-	fullMessage := createMessage(message, s.Config.Title)
+	// Make a per-call copy of the config to avoid mutating the shared s.Config
+	cfg := *s.Config
 
-	sendErrors := s.client.sendMessage(ctx, fullMessage, s.Config.Rooms)
+	if err := s.pkr.UpdateConfigFromParams(&cfg, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// Create message with title if provided
+	fullMessage := createMessage(message, cfg.Title)
+
+	sendErrors := s.client.sendMessage(ctx, fullMessage, cfg.Rooms)
 	if len(sendErrors) > 0 {
 		for _, err := range sendErrors {
-			s.Logf("error sending message: %w", err)
+			s.Logf("error sending message: %v", err)
 		}
 
 		return fmt.Errorf(
@@ -95,9 +98,10 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 // createMessage creates the full message body by prepending the title if provided.
 // Format: If title is "Alert" and message is "Hello", output is "Alert\n\nHello".
 func createMessage(message, title string) string {
-	if title == "" {
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
 		return message
 	}
 
-	return strings.TrimSpace(title) + "\n\n" + message
+	return trimmedTitle + "\n\n" + message
 }

@@ -13,11 +13,6 @@ import (
 // viperMu protects viper state during parallel test execution.
 var viperMu sync.Mutex
 
-// Test names that must run sequentially due to viper global state.
-var sequentialTests = map[string]bool{
-	"env_var_set_with_existing_message_flag": true,
-}
-
 func TestLoadFlagsFromAltSources(t *testing.T) {
 	t.Parallel()
 
@@ -92,31 +87,30 @@ func TestLoadFlagsFromAltSources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Use mutex for tests that require sequential execution due to viper global state
-			if sequentialTests[tt.name] {
-				viperMu.Lock()
-				defer viperMu.Unlock()
-			}
-
-			// Reset viper state before each test
-			viper.Reset()
-
-			// Setup command
+			// Setup command before acquiring mutex (no viper dependency)
 			cmd := setupTestCommand()
 
-			// Set environment variable if specified
-			if tt.envURL != "" {
-				viper.Set("SHOUTRRR_URL", tt.envURL)
-			}
-
-			// Set initial message flag if specified
+			// Set initial message flag if specified (no viper dependency)
 			if tt.initialMessage != "" {
 				err := cmd.Flags().Set("message", tt.initialMessage)
 				require.NoError(t, err)
 			}
 
-			// Execute the function
+			// Serialize all viper operations to prevent races between
+			// parallel subtests that share viper's global state.
+			viperMu.Lock()
+
+			viper.Reset()
+
+			if tt.envURL != "" {
+				viper.Set("SHOUTRRR_URL", tt.envURL)
+			}
+
+			// Execute the function while holding the lock so viper state
+			// (Reset + Set + read inside LoadFlagsFromAltSources) is atomic
 			err := LoadFlagsFromAltSources(cmd, tt.args)
+
+			viperMu.Unlock()
 
 			// Check error expectation
 			if tt.wantErr {
@@ -131,7 +125,7 @@ func TestLoadFlagsFromAltSources(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Verify flag values
+			// Verify flag values (no viper dependency, safe outside lock)
 			urls, err := cmd.Flags().GetStringArray("url")
 			require.NoError(t, err)
 
@@ -153,16 +147,19 @@ func TestLoadFlagsFromAltSources_URLFlagAlreadySet(t *testing.T) {
 	t.Parallel()
 
 	// When URL flag is already set, positional args should still override
-	viper.Reset()
-
 	cmd := setupTestCommand()
 
-	// Pre-set the URL flag
+	// Pre-set the URL flag (no viper dependency)
 	err := cmd.Flags().Set("url", "https://preset.example.com")
 	require.NoError(t, err)
 
-	// Call with positional arg
+	// Serialize viper access
+	viperMu.Lock()
+	viper.Reset()
+
 	err = LoadFlagsFromAltSources(cmd, []string{"https://positional.example.com"})
+	viperMu.Unlock()
+
 	require.NoError(t, err)
 
 	// Positional arg should be appended (StringArray.Set appends)
@@ -175,13 +172,16 @@ func TestLoadFlagsFromAltSources_EnvVarOverridesEmptyFlag(t *testing.T) {
 	t.Parallel()
 
 	// When URL flag is empty but env var is set, env var should be used
-	viper.Reset()
-
 	cmd := setupTestCommand()
 
+	// Serialize viper access
+	viperMu.Lock()
+	viper.Reset()
 	viper.Set("SHOUTRRR_URL", "https://env.example.com")
 
 	err := LoadFlagsFromAltSources(cmd, []string{})
+	viperMu.Unlock()
+
 	require.NoError(t, err)
 
 	urls, err := cmd.Flags().GetStringArray("url")
@@ -235,15 +235,19 @@ func TestLoadFlagsFromAltSources_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			viper.Reset()
-
 			cmd := tt.setupCmd()
+
+			// Serialize viper access
+			viperMu.Lock()
+			viper.Reset()
 
 			if tt.envURL != "" {
 				viper.Set("SHOUTRRR_URL", tt.envURL)
 			}
 
 			err := LoadFlagsFromAltSources(cmd, tt.args)
+			viperMu.Unlock()
+
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errContains)
 		})
@@ -302,10 +306,7 @@ func Test_hasURLInEnvButNotFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Reset viper state
-			viper.Reset()
-
-			// Setup command with flag value
+			// Setup command with flag value (no viper dependency)
 			cmd := setupTestCommand()
 
 			if tt.flagURL != "" {
@@ -313,11 +314,16 @@ func Test_hasURLInEnvButNotFlag(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			// Serialize viper access
+			viperMu.Lock()
+			viper.Reset()
+
 			if tt.envURL != "" {
 				viper.Set("SHOUTRRR_URL", tt.envURL)
 			}
 
 			got, err := hasURLInEnvButNotFlag(cmd)
+			viperMu.Unlock()
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -339,8 +345,6 @@ func Test_hasURLInEnvButNotFlag_MissingFlag(t *testing.T) {
 	t.Parallel()
 
 	// Test when the url flag doesn't exist on the command
-	viper.Reset()
-
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -348,9 +352,14 @@ func Test_hasURLInEnvButNotFlag_MissingFlag(t *testing.T) {
 	// Only add message flag, not url flag
 	cmd.Flags().String("message", "", "The notification message")
 
+	// Serialize viper access
+	viperMu.Lock()
+	viper.Reset()
 	viper.Set("SHOUTRRR_URL", "https://example.com")
 
 	got, err := hasURLInEnvButNotFlag(cmd)
+	viperMu.Unlock()
+
 	// This should return an error because the flag doesn't exist
 	require.Error(t, err)
 	assert.False(t, got)

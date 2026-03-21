@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -230,26 +229,13 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 
-		ginkgo.It("should handle environment variable override for testing", func() {
-			// Test that SHOUTRRR_MATRIX_HOST can override the host
-			originalHost := os.Getenv("SHOUTRRR_MATRIX_HOST")
-
-			defer func() { _ = os.Setenv("SHOUTRRR_MATRIX_HOST", originalHost) }()
-
-			// Set an invalid host via environment
-			_ = os.Setenv("SHOUTRRR_MATRIX_HOST", "invalid-host-for-testing:9999")
-
-			// Build URL with the invalid host
-			invalidURL := buildServiceURL()
-			if invalidURL == "" {
-				ginkgo.Skip("Cannot build service URL")
-			}
-
-			parsedURL, err := url.Parse(invalidURL)
+		ginkgo.It("should handle invalid host gracefully", func() {
+			// Construct a test-specific invalid URL directly
+			invalidURL, err := url.Parse("matrix://user:pass@invalid-host-for-testing:9999?disableTLS=true")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(invalidURL, testutils.TestLogger())
 			// Should fail due to invalid host
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})

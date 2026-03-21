@@ -56,7 +56,37 @@ DEFAULT_MATRIX_USER="admin"
 DEFAULT_MATRIX_PASSWORD="admin"
 DEFAULT_MATRIX_HOST="localhost:8008"
 DEFAULT_MATRIX_ROOM="#test:localhost"
-DEFAULT_MATRIX_SERVER_URL="http://localhost:8008"
+
+# Rate limiting configuration for E2E testing
+RATE_LIMIT_CONFIG='# Rate limiting configuration - effectively disabled for E2E testing
+# Using very high values to allow rapid test execution without rate limits.
+# See: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#ratelimiting
+rc_message:
+  per_second: 1000
+  burst_count: 10000
+
+rc_registration:
+  per_second: 1000
+  burst_count: 10000
+
+rc_login:
+  address:
+    per_second: 1000
+    burst_count: 10000
+  account:
+    per_second: 1000
+    burst_count: 10000
+  failed_attempts:
+    per_second: 1000
+    burst_count: 10000
+
+rc_joins:
+  local:
+    per_second: 1000
+    burst_count: 10000
+  remote:
+    per_second: 1000
+    burst_count: 10000'
 
 # Verbose mode
 VERBOSE=false
@@ -244,38 +274,7 @@ EOF
     if [[ -f "$homeserver_yaml" ]]; then
         if ! grep -q "^rc_message:" "$homeserver_yaml" 2>/dev/null; then
             info "Adding rate limiting config to homeserver.yaml..."
-            cat >> "$homeserver_yaml" << 'EOF'
-
-# Rate limiting configuration - effectively disabled for E2E testing
-# Using very high values to allow rapid test execution without rate limits.
-# See: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#ratelimiting
-rc_message:
-  per_second: 1000
-  burst_count: 10000
-
-rc_registration:
-  per_second: 1000
-  burst_count: 10000
-
-rc_login:
-  address:
-    per_second: 1000
-    burst_count: 10000
-  account:
-    per_second: 1000
-    burst_count: 10000
-  failed_attempts:
-    per_second: 1000
-    burst_count: 10000
-
-rc_joins:
-  local:
-    per_second: 1000
-    burst_count: 10000
-  remote:
-    per_second: 1000
-    burst_count: 10000
-EOF
+            echo "$RATE_LIMIT_CONFIG" >> "$homeserver_yaml"
             info "Rate limiting configuration added"
         else
             debug "Rate limiting config already present in homeserver.yaml"
@@ -313,38 +312,7 @@ disable_rate_limiting() {
     if [[ -f "$homeserver_yaml" ]]; then
         if ! grep -q "^rc_message:" "$homeserver_yaml" 2>/dev/null; then
             info "Adding rate limiting config to homeserver.yaml..."
-            cat >> "$homeserver_yaml" << 'EOF'
-
-# Rate limiting configuration - effectively disabled for E2E testing
-# Using very high values to allow rapid test execution without rate limits.
-# See: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#ratelimiting
-rc_message:
-  per_second: 1000
-  burst_count: 10000
-
-rc_registration:
-  per_second: 1000
-  burst_count: 10000
-
-rc_login:
-  address:
-    per_second: 1000
-    burst_count: 10000
-  account:
-    per_second: 1000
-    burst_count: 10000
-  failed_attempts:
-    per_second: 1000
-    burst_count: 10000
-
-rc_joins:
-  local:
-    per_second: 1000
-    burst_count: 10000
-  remote:
-    per_second: 1000
-    burst_count: 10000
-EOF
+            echo "$RATE_LIMIT_CONFIG" >> "$homeserver_yaml"
         else
             debug "Rate limiting config already present in homeserver.yaml"
         fi
@@ -479,8 +447,9 @@ create_user() {
         register_new_matrix_user \
         -u "$user" \
         -p "$password" \
-        -a "http://${server_url}" \
-        -c /data/homeserver.yaml
+        -a \
+        -c /data/homeserver.yaml \
+        "http://${server_url}"
 
     if [[ $? -eq 0 ]]; then
         info "User '${user}' created successfully with password '${password}'"
@@ -490,8 +459,9 @@ create_user() {
             register_new_matrix_user \
             -u "$user" \
             -p "$password" \
-            -a "http://${server_url}" \
-            -c /data/homeserver.yaml 2>&1 | grep -q "already exists"; then
+            -a \
+            -c /data/homeserver.yaml \
+            "http://${server_url}" 2>&1 | grep -q "already exists"; then
             warn "User '${user}' already exists, continuing..."
         else
             error "Failed to create user '${user}'"
@@ -521,7 +491,7 @@ login() {
 
     local response
     response=$(
-        curl -s -X POST "${base_url}/_matrix/client/r0/login" \
+        curl -s -X POST "${base_url}/_matrix/client/v3/login" \
             -H "Content-Type: application/json" \
             -d "{
                 \"type\": \"m.login.password\",

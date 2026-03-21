@@ -58,6 +58,12 @@ const (
 	// transactionIDRandLen is the length of random bytes in transaction ID.
 	transactionIDRandLen = 8
 
+	// byteMask is the mask for extracting a single byte from an integer.
+	byteMask = 0xFF
+
+	// bitsPerByte is the number of bits in a byte.
+	bitsPerByte = 8
+
 	// authorizationHeader is the HTTP header name for Bearer token authentication.
 	authorizationHeader = "Authorization"
 
@@ -466,7 +472,13 @@ func isRateLimitedError(err error) bool {
 func generateTransactionID() string {
 	now := time.Now().UnixNano()
 	randBytes := make([]byte, transactionIDRandLen)
-	_, _ = rand.Read(randBytes) // Always succeeds, no error to handle
+
+	if _, err := rand.Read(randBytes); err != nil {
+		// Fallback: use timestamp-based bytes if crypto/rand fails
+		for i := range randBytes {
+			randBytes[i] = byte((now >> (bitsPerByte * i)) & byteMask)
+		}
+	}
 
 	return fmt.Sprintf("%d-%s", now, hex.EncodeToString(randBytes))
 }
