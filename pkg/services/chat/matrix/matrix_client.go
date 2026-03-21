@@ -96,8 +96,6 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 
 // apiGet performs a GET request to the Matrix API with the provided context.
 func (c *client) apiGet(ctx context.Context, path string, response any) error {
-	c.apiURL.Path = path
-
 	reqCtx, cancel := context.WithTimeout(
 		ctx,
 		defaultHTTPTimeout,
@@ -107,7 +105,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 	req, err := http.NewRequestWithContext(
 		reqCtx,
 		http.MethodGet,
-		c.apiURL.String(),
+		c.buildURL(path),
 		http.NoBody,
 	)
 	if err != nil {
@@ -158,10 +156,16 @@ func (c *client) apiPut(ctx context.Context, path string, request, response any)
 	return c.apiDo(ctx, http.MethodPut, path, request, response)
 }
 
+// buildURL returns a copy of the base API URL with the specified path set.
+func (c *client) buildURL(path string) string {
+	u := c.apiURL
+	u.Path = path
+
+	return u.String()
+}
+
 // doSingleRequest performs a single HTTP request without retry logic.
 func (c *client) doSingleRequest(ctx context.Context, method, path string, request, response any) error {
-	c.apiURL.Path = path
-
 	body, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("marshaling %s request: %w", method, err)
@@ -173,7 +177,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 	req, err := http.NewRequestWithContext(
 		reqCtx,
 		method,
-		c.apiURL.String(),
+		c.buildURL(path),
 		bytes.NewReader(body),
 	)
 	if err != nil {
