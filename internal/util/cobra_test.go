@@ -132,9 +132,15 @@ func TestLoadFlagsFromAltSources(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify flag values
-			url, err := cmd.Flags().GetString("url")
+			urls, err := cmd.Flags().GetStringArray("url")
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantURL, url, "URL flag mismatch")
+
+			if tt.wantURL == "" {
+				assert.Empty(t, urls, "URL flag mismatch")
+			} else {
+				require.Len(t, urls, 1, "URL flag mismatch")
+				assert.Equal(t, tt.wantURL, urls[0], "URL flag mismatch")
+			}
 
 			message, err := cmd.Flags().GetString("message")
 			require.NoError(t, err)
@@ -159,10 +165,10 @@ func TestLoadFlagsFromAltSources_URLFlagAlreadySet(t *testing.T) {
 	err = LoadFlagsFromAltSources(cmd, []string{"https://positional.example.com"})
 	require.NoError(t, err)
 
-	// Positional arg should override
-	url, err := cmd.Flags().GetString("url")
+	// Positional arg should be appended (StringArray.Set appends)
+	urls, err := cmd.Flags().GetStringArray("url")
 	require.NoError(t, err)
-	assert.Equal(t, "https://positional.example.com", url)
+	assert.Contains(t, urls, "https://positional.example.com")
 }
 
 func TestLoadFlagsFromAltSources_EnvVarOverridesEmptyFlag(t *testing.T) {
@@ -178,9 +184,10 @@ func TestLoadFlagsFromAltSources_EnvVarOverridesEmptyFlag(t *testing.T) {
 	err := LoadFlagsFromAltSources(cmd, []string{})
 	require.NoError(t, err)
 
-	url, err := cmd.Flags().GetString("url")
+	urls, err := cmd.Flags().GetStringArray("url")
 	require.NoError(t, err)
-	assert.Equal(t, "https://env.example.com", url)
+	require.Len(t, urls, 1)
+	assert.Equal(t, "https://env.example.com", urls[0])
 }
 
 func TestLoadFlagsFromAltSources_ErrorCases(t *testing.T) {
@@ -213,7 +220,7 @@ func TestLoadFlagsFromAltSources_ErrorCases(t *testing.T) {
 			setupCmd: func() *cobra.Command {
 				cmd := &cobra.Command{Use: "test"}
 				// Only add url flag, not message flag
-				cmd.Flags().String("url", "", "The notification URL")
+				cmd.Flags().StringArray("url", []string{}, "The notification URL")
 
 				return cmd
 			},
@@ -356,7 +363,7 @@ func setupTestCommand() *cobra.Command {
 		Use: "test",
 	}
 
-	cmd.Flags().String("url", "", "The notification URL")
+	cmd.Flags().StringArray("url", []string{}, "The notification URL")
 	cmd.Flags().String("message", "", "The notification message")
 
 	return cmd
