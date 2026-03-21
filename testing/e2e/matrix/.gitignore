@@ -1,2 +1,2 @@
 /data/*
-!/.env
+!element/.env
