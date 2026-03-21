@@ -26,6 +26,9 @@ services:
       - element.env
     volumes:
       - ./data:/data
+    # Run as current host user to avoid permission issues with mounted volumes
+    # UID/GID are set via environment variables exported in setup.sh
+    user: "${MATRIX_UID:-1000}:${MATRIX_GID:-1000}"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8008/_matrix/client/versions" ]
       interval: 30s

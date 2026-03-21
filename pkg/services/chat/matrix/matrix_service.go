@@ -1,8 +1,10 @@
 package matrix
 
 import (
+	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -47,7 +49,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	if serviceURL.Host != "dummy.com" && serviceURL.Host != "" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
 		if s.Config.User != "" {
-			return s.client.login(s.Config.User, s.Config.Password)
+			return s.client.login(context.Background(), s.Config.User, s.Config.Password)
 		}
 
 		s.client.useToken(s.Config.Password)
@@ -58,8 +60,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Matrix rooms.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+	return s.SendWithContext(context.Background(), message, params)
+}
+
+// SendWithContext delivers a notification message to Matrix rooms with the provided context.
+func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+	if err := s.pkr.UpdateConfigFromParams(s.Config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -67,7 +73,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return ErrClientNotInitialized
 	}
 
-	sendErrors := s.client.sendMessage(message, s.Config.Rooms)
+	// Create message with title if provided
+	fullMessage := createMessage(message, s.Config.Title)
+
+	sendErrors := s.client.sendMessage(ctx, fullMessage, s.Config.Rooms)
 	if len(sendErrors) > 0 {
 		for _, err := range sendErrors {
 			s.Logf("error sending message: %w", err)
@@ -81,4 +90,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
+}
+
+// createMessage creates the full message body by prepending the title if provided.
+// Format: If title is "Alert" and message is "Hello", output is "Alert\n\nHello".
+func createMessage(message, title string) string {
+	if title == "" {
+		return message
+	}
+
+	return strings.TrimSpace(title) + "\n\n" + message
 }

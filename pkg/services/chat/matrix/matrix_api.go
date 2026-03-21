@@ -70,11 +70,11 @@ type identifier struct {
 	User string         `json:"user,omitempty"`
 }
 
-// Matrix API endpoint paths.
 const (
+	// Matrix API endpoint paths.
 	apiLogin       = "/_matrix/client/v3/login"
 	apiRoomJoin    = "/_matrix/client/v3/join/%s"
-	apiSendMessage = "/_matrix/client/v3/rooms/%s/send/m.room.message"
+	apiSendMessage = "/_matrix/client/v3/rooms/%s/send/m.room.message/%s"
 	apiJoinedRooms = "/_matrix/client/v3/joined_rooms"
 
 	contentType = "application/json"
@@ -89,11 +89,19 @@ const (
 	flowLoginToken flowType = "m.login.token"
 	// idTypeUser is the Matrix identifier type for username-based authentication.
 	idTypeUser identifierType = "m.id.user"
+
+	// Matrix error code for rate limiting.
+	errCodeLimitExceeded = "M_LIMIT_EXCEEDED"
 )
 
 // Error returns the error message from the Matrix API error response.
 func (e *apiResError) Error() string {
 	return e.Message
+}
+
+// IsRateLimited checks if the error is a rate limiting error (M_LIMIT_EXCEEDED).
+func (e *apiResError) IsRateLimited() bool {
+	return e.Code == errCodeLimitExceeded
 }
 
 // newUserIdentifier creates a new Matrix user identifier for authentication.

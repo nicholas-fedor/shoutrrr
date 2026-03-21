@@ -226,7 +226,8 @@ EOF
 
     # Run the Synapse generate command
     info "Running Synapse configuration generator..."
-    docker run -it --rm \
+    docker run --rm \
+        -u "$(id -u):$(id -g)" \
         -v "${DATA_DIR}:/data" \
         --env-file "$ELEMENT_ENV_FILE" \
         matrixdotorg/synapse:latest generate
@@ -236,6 +237,186 @@ EOF
     else
         error "Failed to generate configuration"
     fi
+
+    # Add rate limiting configuration to homeserver.yaml
+    # This must be done before starting the server to ensure the configuration takes effect
+    local homeserver_yaml="${DATA_DIR}/homeserver.yaml"
+    if [[ -f "$homeserver_yaml" ]]; then
+        if ! grep -q "^rc_message:" "$homeserver_yaml" 2>/dev/null; then
+            info "Adding rate limiting config to homeserver.yaml..."
+            cat >> "$homeserver_yaml" << 'EOF'
+
+# Rate limiting configuration - effectively disabled for E2E testing
+# Using very high values to allow rapid test execution without rate limits.
+# See: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#ratelimiting
+rc_message:
+  per_second: 1000
+  burst_count: 10000
+
+rc_registration:
+  per_second: 1000
+  burst_count: 10000
+
+rc_login:
+  address:
+    per_second: 1000
+    burst_count: 10000
+  account:
+    per_second: 1000
+    burst_count: 10000
+  failed_attempts:
+    per_second: 1000
+    burst_count: 10000
+
+rc_joins:
+  local:
+    per_second: 1000
+    burst_count: 10000
+  remote:
+    per_second: 1000
+    burst_count: 10000
+EOF
+            info "Rate limiting configuration added"
+        else
+            debug "Rate limiting config already present in homeserver.yaml"
+        fi
+    fi
+}
+
+# Disable rate limiting in the Synapse configuration via Admin API
+# This uses the Synapse Admin API to override rate limiting per user
+disable_rate_limiting() {
+    # Load environment variables
+    load_env_file
+
+    # Get configuration from environment variables
+    local host="${SHOUTRRR_MATRIX_HOST:-${DEFAULT_MATRIX_HOST}}"
+    local user="${SHOUTRRR_MATRIX_USER:-${DEFAULT_MATRIX_USER}}"
+    local password="${SHOUTRRR_MATRIX_PASSWORD:-${DEFAULT_MATRIX_PASSWORD}}"
+
+    # Validate required variables
+    if [[ -z "$host" ]]; then
+        error "SHOUTRRR_MATRIX_HOST is not set"
+    fi
+    if [[ -z "$user" ]]; then
+        error "SHOUTRRR_MATRIX_USER is not set"
+    fi
+    if [[ -z "$password" ]]; then
+        error "SHOUTRRR_MATRIX_PASSWORD is not set"
+    fi
+
+    local homeserver_yaml="${DATA_DIR}/homeserver.yaml"
+
+    info "Disabling rate limiting for user '${user}' at ${host}..."
+
+    # First, disable rate limiting in the global config (if not already done)
+    if [[ -f "$homeserver_yaml" ]]; then
+        if ! grep -q "^rc_message:" "$homeserver_yaml" 2>/dev/null; then
+            info "Adding rate limiting config to homeserver.yaml..."
+            cat >> "$homeserver_yaml" << 'EOF'
+
+# Rate limiting configuration - effectively disabled for E2E testing
+# Using very high values to allow rapid test execution without rate limits.
+# See: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#ratelimiting
+rc_message:
+  per_second: 1000
+  burst_count: 10000
+
+rc_registration:
+  per_second: 1000
+  burst_count: 10000
+
+rc_login:
+  address:
+    per_second: 1000
+    burst_count: 10000
+  account:
+    per_second: 1000
+    burst_count: 10000
+  failed_attempts:
+    per_second: 1000
+    burst_count: 10000
+
+rc_joins:
+  local:
+    per_second: 1000
+    burst_count: 10000
+  remote:
+    per_second: 1000
+    burst_count: 10000
+EOF
+        else
+            debug "Rate limiting config already present in homeserver.yaml"
+        fi
+    fi
+
+    # Wait for server to be ready
+    wait_for_server "$host" 30
+
+    # Get base URL using the helper function (handles TLS setting)
+    local base_url
+    base_url=$(get_base_url "$host")
+
+    info "Using base URL: ${base_url}"
+
+    # Login to get access token using the existing login function
+    local admin_token
+    admin_token=$(login "$base_url" "$user" "$password")
+
+    # Now disable rate limiting for the user via Admin API
+    info "Disabling rate limit for user via Admin API..."
+    local response
+    response=$(
+        curl -s -X POST "${base_url}/_synapse/admin/v1/users/@${user}:localhost/override_ratelimit" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${admin_token}" \
+            -d '{
+                "messages_per_second": 0,
+                "burst_count": 0
+            }' 2>&1
+    ) || error "Failed to disable rate limiting for user"
+
+    # Check for errors in response
+    local error_msg
+    error_msg=$(echo "$response" | jq -r '.errcode // empty' 2>/dev/null || true)
+
+    if [[ -n "$error_msg" && "$error_msg" != "null" ]]; then
+        local error_desc
+        error_desc=$(echo "$response" | jq -r '.error // "Unknown error"' 2>/dev/null || true)
+        error "Failed to disable rate limiting: ${error_msg} - ${error_desc}"
+    fi
+
+    info "Rate limit override response for ${user}: $response"
+
+    # Also disable for testuser if it exists
+    info "Disabling rate limit for testuser via Admin API..."
+    response=$(
+        curl -s -X POST "${base_url}/_synapse/admin/v1/users/@testuser:localhost/override_ratelimit" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${admin_token}" \
+            -d '{
+                "messages_per_second": 0,
+                "burst_count": 0
+            }' 2>&1
+    ) || warn "Failed to disable rate limiting for testuser (user may not exist)"
+
+    # Check for errors - but don't fail if testuser doesn't exist
+    error_msg=$(echo "$response" | jq -r '.errcode // empty' 2>/dev/null || true)
+
+    if [[ -n "$error_msg" && "$error_msg" != "null" ]]; then
+        # Only warn if it's not a "not found" error
+        local error_desc
+        error_desc=$(echo "$response" | jq -r '.error // "Unknown error"' 2>/dev/null || true)
+        if [[ "$error_msg" == "M_NOT_FOUND" ]]; then
+            info "testuser does not exist, skipping rate limit override"
+        else
+            warn "Failed to disable rate limiting for testuser: ${error_msg} - ${error_desc}"
+        fi
+    else
+        info "Rate limit override response for testuser: $response"
+    fi
+
+    info "Rate limiting disabled successfully via Admin API"
 }
 
 # Start the Matrix Synapse server using docker compose
@@ -247,8 +428,19 @@ start_server() {
         error "Docker compose file not found at ${COMPOSE_FILE}"
     fi
 
-    # Change to the script directory and start the server
+    # Change to the script directory
     cd "$SCRIPT_DIR"
+
+    # Export UID and GID for docker-compose to use
+    # This ensures the container runs as the current host user
+    # Use _UID/_GID to avoid conflict with shell built-in readonly UID variable
+    local _user_uid _user_gid
+    _user_uid="${MATRIX_UID:-$(id -u)}"
+    _user_gid="${MATRIX_GID:-$(id -g)}"
+    export MATRIX_UID="$_user_uid"
+    export MATRIX_GID="$_user_gid"
+
+    debug "Using MATRIX_UID=${MATRIX_UID} MATRIX_GID=${MATRIX_GID} for container"
 
     # Stop any existing container
     if docker compose ps --status running 2>/dev/null | grep -q synapse; then
@@ -458,22 +650,27 @@ setup_all() {
 
     # Step 1: Generate config
     echo ""
-    info "=== Step 1/4: Generating configuration ==="
+    info "=== Step 1/5: Generating configuration ==="
     generate_config
 
     # Step 2: Start server
     echo ""
-    info "=== Step 2/4: Starting server ==="
+    info "=== Step 2/5: Starting server ==="
     start_server
 
     # Step 3: Create user
     echo ""
-    info "=== Step 3/4: Creating test user ==="
+    info "=== Step 3/5: Creating test user ==="
     create_user
 
-    # Step 4: Create room
+    # Step 4: Disable rate limiting (requires server and user to be ready)
     echo ""
-    info "=== Step 4/4: Creating test room ==="
+    info "=== Step 4/5: Disabling rate limiting ==="
+    disable_rate_limiting
+
+    # Step 5: Create room
+    echo ""
+    info "=== Step 5/5: Creating test room ==="
     create_room
 
     echo ""
@@ -506,7 +703,7 @@ main() {
                 VERBOSE=true
                 shift
                 ;;
-            generate-config|start-server|create-user|create-room|setup-all)
+            generate-config|start-server|create-user|create-room|setup-all|disable_rate_limiting)
                 command="$1"
                 shift
                 ;;
@@ -532,6 +729,9 @@ main() {
             ;;
         setup-all)
             setup_all
+            ;;
+        disable_rate_limiting)
+            disable_rate_limiting
             ;;
     esac
 }
