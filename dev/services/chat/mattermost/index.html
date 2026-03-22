@@ -1323,6 +1323,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#using_an_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using an Icon
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using an Icon">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#emoji_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emoji Icon
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#url_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Icon
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#passing_parameters_via_code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2592,6 +2631,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#using_an_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using an Icon
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using an Icon">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#emoji_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emoji Icon
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#url_icon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Icon
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#passing_parameters_via_code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2654,7 +2732,7 @@
   Aliases: <code>icon_emoji</code>, <code>icon_url</code></p>
 </li>
 <li>
-<p><strong>Title</strong> - Notification title, optionally set by the sender (not used)
+<p><strong>Title</strong> - Notification title, optionally set by the sender
   Default: <em>empty</em></p>
 </li>
 </ul>
@@ -2699,6 +2777,14 @@ To do this, you can add a <em>user</em> and/or <em>channel</em> to the service U
              └──────────┘                 └────────────────────────┘ └─────────────┘
                  user                               token                channel
 </code></pre></div>
+<h2 id="using_an_icon">Using an Icon<a class="headerlink" href="#using_an_icon" title="Permanent link">&para;</a></h2>
+<p>You can customize the notification icon using the <code>icon</code> query parameter. The icon can be either a Mattermost emoji name or an image URL.</p>
+<h3 id="emoji_icon">Emoji Icon<a class="headerlink" href="#emoji_icon" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=rocket
+</code></pre></div>
+<h3 id="url_icon">URL Icon<a class="headerlink" href="#url_icon" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=https://example.com/logo.png
+</code></pre></div>
 <h2 id="passing_parameters_via_code">Passing parameters via code<a class="headerlink" href="#passing_parameters_via_code" title="Permanent link">&para;</a></h2>
 <p>If you want to, you also have the possibility to pass parameters to the <code>send</code> function.
 <br/>
@@ -2736,7 +2822,7 @@ service.Send(&quot;this is a message&quot;, params)
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="March 22, 2026 03:02:32 UTC"><span class="timeago" datetime="2026-03-22T03:02:32+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="March 22, 2026 03:02:32 UTC">2026-03-22</span>
   </span>
 
     
