@@ -47,6 +47,22 @@ mattermost://shoutrrrUser@your-domain.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrCha
                  user                               token                channel
 ```
 
+## Using an Icon
+
+You can customize the notification icon using the `icon` query parameter. The icon can be either a Mattermost emoji name or an image URL.
+
+### Emoji Icon
+
+```url
+mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=rocket
+```
+
+### URL Icon
+
+```url
+mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=https://example.com/logo.png
+```
+
 ## Passing parameters via code
 
 If you want to, you also have the possibility to pass parameters to the `send` function.

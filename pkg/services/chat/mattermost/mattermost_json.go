@@ -34,13 +34,30 @@ func (j *JSON) SetIcon(icon string) {
 
 // CreateJSONPayload generates a JSON payload for the Mattermost service.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
+	// Extract title from params if provided, before building the text
+	title := config.Title
+
+	if params != nil {
+		if value, found := (*params)["title"]; found {
+			title = value
+		}
+	}
+
+	// Prepend title to message when present
+	text := message
+	if title != "" {
+		text = title + "\n" + message
+	}
+
 	payload := JSON{
-		Text:      message,
+		Text:      text,
 		UserName:  config.UserName,
 		Channel:   config.Channel,
 		IconEmoji: "",
 		IconURL:   "",
 	}
+
+	icon := config.Icon
 
 	if params != nil {
 		if value, found := (*params)["username"]; found {
@@ -50,9 +67,13 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		if value, found := (*params)["channel"]; found {
 			payload.Channel = value
 		}
+
+		if value, found := (*params)["icon"]; found {
+			icon = value
+		}
 	}
 
-	payload.SetIcon(config.Icon)
+	payload.SetIcon(icon)
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {

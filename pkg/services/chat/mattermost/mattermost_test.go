@@ -321,6 +321,71 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				})
 			},
 		)
+		ginkgo.When("sending a message with a title set in config", func() {
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
+			config := &Config{}
+			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+			config.Title = "watchtower TEST"
+
+			ginkgo.It("should prepend the title to the message text", func() {
+				json, err := CreateJSONPayload(config, "this is a message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(string(json)).
+					To(gomega.Equal("{\"text\":\"watchtower TEST\\nthis is a message\"}"))
+			})
+		})
+		ginkgo.When("sending a message with a title set via params", func() {
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
+			config := &Config{}
+			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+			ginkgo.It("should prepend the title to the message text", func() {
+				params := (*types.Params)(
+					&map[string]string{
+						"title": "watchtower PROD",
+					},
+				)
+				json, err := CreateJSONPayload(config, "this is a message", params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(string(json)).
+					To(gomega.Equal("{\"text\":\"watchtower PROD\\nthis is a message\"}"))
+			})
+		})
+		ginkgo.When("sending a message without a title", func() {
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
+			config := &Config{}
+			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+			ginkgo.It("should not prepend anything to the message text", func() {
+				json, err := CreateJSONPayload(config, "this is a message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\"}"))
+			})
+		})
+		ginkgo.When("sending a message with title set in both config and params", func() {
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
+			config := &Config{}
+			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+			config.Title = "Config Title"
+
+			ginkgo.It("should use the title from params", func() {
+				params := (*types.Params)(
+					&map[string]string{
+						"title": "Params Title",
+					},
+				)
+				json, err := CreateJSONPayload(config, "this is a message", params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(string(json)).
+					To(gomega.Equal("{\"text\":\"Params Title\\nthis is a message\"}"))
+			})
+		})
 	})
 
 	ginkgo.When("parsing the configuration URL", func() {
