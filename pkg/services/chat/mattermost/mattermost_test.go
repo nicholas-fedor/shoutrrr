@@ -366,6 +366,26 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\"}"))
 			})
 		})
+		ginkgo.When("sending a message with title set in both config and params", func() {
+			mattermostURL, _ := url.Parse(
+				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
+			)
+			config := &Config{}
+			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
+			config.Title = "Config Title"
+
+			ginkgo.It("should use the title from params", func() {
+				params := (*types.Params)(
+					&map[string]string{
+						"title": "Params Title",
+					},
+				)
+				json, err := CreateJSONPayload(config, "this is a message", params)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(string(json)).
+					To(gomega.Equal("{\"text\":\"Params Title\\nthis is a message\"}"))
+			})
+		})
 	})
 
 	ginkgo.When("parsing the configuration URL", func() {

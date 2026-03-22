@@ -57,6 +57,8 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		IconURL:   "",
 	}
 
+	icon := config.Icon
+
 	if params != nil {
 		if value, found := (*params)["username"]; found {
 			payload.UserName = value
@@ -65,9 +67,13 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		if value, found := (*params)["channel"]; found {
 			payload.Channel = value
 		}
+
+		if value, found := (*params)["icon"]; found {
+			icon = value
+		}
 	}
 
-	payload.SetIcon(config.Icon)
+	payload.SetIcon(icon)
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
