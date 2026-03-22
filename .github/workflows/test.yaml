@@ -36,8 +36,14 @@ jobs:
         run: go mod download
 
       - name: Run tests
+        shell: bash
         run: |
-          go test -v -coverprofile coverage.out -covermode atomic ./...
+          packages=$(go list ./... | grep -vE '/testing/e2e(/|$)')
+          if [ -z "$packages" ]; then
+            echo "No packages to test after filtering"
+            exit 0
+          fi
+          go test -v -coverprofile coverage.out -covermode atomic $packages
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad

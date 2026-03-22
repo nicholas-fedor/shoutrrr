@@ -1,0 +1,37 @@
+# Matrix Synapse server for local E2E testing
+#
+# https://hub.docker.com/r/matrixdotorg/synapse
+#
+# Usage:
+#   docker compose up -d
+#
+# After starting, create a test user:
+#   docker exec synapse register_new_matrix_user -u admin -p admin -a http://localhost:8008
+#
+# Default credentials (after creating user):
+#   Username: admin
+#   Password: admin
+#
+# API endpoint: http://localhost:8008
+# Client API: http://localhost:8008/_matrix/client/v3
+
+services:
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse
+    ports:
+      - 8008:8008 # Client API
+      - 8448:8448 # Federation API
+    env_file:
+      - element.env
+    volumes:
+      - ./data:/data
+    # Run as current host user to avoid permission issues with mounted volumes
+    # UID/GID are set via environment variables exported in setup.sh
+    user: "${MATRIX_UID:-1000}:${MATRIX_GID:-1000}"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8008/_matrix/client/versions" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped

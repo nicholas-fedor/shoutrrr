@@ -56,7 +56,7 @@ func TestRun_UnknownService(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "unknownservice://test")
 
@@ -96,7 +96,7 @@ func TestRun_InvalidURLFormat(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "://invalid")
 
@@ -128,7 +128,7 @@ func TestRun_SubprocessErrorOutput(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		// Use an unknown service URL
 		_ = cmd.Flags().Set("url", "xyzservice://test")
@@ -227,7 +227,7 @@ func TestRun_CaptureStdout(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -263,7 +263,7 @@ func TestRun_IntegrationWithExitCodes_ValidURL(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -288,7 +288,7 @@ func TestRun_IntegrationWithExitCodes_InvalidURL(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "://badurl")
 
@@ -319,7 +319,7 @@ func TestRun_WithSimpleLoggerURL(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -351,7 +351,7 @@ func TestRun_WithLoggerURLWithPath(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "logger://test/path")
 
@@ -414,7 +414,7 @@ func TestRun_StderrOutput(t *testing.T) {
 
 	// Error should be in stderr
 	stderr := stderrBuf.String()
-	assert.Contains(t, stderr, "Error getting URL flag", "Error message should be written to stderr")
+	assert.Contains(t, stderr, "Error getting URL flags", "Error message should be written to stderr")
 }
 
 // Test_sanitizeError_EdgeCases tests edge cases for error sanitization.
@@ -489,7 +489,7 @@ func TestRun_WithLoggerSchemeSucceeds(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -513,7 +513,7 @@ func TestRun_WithUnknownSchemeFails(t *testing.T) {
 
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
-		cmd.Flags().StringP("url", "u", "", "")
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
 		_ = cmd.Flags().Set("url", "unknown123://test")
 
@@ -535,4 +535,43 @@ func TestRun_WithUnknownSchemeFails(t *testing.T) {
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
 	}
+}
+
+// TestRun_MultipleURLs tests that providing multiple --url values results in an error.
+func TestRun_MultipleURLs(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_SUBPROCESS") == "1" {
+		cmd := &cobra.Command{Use: "verify"}
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+
+		require.NoError(t, cmd.Flags().Set("url", "logger://"))
+		require.NoError(t, cmd.Flags().Set("url", "logger://test/path"))
+
+		Run(cmd, []string{})
+
+		return
+	}
+
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestRun_MultipleURLs")
+
+	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
+
+	var outputBuf bytes.Buffer
+
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &outputBuf
+
+	err := cmd.Run()
+	output := outputBuf.String()
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		assert.Equal(t, 1, exitErr.ExitCode(), "Expected exit code 1 for multiple URLs")
+	} else {
+		t.Fatalf("Expected ExitError, got: %v", err)
+	}
+
+	assert.Contains(t, output, "multiple --url values are not supported", "Error should indicate multiple URLs are not supported")
 }

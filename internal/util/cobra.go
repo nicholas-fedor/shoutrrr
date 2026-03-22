@@ -10,6 +10,17 @@ import (
 
 // LoadFlagsFromAltSources is a workaround to make cobra count env vars and
 // positional arguments when checking required flags.
+//
+// It resolves the url and message flags from positional arguments (if provided)
+// or from the SHOUTRRR_URL environment variable. When the URL is sourced from
+// the environment, the message defaults to stdin ("-") unless already set.
+//
+// Parameters:
+//   - cmd: the cobra.Command whose flags will be populated.
+//   - args: positional arguments passed to the command.
+//
+// Returns:
+//   - error: if any flag operation fails; otherwise nil.
 func LoadFlagsFromAltSources(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
 
@@ -37,7 +48,7 @@ func LoadFlagsFromAltSources(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("setting url flag from env var: %w", err)
 		}
 
-		// If the URL has been set in ENV, default the message to read from stdin.
+		// Default the message to read from stdin when the URL is sourced from env.
 		msg, err := flags.GetString("message")
 		if err != nil {
 			return fmt.Errorf("getting message flag value: %w", err)
@@ -53,11 +64,26 @@ func LoadFlagsFromAltSources(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// hasURLInEnvButNotFlag checks whether the SHOUTRRR_URL environment variable is
+// set while no url flag has been explicitly provided on the command.
+//
+// Cobra StringArray flags default to [""] rather than a truly empty slice, so
+// both cases are treated as "no URL provided via flag".
+//
+// Parameters:
+//   - cmd: the cobra.Command to inspect.
+//
+// Returns:
+//   - bool: true when the env var is set and the flag is empty.
+//   - error: if the url flag cannot be read.
 func hasURLInEnvButNotFlag(cmd *cobra.Command) (bool, error) {
-	s, err := cmd.Flags().GetString("url")
+	urls, err := cmd.Flags().GetStringArray("url")
 	if err != nil {
 		return false, fmt.Errorf("getting url flag value: %w", err)
 	}
 
-	return s == "" && viper.GetViper().GetString("SHOUTRRR_URL") != "", nil
+	// Treat an empty slice or a single-element slice containing "" as "no URL provided".
+	flagEmpty := len(urls) == 0 || (len(urls) == 1 && urls[0] == "")
+
+	return flagEmpty && viper.GetViper().GetString("SHOUTRRR_URL") != "", nil
 }

@@ -1,9 +1,10 @@
 package matrix
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -21,9 +22,6 @@ type Service struct {
 
 // Scheme identifies this service in configuration URLs.
 const Scheme = "matrix"
-
-// ErrClientNotInitialized indicates that the client is not initialized for sending messages.
-var ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
 
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
@@ -48,10 +46,10 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if serviceURL.String() != "matrix://dummy@dummy.com" {
+	if serviceURL.Hostname() != "dummy.com" && serviceURL.Host != "" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
 		if s.Config.User != "" {
-			return s.client.login(s.Config.User, s.Config.Password)
+			return s.client.login(context.Background(), s.Config.User, s.Config.Password)
 		}
 
 		s.client.useToken(s.Config.Password)
@@ -62,19 +60,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Matrix rooms.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
+	return s.SendWithContext(context.Background(), message, params)
+}
 
+// SendWithContext delivers a notification message to Matrix rooms with the provided context.
+func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}
 
-	sendErrors := s.client.sendMessage(message, s.Config.Rooms)
+	// Make a per-call copy of the config to avoid mutating the shared s.Config
+	cfg := *s.Config
+
+	if err := s.pkr.UpdateConfigFromParams(&cfg, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// Create message with title if provided
+	fullMessage := createMessage(message, cfg.Title)
+
+	sendErrors := s.client.sendMessage(ctx, fullMessage, cfg.Rooms)
 	if len(sendErrors) > 0 {
 		for _, err := range sendErrors {
-			s.Logf("error sending message: %w", err)
+			s.Logf("error sending message: %v", err)
 		}
 
 		return fmt.Errorf(
@@ -85,4 +93,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
+}
+
+// createMessage creates the full message body by prepending the title if provided.
+// Format: If title is "Alert" and message is "Hello", output is "Alert\n\nHello".
+func createMessage(message, title string) string {
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
+		return message
+	}
+
+	return trimmedTitle + "\n\n" + message
 }

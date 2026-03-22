@@ -70,6 +70,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // setURL updates the Config from a URL using the provided resolver.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	// Skip validation for dummy URLs used in docs generation
+	if serviceURL.Hostname() == "dummy.com" {
+		if len(serviceURL.Path) > 1 {
+			c.IntegrationKey = serviceURL.Path[1:]
+		}
+
+		return nil
+	}
+
 	if len(serviceURL.Path) <= 1 {
 		return errMissingIntegrationKey
 	}

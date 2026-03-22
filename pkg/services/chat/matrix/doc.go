@@ -1,58 +1,155 @@
-// Package matrix provides Matrix protocol support for Shoutrrr notifications.
+// Package matrix provides a notification service for sending messages via the Matrix protocol.
 //
-// This package implements the Shoutrrr service interface for sending notifications
-// via Matrix, an open network for secure, decentralized communication. It supports
-// authentication via username/password or access tokens, multiple room targeting,
-// and TLS configuration.
+// The Matrix service enables sending notifications to Matrix rooms using the Matrix
+// Client-Server API. Matrix is an open protocol for real-time communication that
+// supports end-to-end encryption, room-based messaging, and integration with various
+// clients. This service supports both password-based and token-based authentication.
 //
 // # URL Format
 //
-//	matrix://user:password@host:port/[?rooms=!roomID1[,roomAlias2]][&disableTLS=yes]
+// The service URL follows the format:
 //
-// The URL scheme "matrix" identifies this service in Shoutrrr configurations.
-// Authentication credentials and target rooms are specified through the URL.
+//	matrix://[user[:password]@]host[:port][?query]
+//
+// Where:
+//   - user: Matrix username (required for password authentication, omit when using access token)
+//   - password: Matrix password or access token (required)
+//   - host: Matrix server hostname (required)
+//   - port: optional port number (default: 443)
+//   - query: configuration parameters
 //
 // # Authentication
 //
 // The service supports two authentication methods:
 //
-//   - Password Login: When both user and password are provided, the service
-//     attempts m.login.password authentication flow.
-//   - Access Token: When no user is specified, the password field is treated
-//     as an access token, allowing manual token authentication.
+// Password Authentication:
+// When a username is provided along with a password, the service will attempt to
+// authenticate using the m.login.password flow:
 //
-// # Room Configuration
+//	matrix://user:password@matrix.example.com
 //
-// Rooms can be specified using room IDs (prefixed with '!') or room aliases.
-// If no rooms are specified, the service sends messages to all joined rooms.
-// Room aliases are resolved through directory lookup. Note that unescaped '#'
-// characters should be URL-encoded as '%23' to avoid being treated as URL
-// fragments.
+// Token Authentication:
+// When no username is provided, the password field is treated as an access token:
 //
-// # TLS Configuration
+//	matrix://:access_token@matrix.example.com
 //
-// TLS is enabled by default. For servers without TLS, set disableTLS=yes
-// to use HTTP instead of HTTPS for API calls.
+// # Configuration Options
 //
-// # Main Components
+// The following query parameters can be used to configure the service:
 //
-// Service (matrix.go)
+//   - rooms: comma-separated list of room aliases (e.g., "#room:example.com") or
+//     room IDs (e.g., "!roomid:example.com"). If not specified, messages are sent
+//     to all joined rooms.
+//   - title: notification title to prepend to the message
+//   - disableTLS: set to "yes" or "true" to disable TLS (not recommended)
 //
-// Implements the Shoutrrr service interface with Initialize and Send methods.
-// Manages the Matrix client lifecycle and coordinates message delivery.
+// # Templates
 //
-// Config (matrix_config.go)
+// Matrix does not use templates in the Shoutrrr sense, but supports adding a title
+// prefix to messages through the title parameter.
 //
-// Defines configuration fields: User, Password, DisableTLS, Host, Rooms, Title.
-// Handles URL parsing and query parameter resolution.
+// # Usage Examples
 //
-// Client (matrix_client.go)
+// ## Basic notification to all joined rooms
 //
-// HTTP client for Matrix API interactions including authentication,
-// room management, and message sending.
+//	url := "matrix://:access_token@matrix.example.com"
+//	err := shoutrrr.Send(url, "Hello from Shoutrrr!")
 //
-// API Types (matrix_api.go)
+// ## Notification to specific rooms
 //
-// Request and response types for Matrix protocol operations including
-// login flows, room operations, and message sending.
+//	url := "matrix://:access_token@matrix.example.com?rooms=#alerts:example.com,#general:example.com"
+//	err := shoutrrr.Send(url, "Alert message")
+//
+// ## Notification with password authentication
+//
+//	url := "matrix://myuser:mypassword@matrix.example.com"
+//	err := shoutrrr.Send(url, "Hello from myuser!")
+//
+// ## Notification with title
+//
+//	url := "matrix://:access_token@matrix.example.com?title=Alert"
+//	err := shoutrrr.Send(url, "System is down!")
+//
+// ## Custom port and TLS disabled
+//
+//	url := "matrix://:access_token@matrix.example.com:8008?disableTLS=yes"
+//	err := shoutrrr.Send(url, "Insecure notification")
+//
+// # Common Use Cases
+//
+// ## Monitoring System Alerts
+//
+// Send alerts from monitoring systems like Prometheus, Nagios, or Zabbix:
+//
+//	url := "matrix://:access_token@matrix.example.com?rooms=#alerts:example.com&title=Monitoring"
+//	err := shoutrrr.Send(url, "Disk space critical: 95% used")
+//
+// ## CI/CD Pipeline Notifications
+//
+// Notify about build status from Jenkins, GitHub Actions, or GitLab CI:
+//
+//	url := "matrix://:access_token@matrix.example.com?rooms=#builds:example.com&title=Build%20Status"
+//	err := shoutrrr.Send(url, "Build #123 passed")
+//
+// ## Team Notifications
+//
+// Send notifications to team rooms:
+//
+//	url := "matrix://:access_token@matrix.example.com?rooms=#team:example.com"
+//	err := shoutrrr.Send(url, "Deployment started")
+//
+// ## Application Notifications
+//
+// Send notifications from applications:
+//
+//	url := "matrix://myuser:mypassword@matrix.example.com?rooms=#notifications:example.com"
+//	err := shoutrrr.Send(url, "New order received: #12345")
+//
+// # Room Alias Resolution
+//
+// The service automatically resolves room aliases to room IDs. If a room alias
+// doesn't start with # or !, # is automatically prepended:
+//
+//	// These are equivalent:
+//	rooms=general
+//	rooms=#general:example.com
+//
+// Room IDs must start with !:
+//
+//	rooms=!roomid:example.com
+//
+// # Error Handling
+//
+// The service returns errors for various failure scenarios. Always check the
+// returned error:
+//
+//	err := shoutrrr.Send(url, message)
+//	if err != nil {
+//	    log.Printf("Failed to send Matrix notification: %v", err)
+//	}
+//
+// Common error scenarios:
+//   - ErrMissingHost: No Matrix server host provided
+//   - ErrMissingCredentials: No password or access token provided
+//   - ErrClientNotInitialized: Client failed to initialize
+//   - ErrUnsupportedLoginFlows: Server doesn't support password or token login
+//   - ErrUnexpectedStatus: Unexpected HTTP response from server
+//
+// # Security Considerations
+//
+// - Store access tokens securely, never in URLs in production
+// - Prefer token authentication over password authentication when possible
+// - Use TLS (default) for all production connections
+// - Consider room access controls when sending to shared rooms
+// - Access tokens provide full access to your Matrix account
+//
+// # Matrix API
+//
+// This service uses the Matrix Client-Server API v3. Key endpoints include:
+//   - POST /_matrix/client/v3/login: Authentication
+//   - POST /_matrix/client/v3/join/{roomIdOrAlias}: Join room
+//   - GET /_matrix/client/v3/joined_rooms: List joined rooms
+//   - PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.message: Send message
+//
+// For more information about Matrix, see: https://matrix.org/
 package matrix

@@ -31,7 +31,7 @@ var (
 
 // init initializes the command flags for the verify command.
 func init() {
-	Cmd.Flags().StringP("url", "u", "", "The notification URL to verify")
+	Cmd.Flags().StringArrayP("url", "u", []string{}, "The notification URL(s) to verify")
 
 	if err := Cmd.MarkFlagRequired("url"); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marking URL flag as required: %v\n", err)
@@ -46,12 +46,27 @@ func init() {
 //   - _: Unused positional arguments.
 func Run(cmd *cobra.Command, _ []string) {
 	// Retrieve the URL flag.
-	URL, err := cmd.Flags().GetString("url")
+	urls, err := cmd.Flags().GetStringArray("url")
 	if err != nil {
-		_, _ = fmt.Fprint(os.Stderr, "Error getting URL flag: ", err, "\n")
+		_, _ = fmt.Fprint(os.Stderr, "Error getting URL flags: ", err, "\n")
 
 		os.Exit(1)
 	}
+
+	// Validate URL count: the verify command supports exactly one URL.
+	if len(urls) == 0 {
+		_, _ = fmt.Fprint(os.Stderr, "Error: a URL is required. Use --url to specify a notification service URL.\n")
+
+		os.Exit(1)
+	}
+
+	if len(urls) > 1 {
+		_, _ = fmt.Fprint(os.Stderr, "Error: multiple --url values are not supported. Please specify a single URL.\n")
+
+		os.Exit(1)
+	}
+
+	URL := urls[0]
 
 	// Initialize the service router with default timeout (0 = no timeout).
 	serviceRouter = router.ServiceRouter{

@@ -47,10 +47,33 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	// Skip credential validation and query parameter parsing for dummy URLs
+	// used in docs generation. Query params (rooms, title, disableTLS) are
+	// intentionally ignored for dummy.com to avoid validation errors.
+	if serviceURL.Hostname() == "dummy.com" {
+		c.User = serviceURL.User.Username()
+		if password, ok := serviceURL.User.Password(); ok {
+			c.Password = password
+		}
+
+		c.Host = serviceURL.Host
+
+		return nil
+	}
+
 	c.User = serviceURL.User.Username()
-	password, _ := serviceURL.User.Password()
+
+	password, ok := serviceURL.User.Password()
+	if !ok {
+		return ErrMissingCredentials
+	}
+
 	c.Password = password
 	c.Host = serviceURL.Host
+
+	if c.Host == "" {
+		return ErrMissingHost
+	}
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
@@ -60,7 +83,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	for r, room := range c.Rooms {
 		// If room does not begin with a '#' let's prepend it
-		if room[0] != '#' && room[0] != '!' {
+		if room != "" && room[0] != '#' && room[0] != '!' {
 			c.Rooms[r] = "#" + room
 		}
 	}
