@@ -536,3 +536,42 @@ func TestRun_WithUnknownSchemeFails(t *testing.T) {
 		t.Fatalf("Expected ExitError, got: %v", err)
 	}
 }
+
+// TestRun_MultipleURLs tests that providing multiple --url values results in an error.
+func TestRun_MultipleURLs(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_SUBPROCESS") == "1" {
+		cmd := &cobra.Command{Use: "verify"}
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+
+		_ = cmd.Flags().Set("url", "logger://")
+		_ = cmd.Flags().Set("url", "logger://test/path")
+
+		Run(cmd, []string{})
+
+		return
+	}
+
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestRun_MultipleURLs")
+
+	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
+
+	var outputBuf bytes.Buffer
+
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &outputBuf
+
+	err := cmd.Run()
+	output := outputBuf.String()
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		assert.Equal(t, 1, exitErr.ExitCode(), "Expected exit code 1 for multiple URLs")
+	} else {
+		t.Fatalf("Expected ExitError, got: %v", err)
+	}
+
+	assert.Contains(t, output, "multiple --url values are not supported", "Error should indicate multiple URLs are not supported")
+}

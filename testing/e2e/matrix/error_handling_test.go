@@ -174,9 +174,9 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			err = service.Initialize(parsedURL, testutils.TestLogger())
 			if err != nil {
-				// Connection refused is expected
+				// Connection refused is expected (platform-agnostic)
 				gomega.Expect(err.Error()).To(gomega.SatisfyAny(
-					gomega.ContainSubstring("connection refused"),
+					gomega.ContainSubstring("refused"),
 					gomega.ContainSubstring("no such host"),
 					gomega.ContainSubstring("timeout"),
 					gomega.ContainSubstring("i/o timeout"),

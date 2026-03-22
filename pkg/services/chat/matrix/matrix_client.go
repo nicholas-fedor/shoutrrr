@@ -273,13 +273,15 @@ func (c *client) login(ctx context.Context, user, password string) error {
 	for _, flow := range resLogin.Flows {
 		flows = append(flows, string(flow.Type))
 
+		// Prefer password login when a user is configured
 		if flow.Type == flowLoginPassword && user != "" {
 			c.logf("Using login flow '%v'", flow.Type)
 
 			return c.loginPassword(ctx, user, password)
 		}
 
-		if flow.Type == flowLoginToken {
+		// Only use token login when no user is configured
+		if flow.Type == flowLoginToken && user == "" {
 			c.logf("Using login flow '%v'", flow.Type)
 
 			return c.loginToken(ctx, password)

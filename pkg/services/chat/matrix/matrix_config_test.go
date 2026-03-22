@@ -100,7 +100,7 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("#testroom"))
 		})
 
-		ginkgo.It("should not prepend # to room aliases that already have ! prefix", func() {
+		ginkgo.It("should not prepend # to room IDs that already have ! prefix", func() {
 			cfg := &Config{}
 			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?room=!testroom:matrix.example.com")
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -108,6 +108,17 @@ var _ = ginkgo.Describe("Config", func() {
 			err = cfg.SetURL(testURL)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("!testroom:matrix.example.com"))
+		})
+
+		ginkgo.It("should not double-prefix room aliases that already have # prefix", func() {
+			cfg := &Config{}
+			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?room=%23myroom:matrix.example.com")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+			err = cfg.SetURL(testURL)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(cfg.Rooms).ToNot(gomega.BeEmpty())
+			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("#myroom:matrix.example.com"))
 		})
 	})
 })

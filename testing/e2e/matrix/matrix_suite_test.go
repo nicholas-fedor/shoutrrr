@@ -50,13 +50,18 @@ func Test_Matrix_E2E(t *testing.T) {
 			return
 		}
 
-		sharedService = &matrix.Service{}
-		// Initialize once (this does the login)
-		err = sharedService.Initialize(parsedURL, testutils.TestLogger())
-		if err != nil {
+		// Create a local service instance and only assign to sharedService
+		// after Initialize succeeds to prevent tests from using an
+		// uninitialized client.
+		service := &matrix.Service{}
+		if err := service.Initialize(parsedURL, testutils.TestLogger()); err != nil {
 			// Log but continue; individual tests will handle failures
 			fmt.Printf("Warning: shared service init failed: %v\n", err)
+
+			return
 		}
+
+		sharedService = service
 	})
 
 	ginkgo.BeforeEach(func() {
@@ -190,10 +195,17 @@ func getOrInitSharedService() error {
 			return
 		}
 
-		sharedService = &matrix.Service{}
-		if err := sharedService.Initialize(parsedURL, testutils.TestLogger()); err != nil {
+		// Create a local service instance and only assign to sharedService
+		// after Initialize succeeds to prevent tests from using an
+		// uninitialized client.
+		service := &matrix.Service{}
+		if err := service.Initialize(parsedURL, testutils.TestLogger()); err != nil {
 			errSharedServiceInit = fmt.Errorf("initializing service: %w", err)
+
+			return
 		}
+
+		sharedService = service
 	})
 
 	return errSharedServiceInit

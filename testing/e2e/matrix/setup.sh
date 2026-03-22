@@ -203,14 +203,14 @@ check_requirements() {
 
 # Wait for the Matrix server to be ready
 wait_for_server() {
-    local host="$1"
+    local base="$1"
     local max_attempts="${2:-30}"
     local attempt=1
 
-    info "Waiting for Matrix server at ${host} to be ready..."
+    info "Waiting for Matrix server at ${base} to be ready..."
 
     while [[ $attempt -le $max_attempts ]]; do
-        if curl -s -o /dev/null -w "%{http_code}" "http://${host}/_matrix/client/versions" 2>/dev/null | grep -q "200"; then
+        if curl -s -o /dev/null -w "%{http_code}" "${base}/_matrix/client/versions" 2>/dev/null | grep -q "200"; then
             info "Matrix server is ready!"
             return 0
         fi
@@ -318,12 +318,12 @@ disable_rate_limiting() {
         fi
     fi
 
-    # Wait for server to be ready
-    wait_for_server "$host" 30
-
     # Get base URL using the helper function (handles TLS setting)
     local base_url
     base_url=$(get_base_url "$host")
+
+    # Wait for server to be ready
+    wait_for_server "$base_url" 30
 
     info "Using base URL: ${base_url}"
 
@@ -432,13 +432,21 @@ start_server() {
 create_user() {
     info "Creating admin test user..."
 
+    # Load environment file before reading variables to ensure
+    # values from .env take precedence over hardcoded defaults.
+    load_env_file
+
     # Default credentials
     local user="${SHOUTRRR_MATRIX_USER:-${DEFAULT_MATRIX_USER}}"
     local password="${SHOUTRRR_MATRIX_PASSWORD:-${DEFAULT_MATRIX_PASSWORD}}"
     local server_url="${SHOUTRRR_MATRIX_HOST:-${DEFAULT_MATRIX_HOST}}"
 
+    # Get base URL for server readiness check
+    local base_url
+    base_url=$(get_base_url "$server_url")
+
     # Wait for server to be ready
-    wait_for_server "$server_url" 60
+    wait_for_server "$base_url" 60
 
     # Register the user using docker exec
     info "Registering user '${user}'..."
@@ -452,7 +460,7 @@ create_user() {
         "http://${server_url}"
 
     if [[ $? -eq 0 ]]; then
-        info "User '${user}' created successfully with password '${password}'"
+        info "User '${user}' created successfully"
     else
         # Check if user already exists
         if docker exec synapse \
@@ -493,14 +501,9 @@ login() {
     response=$(
         curl -s -X POST "${base_url}/_matrix/client/v3/login" \
             -H "Content-Type: application/json" \
-            -d "{
-                \"type\": \"m.login.password\",
-                \"identifier\": {
-                    \"type\": \"m.id.user\",
-                    \"user\": \"${user}\"
-                },
-                \"password\": \"${password}\"
-            }" 2>&1
+            --data "$(jq -n --arg user "$user" --arg password "$password" \
+                '{type: "m.login.password", identifier: {type: "m.id.user", user: $user}, password: $password}')" \
+            2>&1
     ) || error "Failed to connect to Matrix server at ${base_url}"
 
     # Check for errors in response
@@ -520,7 +523,7 @@ login() {
         error "No access token received from login"
     fi
 
-    debug "Login successful, token: ${access_token:0:20}..."
+    debug "Login successful, token length: ${#access_token}"
     echo "$access_token"
 }
 
@@ -557,7 +560,7 @@ create_room() {
     base_url=$(get_base_url "$host")
 
     # Wait for server to be ready
-    wait_for_server "$host" 30
+    wait_for_server "$base_url" 30
 
     # Login to get access token
     local access_token

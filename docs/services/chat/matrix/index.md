@@ -135,12 +135,12 @@ This will effectively use `http` instead of `https` for the API calls.
 
 !!! Example "With Room Alias"
     ```uri
-    matrix://user:token@matrix.example.com?rooms=#general:matrix.example.com
+    matrix://user:token@matrix.example.com?rooms=%23general:matrix.example.com
     ```
 
 !!! Example "Multiple Rooms"
     ```uri
-    matrix://user:token@matrix.example.com?rooms=!room1:matrix.example.com,#room2:matrix.example.com
+    matrix://user:token@matrix.example.com?rooms=!room1:matrix.example.com,%23room2:matrix.example.com
     ```
 
 !!! Example "With Custom Port"

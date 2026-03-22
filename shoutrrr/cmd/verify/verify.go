@@ -47,17 +47,26 @@ func init() {
 func Run(cmd *cobra.Command, _ []string) {
 	// Retrieve the URL flag.
 	urls, err := cmd.Flags().GetStringArray("url")
-
-	URL := ""
-	if len(urls) > 0 {
-		URL = urls[0]
-	}
-
 	if err != nil {
 		_, _ = fmt.Fprint(os.Stderr, "Error getting URL flags: ", err, "\n")
 
 		os.Exit(1)
 	}
+
+	// Validate URL count: the verify command supports exactly one URL.
+	if len(urls) == 0 {
+		_, _ = fmt.Fprint(os.Stderr, "Error: a URL is required. Use --url to specify a notification service URL.\n")
+
+		os.Exit(1)
+	}
+
+	if len(urls) > 1 {
+		_, _ = fmt.Fprint(os.Stderr, "Error: multiple --url values are not supported. Please specify a single URL.\n")
+
+		os.Exit(1)
+	}
+
+	URL := urls[0]
 
 	// Initialize the service router with default timeout (0 = no timeout).
 	serviceRouter = router.ServiceRouter{
