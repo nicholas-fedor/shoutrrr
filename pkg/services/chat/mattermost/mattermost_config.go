@@ -16,7 +16,7 @@ type Config struct {
 
 	UserName   string `desc:"Override webhook user"                                             optional:"" url:"user"`
 	Icon       string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" optional:""                 default:""   key:"icon,icon_emoji,icon_url"`
-	Title      string `desc:"Notification title, optionally set by the sender (not used)"                                   default:""   key:"title"`
+	Title      string `desc:"Notification title, optionally set by the sender"                                              default:""   key:"title"`
 	Channel    string `desc:"Override webhook channel"                                          optional:"" url:"path2"`
 	Host       string `desc:"Mattermost server host"                                                        url:"host,port"`
 	Token      string `desc:"Webhook token"                                                                 url:"path1"`
