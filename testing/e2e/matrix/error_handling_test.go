@@ -83,7 +83,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 		ginkgo.It("should timeout when server is unreachable", func() {
 			// Use a URL with a non-existent room that will cause timeout
 			// This tests the internal timeout handling
-			invalidURL := "matrix://user:password@localhost:9999?room=#nonexistent:invalid&disableTLS=true"
+			invalidURL := "matrix://user:password@localhost:9999?room=%23nonexistent:invalid&disableTLS=true"
 			parsedURL, err := url.Parse(invalidURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -297,8 +297,8 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("", nil)
-			// Empty message handling depends on server
-			_ = err
+			// Empty message should not cause an error
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("should handle very long message", func() {

@@ -471,7 +471,7 @@ create_user() {
         -p "$password" \
         -a \
         -c /data/homeserver.yaml \
-        "http://${server_url}"; then
+        "${base_url}"; then
         info "User '${user}' created successfully"
     else
         # Check if user already exists
@@ -481,12 +481,29 @@ create_user() {
             -p "$password" \
             -a \
             -c /data/homeserver.yaml \
-            "http://${server_url}" 2>&1 | grep -q "already exists"; then
+            "${base_url}" 2>&1 | grep -q "already exists"; then
             warn "User '${user}' already exists, continuing..."
         else
             error "Failed to create user '${user}'"
         fi
     fi
+
+    # Persist resolved settings to ENV_FILE so downstream consumers
+    # (e.g., testing/e2e/matrix/matrix_suite_test.go) see the same values.
+    info "Persisting resolved settings to ${ENV_FILE}..."
+    {
+        echo "SHOUTRRR_MATRIX_USER=${user}"
+        echo "SHOUTRRR_MATRIX_PASSWORD=${password}"
+        echo "SHOUTRRR_MATRIX_HOST=${server_url}"
+    } >> "$ENV_FILE"
+
+    # Write the disable TLS flag when explicitly set
+    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-}"
+    if [[ -n "$disable_tls" ]]; then
+        echo "SHOUTRRR_MATRIX_DISABLE_TLS=${disable_tls}" >> "$ENV_FILE"
+    fi
+
+    info "Resolved settings persisted to ${ENV_FILE}"
 }
 
 # Get the base URL for Matrix API
@@ -588,7 +605,7 @@ create_room() {
     # Create the room
     local response
     response=$(
-        curl -s -X POST "${base_url}/_matrix/client/r0/createRoom" \
+        curl -s -X POST "${base_url}/_matrix/client/v3/createRoom" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${access_token}" \
             -d "{
@@ -624,6 +641,10 @@ create_room() {
     fi
 
     info "Successfully created room: ${room_alias} (${room_id})"
+
+    # Persist resolved room to ENV_FILE so downstream consumers see the same value.
+    echo "SHOUTRRR_MATRIX_ROOM=${room_alias}" >> "$ENV_FILE"
+    info "Resolved room persisted to ${ENV_FILE}"
 }
 
 # Run all setup steps in order
