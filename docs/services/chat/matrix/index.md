@@ -45,7 +45,7 @@ All API calls use v3 endpoints:
 
 ### HTTP Method
 
-Messages are sent using the __PUT__ method to `/send/{roomId}/{txnId}`. This follows the v3 specification for idempotent message sending, ensuring that retrying a request due to network issues won't result in duplicate messages.
+Messages are sent using the __PUT__ method to `/_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}`. This follows the v3 specification for idempotent message sending, ensuring that retrying a request due to network issues won't result in duplicate messages.
 
 ### Transaction IDs
 
@@ -91,7 +91,7 @@ The Matrix service now supports the `title` parameter. When provided, the title 
 If `rooms` are *not* specified, the service will send the message to all the rooms that the user has currently joined.
 
 Otherwise, the service will only send the message to the specified rooms.
-If the user is *not* in any of those rooms, but have been invited to it, it will automatically accept that invite.
+If the user is *not* in any of those rooms, but has been invited to any of those rooms, it will automatically accept that invite.
 
 !!! Warning "Room Joining"
     The service will __not__ join any rooms unless they are explicitly specified in `rooms`.
@@ -110,7 +110,7 @@ You can use either `rooms` (for multiple rooms) or `room` (for a single room) - 
 
 !!! Note "URL Encoding"
     Don't use unescaped `#` for the channel aliases as that will be treated as the `fragment` part of the URL.
-    Either omit them or URL encode them, I.E. `rooms=%23alias:server` or `rooms=alias:server`
+    Either omit them or URL encode them, i.e. `rooms=%23alias:server` or `rooms=alias:server`
 
 ## TLS
 

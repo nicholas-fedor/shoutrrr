@@ -91,6 +91,9 @@ rc_joins:
 # Verbose mode
 VERBOSE=false
 
+# Docker compose command (detected in check_requirements)
+COMPOSE_CMD=""
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -179,8 +182,12 @@ check_requirements() {
         missing_cmds+=("docker")
     fi
 
-    # Check for docker compose
-    if ! docker compose version &> /dev/null 2>&1 && ! docker-compose --version &> /dev/null 2>&1; then
+    # Check for docker compose (plugin or standalone)
+    if docker compose version &> /dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    else
         missing_cmds+=("docker-compose")
     fi
 
@@ -199,6 +206,7 @@ check_requirements() {
     fi
 
     debug "All required commands are available"
+    debug "Using compose command: ${COMPOSE_CMD}"
 }
 
 # Wait for the Matrix server to be ready
@@ -396,6 +404,11 @@ start_server() {
         error "Docker compose file not found at ${COMPOSE_FILE}"
     fi
 
+    # Ensure COMPOSE_CMD is set
+    if [[ -z "$COMPOSE_CMD" ]]; then
+        check_requirements
+    fi
+
     # Change to the script directory
     cd "$SCRIPT_DIR"
 
@@ -411,13 +424,13 @@ start_server() {
     debug "Using MATRIX_UID=${MATRIX_UID} MATRIX_GID=${MATRIX_GID} for container"
 
     # Stop any existing container
-    if docker compose ps --status running 2>/dev/null | grep -q synapse; then
+    if $COMPOSE_CMD ps --status running 2>/dev/null | grep -q synapse; then
         info "Stopping existing Synapse container..."
-        docker compose down || true
+        $COMPOSE_CMD down || true
     fi
 
     # Start the server
-    docker compose up -d
+    $COMPOSE_CMD up -d
 
     if [[ $? -eq 0 ]]; then
         info "Matrix Synapse server started successfully"
@@ -449,17 +462,16 @@ create_user() {
     wait_for_server "$base_url" 60
 
     # Register the user using docker exec
+    # Wrap in if to prevent set -e from exiting before fallback check
     info "Registering user '${user}'..."
 
-    docker exec synapse \
+    if docker exec synapse \
         register_new_matrix_user \
         -u "$user" \
         -p "$password" \
         -a \
         -c /data/homeserver.yaml \
-        "http://${server_url}"
-
-    if [[ $? -eq 0 ]]; then
+        "http://${server_url}"; then
         info "User '${user}' created successfully"
     else
         # Check if user already exists
@@ -478,14 +490,15 @@ create_user() {
 }
 
 # Get the base URL for Matrix API
+# Defaults to http unless TLS is explicitly enabled
 get_base_url() {
     local host="${1:-${DEFAULT_MATRIX_HOST}}"
-    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-false}"
+    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-}"
 
-    if [[ "$disable_tls" == "true" ]]; then
-        echo "http://${host}"
-    else
+    if [[ "$disable_tls" == "false" ]]; then
         echo "https://${host}"
+    else
+        echo "http://${host}"
     fi
 }
 

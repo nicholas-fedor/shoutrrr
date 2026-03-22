@@ -545,8 +545,8 @@ func TestRun_MultipleURLs(t *testing.T) {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
 
-		_ = cmd.Flags().Set("url", "logger://")
-		_ = cmd.Flags().Set("url", "logger://test/path")
+		require.NoError(t, cmd.Flags().Set("url", "logger://"))
+		require.NoError(t, cmd.Flags().Set("url", "logger://test/path"))
 
 		Run(cmd, []string{})
 

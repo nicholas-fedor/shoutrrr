@@ -178,8 +178,15 @@ func loadEnvFile(filename string) {
 }
 
 // getOrInitSharedService initializes the shared Matrix service once in a
-// thread-safe manner if it hasn't been initialized yet.
+// thread-safe manner if it hasn't been initialized yet. If BeforeSuite has
+// already initialized sharedService, it returns the existing instance without
+// re-initializing.
 func getOrInitSharedService() error {
+	// Check if sharedService was already initialized (e.g., by BeforeSuite)
+	if sharedService != nil {
+		return nil
+	}
+
 	sharedServiceOnce.Do(func() {
 		serviceURL := buildServiceURL()
 		if serviceURL == "" {

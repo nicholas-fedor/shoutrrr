@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"context"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -13,20 +15,9 @@ import (
 )
 
 var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
-	// TestE2EContextCancellation tests behavior when operations need to be canceled.
-	// Since the public API doesn't expose context, we test by using an invalid room
-	// that causes the client to timeout or fail quickly.
+	// TestE2EContextCancellation tests behavior when operations are canceled via context.
 	ginkgo.Describe("Context Cancellation", func() {
 		ginkgo.It("should handle canceled context gracefully", func() {
-			// Use shared service if available and properly initialized
-			if sharedService != nil {
-				// Test sending a message - must succeed
-				err := sharedService.Send("Test message with canceled context", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				return
-			}
-
 			serviceURL := buildServiceURL()
 			if serviceURL == "" {
 				ginkgo.Skip("Matrix server not configured, skipping test. " +
@@ -36,12 +27,53 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			parsedURL, err := url.Parse(serviceURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			var svc *matrix.Service
+			if sharedService != nil {
+				svc = sharedService
+			} else {
+				svc = &matrix.Service{}
+				err = svc.Initialize(parsedURL, testutils.TestLogger())
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			}
+
+			// Create a canceled context
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			err = svc.SendWithContext(ctx, "Test message with canceled context", nil)
+			gomega.Expect(errors.Is(err, context.Canceled)).To(gomega.BeTrue(),
+				"expected context.Canceled error, got: %v", err)
+		})
+
+		ginkgo.It("should handle deadline exceeded context gracefully", func() {
+			serviceURL := buildServiceURL()
+			if serviceURL == "" {
+				ginkgo.Skip("Matrix server not configured, skipping test. " +
+					"Set SHOUTRRR_MATRIX_USER and SHOUTRRR_MATRIX_PASSWORD environment variables")
+			}
+
+			parsedURL, err := url.Parse(serviceURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var svc *matrix.Service
+			if sharedService != nil {
+				svc = sharedService
+			} else {
+				svc = &matrix.Service{}
+				err = svc.Initialize(parsedURL, testutils.TestLogger())
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			}
+
+			// Create a context with a very short timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+			defer cancel()
+
+			// Wait for the context to expire
+			<-ctx.Done()
+
+			err = svc.SendWithContext(ctx, "Test message with expired deadline", nil)
+			gomega.Expect(errors.Is(err, context.DeadlineExceeded)).To(gomega.BeTrue(),
+				"expected context.DeadlineExceeded error, got: %v", err)
 		})
 	})
 
