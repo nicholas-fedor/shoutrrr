@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../assets/media/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -1891,6 +1891,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#url_fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryparam_props" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query/Param Props
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#url_components" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3277,6 +3299,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#url_fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryparam_props" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query/Param Props
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#url_components" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4073,6 +4117,49 @@
 <p>PagerDuty is a digital operations management platform that helps teams respond to incidents and outages. The PagerDuty service integrates with PagerDuty's Events API v2 to create, acknowledge, and resolve incidents programmatically. This service enables automated incident management workflows, allowing you to trigger alerts when issues are detected, acknowledge them when investigation begins, and resolve them when problems are fixed.</p>
 <p>The service supports rich incident context including custom details, links to related resources, images, and client information to provide comprehensive incident information to on-call responders.</p>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
+<h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Host</strong> - The PagerDuty API host.
+  Default: <code>events.pagerduty.com</code>
+  URL part: <code class="service-url">pagerduty://<strong>host</strong>:port/integrationkey/</code></li>
+<li><strong>Port</strong> - The PagerDuty API port.
+  Default: <code>443</code>
+  URL part: <code class="service-url">pagerduty://host:<strong>port</strong>/integrationkey/</code></li>
+<li><strong>IntegrationKey</strong> - The PagerDuty API integration key (<strong>Required</strong>)
+  URL part: <code class="service-url">pagerduty://host:port/<strong>integrationkey</strong>/</code></li>
+</ul>
+<h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
+<p>Props can be either supplied using the params argument, or through the URL using
+<code>?key=value&amp;key=value</code> etc.</p>
+<ul>
+<li>
+<p><strong>Client</strong> - The name of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>ClientURL</strong> - The URL of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>Contexts</strong> - Additional context links or images (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>DedupKey</strong> - A unique key used for incident deduplication (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>Details</strong> - Additional details about the incident (JSON string that will be parsed into an object) (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>Action</strong> - The type of event (trigger, acknowledge, or resolve)
+  Default: <code>trigger</code></p>
+</li>
+<li>
+<p><strong>Severity</strong> - The perceived severity of the status the event (critical, error, warning, or info); required
+  Default: <code>error</code></p>
+</li>
+<li>
+<p><strong>Source</strong> - The unique location of the affected system, preferably a hostname or FQDN; required
+  Default: <code>default</code></p>
+</li>
+</ul>
 <h3 id="url_components">URL Components<a class="headerlink" href="#url_components" title="Permanent link">&para;</a></h3>
 <p>The PagerDuty service URL follows this structure:</p>
 <div class="highlight"><pre><span></span><code>pagerduty://[host[:port]]/integration-key[?query-parameters]

@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../assets/media/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -2760,49 +2760,49 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Username</strong> - Auth username<br />
-  Default: <em>empty</em><br />
-  URL part: <code class="service-url">mqtt://<strong>username</strong>:password@host:port/topic/</code>  </li>
-<li><strong>Password</strong> - Auth password<br />
-  Default: <em>empty</em><br />
-  URL part: <code class="service-url">mqtt://username:<strong>password</strong>@host:port/topic/</code>  </li>
-<li><strong>Host</strong> - MQTT broker hostname<br />
-  Default: <code>localhost</code><br />
-  URL part: <code class="service-url">mqtt://username:password@<strong>host</strong>:port/topic/</code>  </li>
-<li><strong>Port</strong> - MQTT broker port<br />
-  Default: <code>1883</code><br />
-  URL part: <code class="service-url">mqtt://username:password@host:<strong>port</strong>/topic/</code>  </li>
-<li><strong>Topic</strong> - Target topic name (<strong>Required</strong>)<br />
-  URL part: <code class="service-url">mqtt://username:password@host:port/<strong>topic</strong>/</code>  </li>
+<li><strong>Username</strong> - Auth username
+  Default: <em>empty</em>
+  URL part: <code class="service-url">mqtt://<strong>username</strong>:password@host:port/topic/</code></li>
+<li><strong>Password</strong> - Auth password
+  Default: <em>empty</em>
+  URL part: <code class="service-url">mqtt://username:<strong>password</strong>@host:port/topic/</code></li>
+<li><strong>Host</strong> - MQTT broker hostname
+  Default: <code>localhost</code>
+  URL part: <code class="service-url">mqtt://username:password@<strong>host</strong>:port/topic/</code></li>
+<li><strong>Port</strong> - MQTT broker port
+  Default: <code>1883</code>
+  URL part: <code class="service-url">mqtt://username:password@host:<strong>port</strong>/topic/</code></li>
+<li><strong>Topic</strong> - Target topic name (<strong>Required</strong>)
+  URL part: <code class="service-url">mqtt://username:password@host:port/<strong>topic</strong>/</code></li>
 </ul>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
-<p>Props can be either supplied using the params argument, or through the URL using<br />
+<p>Props can be either supplied using the params argument, or through the URL using
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>CleanSession</strong> - Start with a clean session<br />
-  Default: ✔ <code>yes</code>  </p>
+<p><strong>CleanSession</strong> - Start with a clean session
+  Default: ✔ <code>yes</code></p>
 </li>
 <li>
-<p><strong>ClientID</strong> - MQTT client identifier<br />
-  Default: <code>shoutrrr</code>  </p>
+<p><strong>ClientID</strong> - MQTT client identifier
+  Default: <code>shoutrrr</code></p>
 </li>
 <li>
-<p><strong>DisableTLS</strong> - Disable TLS encryption<br />
-  Default: ❌ <code>no</code>  </p>
+<p><strong>DisableTLS</strong> - Disable TLS encryption
+  Default: ❌ <code>no</code></p>
 </li>
 <li>
-<p><strong>DisableTLSVerification</strong> - Disable TLS certificate verification<br />
-  Default: ❌ <code>no</code>  </p>
+<p><strong>DisableTLSVerification</strong> - Disable TLS certificate verification
+  Default: ❌ <code>no</code></p>
 </li>
 <li>
-<p><strong>QoS</strong> - Quality of Service level (0, 1, or 2)<br />
-  Default: <code>0</code><br />
-  Possible values: <code>AtMostOnce</code>, <code>AtLeastOnce</code>, <code>ExactlyOnce</code>  </p>
+<p><strong>QoS</strong> - Quality of Service level (0, 1, or 2)
+  Default: <code>0</code>
+  Possible values: <code>AtMostOnce</code>, <code>AtLeastOnce</code>, <code>ExactlyOnce</code></p>
 </li>
 <li>
-<p><strong>Retained</strong> - Retain message on broker<br />
-  Default: ❌ <code>no</code>  </p>
+<p><strong>Retained</strong> - Retain message on broker
+  Default: ❌ <code>no</code></p>
 </li>
 </ul>
 <div class="admonition warning">
