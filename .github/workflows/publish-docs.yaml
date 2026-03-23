@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - docs/**
+      - docs/playground/wasm/**
+      - Makefile
   release:
     types: [published]
 
@@ -45,6 +47,9 @@ jobs:
           go mod download
           go clean -cache  # Clear build cache
           ./scripts/generate-service-config-docs.sh
+
+      - name: Build WASM module
+        run: make wasm
 
       - name: Setup Python
         uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec

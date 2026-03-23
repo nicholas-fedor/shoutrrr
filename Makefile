@@ -83,7 +83,7 @@ mod-download: ## Download Go module dependencies
 # Documentation Targets
 # =============================================================================
 
-.PHONY: docs docs-setup docs-build docs-serve docs-activate docs-deactivate
+.PHONY: docs docs-setup docs-build docs-serve docs-activate docs-deactivate wasm
 
 docs: docs-setup docs-serve ## Build and serve documentation site for local development
 
@@ -104,6 +104,14 @@ docs-activate: ## Activate the virtual environment for documentation
 
 docs-deactivate: ## Show instructions to deactivate the virtual environment
 	@echo "Run 'deactivate' to exit the virtual environment."
+
+wasm: ## Build WASM module for the Playground
+	GOOS=js GOARCH=wasm $(GO) build \
+		-trimpath \
+		-o docs/playground/assets/shoutrrr.wasm \
+		-ldflags="-s -w" \
+		./docs/playground/wasm/
+	@cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/playground/assets/
 
 # =============================================================================
 # Release Targets

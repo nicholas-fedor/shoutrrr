@@ -157,6 +157,7 @@ nav:
       - Proxy Setup: guides/proxy/index.md
   - Examples:
       - Home Assistant: examples/home-assistant/index.md
+  - Playground: playground/index.md
 
 # Plugins: https://www.mkdocs.org/user-guide/configuration/#plugins
 # Additional functionality for the site build.
@@ -178,6 +179,10 @@ plugins:
 # Default directories for documentation source and output.
 docs_dir: ../../docs
 site_dir: ../../site
+
+# Exclude Go WASM source from docs processing.
+exclude_docs: |
+  playground/wasm/
 
 # Validation: https://www.mkdocs.org/user-guide/configuration/#validation
 # Strictness settings for link validation during builds.

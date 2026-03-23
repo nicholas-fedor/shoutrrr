@@ -1,0 +1,420 @@
+/* Shoutrrr Playground - Styles */
+
+.playground-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.playground-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.playground-header p {
+  color: var(--md-default-fg-color--light);
+  font-size: 1rem;
+  margin: 0;
+}
+
+#playground-app {
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  padding: 0 1rem;
+  font-family: var(--md-text-font-family, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, sans-serif);
+}
+
+#playground-loading {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Sections with card styling */
+
+.playground-section {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background: var(--md-code-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+}
+
+.playground-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--md-default-fg-color);
+  text-align: center;
+}
+
+.playground-section--centered .playground-input-group > label {
+  text-align: center;
+}
+
+/* Service selector and URL parser row */
+
+.playground-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.playground-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 200px;
+}
+
+.playground-input-group--grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.playground-input-group > label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--md-default-fg-color);
+}
+
+.playground-input-or {
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  padding-bottom: 0.6rem;
+  flex-shrink: 0;
+}
+
+#service-select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  cursor: pointer;
+  appearance: auto;
+}
+
+#service-select:focus {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: -1px;
+}
+
+/* URL input row */
+
+.playground-url-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.playground-url-input input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: var(--md-code-font-family, monospace);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.playground-url-input input:focus {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: -1px;
+}
+
+/* Buttons */
+
+.playground-url-input button,
+.playground-url-output button,
+.playground-send button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  background: var(--md-primary-fg-color);
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.playground-url-input button:hover,
+.playground-url-output button:hover,
+.playground-send button:hover {
+  background: var(--md-primary-fg-color--dark);
+}
+
+.playground-url-input button:disabled,
+.playground-url-output button:disabled,
+.playground-send button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Config table */
+
+.playground-config-table-wrapper {
+  overflow-x: auto;
+}
+
+.playground-config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.playground-config-table thead {
+  border-bottom: 2px solid var(--md-default-fg-color--lightest);
+}
+
+.playground-config-table th {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-default-fg-color--light);
+  white-space: nowrap;
+}
+
+.playground-config-table td {
+  padding: 0.6rem 0.75rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.playground-config-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.playground-config-table tbody tr:hover {
+  background: var(--md-default-fg-color--lightest);
+}
+
+/* Table cell content */
+
+.playground-field-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.playground-required {
+  color: #d32f2f;
+  font-weight: 700;
+  margin-left: 0.15rem;
+}
+
+.playground-field-type {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color--light);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.playground-description {
+  color: var(--md-default-fg-color--light);
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+/* Table inputs */
+
+.playground-config-table input[type="text"],
+.playground-config-table input[type="password"],
+.playground-config-table select {
+  width: 100%;
+  min-width: 120px;
+  max-width: 250px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 4px;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  box-sizing: border-box;
+}
+
+.playground-config-table input:focus,
+.playground-config-table select:focus {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: -1px;
+}
+
+.playground-config-table input:focus-visible,
+.playground-config-table select:focus-visible {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: 2px;
+}
+
+.playground-config-table input:focus:not(:focus-visible),
+.playground-config-table select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Table checkbox */
+
+.playground-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.playground-checkbox-wrapper input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--md-primary-fg-color);
+}
+
+.playground-checkbox-hint {
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Focus-visible for keyboard navigation only */
+
+#service-select:focus-visible,
+.playground-url-input input:focus-visible,
+.playground-config-table input:focus-visible,
+.playground-config-table select:focus-visible,
+.playground-send input:focus-visible,
+.playground-url-input button:focus-visible,
+.playground-url-output button:focus-visible,
+.playground-send button:focus-visible {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: 2px;
+}
+
+#service-select:focus:not(:focus-visible),
+.playground-url-input input:focus:not(:focus-visible),
+.playground-config-table input:focus:not(:focus-visible),
+.playground-config-table select:focus:not(:focus-visible),
+.playground-send input:focus:not(:focus-visible),
+.playground-url-input button:focus:not(:focus-visible),
+.playground-url-output button:focus:not(:focus-visible),
+.playground-send button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* URL and CLI output */
+
+.playground-url-output {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.playground-url-output code {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--md-default-fg-color);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* Output section grouping */
+
+.playground-output-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.playground-output-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.playground-output-item > label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Send section */
+
+.playground-send {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.playground-send input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.playground-send input:focus {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: -1px;
+}
+
+#send-result {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Status messages */
+
+.playground-error {
+  color: #d32f2f;
+}
+
+.playground-success {
+  color: #2e7d32;
+}
+
+/* Responsive */
+
+@media (max-width: 640px) {
+  .playground-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .playground-input-or {
+    text-align: center;
+    padding: 0.25rem 0;
+  }
+
+  .playground-input-group {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  #playground-app {
+    margin: 1rem;
+    padding: 0 0.5rem;
+  }
+
+  .playground-section {
+    padding: 1rem;
+  }
+
+  .playground-url-input,
+  .playground-url-output,
+  .playground-send {
+    flex-direction: column;
+  }
+}
