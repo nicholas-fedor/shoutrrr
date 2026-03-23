@@ -1,4 +1,27 @@
-/* Shoutrrr Playground - Styles */
+/* Shoutrrr Playground - Styles
+ *
+ * Custom properties can be overridden for theming:
+ *   :root {
+ *     --playground-primary: #0ea5e9;
+ *     --playground-bg: #1e293b;
+ *   }
+ */
+
+:root {
+  --playground-font: var(--md-text-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  --playground-code-font: var(--md-code-font-family, monospace);
+  --playground-bg: var(--md-code-bg-color);
+  --playground-bg-input: var(--md-default-bg-color);
+  --playground-border: var(--md-default-fg-color--lightest);
+  --playground-text: var(--md-default-fg-color);
+  --playground-text-light: var(--md-default-fg-color--light);
+  --playground-primary: var(--md-primary-fg-color);
+  --playground-primary-dark: var(--md-primary-fg-color--dark);
+  --playground-error: #d32f2f;
+  --playground-success: #2e7d32;
+  --playground-radius: 6px;
+  --playground-radius-lg: 8px;
+}
 
 .playground-header {
   text-align: center;
@@ -10,7 +33,7 @@
 }
 
 .playground-header p {
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   font-size: 1rem;
   margin: 0;
 }
@@ -19,14 +42,13 @@
   max-width: 1200px;
   margin: 0 auto 2rem;
   padding: 0 1rem;
-  font-family: var(--md-text-font-family, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", Roboto, sans-serif);
+  font-family: var(--playground-font);
 }
 
 #playground-loading {
   text-align: center;
   padding: 3rem 1rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
 }
 
 /* Sections with card styling */
@@ -34,9 +56,9 @@
 .playground-section {
   margin-bottom: 1.25rem;
   padding: 1.25rem;
-  background: var(--md-code-bg-color);
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 8px;
+  background: var(--playground-bg);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius-lg);
 }
 
 /* Section header with actions */
@@ -55,7 +77,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--md-default-fg-color);
+  color: var(--playground-text);
 }
 
 /* Collapse button */
@@ -67,14 +89,14 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--md-default-fg-color);
+  color: var(--playground-text);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .playground-collapse-btn:hover {
-  color: var(--md-primary-fg-color);
+  color: var(--playground-primary);
 }
 
 .playground-collapse-btn svg {
@@ -93,10 +115,10 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.35rem 0.6rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
   background: transparent;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
@@ -104,8 +126,8 @@
 }
 
 .playground-clear-btn:hover {
-  background: var(--md-default-fg-color--lightest);
-  color: var(--md-default-fg-color);
+  background: var(--playground-border);
+  color: var(--playground-text);
 }
 
 .playground-clear-btn svg {
@@ -120,7 +142,7 @@
   margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--md-default-fg-color);
+  color: var(--playground-text);
   text-align: center;
 }
 
@@ -152,12 +174,12 @@
 .playground-input-group > label {
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--md-default-fg-color);
+  color: var(--playground-text);
 }
 
 .playground-input-or {
   font-size: 0.85rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   padding-bottom: 0.6rem;
   flex-shrink: 0;
 }
@@ -166,16 +188,16 @@
   width: 100%;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
-  background: var(--md-default-bg-color);
-  color: var(--md-default-fg-color);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
   cursor: pointer;
   appearance: auto;
 }
 
 #service-select:focus {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: -1px;
 }
 
@@ -185,15 +207,15 @@
   width: 100%;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
-  font-family: var(--md-code-font-family, monospace);
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
-  background: var(--md-default-bg-color);
-  color: var(--md-default-fg-color);
+  font-family: var(--playground-code-font);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
 }
 
 #url-input:focus {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: -1px;
 }
 
@@ -204,8 +226,8 @@
   font-size: 0.9rem;
   font-weight: 500;
   border: none;
-  border-radius: 6px;
-  background: var(--md-primary-fg-color);
+  border-radius: var(--playground-radius);
+  background: var(--playground-primary);
   color: #ffffff;
   cursor: pointer;
   white-space: nowrap;
@@ -213,7 +235,7 @@
 }
 
 .playground-send button:hover {
-  background: var(--md-primary-fg-color--dark);
+  background: var(--playground-primary-dark);
 }
 
 .playground-send button:disabled {
@@ -234,7 +256,7 @@
 }
 
 .playground-config-table thead {
-  border-bottom: 2px solid var(--md-default-fg-color--lightest);
+  border-bottom: 2px solid var(--playground-border);
 }
 
 .playground-config-table th {
@@ -244,14 +266,19 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   white-space: nowrap;
 }
 
 .playground-config-table td {
   padding: 0.6rem 0.75rem;
   vertical-align: middle;
-  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  border-bottom: 1px solid var(--playground-border);
+}
+
+/* Value column with copy wrapper */
+.playground-config-table td:has(.playground-input-copy-wrapper) {
+  padding: 0.3rem 0.5rem;
 }
 
 .playground-config-table tbody tr:last-child td {
@@ -259,7 +286,7 @@
 }
 
 .playground-config-table tbody tr:hover {
-  background: var(--md-default-fg-color--lightest);
+  background: var(--playground-border);
 }
 
 /* Table cell content */
@@ -270,7 +297,7 @@
 }
 
 .playground-required {
-  color: #d32f2f;
+  color: var(--playground-error);
   font-weight: 700;
   margin-left: 0.15rem;
 }
@@ -279,8 +306,8 @@
   font-size: 0.7rem;
   padding: 0.1rem 0.35rem;
   border-radius: 3px;
-  background: var(--md-default-fg-color--lightest);
-  color: var(--md-default-fg-color--light);
+  background: var(--playground-border);
+  color: var(--playground-text-light);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -288,7 +315,7 @@
 }
 
 .playground-description {
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   line-height: 1.4;
   max-width: 300px;
 }
@@ -300,25 +327,24 @@
 .playground-config-table select {
   width: 100%;
   min-width: 120px;
-  max-width: 250px;
   padding: 0.4rem 0.5rem;
   font-size: 0.85rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border: 1px solid var(--playground-border);
   border-radius: 4px;
-  background: var(--md-default-bg-color);
-  color: var(--md-default-fg-color);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
   box-sizing: border-box;
 }
 
 .playground-config-table input:focus,
 .playground-config-table select:focus {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: -1px;
 }
 
 .playground-config-table input:focus-visible,
 .playground-config-table select:focus-visible {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: 2px;
 }
 
@@ -339,12 +365,12 @@
   width: 1rem;
   height: 1rem;
   cursor: pointer;
-  accent-color: var(--md-primary-fg-color);
+  accent-color: var(--playground-primary);
 }
 
 .playground-checkbox-hint {
   font-size: 0.8rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
 }
 
 /* Input with inline copy button */
@@ -352,6 +378,7 @@
 .playground-input-copy-wrapper {
   position: relative;
   display: flex;
+  min-height: 2.25rem;
 }
 
 .playground-input-copy-wrapper input,
@@ -374,7 +401,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
@@ -386,13 +413,13 @@
 }
 
 .playground-inline-copy-btn:hover {
-  background: var(--md-default-fg-color--lightest);
-  color: var(--md-default-fg-color);
+  background: var(--playground-border);
+  color: var(--playground-text);
 }
 
 .playground-inline-copy-btn.copied {
   opacity: 1;
-  color: #2e7d32;
+  color: var(--playground-success);
 }
 
 .playground-inline-copy-btn svg {
@@ -407,7 +434,7 @@
 .playground-config-table select:focus-visible,
 .playground-send input:focus-visible,
 .playground-send button:focus-visible {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: 2px;
 }
 
@@ -432,12 +459,12 @@
   min-height: 2.5rem;
   padding: 0.6rem 2.5rem 0.6rem 0.75rem;
   font-size: 0.85rem;
-  background: var(--md-default-bg-color);
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
+  background: var(--playground-bg-input);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
   overflow-x: auto;
   white-space: nowrap;
-  color: var(--md-default-fg-color);
+  color: var(--playground-text);
   word-break: break-all;
   line-height: 1.5;
 }
@@ -452,10 +479,10 @@
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
-  background: var(--md-code-bg-color);
-  color: var(--md-default-fg-color--light);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg);
+  color: var(--playground-text-light);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
@@ -467,13 +494,13 @@
 }
 
 .playground-copy-btn:hover {
-  background: var(--md-default-fg-color--lightest);
-  color: var(--md-default-fg-color);
+  background: var(--playground-border);
+  color: var(--playground-text);
 }
 
 .playground-copy-btn.copied {
   opacity: 1;
-  color: #2e7d32;
+  color: var(--playground-success);
 }
 
 .playground-copy-btn svg {
@@ -497,7 +524,7 @@
 .playground-output-item > label {
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
 }
 
 /* Send section */
@@ -511,14 +538,14 @@
   flex: 1;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 6px;
-  background: var(--md-default-bg-color);
-  color: var(--md-default-fg-color);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
 }
 
 .playground-send input:focus {
-  outline: 2px solid var(--md-primary-fg-color);
+  outline: 2px solid var(--playground-primary);
   outline-offset: -1px;
 }
 
@@ -530,21 +557,21 @@
 .playground-note {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--playground-text-light);
 }
 
 .playground-note a {
-  color: var(--md-primary-fg-color);
+  color: var(--playground-primary);
 }
 
 /* Status messages */
 
 .playground-error {
-  color: #d32f2f;
+  color: var(--playground-error);
 }
 
 .playground-success {
-  color: #2e7d32;
+  color: var(--playground-success);
 }
 
 /* Responsive */
@@ -572,7 +599,7 @@
   .playground-config-table tbody tr {
     display: block;
     padding: 0.75rem 0;
-    border-bottom: 1px solid var(--md-default-fg-color--lightest);
+    border-bottom: 1px solid var(--playground-border);
   }
 
   .playground-config-table tbody tr:last-child {
@@ -596,7 +623,7 @@
   .playground-config-table td:nth-child(2),
   .playground-config-table td:nth-child(3) {
     font-size: 0.8rem;
-    color: var(--md-default-fg-color--light);
+    color: var(--playground-text-light);
   }
 
   .playground-description {

@@ -1,17 +1,60 @@
-// Shoutrrr Playground - Frontend JavaScript
-// Loads the WASM module and provides the interactive UI for configuring,
-// generating, and testing Shoutrrr notification URLs.
+/**
+ * Shoutrrr Playground - Frontend JavaScript
+ *
+ * Loads the WASM module and provides the interactive UI for configuring,
+ * generating, and testing Shoutrrr notification URLs.
+ *
+ * @module ShoutrrrPlayground
+ */
 
 (function () {
   "use strict";
 
+  /**
+   * @typedef {Object} FieldSchema
+   * @property {string} name - The field name
+   * @property {string} type - The field type (string, bool, int, uint, enum, array)
+   * @property {boolean} required - Whether the field is required
+   * @property {string} description - Field description
+   * @property {string} defaultValue - Default value
+   * @property {string} urlPart - URL part mapping (host, user, password, path)
+   * @property {string[]} keys - Query parameter keys
+   * @property {string[]} [enumValues] - Enum options if type is enum
+   */
+
+  /**
+   * @typedef {Object} ConfigSchema
+   * @property {string} service - Service name
+   * @property {string} scheme - URL scheme
+   * @property {FieldSchema[]} fields - Configuration fields
+   */
+
+  /**
+   * @typedef {Object} ParseResult
+   * @property {string} service - Service name
+   * @property {Object<string, string>} config - Field values
+   */
+
+  /**
+   * @typedef {Object} WASMResult
+   * @property {string} [error] - Error message if failed
+   * @property {Object} [result] - Result data if succeeded
+   */
+
   // --- State ---
+  /** @type {boolean} */
   let wasmReady = false;
+
+  /** @type {string} */
   let currentService = "";
+
+  /** @type {ConfigSchema|null} */
   let currentSchema = null;
 
   // --- DOM Elements ---
+  /** @param {string} id */
   const $ = (id) => document.getElementById(id);
+
   const loading = $("playground-loading");
   const content = $("playground-content");
   const serviceSelect = $("service-select");
@@ -34,10 +77,11 @@
   // --- WASM Loading ---
 
   // Patch fetch to strip the User-Agent header from WASM requests.
-  // Go's net/http sets User-Agent automatically, but Discord's CORS
-  // preflight doesn't allow this header. Stripping it lets the
-  // preflight succeed while Shoutrrr handles all other request details.
+  // Go's net/http sets User-Agent automatically, but some CORS
+  // preflight responses don't allow this header.
   const originalFetch = window.fetch.bind(window);
+
+  /** @type {typeof fetch} */
   window.fetch = function (url, options) {
     if (options && options.headers) {
       const headers = new Headers(options.headers);
@@ -48,17 +92,22 @@
     return originalFetch(url, options);
   };
 
-  async function loadWasm() {
+  /**
+   * Loads the WASM module and initializes the playground.
+   * @async
+   * @param {PlaygroundOptions} config - Configuration options
+   * @returns {Promise<void>}
+   */
+  async function loadWasm(config) {
     try {
       const go = new Go();
-      const wasmPath = new URL("assets/shoutrrr.wasm", window.location.href).href;
       const result = await WebAssembly.instantiateStreaming(
-        fetch(wasmPath),
+        fetch(config.wasmPath),
         go.importObject
       );
       go.run(result.instance);
       wasmReady = true;
-      onWasmReady();
+      onWasmReady(config);
     } catch (err) {
       loading.innerHTML =
         '<p class="playground-error">Failed to load WASM module: ' +
@@ -67,13 +116,19 @@
     }
   }
 
-  function onWasmReady() {
+  /**
+   * Called when WASM module is ready.
+   * @param {PlaygroundOptions} config - Configuration options
+   */
+  function onWasmReady(config) {
     loading.style.display = "none";
     content.style.display = "block";
     loadServices();
   }
 
   // --- Service Listing ---
+
+  /** Loads available services into the dropdown. */
   function loadServices() {
     const parsed = safeParseJSON(shoutrrrGetServices());
     if (parsed.error) {
@@ -92,6 +147,8 @@
   }
 
   // --- Service Selection ---
+
+  /** @type {HTMLSelectElement} */
   serviceSelect.addEventListener("change", function () {
     currentService = this.value;
     if (!currentService) {
@@ -121,6 +178,11 @@
   });
 
   // --- Form Rendering ---
+
+  /**
+   * Renders the configuration form from a schema.
+   * @param {ConfigSchema} schema - The service config schema
+   */
   function renderForm(schema) {
     configTbody.innerHTML = "";
 
@@ -196,6 +258,11 @@
     }
   }
 
+  /**
+   * Formats a field name for display.
+   * @param {FieldSchema} field - The field schema
+   * @returns {string} Formatted field name
+   */
   function formatFieldName(field) {
     let name = field.keys && field.keys.length > 0 ? field.keys[0] : field.name;
     if (field.urlPart) {
@@ -205,10 +272,12 @@
   }
 
   // --- Config Section Toggle ---
-  var collapseIcon =
-    '<path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.94l3.72-3.72a.749.749 0 0 1 1.06 0Z"></path>';
-  var expandIcon =
-    '<path d="M6.22 3.22a.749.749 0 0 1 1.06 0l4.25 4.25a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.749.749 0 0 1 0-1.06Z"></path>';
+
+  /** @type {string} */
+  var collapseIcon = '<use href="#icon-chevron"/>';
+
+  /** @type {string} */
+  var expandIcon = '<use href="#icon-chevron"/>';
 
   configToggle.addEventListener("click", function () {
     var expanded = configToggle.getAttribute("aria-expanded") === "true";
@@ -220,6 +289,8 @@
   });
 
   // --- Clear Config ---
+
+  /** Clears all form inputs and regenerates the URL. */
   clearConfigBtn.addEventListener("click", function () {
     var inputs = configTbody.querySelectorAll("input, select");
     inputs.forEach(function (el) {
@@ -232,20 +303,26 @@
     updateUrl();
   });
 
-  var clipboardIcon =
-    '<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>';
-  var checkIcon =
-    '<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>';
+  // --- Copy Button ---
 
+  /** @type {string} */
+  var clipboardIcon = '<use href="#icon-clipboard"/>';
+
+  /** @type {string} */
+  var checkIcon = '<use href="#icon-check"/>';
+
+  /**
+   * Creates a copy button for an input or code element.
+   * @param {HTMLElement} sourceEl - Element to copy from
+   * @returns {HTMLButtonElement} The copy button
+   */
   function createCopyButton(sourceEl) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "playground-inline-copy-btn";
     btn.setAttribute("aria-label", "Copy to clipboard");
     btn.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14">' +
-      clipboardIcon +
-      "</svg>";
+      '<svg width="14" height="14">' + clipboardIcon + "</svg>";
 
     btn.addEventListener("click", function () {
       var value = sourceEl.value || sourceEl.textContent;
@@ -264,6 +341,13 @@
     return btn;
   }
 
+  // --- Input Creators ---
+
+  /**
+   * Creates a text input for a field.
+   * @param {FieldSchema} field - The field schema
+   * @returns {HTMLInputElement} The input element
+   */
   function createTextInput(field) {
     const input = document.createElement("input");
     input.type = field.urlPart === "password" ? "password" : "text";
@@ -280,6 +364,11 @@
     return input;
   }
 
+  /**
+   * Creates a checkbox input for a boolean field.
+   * @param {FieldSchema} field - The field schema
+   * @returns {HTMLDivElement} Wrapper with checkbox and hint
+   */
   function createBoolInput(field) {
     const wrapper = document.createElement("div");
     wrapper.className = "playground-checkbox-wrapper";
@@ -312,6 +401,11 @@
     return wrapper;
   }
 
+  /**
+   * Creates a select input for an enum field.
+   * @param {FieldSchema} field - The field schema
+   * @returns {HTMLSelectElement} The select element
+   */
   function createEnumInput(field) {
     const select = document.createElement("select");
     select.id = "field-" + field.name;
@@ -333,6 +427,11 @@
     return select;
   }
 
+  /**
+   * Creates a number input for int/uint fields.
+   * @param {FieldSchema} field - The field schema
+   * @returns {HTMLInputElement} The input element
+   */
   function createNumberInput(field) {
     const input = document.createElement("input");
     input.type = "text";
@@ -350,6 +449,11 @@
     return input;
   }
 
+  /**
+   * Creates a text input for array fields.
+   * @param {FieldSchema} field - The field schema
+   * @returns {HTMLInputElement} The input element
+   */
   function createArrayInput(field) {
     const input = document.createElement("input");
     input.type = "text";
@@ -367,6 +471,8 @@
   }
 
   // --- URL Generation ---
+
+  /** Updates the generated URL and CLI command from form values. */
   function updateUrl() {
     if (!currentService || !wasmReady) return;
 
@@ -394,11 +500,23 @@
     }
   }
 
+  /**
+   * Builds a CLI command string.
+   * @param {string} url - The Shoutrrr URL
+   * @param {string} [message] - Override message (uses input value if not provided)
+   * @returns {string} The CLI command
+   */
   function buildCliCommand(url, message) {
-    var msg = message || messageInput.value.trim() || "Hello World";
+    var config = (window.__shoutrrrPlayground || {}).config || {};
+    var defaultMsg = config.defaultMessage || "Hello World";
+    var msg = message || messageInput.value.trim() || defaultMsg;
     return 'shoutrrr send --url "' + url + '" --message "' + msg + '"';
   }
 
+  /**
+   * Collects all form values into a config object.
+   * @returns {Object<string, string>} Config key-value pairs
+   */
   function collectFormValues() {
     const values = {};
     const fields = configTbody.querySelectorAll("[name]");
@@ -418,8 +536,11 @@
   }
 
   // --- URL Parsing ---
-  // --- URL Auto-Parse ---
-  // Automatically parse Shoutrrr URLs on paste or after typing stops.
+
+  /**
+   * Parses a Shoutrrr URL from the input field.
+   * Called on paste and debounced on input.
+   */
   function parseUrlInput() {
     const rawUrl = urlInput.value.trim();
     if (!rawUrl || !wasmReady) return;
@@ -456,6 +577,10 @@
   // Parse on input with debounce for typing.
   urlInput.addEventListener("input", debounce(parseUrlInput, 500));
 
+  /**
+   * Populates form fields from parsed values.
+   * @param {Object<string, string>} values - Field name-value pairs
+   */
   function populateForm(values) {
     for (const [name, value] of Object.entries(values)) {
       const field = configTbody.querySelector(
@@ -473,9 +598,19 @@
   }
 
   // --- Copy to Clipboard ---
+
+  /** @type {number|null} */
   var copyBtnTimeout = null;
+
+  /** @type {number|null} */
   var copyCliBtnTimeout = null;
 
+  /**
+   * Handles copy button click.
+   * @param {HTMLButtonElement} btn - The copy button
+   * @param {HTMLElement} sourceEl - Element to copy from
+   * @param {number|null} timeoutRef - Timeout reference for reset
+   */
   function handleCopy(btn, sourceEl, timeoutRef) {
     var text = sourceEl.textContent;
     if (!text || text.startsWith("Error")) return;
@@ -500,6 +635,7 @@
   });
 
   // --- Message Input ---
+
   // Update CLI command when message changes.
   messageInput.addEventListener("input", debounce(function () {
     var url = urlOutput.textContent;
@@ -509,12 +645,14 @@
   }, 300));
 
   // --- Send Message ---
+
+  /** Sends a test message using the configured URL. */
   sendBtn.addEventListener("click", function () {
     if (!wasmReady || !currentService) return;
 
     const url = urlOutput.textContent;
-    const message =
-      messageInput.value.trim() || "Hello World";
+    var config = (window.__shoutrrrPlayground || {}).config || {};
+    const message = messageInput.value.trim() || config.defaultMessage || "Hello World";
 
     if (!url || url.startsWith("Error")) {
       sendResult.innerHTML =
@@ -526,7 +664,6 @@
     sendResult.innerHTML = "Sending...";
 
     // shoutrrrSend returns a Promise to avoid blocking the JS event loop.
-    // The fetch runs in a Go goroutine; resolve/reject are called when done.
     var promise = shoutrrrSend(url, message);
     promise.then(
       function (resultJSON) {
@@ -554,25 +691,41 @@
   });
 
   // --- Utilities ---
+
+  /**
+   * Returns a user-friendly error message for common send failures.
+   * @param {string} msg - The raw error message
+   * @returns {string} User-friendly error message
+   */
   function describeSendError(msg) {
-    if (msg.indexOf("Failed to fetch") !== -1 ||
-        msg.indexOf("NetworkError") !== -1) {
-      return "Request blocked by browser. This is usually caused by a " +
+    if (
+      msg.indexOf("Failed to fetch") !== -1 ||
+      msg.indexOf("NetworkError") !== -1
+    ) {
+      return (
+        "Request blocked by browser. This is usually caused by a " +
         "privacy extension (e.g., Privacy Badger, uBlock Origin) or " +
         "content filter blocking the request. Try disabling extensions " +
-        "for this site, or use the Shoutrrr CLI.";
+        "for this site, or use the Shoutrrr CLI."
+      );
     }
     if (msg.indexOf("ERR_BLOCKED_BY_CLIENT") !== -1) {
-      return "Request blocked by browser extension or content filter. " +
-        "Try disabling extensions for this site, or use the Shoutrrr CLI.";
+      return (
+        "Request blocked by browser extension or content filter. " +
+        "Try disabling extensions for this site, or use the Shoutrrr CLI."
+      );
     }
-    if (msg.indexOf("CORS") !== -1 ||
-        msg.indexOf("Access-Control-Allow-Origin") !== -1 ||
-        msg.indexOf("ERR_FAILED") !== -1) {
-      return "Request blocked by CORS policy. The target server does not " +
+    if (
+      msg.indexOf("CORS") !== -1 ||
+      msg.indexOf("Access-Control-Allow-Origin") !== -1 ||
+      msg.indexOf("ERR_FAILED") !== -1
+    ) {
+      return (
+        "Request blocked by CORS policy. The target server does not " +
         "allow cross-origin requests from browsers. Browsers enforce CORS " +
         "as a security measure, but the Shoutrrr CLI is not subject to " +
-        "this restriction and will work for this service.";
+        "this restriction and will work for this service."
+      );
     }
     if (msg.indexOf("timed out") !== -1) {
       return "Request timed out. Check your network connection and try again.";
@@ -580,6 +733,11 @@
     return "Error: " + msg;
   }
 
+  /**
+   * Safely parses a JSON string.
+   * @param {string} str - JSON string to parse
+   * @returns {WASMResult} Parsed result or error
+   */
   function safeParseJSON(str) {
     if (typeof str !== "string") {
       return { error: "Invalid response: expected string" };
@@ -593,6 +751,12 @@
     }
   }
 
+  /**
+   * Creates a debounced version of a function.
+   * @param {Function} fn - Function to debounce
+   * @param {number} delay - Delay in milliseconds
+   * @returns {Function} Debounced function
+   */
   function debounce(fn, delay) {
     let timer;
     return function () {
@@ -601,6 +765,11 @@
     };
   }
 
+  /**
+   * Escapes HTML special characters.
+   * @param {string} str - String to escape
+   * @returns {string} Escaped string
+   */
   function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str;
@@ -608,9 +777,49 @@
   }
 
   // --- Init ---
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadWasm);
-  } else {
-    loadWasm();
+
+  /**
+   * @typedef {Object} PlaygroundOptions
+   * @property {string} [wasmPath] - Path to the WASM binary
+   * @property {string} [containerId] - Container element ID
+   * @property {string} [defaultMessage] - Default test message
+   */
+
+  /**
+   * Initializes the Shoutrrr Playground.
+   * @param {PlaygroundOptions} [options] - Configuration options
+   */
+  function init(options) {
+    // Configuration can be overridden via options or global config.
+    var config = Object.assign(
+      {
+        wasmPath: "assets/shoutrrr.wasm",
+        containerId: "playground-app",
+        defaultMessage: "Hello World",
+      },
+      options || {},
+      window.ShoutrrrPlaygroundConfig || {}
+    );
+
+    // Store config for use by other functions.
+    window.__shoutrrrPlayground = { config: config };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () {
+        loadWasm(config);
+      });
+    } else {
+      loadWasm(config);
+    }
+  }
+
+  // Expose public API.
+  window.ShoutrrrPlayground = {
+    init: init,
+  };
+
+  // Auto-init if container exists (for standalone usage).
+  if (document.getElementById("playground-app")) {
+    init();
   }
 })();

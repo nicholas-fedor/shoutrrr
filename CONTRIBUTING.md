@@ -113,6 +113,31 @@ mkdocs serve --config-file build/mkdocs/mkdocs.yaml
 
 Note: Disable the markdown extension pymdownx.snippets > check_paths option if not generating the service config docs via the `scripts\generate-service-config-docs.sh` script.
 
+### Playground
+
+The Playground is an interactive WASM-based tool for configuring and testing Shoutrrr URLs in the browser.
+It consists of Go source compiled to WASM and a JavaScript/CSS frontend.
+
+To build the WASM module:
+
+```bash
+make wasm
+```
+
+To run tests:
+
+```bash
+go test ./docs/playground/wasm/
+```
+
+To lint:
+
+```bash
+golangci-lint run --config build/golangci-lint/golangci.yaml ./docs/playground/wasm/
+```
+
+The WASM module uses Shoutrrr's public API (`router.ListServices()`, `router.NewService()`, `format.GetServiceConfig()`, `format.GetConfigFormat()`) to ensure automatic parity with the library — no hardcoded service names or field definitions.
+
 ## Semantic Branch Names
 
 Shoutrrr uses semantic branch naming for structured branch names.

@@ -1,6 +1,6 @@
 # Shoutrrr Playground
 
-A browser-based interactive tool for configuring, generating, and testing Shoutrrr notification URLs. Built with Go WASM, all processing runs client-side — no data leaves the user's device.
+A browser-based interactive tool for configuring, generating, and testing Shoutrrr notification URLs.
 
 ## Architecture
 
@@ -95,7 +95,7 @@ golangci-lint run --config build/golangci-lint/golangci.yaml ./docs/playground/w
 The playground is served as a MkDocs page with:
 
 - Navigation entry: `Playground: playground/index.md` in `build/mkdocs/mkdocs.yaml`
-- WASM source excluded from docs processing: `exclude_docs: try-it/wasm/`
+- WASM source excluded from docs processing: `exclude_docs: playground/wasm/`
 - Conditional asset loading in `docs/overrides/main.html`
 
 ## Adding Service Support
