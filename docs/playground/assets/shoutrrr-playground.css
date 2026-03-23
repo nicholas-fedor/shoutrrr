@@ -39,7 +39,84 @@
   border-radius: 8px;
 }
 
-.playground-section h3 {
+/* Section header with actions */
+
+.playground-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.playground-section-header h3 {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--md-default-fg-color);
+}
+
+/* Collapse button */
+
+.playground-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--md-default-fg-color);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.playground-collapse-btn:hover {
+  color: var(--md-primary-fg-color);
+}
+
+.playground-collapse-btn svg {
+  fill: currentColor;
+  transition: transform 0.15s ease;
+}
+
+.playground-collapse-btn[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+/* Clear button */
+
+.playground-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.playground-clear-btn:hover {
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color);
+}
+
+.playground-clear-btn svg {
+  fill: currentColor;
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+}
+
+.playground-section > h3 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
@@ -65,6 +142,11 @@
   gap: 0.35rem;
   flex: 1;
   min-width: 0;
+}
+
+.playground-input-group h3 {
+  margin: 0 0 0.25rem;
+  text-align: center;
 }
 
 .playground-input-group > label {
@@ -117,7 +199,6 @@
 
 /* Buttons */
 
-.playground-url-output button,
 .playground-send button {
   padding: 0.6rem 1.2rem;
   font-size: 0.9rem;
@@ -131,12 +212,10 @@
   transition: background 0.15s ease;
 }
 
-.playground-url-output button:hover,
 .playground-send button:hover {
   background: var(--md-primary-fg-color--dark);
 }
 
-.playground-url-output button:disabled,
 .playground-send button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -145,7 +224,7 @@
 /* Config table */
 
 .playground-config-table-wrapper {
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .playground-config-table {
@@ -268,6 +347,58 @@
   color: var(--md-default-fg-color--light);
 }
 
+/* Input with inline copy button */
+
+.playground-input-copy-wrapper {
+  position: relative;
+  display: flex;
+}
+
+.playground-input-copy-wrapper input,
+.playground-input-copy-wrapper select {
+  flex: 1;
+  padding-right: 2rem;
+}
+
+.playground-inline-copy-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.playground-input-copy-wrapper:hover .playground-inline-copy-btn,
+.playground-inline-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.playground-inline-copy-btn:hover {
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color);
+}
+
+.playground-inline-copy-btn.copied {
+  opacity: 1;
+  color: #2e7d32;
+}
+
+.playground-inline-copy-btn svg {
+  fill: currentColor;
+}
+
 /* Focus-visible for keyboard navigation only */
 
 #service-select:focus-visible,
@@ -275,7 +406,6 @@
 .playground-config-table input:focus-visible,
 .playground-config-table select:focus-visible,
 .playground-send input:focus-visible,
-.playground-url-output button:focus-visible,
 .playground-send button:focus-visible {
   outline: 2px solid var(--md-primary-fg-color);
   outline-offset: 2px;
@@ -286,22 +416,21 @@
 .playground-config-table input:focus:not(:focus-visible),
 .playground-config-table select:focus:not(:focus-visible),
 .playground-send input:focus:not(:focus-visible),
-.playground-url-output button:focus:not(:focus-visible),
 .playground-send button:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* URL and CLI output */
+/* Code block with inline copy button */
 
-.playground-url-output {
+.playground-code-block {
+  position: relative;
   display: flex;
-  gap: 0.5rem;
-  align-items: stretch;
 }
 
-.playground-url-output code {
+.playground-code-block code {
   flex: 1;
-  padding: 0.6rem 0.75rem;
+  min-height: 2.5rem;
+  padding: 0.6rem 2.5rem 0.6rem 0.75rem;
   font-size: 0.85rem;
   background: var(--md-default-bg-color);
   border: 1px solid var(--md-default-fg-color--lightest);
@@ -311,6 +440,44 @@
   color: var(--md-default-fg-color);
   word-break: break-all;
   line-height: 1.5;
+}
+
+.playground-copy-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  background: var(--md-code-bg-color);
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.playground-code-block:hover .playground-copy-btn,
+.playground-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.playground-copy-btn:hover {
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color);
+}
+
+.playground-copy-btn.copied {
+  opacity: 1;
+  color: #2e7d32;
+}
+
+.playground-copy-btn svg {
+  fill: currentColor;
 }
 
 /* Output section grouping */
@@ -360,6 +527,16 @@
   font-size: 0.9rem;
 }
 
+.playground-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.playground-note a {
+  color: var(--md-primary-fg-color);
+}
+
 /* Status messages */
 
 .playground-error {
@@ -386,6 +563,51 @@
   .playground-input-group {
     min-width: 0;
   }
+
+  /* Convert table to stacked card layout */
+  .playground-config-table thead {
+    display: none;
+  }
+
+  .playground-config-table tbody tr {
+    display: block;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  }
+
+  .playground-config-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .playground-config-table tbody tr:hover {
+    background: transparent;
+  }
+
+  .playground-config-table td {
+    display: block;
+    padding: 0.25rem 0;
+    border-bottom: none;
+  }
+
+  .playground-config-table td:first-child {
+    font-weight: 500;
+  }
+
+  .playground-config-table td:nth-child(2),
+  .playground-config-table td:nth-child(3) {
+    font-size: 0.8rem;
+    color: var(--md-default-fg-color--light);
+  }
+
+  .playground-description {
+    max-width: none;
+  }
+
+  .playground-config-table input[type="text"],
+  .playground-config-table input[type="password"],
+  .playground-config-table select {
+    max-width: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -398,8 +620,6 @@
     padding: 1rem;
   }
 
-  .playground-url-input,
-  .playground-url-output,
   .playground-send {
     flex-direction: column;
   }

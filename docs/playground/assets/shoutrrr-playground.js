@@ -17,6 +17,9 @@
   const serviceSelect = $("service-select");
   const urlInput = $("url-input");
   const configSection = $("config-section");
+  const configToggle = $("config-toggle");
+  const configContent = $("config-content");
+  const clearConfigBtn = $("clear-config-btn");
   const configTbody = $("config-tbody");
   const outputSection = $("output-section");
   const urlOutput = $("url-output");
@@ -177,7 +180,16 @@
         input = createTextInput(field);
       }
 
-      valueCell.appendChild(input);
+      // Wrap input with copy button for non-checkbox fields
+      if (field.type !== "bool") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "playground-input-copy-wrapper";
+        wrapper.appendChild(input);
+        wrapper.appendChild(createCopyButton(input));
+        valueCell.appendChild(wrapper);
+      } else {
+        valueCell.appendChild(input);
+      }
       row.appendChild(valueCell);
 
       configTbody.appendChild(row);
@@ -190,6 +202,66 @@
       name += " (" + field.urlPart + ")";
     }
     return name;
+  }
+
+  // --- Config Section Toggle ---
+  var collapseIcon =
+    '<path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.94l3.72-3.72a.749.749 0 0 1 1.06 0Z"></path>';
+  var expandIcon =
+    '<path d="M6.22 3.22a.749.749 0 0 1 1.06 0l4.25 4.25a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.749.749 0 0 1 0-1.06Z"></path>';
+
+  configToggle.addEventListener("click", function () {
+    var expanded = configToggle.getAttribute("aria-expanded") === "true";
+    configToggle.setAttribute("aria-expanded", !expanded);
+    configContent.style.display = expanded ? "none" : "";
+    configToggle.querySelector("svg").innerHTML = expanded
+      ? expandIcon
+      : collapseIcon;
+  });
+
+  // --- Clear Config ---
+  clearConfigBtn.addEventListener("click", function () {
+    var inputs = configTbody.querySelectorAll("input, select");
+    inputs.forEach(function (el) {
+      if (el.type === "checkbox") {
+        el.checked = false;
+      } else {
+        el.value = "";
+      }
+    });
+    updateUrl();
+  });
+
+  var clipboardIcon =
+    '<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>';
+  var checkIcon =
+    '<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>';
+
+  function createCopyButton(sourceEl) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "playground-inline-copy-btn";
+    btn.setAttribute("aria-label", "Copy to clipboard");
+    btn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14">' +
+      clipboardIcon +
+      "</svg>";
+
+    btn.addEventListener("click", function () {
+      var value = sourceEl.value || sourceEl.textContent;
+      if (!value) return;
+
+      navigator.clipboard.writeText(value).then(function () {
+        btn.classList.add("copied");
+        btn.querySelector("svg").innerHTML = checkIcon;
+        setTimeout(function () {
+          btn.classList.remove("copied");
+          btn.querySelector("svg").innerHTML = clipboardIcon;
+        }, 1500);
+      });
+    });
+
+    return btn;
   }
 
   function createTextInput(field) {
@@ -322,8 +394,9 @@
     }
   }
 
-  function buildCliCommand(url) {
-    return 'shoutrrr send --url "' + url + '" --message "Hello World"';
+  function buildCliCommand(url, message) {
+    var msg = message || messageInput.value.trim() || "Hello World";
+    return 'shoutrrr send --url "' + url + '" --message "' + msg + '"';
   }
 
   function collectFormValues() {
@@ -401,34 +474,39 @@
 
   // --- Copy to Clipboard ---
   var copyBtnTimeout = null;
+  var copyCliBtnTimeout = null;
 
-  copyBtn.addEventListener("click", function () {
-    const text = urlOutput.textContent;
+  function handleCopy(btn, sourceEl, timeoutRef) {
+    var text = sourceEl.textContent;
     if (!text || text.startsWith("Error")) return;
 
     navigator.clipboard.writeText(text).then(function () {
-      clearTimeout(copyBtnTimeout);
-      copyBtn.textContent = "Copied!";
-      copyBtnTimeout = setTimeout(function () {
-        copyBtn.textContent = "Copy";
-      }, 2000);
+      clearTimeout(timeoutRef);
+      btn.classList.add("copied");
+      btn.querySelector("svg").innerHTML = checkIcon;
+      timeoutRef = setTimeout(function () {
+        btn.classList.remove("copied");
+        btn.querySelector("svg").innerHTML = clipboardIcon;
+      }, 1500);
     });
-  });
+  }
 
-  var copyCliBtnTimeout = null;
+  copyBtn.addEventListener("click", function () {
+    handleCopy(copyBtn, urlOutput, copyBtnTimeout);
+  });
 
   copyCliBtn.addEventListener("click", function () {
-    const text = cliOutput.textContent;
-    if (!text) return;
-
-    navigator.clipboard.writeText(text).then(function () {
-      clearTimeout(copyCliBtnTimeout);
-      copyCliBtn.textContent = "Copied!";
-      copyCliBtnTimeout = setTimeout(function () {
-        copyCliBtn.textContent = "Copy";
-      }, 2000);
-    });
+    handleCopy(copyCliBtn, cliOutput, copyCliBtnTimeout);
   });
+
+  // --- Message Input ---
+  // Update CLI command when message changes.
+  messageInput.addEventListener("input", debounce(function () {
+    var url = urlOutput.textContent;
+    if (url && !url.startsWith("Error")) {
+      cliOutput.textContent = buildCliCommand(url);
+    }
+  }, 300));
 
   // --- Send Message ---
   sendBtn.addEventListener("click", function () {
