@@ -16,7 +16,6 @@
   const content = $("playground-content");
   const serviceSelect = $("service-select");
   const urlInput = $("url-input");
-  const parseBtn = $("parse-btn");
   const configSection = $("config-section");
   const configTbody = $("config-tbody");
   const outputSection = $("output-section");
@@ -346,7 +345,9 @@
   }
 
   // --- URL Parsing ---
-  parseBtn.addEventListener("click", function () {
+  // --- URL Auto-Parse ---
+  // Automatically parse Shoutrrr URLs on paste or after typing stops.
+  function parseUrlInput() {
     const rawUrl = urlInput.value.trim();
     if (!rawUrl || !wasmReady) return;
 
@@ -372,7 +373,15 @@
     outputSection.style.display = "block";
     sendSection.style.display = "block";
     updateUrl();
+  }
+
+  // Parse immediately on paste.
+  urlInput.addEventListener("paste", function () {
+    setTimeout(parseUrlInput, 0);
   });
+
+  // Parse on input with debounce for typing.
+  urlInput.addEventListener("input", debounce(parseUrlInput, 500));
 
   function populateForm(values) {
     for (const [name, value] of Object.entries(values)) {

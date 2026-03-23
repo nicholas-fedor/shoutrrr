@@ -63,10 +63,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 200px;
-}
-
-.playground-input-group--grow {
   flex: 1;
   min-width: 0;
 }
@@ -101,15 +97,10 @@
   outline-offset: -1px;
 }
 
-/* URL input row */
+/* URL input */
 
-.playground-url-input {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.playground-url-input input {
-  flex: 1;
+#url-input {
+  width: 100%;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
   font-family: var(--md-code-font-family, monospace);
@@ -119,14 +110,13 @@
   color: var(--md-default-fg-color);
 }
 
-.playground-url-input input:focus {
+#url-input:focus {
   outline: 2px solid var(--md-primary-fg-color);
   outline-offset: -1px;
 }
 
 /* Buttons */
 
-.playground-url-input button,
 .playground-url-output button,
 .playground-send button {
   padding: 0.6rem 1.2rem;
@@ -141,13 +131,11 @@
   transition: background 0.15s ease;
 }
 
-.playground-url-input button:hover,
 .playground-url-output button:hover,
 .playground-send button:hover {
   background: var(--md-primary-fg-color--dark);
 }
 
-.playground-url-input button:disabled,
 .playground-url-output button:disabled,
 .playground-send button:disabled {
   opacity: 0.5;
@@ -283,11 +271,10 @@
 /* Focus-visible for keyboard navigation only */
 
 #service-select:focus-visible,
-.playground-url-input input:focus-visible,
+#url-input:focus-visible,
 .playground-config-table input:focus-visible,
 .playground-config-table select:focus-visible,
 .playground-send input:focus-visible,
-.playground-url-input button:focus-visible,
 .playground-url-output button:focus-visible,
 .playground-send button:focus-visible {
   outline: 2px solid var(--md-primary-fg-color);
@@ -295,11 +282,10 @@
 }
 
 #service-select:focus:not(:focus-visible),
-.playground-url-input input:focus:not(:focus-visible),
+#url-input:focus:not(:focus-visible),
 .playground-config-table input:focus:not(:focus-visible),
 .playground-config-table select:focus:not(:focus-visible),
 .playground-send input:focus:not(:focus-visible),
-.playground-url-input button:focus:not(:focus-visible),
 .playground-url-output button:focus:not(:focus-visible),
 .playground-send button:focus:not(:focus-visible) {
   outline: none;

@@ -19,23 +19,21 @@ hide:
     <div class="playground-section playground-section--centered">
       <div class="playground-input-row">
         <div class="playground-input-group">
-          <label for="service-select">Service</label>
+          <label for="service-select">Select a Service</label>
           <select id="service-select">
-            <option value="">Select a service...</option>
+            <option value=""></option>
           </select>
         </div>
         <div class="playground-input-or">or</div>
-        <div class="playground-input-group playground-input-group--grow">
-          <label for="url-input">Parse existing URL</label>
-          <div class="playground-url-input">
-            <input
-              type="text"
-              id="url-input"
-              placeholder="discord://token@webhookID?color=0x50D9ff"
-              aria-label="Shoutrrr URL to parse"
-            />
-            <button id="parse-btn" type="button">Parse</button>
-          </div>
+        <div class="playground-input-group">
+          <label for="url-input">Parse a Shoutrrr URL</label>
+          <input
+            type="text"
+            id="url-input"
+            placeholder="discord://token@webhookID?color=0x50D9ff"
+            aria-label="Shoutrrr URL to parse"
+            autocomplete="off"
+          />
         </div>
       </div>
     </div>
