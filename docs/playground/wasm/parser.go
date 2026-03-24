@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
@@ -86,7 +87,11 @@ func extractConfigValues(
 
 		strVal, err := format.GetConfigFieldString(configValue, field)
 		if err != nil {
-			strVal = fieldValue.String()
+			if fieldValue.CanInterface() {
+				strVal = fmt.Sprintf("%v", fieldValue.Interface())
+			} else {
+				strVal = ""
+			}
 		}
 
 		values[field.Name] = strVal
@@ -119,6 +124,12 @@ func extractScheme(rawURL string) string {
 func extractWebhookDisplay(configValue reflect.Value) string {
 	method := configValue.MethodByName("WebhookURL")
 	if !method.IsValid() {
+		return ""
+	}
+
+	// Validate method signature before calling.
+	mt := method.Type()
+	if mt.NumIn() != 0 || mt.NumOut() != 1 {
 		return ""
 	}
 

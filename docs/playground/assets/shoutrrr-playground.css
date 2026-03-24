@@ -104,7 +104,7 @@
   transition: transform 0.15s ease;
 }
 
-.playground-collapse-btn[aria-expanded="false"] svg {
+.playground-collapse-btn.collapsed svg {
   transform: rotate(-90deg);
 }
 
@@ -193,7 +193,6 @@
   background: var(--playground-bg-input);
   color: var(--playground-text);
   cursor: pointer;
-  appearance: auto;
 }
 
 #service-select:focus {

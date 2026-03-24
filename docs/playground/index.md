@@ -36,8 +36,8 @@ hide:
     <div class="playground-section playground-section--centered">
       <div class="playground-input-row">
         <div class="playground-input-group">
-          <h3>Select a Service</h3>
-          <select id="service-select">
+          <h3 id="service-select-heading">Select a Service</h3>
+          <select id="service-select" aria-labelledby="service-select-heading">
             <option value=""></option>
           </select>
         </div>
@@ -90,7 +90,7 @@ hide:
       <div class="playground-output-group">
         <div class="playground-output-item">
           <div class="playground-code-block">
-            <code id="url-output" role="textbox" aria-readonly="true" aria-label="Generated Shoutrrr URL"></code>
+            <code id="url-output" aria-live="polite" aria-label="Generated Shoutrrr URL"></code>
             <button id="copy-btn" type="button" aria-label="Copy URL to clipboard" class="playground-copy-btn">
               <svg width="16" height="16"><use href="#icon-clipboard"/></svg>
             </button>
@@ -119,14 +119,14 @@ hide:
         <div class="playground-output-item">
           <label>CLI Command</label>
           <div class="playground-code-block">
-            <code id="cli-output" role="textbox" aria-readonly="true" aria-label="Generated CLI command"></code>
+            <code id="cli-output" aria-live="polite" aria-label="Generated CLI command"></code>
             <button id="copy-cli-btn" type="button" aria-label="Copy CLI command to clipboard" class="playground-copy-btn">
               <svg width="16" height="16"><use href="#icon-clipboard"/></svg>
             </button>
           </div>
         </div>
       </div>
-      <p class="playground-note">Send may not work for all services due to browser CORS restrictions. Use the <a href="/usage/cli/" target="_blank">Shoutrrr CLI</a> for guaranteed compatibility.</p>
+      <p class="playground-note">Send may not work for all services due to browser CORS restrictions. Use the <a href="/usage/cli/" target="_blank" rel="noopener noreferrer">Shoutrrr CLI</a> for guaranteed compatibility.</p>
     </div>
   </div>
 </div>

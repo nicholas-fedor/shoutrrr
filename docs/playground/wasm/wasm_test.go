@@ -121,6 +121,10 @@ func TestExtractScheme(t *testing.T) {
 		{"smtp://user:pass@host:587", "smtp"},
 		{"ntfy://ntfy.sh/topic", "ntfy"},
 		{"invalid", ""},
+		{"", ""},
+		{"://missing-scheme", ""},
+		{"a://single-char-scheme", "a"},
+		{"HTTPS://uppercase", "HTTPS"},
 	}
 
 	for _, tt := range tests {

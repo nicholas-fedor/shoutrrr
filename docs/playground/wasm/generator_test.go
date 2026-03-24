@@ -81,9 +81,10 @@ var _ = ginkgo.Describe("Generator", func() {
 	})
 
 	ginkgo.Describe("getServiceConfigFromService", func() {
-		ginkgo.It("returns config for initialized service", func() {
+		ginkgo.It("returns no config for newly created service", func() {
 			r := router.ServiceRouter{}
-			service, _ := r.NewService("discord")
+			service, err := r.NewService("discord")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			config, ok := getServiceConfigFromService(service)
 			gomega.Expect(ok).To(gomega.BeFalse())

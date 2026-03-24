@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"reflect"
-	"strings"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -154,11 +153,6 @@ var _ = ginkgo.Describe("Helpers", func() {
 
 		ginkgo.It("handles scheme with plus separator", func() {
 			gomega.Expect(extractScheme("log+http://localhost")).To(gomega.Equal("log"))
-		})
-
-		ginkgo.It("preserves scheme without plus", func() {
-			gomega.Expect(extractScheme("discord://webhook")).To(gomega.Equal("discord"))
-			gomega.Expect(strings.Contains(extractScheme("discord://webhook"), "+")).To(gomega.BeFalse())
 		})
 	})
 })

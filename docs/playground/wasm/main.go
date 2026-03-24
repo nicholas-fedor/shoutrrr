@@ -74,11 +74,15 @@ func send(_ js.Value, args []js.Value) interface{} {
 	rawURL := args[0].String()
 	message := args[1].String()
 
-	promiseHandler := js.FuncOf(func(_ js.Value, promiseArgs []js.Value) interface{} {
+	var promiseHandler js.Func
+
+	promiseHandler = js.FuncOf(func(_ js.Value, promiseArgs []js.Value) interface{} {
 		resolve := promiseArgs[0]
 		reject := promiseArgs[1]
 
 		go func() {
+			defer promiseHandler.Release()
+
 			result := sendString(rawURL, message)
 
 			var errResp errorResult

@@ -112,6 +112,10 @@ func setFieldFromString(configValue reflect.Value, fieldName, value string) {
 //
 //nolint:errcheck,errchkjson // errorResult struct always marshals successfully.
 func marshalError(err error) string {
+	if err == nil {
+		return marshalErrorStr("unknown error")
+	}
+
 	data, _ := json.Marshal(errorResult{Error: err.Error()})
 
 	return string(data)

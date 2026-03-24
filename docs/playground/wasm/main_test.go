@@ -56,7 +56,7 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 	})
 
 	ginkgo.Describe("send", func() {
-		ginkgo.It("returns rejected promise when insufficient args", func() {
+		ginkgo.It("returns a js.Value when insufficient args", func() {
 			result := send(js.Value{}, nil)
 			_, ok := result.(js.Value)
 			gomega.Expect(ok).To(gomega.BeTrue())

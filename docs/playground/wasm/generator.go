@@ -16,6 +16,9 @@ import (
 // errNoConfigField is returned when a service struct has no Config field.
 var errNoConfigField = errors.New("service has no Config field")
 
+// errNoSetURL is returned when a config does not support SetURL.
+var errNoSetURL = errors.New("config does not support SetURL")
+
 // generateURLString builds a Shoutrrr URL from serviceName and configJSON.
 // The configJSON is a JSON object mapping field names to string values.
 // Returns JSON with a "url" field on success or "error" on failure.
@@ -89,9 +92,12 @@ func generateURLString(serviceName, configJSON string) string {
 		}
 	}
 
-	generatedURL := config.GetURL().String()
+	generatedURL := config.GetURL()
+	if generatedURL == nil {
+		return marshalErrorStr("failed to generate URL: GetURL returned nil")
+	}
 
-	return fmt.Sprintf(`{"url":%q}`, generatedURL)
+	return fmt.Sprintf(`{"url":%q}`, generatedURL.String())
 }
 
 // initWebhookURL initializes the webhook URL on a service's config field.
@@ -133,12 +139,15 @@ func initWebhookURL(service types.Service, webhookURL string) error {
 	}
 
 	// Call SetURL on the actual config.
-	if setter, ok := configRef.Interface().(interface {
+	setter, ok := configRef.Interface().(interface {
 		SetURL(webhookURL *url.URL) error
-	}); ok {
-		if err := setter.SetURL(parsedURL); err != nil {
-			return fmt.Errorf("setting webhook URL: %w", err)
-		}
+	})
+	if !ok {
+		return errNoSetURL
+	}
+
+	if err := setter.SetURL(parsedURL); err != nil {
+		return fmt.Errorf("setting webhook URL: %w", err)
 	}
 
 	return nil

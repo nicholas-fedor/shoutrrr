@@ -26,7 +26,8 @@ var _ = ginkgo.Describe("Schema", func() {
 
 			var schemes []string
 
-			_ = json.Unmarshal([]byte(result), &schemes)
+			err := json.Unmarshal([]byte(result), &schemes)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			gomega.Expect(schemes).To(gomega.ContainElement("discord"))
 			gomega.Expect(schemes).To(gomega.ContainElement("slack"))
@@ -43,7 +44,8 @@ var _ = ginkgo.Describe("Schema", func() {
 
 			var schemes []string
 
-			_ = json.Unmarshal([]byte(result), &schemes)
+			err := json.Unmarshal([]byte(result), &schemes)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(schemes).To(gomega.HaveLen(len(expected)))
 		})
 	})
@@ -76,7 +78,8 @@ var _ = ginkgo.Describe("Schema", func() {
 
 			var schema configSchema
 
-			_ = json.Unmarshal([]byte(result), &schema)
+			err := json.Unmarshal([]byte(result), &schema)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			var hasWebhookURL bool
 

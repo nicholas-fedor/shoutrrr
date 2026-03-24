@@ -2,9 +2,7 @@
 
 package main
 
-import (
-	shoutrrr "github.com/nicholas-fedor/shoutrrr"
-)
+import "github.com/nicholas-fedor/shoutrrr"
 
 // sendString sends a notification via rawURL with the given message.
 // It calls shoutrrr.Send() which handles URL conversion and body

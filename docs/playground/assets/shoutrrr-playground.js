@@ -51,40 +51,167 @@
   /** @type {ConfigSchema|null} */
   let currentSchema = null;
 
-  // --- DOM Elements ---
-  /** @param {string} id */
-  const $ = (id) => document.getElementById(id);
+  // --- DOM Elements (initialized lazily) ---
+  var dom = {};
 
-  const loading = $("playground-loading");
-  const content = $("playground-content");
-  const serviceSelect = $("service-select");
-  const urlInput = $("url-input");
-  const configSection = $("config-section");
-  const configToggle = $("config-toggle");
-  const configContent = $("config-content");
-  const clearConfigBtn = $("clear-config-btn");
-  const configTbody = $("config-tbody");
-  const outputSection = $("output-section");
-  const urlOutput = $("url-output");
-  const copyBtn = $("copy-btn");
-  const cliOutput = $("cli-output");
-  const copyCliBtn = $("copy-cli-btn");
-  const sendSection = $("send-section");
-  const messageInput = $("message-input");
-  const sendBtn = $("send-btn");
-  const sendResult = $("send-result");
+  /**
+   * Initializes DOM element references.
+   * Called after DOM is ready to ensure elements exist.
+   */
+  function initDOMRefs() {
+    dom.loading = document.getElementById("playground-loading");
+    dom.content = document.getElementById("playground-content");
+    dom.serviceSelect = document.getElementById("service-select");
+    dom.urlInput = document.getElementById("url-input");
+    dom.configSection = document.getElementById("config-section");
+    dom.configToggle = document.getElementById("config-toggle");
+    dom.configContent = document.getElementById("config-content");
+    dom.clearConfigBtn = document.getElementById("clear-config-btn");
+    dom.configTbody = document.getElementById("config-tbody");
+    dom.outputSection = document.getElementById("output-section");
+    dom.urlOutput = document.getElementById("url-output");
+    dom.copyBtn = document.getElementById("copy-btn");
+    dom.cliOutput = document.getElementById("cli-output");
+    dom.copyCliBtn = document.getElementById("copy-cli-btn");
+    dom.sendSection = document.getElementById("send-section");
+    dom.messageInput = document.getElementById("message-input");
+    dom.sendBtn = document.getElementById("send-btn");
+    dom.sendResult = document.getElementById("send-result");
+  }
+
+  /**
+   * Attaches all event listeners after DOM is ready.
+   */
+  function attachEventListeners() {
+    // Service selection
+    dom.serviceSelect.addEventListener("change", function () {
+      currentService = this.value;
+      if (!currentService) {
+        dom.configSection.style.display = "none";
+        dom.outputSection.style.display = "none";
+        dom.sendSection.style.display = "none";
+        currentSchema = null;
+        return;
+      }
+
+      const parsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
+      if (parsed.error) {
+        dom.configTbody.innerHTML =
+          '<tr><td colspan="4" class="playground-error">Error: ' +
+          escapeHtml(parsed.error) +
+          "</td></tr>";
+        dom.configSection.style.display = "block";
+        return;
+      }
+
+      currentSchema = parsed.result;
+      renderForm(parsed.result);
+      dom.configSection.style.display = "block";
+      dom.outputSection.style.display = "block";
+      dom.sendSection.style.display = "block";
+      updateUrl();
+    });
+
+    // Config section toggle - uses CSS class for visual state
+    dom.configToggle.addEventListener("click", function () {
+      var expanded = dom.configToggle.getAttribute("aria-expanded") === "true";
+      dom.configToggle.setAttribute("aria-expanded", String(!expanded));
+      dom.configContent.style.display = expanded ? "none" : "";
+      dom.configToggle.classList.toggle("collapsed", expanded);
+    });
+
+    // Clear config
+    dom.clearConfigBtn.addEventListener("click", function () {
+      var inputs = dom.configTbody.querySelectorAll("input, select");
+      inputs.forEach(function (el) {
+        if (el.type === "checkbox") {
+          el.checked = false;
+        } else {
+          el.value = "";
+        }
+      });
+      updateUrl();
+    });
+
+    // Copy URL button
+    dom.copyBtn.addEventListener("click", function () {
+      handleCopy(dom.copyBtn, dom.urlOutput, copyBtnTimeout);
+    });
+
+    // Copy CLI button
+    dom.copyCliBtn.addEventListener("click", function () {
+      handleCopy(dom.copyCliBtn, dom.cliOutput, copyCliBtnTimeout);
+    });
+
+    // URL input - auto-parse on paste
+    dom.urlInput.addEventListener("paste", function () {
+      setTimeout(parseUrlInput, 0);
+    });
+
+    // URL input - parse on input with debounce
+    dom.urlInput.addEventListener("input", debounce(parseUrlInput, 500));
+
+    // Message input - update CLI command
+    dom.messageInput.addEventListener("input", debounce(function () {
+      var url = dom.urlOutput.textContent;
+      if (url && !url.startsWith("Error")) {
+        dom.cliOutput.textContent = buildCliCommand(url);
+      }
+    }, 300));
+
+    // Send button
+    dom.sendBtn.addEventListener("click", function () {
+      if (!wasmReady || !currentService) return;
+
+      const url = dom.urlOutput.textContent;
+      var config = (window.__shoutrrrPlayground || {}).config || {};
+      const message = dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
+
+      if (!url || url.startsWith("Error")) {
+        dom.sendResult.innerHTML =
+          '<span class="playground-error">Generate a valid URL first.</span>';
+        return;
+      }
+
+      dom.sendBtn.disabled = true;
+      dom.sendResult.innerHTML = "Sending...";
+
+      var promise = shoutrrrSend(url, message);
+      promise.then(
+        function (resultJSON) {
+          var parsed = safeParseJSON(resultJSON);
+          if (parsed.error) {
+            dom.sendResult.innerHTML =
+              '<span class="playground-error">Error: ' +
+              escapeHtml(parsed.error) +
+              "</span>";
+          } else {
+            dom.sendResult.innerHTML =
+              '<span class="playground-success">Message sent successfully.</span>';
+          }
+          dom.sendBtn.disabled = false;
+        },
+        function (errorJSON) {
+          var parsed = safeParseJSON(errorJSON);
+          var msg = parsed.error || String(errorJSON);
+          var friendly = describeSendError(msg);
+          dom.sendResult.innerHTML =
+            '<span class="playground-error">' + escapeHtml(friendly) + "</span>";
+          dom.sendBtn.disabled = false;
+        }
+      );
+    });
+  }
 
   // --- WASM Loading ---
 
   // Patch fetch to strip the User-Agent header from WASM requests.
-  // Go's net/http sets User-Agent automatically, but some CORS
-  // preflight responses don't allow this header.
   const originalFetch = window.fetch.bind(window);
 
   /** @type {typeof fetch} */
   window.fetch = function (url, options) {
     if (options && options.headers) {
-      const headers = new Headers(options.headers);
+      var headers = new Headers(options.headers);
       headers.delete("user-agent");
       headers.delete("User-Agent");
       options = Object.assign({}, options, { headers: headers });
@@ -100,29 +227,26 @@
    */
   async function loadWasm(config) {
     try {
-      const go = new Go();
-      const result = await WebAssembly.instantiateStreaming(
+      var go = new Go();
+      var result = await WebAssembly.instantiateStreaming(
         fetch(config.wasmPath),
         go.importObject
       );
       go.run(result.instance);
       wasmReady = true;
-      onWasmReady(config);
+      onWasmReady();
     } catch (err) {
-      loading.innerHTML =
+      dom.loading.innerHTML =
         '<p class="playground-error">Failed to load WASM module: ' +
         escapeHtml(err.message) +
         "</p>";
     }
   }
 
-  /**
-   * Called when WASM module is ready.
-   * @param {PlaygroundOptions} config - Configuration options
-   */
-  function onWasmReady(config) {
-    loading.style.display = "none";
-    content.style.display = "block";
+  /** Called when WASM module is ready. */
+  function onWasmReady() {
+    dom.loading.style.display = "none";
+    dom.content.style.display = "block";
     loadServices();
   }
 
@@ -130,52 +254,21 @@
 
   /** Loads available services into the dropdown. */
   function loadServices() {
-    const parsed = safeParseJSON(shoutrrrGetServices());
+    var parsed = safeParseJSON(shoutrrrGetServices());
     if (parsed.error) {
-      serviceSelect.innerHTML =
+      dom.serviceSelect.innerHTML =
         '<option value="">Error loading services</option>';
       return;
     }
 
     parsed.result.sort();
-    for (const svc of parsed.result) {
-      const opt = document.createElement("option");
-      opt.value = svc;
-      opt.textContent = svc;
-      serviceSelect.appendChild(opt);
+    for (var i = 0; i < parsed.result.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = parsed.result[i];
+      opt.textContent = parsed.result[i];
+      dom.serviceSelect.appendChild(opt);
     }
   }
-
-  // --- Service Selection ---
-
-  /** @type {HTMLSelectElement} */
-  serviceSelect.addEventListener("change", function () {
-    currentService = this.value;
-    if (!currentService) {
-      configSection.style.display = "none";
-      outputSection.style.display = "none";
-      sendSection.style.display = "none";
-      currentSchema = null;
-      return;
-    }
-
-    const parsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
-    if (parsed.error) {
-      configTbody.innerHTML =
-        '<tr><td colspan="4" class="playground-error">Error: ' +
-        escapeHtml(parsed.error) +
-        "</td></tr>";
-      configSection.style.display = "block";
-      return;
-    }
-
-    currentSchema = parsed.result;
-    renderForm(parsed.result);
-    configSection.style.display = "block";
-    outputSection.style.display = "block";
-    sendSection.style.display = "block";
-    updateUrl();
-  });
 
   // --- Form Rendering ---
 
@@ -184,7 +277,7 @@
    * @param {ConfigSchema} schema - The service config schema
    */
   function renderForm(schema) {
-    configTbody.innerHTML = "";
+    dom.configTbody.innerHTML = "";
 
     // Sort fields: required first, then optional.
     var fields = schema.fields.slice().sort(function (a, b) {
@@ -192,18 +285,19 @@
       return a.required ? -1 : 1;
     });
 
-    for (const field of fields) {
-      const row = document.createElement("tr");
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      var row = document.createElement("tr");
 
       // Name column
-      const nameCell = document.createElement("td");
-      const nameSpan = document.createElement("span");
+      var nameCell = document.createElement("td");
+      var nameSpan = document.createElement("span");
       nameSpan.className = "playground-field-name";
       nameSpan.textContent = formatFieldName(field);
       nameCell.appendChild(nameSpan);
 
       if (field.required) {
-        const req = document.createElement("span");
+        var req = document.createElement("span");
         req.className = "playground-required";
         req.textContent = "*";
         nameCell.appendChild(req);
@@ -212,9 +306,9 @@
       row.appendChild(nameCell);
 
       // Type column
-      const typeCell = document.createElement("td");
+      var typeCell = document.createElement("td");
       if (field.type && field.type !== "string") {
-        const typeSpan = document.createElement("span");
+        var typeSpan = document.createElement("span");
         typeSpan.className = "playground-field-type";
         typeSpan.textContent = field.type;
         typeCell.appendChild(typeSpan);
@@ -222,14 +316,14 @@
       row.appendChild(typeCell);
 
       // Description column
-      const descCell = document.createElement("td");
+      var descCell = document.createElement("td");
       descCell.className = "playground-description";
       descCell.textContent = field.description || "";
       row.appendChild(descCell);
 
       // Value column
-      const valueCell = document.createElement("td");
-      let input;
+      var valueCell = document.createElement("td");
+      var input;
       if (field.enumValues && field.enumValues.length > 0) {
         input = createEnumInput(field);
       } else if (field.type === "bool") {
@@ -244,7 +338,7 @@
 
       // Wrap input with copy button for non-checkbox fields
       if (field.type !== "bool") {
-        const wrapper = document.createElement("div");
+        var wrapper = document.createElement("div");
         wrapper.className = "playground-input-copy-wrapper";
         wrapper.appendChild(input);
         wrapper.appendChild(createCopyButton(input));
@@ -254,7 +348,7 @@
       }
       row.appendChild(valueCell);
 
-      configTbody.appendChild(row);
+      dom.configTbody.appendChild(row);
     }
   }
 
@@ -264,44 +358,12 @@
    * @returns {string} Formatted field name
    */
   function formatFieldName(field) {
-    let name = field.keys && field.keys.length > 0 ? field.keys[0] : field.name;
+    var name = field.keys && field.keys.length > 0 ? field.keys[0] : field.name;
     if (field.urlPart) {
       name += " (" + field.urlPart + ")";
     }
     return name;
   }
-
-  // --- Config Section Toggle ---
-
-  /** @type {string} */
-  var collapseIcon = '<use href="#icon-chevron"/>';
-
-  /** @type {string} */
-  var expandIcon = '<use href="#icon-chevron"/>';
-
-  configToggle.addEventListener("click", function () {
-    var expanded = configToggle.getAttribute("aria-expanded") === "true";
-    configToggle.setAttribute("aria-expanded", !expanded);
-    configContent.style.display = expanded ? "none" : "";
-    configToggle.querySelector("svg").innerHTML = expanded
-      ? expandIcon
-      : collapseIcon;
-  });
-
-  // --- Clear Config ---
-
-  /** Clears all form inputs and regenerates the URL. */
-  clearConfigBtn.addEventListener("click", function () {
-    var inputs = configTbody.querySelectorAll("input, select");
-    inputs.forEach(function (el) {
-      if (el.type === "checkbox") {
-        el.checked = false;
-      } else {
-        el.value = "";
-      }
-    });
-    updateUrl();
-  });
 
   // --- Copy Button ---
 
@@ -317,21 +379,24 @@
    * @returns {HTMLButtonElement} The copy button
    */
   function createCopyButton(sourceEl) {
-    const btn = document.createElement("button");
+    var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "playground-inline-copy-btn";
     btn.setAttribute("aria-label", "Copy to clipboard");
-    btn.innerHTML =
-      '<svg width="14" height="14">' + clipboardIcon + "</svg>";
+    btn.innerHTML = '<svg width="14" height="14">' + clipboardIcon + "</svg>";
+
+    // Use object wrapper for mutable timeout reference
+    var timeoutRef = { timeout: null };
 
     btn.addEventListener("click", function () {
       var value = sourceEl.value || sourceEl.textContent;
       if (!value) return;
 
       navigator.clipboard.writeText(value).then(function () {
+        clearTimeout(timeoutRef.timeout);
         btn.classList.add("copied");
         btn.querySelector("svg").innerHTML = checkIcon;
-        setTimeout(function () {
+        timeoutRef.timeout = setTimeout(function () {
           btn.classList.remove("copied");
           btn.querySelector("svg").innerHTML = clipboardIcon;
         }, 1500);
@@ -349,7 +414,7 @@
    * @returns {HTMLInputElement} The input element
    */
   function createTextInput(field) {
-    const input = document.createElement("input");
+    var input = document.createElement("input");
     input.type = field.urlPart === "password" ? "password" : "text";
     input.id = "field-" + field.name;
     input.name = field.name;
@@ -370,10 +435,10 @@
    * @returns {HTMLDivElement} Wrapper with checkbox and hint
    */
   function createBoolInput(field) {
-    const wrapper = document.createElement("div");
+    var wrapper = document.createElement("div");
     wrapper.className = "playground-checkbox-wrapper";
 
-    const input = document.createElement("input");
+    var input = document.createElement("input");
     input.type = "checkbox";
     input.id = "field-" + field.name;
     input.name = field.name;
@@ -390,7 +455,7 @@
 
     input.addEventListener("change", updateUrl);
 
-    const checkLabel = document.createElement("span");
+    var checkLabel = document.createElement("span");
     checkLabel.className = "playground-checkbox-hint";
     checkLabel.textContent = field.defaultValue
       ? "default: " + field.defaultValue.toLowerCase()
@@ -407,14 +472,15 @@
    * @returns {HTMLSelectElement} The select element
    */
   function createEnumInput(field) {
-    const select = document.createElement("select");
+    var select = document.createElement("select");
     select.id = "field-" + field.name;
     select.name = field.name;
     select.dataset.fieldType = "enum";
     select.autocomplete = "off";
 
-    for (const val of field.enumValues) {
-      const opt = document.createElement("option");
+    for (var i = 0; i < field.enumValues.length; i++) {
+      var val = field.enumValues[i];
+      var opt = document.createElement("option");
       opt.value = val;
       opt.textContent = val;
       if (val === field.defaultValue) {
@@ -433,12 +499,13 @@
    * @returns {HTMLInputElement} The input element
    */
   function createNumberInput(field) {
-    const input = document.createElement("input");
+    var input = document.createElement("input");
     input.type = "text";
     input.id = "field-" + field.name;
     input.name = field.name;
     input.dataset.fieldType = field.type;
     input.pattern = "[0-9]*";
+    input.inputMode = "numeric";
     input.autocomplete = "off";
 
     if (field.defaultValue) {
@@ -455,7 +522,7 @@
    * @returns {HTMLInputElement} The input element
    */
   function createArrayInput(field) {
-    const input = document.createElement("input");
+    var input = document.createElement("input");
     input.type = "text";
     input.id = "field-" + field.name;
     input.name = field.name;
@@ -476,41 +543,51 @@
   function updateUrl() {
     if (!currentService || !wasmReady) return;
 
-    const config = collectFormValues();
-    const parsed = safeParseJSON(
+    var config = collectFormValues();
+    var parsed = safeParseJSON(
       shoutrrrGenerateURL(currentService, JSON.stringify(config))
     );
 
     if (parsed.error) {
-      urlOutput.textContent = "Error: " + parsed.error;
-      urlOutput.className = "playground-error";
-      cliOutput.textContent = "";
-      cliOutput.className = "";
+      dom.urlOutput.textContent = "Error: " + parsed.error;
+      dom.urlOutput.className = "playground-error";
+      dom.cliOutput.textContent = "";
+      dom.cliOutput.className = "";
     } else if (parsed.result.url) {
       var url = parsed.result.url;
-      urlOutput.textContent = url;
-      urlOutput.className = "";
-      cliOutput.textContent = buildCliCommand(url);
-      cliOutput.className = "";
+      dom.urlOutput.textContent = url;
+      dom.urlOutput.className = "";
+      dom.cliOutput.textContent = buildCliCommand(url);
+      dom.cliOutput.className = "";
     } else {
-      urlOutput.textContent = "Error: unexpected response";
-      urlOutput.className = "playground-error";
-      cliOutput.textContent = "";
-      cliOutput.className = "";
+      dom.urlOutput.textContent = "Error: unexpected response";
+      dom.urlOutput.className = "playground-error";
+      dom.cliOutput.textContent = "";
+      dom.cliOutput.className = "";
     }
   }
 
   /**
-   * Builds a CLI command string.
+   * Escapes a value for safe use in a POSIX shell command.
+   * Wraps in single quotes and escapes embedded single quotes.
+   * @param {string} value - Value to escape
+   * @returns {string} Shell-safe escaped value
+   */
+  function shellEscape(value) {
+    return "'" + value.replace(/'/g, "'\"'\"'") + "'";
+  }
+
+  /**
+   * Builds a CLI command string with shell-safe escaping.
    * @param {string} url - The Shoutrrr URL
-   * @param {string} [message] - Override message (uses input value if not provided)
+   * @param {string} [message] - Override message
    * @returns {string} The CLI command
    */
   function buildCliCommand(url, message) {
     var config = (window.__shoutrrrPlayground || {}).config || {};
     var defaultMsg = config.defaultMessage || "Hello World";
-    var msg = message || messageInput.value.trim() || defaultMsg;
-    return 'shoutrrr send --url "' + url + '" --message "' + msg + '"';
+    var msg = message || dom.messageInput.value.trim() || defaultMsg;
+    return "shoutrrr send --url " + shellEscape(url) + " --message " + shellEscape(msg);
   }
 
   /**
@@ -518,12 +595,13 @@
    * @returns {Object<string, string>} Config key-value pairs
    */
   function collectFormValues() {
-    const values = {};
-    const fields = configTbody.querySelectorAll("[name]");
+    var values = {};
+    var fields = dom.configTbody.querySelectorAll("[name]");
 
-    for (const field of fields) {
-      const name = field.name;
-      const type = field.dataset.fieldType;
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      var name = field.name;
+      var type = field.dataset.fieldType;
 
       if (type === "bool") {
         values[name] = field.checked ? "Yes" : "No";
@@ -542,48 +620,43 @@
    * Called on paste and debounced on input.
    */
   function parseUrlInput() {
-    const rawUrl = urlInput.value.trim();
+    var rawUrl = dom.urlInput.value.trim();
     if (!rawUrl || !wasmReady) return;
 
-    const parsed = safeParseJSON(shoutrrrParseURL(rawUrl));
+    var parsed = safeParseJSON(shoutrrrParseURL(rawUrl));
 
     if (parsed.error) {
-      urlOutput.textContent = "Error: " + parsed.error;
-      urlOutput.className = "playground-error";
-      outputSection.style.display = "block";
+      dom.urlOutput.textContent = "Error: " + parsed.error;
+      dom.urlOutput.className = "playground-error";
+      dom.outputSection.style.display = "block";
       return;
     }
 
     currentService = parsed.result.service;
-    serviceSelect.value = currentService;
+    dom.serviceSelect.value = currentService;
 
-    const schemaParsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
+    var schemaParsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
     if (schemaParsed.error) return;
 
     currentSchema = schemaParsed.result;
     renderForm(schemaParsed.result);
     populateForm(parsed.result.config);
-    configSection.style.display = "block";
-    outputSection.style.display = "block";
-    sendSection.style.display = "block";
+    dom.configSection.style.display = "block";
+    dom.outputSection.style.display = "block";
+    dom.sendSection.style.display = "block";
     updateUrl();
   }
-
-  // Parse immediately on paste.
-  urlInput.addEventListener("paste", function () {
-    setTimeout(parseUrlInput, 0);
-  });
-
-  // Parse on input with debounce for typing.
-  urlInput.addEventListener("input", debounce(parseUrlInput, 500));
 
   /**
    * Populates form fields from parsed values.
    * @param {Object<string, string>} values - Field name-value pairs
    */
   function populateForm(values) {
-    for (const [name, value] of Object.entries(values)) {
-      const field = configTbody.querySelector(
+    var keys = Object.keys(values);
+    for (var i = 0; i < keys.length; i++) {
+      var name = keys[i];
+      var value = values[name];
+      var field = dom.configTbody.querySelector(
         '[name="' + CSS.escape(name) + '"]'
       );
       if (!field) continue;
@@ -599,96 +672,30 @@
 
   // --- Copy to Clipboard ---
 
-  /** @type {number|null} */
-  var copyBtnTimeout = null;
-
-  /** @type {number|null} */
-  var copyCliBtnTimeout = null;
-
   /**
-   * Handles copy button click.
+   * Handles copy button click with mutable timeout reference.
    * @param {HTMLButtonElement} btn - The copy button
    * @param {HTMLElement} sourceEl - Element to copy from
-   * @param {number|null} timeoutRef - Timeout reference for reset
+   * @param {Object} timeoutRef - Mutable object with .timeout property
    */
   function handleCopy(btn, sourceEl, timeoutRef) {
     var text = sourceEl.textContent;
     if (!text || text.startsWith("Error")) return;
 
     navigator.clipboard.writeText(text).then(function () {
-      clearTimeout(timeoutRef);
+      clearTimeout(timeoutRef.timeout);
       btn.classList.add("copied");
       btn.querySelector("svg").innerHTML = checkIcon;
-      timeoutRef = setTimeout(function () {
+      timeoutRef.timeout = setTimeout(function () {
         btn.classList.remove("copied");
         btn.querySelector("svg").innerHTML = clipboardIcon;
       }, 1500);
     });
   }
 
-  copyBtn.addEventListener("click", function () {
-    handleCopy(copyBtn, urlOutput, copyBtnTimeout);
-  });
-
-  copyCliBtn.addEventListener("click", function () {
-    handleCopy(copyCliBtn, cliOutput, copyCliBtnTimeout);
-  });
-
-  // --- Message Input ---
-
-  // Update CLI command when message changes.
-  messageInput.addEventListener("input", debounce(function () {
-    var url = urlOutput.textContent;
-    if (url && !url.startsWith("Error")) {
-      cliOutput.textContent = buildCliCommand(url);
-    }
-  }, 300));
-
-  // --- Send Message ---
-
-  /** Sends a test message using the configured URL. */
-  sendBtn.addEventListener("click", function () {
-    if (!wasmReady || !currentService) return;
-
-    const url = urlOutput.textContent;
-    var config = (window.__shoutrrrPlayground || {}).config || {};
-    const message = messageInput.value.trim() || config.defaultMessage || "Hello World";
-
-    if (!url || url.startsWith("Error")) {
-      sendResult.innerHTML =
-        '<span class="playground-error">Generate a valid URL first.</span>';
-      return;
-    }
-
-    sendBtn.disabled = true;
-    sendResult.innerHTML = "Sending...";
-
-    // shoutrrrSend returns a Promise to avoid blocking the JS event loop.
-    var promise = shoutrrrSend(url, message);
-    promise.then(
-      function (resultJSON) {
-        var parsed = safeParseJSON(resultJSON);
-        if (parsed.error) {
-          sendResult.innerHTML =
-            '<span class="playground-error">Error: ' +
-            escapeHtml(parsed.error) +
-            "</span>";
-        } else {
-          sendResult.innerHTML =
-            '<span class="playground-success">Message sent successfully.</span>';
-        }
-        sendBtn.disabled = false;
-      },
-      function (errorJSON) {
-        var parsed = safeParseJSON(errorJSON);
-        var msg = parsed.error || String(errorJSON);
-        var friendly = describeSendError(msg);
-        sendResult.innerHTML =
-          '<span class="playground-error">' + escapeHtml(friendly) + "</span>";
-        sendBtn.disabled = false;
-      }
-    );
-  });
+  // Mutable timeout references for copy buttons.
+  var copyBtnTimeout = { timeout: null };
+  var copyCliBtnTimeout = { timeout: null };
 
   // --- Utilities ---
 
@@ -743,7 +750,7 @@
       return { error: "Invalid response: expected string" };
     }
     try {
-      const parsed = JSON.parse(str);
+      var parsed = JSON.parse(str);
       if (parsed && parsed.error) return { error: parsed.error };
       return { result: parsed };
     } catch (e) {
@@ -758,10 +765,10 @@
    * @returns {Function} Debounced function
    */
   function debounce(fn, delay) {
-    let timer;
-    return function () {
+    var timer;
+    return function (...args) {
       clearTimeout(timer);
-      timer = setTimeout(fn, delay);
+      timer = setTimeout(() => fn.apply(this, args), delay);
     };
   }
 
@@ -771,7 +778,7 @@
    * @returns {string} Escaped string
    */
   function escapeHtml(str) {
-    const div = document.createElement("div");
+    var div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
   }
@@ -790,7 +797,6 @@
    * @param {PlaygroundOptions} [options] - Configuration options
    */
   function init(options) {
-    // Configuration can be overridden via options or global config.
     var config = Object.assign(
       {
         wasmPath: "assets/shoutrrr.wasm",
@@ -801,15 +807,18 @@
       window.ShoutrrrPlaygroundConfig || {}
     );
 
-    // Store config for use by other functions.
     window.__shoutrrrPlayground = { config: config };
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", function () {
-        loadWasm(config);
-      });
-    } else {
+    var startWasm = function () {
+      initDOMRefs();
+      attachEventListeners();
       loadWasm(config);
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startWasm);
+    } else {
+      startWasm();
     }
   }
 
@@ -818,8 +827,16 @@
     init: init,
   };
 
-  // Auto-init if container exists (for standalone usage).
-  if (document.getElementById("playground-app")) {
-    init();
+  // Auto-init if container exists, deferring to DOMContentLoaded if needed.
+  function tryAutoInit() {
+    if (document.getElementById("playground-app")) {
+      init();
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", tryAutoInit);
+  } else {
+    tryAutoInit();
   }
 })();
