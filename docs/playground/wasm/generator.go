@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
@@ -39,17 +40,29 @@ func generateURLString(serviceName, configJSON string) string {
 
 	config := format.GetServiceConfig(service)
 	pkr := format.NewPropKeyResolver(config)
+	configValue := reflect.Indirect(reflect.ValueOf(config))
 
-	if err := pkr.SetDefaultProps(config); err != nil {
-		return marshalError(err)
+	// Set default props, ignoring errors for time.Duration fields
+	// which can't be parsed by PropKeyResolver.Set().
+	_ = pkr.SetDefaultProps(config) //nolint:errcheck // Duration parse errors handled below.
+
+	// Manually set time.Duration fields to their defaults.
+	configSchema := format.GetConfigFormat(config)
+	durationType := reflect.TypeFor[time.Duration]()
+
+	for _, node := range configSchema.Items {
+		field := node.Field()
+		if field.Type == durationType && field.DefaultValue != "" {
+			if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
+				configValue.FieldByName(field.Name).SetInt(int64(dur))
+			}
+		}
 	}
 
 	var values map[string]string
 	if err := json.Unmarshal([]byte(configJSON), &values); err != nil {
 		return marshalError(err)
 	}
-
-	configValue := reflect.Indirect(reflect.ValueOf(config))
 
 	// Handle webhook URL for services with nil *url.URL fields (e.g., generic).
 	if webhookURL, ok := values["WebhookURL"]; ok && webhookURL != "" {
@@ -60,6 +73,8 @@ func generateURLString(serviceName, configJSON string) string {
 		}
 
 		// Re-extract config from the service's field now that it's initialized.
+		// If extraction fails (e.g., SetURL didn't populate the config field),
+		// keep the original config from GetServiceConfig() and continue with it.
 		if svcConfig, ok := getServiceConfigFromService(service); ok {
 			config = svcConfig
 			pkr = format.NewPropKeyResolver(config)
@@ -73,6 +88,15 @@ func generateURLString(serviceName, configJSON string) string {
 			continue
 		}
 
+		// Skip time.Duration fields - PropKeyResolver.Set() tries to parse
+		// duration strings like "10s" as integers, which fails.
+		// These fields keep their defaults set by SetDefaultProps().
+		if field := configValue.FieldByName(key); field.IsValid() {
+			if field.Type() == reflect.TypeFor[time.Duration]() {
+				continue
+			}
+		}
+
 		if err := pkr.Set(key, value); err != nil {
 			if field := configValue.FieldByName(key); field.IsValid() && field.CanSet() {
 				setFieldFromString(configValue, key, value)
@@ -80,21 +104,22 @@ func generateURLString(serviceName, configJSON string) string {
 		}
 	}
 
-	// Validate that *url.URL pointer fields are non-nil before calling GetURL().
-	for i := range configValue.NumField() {
-		field := configValue.Type().Field(i)
-		fieldValue := configValue.Field(i)
+	// Try to generate the URL. If GetURL() panics (e.g., missing required fields),
+	// return just the scheme as a clean default instead of an error.
+	var generatedURL *url.URL
 
-		if field.Type.Kind() == reflect.Pointer &&
-			field.Type.String() == urlTypeName &&
-			fieldValue.IsNil() {
-			return marshalErrorStr(field.Name + " is required but not set")
-		}
-	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				generatedURL = nil
+			}
+		}()
 
-	generatedURL := config.GetURL()
+		generatedURL = config.GetURL()
+	}()
+
 	if generatedURL == nil {
-		return marshalErrorStr("failed to generate URL: GetURL returned nil")
+		return fmt.Sprintf(`{"url":%q}`, serviceName+"://")
 	}
 
 	return fmt.Sprintf(`{"url":%q}`, generatedURL.String())

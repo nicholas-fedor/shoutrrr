@@ -38,7 +38,7 @@ hide:
         <div class="playground-input-group">
           <h3 id="service-select-heading">Select a Service</h3>
           <select id="service-select" aria-labelledby="service-select-heading">
-            <option value=""></option>
+            <option value="">Select a service...</option>
           </select>
         </div>
         <div class="playground-input-or">or</div>

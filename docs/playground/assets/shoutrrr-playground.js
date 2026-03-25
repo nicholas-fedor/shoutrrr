@@ -109,7 +109,12 @@
       dom.configSection.style.display = "block";
       dom.outputSection.style.display = "block";
       dom.sendSection.style.display = "block";
-      updateUrl();
+
+      // Show just the scheme URL as default, update when user changes fields.
+      dom.urlOutput.textContent = currentService + "://";
+      dom.urlOutput.className = "";
+      dom.cliOutput.textContent = buildCliCommand(currentService + "://");
+      dom.cliOutput.className = "";
     });
 
     // Config section toggle - uses CSS class for visual state
@@ -163,9 +168,9 @@
     dom.sendBtn.addEventListener("click", function () {
       if (!wasmReady || !currentService) return;
 
-      const url = dom.urlOutput.textContent;
+      var url = dom.urlOutput.textContent;
       var config = (window.__shoutrrrPlayground || {}).config || {};
-      const message = dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
+      var message = dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
 
       if (!url || url.startsWith("Error")) {
         dom.sendResult.innerHTML =
@@ -392,15 +397,27 @@
       var value = sourceEl.value || sourceEl.textContent;
       if (!value) return;
 
-      navigator.clipboard.writeText(value).then(function () {
-        clearTimeout(timeoutRef.timeout);
-        btn.classList.add("copied");
-        btn.querySelector("svg").innerHTML = checkIcon;
-        timeoutRef.timeout = setTimeout(function () {
+      navigator.clipboard
+        .writeText(value)
+        .then(function () {
+          clearTimeout(timeoutRef.timeout);
+          btn.classList.add("copied");
+          btn.querySelector("svg").innerHTML = checkIcon;
+          timeoutRef.timeout = setTimeout(function () {
+            btn.classList.remove("copied");
+            btn.querySelector("svg").innerHTML = clipboardIcon;
+          }, 1500);
+        })
+        .catch(function (err) {
+          clearTimeout(timeoutRef.timeout);
           btn.classList.remove("copied");
           btn.querySelector("svg").innerHTML = clipboardIcon;
-        }, 1500);
-      });
+          btn.setAttribute("aria-label", "Copy failed");
+          console.error("Clipboard write failed:", err);
+          timeoutRef.timeout = setTimeout(function () {
+            btn.setAttribute("aria-label", "Copy to clipboard");
+          }, 3000);
+        });
     });
 
     return btn;
@@ -682,15 +699,27 @@
     var text = sourceEl.textContent;
     if (!text || text.startsWith("Error")) return;
 
-    navigator.clipboard.writeText(text).then(function () {
-      clearTimeout(timeoutRef.timeout);
-      btn.classList.add("copied");
-      btn.querySelector("svg").innerHTML = checkIcon;
-      timeoutRef.timeout = setTimeout(function () {
+    navigator.clipboard
+      .writeText(text)
+      .then(function () {
+        clearTimeout(timeoutRef.timeout);
+        btn.classList.add("copied");
+        btn.querySelector("svg").innerHTML = checkIcon;
+        timeoutRef.timeout = setTimeout(function () {
+          btn.classList.remove("copied");
+          btn.querySelector("svg").innerHTML = clipboardIcon;
+        }, 1500);
+      })
+      .catch(function (err) {
+        clearTimeout(timeoutRef.timeout);
         btn.classList.remove("copied");
         btn.querySelector("svg").innerHTML = clipboardIcon;
-      }, 1500);
-    });
+        btn.setAttribute("aria-label", "Copy failed");
+        console.error("Clipboard write failed:", err);
+        timeoutRef.timeout = setTimeout(function () {
+          btn.setAttribute("aria-label", "Copy to clipboard");
+        }, 3000);
+      });
   }
 
   // Mutable timeout references for copy buttons.
@@ -766,9 +795,13 @@
    */
   function debounce(fn, delay) {
     var timer;
-    return function (...args) {
+    return function () {
+      var ctx = this;
+      var args = arguments;
       clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(this, args), delay);
+      timer = setTimeout(function () {
+        fn.apply(ctx, args);
+      }, delay);
     };
   }
 
@@ -803,8 +836,8 @@
         containerId: "playground-app",
         defaultMessage: "Hello World",
       },
-      options || {},
-      window.ShoutrrrPlaygroundConfig || {}
+      window.ShoutrrrPlaygroundConfig || {},
+      options || {}
     );
 
     window.__shoutrrrPlayground = { config: config };

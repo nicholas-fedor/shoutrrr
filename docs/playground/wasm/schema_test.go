@@ -46,7 +46,7 @@ var _ = ginkgo.Describe("Schema", func() {
 
 			err := json.Unmarshal([]byte(result), &schemes)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(schemes).To(gomega.HaveLen(len(expected)))
+			gomega.Expect(schemes).To(gomega.ConsistOf(expected))
 		})
 	})
 
@@ -115,6 +115,7 @@ var _ = ginkgo.Describe("Schema", func() {
 			err := json.Unmarshal([]byte(result), &schema)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(schema.Service).To(gomega.Equal("logger"))
+			gomega.Expect(schema.Fields).To(gomega.BeEmpty())
 		})
 	})
 })

@@ -470,8 +470,9 @@
 
 .playground-copy-btn {
   position: absolute;
-  top: 0.35rem;
+  top: 50%;
   right: 0.35rem;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;

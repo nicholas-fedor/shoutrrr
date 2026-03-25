@@ -14,7 +14,6 @@ import (
 type testSetFieldStruct struct {
 	Name    string
 	Enabled bool
-	Count   int
 }
 
 var _ = ginkgo.Describe("Helpers", func() {
@@ -98,6 +97,34 @@ var _ = ginkgo.Describe("Helpers", func() {
 			gomega.Expect(s.Enabled).To(gomega.BeFalse())
 		})
 
+		ginkgo.It("sets bool field from true", func() {
+			s := testSetFieldStruct{}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "true")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("sets bool field from false", func() {
+			s := testSetFieldStruct{Enabled: true}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "false")
+			gomega.Expect(s.Enabled).To(gomega.BeFalse())
+		})
+
+		ginkgo.It("sets bool field from 1", func() {
+			s := testSetFieldStruct{}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "1")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("sets bool field from 0", func() {
+			s := testSetFieldStruct{Enabled: true}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "0")
+			gomega.Expect(s.Enabled).To(gomega.BeFalse())
+		})
+
 		ginkgo.It("ignores invalid field name", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
@@ -131,8 +158,7 @@ var _ = ginkgo.Describe("Helpers", func() {
 
 		ginkgo.It("handles string with special characters", func() {
 			result := marshalErrorStr(`error with "quotes"`)
-			gomega.Expect(result).To(gomega.ContainSubstring("quotes"))
-			gomega.Expect(result).To(gomega.HavePrefix(`{"error":`))
+			gomega.Expect(result).To(gomega.Equal(`{"error":"error with \"quotes\""}`))
 		})
 	})
 

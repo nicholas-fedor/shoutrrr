@@ -26,11 +26,53 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(str).To(gomega.ContainSubstring("error"))
 		})
+
+		ginkgo.It("returns schema for discord", func() {
+			args := []js.Value{js.ValueOf("discord")}
+			result := getConfigSchema(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("discord"))
+			gomega.Expect(str).To(gomega.ContainSubstring("WebhookID"))
+		})
+
+		ginkgo.It("returns error for invalid service", func() {
+			args := []js.Value{js.ValueOf("nonexistent")}
+			result := getConfigSchema(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("error"))
+		})
 	})
 
 	ginkgo.Describe("parseURL", func() {
 		ginkgo.It("returns error when no args provided", func() {
 			result := parseURL(js.Value{}, nil)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("error"))
+		})
+
+		ginkgo.It("parses discord URL", func() {
+			args := []js.Value{js.ValueOf("discord://token@123456789")}
+			result := parseURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("discord"))
+			gomega.Expect(str).To(gomega.ContainSubstring("config"))
+		})
+
+		ginkgo.It("parses ntfy URL", func() {
+			args := []js.Value{js.ValueOf("ntfy://ntfy.sh/mytopic")}
+			result := parseURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("ntfy"))
+		})
+
+		ginkgo.It("returns error for invalid URL", func() {
+			args := []js.Value{js.ValueOf("not-a-valid-url")}
+			result := parseURL(js.Value{}, args)
 			str, ok := result.(string)
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(str).To(gomega.ContainSubstring("error"))
@@ -44,11 +86,69 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(str).To(gomega.ContainSubstring("error"))
 		})
+
+		ginkgo.It("generates discord URL", func() {
+			args := []js.Value{
+				js.ValueOf("discord"),
+				js.ValueOf(`{"WebhookID":"123456789","Token":"mytoken"}`),
+			}
+			result := generateURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("url"))
+			gomega.Expect(str).To(gomega.ContainSubstring("discord://"))
+		})
+
+		ginkgo.It("returns error for invalid service", func() {
+			args := []js.Value{
+				js.ValueOf("nonexistent"),
+				js.ValueOf("{}"),
+			}
+			result := generateURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("error"))
+		})
+
+		ginkgo.It("returns error for invalid JSON", func() {
+			args := []js.Value{
+				js.ValueOf("discord"),
+				js.ValueOf("not-json"),
+			}
+			result := generateURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("error"))
+		})
 	})
 
 	ginkgo.Describe("validateURL", func() {
 		ginkgo.It("returns error when no args provided", func() {
 			result := validateURL(js.Value{}, nil)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("error"))
+		})
+
+		ginkgo.It("validates discord URL", func() {
+			args := []js.Value{js.ValueOf("discord://token@123456789")}
+			result := validateURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("valid"))
+		})
+
+		ginkgo.It("validates ntfy URL", func() {
+			args := []js.Value{js.ValueOf("ntfy://ntfy.sh/mytopic")}
+			result := validateURL(js.Value{}, args)
+			str, ok := result.(string)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(str).To(gomega.ContainSubstring("valid"))
+		})
+
+		ginkgo.It("returns error for invalid URL", func() {
+			args := []js.Value{js.ValueOf("not-valid")}
+			result := validateURL(js.Value{}, args)
 			str, ok := result.(string)
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(str).To(gomega.ContainSubstring("error"))

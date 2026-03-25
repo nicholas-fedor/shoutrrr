@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"syscall/js"
 )
 
@@ -82,6 +83,14 @@ func send(_ js.Value, args []js.Value) interface{} {
 
 		go func() {
 			defer promiseHandler.Release()
+
+			// Recover from panics in sendString to prevent hanging promises.
+			defer func() {
+				if r := recover(); r != nil {
+					errMsg := fmt.Sprintf("send panicked: %v", r)
+					reject.Invoke(marshalErrorStr(errMsg))
+				}
+			}()
 
 			result := sendString(rawURL, message)
 

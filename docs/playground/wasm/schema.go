@@ -109,7 +109,7 @@ func convertFields(nodes []format.Node, config types.ServiceConfig) []fieldSchem
 		}
 
 		// Check for enums defined via config.Enums() map (e.g., ntfy Priority).
-		if schema.EnumValues == nil && field.Type.Kind() == reflect.Int {
+		if schema.EnumValues == nil && isIntegerKind(field.Type.Kind()) {
 			if ef, ok := enums[field.Name]; ok {
 				schema.EnumValues = getEnumNames(ef)
 				schema.Type = "enum"
@@ -120,4 +120,17 @@ func convertFields(nodes []format.Node, config types.ServiceConfig) []fieldSchem
 	}
 
 	return fields
+}
+
+// isIntegerKind returns true for all signed and unsigned integer kinds.
+//
+//nolint:exhaustive // Using default case for non-integer kinds.
+func isIntegerKind(k reflect.Kind) bool {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return true
+	default:
+		return false
+	}
 }

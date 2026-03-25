@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -16,11 +17,17 @@ const urlTypeName = "*url.URL"
 
 // classifyType returns a human-readable type string for typ.
 // If isEnum is true, returns "enum" regardless of the underlying kind.
+// time.Duration is classified as "string" to allow duration values like "10s".
 //
 //nolint:exhaustive // Only handling common config field types.
 func classifyType(typ reflect.Type, isEnum bool) string {
 	if isEnum {
 		return "enum"
+	}
+
+	// Handle time.Duration as string to allow "10s", "5m", etc.
+	if typ == reflect.TypeFor[time.Duration]() {
+		return "string"
 	}
 
 	switch typ.Kind() {
@@ -68,7 +75,7 @@ func urlPartToString(parts []format.URLPart) string {
 				offset := int(part - format.URLPath)
 				names[i] = fmt.Sprintf("path%d", offset)
 			} else {
-				names[i] = "query"
+				names[i] = fmt.Sprintf("unknown(%d)", part)
 			}
 		}
 	}

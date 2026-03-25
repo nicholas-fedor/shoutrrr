@@ -106,6 +106,7 @@ docs-deactivate: ## Show instructions to deactivate the virtual environment
 	@echo "Run 'deactivate' to exit the virtual environment."
 
 wasm: ## Build WASM module for the Playground
+	@mkdir -p docs/playground/assets
 	GOOS=js GOARCH=wasm $(GO) build \
 		-trimpath \
 		-o docs/playground/assets/shoutrrr.wasm \
