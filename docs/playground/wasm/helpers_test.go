@@ -81,91 +81,104 @@ var _ = ginkgo.Describe("Helpers", func() {
 		ginkgo.It("sets string field", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Name", "hello")
+			err := setFieldFromString(val, "Name", "hello")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Name).To(gomega.Equal("hello"))
 		})
 
 		ginkgo.It("sets bool field from Yes", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "Yes")
+			err := setFieldFromString(val, "Enabled", "Yes")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("sets bool field from No", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "No")
+			err := setFieldFromString(val, "Enabled", "No")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("sets bool field from true", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "true")
+			err := setFieldFromString(val, "Enabled", "true")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("sets bool field from false", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "false")
+			err := setFieldFromString(val, "Enabled", "false")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("sets bool field from 1", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "1")
+			err := setFieldFromString(val, "Enabled", "1")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("sets bool field from 0", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "0")
+			err := setFieldFromString(val, "Enabled", "0")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeFalse())
 		})
 
-		ginkgo.It("ignores invalid field name", func() {
+		ginkgo.It("returns error for invalid field name", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "NonExistent", "value")
+			err := setFieldFromString(val, "NonExistent", "value")
+			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(s.Name).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("sets bool field from lowercase yes", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "yes")
+			err := setFieldFromString(val, "Enabled", "yes")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("sets bool field from uppercase TRUE", func() {
 			s := testSetFieldStruct{}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "TRUE")
+			err := setFieldFromString(val, "Enabled", "TRUE")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("sets bool field from uppercase FALSE", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "FALSE")
+			err := setFieldFromString(val, "Enabled", "FALSE")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeFalse())
 		})
 
-		ginkgo.It("leaves bool unchanged for invalid input", func() {
+		ginkgo.It("returns error for invalid bool input", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "invalid")
+			err := setFieldFromString(val, "Enabled", "invalid")
+			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 
-		ginkgo.It("leaves bool unchanged for numeric invalid input", func() {
+		ginkgo.It("returns error for numeric invalid bool input", func() {
 			s := testSetFieldStruct{Enabled: true}
 			val := reflect.ValueOf(&s).Elem()
-			setFieldFromString(val, "Enabled", "2")
+			err := setFieldFromString(val, "Enabled", "2")
+			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(s.Enabled).To(gomega.BeTrue())
 		})
 	})

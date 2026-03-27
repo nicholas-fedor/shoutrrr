@@ -89,18 +89,30 @@ func generateURLString(serviceName, configJSON string) string {
 			continue
 		}
 
-		// Skip time.Duration fields - PropKeyResolver.Set() tries to parse
-		// duration strings like "10s" as integers, which fails.
-		// These fields keep their defaults set by SetDefaultProps().
+		// Handle time.Duration fields by parsing them directly.
+		// PropKeyResolver.Set() tries to parse duration strings like "10s" as
+		// integers, which fails. Parse user-provided durations the same way
+		// defaults are handled above.
 		if field := configValue.FieldByName(key); field.IsValid() {
 			if field.Type() == reflect.TypeFor[time.Duration]() {
+				dur, err := time.ParseDuration(value)
+				if err != nil {
+					return marshalError(fmt.Errorf("invalid duration %q for %q: %w", value, key, err))
+				}
+
+				field.SetInt(int64(dur))
+
 				continue
 			}
 		}
 
 		if err := pkr.Set(key, value); err != nil {
 			if field := configValue.FieldByName(key); field.IsValid() && field.CanSet() {
-				setFieldFromString(configValue, key, value)
+				if setErr := setFieldFromString(configValue, key, value); setErr != nil {
+					return marshalError(fmt.Errorf("invalid config %q=%q: %w", key, value, err))
+				}
+			} else {
+				return marshalError(fmt.Errorf("invalid config %q=%q: %w", key, value, err))
 			}
 		}
 	}

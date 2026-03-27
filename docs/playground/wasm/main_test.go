@@ -167,11 +167,14 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 			// dispatched asynchronously by the Go WASM runtime.
 			done := make(chan string, 1)
 
-			promise.Call("catch", js.FuncOf(func(_ js.Value, args []js.Value) interface{} {
+			catchHandler := js.FuncOf(func(_ js.Value, args []js.Value) interface{} {
+				catchHandler.Release()
 				done <- args[0].String()
 
 				return nil
-			}))
+			})
+
+			promise.Call("catch", catchHandler)
 
 			select {
 			case errMsg := <-done:
@@ -191,11 +194,14 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 			// Async rejection: wait for goroutine via channel.
 			done := make(chan string, 1)
 
-			promise.Call("catch", js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+			catchHandler := js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+				catchHandler.Release()
 				done <- catchArgs[0].String()
 
 				return nil
-			}))
+			})
+
+			promise.Call("catch", catchHandler)
 
 			select {
 			case errMsg := <-done:
@@ -214,11 +220,14 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 
 			done := make(chan string, 1)
 
-			promise.Call("catch", js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+			catchHandler := js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+				catchHandler.Release()
 				done <- catchArgs[0].String()
 
 				return nil
-			}))
+			})
+
+			promise.Call("catch", catchHandler)
 
 			select {
 			case errMsg := <-done:

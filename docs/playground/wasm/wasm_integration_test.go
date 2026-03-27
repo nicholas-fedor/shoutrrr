@@ -159,9 +159,25 @@ func TestAliasMapConsistency(t *testing.T) {
 				t.Fatalf("failed to unmarshal alias %q result: %v", alias, err)
 			}
 
+			if aliasErr, ok := aliasParsed["error"]; ok {
+				t.Fatalf("generateURLString(%q, {}) returned error: %s", alias, aliasErr)
+			}
+
+			if _, ok := aliasParsed["url"]; !ok {
+				t.Fatalf("generateURLString(%q, {}) missing 'url' key: %s", alias, aliasResult)
+			}
+
 			var canonicalParsed map[string]string
 			if err := json.Unmarshal([]byte(canonicalResult), &canonicalParsed); err != nil {
 				t.Fatalf("failed to unmarshal canonical %q result: %v", canonical, err)
+			}
+
+			if canonicalErr, ok := canonicalParsed["error"]; ok {
+				t.Fatalf("generateURLString(%q, {}) returned error: %s", canonical, canonicalErr)
+			}
+
+			if _, ok := canonicalParsed["url"]; !ok {
+				t.Fatalf("generateURLString(%q, {}) missing 'url' key: %s", canonical, canonicalResult)
 			}
 
 			if aliasParsed["url"] != canonicalParsed["url"] {
@@ -289,7 +305,7 @@ func TestGenerateURL(t *testing.T) {
 		{
 			name:     "ntfy basic",
 			scheme:   "ntfy",
-			config:   `{"Host":"ntfy.sh","Path":"mytopic"}`,
+			config:   `{"Host":"ntfy.sh","Topic":"mytopic"}`,
 			contains: "ntfy://",
 		},
 		{

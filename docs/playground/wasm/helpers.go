@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -14,6 +15,18 @@ import (
 // urlTypeName is the reflected type name for *url.URL fields,
 // used to identify services that require a webhook URL.
 const urlTypeName = "*url.URL"
+
+// errFieldNotFound is returned when a config field does not exist.
+var errFieldNotFound = errors.New("field not found")
+
+// errFieldNotSettable is returned when a config field cannot be set.
+var errFieldNotSettable = errors.New("field not settable")
+
+// errInvalidBoolValue is returned when a bool field receives an invalid value.
+var errInvalidBoolValue = errors.New("invalid bool value")
+
+// errUnsupportedFieldType is returned when a field type is unsupported for string assignment.
+var errUnsupportedFieldType = errors.New("unsupported field type for string assignment")
 
 // classifyType returns a human-readable type string for typ.
 // If isEnum is true, returns "enum" regardless of the underlying kind.
@@ -94,24 +107,35 @@ func getEnumNames(ef types.EnumFormatter) []string {
 
 // setFieldFromString sets configValue[fieldName] to value using reflection.
 // Supports string and bool field types. Bool values are parsed via
-// format.ParseBool().
-func setFieldFromString(configValue reflect.Value, fieldName, value string) {
+// format.ParseBool(). Returns an error if the field is invalid, cannot be set,
+// or the value cannot be parsed for the field type.
+func setFieldFromString(configValue reflect.Value, fieldName, value string) error {
 	field := configValue.FieldByName(fieldName)
-	if !field.IsValid() || !field.CanSet() {
-		return
+	if !field.IsValid() {
+		return fmt.Errorf("%w: %q", errFieldNotFound, fieldName)
+	}
+
+	if !field.CanSet() {
+		return fmt.Errorf("%w: %q", errFieldNotSettable, fieldName)
 	}
 
 	//nolint:exhaustive // Only handling string and bool fields.
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
+
+		return nil
 	case reflect.Bool:
 		bv, ok := format.ParseBool(value, false)
-		if ok {
-			field.SetBool(bv)
+		if !ok {
+			return fmt.Errorf("%w: %q for field %q", errInvalidBoolValue, value, fieldName)
 		}
+
+		field.SetBool(bv)
+
+		return nil
 	default:
-		// Unsupported field type for direct string assignment.
+		return fmt.Errorf("%w: %s for field %q", errUnsupportedFieldType, field.Kind(), fieldName)
 	}
 }
 

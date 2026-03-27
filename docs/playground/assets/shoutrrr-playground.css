@@ -227,7 +227,7 @@
   border: none;
   border-radius: var(--playground-radius);
   background: var(--playground-primary);
-  color: #ffffff;
+  color: #fff;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s ease;

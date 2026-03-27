@@ -43,16 +43,13 @@
 
   // --- State ---
   /** @type {boolean} */
-  let wasmReady = false;
+  var wasmReady = false;
 
   /** @type {string} */
-  let currentService = "";
-
-  /** @type {ConfigSchema|null} */
-  let currentSchema = null;
+  var currentService = "";
 
   // --- DOM Elements (initialized lazily) ---
-  let dom = {};
+  var dom = {};
 
   // Cached DOM element for escapeHtml to avoid repeated allocation.
   var _escapeDiv = document.createElement("div");
@@ -93,7 +90,6 @@
         dom.configSection.style.display = "none";
         dom.outputSection.style.display = "none";
         dom.sendSection.style.display = "none";
-        currentSchema = null;
         return;
       }
 
@@ -107,7 +103,6 @@
         return;
       }
 
-      currentSchema = parsed.result;
       renderForm(parsed.result);
       dom.configSection.style.display = "block";
       dom.outputSection.style.display = "block";
@@ -714,7 +709,6 @@
     var schemaParsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
     if (schemaParsed.error) return;
 
-    currentSchema = schemaParsed.result;
     renderForm(schemaParsed.result);
     populateForm(parsed.result.config);
     dom.configSection.style.display = "block";
