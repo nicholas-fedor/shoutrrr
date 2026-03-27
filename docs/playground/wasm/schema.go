@@ -2,12 +2,47 @@ package main
 
 import (
 	"encoding/json"
+	"path"
 	"reflect"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// docBaseURL is the base URL for service documentation links.
+const docBaseURL = "https://shoutrrr.nickfedor.com/"
+
+// serviceDocAliases maps scheme names to their documentation service name
+// when the docs path differs from the scheme. Most services use the scheme
+// name directly in the docs URL; only aliases need entries here.
+var serviceDocAliases = map[string]string{
+	"mqtts": "mqtt",
+}
+
+// deriveDocURL builds the documentation URL for a service by extracting the
+// category from the config struct's Go package path. The service packages
+// follow the convention pkg/services/{category}/{serviceName}, so the
+// category is derived from the penultimate path segment.
+//
+// The config parameter is used rather than the Service interface because
+// the concrete config type lives in the same package as the service, and
+// reflection on interface values may not return complete package paths.
+//
+// Aliases (e.g., mqtts → mqtt) are resolved via serviceDocAliases.
+func deriveDocURL(scheme string, config types.ServiceConfig) string {
+	pkgPath := reflect.Indirect(reflect.ValueOf(config)).Type().PkgPath()
+	// pkgPath example: github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord
+	category := path.Base(path.Dir(pkgPath))
+
+	docName := scheme
+	if alias, ok := serviceDocAliases[scheme]; ok {
+		docName = alias
+	}
+
+	return docBaseURL + strings.Join([]string{"services", category, docName, ""}, "/")
+}
 
 // listServicesJSON returns all registered service schemes as a JSON-encoded
 // array of strings. It uses router.ListServices() which reads directly from
@@ -76,6 +111,7 @@ func configSchemaJSON(serviceName string) string {
 	schema := configSchema{
 		Service: serviceName,
 		Scheme:  serviceName,
+		DocURL:  deriveDocURL(serviceName, config),
 		Fields:  fields,
 	}
 

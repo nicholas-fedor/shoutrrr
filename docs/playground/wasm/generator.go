@@ -45,20 +45,29 @@ func generateURLString(serviceName, configJSON string) string {
 	config := format.GetServiceConfig(service)
 	pkr := format.NewPropKeyResolver(config)
 	configValue := reflect.Indirect(reflect.ValueOf(config))
-
-	// Set default props, ignoring errors for time.Duration fields
-	// which can't be parsed by PropKeyResolver.Set().
-	_ = pkr.SetDefaultProps(config) //nolint:errcheck // Duration parse errors handled below.
-
-	// Manually set time.Duration fields to their defaults.
 	configSchema := format.GetConfigFormat(config)
 	durationType := reflect.TypeFor[time.Duration]()
 
+	// Apply defaults manually to handle duration fields correctly.
+	// PropKeyResolver.Set() can't parse duration strings like "10s" as integers,
+	// so we detect duration fields and parse them with time.ParseDuration instead.
 	for _, node := range configSchema.Items {
 		field := node.Field()
-		if field.Type == durationType && field.DefaultValue != "" {
+		if field.DefaultValue == "" {
+			continue
+		}
+
+		if field.Type == durationType {
+			// Parse duration defaults directly.
 			if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
 				configValue.FieldByName(field.Name).SetInt(int64(dur))
+			}
+		} else {
+			// Apply non-duration defaults via PropKeyResolver.
+			for _, key := range field.Keys {
+				if err := pkr.Set(key, field.DefaultValue); err != nil {
+					return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
+				}
 			}
 		}
 	}
@@ -84,17 +93,31 @@ func generateURLString(serviceName, configJSON string) string {
 			pkr = format.NewPropKeyResolver(config)
 			configValue = reflect.Indirect(reflect.ValueOf(config))
 
-			// Re-apply defaults on the new svcConfig so any fields that
-			// were not populated by SetURL inherit documented defaults.
-			_ = pkr.SetDefaultProps(config) //nolint:errcheck // Duration parse errors handled below.
-
+			// Apply defaults only to zero-valued fields so values parsed by
+			// SetURL from the webhook URL (e.g., host, path, query params)
+			// are not overwritten.
 			configSchema = format.GetConfigFormat(config)
 
 			for _, node := range configSchema.Items {
 				field := node.Field()
-				if field.Type == durationType && field.DefaultValue != "" {
+				if field.DefaultValue == "" {
+					continue
+				}
+
+				fieldVal := configValue.FieldByName(field.Name)
+				if !fieldVal.IsValid() || !fieldVal.IsZero() {
+					continue
+				}
+
+				if field.Type == durationType {
 					if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
-						configValue.FieldByName(field.Name).SetInt(int64(dur))
+						fieldVal.SetInt(int64(dur))
+					}
+				} else {
+					for _, key := range field.Keys {
+						if err := pkr.Set(key, field.DefaultValue); err != nil {
+							return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
+						}
 					}
 				}
 			}

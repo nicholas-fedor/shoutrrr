@@ -35,8 +35,8 @@ func TestGenerateURLString(t *testing.T) {
 		{
 			name:       "generates generic URL with webhook",
 			service:    "generic",
-			configJSON: `{"WebhookURL":"192.168.1.100:8123/api/webhook/abc123"}`,
-			wantSubstr: []string{"generic://", "192.168.1.100"},
+			configJSON: `{"WebhookURL":"192.168.1.100:8123/api/webhook/abc123?foo=bar"}`,
+			wantSubstr: []string{"generic://", "192.168.1.100", "foo=bar"},
 		},
 		{
 			name:        "returns error for invalid service",

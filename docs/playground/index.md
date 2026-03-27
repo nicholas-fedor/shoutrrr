@@ -53,6 +53,7 @@ hide:
           />
         </div>
       </div>
+      <p id="service-doc-link" class="playground-doc-link" style="display:none;"></p>
     </div>
 
     <!-- Config form -->

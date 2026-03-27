@@ -26,6 +26,7 @@
    * @typedef {Object} ConfigSchema
    * @property {string} service - Service name
    * @property {string} scheme - URL scheme
+   * @property {string} docURL - Documentation URL for the service
    * @property {FieldSchema[]} fields - Configuration fields
    */
 
@@ -77,6 +78,7 @@
     dom.messageInput = document.getElementById("message-input");
     dom.sendBtn = document.getElementById("send-btn");
     dom.sendResult = document.getElementById("send-result");
+    dom.serviceDocLink = document.getElementById("service-doc-link");
   }
 
   /**
@@ -90,6 +92,7 @@
         dom.configSection.style.display = "none";
         dom.outputSection.style.display = "none";
         dom.sendSection.style.display = "none";
+        updateServiceDocLink("");
         return;
       }
 
@@ -104,6 +107,7 @@
       }
 
       renderForm(parsed.result);
+      updateServiceDocLink(parsed.result.docURL);
       dom.configSection.style.display = "block";
       dom.outputSection.style.display = "block";
       dom.sendSection.style.display = "block";
@@ -306,6 +310,28 @@
     dom.loading.style.display = "none";
     dom.content.style.display = "block";
     loadServices();
+  }
+
+  // --- Documentation Link ---
+
+  /**
+   * Updates the documentation link for the selected service.
+   * Hides the link if no docURL is provided in the schema.
+   * @param {string} docURL - The documentation URL from the config schema
+   */
+  function updateServiceDocLink(docURL) {
+    if (docURL) {
+      dom.serviceDocLink.innerHTML =
+        'Documentation: <a href="' +
+        escapeHtml(docURL) +
+        '" target="_blank" rel="noopener noreferrer">' +
+        escapeHtml(docURL) +
+        "</a>";
+      dom.serviceDocLink.style.display = "";
+    } else {
+      dom.serviceDocLink.innerHTML = "";
+      dom.serviceDocLink.style.display = "none";
+    }
   }
 
   // --- Service Listing ---
@@ -515,12 +541,17 @@
     input.dataset.fieldType = "bool";
     input.autocomplete = "off";
 
-    if (
+    var isDefaultTrue =
       field.defaultValue &&
       (field.defaultValue.toLowerCase() === "yes" ||
-        field.defaultValue.toLowerCase() === "true")
-    ) {
+        field.defaultValue.toLowerCase() === "true");
+
+    if (isDefaultTrue) {
       input.checked = true;
+      input.defaultChecked = true;
+      input.dataset.default = "true";
+    } else {
+      input.dataset.default = "false";
     }
 
     input.addEventListener("change", updateUrl);
@@ -725,6 +756,7 @@
     if (schemaParsed.error) return;
 
     renderForm(schemaParsed.result);
+    updateServiceDocLink(schemaParsed.result.docURL);
     populateForm(parsed.result.config);
     dom.configSection.style.display = "block";
     dom.outputSection.style.display = "block";

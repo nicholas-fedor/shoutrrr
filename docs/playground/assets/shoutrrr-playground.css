@@ -200,6 +200,24 @@
   outline-offset: -1px;
 }
 
+/* Documentation link below service selector / URL parser row */
+
+.playground-doc-link {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--playground-text-light);
+  text-align: center;
+}
+
+.playground-doc-link a {
+  color: var(--playground-primary);
+  text-decoration: none;
+}
+
+.playground-doc-link a:hover {
+  text-decoration: underline;
+}
+
 /* URL input */
 
 #url-input {

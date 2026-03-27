@@ -23,12 +23,14 @@ type fieldSchema struct {
 }
 
 // configSchema represents the full configuration schema for a service.
-// It includes the service identity and all configurable fields.
+// It includes the service identity, documentation link, and all configurable fields.
 type configSchema struct {
 	// Service is the service name (e.g., "discord").
 	Service string `json:"service"`
 	// Scheme is the URL scheme for this service.
 	Scheme string `json:"scheme"`
+	// DocURL is the documentation URL for this service.
+	DocURL string `json:"docURL"`
 	// Fields contains all configurable fields for the service.
 	Fields []fieldSchema `json:"fields"`
 }
