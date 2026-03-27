@@ -25,5 +25,9 @@ site/
 # Generated documentation
 docs/services/*/*/config.md
 
+# Generated WASM artifacts
+docs/playground/assets/*.wasm
+docs/playground/assets/wasm_exec.js
+
 # Environment variables
 .env

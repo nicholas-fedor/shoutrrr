@@ -8,7 +8,10 @@
 <body>
     <script>
         const path = window.location.pathname;
-        window.location.href = '/latest' + path;
+        const hasVersionPrefix = /^\/(latest|dev|v\d+\.\d+\.\d+)(\/|$)/.test(path);
+        if (!hasVersionPrefix) {
+            window.location.href = '/latest' + path;
+        }
     </script>
     <noscript>
         <p>Page not found. Please enable JavaScript to be redirected to the latest documentation, or visit <a href="/latest">/latest</a> directly.</p>

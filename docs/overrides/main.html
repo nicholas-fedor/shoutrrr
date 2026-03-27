@@ -1,1 +1,16 @@
 {% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page and page.url.startswith("playground/") %}
+    <link rel="stylesheet" href="{{ base_url }}/playground/assets/shoutrrr-playground.css">
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% if page and page.url.startswith("playground/") %}
+    <script defer src="{{ base_url }}/playground/assets/wasm_exec.js"></script>
+    <script defer src="{{ base_url }}/playground/assets/shoutrrr-playground.js"></script>
+  {% endif %}
+{% endblock %}

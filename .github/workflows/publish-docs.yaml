@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - docs/**
+      - Makefile
+      - build/mkdocs/**
   release:
     types: [published]
 
@@ -26,6 +28,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Configure Git Credentials
         run: |
@@ -45,6 +48,9 @@ jobs:
           go mod download
           go clean -cache  # Clear build cache
           ./scripts/generate-service-config-docs.sh
+
+      - name: Build WASM module
+        run: make wasm
 
       - name: Setup Python
         uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec
@@ -69,22 +75,27 @@ jobs:
         id: mike
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_EVENT_RELEASE_TAG_NAME}" >> "$GITHUB_OUTPUT"
             echo "aliases=latest" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
 
       - name: Build and Deploy
         run: |
-          if [ -n "${{ steps.mike.outputs.aliases }}" ]; then
+          if [ -n "${STEPS_MIKE_OUTPUTS_ALIASES}" ]; then
             mike deploy \
               --config-file build/mkdocs/mkdocs.yaml \
               --push \
-              --update-aliases "${{ steps.mike.outputs.version }}" "${{ steps.mike.outputs.aliases }}"
+              --update-aliases "${STEPS_MIKE_OUTPUTS_VERSION}" "${STEPS_MIKE_OUTPUTS_ALIASES}"
           else
             mike deploy \
               --config-file build/mkdocs/mkdocs.yaml \
               --push \
-              "${{ steps.mike.outputs.version }}"
+              "${STEPS_MIKE_OUTPUTS_VERSION}"
           fi
+        env:
+          STEPS_MIKE_OUTPUTS_ALIASES: ${{ steps.mike.outputs.aliases }}
+          STEPS_MIKE_OUTPUTS_VERSION: ${{ steps.mike.outputs.version }}
