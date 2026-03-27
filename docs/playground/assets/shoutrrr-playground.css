@@ -464,7 +464,6 @@
   overflow-x: auto;
   white-space: nowrap;
   color: var(--playground-text);
-  word-break: break-all;
   line-height: 1.5;
 }
 

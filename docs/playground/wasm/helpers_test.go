@@ -34,6 +34,8 @@ var _ = ginkgo.Describe("Helpers", func() {
 			ginkgo.Entry("uint16 type", reflect.TypeFor[uint16](), false, "uint"),
 			ginkgo.Entry("uint32 type", reflect.TypeFor[uint32](), false, "uint"),
 			ginkgo.Entry("uint64 type", reflect.TypeFor[uint64](), false, "uint"),
+			ginkgo.Entry("float32 type", reflect.TypeFor[float32](), false, "float32"),
+			ginkgo.Entry("float64 type", reflect.TypeFor[float64](), false, "float64"),
 			ginkgo.Entry("slice type", reflect.TypeFor[[]string](), false, "array"),
 			ginkgo.Entry("array type", reflect.TypeFor[[3]int](), false, "array"),
 			ginkgo.Entry("map type", reflect.TypeFor[map[string]string](), false, "map"),
@@ -131,6 +133,41 @@ var _ = ginkgo.Describe("Helpers", func() {
 			setFieldFromString(val, "NonExistent", "value")
 			gomega.Expect(s.Name).To(gomega.BeEmpty())
 		})
+
+		ginkgo.It("sets bool field from lowercase yes", func() {
+			s := testSetFieldStruct{}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "yes")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("sets bool field from uppercase TRUE", func() {
+			s := testSetFieldStruct{}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "TRUE")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("sets bool field from uppercase FALSE", func() {
+			s := testSetFieldStruct{Enabled: true}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "FALSE")
+			gomega.Expect(s.Enabled).To(gomega.BeFalse())
+		})
+
+		ginkgo.It("leaves bool unchanged for invalid input", func() {
+			s := testSetFieldStruct{Enabled: true}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "invalid")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("leaves bool unchanged for numeric invalid input", func() {
+			s := testSetFieldStruct{Enabled: true}
+			val := reflect.ValueOf(&s).Elem()
+			setFieldFromString(val, "Enabled", "2")
+			gomega.Expect(s.Enabled).To(gomega.BeTrue())
+		})
 	})
 
 	ginkgo.Describe("marshalError", func() {
@@ -142,6 +179,11 @@ var _ = ginkgo.Describe("Helpers", func() {
 		ginkgo.It("handles empty error message", func() {
 			result := marshalError(errors.New(""))
 			gomega.Expect(result).To(gomega.Equal(`{"error":""}`))
+		})
+
+		ginkgo.It("handles nil error", func() {
+			result := marshalError(nil)
+			gomega.Expect(result).To(gomega.Equal(`{"error":"unknown error"}`))
 		})
 	})
 

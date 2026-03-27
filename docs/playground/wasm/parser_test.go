@@ -58,8 +58,8 @@ var _ = ginkgo.Describe("Parser", func() {
 
 			err := json.Unmarshal([]byte(result), &parsed)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed.Config).To(gomega.HaveKey("Color"))
-			gomega.Expect(parsed.Config).To(gomega.HaveKey("SplitLines"))
+			gomega.Expect(parsed.Config).To(gomega.HaveKeyWithValue("Color", "0x50D9ff"))
+			gomega.Expect(parsed.Config).To(gomega.HaveKeyWithValue("SplitLines", "Yes"))
 		})
 	})
 

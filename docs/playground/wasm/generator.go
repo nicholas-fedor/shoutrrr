@@ -110,7 +110,7 @@ func generateURLString(serviceName, configJSON string) string {
 
 	func() {
 		defer func() {
-			if r := recover(); r != nil {
+			if rec := recover(); rec != nil {
 				generatedURL = nil
 			}
 		}()
@@ -152,8 +152,8 @@ func initWebhookURL(service types.Service, webhookURL string) error {
 
 	configRef := serviceValue.FieldByIndex(configField.Index)
 
-	// Initialize config if nil.
-	if configRef.IsNil() {
+	// Guard against non-nillable kinds before calling IsNil to avoid panic.
+	if configRef.IsValid() && isNillableKind(configRef.Kind()) && configRef.IsNil() {
 		configType := configField.Type
 		if configType.Kind() == reflect.Pointer {
 			configType = configType.Elem()
@@ -190,7 +190,12 @@ func getServiceConfigFromService(service types.Service) (types.ServiceConfig, bo
 	}
 
 	configRef := serviceValue.FieldByIndex(configField.Index)
-	if configRef.IsNil() {
+	if !configRef.IsValid() {
+		return nil, false
+	}
+
+	// Only call IsNil on nillable kinds to avoid panic.
+	if isNillableKind(configRef.Kind()) && configRef.IsNil() {
 		return nil, false
 	}
 

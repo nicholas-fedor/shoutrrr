@@ -49,7 +49,19 @@ docs/playground/
 
    New services, changed fields, and updated defaults propagate automatically on rebuild.
 
-3. **Send Functionality**: Uses Shoutrrr's `Send()` function directly. The frontend patches `window.fetch` to strip the `User-Agent` header, which some CORS preflight responses don't allow.
+3. **Send Functionality**: Uses Shoutrrr's `Send()` function directly in the browser via WASM. When Shoutrrr's `Send()` makes HTTP requests, the browser includes a `User-Agent` header that triggers CORS preflight failures when target servers don't list `User-Agent` in their `Access-Control-Allow-Headers` response.
+
+   **Fetch Patching Approach**: The frontend uses a scoped `wasmFetch` wrapper that strips `User-Agent` variants from request headers. During WASM bootstrap, `window.fetch` is temporarily overridden with `wasmFetch` and restored after `go.run()` completes, so only WASM-initiated requests are affected and normal page fetches remain untouched.
+
+   **Risks of Global `window.fetch` Override**: Globally patching `window.fetch` (rather than scoping it) can break third-party scripts, browser extensions, analytics libraries, and other code that depends on the standard fetch behavior. It may also cause conflicts when multiple scripts attempt to override fetch.
+
+   **Mitigation Strategies**:
+   - **Scoped fetch wrapper** (current approach): Temporarily override `window.fetch` only during WASM execution, restoring it immediately after.
+   - **XMLHttpRequest fallback**: Use `XMLHttpRequest` for WASM HTTP calls, which provides finer-grained header control without overriding fetch.
+   - **Server-side proxy**: Route notifications through a same-origin proxy endpoint to avoid CORS entirely.
+   - **Target CORS configuration**: Configure the notification service's server to include `User-Agent` in `Access-Control-Allow-Headers`.
+
+   **Testing and Rollback**: If the fetch override causes issues, the patch is isolated in `shoutrrr-playground.js` (`wasmFetch` function and `loadWasm` function). To disable, remove the `window.fetch = wasmFetch` line and the `wasmFetch` function; the WASM module will use the browser's default fetch (note: send functionality may fail for services with strict CORS policies).
 
 ## Build
 

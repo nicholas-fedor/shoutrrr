@@ -136,3 +136,17 @@ func marshalErrorStr(msg string) string {
 
 	return string(data)
 }
+
+// isNillableKind returns true if the reflect.Kind represents a type that
+// supports nil values. Calling IsNil() on a non-nillable kind panics.
+//
+//nolint:exhaustive // Using default case for non-nillable kinds.
+func isNillableKind(k reflect.Kind) bool {
+	switch k {
+	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map,
+		reflect.Func, reflect.Chan:
+		return true
+	default:
+		return false
+	}
+}

@@ -95,7 +95,16 @@ func send(_ js.Value, args []js.Value) interface{} {
 			result := sendString(rawURL, message)
 
 			var errResp errorResult
-			if err := json.Unmarshal([]byte(result), &errResp); err == nil && errResp.Error != "" {
+			if err := json.Unmarshal([]byte(result), &errResp); err != nil {
+				// Malformed response from sendString — reject with context.
+				reject.Invoke(marshalErrorStr(
+					fmt.Sprintf("invalid response from send: %v (raw: %s)", err, result),
+				))
+
+				return
+			}
+
+			if errResp.Error != "" {
 				reject.Invoke(result)
 			} else {
 				resolve.Invoke(result)

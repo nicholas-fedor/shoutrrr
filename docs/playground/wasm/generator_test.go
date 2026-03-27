@@ -21,6 +21,7 @@ var _ = ginkgo.Describe("Generator", func() {
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("discord://"))
 			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("123456789"))
+			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("mytoken"))
 		})
 
 		ginkgo.It("generates ntfy URL with host and path", func() {

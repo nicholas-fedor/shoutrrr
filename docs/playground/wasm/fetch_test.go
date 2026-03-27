@@ -3,6 +3,8 @@
 package main
 
 import (
+	"encoding/json"
+
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
@@ -18,7 +20,10 @@ var _ = ginkgo.Describe("Send", func() {
 		ginkgo.It("returns error for invalid URL", func() {
 			result := sendString("invalid://url", "test message")
 
-			gomega.Expect(result).To(gomega.ContainSubstring("error"))
+			var errResp errorResult
+			err := json.Unmarshal([]byte(result), &errResp)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
 		})
 	})
 })

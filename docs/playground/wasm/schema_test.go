@@ -5,6 +5,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/gstruct"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
@@ -81,20 +82,13 @@ var _ = ginkgo.Describe("Schema", func() {
 			err := json.Unmarshal([]byte(result), &schema)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-			var hasWebhookURL bool
-
-			for _, field := range schema.Fields {
-				if field.Name == "WebhookURL" {
-					hasWebhookURL = true
-
-					gomega.Expect(field.Required).To(gomega.BeTrue())
-					gomega.Expect(field.Type).To(gomega.Equal("string"))
-
-					break
-				}
-			}
-
-			gomega.Expect(hasWebhookURL).To(gomega.BeTrue())
+			gomega.Expect(schema.Fields).To(gomega.ContainElement(
+				gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+					"Name":     gomega.Equal("WebhookURL"),
+					"Required": gomega.BeTrue(),
+					"Type":     gomega.Equal("string"),
+				}),
+			))
 		})
 
 		ginkgo.It("returns error for invalid service", func() {

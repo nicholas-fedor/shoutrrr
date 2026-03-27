@@ -181,8 +181,7 @@ docs_dir: ../../docs
 site_dir: ../../site
 
 # Exclude Go WASM source from docs processing.
-exclude_docs: |
-  playground/wasm/
+exclude_docs: "playground/wasm/"
 
 # Validation: https://www.mkdocs.org/user-guide/configuration/#validation
 # Strictness settings for link validation during builds.

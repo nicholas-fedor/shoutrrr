@@ -52,7 +52,10 @@
   let currentSchema = null;
 
   // --- DOM Elements (initialized lazily) ---
-  var dom = {};
+  let dom = {};
+
+  // Cached DOM element for escapeHtml to avoid repeated allocation.
+  var _escapeDiv = document.createElement("div");
 
   /**
    * Initializes DOM element references.
@@ -125,14 +128,23 @@
       dom.configToggle.classList.toggle("collapsed", expanded);
     });
 
-    // Clear config
+    // Clear config - restores each field to its schema-defined default.
     dom.clearConfigBtn.addEventListener("click", function () {
       var inputs = dom.configTbody.querySelectorAll("input, select");
       inputs.forEach(function (el) {
         if (el.type === "checkbox") {
-          el.checked = false;
+          // Prefer data-default attribute, fall back to intrinsic defaultChecked.
+          var def = el.getAttribute("data-default");
+          if (def !== null) {
+            el.checked =
+              def.toLowerCase() === "yes" || def.toLowerCase() === "true";
+          } else {
+            el.checked = el.defaultChecked;
+          }
         } else {
-          el.value = "";
+          // Prefer data-default attribute, fall back to intrinsic defaultValue.
+          el.value =
+            el.getAttribute("data-default") || el.defaultValue || "";
         }
       });
       updateUrl();
@@ -158,9 +170,11 @@
 
     // Message input - update CLI command
     dom.messageInput.addEventListener("input", debounce(function () {
-      var url = dom.urlOutput.textContent;
-      if (url && !url.startsWith("Error")) {
-        dom.cliOutput.textContent = buildCliCommand(url);
+      if (!dom.urlOutput.classList.contains("playground-error")) {
+        var url = dom.urlOutput.textContent;
+        if (url) {
+          dom.cliOutput.textContent = buildCliCommand(url);
+        }
       }
     }, 300));
 
@@ -172,7 +186,7 @@
       var config = (window.__shoutrrrPlayground || {}).config || {};
       var message = dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
 
-      if (!url || url.startsWith("Error")) {
+      if (!url || dom.urlOutput.classList.contains("playground-error")) {
         dom.sendResult.innerHTML =
           '<span class="playground-error">Generate a valid URL first.</span>';
         return;
@@ -210,11 +224,18 @@
 
   // --- WASM Loading ---
 
-  // Patch fetch to strip the User-Agent header from WASM requests.
+  // Store the original fetch for non-WASM page requests.
   const originalFetch = window.fetch.bind(window);
 
-  /** @type {typeof fetch} */
-  window.fetch = function (url, options) {
+  /**
+   * Fetch wrapper used exclusively for WASM-initiated HTTP requests.
+   * Strips the User-Agent header to avoid browser security restrictions
+   * on WASM net/http calls.
+   * @param {RequestInfo} url - The request URL or Request object
+   * @param {RequestInit} [options] - Fetch options
+   * @returns {Promise<Response>}
+   */
+  function wasmFetch(url, options) {
     if (options && options.headers) {
       var headers = new Headers(options.headers);
       headers.delete("user-agent");
@@ -222,10 +243,15 @@
       options = Object.assign({}, options, { headers: headers });
     }
     return originalFetch(url, options);
-  };
+  }
 
   /**
    * Loads the WASM module and initializes the playground.
+   *
+   * Temporarily overrides window.fetch with wasmFetch so that WASM-initiated
+   * HTTP requests have User-Agent stripped. The override is restored once
+   * go.run settles or the WASM module signals readiness.
+   *
    * @async
    * @param {PlaygroundOptions} config - Configuration options
    * @returns {Promise<void>}
@@ -237,10 +263,33 @@
         fetch(config.wasmPath),
         go.importObject
       );
-      go.run(result.instance);
+
+      // Temporarily override window.fetch for WASM-initiated requests only.
+      window.fetch = wasmFetch;
+
+      // go.run returns a promise that may not resolve for long-running
+      // interactive WASM modules. Attach handlers to catch initialization
+      // errors and restore the original fetch when the WASM exits.
+      go.run(result.instance).then(
+        function () {
+          window.fetch = originalFetch;
+        },
+        function (err) {
+          window.fetch = originalFetch;
+          dom.loading.innerHTML =
+            '<p class="playground-error">WASM runtime error: ' +
+            escapeHtml(err.message) +
+            "</p>";
+        }
+      );
+
+      // The WASM Go runtime is initialised and functions are callable
+      // immediately after go.run starts the program.
       wasmReady = true;
       onWasmReady();
     } catch (err) {
+      // Restore fetch on any error during loading.
+      window.fetch = originalFetch;
       dom.loading.innerHTML =
         '<p class="playground-error">Failed to load WASM module: ' +
         escapeHtml(err.message) +
@@ -696,8 +745,9 @@
    * @param {Object} timeoutRef - Mutable object with .timeout property
    */
   function handleCopy(btn, sourceEl, timeoutRef) {
+    if (sourceEl.classList.contains("playground-error")) return;
     var text = sourceEl.textContent;
-    if (!text || text.startsWith("Error")) return;
+    if (!text) return;
 
     navigator.clipboard
       .writeText(text)
@@ -811,9 +861,8 @@
    * @returns {string} Escaped string
    */
   function escapeHtml(str) {
-    var div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+    _escapeDiv.textContent = str;
+    return _escapeDiv.innerHTML;
   }
 
   // --- Init ---

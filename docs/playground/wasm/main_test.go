@@ -4,6 +4,7 @@ package main
 
 import (
 	"syscall/js"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -156,10 +157,70 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 	})
 
 	ginkgo.Describe("send", func() {
-		ginkgo.It("returns a js.Value when insufficient args", func() {
+		ginkgo.It("returns rejected Promise for insufficient args", func() {
 			result := send(js.Value{}, nil)
-			_, ok := result.(js.Value)
+			promise, ok := result.(js.Value)
 			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(promise.Get("constructor").Get("name").String()).To(gomega.Equal("Promise"))
+
+			// Synchronous rejection: verify rejection contains expected error.
+			rejected := false
+
+			promise.Call("catch", js.FuncOf(func(_ js.Value, args []js.Value) interface{} {
+				rejected = true
+				gomega.Expect(args[0].String()).To(gomega.ContainSubstring("missing arguments"))
+
+				return nil
+			}))
+
+			gomega.Expect(rejected).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("returns rejected Promise for invalid URL", func() {
+			args := []js.Value{js.ValueOf("not-a-valid-url"), js.ValueOf("test message")}
+			result := send(js.Value{}, args)
+			promise, ok := result.(js.Value)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(promise.Get("constructor").Get("name").String()).To(gomega.Equal("Promise"))
+
+			// Async rejection: wait for goroutine via channel.
+			done := make(chan string, 1)
+
+			promise.Call("catch", js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+				done <- catchArgs[0].String()
+
+				return nil
+			}))
+
+			select {
+			case errMsg := <-done:
+				gomega.Expect(errMsg).To(gomega.ContainSubstring("error"))
+			case <-time.After(5 * time.Second):
+				ginkgo.Fail("timed out waiting for Promise rejection")
+			}
+		})
+
+		ginkgo.It("returns rejected Promise for empty message", func() {
+			args := []js.Value{js.ValueOf("logger://"), js.ValueOf("")}
+			result := send(js.Value{}, args)
+			promise, ok := result.(js.Value)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(promise.Get("constructor").Get("name").String()).To(gomega.Equal("Promise"))
+
+			done := make(chan string, 1)
+
+			promise.Call("catch", js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+				done <- catchArgs[0].String()
+
+				return nil
+			}))
+
+			select {
+			case errMsg := <-done:
+				gomega.Expect(errMsg).To(gomega.ContainSubstring("error"))
+			case <-time.After(5 * time.Second):
+				ginkgo.Fail("timed out waiting for Promise rejection")
+			}
 		})
 	})
 })

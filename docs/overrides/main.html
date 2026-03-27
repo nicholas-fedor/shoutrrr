@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block extrahead %}
+  {{ super() }}
   {% if page and page.url.startswith("playground/") %}
     <link rel="stylesheet" href="{{ base_url }}/playground/assets/shoutrrr-playground.css">
   {% endif %}

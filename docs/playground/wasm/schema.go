@@ -40,6 +40,10 @@ func configSchemaJSON(serviceName string) string {
 	}
 
 	config := format.GetServiceConfig(service)
+	if config == nil {
+		return marshalErrorStr("service has no config")
+	}
+
 	configNode := format.GetConfigFormat(config)
 	fields := convertFields(configNode.Items, config)
 

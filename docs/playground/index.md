@@ -103,13 +103,12 @@ hide:
     <div id="send-section" class="playground-section" style="display:none;">
       <h3>Test</h3>
       <div class="playground-output-item">
-        <label>Message</label>
+        <label for="message-input">Message</label>
         <div class="playground-send">
           <input
             type="text"
             id="message-input"
             placeholder="Hello World"
-            aria-label="Test message"
           />
           <button id="send-btn" type="button">Send</button>
         </div>
@@ -117,9 +116,9 @@ hide:
       </div>
       <div class="playground-output-group">
         <div class="playground-output-item">
-          <label>CLI Command</label>
+          <label id="cli-output-label">CLI Command</label>
           <div class="playground-code-block">
-            <code id="cli-output" aria-live="polite" aria-label="Generated CLI command"></code>
+            <code id="cli-output" aria-live="polite" aria-labelledby="cli-output-label"></code>
             <button id="copy-cli-btn" type="button" aria-label="Copy CLI command to clipboard" class="playground-copy-btn">
               <svg width="16" height="16"><use href="#icon-clipboard"/></svg>
             </button>

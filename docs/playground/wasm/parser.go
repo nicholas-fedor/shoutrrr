@@ -133,6 +133,13 @@ func extractWebhookDisplay(configValue reflect.Value) string {
 		return ""
 	}
 
+	// Validate output type is nillable (pointer or interface) before calling
+	// IsNil to avoid panic on non-nillable return types.
+	outKind := mt.Out(0).Kind()
+	if outKind != reflect.Pointer && outKind != reflect.Interface {
+		return ""
+	}
+
 	results := method.Call(nil)
 	if len(results) != 1 || results[0].IsNil() {
 		return ""

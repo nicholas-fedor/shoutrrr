@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -52,41 +54,26 @@ func TestAllServicesHaveSchema(t *testing.T) {
 
 			var schema configSchema
 			if err := json.Unmarshal([]byte(result), &schema); err != nil {
-				t.Fatalf("failed to unmarshal schema for %q: %v", scheme, err)
+				t.Fatalf("failed to unmarshal schema for %q: %v\nJSON: %s", scheme, err, result)
 			}
 
 			if schema.Service != scheme {
 				t.Errorf("service mismatch: got %q, want %q", schema.Service, scheme)
 			}
-		})
-	}
-}
 
-// TestSchemaSerialization verifies that config schemas serialize to valid JSON.
-func TestSchemaSerialization(t *testing.T) {
-	t.Parallel()
-
-	r := router.ServiceRouter{}
-	schemes := r.ListServices()
-
-	for _, scheme := range schemes {
-		t.Run(scheme, func(t *testing.T) {
-			t.Parallel()
-
-			jsonStr := configSchemaJSON(scheme)
-
-			var errResp errorResult
-			if err := json.Unmarshal([]byte(jsonStr), &errResp); err == nil && errResp.Error != "" {
-				t.Fatalf("configSchemaJSON(%q) returned error: %s", scheme, errResp.Error)
+			// Round-trip: marshal back to JSON and verify re-unmarshal succeeds.
+			roundTrip, err := json.Marshal(schema)
+			if err != nil {
+				t.Fatalf("failed to re-marshal schema for %q: %v", scheme, err)
 			}
 
-			var decoded configSchema
-			if err := json.Unmarshal([]byte(jsonStr), &decoded); err != nil {
-				t.Fatalf("failed to unmarshal schema for %q: %v\nJSON: %s", scheme, err, jsonStr)
+			var reDecoded configSchema
+			if err := json.Unmarshal(roundTrip, &reDecoded); err != nil {
+				t.Fatalf("failed to unmarshal round-trip JSON for %q: %v\nJSON: %s", scheme, err, string(roundTrip))
 			}
 
-			if decoded.Service != scheme {
-				t.Errorf("service mismatch: got %q, want %q", decoded.Service, scheme)
+			if reDecoded.Service != schema.Service {
+				t.Errorf("round-trip service mismatch: got %q, want %q", reDecoded.Service, schema.Service)
 			}
 		})
 	}
@@ -123,12 +110,19 @@ func TestAllServicesGenerateDefaultURL(t *testing.T) {
 
 			// Verify URL starts with the scheme.
 			// Some services return "scheme:" (without "//") when fields are empty.
-			// Some schemes are aliases (e.g., hangouts→googlechat, mqtts→mqtt).
+			//
+			// aliasMap maps scheme aliases to their canonical scheme names.
+			// This must be kept in sync with the router's internal alias logic;
+			// if new aliases are added to the router (scheme → canonical scheme),
+			// they must be added here so checkScheme resolves to the correct
+			// canonical scheme for the prefix assertion below.
 			aliasMap := map[string]string{
 				"hangouts": "googlechat",
 				"mqtts":    "mqtt",
 			}
 
+			// checkScheme is the canonical scheme used for the URL prefix check.
+			// Aliased schemes resolve to their canonical form via aliasMap.
 			checkScheme := scheme
 			if alias, ok := aliasMap[scheme]; ok {
 				checkScheme = alias
@@ -353,6 +347,19 @@ func TestGetServicesMatchesList(t *testing.T) {
 
 	if len(schemes) != len(expected) {
 		t.Errorf("service count mismatch: got %d, want %d", len(schemes), len(expected))
+	}
+
+	// Sort both slices and compare contents to detect mismatches.
+	sortedSchemes := make([]string, len(schemes))
+	copy(sortedSchemes, schemes)
+	sort.Strings(sortedSchemes)
+
+	sortedExpected := make([]string, len(expected))
+	copy(sortedExpected, expected)
+	sort.Strings(sortedExpected)
+
+	if !reflect.DeepEqual(sortedSchemes, sortedExpected) {
+		t.Errorf("service contents mismatch:\n  got:  %v\n  want: %v", sortedSchemes, sortedExpected)
 	}
 }
 
