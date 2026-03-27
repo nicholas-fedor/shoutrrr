@@ -134,7 +134,7 @@
   fill: currentcolor;
 }
 
-.md-typeset h3 {
+#playground-app .md-typeset h3 {
   font-weight: 600;
 }
 

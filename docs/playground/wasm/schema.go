@@ -18,7 +18,8 @@ const docBaseURL = "https://shoutrrr.nickfedor.com/"
 // when the docs path differs from the scheme. Most services use the scheme
 // name directly in the docs URL; only aliases need entries here.
 var serviceDocAliases = map[string]string{
-	"mqtts": "mqtt",
+	"mqtts":    "mqtt",
+	"hangouts": "googlechat",
 }
 
 // deriveDocURL builds the documentation URL for a service by extracting the

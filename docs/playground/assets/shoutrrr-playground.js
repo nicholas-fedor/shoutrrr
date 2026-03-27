@@ -103,6 +103,10 @@
           escapeHtml(parsed.error) +
           "</td></tr>";
         dom.configSection.style.display = "block";
+        // Hide output and send sections so stale actions from a previous
+        // service are not available when schema loading fails.
+        dom.outputSection.style.display = "none";
+        dom.sendSection.style.display = "none";
         return;
       }
 
@@ -621,7 +625,8 @@
     input.id = "field-" + field.name;
     input.name = field.name;
     input.dataset.fieldType = field.type;
-    input.pattern = "[0-9]*";
+    // Signed ints allow a leading minus; unsigned ints are digits only.
+    input.pattern = field.type === "int" ? "-?[0-9]*" : "[0-9]*";
     input.inputMode = "numeric";
     input.autocomplete = "off";
 
@@ -977,7 +982,8 @@
     );
     if (cfg.autoInit === false) return;
 
-    if (document.getElementById("playground-app")) {
+    var containerId = cfg.containerId || "playground-app";
+    if (document.getElementById(containerId)) {
       init();
     }
   }
