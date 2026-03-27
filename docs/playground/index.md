@@ -125,7 +125,7 @@ hide:
           </div>
         </div>
       </div>
-      <p class="playground-note">Send may not work for all services due to browser CORS restrictions. Use the <a href="/usage/cli/" target="_blank" rel="noopener noreferrer">Shoutrrr CLI</a> for guaranteed compatibility.</p>
+      <p class="playground-note">Send may not work for all services due to browser CORS restrictions. Use the <a href="../usage/cli/" target="_blank" rel="noopener noreferrer">Shoutrrr CLI</a> for guaranteed compatibility.</p>
     </div>
   </div>
 </div>

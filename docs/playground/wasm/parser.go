@@ -128,14 +128,14 @@ func extractWebhookDisplay(configValue reflect.Value) string {
 	}
 
 	// Validate method signature before calling.
-	mt := method.Type()
-	if mt.NumIn() != 0 || mt.NumOut() != 1 {
+	methodType := method.Type()
+	if methodType.NumIn() != 0 || methodType.NumOut() != 1 {
 		return ""
 	}
 
 	// Validate output type is nillable (pointer or interface) before calling
 	// IsNil to avoid panic on non-nillable return types.
-	outKind := mt.Out(0).Kind()
+	outKind := methodType.Out(0).Kind()
 	if outKind != reflect.Pointer && outKind != reflect.Interface {
 		return ""
 	}

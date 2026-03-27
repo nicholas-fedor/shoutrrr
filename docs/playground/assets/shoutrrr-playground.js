@@ -133,13 +133,14 @@
       var inputs = dom.configTbody.querySelectorAll("input, select");
       inputs.forEach(function (el) {
         if (el.type === "checkbox") {
-          // Prefer data-default attribute, fall back to intrinsic defaultChecked.
+          // Prefer data-default attribute, fall back to intrinsic defaultChecked
+          // or the presence of the HTML checked attribute.
           var def = el.getAttribute("data-default");
           if (def !== null) {
             el.checked =
               def.toLowerCase() === "yes" || def.toLowerCase() === "true";
           } else {
-            el.checked = el.defaultChecked;
+            el.checked = el.hasAttribute("checked") || el.defaultChecked;
           }
         } else {
           // Prefer data-default attribute, fall back to intrinsic defaultValue.
@@ -544,6 +545,15 @@
     select.dataset.fieldType = "enum";
     select.autocomplete = "off";
 
+    // Insert an empty placeholder option for non-required enums with no default
+    // so the browser does not auto-select the first value.
+    if (!field.required && !field.defaultValue) {
+      var placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "";
+      select.appendChild(placeholder);
+    }
+
     for (var i = 0; i < field.enumValues.length; i++) {
       var val = field.enumValues[i];
       var opt = document.createElement("option");
@@ -867,29 +877,38 @@
 
   // --- Init ---
 
+  /** @type {boolean} Guard to prevent duplicate initialisation. */
+  var initialised = false;
+
   /**
    * @typedef {Object} PlaygroundOptions
    * @property {string} [wasmPath] - Path to the WASM binary
    * @property {string} [containerId] - Container element ID
    * @property {string} [defaultMessage] - Default test message
+   * @property {boolean} [autoInit] - Set to false to skip auto-init
    */
 
   /**
    * Initializes the Shoutrrr Playground.
+   * Safe to call multiple times; subsequent calls are no-ops.
    * @param {PlaygroundOptions} [options] - Configuration options
    */
   function init(options) {
+    if (initialised) return;
+
     var config = Object.assign(
       {
         wasmPath: "assets/shoutrrr.wasm",
         containerId: "playground-app",
         defaultMessage: "Hello World",
+        autoInit: true,
       },
       window.ShoutrrrPlaygroundConfig || {},
       options || {}
     );
 
-    window.__shoutrrrPlayground = { config: config };
+    initialised = true;
+    window.__shoutrrrPlayground = { config: config, initialised: true };
 
     var startWasm = function () {
       initDOMRefs();
@@ -911,6 +930,12 @@
 
   // Auto-init if container exists, deferring to DOMContentLoaded if needed.
   function tryAutoInit() {
+    var cfg = Object.assign(
+      {},
+      window.ShoutrrrPlaygroundConfig || {}
+    );
+    if (cfg.autoInit === false) return;
+
     if (document.getElementById("playground-app")) {
       init();
     }

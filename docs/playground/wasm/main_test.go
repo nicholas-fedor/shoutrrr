@@ -163,17 +163,22 @@ var _ = ginkgo.Describe("Main JS Bindings", func() {
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(promise.Get("constructor").Get("name").String()).To(gomega.Equal("Promise"))
 
-			// Synchronous rejection: verify rejection contains expected error.
-			rejected := false
+			// Use channel/timeout pattern because the Promise rejection is
+			// dispatched asynchronously by the Go WASM runtime.
+			done := make(chan string, 1)
 
 			promise.Call("catch", js.FuncOf(func(_ js.Value, args []js.Value) interface{} {
-				rejected = true
-				gomega.Expect(args[0].String()).To(gomega.ContainSubstring("missing arguments"))
+				done <- args[0].String()
 
 				return nil
 			}))
 
-			gomega.Expect(rejected).To(gomega.BeTrue())
+			select {
+			case errMsg := <-done:
+				gomega.Expect(errMsg).To(gomega.ContainSubstring("missing arguments"))
+			case <-time.After(5 * time.Second):
+				ginkgo.Fail("timed out waiting for Promise rejection")
+			}
 		})
 
 		ginkgo.It("returns rejected Promise for invalid URL", func() {

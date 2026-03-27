@@ -130,6 +130,12 @@ To run tests:
 go test ./docs/playground/wasm/
 ```
 
+Note: Some test files (e.g., `main_test.go`, `fetch_test.go`) are build-tagged with
+`//go:build js && wasm` and will be skipped on native platforms, producing an empty
+test suite. To run the full WASM test suite, use a WASM-capable runner such as
+[wasmbrowsertest](https://github.com/nicholas-fedor/wasmbrowsertest) or build/test
+with `-tags=js,wasm`.
+
 To lint:
 
 ```bash

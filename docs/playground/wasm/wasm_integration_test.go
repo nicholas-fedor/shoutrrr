@@ -135,7 +135,48 @@ func TestAllServicesGenerateDefaultURL(t *testing.T) {
 	}
 }
 
-// TestAllServicesValidateURL verifies that every service URL scheme validates.
+// TestAliasMapConsistency validates that the hardcoded aliasMap in
+// TestAllServicesGenerateDefaultURL stays in sync with actual URL generation.
+// For each alias → canonical entry it generates URLs for both and asserts the
+// "url" fields match, failing if router alias mappings drift.
+func TestAliasMapConsistency(t *testing.T) {
+	t.Parallel()
+
+	aliasMap := map[string]string{
+		"hangouts": "googlechat",
+		"mqtts":    "mqtt",
+	}
+
+	for alias, canonical := range aliasMap {
+		t.Run(alias+"->"+canonical, func(t *testing.T) {
+			t.Parallel()
+
+			aliasResult := generateURLString(alias, "{}")
+			canonicalResult := generateURLString(canonical, "{}")
+
+			var aliasParsed map[string]string
+			if err := json.Unmarshal([]byte(aliasResult), &aliasParsed); err != nil {
+				t.Fatalf("failed to unmarshal alias %q result: %v", alias, err)
+			}
+
+			var canonicalParsed map[string]string
+			if err := json.Unmarshal([]byte(canonicalResult), &canonicalParsed); err != nil {
+				t.Fatalf("failed to unmarshal canonical %q result: %v", canonical, err)
+			}
+
+			if aliasParsed["url"] != canonicalParsed["url"] {
+				t.Errorf("alias %q generated URL %q, want %q (same as canonical %q)",
+					alias, aliasParsed["url"], canonicalParsed["url"], canonical)
+			}
+		})
+	}
+}
+
+// TestAllServicesValidateURL is a smoke/discovery test that logs validation
+// results without asserting. Some services may legitimately fail validation on
+// bare "scheme://" URLs (e.g., those requiring host or path fields), so hard
+// assertions would cause false failures. The t.Logf output is intentional for
+// manual inspection during development.
 func TestAllServicesValidateURL(t *testing.T) {
 	t.Parallel()
 

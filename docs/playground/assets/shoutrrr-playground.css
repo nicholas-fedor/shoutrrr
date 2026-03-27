@@ -100,7 +100,7 @@
 }
 
 .playground-collapse-btn svg {
-  fill: currentColor;
+  fill: currentcolor;
   transition: transform 0.15s ease;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .playground-clear-btn svg {
-  fill: currentColor;
+  fill: currentcolor;
 }
 
 .md-typeset h3 {
@@ -422,7 +422,7 @@
 }
 
 .playground-inline-copy-btn svg {
-  fill: currentColor;
+  fill: currentcolor;
 }
 
 /* Focus-visible for keyboard navigation only */
@@ -503,7 +503,7 @@
 }
 
 .playground-copy-btn svg {
-  fill: currentColor;
+  fill: currentcolor;
 }
 
 /* Output section grouping */

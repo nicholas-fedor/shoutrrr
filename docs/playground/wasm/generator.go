@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"reflect"
 	"strings"
@@ -134,7 +135,17 @@ func generateURLString(serviceName, configJSON string) string {
 func initWebhookURL(service types.Service, webhookURL string) error {
 	// Add default scheme if missing (url.Parse can't parse host:port without scheme).
 	if !strings.Contains(webhookURL, "://") {
-		webhookURL = "https://" + webhookURL
+		// Use http:// for local hosts, https:// otherwise.
+		host := webhookURL
+		if idx := strings.Index(host, "/"); idx != -1 {
+			host = host[:idx]
+		}
+
+		if isLocalHost(host) {
+			webhookURL = "http://" + webhookURL
+		} else {
+			webhookURL = "https://" + webhookURL
+		}
 	}
 
 	parsedURL, err := url.Parse(webhookURL)
@@ -176,6 +187,21 @@ func initWebhookURL(service types.Service, webhookURL string) error {
 	}
 
 	return nil
+}
+
+// isLocalHost reports whether host refers to a local machine (localhost,
+// loopback IP, or link-local IPv6). Used to decide whether to default to
+// http:// or https:// when no scheme is provided.
+func isLocalHost(host string) bool {
+	// Strip optional port suffix.
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+
+	return host == "localhost" ||
+		strings.HasPrefix(host, "127.") ||
+		host == "::1" ||
+		strings.HasPrefix(host, "[::1]")
 }
 
 // getServiceConfigFromService extracts the ServiceConfig from a service's
