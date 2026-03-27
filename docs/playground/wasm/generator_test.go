@@ -1,95 +1,97 @@
+//go:build js && wasm
+
 package main
 
 import (
 	"encoding/json"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"testing"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Generator", func() {
-	ginkgo.Describe("generateURLString", func() {
-		ginkgo.It("generates discord URL with webhook and token", func() {
-			configJSON := `{"WebhookID":"123456789","Token":"mytoken"}`
-			result := generateURLString("discord", configJSON)
+func TestGenerateURLString(t *testing.T) {
+	tests := []struct {
+		name        string
+		service     string
+		configJSON  string
+		wantURL     string
+		wantSubstr  []string
+		wantErrResp bool
+	}{
+		{
+			name:       "generates discord URL with webhook and token",
+			service:    "discord",
+			configJSON: `{"WebhookID":"123456789","Token":"mytoken"}`,
+			wantSubstr: []string{"discord://", "123456789", "mytoken"},
+		},
+		{
+			name:       "generates ntfy URL with host and path",
+			service:    "ntfy",
+			configJSON: `{"Host":"ntfy.sh","Path":"mytopic"}`,
+			wantSubstr: []string{"ntfy://", "ntfy.sh"},
+		},
+		{
+			name:       "generates generic URL with webhook",
+			service:    "generic",
+			configJSON: `{"WebhookURL":"192.168.1.100:8123/api/webhook/abc123"}`,
+			wantSubstr: []string{"generic://", "192.168.1.100"},
+		},
+		{
+			name:        "returns error for invalid service",
+			service:     "nonexistent",
+			configJSON:  `{}`,
+			wantErrResp: true,
+		},
+		{
+			name:        "returns error for invalid JSON",
+			service:     "discord",
+			configJSON:  "not-json",
+			wantErrResp: true,
+		},
+		{
+			name:       "generates logger URL",
+			service:    "logger",
+			configJSON: `{}`,
+			wantURL:    "logger://",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := generateURLString(tt.service, tt.configJSON)
+
+			if tt.wantErrResp {
+				var errResp errorResult
+				err := json.Unmarshal([]byte(result), &errResp)
+				require.NoError(t, err)
+				assert.NotEmpty(t, errResp.Error)
+
+				return
+			}
 
 			var parsed map[string]string
-
 			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("discord://"))
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("123456789"))
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("mytoken"))
+			require.NoError(t, err)
+
+			if tt.wantURL != "" {
+				assert.Equal(t, tt.wantURL, parsed["url"])
+			}
+
+			for _, substr := range tt.wantSubstr {
+				assert.Contains(t, parsed["url"], substr)
+			}
 		})
+	}
+}
 
-		ginkgo.It("generates ntfy URL with host and path", func() {
-			configJSON := `{"Host":"ntfy.sh","Path":"mytopic"}`
-			result := generateURLString("ntfy", configJSON)
+func TestGetServiceConfigFromService(t *testing.T) {
+	r := router.ServiceRouter{}
+	service, err := r.NewService("discord")
+	require.NoError(t, err)
 
-			var parsed map[string]string
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("ntfy://"))
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("ntfy.sh"))
-		})
-
-		ginkgo.It("generates generic URL with webhook", func() {
-			configJSON := `{"WebhookURL":"192.168.1.100:8123/api/webhook/abc123"}`
-			result := generateURLString("generic", configJSON)
-
-			var parsed map[string]string
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("generic://"))
-			gomega.Expect(parsed["url"]).To(gomega.ContainSubstring("192.168.1.100"))
-		})
-
-		ginkgo.It("returns error for invalid service", func() {
-			configJSON := `{}`
-			result := generateURLString("nonexistent", configJSON)
-
-			var errResp errorResult
-
-			err := json.Unmarshal([]byte(result), &errResp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
-		})
-
-		ginkgo.It("returns error for invalid JSON", func() {
-			result := generateURLString("discord", "not-json")
-
-			var errResp errorResult
-
-			err := json.Unmarshal([]byte(result), &errResp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
-		})
-
-		ginkgo.It("generates logger URL", func() {
-			configJSON := `{}`
-			result := generateURLString("logger", configJSON)
-
-			var parsed map[string]string
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed["url"]).To(gomega.Equal("logger://"))
-		})
-	})
-
-	ginkgo.Describe("getServiceConfigFromService", func() {
-		ginkgo.It("returns no config for newly created service", func() {
-			r := router.ServiceRouter{}
-			service, err := r.NewService("discord")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config, ok := getServiceConfigFromService(service)
-			gomega.Expect(ok).To(gomega.BeFalse())
-			gomega.Expect(config).To(gomega.BeNil())
-		})
-	})
-})
+	config, ok := getServiceConfigFromService(service)
+	assert.False(t, ok)
+	assert.Nil(t, config)
+}

@@ -244,9 +244,12 @@
   /**
    * Loads the WASM module and initializes the playground.
    *
-   * Temporarily overrides window.fetch with wasmFetch so that WASM-initiated
-   * HTTP requests have User-Agent stripped. The override is restored once
-   * go.run settles or the WASM module signals readiness.
+   * Persistently overrides window.fetch with wasmFetch for the page lifetime.
+   * wasmFetch strips the User-Agent header only from requests that include
+   * headers; most plain page requests pass through to originalFetch unchanged.
+   * The override is restored only when go.run resolves (WASM exit) or rejects
+   * (runtime error). During normal interactive use the promise never settles,
+   * so the override remains active until page unload.
    *
    * @async
    * @param {PlaygroundOptions} config - Configuration options
@@ -260,7 +263,12 @@
         go.importObject
       );
 
-      // Temporarily override window.fetch for WASM-initiated requests only.
+      // Persistently override window.fetch with wasmFetch for the page
+      // lifetime. wasmFetch strips the User-Agent header from requests that
+      // include headers (so most plain page requests pass through unchanged).
+      // This override is only restored when go.run resolves (normal WASM exit)
+      // or rejects (WASM runtime error); during normal interactive use the
+      // promise never settles, so the override remains active until unload.
       window.fetch = wasmFetch;
 
       // go.run returns a promise that may not resolve for long-running
@@ -539,6 +547,13 @@
     select.name = field.name;
     select.dataset.fieldType = "enum";
     select.autocomplete = "off";
+
+    // Store the schema default so the clear handler can restore it.
+    // Required enums without a default get no data-default (clearing
+    // falls back to the first option via defaultValue).
+    if (field.defaultValue != null) {
+      select.dataset.default = field.defaultValue;
+    }
 
     // Insert an empty placeholder option for non-required enums with no default
     // so the browser does not auto-select the first value.

@@ -1,107 +1,127 @@
+//go:build js && wasm
+
 package main
 
 import (
 	"encoding/json"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Parser", func() {
-	ginkgo.Describe("parseURLString", func() {
-		ginkgo.It("parses discord URL", func() {
-			result := parseURLString("discord://token@123456789")
+func TestParseURLString(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           string
+		wantService     string
+		wantConfigKey   string
+		wantConfigValue string
+		wantContains    bool
+		wantError       bool
+	}{
+		{
+			name:        "parses discord URL",
+			input:       "discord://token@123456789",
+			wantService: "discord",
+		},
+		{
+			name:        "parses ntfy URL",
+			input:       "ntfy://ntfy.sh/mytopic",
+			wantService: "ntfy",
+		},
+		{
+			name:            "parses generic URL with webhook",
+			input:           "generic://192.168.1.100:8123/api/webhook/abc123",
+			wantService:     "generic",
+			wantConfigKey:   "WebhookURL",
+			wantConfigValue: "192.168.1.100",
+			wantContains:    true,
+		},
+		{
+			name:      "returns error for invalid URL",
+			input:     "not-a-valid-url",
+			wantError: true,
+		},
+		{
+			name:            "handles URL with query parameters - color",
+			input:           "discord://token@webhook?color=0x50D9ff&splitlines=Yes",
+			wantConfigKey:   "Color",
+			wantConfigValue: "0x50d9ff",
+		},
+		{
+			name:            "handles URL with query parameters - splitlines",
+			input:           "discord://token@webhook?color=0x50D9ff&splitlines=Yes",
+			wantConfigKey:   "SplitLines",
+			wantConfigValue: "Yes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseURLString(tt.input)
+
+			if tt.wantError {
+				var errResp errorResult
+				err := json.Unmarshal([]byte(result), &errResp)
+				require.NoError(t, err)
+				assert.NotEmpty(t, errResp.Error)
+
+				return
+			}
 
 			var parsed parseResult
-
 			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed.Service).To(gomega.Equal("discord"))
-			gomega.Expect(parsed.Config).ToNot(gomega.BeEmpty())
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantService, parsed.Service)
+
+			if tt.wantConfigKey != "" {
+				if tt.wantContains {
+					assert.Contains(t, parsed.Config[tt.wantConfigKey], tt.wantConfigValue)
+				} else {
+					assert.Equal(t, tt.wantConfigValue, parsed.Config[tt.wantConfigKey])
+				}
+			} else {
+				assert.NotEmpty(t, parsed.Config)
+			}
 		})
+	}
+}
 
-		ginkgo.It("parses ntfy URL", func() {
-			result := parseURLString("ntfy://ntfy.sh/mytopic")
+func TestValidateURLString(t *testing.T) {
+	t.Run("returns valid for discord URL", func(t *testing.T) {
+		result := validateURLString("discord://token@123456789")
 
-			var parsed parseResult
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed.Service).To(gomega.Equal("ntfy"))
-		})
-
-		ginkgo.It("parses generic URL with webhook", func() {
-			result := parseURLString("generic://192.168.1.100:8123/api/webhook/abc123")
-
-			var parsed parseResult
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed.Service).To(gomega.Equal("generic"))
-			gomega.Expect(parsed.Config["WebhookURL"]).To(gomega.ContainSubstring("192.168.1.100"))
-		})
-
-		ginkgo.It("returns error for invalid URL", func() {
-			result := parseURLString("not-a-valid-url")
-
-			var errResp errorResult
-
-			err := json.Unmarshal([]byte(result), &errResp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
-		})
-
-		ginkgo.It("handles URL with query parameters", func() {
-			result := parseURLString("discord://token@webhook?color=0x50D9ff&splitlines=Yes")
-
-			var parsed parseResult
-
-			err := json.Unmarshal([]byte(result), &parsed)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parsed.Config).To(gomega.HaveKeyWithValue("Color", "0x50d9ff"))
-			gomega.Expect(parsed.Config).To(gomega.HaveKeyWithValue("SplitLines", "Yes"))
-		})
+		var valid map[string]bool
+		err := json.Unmarshal([]byte(result), &valid)
+		require.NoError(t, err)
+		assert.True(t, valid["valid"])
 	})
 
-	ginkgo.Describe("validateURLString", func() {
-		ginkgo.It("returns valid for discord URL", func() {
-			result := validateURLString("discord://token@123456789")
+	t.Run("returns valid for ntfy URL", func(t *testing.T) {
+		result := validateURLString("ntfy://ntfy.sh/mytopic")
 
-			var valid map[string]bool
-
-			err := json.Unmarshal([]byte(result), &valid)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(valid["valid"]).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("returns valid for ntfy URL", func() {
-			result := validateURLString("ntfy://ntfy.sh/mytopic")
-
-			var valid map[string]bool
-
-			err := json.Unmarshal([]byte(result), &valid)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(valid["valid"]).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("returns error for invalid URL", func() {
-			result := validateURLString("not-valid")
-
-			var errResp errorResult
-
-			err := json.Unmarshal([]byte(result), &errResp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
-		})
-
-		ginkgo.It("returns error for unknown service", func() {
-			result := validateURLString("unknown://something")
-
-			var errResp errorResult
-
-			err := json.Unmarshal([]byte(result), &errResp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(errResp.Error).ToNot(gomega.BeEmpty())
-		})
+		var valid map[string]bool
+		err := json.Unmarshal([]byte(result), &valid)
+		require.NoError(t, err)
+		assert.True(t, valid["valid"])
 	})
-})
+
+	t.Run("returns error for invalid URL", func(t *testing.T) {
+		result := validateURLString("not-valid")
+
+		var errResp errorResult
+		err := json.Unmarshal([]byte(result), &errResp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, errResp.Error)
+	})
+
+	t.Run("returns error for unknown service", func(t *testing.T) {
+		result := validateURLString("unknown://something")
+
+		var errResp errorResult
+		err := json.Unmarshal([]byte(result), &errResp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, errResp.Error)
+	})
+}

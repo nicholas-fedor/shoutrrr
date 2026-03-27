@@ -25,7 +25,7 @@ help: ## Show this help message
 # Development Targets
 # =============================================================================
 
-.PHONY: build test test-unit test-integration test-e2e lint vet run setup install
+.PHONY: build test test-unit test-integration test-e2e test-wasm test-playground lint vet run setup install
 
 build: ## Build the application binary
 	bash ./scripts/build.sh
@@ -51,6 +51,12 @@ test-e2e: ## Run e2e tests for a specific service (usage: make test-e2e <service
 	@SVC=`echo $(MAKECMDGOALS) | cut -d' ' -f2`; \
 	if [ -z "$$SVC" ]; then echo "Usage: make test-e2e <service>"; exit 1; fi; \
 	$(GO) test -timeout 30s -v ./testing/e2e/$$SVC
+
+test-wasm: ## Compile WASM playground tests (coverage requires native WASI runtime)
+	GOOS=js GOARCH=wasm $(GO) test -c -o /dev/null ./docs/playground/wasm/
+
+test-playground: ## Run playground tests with coverage (excludes JS/WASM-specific tests)
+	$(GO) test -timeout 30s -v -coverprofile coverage-playground.out -covermode atomic ./docs/playground/wasm/
 
 lint: ## Run linter and fix issues
 	$(GOLANGCI_LINT) run --fix --config build/golangci-lint/golangci.yaml ./...

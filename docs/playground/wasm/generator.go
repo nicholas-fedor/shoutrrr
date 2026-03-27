@@ -21,6 +21,9 @@ var errNoConfigField = errors.New("service has no Config field")
 // errNoSetURL is returned when a config does not support SetURL.
 var errNoSetURL = errors.New("config does not support SetURL")
 
+// errCannotSetDurationField is returned when a duration field cannot be set.
+var errCannotSetDurationField = errors.New("cannot set duration field")
+
 // generateURLString builds a Shoutrrr URL from serviceName and configJSON.
 // The configJSON is a JSON object mapping field names to string values.
 // Returns JSON with a "url" field on success or "error" on failure.
@@ -80,6 +83,21 @@ func generateURLString(serviceName, configJSON string) string {
 			config = svcConfig
 			pkr = format.NewPropKeyResolver(config)
 			configValue = reflect.Indirect(reflect.ValueOf(config))
+
+			// Re-apply defaults on the new svcConfig so any fields that
+			// were not populated by SetURL inherit documented defaults.
+			_ = pkr.SetDefaultProps(config) //nolint:errcheck // Duration parse errors handled below.
+
+			configSchema = format.GetConfigFormat(config)
+
+			for _, node := range configSchema.Items {
+				field := node.Field()
+				if field.Type == durationType && field.DefaultValue != "" {
+					if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
+						configValue.FieldByName(field.Name).SetInt(int64(dur))
+					}
+				}
+			}
 		}
 	}
 
@@ -98,6 +116,10 @@ func generateURLString(serviceName, configJSON string) string {
 				dur, err := time.ParseDuration(value)
 				if err != nil {
 					return marshalError(fmt.Errorf("invalid duration %q for %q: %w", value, key, err))
+				}
+
+				if !field.CanSet() {
+					return marshalError(fmt.Errorf("%w %q to %q", errCannotSetDurationField, key, value))
 				}
 
 				field.SetInt(int64(dur))
