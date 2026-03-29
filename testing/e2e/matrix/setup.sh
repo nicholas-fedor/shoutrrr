@@ -497,11 +497,10 @@ create_user() {
         echo "SHOUTRRR_MATRIX_HOST=${server_url}"
     } >> "$ENV_FILE"
 
-    # Write the disable TLS flag when explicitly set
-    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-}"
-    if [[ -n "$disable_tls" ]]; then
-        echo "SHOUTRRR_MATRIX_DISABLE_TLS=${disable_tls}" >> "$ENV_FILE"
-    fi
+    # Always persist the TLS setting - default to true (HTTP) for local development
+    # since Synapse runs on HTTP by default
+    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-true}"
+    echo "SHOUTRRR_MATRIX_DISABLE_TLS=${disable_tls}" >> "$ENV_FILE"
 
     info "Resolved settings persisted to ${ENV_FILE}"
 }
