@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,6 +71,23 @@ const (
 
 	// bearerPrefix is the prefix for Bearer token authentication.
 	bearerPrefix = "Bearer "
+
+	// deviceIDLength is the length of the generated device ID.
+	// The Matrix spec recommends 10 characters for sufficient uniqueness.
+	deviceIDLength = 10
+
+	// deviceIDPrefix is the prefix for generated device IDs.
+	// This aids identification in Matrix admin interfaces.
+	deviceIDPrefix = "SH"
+
+	// deviceIDHashBytes is the number of hash bytes used for device ID generation.
+	// 8 bytes from SHA-256 provides enough characters for the suffix.
+	deviceIDHashBytes = 8
+
+	// opaqueIDCharset is the character set allowed by the Matrix Opaque Identifier Grammar.
+	// Reference: https://spec.matrix.org/v1.18/appendices/#opaque-identifiers
+	opaqueIDCharset    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	opaqueIDCharsetLen = byte(len(opaqueIDCharset))
 )
 
 // Do performs the HTTP request.
@@ -299,6 +318,9 @@ func (c *client) login(ctx context.Context, user, password string) error {
 func (c *client) loginPassword(ctx context.Context, user, password string) error {
 	response := apiResLogin{}
 
+	deviceID := generateDeviceID(user, c.apiURL.Host)
+	c.logf("Using device ID: %v\n", deviceID)
+
 	//nolint:exhaustruct // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
 		ctx,
@@ -307,6 +329,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 			Type:       flowLoginPassword,
 			Password:   password,
 			Identifier: newUserIdentifier(user),
+			DeviceID:   deviceID,
 		},
 		&response,
 	)
@@ -324,6 +347,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 	c.logf("AccessToken: %v...\n", tokenHint)
 	c.logf("HomeServer: %v\n", response.HomeServer)
 	c.logf("User: %v\n", response.UserID)
+	c.logf("DeviceID: %v\n", response.DeviceID)
 
 	return nil
 }
@@ -331,13 +355,20 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 // loginToken performs a token-based login to the Matrix server.
 func (c *client) loginToken(ctx context.Context, token string) error {
 	response := apiResLogin{}
+
+	// For token-based login, use an empty user string in the device ID hash.
+	// This ensures all token-based logins to the same host reuse the same device.
+	deviceID := generateDeviceID("", c.apiURL.Host)
+	c.logf("Using device ID: %v\n", deviceID)
+
 	//nolint:exhaustruct // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
 		ctx,
 		apiLogin,
 		apiReqLogin{
-			Type:  flowLoginToken,
-			Token: token,
+			Type:     flowLoginToken,
+			Token:    token,
+			DeviceID: deviceID,
 		},
 		&response,
 	)
@@ -355,6 +386,7 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 	c.logf("AccessToken: %v...\n", tokenHint)
 	c.logf("HomeServer: %v\n", response.HomeServer)
 	c.logf("User: %v\n", response.UserID)
+	c.logf("DeviceID: %v\n", response.DeviceID)
 
 	return nil
 }
@@ -483,6 +515,64 @@ func generateTransactionID() string {
 	}
 
 	return fmt.Sprintf("%d-%s", now, hex.EncodeToString(randBytes))
+}
+
+// generateDeviceID generates a deterministic device ID based on the user and
+// host. This ensures the same logical client reuses the same device across
+// restarts, preventing device accumulation on the Matrix server.
+//
+// The device ID follows the Matrix spec's Opaque Identifier Grammar:
+// characters from [0-9], [A-Z], [a-z], "-", ".", "_", and "~".
+// The format is "SH" + 8 characters derived from SHA-256(user:host),
+// totaling 10 characters as recommended by the Matrix spec.
+//
+// The host is normalized to exclude default ports (443 for HTTPS, 80 for HTTP)
+// to prevent device churn when ports are omitted or explicitly included.
+func generateDeviceID(user, host string) string {
+	// Normalize host by removing default ports to prevent device churn.
+	// url.Host may include a port (e.g., "matrix.example.com:443"), but we want
+	// consistent device IDs regardless of whether the default port is explicit.
+	normalizedHost := normalizeHostForDeviceID(host)
+
+	// Create a deterministic hash from user and host.
+	// Using user + ":" + host ensures different users on the same host
+	// get different device IDs, and the same user on different hosts
+	// also gets different device IDs.
+	hash := sha256.Sum256([]byte(user + ":" + normalizedHost))
+
+	// Encode hash bytes to a device ID using the Opaque Identifier Grammar.
+	// We use base32-like encoding with the allowed character set.
+	// The hash provides sufficient entropy for uniqueness per user+host.
+	deviceID := deviceIDPrefix
+	for i := 0; i < deviceIDHashBytes && len(deviceID) < deviceIDLength; i++ {
+		// Map each byte to a character in the allowed set.
+		// Using modulo with a character set size ensures we stay within bounds.
+		deviceID += string(opaqueIDCharset[hash[i]%opaqueIDCharsetLen])
+	}
+
+	return deviceID
+}
+
+// normalizeHostForDeviceID normalizes a host string by removing default ports.
+// This prevents device churn when the port is omitted or explicitly included
+// in the URL (e.g., "matrix.example.com:443" vs "matrix.example.com").
+func normalizeHostForDeviceID(host string) string {
+	// Check for explicit port using net.SplitHostPort.
+	// If no port is present, return the host as-is.
+	hostname, port, err := net.SplitHostPort(host)
+	if err != nil {
+		// No port present, return host as-is.
+		return host
+	}
+
+	// Remove default ports to normalize the host.
+	// Port 443 is the default for HTTPS, 80 for HTTP.
+	if port == "443" || port == "80" {
+		return hostname
+	}
+
+	// Non-default port, keep it for uniqueness.
+	return host
 }
 
 // newClient creates a new Matrix client with the specified host and TLS settings.

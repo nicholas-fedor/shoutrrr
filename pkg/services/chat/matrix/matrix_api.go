@@ -22,6 +22,7 @@ type apiReqLogin struct {
 
 	Password string `json:"password,omitempty"`
 	Token    string `json:"token,omitempty"`
+	DeviceID string `json:"device_id,omitempty"`
 }
 
 // apiResLogin represents the response from a successful Matrix login request.

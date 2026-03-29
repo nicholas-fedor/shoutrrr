@@ -687,6 +687,75 @@ var _ = ginkgo.Describe("client", func() {
 		})
 	})
 
+	ginkgo.Describe("generateDeviceID", func() {
+		ginkgo.It("should generate a deterministic device ID for the same user and host", func() {
+			id1 := generateDeviceID("user", "matrix.example.com")
+			id2 := generateDeviceID("user", "matrix.example.com")
+			gomega.Expect(id1).To(gomega.Equal(id2))
+		})
+
+		ginkgo.It("should generate different device IDs for different users on the same host", func() {
+			id1 := generateDeviceID("user1", "matrix.example.com")
+			id2 := generateDeviceID("user2", "matrix.example.com")
+			gomega.Expect(id1).ToNot(gomega.Equal(id2))
+		})
+
+		ginkgo.It("should generate different device IDs for the same user on different hosts", func() {
+			id1 := generateDeviceID("user", "matrix.example.com")
+			id2 := generateDeviceID("user", "matrix2.example.com")
+			gomega.Expect(id1).ToNot(gomega.Equal(id2))
+		})
+
+		ginkgo.It("should generate a device ID with exactly 10 characters", func() {
+			id := generateDeviceID("user", "matrix.example.com")
+			gomega.Expect(id).To(gomega.HaveLen(10))
+		})
+
+		ginkgo.It("should generate a device ID starting with SH prefix", func() {
+			id := generateDeviceID("user", "matrix.example.com")
+			gomega.Expect(id).To(gomega.MatchRegexp(`^SH.{8}$`))
+		})
+
+		ginkgo.It("should generate a device ID with only valid Opaque Identifier Grammar characters", func() {
+			id := generateDeviceID("user", "matrix.example.com")
+			// Implementation uses alphanumeric characters only (A-Z, a-z, 0-9)
+			gomega.Expect(id).To(gomega.MatchRegexp(`^[A-Za-z0-9]+$`))
+		})
+
+		ginkgo.It("should handle empty user string for token-based login", func() {
+			id := generateDeviceID("", "matrix.example.com")
+			gomega.Expect(id).To(gomega.HaveLen(10))
+			gomega.Expect(id).To(gomega.MatchRegexp(`^SH.{8}$`))
+			// Verify determinism
+			id2 := generateDeviceID("", "matrix.example.com")
+			gomega.Expect(id).To(gomega.Equal(id2))
+		})
+
+		ginkgo.It("should handle special characters in user string", func() {
+			id := generateDeviceID("@user:matrix.example.com", "matrix.example.com")
+			gomega.Expect(id).To(gomega.HaveLen(10))
+			gomega.Expect(id).To(gomega.MatchRegexp(`^[A-Za-z0-9]+$`))
+		})
+
+		ginkgo.It("should normalize host by removing default HTTPS port 443", func() {
+			idWithoutPort := generateDeviceID("user", "matrix.example.com")
+			idWithPort := generateDeviceID("user", "matrix.example.com:443")
+			gomega.Expect(idWithoutPort).To(gomega.Equal(idWithPort))
+		})
+
+		ginkgo.It("should normalize host by removing default HTTP port 80", func() {
+			idWithoutPort := generateDeviceID("user", "matrix.example.com")
+			idWithPort := generateDeviceID("user", "matrix.example.com:80")
+			gomega.Expect(idWithoutPort).To(gomega.Equal(idWithPort))
+		})
+
+		ginkgo.It("should keep non-default ports for uniqueness", func() {
+			idWithoutPort := generateDeviceID("user", "matrix.example.com")
+			idWithPort := generateDeviceID("user", "matrix.example.com:8008")
+			gomega.Expect(idWithoutPort).ToNot(gomega.Equal(idWithPort))
+		})
+	})
+
 	ginkgo.Describe("createMessage", func() {
 		ginkgo.It("should return original message when title is empty", func() {
 			result := createMessage("Hello world", "")
