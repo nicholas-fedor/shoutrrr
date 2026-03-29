@@ -65,9 +65,10 @@ check_env_vars() {
 }
 
 # Determine the base URL for Matrix API
+# Default to HTTP (TLS disabled) for local Synapse development
 get_base_url() {
     local host="$1"
-    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-false}"
+    local disable_tls="${SHOUTRRR_MATRIX_DISABLE_TLS:-true}"
     
     if [[ "$disable_tls" == "true" ]]; then
         echo "http://${host}"

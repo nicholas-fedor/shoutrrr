@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -79,9 +80,9 @@ const (
 	// This aids identification in Matrix admin interfaces.
 	deviceIDPrefix = "SH"
 
-	// deviceIDRandomBytes is the number of random bytes to use for device ID generation.
-	// 8 bytes encoded to base64 provides enough characters for the suffix.
-	deviceIDRandomBytes = 8
+	// deviceIDHashBytes is the number of hash bytes used for device ID generation.
+	// 8 bytes from SHA-256 provides enough characters for the suffix.
+	deviceIDHashBytes = 8
 
 	// opaqueIDCharset is the character set allowed by the Matrix Opaque Identifier Grammar.
 	// Reference: https://spec.matrix.org/v1.18/appendices/#opaque-identifiers
@@ -524,24 +525,54 @@ func generateTransactionID() string {
 // characters from [0-9], [A-Z], [a-z], "-", ".", "_", and "~".
 // The format is "SH" + 8 characters derived from SHA-256(user:host),
 // totaling 10 characters as recommended by the Matrix spec.
+//
+// The host is normalized to exclude default ports (443 for HTTPS, 80 for HTTP)
+// to prevent device churn when ports are omitted or explicitly included.
 func generateDeviceID(user, host string) string {
+	// Normalize host by removing default ports to prevent device churn.
+	// url.Host may include a port (e.g., "matrix.example.com:443"), but we want
+	// consistent device IDs regardless of whether the default port is explicit.
+	normalizedHost := normalizeHostForDeviceID(host)
+
 	// Create a deterministic hash from user and host.
 	// Using user + ":" + host ensures different users on the same host
 	// get different device IDs, and the same user on different hosts
 	// also gets different device IDs.
-	hash := sha256.Sum256([]byte(user + ":" + host))
+	hash := sha256.Sum256([]byte(user + ":" + normalizedHost))
 
 	// Encode hash bytes to a device ID using the Opaque Identifier Grammar.
 	// We use base32-like encoding with the allowed character set.
 	// The hash provides sufficient entropy for uniqueness per user+host.
 	deviceID := deviceIDPrefix
-	for i := 0; i < deviceIDRandomBytes && len(deviceID) < deviceIDLength; i++ {
+	for i := 0; i < deviceIDHashBytes && len(deviceID) < deviceIDLength; i++ {
 		// Map each byte to a character in the allowed set.
 		// Using modulo with a character set size ensures we stay within bounds.
 		deviceID += string(opaqueIDCharset[hash[i]%opaqueIDCharsetLen])
 	}
 
 	return deviceID
+}
+
+// normalizeHostForDeviceID normalizes a host string by removing default ports.
+// This prevents device churn when the port is omitted or explicitly included
+// in the URL (e.g., "matrix.example.com:443" vs "matrix.example.com").
+func normalizeHostForDeviceID(host string) string {
+	// Check for explicit port using net.SplitHostPort.
+	// If no port is present, return the host as-is.
+	hostname, port, err := net.SplitHostPort(host)
+	if err != nil {
+		// No port present, return host as-is.
+		return host
+	}
+
+	// Remove default ports to normalize the host.
+	// Port 443 is the default for HTTPS, 80 for HTTP.
+	if port == "443" || port == "80" {
+		return hostname
+	}
+
+	// Non-default port, keep it for uniqueness.
+	return host
 }
 
 // newClient creates a new Matrix client with the specified host and TLS settings.
