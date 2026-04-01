@@ -80,8 +80,6 @@ const (
 
 	contentType = "application/json"
 
-	accessTokenKey = "access_token"
-
 	// msgTypeText is the Matrix message type for plain text messages.
 	msgTypeText messageType = "m.text"
 	// flowLoginPassword is the Matrix login flow type for password authentication.

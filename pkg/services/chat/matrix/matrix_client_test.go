@@ -646,22 +646,6 @@ var _ = ginkgo.Describe("client", func() {
 		})
 	})
 
-	ginkgo.Describe("updateAccessToken", func() {
-		ginkgo.It("should update the access token in query params", func() {
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				accessToken: "test-token",
-				logger:      &testLogger{},
-			}
-
-			c.updateAccessToken()
-			gomega.Expect(c.apiURL.Query().Get("access_token")).To(gomega.Equal("test-token"))
-		})
-	})
-
 	ginkgo.Describe("useToken", func() {
 		ginkgo.It("should set the access token", func() {
 			c := &client{
@@ -674,7 +658,6 @@ var _ = ginkgo.Describe("client", func() {
 
 			c.useToken("my-token")
 			gomega.Expect(c.accessToken).To(gomega.Equal("my-token"))
-			gomega.Expect(c.apiURL.Query().Get("access_token")).To(gomega.Equal("my-token"))
 		})
 	})
 
@@ -1077,20 +1060,6 @@ var _ = ginkgo.Describe("client", func() {
 
 	// Tests for auth method gaps
 	ginkgo.Describe("Auth Method Testing Gaps", func() {
-		ginkgo.It("should use access token in query param for backward compatibility", func() {
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				accessToken: "query-token",
-				logger:      &testLogger{},
-			}
-
-			c.updateAccessToken()
-			gomega.Expect(c.apiURL.Query().Get("access_token")).To(gomega.Equal("query-token"))
-		})
-
 		ginkgo.It("should handle user with @domain format in password login", func() {
 			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
 			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
