@@ -474,17 +474,9 @@ func (c *client) setAuthorizationHeader(req *http.Request) {
 	}
 }
 
-// updateAccessToken updates the API URL query with the current access token.
-func (c *client) updateAccessToken() {
-	query := c.apiURL.Query()
-	query.Set(accessTokenKey, c.accessToken)
-	c.apiURL.RawQuery = query.Encode()
-}
-
 // useToken sets the access token for the client.
 func (c *client) useToken(token string) {
 	c.accessToken = token
-	c.updateAccessToken()
 }
 
 // isRateLimitedError checks if the error is a rate limiting error.

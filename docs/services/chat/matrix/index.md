@@ -60,8 +60,8 @@ This provides:
 
 The service passes the access token via the `Authorization: Bearer <token>` HTTP header, which is the recommended method per the v3 specification.
 
-!!! Note "Backward Compatibility"
-    For backward compatibility with older configurations, the access token is also set as a URL query parameter (`access_token=...`) when using direct token authentication (i.e., when no `user` is provided). However, all API requests use the Authorization header as the primary authentication method.
+!!! Note "Matrix v3 Compliance"
+    As of Matrix Client-Server API v1.11, passing the access token via query parameter is deprecated. The service now exclusively uses the `Authorization: Bearer` header for all API requests. This ensures compliance with the latest specification and compatibility with Matrix Authentication Service (MAS).
 
 !!! Example "Authorization Header"
     ```bash
