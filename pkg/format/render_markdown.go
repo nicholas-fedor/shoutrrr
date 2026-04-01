@@ -104,18 +104,26 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 		return queryFields[i].Required && !queryFields[j].Required
 	})
 
+	// Filter out fields without key tags, as they cannot be set via query parameters.
+	keyedFields := make([]*FieldInfo, 0, len(queryFields))
+	for _, field := range queryFields {
+		if len(field.Keys) > 0 {
+			keyedFields = append(keyedFields, field)
+		}
+	}
+
 	// Generate the Query/Param Props section header.
 	r.writeHeader(&stringBuilder, "Query/Param Props")
 
 	// Add either the description or empty message based on whether query fields exist.
-	if len(queryFields) > 0 {
+	if len(keyedFields) > 0 {
 		stringBuilder.WriteString(r.PropsDescription)
 	} else {
 		stringBuilder.WriteString(r.PropsEmptyMessage)
 	}
 
 	// Add a blank line after the description if both exist.
-	if len(queryFields) > 0 && r.PropsDescription != "" {
+	if len(keyedFields) > 0 && r.PropsDescription != "" {
 		// If PropsDescription doesn't end with a newline, we need to end the line
 		// and add a blank line (\n\n). If it already ends with a newline, we only
 		// need to add one more for the blank line.
@@ -127,7 +135,7 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 	}
 
 	// Generate documentation for each query field.
-	for i, field := range queryFields {
+	for i, field := range keyedFields {
 		// Add blank line between fields.
 		if i > 0 {
 			stringBuilder.WriteString("\n")
@@ -155,7 +163,7 @@ func (MarkdownTreeRenderer) writeFieldExtras(stringBuilder *strings.Builder, fie
 
 		for i, key := range field.Keys {
 			if i == 0 {
-				// Skip the primary alias since it matches the field name.
+				// Skip the primary key since it is shown as the field name above.
 				continue
 			}
 
@@ -193,6 +201,9 @@ func (MarkdownTreeRenderer) writeFieldExtras(stringBuilder *strings.Builder, fie
 //   - field: The field information to render.
 func (MarkdownTreeRenderer) writeFieldPrimary(stringBuilder *strings.Builder, field *FieldInfo) {
 	fieldKey := field.Name
+	if len(field.Keys) > 0 {
+		fieldKey = field.Keys[0]
+	}
 
 	// Write the field name in bold.
 	stringBuilder.WriteString("* __")

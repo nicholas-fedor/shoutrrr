@@ -11,7 +11,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 	ginkgo.It("should render the expected output based on config reflection/tags", func() {
 		actual := testRenderTree(MarkdownTreeRenderer{HeaderPrefix: `### `}, &struct {
-			Name string `default:"notempty"`
+			Name string `default:"notempty" key:"name"`
 			Host string `url:"host"`
 		}{})
 
@@ -23,7 +23,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 ### Query/Param Props
 
-* __Name__
+* __name__
   Default: `[1:] + "`notempty`" + `
 `
 
@@ -67,7 +67,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 ### Query/Param Props
 
-* __Name__ (__Required__)
+* __name__ (__Required__)
   Aliases: `[1:] + "`handle`, `title`, `target`" + `
 `
 
@@ -82,7 +82,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 
 ### Query/Param Props
 
-* __Choice__
+* __choice__
   Default: `[1:] + "`Maybe`" + `
   Possible values: ` + "`Yes`, `No`, `Maybe`" + `
 `
@@ -135,7 +135,7 @@ There is nothing to set!`[1:] // Remove initial newline
 
 Feel free to set these:
 
-* __CoolMode__
+* __coolmode__
   Default: *empty*
 `[1:] // Remove initial newline
 
