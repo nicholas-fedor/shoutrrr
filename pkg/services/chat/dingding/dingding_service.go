@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -36,6 +37,7 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
 
+	apiTokenMu     sync.Mutex
 	apiToken       string
 	apiTokenExpiry time.Time
 }
@@ -120,6 +122,8 @@ func (s *Service) makeCustomBotSignature() (string, string) {
 const defaultAPIEndpoint = "api.dingtalk.com"
 
 func (s *Service) getOpenAPIToken(ctx context.Context) (string, error) {
+	s.apiTokenMu.Lock()
+	defer s.apiTokenMu.Unlock()
 	if s.apiToken != "" && time.Until(s.apiTokenExpiry) > 1*time.Minute {
 		return s.apiToken, nil
 	}
