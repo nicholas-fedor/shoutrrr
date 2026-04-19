@@ -73,6 +73,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 	s.HTTPClient = NewDefaultHTTPClient()
+	s.apiToken = ""
+	s.apiTokenExpiry = time.Time{}
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -115,9 +117,16 @@ func (s *Service) makeCustomBotSignature() (string, string) {
 	return fmt.Sprintf("%d", unixMillis), signatureBase64ed
 }
 
+const defaultAPIEndpoint = "api.dingtalk.com"
+
 func (s *Service) getOpenAPIToken(ctx context.Context) (string, error) {
 	if s.apiToken != "" && time.Until(s.apiTokenExpiry) > 1*time.Minute {
 		return s.apiToken, nil
+	}
+
+	apiEndpoint := defaultAPIEndpoint
+	if s.Config.APIEndpoint != "" {
+		apiEndpoint = s.Config.APIEndpoint
 	}
 
 	payloadJSON, err := json.Marshal(map[string]string{
@@ -129,7 +138,7 @@ func (s *Service) getOpenAPIToken(ctx context.Context) (string, error) {
 	}
 
 	payload := bytes.NewReader(payloadJSON)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.dingtalk.com/v1.0/oauth2/accessToken", payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+apiEndpoint+"/v1.0/oauth2/accessToken", payload)
 	if err != nil {
 		return "", fmt.Errorf("creating auth request: %w", err)
 	}
@@ -143,7 +152,14 @@ func (s *Service) getOpenAPIToken(ctx context.Context) (string, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("received non-successful response status code from Dingding API during auth: %d", res.StatusCode)
+		resBytes, _ := io.ReadAll(res.Body)
+		var resp struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		_ = json.Unmarshal(resBytes, &resp)
+
+		return "", fmt.Errorf("received non-successful response status code from Dingding API during auth: %d: %s: %s", res.StatusCode, resp.Code, resp.Message)
 	}
 
 	var authResp struct {
@@ -224,10 +240,15 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 			return err
 		}
 
+		apiEndpoint := defaultAPIEndpoint
+		if config.APIEndpoint != "" {
+			apiEndpoint = config.APIEndpoint
+		}
+
 		req, err = http.NewRequestWithContext(
 			ctx,
 			http.MethodPost,
-			"https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend",
+			"https://"+apiEndpoint+"/v1.0/robot/oToMessages/batchSend",
 			bytes.NewReader(payload),
 		)
 		if err != nil {

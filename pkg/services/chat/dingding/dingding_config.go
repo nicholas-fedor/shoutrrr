@@ -26,6 +26,7 @@ type Config struct {
 	AccessToken string `json:"access_token" required:"true" secret:"false" desc:"For the Dingding custom bot, found in the bot's url, should be 64 characters of hexadecimal. For work notice, this is app's 'Client ID (原 AppKey 和 SuiteKey)'"`
 	Secret      string `json:"secret,omitempty" required:"false" secret:"true" desc:"For the Dingding custom bot, this is the bot's secret, should starts with 'SEC'. For work notice, this is the app's 'Client Secret (原 AppSecret 和 SuiteSecret)'."`
 	Keyword     string `json:"keyword,omitempty" required:"false" secret:"false"`
+	APIEndpoint string `json:"apiendpoint,omitempty" required:"false" secret:"false" desc:"Dingding API endpoint, only used for work notice. Default is 'api.dingtalk.com', set to 'api.dingtalk.io' for global dingtalk."`
 
 	// for message rendering
 	UserIDs  string `json:"user_ids,omitempty" required:"false" secret:"false" desc:"Comma-separated list of user IDs to send the work notice to. Only used for 'worknotice' kind."`
@@ -55,6 +56,7 @@ func (c *Config) Clone() *Config {
 		AccessToken: c.AccessToken,
 		Secret:      c.Secret,
 		Keyword:     c.Keyword,
+		APIEndpoint: c.APIEndpoint,
 		UserIDs:     c.UserIDs,
 		Title:       c.Title,
 		Template:    c.Template,
@@ -98,6 +100,9 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	if c.Kind != "" {
 		query.Set("kind", c.Kind)
 	}
+	if c.APIEndpoint != "" {
+		query.Set("apiendpoint", c.APIEndpoint)
+	}
 
 	return &url.URL{
 		Host:     c.AccessToken,
@@ -129,6 +134,9 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Kind = "custombot" // default kind
 	if serviceURL.Query().Has("kind") {
 		c.Kind = serviceURL.Query().Get("kind")
+	}
+	if serviceURL.Query().Has("apiendpoint") {
+		c.APIEndpoint = serviceURL.Query().Get("apiendpoint")
 	}
 
 	if c.Kind != "custombot" && c.Kind != "worknotice" {

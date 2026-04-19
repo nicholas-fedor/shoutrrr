@@ -242,6 +242,8 @@ var _ = ginkgo.Describe("the dingding service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(recordPayload.Markdown.Title).To(gomega.Equal("test message"))
 		})
+	})
+	ginkgo.When("sending a worknotice message", func() {
 		ginkgo.It("should be no error", func() {
 			dingdingURL := createDingdingURL(
 				"worknotice",
