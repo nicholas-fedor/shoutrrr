@@ -1,4 +1,4 @@
-// Dingding(i.e. DingTalk China Version) notification service.
+// Package Dingding provides Dingding(i.e. DingTalk China Version) notification service.
 //
 // The dingding service supports both the "custombot" (自定义机器人) and "worknotice" (工作通知) types of Dingding notifications.
 // The service is configured using a URL with the following format:
@@ -18,13 +18,13 @@
 //
 // ## Work Notice (工作通知) URL format
 //
-//	dingding://<client_id>?secret=<client_secret>&userids=<comma splited userIDs>&kind=worknotice[title=<title>][&template=<template>][&apiendpoint=<endpoint>]
+//	dingding://<client_id>?secret=<client_secret>&userids=<comma splited userIDs>&kind=worknotice[&title=<title>][&template=<template>][&apiendpoint=<endpoint>]
 //
 // To use worknotice mode, you need to create an "Internal Application" in Dingding's developer console, and get the "AppKey" and "AppSecret" for the application.
-// Add bot ablity to the application, create a bot for it and release it (both the bot and app version, this is mandatory, otherwise the API will return "robotCode not found").
+// Add bot ability to the application, create a bot for it and release it (both the bot and app version, this is mandatory, otherwise the API will return "robotCode not found").
 // Then you can get your userID on Contact Management page.
 //
 // ## API endpoint
 //
-// By default, it use dingding's `api.dingtalk.com` endpoint. To use global dingtalk, set `apiendpoint` query parameter to `api.dingtalk.io`.
+// By default, it uses dingding's `api.dingtalk.com` endpoint. To use global dingtalk, set `apiendpoint` query parameter to `api.dingtalk.io`.
 package dingding
