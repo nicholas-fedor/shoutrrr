@@ -1,35 +1,39 @@
-name: "Clean Cache"
-description: "Clean GitHub Actions cache for a PR branch"
+name: "Clean GH Actions Cache"
+description: "Remove GH Actions cache entries for closed branches."
 
 inputs:
-  gh-token:
+  GH_TOKEN:
     description: "GitHub token for API access"
     required: true
-  gh-repo:
+  GH_REPO:
     description: "GitHub repository in owner/repo format"
     required: true
-  branch:
-    description: "Branch reference to clean cache for"
+  BRANCH:
+    description: "Target branch"
     required: true
 
 runs:
   using: "composite"
   steps:
-    - name: Clean cache
-      run: |
-        echo "Fetching list of cache key"
-        cacheKeysForPR=$(gh cache list --ref "$BRANCH" --limit 100 --json id --jq '.[].id')
-
-        ## Setting this to not fail the workflow while deleting cache keys.
-        set +e
-        echo "Deleting caches..."
-        for cacheKey in $cacheKeysForPR
-        do
-            gh cache delete "$cacheKey"
-        done
-        echo "Done"
+    - name: Clean Cache
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.gh-token }}
-        GH_REPO: ${{ inputs.gh-repo }}
-        BRANCH: ${{ inputs.branch }}
+        # https://cli.github.com/manual/gh_help_environment
+        GH_TOKEN: ${{ inputs.GH_TOKEN }}
+        GH_REPO: ${{ inputs.GH_REPO }}
+        BRANCH: ${{ inputs.BRANCH }}
+      run: |
+        # Get cache keys for target branch
+        echo "Fetching list of cache keys for $BRANCH"
+        cacheKeys=$(gh cache list --ref "$BRANCH" --json id --jq '.[].id')
+
+        # Setting this to not fail the workflow while deleting cache keys.
+        set +e
+
+        # Delete the keys
+        echo "Deleting caches..."
+        for cacheKey in $cacheKeys
+        do
+          gh cache delete "$cacheKey"
+        done
+        echo "Done"
