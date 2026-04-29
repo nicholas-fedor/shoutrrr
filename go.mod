@@ -8,8 +8,8 @@ require (
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mattn/go-colorable v0.1.14
-	github.com/onsi/ginkgo/v2 v2.28.2
-	github.com/onsi/gomega v1.39.1
+	github.com/onsi/ginkgo/v2 v2.28.3
+	github.com/onsi/gomega v1.40.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
