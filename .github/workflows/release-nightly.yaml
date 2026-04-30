@@ -33,10 +33,11 @@ jobs:
         id: last-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           # Find the most recent successful run of this workflow (not failed/cancelled)
-          LAST_NIGHTLY_COMMIT=$(gh api repos/"${{ github.repository }}"/actions/runs \
-            --jq '.workflow_runs[] | select(.status=="completed" and .conclusion=="success" and .path==".github/workflows/release-nightly.yaml") | .head_sha' | head -1)
+          LAST_NIGHTLY_COMMIT=$(gh api repos/"${{ github.repository }}"/actions/runs | \
+            jq --arg branch "$BRANCH" -r '.workflow_runs[] | select(.status=="completed" and .conclusion=="success" and .path==".github/workflows/release-nightly.yaml" and .head_branch==$branch) | .head_sha' | head -1)
           echo "last_nightly_commit=$LAST_NIGHTLY_COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Check for Changes
@@ -51,7 +52,11 @@ jobs:
           fi
 
           # Check if there are any changes in the watched paths since last successful nightly run
-          CHANGED=$(git diff --name-only "$LAST_NIGHTLY_COMMIT" HEAD -- "shoutrrr/**" "pkg/**" "internal/**" shoutrrr.go go.mod go.sum || true)
+          if ! CHANGED=$(git diff --name-only "$LAST_NIGHTLY_COMMIT" HEAD -- "shoutrrr/**" "pkg/**" "internal/**" shoutrrr.go go.mod go.sum); then
+            echo "git diff failed, treating as changes present"
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ -n "$CHANGED" ]; then
             echo "Detected changes in watched paths:"
