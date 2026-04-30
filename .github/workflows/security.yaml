@@ -38,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run gosec
+      - name: Run Gosec Security Scanner
         uses: securego/gosec@223e19b8856e00f02cc67804499a83f77e208f3c # v2.25.0
         with:
           args: "-exclude-generated -no-fail -fmt sarif -out ${{ env.OUTPUT_FILE }} ./..."
