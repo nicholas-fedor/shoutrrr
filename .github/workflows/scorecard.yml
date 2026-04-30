@@ -1,0 +1,49 @@
+name: Scorecard Supply-Chain Security
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: "39 7 * * 4"
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read # Set default read-only permissions
+
+jobs:
+  analysis:
+    name: Scorecard Analysis
+    runs-on: ubuntu-latest
+    if: github.event.repository.default_branch == github.ref_name
+    permissions:
+      security-events: write # For upload results to code-scanning dashboard
+      id-token: write # For publishing results and getting a badge
+
+    steps:
+      - name: Harden the Runner (Step Security)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Run OSSF Analysis
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to GitHub Code Scanning Dashboard
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          sarif_file: results.sarif
