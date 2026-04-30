@@ -101,7 +101,7 @@ Install the latest release binary to `$HOME/go/bin` (ensure it's in your `PATH`)
   ```
 
 > [!Note]
-> Tags: `latest` (stable), `vX.Y.Z` (specific version), `latest-dev` (development), platform-specific (e.g., `amd64-latest`).
+> Tags: `latest` (stable), `vX.Y.Z` (specific version), `nightly` (development), platform-specific (e.g., `amd64-nightly`).
 
 ### Go Package
 

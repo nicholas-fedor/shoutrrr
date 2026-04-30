@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI, built on Alpine Linux for minimal size and broad compatibility. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (`nickfedor/shoutrrr`) and GHCR (`ghcr.io/nicholas-fedor/shoutrrr`). Tags include `latest` (stable production), versioned tags (e.g., `v0.8.0`), and `latest-dev` (development snapshots).
+The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (`nickfedor/shoutrrr`) and GHCR (`ghcr.io/nicholas-fedor/shoutrrr`). Tags include `latest` (stable production), versioned tags (e.g., `v0.8.0`), and `nightly` (rolling release).
 
 ## Usage
 
@@ -22,12 +22,12 @@ Run Shoutrrr CLI commands inside the container using `docker run`.
 
 The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` work directly.
 
-| Tag Examples          | Description                                      |
-|-----------------------|--------------------------------------------------|
-| `latest`              | Latest stable release.                           |
-| `vX.Y.Z`              | Specific version (e.g., `v0.8.0`).               |
-| `latest-dev`          | Latest development snapshot.                     |
-| `amd64-latest`        | Platform-specific (e.g., amd64, arm64v8).        |
+| Tag Examples   | Description                               |
+|----------------|-------------------------------------------|
+| `latest`       | Latest stable release.                    |
+| `vX.Y.Z`       | Specific version (e.g., `v0.8.0`).        |
+| `nightly`      | Latest rolling release.                   |
+| `amd64-latest` | Platform-specific (e.g., amd64, arm64v8). |
 
 !!! Note
     The image includes CA certificates and timezone data. No volumes are required by default, but mount if needed for custom configs or stdin input. Environment variables can override flags (e.g., `SHOUTRRR_URL` for `--url`).

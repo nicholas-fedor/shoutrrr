@@ -51,7 +51,7 @@ Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting mu
 
     - **Repository**: <https://hub.docker.com/r/nickfedor/shoutrrr>
     - **Image Reference**: `nickfedor/shoutrrr`
-    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `latest-dev`, platform-specific (e.g., `amd64-latest`)
+    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `nightly`, platform-specific (e.g., `amd64-nightly`)
 
 === "GitHub Container Registry"
 
@@ -61,10 +61,10 @@ Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting mu
 
     - **Repository**: <https://github.com/nicholas-fedor/shoutrrr/pkgs/container/shoutrrr>
     - **Image Reference**: `ghcr.io/nicholas-fedor/shoutrrr`
-    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `latest-dev`, platform-specific (e.g., `arm64v8-latest`)
+    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `nightly`, platform-specific (e.g., `arm64v8-nightly`)
 <!-- markdownlint-restore -->
 !!! Note
-    Use `latest` for the latest stable release, versioned tags (e.g., `v0.8.0`) for specific releases, or `latest-dev` for development snapshots. Platform-specific tags are available for targeted deployments.
+    Use `latest` for the latest stable release, versioned tags (e.g., `v0.8.0`) for specific releases, or `nightly` for  a rolling release image. Platform-specific tags are available for targeted deployments.
 
 ## Go Package
 
