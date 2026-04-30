@@ -1,4 +1,10 @@
 {
+  "name": "shoutrrr",
+  "version": "0.14.3",
+  "private": true,
+  "scripts": {
+    "commitlint": "commitlint --from origin/main --to=HEAD"
+  },
   "dependencies": {},
   "devDependencies": {
     "@commitlint/cli": "^20.5.2",
