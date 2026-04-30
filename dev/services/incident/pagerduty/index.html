@@ -4182,30 +4182,30 @@
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>Client</strong> - The name of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
+<p><strong>client</strong> - The name of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>ClientURL</strong> - The URL of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
+<p><strong>client_url</strong> - The URL of the monitoring client that is triggering this event (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>Contexts</strong> - Additional context links or images (<strong>Required</strong>)</p>
+<p><strong>contexts</strong> - Additional context links or images (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>DedupKey</strong> - A unique key used for incident deduplication (<strong>Required</strong>)</p>
+<p><strong>dedup_key</strong> - A unique key used for incident deduplication (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>Details</strong> - Additional details about the incident (JSON string that will be parsed into an object) (<strong>Required</strong>)</p>
+<p><strong>details</strong> - Additional details about the incident (JSON string that will be parsed into an object) (<strong>Required</strong>)</p>
 </li>
 <li>
-<p><strong>Action</strong> - The type of event (trigger, acknowledge, or resolve)
+<p><strong>action</strong> - The type of event (trigger, acknowledge, or resolve)
   Default: <code>trigger</code></p>
 </li>
 <li>
-<p><strong>Severity</strong> - The perceived severity of the status the event (critical, error, warning, or info); required
+<p><strong>severity</strong> - The perceived severity of the status the event (critical, error, warning, or info); required
   Default: <code>error</code></p>
 </li>
 <li>
-<p><strong>Source</strong> - The unique location of the affected system, preferably a hostname or FQDN; required
+<p><strong>source</strong> - The unique location of the affected system, preferably a hostname or FQDN; required
   Default: <code>default</code></p>
 </li>
 </ul>
