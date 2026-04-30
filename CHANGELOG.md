@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Pin dependencies by @renovate[bot] in [#781](https://github.com/nicholas-fedor/shoutrrr/pull/781)
 - Update module github.com/masterminds/semver/v3 to v3.5.0 by @renovate[bot] in [#778](https://github.com/nicholas-fedor/shoutrrr/pull/778)
 - Update matrixdotorg/synapse:latest docker digest to 6216aaa by @renovate[bot] in [#777](https://github.com/nicholas-fedor/shoutrrr/pull/777)
 - Update matrixdotorg/synapse:latest docker digest to e223f06 by @renovate[bot] in [#776](https://github.com/nicholas-fedor/shoutrrr/pull/776)
@@ -55,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Correct doc gen to use key tags for query param names by @nicholas-fedor in [#738](https://github.com/nicholas-fedor/shoutrrr/pull/738)
+
+### New Contributors
+
+- @github-actions[bot] made their first contribution in [#780](https://github.com/nicholas-fedor/shoutrrr/pull/780)
 
 ## [0.14.3] - 2026-04-01
 
