@@ -108,14 +108,14 @@ commit_parsers = [
     { message = "(?i)bump.*from.*to", group = "Chores" },
     { message = "^fix", group = "Fixed" },
     { message = "^.*: fix", group = "Fixed" },
-    { message = "^[a|A]dd", group = "Added" },
-    { message = "^[s|S]upport", group = "Added" },
-    { message = "^[r|R]emove", group = "Removed" },
+    { message = "^[aA]dd", group = "Added" },
+    { message = "^[sS]upport", group = "Added" },
+    { message = "^[rR]emove", group = "Removed" },
     { message = "^.*: add", group = "Added" },
     { message = "^.*: support", group = "Added" },
     { message = "^.*: remove", group = "Removed" },
     { message = "^.*: delete", group = "Removed" },
-    { message = "^test", group = "Fixed" },
+    { message = "^test", group = "Tests" },
     { message = "^.*", group = "Changed" },
 ]
 # Exclude commits that are not matched by any commit parser.
