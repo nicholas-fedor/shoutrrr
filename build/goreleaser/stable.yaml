@@ -49,7 +49,7 @@ builds:
       - -X main.date={{ .CommitDate }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{ .Version }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Commit={{ .Commit }}
-      - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Date={{ .Date }}
+      - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Date={{ .CommitDate }}
     env:
       - CGO_ENABLED=0
     goos:
