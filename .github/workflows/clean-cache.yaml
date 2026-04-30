@@ -6,7 +6,7 @@ on:
       - closed
 
 permissions:
-  contents: read
+  contents: read # Set default read-only permissions
 
 jobs:
   cleanup:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
-    if: github.event.pull_request.merged
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
     steps:
       - name: Harden the Runner (Step Security)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -29,6 +29,6 @@ jobs:
       - name: Clean Cache
         uses: ./.github/actions/clean-cache
         with:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          gh-repo: ${{ github.repository }}
+          branch: refs/pull/${{ github.event.pull_request.number }}/merge
