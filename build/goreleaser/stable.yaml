@@ -3,7 +3,7 @@
 #                  GoReleaser OSS Stable Release Configuration                 #
 #                                                                              #
 # Project: Shoutrrr                                                            #
-# Project Repository: https://github.com/nicholas-fedor/shoutrrr/              #
+# Repository: https://github.com/nicholas-fedor/shoutrrr/                      #
 #                                                                              #
 # GoReleaser URL: https://goreleaser.com/                                      #
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json      #
@@ -44,8 +44,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
       - -X main.date={{ .CommitDate }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{ .Version }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Commit={{ .Commit }}
@@ -155,7 +155,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   ##############################################################################
   # Platform-specific images - platform-prefixed tags only
@@ -182,7 +182,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-i386"
     ids: ["shoutrrr-binary"]
@@ -206,7 +206,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-armhf"
     ids: ["shoutrrr-binary"]
@@ -230,7 +230,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-arm64v8"
     ids: ["shoutrrr-binary"]
@@ -254,7 +254,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-riscv64"
     ids: ["shoutrrr-binary"]
@@ -278,7 +278,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
 ################################################################################
 # Software Bill of Materials (SBOM) Configuration

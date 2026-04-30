@@ -3,7 +3,7 @@
 #                 GoReleaser OSS Nightly Release Configuration                 #
 #                                                                              #
 # Project: Shoutrrr                                                            #
-# Project Repository: https://github.com/nicholas-fedor/shoutrrr/              #
+# Repository: https://github.com/nicholas-fedor/shoutrrr/                      #
 #                                                                              #
 # GoReleaser URL: https://goreleaser.com/                                      #
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json      #
@@ -34,8 +34,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
       - -X main.date={{ .CommitDate }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{ .Version }}
       - -X github.com/nicholas-fedor/shoutrrr/internal/meta.Commit={{ .Commit }}
@@ -66,7 +66,7 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 ################################################################################
-# Binary Archive Configuration
+# Release Configuration (SCM)
 # https://goreleaser.com/customization/publish/scm/
 ################################################################################
 # Skip release to GitHub for nightly releases
@@ -111,7 +111,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   ##############################################################################
   # Platform-specific images - platform-prefixed nightly tags only
@@ -135,7 +135,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-i386-nightly"
     ids: ["shoutrrr-binary"]
@@ -156,7 +156,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-armhf-nightly"
     ids: ["shoutrrr-binary"]
@@ -177,7 +177,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-arm64v8-nightly"
     ids: ["shoutrrr-binary"]
@@ -198,7 +198,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
   - id: "shoutrrr-riscv64-nightly"
     ids: ["shoutrrr-binary"]
@@ -219,7 +219,7 @@ dockers_v2:
       org.opencontainers.image.description: "The Shoutrrr CLI"
       org.opencontainers.image.licenses: "MIT"
       org.opencontainers.image.url: "https://github.com/nicholas-fedor/shoutrrr"
-      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor"
+      org.opencontainers.image.documentation: "https://shoutrrr.nickfedor.com"
 
 ################################################################################
 # Docker Image Signing (Cosign)
