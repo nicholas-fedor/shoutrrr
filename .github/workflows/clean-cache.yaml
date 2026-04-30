@@ -1,4 +1,4 @@
-name: Cache cleanup
+name: Cleanup GH Actions Cache
 on:
   workflow_dispatch: {}
   pull_request:
@@ -6,22 +6,28 @@ on:
       - closed
 
 permissions:
-  actions: write
-  contents: read
+  contents: read # Set default read-only permissions
 
 jobs:
   cleanup:
-    if: github.event.pull_request.merged
+    name: Cleanup Cache
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
     steps:
-      - name: Harden the runner (Audit all outbound calls)
+      - name: Harden the Runner (Step Security)
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/clean-cache
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Clean Cache
+        uses: ./.github/actions/clean-cache
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           gh-repo: ${{ github.repository }}

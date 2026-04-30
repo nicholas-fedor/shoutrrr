@@ -1,13 +1,21 @@
-name: "Actionlint"
+name: "Run actionlint"
 description: "Lint GitHub Actions workflows"
 
 runs:
   using: "composite"
   steps:
     - name: Download actionlint
-      id: get_actionlint
+      id: download_actionlint
+      shell: bash
       run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+    - name: Check Workflow Files
       shell: bash
-    - name: Check workflow files
-      run: ${{ steps.get_actionlint.outputs.executable }} -color
-      shell: bash
+      env:
+        ACTIONLINT_BINARY: ${{ steps.download_actionlint.outputs.executable }}
+      run: |
+        if [[ -z "${ACTIONLINT_BINARY}" ]]; then
+          echo "::error::Failed to get actionlint executable path"
+          exit 1
+        fi
+        ${ACTIONLINT_BINARY} -color

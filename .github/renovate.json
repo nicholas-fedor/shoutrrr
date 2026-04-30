@@ -29,5 +29,8 @@
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true
     }
-  ]
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  }
 }
