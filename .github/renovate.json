@@ -31,7 +31,6 @@
     }
   ],
   "vulnerabilityAlerts": {
-    "enabled": true,
-    "schedule": ["every 6 hours"]
+    "enabled": true
   }
 }
