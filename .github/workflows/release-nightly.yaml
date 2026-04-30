@@ -44,7 +44,6 @@ jobs:
         env:
           LAST_NIGHTLY_COMMIT: ${{ steps.last-run.outputs.last_nightly_commit }}
         run: |
-          LAST_NIGHTLY_COMMIT="${LAST_NIGHTLY_COMMIT}"
           if [ -z "$LAST_NIGHTLY_COMMIT" ]; then
             echo "No previous successful nightly run found, proceeding with build"
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
