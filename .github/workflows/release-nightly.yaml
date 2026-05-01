@@ -22,7 +22,6 @@ permissions:
 jobs:
   check_changes:
     name: Check for Code Changes
-    if: ${{ inputs.FORCE_RELEASE != true }}
     runs-on: ubuntu-latest
     permissions:
       actions: read # For querying previous workflow runs via API
@@ -30,12 +29,14 @@ jobs:
       has-changes: ${{ steps.check.outputs.has-changes }}
     steps:
       - name: Checkout Repository
+        if: ${{ inputs.FORCE_RELEASE != 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Get Last Successful Nightly Release
+        if: ${{ inputs.FORCE_RELEASE != 'true' }}
         id: last-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,6 +52,12 @@ jobs:
         env:
           LAST_NIGHTLY_COMMIT: ${{ steps.last-run.outputs.last_nightly_commit }}
         run: |
+          if [ "${{ inputs.FORCE_RELEASE }}" = "true" ]; then
+            echo "Force release enabled, skipping change detection"
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ -z "$LAST_NIGHTLY_COMMIT" ]; then
             echo "No previous successful nightly run found, proceeding with build"
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
@@ -76,7 +83,7 @@ jobs:
   test:
     name: Run Tests
     needs: [check_changes]
-    if: ${{ needs.check_changes.outputs.has-changes == 'true' || inputs.FORCE_RELEASE == 'true' }}
+    if: ${{ needs.check_changes.outputs.has-changes == 'true' }}
     uses: ./.github/workflows/test.yaml
     permissions:
       contents: read # For code checkout
@@ -84,7 +91,7 @@ jobs:
   build:
     name: Run Build
     needs: [check_changes, test]
-    if: ${{ needs.check_changes.outputs.has-changes == 'true' || inputs.FORCE_RELEASE == 'true' }}
+    if: ${{ needs.check_changes.outputs.has-changes == 'true' }}
     uses: ./.github/workflows/build.yaml
     permissions:
       contents: write # For code checkout and uploading release artifacts
