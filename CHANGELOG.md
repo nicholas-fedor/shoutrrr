@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update Go version to 1.26.x by @nicholas-fedor in [#794](https://github.com/nicholas-fedor/shoutrrr/pull/794)
 - Update module github.com/pelletier/go-toml/v2 to v2.3.1 by @renovate[bot] in [#792](https://github.com/nicholas-fedor/shoutrrr/pull/792)
 - Update github/codeql-action action to v4.35.3 by @renovate[bot] in [#791](https://github.com/nicholas-fedor/shoutrrr/pull/791)
 - Pin dependencies by @renovate[bot] in [#781](https://github.com/nicholas-fedor/shoutrrr/pull/781)
@@ -68,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#790](https://github.com/nicholas-fedor/shoutrrr/pull/790)
+- @github-actions[bot] made their first contribution in [#793](https://github.com/nicholas-fedor/shoutrrr/pull/793)
 
 ## [0.14.3] - 2026-04-01
 
