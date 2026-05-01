@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add FORCE_RELEASE input to bypass change detection by @nicholas-fedor in [#787](https://github.com/nicholas-fedor/shoutrrr/pull/787)
+
 ### Changed
 
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
@@ -61,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#784](https://github.com/nicholas-fedor/shoutrrr/pull/784)
+- @github-actions[bot] made their first contribution in [#786](https://github.com/nicholas-fedor/shoutrrr/pull/786)
 
 ## [0.14.3] - 2026-04-01
 
