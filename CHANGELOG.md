@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralize FORCE_RELEASE logic in check_changes job by @nicholas-fedor in [#789](https://github.com/nicholas-fedor/shoutrrr/pull/789)
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
 - Update Docker image tags from latest-dev to nightly by @nicholas-fedor in [#783](https://github.com/nicholas-fedor/shoutrrr/pull/783)
 - Restructure CI/CD pipelines by @nicholas-fedor in [#779](https://github.com/nicholas-fedor/shoutrrr/pull/779)
@@ -65,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#786](https://github.com/nicholas-fedor/shoutrrr/pull/786)
+- @github-actions[bot] made their first contribution in [#788](https://github.com/nicholas-fedor/shoutrrr/pull/788)
 
 ## [0.14.3] - 2026-04-01
 
