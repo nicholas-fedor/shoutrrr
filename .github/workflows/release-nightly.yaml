@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      FORCE_RELEASE:
+        description: "Skip change detection and force the release"
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "0 0 * * *"
 
@@ -17,6 +22,7 @@ permissions:
 jobs:
   check_changes:
     name: Check for Code Changes
+    if: ${{ inputs.FORCE_RELEASE != true }}
     runs-on: ubuntu-latest
     permissions:
       actions: read # For querying previous workflow runs via API
@@ -70,7 +76,7 @@ jobs:
   test:
     name: Run Tests
     needs: [check_changes]
-    if: ${{ needs.check_changes.outputs.has-changes == 'true' }}
+    if: ${{ needs.check_changes.outputs.has-changes == 'true' || inputs.FORCE_RELEASE == 'true' }}
     uses: ./.github/workflows/test.yaml
     permissions:
       contents: read # For code checkout
@@ -78,7 +84,7 @@ jobs:
   build:
     name: Run Build
     needs: [check_changes, test]
-    if: ${{ needs.check_changes.outputs.has-changes == 'true' }}
+    if: ${{ needs.check_changes.outputs.has-changes == 'true' || inputs.FORCE_RELEASE == 'true' }}
     uses: ./.github/workflows/build.yaml
     permissions:
       contents: write # For code checkout and uploading release artifacts
