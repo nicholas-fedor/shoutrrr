@@ -53,12 +53,12 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          readarray -t packages < <(go list ./... | grep -vE '/testing/e2e(/|$)')
-          if [ ${#packages[@]} -eq 0 ]; then
+          packages=$(go list ./... | grep -vE '/testing/e2e(/|$)')
+          if [ -z "$packages" ]; then
             echo "No packages to test after filtering"
             exit 0
           fi
-          go test -v -coverprofile coverage.out -covermode atomic "${packages[@]}"
+          go test -v -coverprofile coverage.out -covermode atomic $packages
 
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
