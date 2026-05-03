@@ -68,9 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Correct doc gen to use key tags for query param names by @nicholas-fedor in [#738](https://github.com/nicholas-fedor/shoutrrr/pull/738)
 
+### Removed
+
+- Remove redundant declaration and correct globbing by @nicholas-fedor in [#798](https://github.com/nicholas-fedor/shoutrrr/pull/798)
+
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#795](https://github.com/nicholas-fedor/shoutrrr/pull/795)
+- @github-actions[bot] made their first contribution in [#797](https://github.com/nicholas-fedor/shoutrrr/pull/797)
 
 ## [0.14.3] - 2026-04-01
 
