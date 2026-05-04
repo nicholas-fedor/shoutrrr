@@ -14,6 +14,7 @@ import (
 // exampleURLs provides test URLs for services that have well-defined URL formats.
 // Services not listed here will only be tested for default URL generation.
 var exampleURLs = map[string]string{
+	"dingding":   "dingding://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?keyword=keyword&title=Test%20Title",
 	"discord":    "discord://token@123456789",
 	"generic":    "generic://192.168.1.100:8123/api/webhook",
 	"gotify":     "gotify://gotify.example.com/token",
