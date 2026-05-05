@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add double-quotations to resolve globbing by @nicholas-fedor in [#805](https://github.com/nicholas-fedor/shoutrrr/pull/805)
 - Add FORCE_RELEASE input to bypass change detection by @nicholas-fedor in [#787](https://github.com/nicholas-fedor/shoutrrr/pull/787)
 
 ### Changed
@@ -76,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#802](https://github.com/nicholas-fedor/shoutrrr/pull/802)
+- @github-actions[bot] made their first contribution in [#804](https://github.com/nicholas-fedor/shoutrrr/pull/804)
 
 ## [0.14.3] - 2026-04-01
 
