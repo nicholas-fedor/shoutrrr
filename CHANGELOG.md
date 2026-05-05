@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Resolve malformed import path in test workflow by @nicholas-fedor in [#803](https://github.com/nicholas-fedor/shoutrrr/pull/803)
 - Centralize FORCE_RELEASE logic in check_changes job by @nicholas-fedor in [#789](https://github.com/nicholas-fedor/shoutrrr/pull/789)
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
 - Update Docker image tags from latest-dev to nightly by @nicholas-fedor in [#783](https://github.com/nicholas-fedor/shoutrrr/pull/783)
@@ -75,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#799](https://github.com/nicholas-fedor/shoutrrr/pull/799)
+- @github-actions[bot] made their first contribution in [#802](https://github.com/nicholas-fedor/shoutrrr/pull/802)
 
 ## [0.14.3] - 2026-04-01
 
