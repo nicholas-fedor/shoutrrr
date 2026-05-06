@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Resolve package list splitting in test workflow by @nicholas-fedor in [#807](https://github.com/nicholas-fedor/shoutrrr/pull/807)
 - Resolve malformed import path in test workflow by @nicholas-fedor in [#803](https://github.com/nicholas-fedor/shoutrrr/pull/803)
 - Centralize FORCE_RELEASE logic in check_changes job by @nicholas-fedor in [#789](https://github.com/nicholas-fedor/shoutrrr/pull/789)
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
@@ -77,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#804](https://github.com/nicholas-fedor/shoutrrr/pull/804)
+- @github-actions[bot] made their first contribution in [#806](https://github.com/nicholas-fedor/shoutrrr/pull/806)
 
 ## [0.14.3] - 2026-04-01
 
