@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add double-quotations to resolve globbing by @nicholas-fedor in [#805](https://github.com/nicholas-fedor/shoutrrr/pull/805)
 - Add FORCE_RELEASE input to bypass change detection by @nicholas-fedor in [#787](https://github.com/nicholas-fedor/shoutrrr/pull/787)
 
 ### Changed
 
+- Resolve malformed import path in test workflow by @nicholas-fedor in [#803](https://github.com/nicholas-fedor/shoutrrr/pull/803)
 - Centralize FORCE_RELEASE logic in check_changes job by @nicholas-fedor in [#789](https://github.com/nicholas-fedor/shoutrrr/pull/789)
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
 - Update Docker image tags from latest-dev to nightly by @nicholas-fedor in [#783](https://github.com/nicholas-fedor/shoutrrr/pull/783)
@@ -21,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#801](https://github.com/nicholas-fedor/shoutrrr/pull/801)
 - Update step-security/harden-runner action to v2.19.1 by @renovate[bot] in [#796](https://github.com/nicholas-fedor/shoutrrr/pull/796)
 - Update Go version to 1.26.x by @nicholas-fedor in [#794](https://github.com/nicholas-fedor/shoutrrr/pull/794)
 - Update module github.com/pelletier/go-toml/v2 to v2.3.1 by @renovate[bot] in [#792](https://github.com/nicholas-fedor/shoutrrr/pull/792)
@@ -74,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#797](https://github.com/nicholas-fedor/shoutrrr/pull/797)
+- @github-actions[bot] made their first contribution in [#804](https://github.com/nicholas-fedor/shoutrrr/pull/804)
 
 ## [0.14.3] - 2026-04-01
 
