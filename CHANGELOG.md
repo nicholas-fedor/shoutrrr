@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#800](https://github.com/nicholas-fedor/shoutrrr/pull/800)
 - Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#801](https://github.com/nicholas-fedor/shoutrrr/pull/801)
 - Update step-security/harden-runner action to v2.19.1 by @renovate[bot] in [#796](https://github.com/nicholas-fedor/shoutrrr/pull/796)
 - Update Go version to 1.26.x by @nicholas-fedor in [#794](https://github.com/nicholas-fedor/shoutrrr/pull/794)
@@ -78,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#806](https://github.com/nicholas-fedor/shoutrrr/pull/806)
+- @github-actions[bot] made their first contribution in [#808](https://github.com/nicholas-fedor/shoutrrr/pull/808)
 
 ## [0.14.3] - 2026-04-01
 
