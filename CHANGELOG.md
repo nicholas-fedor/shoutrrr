@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.35.4 by @renovate[bot] in [#815](https://github.com/nicholas-fedor/shoutrrr/pull/815)
+- Update matrixdotorg/synapse:latest docker digest to 40c3dbd by @renovate[bot] in [#814](https://github.com/nicholas-fedor/shoutrrr/pull/814)
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#811](https://github.com/nicholas-fedor/shoutrrr/pull/811)
 - Update github.com/google/pprof digest to 92041b7 by @renovate[bot] in [#810](https://github.com/nicholas-fedor/shoutrrr/pull/810)
 
