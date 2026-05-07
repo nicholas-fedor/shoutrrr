@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update github.com/google/pprof digest to 92041b7 by @renovate[bot] in [#810](https://github.com/nicholas-fedor/shoutrrr/pull/810)
+
+## [0.15.0] - 2026-05-06
+
 ### Added
 
 - Add double-quotations to resolve globbing by @nicholas-fedor in [#805](https://github.com/nicholas-fedor/shoutrrr/pull/805)
@@ -79,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @github-actions[bot] made their first contribution in [#808](https://github.com/nicholas-fedor/shoutrrr/pull/808)
+- @github-actions[bot] made their first contribution in [#809](https://github.com/nicholas-fedor/shoutrrr/pull/809)
 
 ## [0.14.3] - 2026-04-01
 
@@ -1694,7 +1700,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.3...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.0...HEAD)
+- [0.15.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.3...v0.15.0)
 - [0.14.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.2...v0.14.3)
 - [0.14.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.1...v0.14.2)
 - [0.14.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.0...v0.14.1)
