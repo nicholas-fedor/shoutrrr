@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#811](https://github.com/nicholas-fedor/shoutrrr/pull/811)
 - Update github.com/google/pprof digest to 92041b7 by @renovate[bot] in [#810](https://github.com/nicholas-fedor/shoutrrr/pull/810)
 
 ## [0.15.0] - 2026-05-06
