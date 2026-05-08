@@ -10,7 +10,7 @@
 A notification library for gophers and their furry friends.<br />
 Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</a>.
 
-![github actions workflow status](https://github.com/nicholas-fedor/shoutrrr/workflows/Main%20Workflow/badge.svg)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nicholas-fedor/shoutrrr/badge)](https://scorecard.dev/viewer/?uri=github.com/nicholas-fedor/shoutrrr)
 [![codecov](https://codecov.io/gh/nicholas-fedor/shoutrrr/branch/main/graph/badge.svg)](https://codecov.io/gh/nicholas-fedor/shoutrrr)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/47eed72de79448e2a6e297d770355544)](https://www.codacy.com/gh/nicholas-fedor/shoutrrr/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nicholas-fedor/shoutrrr&amp;utm_campaign=Badge_Grade)
 [![report card](https://goreportcard.com/badge/github.com/nicholas-fedor/shoutrrr)](https://goreportcard.com/badge/github.com/nicholas-fedor/shoutrrr)
