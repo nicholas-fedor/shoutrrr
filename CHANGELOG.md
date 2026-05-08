@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update badges by @nicholas-fedor in [#820](https://github.com/nicholas-fedor/shoutrrr/pull/820)
+
 ### Chores
 
 - Update go toolchain directive to v1.26.3 by @renovate[bot] in [#818](https://github.com/nicholas-fedor/shoutrrr/pull/818)
