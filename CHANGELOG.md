@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/mod to v0.36.0 by @renovate[bot] in [#825](https://github.com/nicholas-fedor/shoutrrr/pull/825)
+- Update cimg/go docker tag to v1.26.3 by @renovate[bot] in [#824](https://github.com/nicholas-fedor/shoutrrr/pull/824)
 - Update module golang.org/x/sys to v0.44.0 by @renovate[bot] in [#822](https://github.com/nicholas-fedor/shoutrrr/pull/822)
 - Update go toolchain directive to v1.26.3 by @renovate[bot] in [#818](https://github.com/nicholas-fedor/shoutrrr/pull/818)
 - Update cimg/go:1.26.2 docker digest to 0594489 by @renovate[bot] in [#817](https://github.com/nicholas-fedor/shoutrrr/pull/817)
