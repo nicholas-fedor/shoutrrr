@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replace composite actionlint action by @nicholas-fedor in [#833](https://github.com/nicholas-fedor/shoutrrr/pull/833)
 - Update badges by @nicholas-fedor in [#820](https://github.com/nicholas-fedor/shoutrrr/pull/820)
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#835](https://github.com/nicholas-fedor/shoutrrr/pull/835)
+- Update module golang.org/x/net to v0.54.0 by @renovate[bot] in [#831](https://github.com/nicholas-fedor/shoutrrr/pull/831)
 - Update module golang.org/x/tools to v0.45.0 by @renovate[bot] in [#832](https://github.com/nicholas-fedor/shoutrrr/pull/832)
 - Update module golang.org/x/term to v0.43.0 by @renovate[bot] in [#828](https://github.com/nicholas-fedor/shoutrrr/pull/828)
 - Update module golang.org/x/text to v0.37.0 by @renovate[bot] in [#827](https://github.com/nicholas-fedor/shoutrrr/pull/827)
