@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update commitlint monorepo to v21 by @renovate[bot] in [#838](https://github.com/nicholas-fedor/shoutrrr/pull/838)
 - Update dependency python to v3.14.5 by @renovate[bot] in [#836](https://github.com/nicholas-fedor/shoutrrr/pull/836)
 - Lock file maintenance by @renovate[bot] in [#835](https://github.com/nicholas-fedor/shoutrrr/pull/835)
 - Update module golang.org/x/net to v0.54.0 by @renovate[bot] in [#831](https://github.com/nicholas-fedor/shoutrrr/pull/831)
