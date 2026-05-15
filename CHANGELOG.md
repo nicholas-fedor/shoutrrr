@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.19.3 by @renovate[bot] in [#842](https://github.com/nicholas-fedor/shoutrrr/pull/842)
 - Update step-security/harden-runner action to v2.19.2 by @renovate[bot] in [#840](https://github.com/nicholas-fedor/shoutrrr/pull/840)
 - Update commitlint monorepo to v21 by @renovate[bot] in [#838](https://github.com/nicholas-fedor/shoutrrr/pull/838)
 - Update dependency python to v3.14.5 by @renovate[bot] in [#836](https://github.com/nicholas-fedor/shoutrrr/pull/836)
