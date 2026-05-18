@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/onsi/ginkgo/v2 to v2.29.0 by @renovate[bot] in [#848](https://github.com/nicholas-fedor/shoutrrr/pull/848)
 - Update commitlint monorepo to v21.0.1 by @renovate[bot] in [#846](https://github.com/nicholas-fedor/shoutrrr/pull/846)
 - Update github/codeql-action action to v4.35.5 by @renovate[bot] in [#844](https://github.com/nicholas-fedor/shoutrrr/pull/844)
 - Update step-security/harden-runner action to v2.19.3 by @renovate[bot] in [#842](https://github.com/nicholas-fedor/shoutrrr/pull/842)
