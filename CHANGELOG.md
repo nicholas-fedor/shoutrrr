@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update codecov/codecov-action action to v6.0.1 by @renovate[bot] in [#852](https://github.com/nicholas-fedor/shoutrrr/pull/852)
 - Update module github.com/onsi/gomega to v1.41.0 by @renovate[bot] in [#849](https://github.com/nicholas-fedor/shoutrrr/pull/849)
 - Update module github.com/onsi/ginkgo/v2 to v2.29.0 by @renovate[bot] in [#848](https://github.com/nicholas-fedor/shoutrrr/pull/848)
 - Update commitlint monorepo to v21.0.1 by @renovate[bot] in [#846](https://github.com/nicholas-fedor/shoutrrr/pull/846)
