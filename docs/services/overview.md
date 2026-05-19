@@ -6,6 +6,7 @@ Click on the service for a more thorough explanation.
 
 | Service                                   | URL format                                                                                                                  |
 |-------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| [Dingding](./chat/dingding/index.md)        | *dingding://__`access_token`__*                                                                 |
 | [Discord](./chat/discord/index.md)        | *discord://__`token`__@__`id`__[?thread_id=__`threadid`__]*                                                                 |
 | [Google Chat](./chat/googlechat/index.md) | *googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz*                                                 |
 | [Hangouts](./chat/hangouts/index.md)*     | *hangouts://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz*                                                   |

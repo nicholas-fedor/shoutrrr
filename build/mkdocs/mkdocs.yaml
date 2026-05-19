@@ -119,6 +119,7 @@ nav:
   - Services:
       - Overview: services/overview.md
       - Chat and Messaging Platforms:
+          - Dingding: services/chat/dingding/index.md
           - Discord: services/chat/discord/index.md
           - Google Chat: services/chat/googlechat/index.md
           - Hangouts: services/chat/hangouts/index.md

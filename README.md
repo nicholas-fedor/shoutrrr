@@ -215,6 +215,7 @@ jobs:
 | Service      | Description                          |
 |--------------|--------------------------------------|
 | Bark         | iOS push notifications               |
+| Dingding     | Dingding webhooks                    |
 | Discord      | Discord webhooks                     |
 | Generic      | Custom HTTP webhooks                 |
 | Google Chat  | Google Chat webhooks                 |

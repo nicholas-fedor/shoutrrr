@@ -15,6 +15,7 @@ import (
 )
 
 var serviceURLs = map[string]string{
+	"dingding":   "dingding://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?keyword=keyword&title=Title",
 	"discord":    "discord://token@id",
 	"gotify":     "gotify://example.com/Aaa.bbb.ccc.ddd",
 	"googlechat": "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
@@ -37,6 +38,7 @@ var serviceURLs = map[string]string{
 }
 
 var serviceResponses = map[string]string{
+	"dingding":   `{"errcode":0,"errmsg":"ok"}`,
 	"discord":    "",
 	"gotify":     `{"id": 0}`,
 	"googlechat": "",

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/dingding"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/googlechat"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/lark"
@@ -33,6 +34,7 @@ import (
 
 var serviceMap = map[string]func() types.Service{
 	"bark":       func() types.Service { return &bark.Service{} },
+	"dingding":   func() types.Service { return &dingding.Service{} },
 	"discord":    func() types.Service { return &discord.Service{} },
 	"generic":    func() types.Service { return &generic.Service{} },
 	"gotify":     func() types.Service { return &gotify.Service{} },
