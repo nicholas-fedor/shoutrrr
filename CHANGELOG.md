@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.0.9 by @renovate[bot] in [#859](https://github.com/nicholas-fedor/shoutrrr/pull/859)
 - Update matrixdotorg/synapse:latest docker digest to 710425f by @renovate[bot] in [#857](https://github.com/nicholas-fedor/shoutrrr/pull/857)
 - Update goreleaser/goreleaser-action action to v7.2.2 by @renovate[bot] in [#854](https://github.com/nicholas-fedor/shoutrrr/pull/854)
 - Update codecov/codecov-action action to v6.0.1 by @renovate[bot] in [#852](https://github.com/nicholas-fedor/shoutrrr/pull/852)
