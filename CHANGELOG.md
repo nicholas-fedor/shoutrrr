@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.19.4 by @renovate[bot] in [#863](https://github.com/nicholas-fedor/shoutrrr/pull/863)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.0 by @renovate[bot] in [#861](https://github.com/nicholas-fedor/shoutrrr/pull/861)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.0.9 by @renovate[bot] in [#859](https://github.com/nicholas-fedor/shoutrrr/pull/859)
 - Update matrixdotorg/synapse:latest docker digest to 710425f by @renovate[bot] in [#857](https://github.com/nicholas-fedor/shoutrrr/pull/857)
