@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.45.0 by @renovate[bot] in [#866](https://github.com/nicholas-fedor/shoutrrr/pull/866)
+- Update cimg/go:1.26.3 docker digest to 9a5aff9 by @renovate[bot] in [#865](https://github.com/nicholas-fedor/shoutrrr/pull/865)
 - Update step-security/harden-runner action to v2.19.4 by @renovate[bot] in [#863](https://github.com/nicholas-fedor/shoutrrr/pull/863)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.0 by @renovate[bot] in [#861](https://github.com/nicholas-fedor/shoutrrr/pull/861)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.0.9 by @renovate[bot] in [#859](https://github.com/nicholas-fedor/shoutrrr/pull/859)
