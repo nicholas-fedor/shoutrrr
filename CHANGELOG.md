@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/net to v0.55.0 by @renovate[bot] in [#870](https://github.com/nicholas-fedor/shoutrrr/pull/870)
 - Update golangci/golangci-lint-action action to v9.2.1 by @renovate[bot] in [#868](https://github.com/nicholas-fedor/shoutrrr/pull/868)
 - Update module golang.org/x/sys to v0.45.0 by @renovate[bot] in [#866](https://github.com/nicholas-fedor/shoutrrr/pull/866)
 - Update cimg/go:1.26.3 docker digest to 9a5aff9 by @renovate[bot] in [#865](https://github.com/nicholas-fedor/shoutrrr/pull/865)
