@@ -329,35 +329,46 @@ linters:
     goconst:
       # Minimal length of string constant.
       # Default: 3
-      # min-len: 2
+      min-len: 3
       # Minimum occurrences of constant string count to trigger issue.
       # Default: 3
-      # min-occurrences: 2
+      min-occurrences: 5
       # Look for existing constants matching the values.
       # Default: true
-      # match-constant: false
+      match-constant: false
       # Search also for duplicated numbers.
       # Default: false
-      numbers: true
+      numbers: false
       # Minimum value, only works with `goconst.numbers`.
       # Default: 3
-      # min: 2
+      min: 3
       # Maximum value, only works with `goconst.numbers`.
       # Default: 3
-      # max: 2
+      max: 3
       # Ignore when constant is not used as function argument.
       # Default: true
-      # ignore-calls: false
+      ignore-calls: false
       # Exclude strings matching the given regular expression.
       # Default: ""
-      # ignore-string-values:
-      #   - "foo.+"
+      ignore-string-values:
+        - ""
       # Detects constants with identical values.
       # Default: false
       find-duplicates: true
       # Evaluates of constant expressions like Prefix + "suffix".
       # Default: false
-      eval-const-expressions: true
+      eval-const-expressions: false
+      # Ignore strings from test files.
+      # Default: false
+      ignore-tests: true
+      # Ignore string literals in calls to these functions
+      # Default: empty list
+      ignore-functions:
+        - "log.*"
+        - "slog.*"
+        - "fmt.Printf"
+        - "fmt.Errorf"
+        - "errors.New"
 
     ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#gocritic
