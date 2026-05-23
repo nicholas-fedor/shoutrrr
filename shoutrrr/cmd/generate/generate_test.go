@@ -151,13 +151,13 @@ func Test_maskUser(t *testing.T) {
 		{
 			name:        "masks user with placeholder",
 			urlStr:      "https://token@host/path",
-			placeholder: "REDACTED",
-			wantUser:    "REDACTED",
+			placeholder: redactedStr,
+			wantUser:    redactedStr,
 		},
 		{
 			name:        "empty user remains nil",
 			urlStr:      "https://host/path",
-			placeholder: "REDACTED",
+			placeholder: redactedStr,
 			wantUser:    "",
 		},
 	}
@@ -194,13 +194,13 @@ func Test_maskSMTPUser(t *testing.T) {
 			name:     "masks password preserving username",
 			urlStr:   "smtp://user:pass@host:587",
 			wantUser: "user",
-			wantPass: "REDACTED",
+			wantPass: redactedStr,
 		},
 		{
 			name:     "user without password gets redacted password",
 			urlStr:   "smtp://user@host:587",
 			wantUser: "user",
-			wantPass: "REDACTED",
+			wantPass: redactedStr,
 		},
 		{
 			name:     "nil user remains nil",
@@ -247,13 +247,13 @@ func Test_maskPushoverQuery(t *testing.T) {
 		{
 			name:     "masks token and user",
 			urlStr:   "pushover://?token=abc&user=def",
-			wantTok:  "REDACTED",
-			wantUser: "REDACTED",
+			wantTok:  redactedStr,
+			wantUser: redactedStr,
 		},
 		{
 			name:     "masks only token",
 			urlStr:   "pushover://?token=abc",
-			wantTok:  "REDACTED",
+			wantTok:  redactedStr,
 			wantUser: "",
 		},
 		{
@@ -302,7 +302,7 @@ func Test_maskGotifyQuery(t *testing.T) {
 		{
 			name:    "masks token",
 			urlStr:  "gotify://?token=secret",
-			wantTok: "REDACTED",
+			wantTok: redactedStr,
 		},
 		{
 			name:    "leaves other params unchanged",
@@ -345,23 +345,23 @@ func Test_maskGeneric(t *testing.T) {
 		{
 			name:     "masks user and all query params",
 			urlStr:   "https://user:pass@host?a=1&b=2",
-			wantUser: "REDACTED",
+			wantUser: redactedStr,
 			wantParams: map[string]string{
-				"a": "REDACTED",
-				"b": "REDACTED",
+				"a": redactedStr,
+				"b": redactedStr,
 			},
 			wantQueryLen: 2,
 		},
 		{
 			name:     "masks only user when no query params",
 			urlStr:   "https://user:pass@host",
-			wantUser: "REDACTED",
+			wantUser: redactedStr,
 		},
 		{
 			name:         "nil user with query params",
 			urlStr:       "https://host?a=1",
 			wantUser:     "",
-			wantParams:   map[string]string{"a": "REDACTED"},
+			wantParams:   map[string]string{"a": redactedStr},
 			wantQueryLen: 1,
 		},
 	}

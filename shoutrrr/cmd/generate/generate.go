@@ -19,6 +19,9 @@ import (
 // MaximumNArgs defines the maximum number of positional arguments allowed.
 const MaximumNArgs = 2
 
+// redactedStr represents the placeholder string for masked text values.
+const redactedStr = "REDACTED"
+
 var (
 	// ErrNoServiceSpecified indicates that no service was provided for URL generation.
 	ErrNoServiceSpecified = errors.New("no service specified")
@@ -237,7 +240,7 @@ func maskSensitiveURL(serviceSchema, urlStr string) string {
 
 	switch serviceSchema {
 	case "discord", "slack", "teams":
-		maskUser(parsedURL, "REDACTED")
+		maskUser(parsedURL, redactedStr)
 	case "smtp":
 		maskSMTPUser(parsedURL)
 	case "pushover":
@@ -268,7 +271,7 @@ func maskUser(parsedURL *url.URL, placeholder string) {
 //   - parsedURL: The SMTP URL to modify.
 func maskSMTPUser(parsedURL *url.URL) {
 	if parsedURL.User != nil {
-		parsedURL.User = url.UserPassword(parsedURL.User.Username(), "REDACTED")
+		parsedURL.User = url.UserPassword(parsedURL.User.Username(), redactedStr)
 	}
 }
 
@@ -279,11 +282,11 @@ func maskSMTPUser(parsedURL *url.URL) {
 func maskPushoverQuery(parsedURL *url.URL) {
 	queryParams := parsedURL.Query()
 	if queryParams.Get("token") != "" {
-		queryParams.Set("token", "REDACTED")
+		queryParams.Set("token", redactedStr)
 	}
 
 	if queryParams.Get("user") != "" {
-		queryParams.Set("user", "REDACTED")
+		queryParams.Set("user", redactedStr)
 	}
 
 	parsedURL.RawQuery = queryParams.Encode()
@@ -296,7 +299,7 @@ func maskPushoverQuery(parsedURL *url.URL) {
 func maskGotifyQuery(parsedURL *url.URL) {
 	queryParams := parsedURL.Query()
 	if queryParams.Get("token") != "" {
-		queryParams.Set("token", "REDACTED")
+		queryParams.Set("token", redactedStr)
 	}
 
 	parsedURL.RawQuery = queryParams.Encode()
@@ -307,11 +310,11 @@ func maskGotifyQuery(parsedURL *url.URL) {
 // Parameters:
 //   - parsedURL: The URL to modify.
 func maskGeneric(parsedURL *url.URL) {
-	maskUser(parsedURL, "REDACTED")
+	maskUser(parsedURL, redactedStr)
 
 	queryParams := parsedURL.Query()
 	for key := range queryParams {
-		queryParams.Set(key, "REDACTED")
+		queryParams.Set(key, redactedStr)
 	}
 
 	parsedURL.RawQuery = queryParams.Encode()
