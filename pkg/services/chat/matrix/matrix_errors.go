@@ -27,4 +27,7 @@ var (
 	// ErrUnexpectedStatus is returned when the Matrix API returns an HTTP
 	// status code that was not expected by the client.
 	ErrUnexpectedStatus = errors.New("unexpected HTTP status")
+
+	// ErrEmptyRoom is returned when a room value is empty or contains only whitespace.
+	ErrEmptyRoom = errors.New("room value is empty")
 )

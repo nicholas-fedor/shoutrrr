@@ -296,6 +296,34 @@ var _ = ginkgo.Describe("client", func() {
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Expect(roomID).To(gomega.Equal("!joinedroom:matrix.example.com"))
 		})
+
+		ginkgo.It("should send a valid JSON object body, not null", func() {
+			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			mockHTTPClient.On("Do", mock.MatchedBy(func(req *http.Request) bool {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					return false
+				}
+
+				return string(body) == "{}"
+			})).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!joinedroom:matrix.example.com"}`))),
+			}, nil)
+
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				httpClient: mockHTTPClient,
+				logger:     &testLogger{},
+			}
+
+			roomID, err := c.joinRoom(context.Background(), "#test:matrix.example.com")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(roomID).To(gomega.Equal("!joinedroom:matrix.example.com"))
+		})
 	})
 
 	ginkgo.Describe("logf", func() {
@@ -575,6 +603,108 @@ var _ = ginkgo.Describe("client", func() {
 
 			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com"}, "test message")
 			gomega.Expect(errs).To(gomega.HaveLen(1))
+		})
+
+		ginkgo.It("should skip joinRoom when room ID starts with !", func() {
+			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			// Only one call expected: sendMessageToRoom (no joinRoom)
+			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
+			}, nil).Once()
+
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				httpClient: mockHTTPClient,
+				logger:     &testLogger{},
+			}
+
+			errs := c.sendToExplicitRooms(context.Background(), []string{"!roomid:matrix.example.com"}, "test message")
+			gomega.Expect(errs).To(gomega.BeEmpty())
+			mockHTTPClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
+		})
+
+		ginkgo.It("should handle mixed room IDs and aliases", func() {
+			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			// First call: joinRoom for alias
+			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!roomid:matrix.example.com"}`))),
+			}, nil).Once()
+			// Second call: sendMessageToRoom for alias-resolved room
+			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid1"}`))),
+			}, nil).Once()
+			// Third call: sendMessageToRoom for room ID (no joinRoom needed)
+			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid2"}`))),
+			}, nil).Once()
+
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				httpClient: mockHTTPClient,
+				logger:     &testLogger{},
+			}
+
+			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com", "!otherroom:matrix.example.com"}, "test message")
+			gomega.Expect(errs).To(gomega.BeEmpty())
+			mockHTTPClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 3)
+		})
+
+		ginkgo.It("should return error for empty room value", func() {
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				logger: &testLogger{},
+			}
+
+			errs := c.sendToExplicitRooms(context.Background(), []string{""}, "test message")
+			gomega.Expect(errs).To(gomega.HaveLen(1))
+			gomega.Expect(errors.Is(errs[0], ErrEmptyRoom)).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should return error for whitespace-only room value", func() {
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				logger: &testLogger{},
+			}
+
+			errs := c.sendToExplicitRooms(context.Background(), []string{"   "}, "test message")
+			gomega.Expect(errs).To(gomega.HaveLen(1))
+			gomega.Expect(errors.Is(errs[0], ErrEmptyRoom)).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should trim whitespace from room value before processing", func() {
+			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
+			}, nil).Once()
+
+			c := &client{
+				apiURL: url.URL{
+					Scheme: "https",
+					Host:   "matrix.example.com",
+				},
+				httpClient: mockHTTPClient,
+				logger:     &testLogger{},
+			}
+
+			errs := c.sendToExplicitRooms(context.Background(), []string{"  !roomid:matrix.example.com  "}, "test message")
+			gomega.Expect(errs).To(gomega.BeEmpty())
 		})
 	})
 

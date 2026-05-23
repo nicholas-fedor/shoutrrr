@@ -264,7 +264,7 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	err := c.apiPost(
 		ctx,
 		fmt.Sprintf(apiRoomJoin, room),
-		nil,
+		&struct{}{},
 		&resRoom,
 	)
 	if err != nil {
@@ -420,23 +420,34 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 	var errs []error
 
 	for _, room := range rooms {
-		c.logf("Sending message to '%v'...\n", room)
-
-		roomID, err := c.joinRoom(ctx, room)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error joining room %v: %w", roomID, err))
+		room = strings.TrimSpace(room)
+		if room == "" {
+			errs = append(errs, fmt.Errorf("%w", ErrEmptyRoom))
 
 			continue
 		}
 
-		if room != roomID {
-			c.logf("Resolved room alias '%v' to ID '%v'", room, roomID)
+		c.logf("Sending message to '%v'...\n", room)
+
+		if !strings.HasPrefix(room, "!") {
+			roomID, err := c.joinRoom(ctx, room)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error joining room %v: %w", room, err))
+
+				continue
+			}
+
+			if room != roomID {
+				c.logf("Resolved room alias '%v' to ID '%v'", room, roomID)
+			}
+
+			room = roomID
 		}
 
-		if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
+		if err := c.sendMessageToRoom(ctx, message, room); err != nil {
 			errs = append(
 				errs,
-				fmt.Errorf("failed to send message to room '%v': %w", roomID, err),
+				fmt.Errorf("failed to send message to room '%v': %w", room, err),
 			)
 		}
 	}
