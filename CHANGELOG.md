@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#811](https://github.com/nicholas-fedor/shoutrrr/pull/811)
 - Update github.com/google/pprof digest to 92041b7 by @renovate[bot] in [#810](https://github.com/nicholas-fedor/shoutrrr/pull/810)
 
+### Fixed
+
+- Send valid JSON body in joinRoom and validate room input by @nicholas-fedor in [#878](https://github.com/nicholas-fedor/shoutrrr/pull/878)
+
 ## [0.15.0] - 2026-05-06
 
 ### Added
