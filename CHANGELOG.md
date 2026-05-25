@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#880](https://github.com/nicholas-fedor/shoutrrr/pull/880)
 - Update docker/setup-buildx-action action to v4.1.0 by @renovate[bot] in [#875](https://github.com/nicholas-fedor/shoutrrr/pull/875)
 - Update github/codeql-action action to v4.36.0 by @renovate[bot] in [#873](https://github.com/nicholas-fedor/shoutrrr/pull/873)
 - Update docker/login-action action to v4.2.0 by @renovate[bot] in [#872](https://github.com/nicholas-fedor/shoutrrr/pull/872)
