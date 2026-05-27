@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#882](https://github.com/nicholas-fedor/shoutrrr/pull/882)
+
+## [0.15.1] - 2026-05-25
+
 ### Changed
 
 - Replace composite actionlint action by @nicholas-fedor in [#833](https://github.com/nicholas-fedor/shoutrrr/pull/833)
@@ -1744,7 +1750,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.1...HEAD)
+- [0.15.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.0...v0.15.1)
 - [0.15.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.3...v0.15.0)
 - [0.14.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.2...v0.14.3)
 - [0.14.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.1...v0.14.2)
