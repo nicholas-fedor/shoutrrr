@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#885](https://github.com/nicholas-fedor/shoutrrr/pull/885)
 - Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#882](https://github.com/nicholas-fedor/shoutrrr/pull/882)
 
 ## [0.15.1] - 2026-05-25
