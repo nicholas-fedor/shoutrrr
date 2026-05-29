@@ -7,7 +7,7 @@ toolchain go1.26.3
 require (
 	github.com/eclipse/paho.golang v0.23.0
 	github.com/jarcoal/httpmock v1.4.1
-	github.com/mattn/go-colorable v0.1.14
+	github.com/mattn/go-colorable v0.1.15
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
 	github.com/spf13/cobra v1.10.2
