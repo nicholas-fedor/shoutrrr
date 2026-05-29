@@ -1,69 +1,49 @@
 # Teams
 
-!!! attention "New webhook URL format only"
-    Shoutrrr now only supports the new Teams webhook URL format with an
-    organization-specific domain.
+!!! attention "Office 365 Connector Retirement"
+    As noted in Microsoft's [update](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/),
+    Office 365 Connectors within Microsoft Teams have been retired.
 
-    You must specify your organization domain using:
+    The legacy `webhook.office.com` webhook URLs and MessageCard format are no longer functional.
 
-    ```text
-    ?host=example.webhook.office.com
-    ```
-    Where `example` is your organization's short name.
-
-    Legacy webhook formats (e.g., `outlook.office.com`) are no longer supported.
+    Shoutrrr now uses Power Automate workflow incoming webhooks exclusively.
+    Existing configurations using the old URL format must be migrated to the new
+    `teams://?host=<workflow URL>` format documented below.
 
 ## URL Format
 
-```
-teams://group@tenant/altId/groupOwner/extraId?host=organization.webhook.office.com[&color=color][&title=title]
+```text
+teams://?host=<Power Automate workflow URL>[&color=<hex color>][&title=<title>]
 ```
 
 Where:
 
-- `group`: The first UUID component from the webhook URL.
-- `tenant`: The second UUID component from the webhook URL.
-- `altId`: The third component (hex string) from the webhook URL.
-- `groupOwner`: The fourth UUID component from the webhook URL.
-- `extraId`: The fifth component at the end of the webhook URL.
-- `organization`: Your organization name for the webhook domain (required).
-- `color`: Optional hex color code for the message card (e.g., `FF0000` for red).
-- `title`: Optional title for the message card.
+- `host`: The full Power Automate workflow incoming webhook URL (required).
+- `color` *(optional)*: Reserved for future use.
+- `title` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
 --8<-- "docs/services/chat/teams/config.md"
 
 ## Setting up a webhook
 
-To use the Microsoft Teams notification service, you need to set up a custom
-incoming webhook. Follow the instructions in [this Microsoft guide](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook#create-an-incoming-webhook).
+To use the Microsoft Teams notification service with Power Automate, create a new
+workflow in Power Automate and add the "When a Teams webhook request is received"
+trigger. Copy the generated webhook URL from the trigger.
 
-## Extracting the token
-
-The token is extracted from your webhook URL:
-
-<pre><code>https://<b>&lt;organization&gt;</b>.webhook.office.com/webhookb2/<b>&lt;group&gt;</b>@<b>&lt;tenant&gt;</b>/IncomingWebhook/<b>&lt;altId&gt;</b>/<b>&lt;groupOwner&gt;</b>/<b>&lt;extraId&gt;</b></code></pre>
-
-!!! note "Important components"
-    All parts of the webhook URL are required:
-
-    - `organization`: Your organization name (e.g., `contoso`).
-    - `group`: First UUID component.
-    - `tenant`: Second UUID component.
-    - `altId`: Third component (hex string).
-    - `groupOwner`: Fourth UUID component.
-    - `extraId`: Fifth component.
+For more information, see the
+[Microsoft Learn documentation](https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook).
 
 ## Example
 
-```
-# Original webhook URL:
-https://contoso.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05
+```text
+# Power Automate workflow webhook URL:
+https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
 
 # Shoutrrr URL:
-teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=contoso.webhook.office.com&color=FF0000&title=Alert
+teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2Fabc123%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX&title=Alert
 ```
 
 In this example:
 
-- `color=FF0000` sets a red theme.
-- `title=Alert` adds a custom title to the message card.
+- The `host` param is the full Power Automate workflow webhook URL (percent-encoded).
+- `title=Alert` adds a bold title header to the Adaptive Card.

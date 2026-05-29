@@ -29,7 +29,7 @@ var serviceURLs = map[string]string{
 	"rocketchat": "rocketchat://example.com/token/channel",
 	"slack":      "slack://AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
 	"smtp":       "smtp://host.tld:25/?fromAddress=from@host.tld&toAddresses=to@host.tld",
-	"teams":      "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=test.webhook.office.com",
+	"teams":      "teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2F00000000-0000-0000-0000-000000000000%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX",
 	"telegram":   "telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram?channels=channel",
 	"twilio":     "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543",
 	"xmpp":       "xmpp://",
