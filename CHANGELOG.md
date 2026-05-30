@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrate from Office 365 Connectors to Power Automate workflow webhooks by @nicholas-fedor in [#887](https://github.com/nicholas-fedor/shoutrrr/pull/887)
+
 ### Chores
 
 - Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#885](https://github.com/nicholas-fedor/shoutrrr/pull/885)
