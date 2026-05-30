@@ -14,9 +14,9 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	Host  string `key:"host"  optional:""`
-	Title string `key:"title" optional:""`
-	Color string `key:"color" optional:""`
+	Host  string `desc:"The full Power Automate workflow incoming webhook URL"                   key:"host"`
+	Title string `desc:"Title displayed as a bold header in the Adaptive Card"                   key:"title" optional:""`
+	Color string `desc:"Hex color code for the title text and card accent (e.g. FF0000 for red)" key:"color" optional:""`
 }
 
 // Scheme is the identifier for the Teams service protocol.
