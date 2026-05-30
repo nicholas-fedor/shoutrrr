@@ -1,6 +1,6 @@
 # Teams
 
-!!! attention "Office 365 Connector Retirement"
+!!! Attention "Office 365 Connector Retirement"
     As noted in Microsoft's [update](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/),
     Office 365 Connectors within Microsoft Teams have been retired.
 
@@ -19,7 +19,7 @@ teams://?host=<Power Automate workflow URL>[&color=<hex color>][&title=<title>]
 Where:
 
 - `host`: The full Power Automate workflow incoming webhook URL (required).
-- `color` *(optional)*: Reserved for future use.
+- `color` *(optional)*: Hex color code for the title text (e.g., `FF0000` for red).
 - `title` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
 --8<-- "docs/services/chat/teams/config.md"
@@ -35,11 +35,15 @@ For more information, see the
 
 ## Example
 
-```text
-# Power Automate workflow webhook URL:
-https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
+Teams/Power Automate workflow webhook URL:
 
-# Shoutrrr URL:
+```text
+https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?   api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
+```
+
+Shoutrrr URL:
+
+```text
 teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2Fabc123%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX&title=Alert
 ```
 

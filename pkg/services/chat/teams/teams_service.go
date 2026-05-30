@@ -110,17 +110,26 @@ func (s *Service) doSend(config *Config, message string) error {
 	body := make([]adaptiveBlock, 0, len(lines)+1)
 
 	if config.Title != "" {
-		//nolint:exhaustruct // Weight, Size, Wrap are optional and default to zero values
-		body = append(body, adaptiveBlock{
+		//nolint:exhaustruct // Color, Wrap are optional and set conditionally
+		titleBlock := adaptiveBlock{
 			Type:   "TextBlock",
 			Text:   config.Title,
 			Weight: "Bolder",
 			Size:   "Medium",
-		})
+		}
+		if config.Color != "" {
+			titleBlock.Color = config.Color
+		}
+
+		body = append(body, titleBlock)
 	}
 
 	for _, line := range lines {
-		//nolint:exhaustruct // Weight, Size are optional and default to zero values
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		//nolint:exhaustruct // Color, Weight, Size are optional and default to zero values
 		body = append(body, adaptiveBlock{
 			Type: "TextBlock",
 			Text: line,
@@ -135,10 +144,11 @@ func (s *Service) doSend(config *Config, message string) error {
 				ContentType: "application/vnd.microsoft.card.adaptive",
 				ContentURL:  nil,
 				Content: adaptiveCardContent{
-					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
-					Type:    "AdaptiveCard",
-					Version: adaptiveCardVersion,
-					Body:    body,
+					Schema:      "http://adaptivecards.io/schemas/adaptive-card.json",
+					Type:        "AdaptiveCard",
+					Version:     adaptiveCardVersion,
+					AccentColor: config.Color,
+					Body:        body,
 				},
 			},
 		},

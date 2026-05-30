@@ -110,17 +110,15 @@ var _ = ginkgo.Describe("the teams service", func() {
 				gomega.Expect(config.Host).To(gomega.Equal(workflowURL))
 			})
 
-			ginkgo.It("should propagate errors for known keys with invalid values", func() {
+			ginkgo.It("should accept valid string values for known keys", func() {
 				config := &Config{}
-				// All config fields are strings, so any value is valid for them.
-				// This test confirms the error path is exercised — if a future
-				// field type rejects input, the error will surface.
 				urlStr := serviceURLBase + "&title=Test"
 				parsedURL, err := url.Parse(urlStr)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				err = config.SetURL(parsedURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(config.Title).To(gomega.Equal("Test"))
 			})
 		})
 

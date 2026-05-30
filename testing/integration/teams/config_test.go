@@ -74,6 +74,7 @@ func TestSendWithColor(t *testing.T) {
 		err := service.Send("Message with color", params)
 
 		require.NoError(t, err)
+		assertRequestContains(t, mockClient, `"accentColor":"ff0000"`)
 
 		mockClient.AssertExpectations(t)
 	})
