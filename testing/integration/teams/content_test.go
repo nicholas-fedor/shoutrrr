@@ -123,7 +123,7 @@ func TestAdaptiveCardStructure(t *testing.T) {
 		require.NoError(t, err)
 
 		assertRequestContains(t, mockClient, `"$schema":"http://adaptivecards.io/schemas/adaptive-card.json"`)
-		assertRequestContains(t, mockClient, `"version":"1.5"`)
+		assertRequestContains(t, mockClient, `"version":"1.2"`)
 		assertRequestContains(t, mockClient, `"contentType":"application/vnd.microsoft.card.adaptive"`)
 
 		mockClient.AssertExpectations(t)

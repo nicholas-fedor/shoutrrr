@@ -38,7 +38,7 @@ type Service struct {
 const defaultHTTPTimeout = 30 * time.Second
 
 // adaptiveCardVersion is the Adaptive Card schema version used in payloads.
-const adaptiveCardVersion = "1.5"
+const adaptiveCardVersion = "1.2"
 
 // Do performs the HTTP request.
 func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -96,6 +96,28 @@ func (s *Service) SetHTTPClient(client HTTPClient) {
 	s.httpClient = client
 }
 
+// colorToEnum maps user-provided color values to valid Adaptive Card TextBlock.color enum values.
+func colorToEnum(color string) string {
+	switch strings.ToLower(color) {
+	case "red", "attention", "danger":
+		return "attention"
+	case "orange", "yellow", "warning", "warn":
+		return "warning"
+	case "green", "good", "success":
+		return "good"
+	case "blue", "accent":
+		return "accent"
+	case "dark":
+		return "dark"
+	case "light":
+		return "light"
+	case "default", "":
+		return "default"
+	default:
+		return "default"
+	}
+}
+
 // doSend sends the notification to Teams as an Adaptive Card payload.
 func (s *Service) doSend(config *Config, message string) error {
 	if config.Host == "" {
@@ -116,9 +138,7 @@ func (s *Service) doSend(config *Config, message string) error {
 			Text:   config.Title,
 			Weight: "Bolder",
 			Size:   "Medium",
-		}
-		if config.Color != "" {
-			titleBlock.Color = config.Color
+			Color:  colorToEnum(config.Color),
 		}
 
 		body = append(body, titleBlock)
@@ -144,11 +164,10 @@ func (s *Service) doSend(config *Config, message string) error {
 				ContentType: "application/vnd.microsoft.card.adaptive",
 				ContentURL:  nil,
 				Content: adaptiveCardContent{
-					Schema:      "http://adaptivecards.io/schemas/adaptive-card.json",
-					Type:        "AdaptiveCard",
-					Version:     adaptiveCardVersion,
-					AccentColor: config.Color,
-					Body:        body,
+					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+					Type:    "AdaptiveCard",
+					Version: adaptiveCardVersion,
+					Body:    body,
 				},
 			},
 		},

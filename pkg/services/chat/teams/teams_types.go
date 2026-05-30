@@ -15,11 +15,10 @@ type adaptiveAttachment struct {
 
 // adaptiveCardContent is the Adaptive Card JSON body.
 type adaptiveCardContent struct {
-	Schema      string          `json:"$schema"`
-	Type        string          `json:"type"`
-	Version     string          `json:"version"`
-	AccentColor string          `json:"accentColor,omitempty"`
-	Body        []adaptiveBlock `json:"body"`
+	Schema  string          `json:"$schema"`
+	Type    string          `json:"type"`
+	Version string          `json:"version"`
+	Body    []adaptiveBlock `json:"body"`
 }
 
 // adaptiveBlock is a single UI block within an Adaptive Card body.

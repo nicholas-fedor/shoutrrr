@@ -19,7 +19,7 @@ teams://?host=<Power Automate workflow URL>[&color=<hex color>][&title=<title>]
 Where:
 
 - `host`: The full Power Automate workflow incoming webhook URL (required).
-- `color` *(optional)*: Hex color code for the title text (e.g., `FF0000` for red).
+- `color` *(optional)*: Title text color. Accepts Adaptive Card color names (`accent`, `good`, `warning`, `attention`, `dark`, `light`, `default`) or common color names (`red`, `green`, `blue`, `yellow`, `orange`).
 - `title` *(optional)*: Title displayed as a bold header in the Adaptive Card.
 
 --8<-- "docs/services/chat/teams/config.md"
@@ -38,7 +38,7 @@ For more information, see the
 Teams/Power Automate workflow webhook URL:
 
 ```text
-https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?   api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
+https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX
 ```
 
 Shoutrrr URL:

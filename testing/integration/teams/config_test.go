@@ -70,11 +70,12 @@ func TestSendWithColor(t *testing.T) {
 			Return(createMockResponse(http.StatusOK, ""), nil).
 			Once()
 
-		params := &types.Params{"color": "ff0000"}
-		err := service.Send("Message with color", params)
+		params := &types.Params{"color": "attention", "title": "Important"}
+		err := service.Send("Message body", params)
 
 		require.NoError(t, err)
-		assertRequestContains(t, mockClient, `"accentColor":"ff0000"`)
+		assertRequestContains(t, mockClient, `"text":"Important"`)
+		assertRequestContains(t, mockClient, `"color":"attention"`)
 
 		mockClient.AssertExpectations(t)
 	})
