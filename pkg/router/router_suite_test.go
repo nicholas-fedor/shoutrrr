@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	mockCustomURL = "teams+https://publicservice.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=publicservice.webhook.office.com"
+	mockCustomURL = "generic+https://example.com/webhook"
 )
 
 var sr ServiceRouter

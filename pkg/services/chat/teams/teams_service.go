@@ -15,26 +15,43 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// Service sends notifications to Microsoft Teams.
+// HTTPClient defines the interface for HTTP operations.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// defaultHTTPClient implements HTTPClient using http.Client with a timeout.
+type defaultHTTPClient struct {
+	client *http.Client
+}
+
+// Service sends notifications to Microsoft Teams via Power Automate workflow webhooks.
 type Service struct {
 	standard.Standard
 
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient *http.Client
+	httpClient HTTPClient
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
 const defaultHTTPTimeout = 30 * time.Second
 
-// MaxSummaryLength defines the maximum length for a notification summary.
-const MaxSummaryLength = 20
+// adaptiveCardVersion is the Adaptive Card schema version used in payloads.
+const adaptiveCardVersion = "1.2"
 
-// TruncatedSummaryLen defines the length for a truncated summary.
-const TruncatedSummaryLen = 21
+// Do performs the HTTP request.
+func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("performing HTTP request: %w", err)
+	}
+
+	return resp, nil
+}
 
 // GetHTTPClient returns the service's HTTP client for testing purposes.
-func (s *Service) GetHTTPClient() *http.Client {
+func (s *Service) GetHTTPClient() HTTPClient {
 	return s.httpClient
 }
 
@@ -43,130 +60,130 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// GetServiceURLFromCustom converts a custom URL to a service URL.
-func (s *Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
-	webhookURLStr := strings.TrimPrefix(customURL.String(), "teams+")
-
-	tempURL, err := url.Parse(webhookURLStr)
-	if err != nil {
-		return nil, fmt.Errorf("parsing custom URL %q: %w", webhookURLStr, err)
-	}
-
-	webhookURL := &url.URL{
-		Scheme: tempURL.Scheme,
-		Host:   tempURL.Host,
-		Path:   tempURL.Path,
-	}
-
-	config, err := ConfigFromWebhookURL(webhookURL)
-	if err != nil {
-		return nil, err
-	}
-
-	config.Color = ""
-	config.Title = ""
-
-	query := customURL.Query()
-	for key, vals := range query {
-		if vals[0] != "" {
-			switch key {
-			case "color":
-				config.Color = vals[0]
-			case "host":
-				config.Host = vals[0]
-			case "title":
-				config.Title = vals[0]
-			}
-		}
-	}
-
-	return config.GetURL(), nil
-}
-
 // Initialize configures the service with a URL and logger.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.httpClient = &defaultHTTPClient{
+		client: &http.Client{Timeout: defaultHTTPTimeout},
+	}
 
-	s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
+		return fmt.Errorf("setting default properties: %w", err)
+	}
 
 	return s.Config.SetURL(serviceURL)
 }
 
 // Send delivers a notification message to Microsoft Teams.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := s.Config
-	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
-		s.Logf("Failed to update params: %v", err)
+	if s.Config == nil {
+		return ErrMissingHost
 	}
 
-	return s.doSend(config, message)
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	return s.doSend(&config, message)
 }
 
-// doSend sends the notification to Teams using the configured webhook URL.
+// SetHTTPClient sets the HTTP client for testing purposes.
+func (s *Service) SetHTTPClient(client HTTPClient) {
+	s.httpClient = client
+}
+
+// colorToEnum maps user-provided color values to valid Adaptive Card TextBlock.color enum values.
+func colorToEnum(color string) string {
+	switch strings.ToLower(color) {
+	case "red", "attention", "danger":
+		return "attention"
+	case "orange", "yellow", "warning", "warn":
+		return "warning"
+	case "green", "good", "success":
+		return "good"
+	case "blue", "accent":
+		return "accent"
+	case "dark":
+		return "dark"
+	case "light":
+		return "light"
+	case "default", "":
+		return "default"
+	default:
+		return "default"
+	}
+}
+
+// doSend sends the notification to Teams as an Adaptive Card payload.
 func (s *Service) doSend(config *Config, message string) error {
-	lines := strings.Split(message, "\n")
-	sections := make([]section, 0, len(lines))
-
-	for _, line := range lines {
-		sections = append(sections, section{
-			Text:             line,
-			ActivityTitle:    "",
-			ActivitySubtitle: "",
-			ActivityImage:    "",
-			Facts:            nil,
-			Images:           nil,
-			Actions:          nil,
-			HeroImage:        nil,
-		})
-	}
-
-	summary := config.Title
-	if summary == "" && len(sections) > 0 {
-		summary = sections[0].Text
-		if len(summary) > MaxSummaryLength {
-			summary = summary[:TruncatedSummaryLen]
-		}
-	}
-
-	payload, err := json.Marshal(payload{
-		CardType:   "MessageCard",
-		Context:    "http://schema.org/extensions",
-		Markdown:   true,
-		Title:      config.Title,
-		ThemeColor: config.Color,
-		Summary:    summary,
-		Sections:   sections,
-	})
-	if err != nil {
-		return fmt.Errorf("marshaling payload to JSON: %w", err)
-	}
-
 	if config.Host == "" {
 		return ErrMissingHost
 	}
 
-	postURL := BuildWebhookURL(
-		config.Host,
-		config.Group,
-		config.Tenant,
-		config.AltID,
-		config.GroupOwner,
-		config.ExtraID,
-	)
-
-	// Validate URL before sending
-	if err := ValidateWebhookURL(postURL); err != nil {
+	if err := ValidateWebhookURL(config.Host); err != nil {
 		return err
 	}
 
-	res, err := s.postJSON(postURL, payload)
+	lines := strings.Split(message, "\n")
+	body := make([]adaptiveBlock, 0, len(lines)+1)
+
+	if config.Title != "" {
+		//nolint:exhaustruct // Color, Wrap are optional and set conditionally
+		titleBlock := adaptiveBlock{
+			Type:   "TextBlock",
+			Text:   config.Title,
+			Weight: "Bolder",
+			Size:   "Medium",
+			Color:  colorToEnum(config.Color),
+		}
+
+		body = append(body, titleBlock)
+	}
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		//nolint:exhaustruct // Color, Weight, Size are optional and default to zero values
+		body = append(body, adaptiveBlock{
+			Type: "TextBlock",
+			Text: line,
+			Wrap: true,
+		})
+	}
+
+	payload := adaptivePayload{
+		Type: "message",
+		Attachments: []adaptiveAttachment{
+			{
+				ContentType: "application/vnd.microsoft.card.adaptive",
+				ContentURL:  nil,
+				Content: adaptiveCardContent{
+					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+					Type:    "AdaptiveCard",
+					Version: adaptiveCardVersion,
+					Body:    body,
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshaling payload to JSON: %w", err)
+	}
+
+	res, err := s.postJSON(config.Host, jsonBytes)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
 	}
 
-	defer func() { _ = res.Body.Close() }() // Move defer after error check
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: %s", ErrSendFailedStatus, res.Status)
@@ -175,7 +192,7 @@ func (s *Service) doSend(config *Config, message string) error {
 	return nil
 }
 
-// postJSON performs an HTTP POST with a pre-validated URL using the service's HTTP client.
+// postJSON performs an HTTP POST with a JSON payload.
 func (s *Service) postJSON(serviceURL string, payload []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),

@@ -3,6 +3,7 @@ package teams
 import (
 	"errors"
 	"log"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -12,96 +13,14 @@ import (
 )
 
 const (
-	extraIDValue     = "V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05"
-	scopedWebhookURL = "https://test.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
-	scopedDomainHost = "test.webhook.office.com"
-	testURLBase      = "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc/" + extraIDValue
+	workflowURL = "https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX"
 )
+
+var serviceURLBase = "teams://?host=" + url.QueryEscape(workflowURL)
 
 var logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
 
 var _ = ginkgo.Describe("the teams service", func() {
-	ginkgo.When("creating the webhook URL", func() {
-		ginkgo.It("should match the expected output for custom URLs", func() {
-			config := Config{}
-			config.setFromWebhookParts(&[5]string{
-				"11111111-4444-4444-8444-cccccccccccc",
-				"22222222-4444-4444-8444-cccccccccccc",
-				"33333301222222222233333333333344",
-				"44444444-4444-4444-8444-cccccccccccc",
-				extraIDValue,
-			})
-			apiURL := BuildWebhookURL(
-				scopedDomainHost,
-				config.Group,
-				config.Tenant,
-				config.AltID,
-				config.GroupOwner,
-				config.ExtraID,
-			)
-			gomega.Expect(apiURL).To(gomega.Equal(scopedWebhookURL))
-
-			parts, err := ParseAndVerifyWebhookURL(apiURL)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(parts).To(gomega.Equal(config.WebhookParts()))
-		})
-	})
-
-	ginkgo.Describe("creating a config", func() {
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := testURLBase + "?color=aabbcc&host=test.webhook.office.com&title=Test+title"
-				url, err := url.Parse(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
-
-				config := &Config{}
-				err = config.SetURL(url)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
-
-				outputURL := config.GetURL()
-				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
-			})
-		})
-	})
-
-	ginkgo.Describe("converting custom URL to service URL", func() {
-		ginkgo.When("an invalid custom URL is provided", func() {
-			ginkgo.It("should return an error", func() {
-				service := Service{}
-				testURL := "teams+https://google.com/search?q=what+is+love"
-				customURL, err := url.Parse(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
-
-				_, err = service.GetServiceURLFromCustom(customURL)
-				gomega.Expect(err).To(gomega.HaveOccurred(), "converting")
-			})
-		})
-		ginkgo.When("a valid custom URL is provided", func() {
-			ginkgo.It("should set the host field from the custom URL", func() {
-				service := Service{}
-				testURL := `teams+` + scopedWebhookURL
-				customURL, err := url.Parse(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
-
-				serviceURL, err := service.GetServiceURLFromCustom(customURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
-				gomega.Expect(serviceURL.String()).To(gomega.Equal(testURLBase + "?host=" + scopedDomainHost))
-			})
-			ginkgo.It("should preserve the query params in the generated service URL", func() {
-				service := Service{}
-				testURL := "teams+" + scopedWebhookURL + "?color=f008c1&title=TheTitle"
-				customURL, err := url.Parse(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
-
-				serviceURL, err := service.GetServiceURLFromCustom(customURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "converting")
-
-				expectedURL := testURLBase + "?color=f008c1&host=test.webhook.office.com&title=TheTitle"
-				gomega.Expect(serviceURL.String()).To(gomega.Equal(expectedURL))
-			})
-		})
-	})
-
 	ginkgo.Describe("sending the payload", func() {
 		var (
 			err     error
@@ -115,27 +34,41 @@ var _ = ginkgo.Describe("the teams service", func() {
 			httpmock.DeactivateAndReset()
 		})
 		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, _ := url.Parse(testURLBase + "?host=" + scopedDomainHost)
+			serviceURL, _ := url.Parse(serviceURLBase)
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.RegisterResponder(
 				"POST",
-				scopedWebhookURL,
-				httpmock.NewStringResponder(200, ""),
+				workflowURL,
+				httpmock.NewStringResponder(http.StatusOK, ""),
 			)
 
 			err = service.Send("Message", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
-		ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-			serviceURL, _ := url.Parse(testURLBase + "?host=test.webhook.office.com")
+		ginkgo.It("should report an error if the server returns non-200", func() {
+			serviceURL, _ := url.Parse(serviceURLBase)
 			err = service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			httpmock.RegisterResponder(
 				"POST",
-				scopedWebhookURL,
+				workflowURL,
+				httpmock.NewStringResponder(http.StatusInternalServerError, ""),
+			)
+
+			err = service.Send("Message", nil)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+		ginkgo.It("should not panic if an HTTP error occurs when sending the payload", func() {
+			serviceURL, _ := url.Parse(serviceURLBase)
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				workflowURL,
 				httpmock.NewErrorResponder(errors.New("dummy error")),
 			)
 
@@ -149,116 +82,120 @@ var _ = ginkgo.Describe("the teams service", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("teams"))
 	})
 
-	// Config tests
 	ginkgo.Describe("the teams config", func() {
 		ginkgo.Describe("setURL", func() {
 			ginkgo.It("should set all fields correctly from URL", func() {
 				config := &Config{}
-				urlStr := testURLBase + "?title=Test&color=red&host=test.webhook.office.com"
+				urlStr := serviceURLBase + "&title=Test&color=red"
 				parsedURL, err := url.Parse(urlStr)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				err = config.SetURL(parsedURL)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-				gomega.Expect(config.Group).To(gomega.Equal("11111111-4444-4444-8444-cccccccccccc"))
-				gomega.Expect(config.Tenant).
-					To(gomega.Equal("22222222-4444-4444-8444-cccccccccccc"))
-				gomega.Expect(config.AltID).To(gomega.Equal("33333301222222222233333333333344"))
-				gomega.Expect(config.GroupOwner).
-					To(gomega.Equal("44444444-4444-4444-8444-cccccccccccc"))
-				gomega.Expect(config.ExtraID).To(gomega.Equal(extraIDValue))
+				gomega.Expect(config.Host).To(gomega.Equal(workflowURL))
 				gomega.Expect(config.Title).To(gomega.Equal("Test"))
 				gomega.Expect(config.Color).To(gomega.Equal("red"))
-				gomega.Expect(config.Host).To(gomega.Equal("test.webhook.office.com"))
 			})
 
-			ginkgo.It("should reject URLs missing the extraID", func() {
+			ginkgo.It("should silently skip unknown query params from workflow URL", func() {
 				config := &Config{}
-				urlStr := "teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333301222222222233333333333344/44444444-4444-4444-8444-cccccccccccc?host=test.webhook.office.com"
+				// Simulates the query params appended by Power Automate workflow URLs
+				urlStr := serviceURLBase + "&api-version=2016-06-00&sp=/triggers/manual/run&sv=1.0&sig=XXXXXXXX"
 				parsedURL, err := url.Parse(urlStr)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				err = config.SetURL(parsedURL)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(config.Host).To(gomega.Equal(workflowURL))
 			})
 
-			ginkgo.It("should require the host parameter", func() {
+			ginkgo.It("should accept valid string values for known keys", func() {
 				config := &Config{}
-				urlStr := testURLBase
+				urlStr := serviceURLBase + "&title=Test"
 				parsedURL, err := url.Parse(urlStr)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				err = config.SetURL(parsedURL)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(config.Title).To(gomega.Equal("Test"))
 			})
 		})
 
 		ginkgo.Describe("getURL", func() {
-			ginkgo.It("should generate correct URL with all parameters", func() {
+			ginkgo.It("should generate URL containing host, title, and color params", func() {
 				config := &Config{
-					Group:      "11111111-4444-4444-8444-cccccccccccc",
-					Tenant:     "22222222-4444-4444-8444-cccccccccccc",
-					AltID:      "33333301222222222233333333333344",
-					GroupOwner: "44444444-4444-4444-8444-cccccccccccc",
-					ExtraID:    extraIDValue,
-					Title:      "Test",
-					Color:      "red",
-					Host:       "test.webhook.office.com",
+					Host:  workflowURL,
+					Title: "Test",
+					Color: "red",
 				}
 
 				urlObj := config.GetURL()
 				urlStr := urlObj.String()
-				expectedURL := testURLBase + "?color=red&host=test.webhook.office.com&title=Test"
-				gomega.Expect(urlStr).To(gomega.Equal(expectedURL))
+				gomega.Expect(urlStr).To(gomega.ContainSubstring("host="))
+				gomega.Expect(urlStr).To(gomega.ContainSubstring("color=red"))
+				gomega.Expect(urlStr).To(gomega.ContainSubstring("title=Test"))
 			})
 		})
+	})
 
-		ginkgo.Describe("verifyWebhookParts", func() {
-			ginkgo.It("should validate correct webhook parts", func() {
-				parts := [5]string{
-					"11111111-4444-4444-8444-cccccccccccc",
-					"22222222-4444-4444-8444-cccccccccccc",
-					"33333301222222222233333333333344",
-					"44444444-4444-4444-8444-cccccccccccc",
-					extraIDValue,
-				}
-				err := verifyWebhookParts(&parts)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
+	ginkgo.Describe("Initialize", func() {
+		ginkgo.It("should initialize with a valid workflow URL", func() {
+			service := &Service{}
+			serviceURL, _ := url.Parse(serviceURLBase)
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Config).NotTo(gomega.BeNil())
+			gomega.Expect(service.Config.Host).To(gomega.Equal(workflowURL))
+		})
+	})
 
-			ginkgo.It("should reject invalid group ID", func() {
-				parts := [5]string{
-					"invalid-id",
-					"22222222-4444-4444-8444-cccccccccccc",
-					"33333333012222222222333333333344",
-					"44444444-4444-4444-8444-cccccccccccc",
-					extraIDValue,
-				}
-				err := verifyWebhookParts(&parts)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
+	ginkgo.Describe("ValidateWebhookURL", func() {
+		ginkgo.It("should accept valid Power Automate workflow URLs", func() {
+			validURLs := []string{
+				"https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke",
+				"https://prod-00.westus.logic.azure.com/workflows/abc123/triggers/manual/paths/invoke",
+				"https://mytenant.logic.azure.com/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00",
+				"https://prod-00.westus.logic.azure.us/workflows/abc123/triggers/manual/paths/invoke",
+				"https://prod-00.westus.logic.azure.cn/workflows/abc123/triggers/manual/paths/invoke",
+				"https://prod-00.westus.logic.azure.de/workflows/abc123/triggers/manual/paths/invoke",
+			}
+			for _, u := range validURLs {
+				err := ValidateWebhookURL(u)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "URL: %s", u)
+			}
 		})
 
-		ginkgo.Describe("parseAndVerifyWebhookURL", func() {
-			ginkgo.It("should correctly parse valid webhook URL", func() {
-				webhookURL := scopedWebhookURL
-				parts, err := ParseAndVerifyWebhookURL(webhookURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(parts).To(gomega.Equal([5]string{
-					"11111111-4444-4444-8444-cccccccccccc",
-					"22222222-4444-4444-8444-cccccccccccc",
-					"33333301222222222233333333333344",
-					"44444444-4444-4444-8444-cccccccccccc",
-					extraIDValue,
-				}))
-			})
+		ginkgo.It("should reject invalid URLs", func() {
+			invalidURLs := []string{
+				"https://example.com/webhook",
+				"",
+			}
+			for _, u := range invalidURLs {
+				err := ValidateWebhookURL(u)
+				gomega.Expect(err).To(gomega.HaveOccurred(), "URL: %s", u)
+			}
+		})
+	})
 
-			ginkgo.It("should reject invalid webhook URL", func() {
-				webhookURL := "https://teams.microsoft.com/invalid/webhook/url"
-				_, err := ParseAndVerifyWebhookURL(webhookURL)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
+	ginkgo.Describe("doSend", func() {
+		ginkgo.It("should return ErrMissingHost when host is empty", func() {
+			service := &Service{}
+			service.Config = &Config{}
+			service.SetLogger(logger)
+
+			err := service.doSend(&Config{}, "test message")
+			gomega.Expect(err).To(gomega.Equal(ErrMissingHost))
+		})
+
+		ginkgo.It("should return ErrInvalidWebhookURL for invalid host before any HTTP call", func() {
+			service := &Service{}
+			service.Config = &Config{}
+			service.SetLogger(logger)
+
+			// No httpmock activated — this must fail at validation, not at the network layer.
+			err := service.doSend(&Config{Host: "https://example.com"}, "test message")
+			gomega.Expect(err).To(gomega.MatchError(ErrInvalidWebhookURL))
 		})
 	})
 })

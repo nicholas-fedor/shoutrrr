@@ -15,7 +15,7 @@ Click on the service for a more thorough explanation.
 | [Rocketchat](./chat/rocketchat/index.md)  | *rocketchat://[__`username`__@]__`rocketchat-host`__/__`token`__[/__`channel`&#124;`@recipient`__]*                         |
 | [Signal](./chat/signal/index.md)          | *signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]* |
 | [Slack](./chat/slack/index.md)            | *slack://[__`botname`__@]__`token-a`__/__`token-b`__/__`token-c`__*                                                         |
-| [Teams](./chat/teams/index.md)            | *teams://__`group`__@__`tenant`__/__`altId`__/__`groupOwner`__?host=__`organization`__.webhook.office.com*                  |
+| [Teams](./chat/teams/index.md)            | *teams://?host=__`Power Automate workflow URL`__*                                                                           |
 | [Telegram](./chat/telegram/index.md)      | *telegram://__`token`__@telegram?chats=__`@channel-1`__[,__`chat-id-1`__,...]*                                              |
 | [WeCom](./chat/wecom/index.md)            | *wecom://__`key`__*                                                                                                         |
 | [Zulip Chat](./chat/zulip/index.md)       | *zulip://__`bot-mail`__:__`bot-key`__@__`zulip-domain`__/?stream=__`name-or-id`__&topic=__`name`__*                         |
