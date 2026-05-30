@@ -5,7 +5,7 @@ Upstream docs: <https://docs.ntfy.sh/publish/>
 ## URL Format
 
 !!! info ""
-    ntfy://__`host`__/__`topic`__/?priority=__`priority`__&tags=__`tag1`__,__`tag2`__&title=__`title`__
+    ntfy://__`host`__/__`topic`__?priority=__`priority`__&tags=__`tag1`__,__`tag2`__&title=__`title`__
 
 --8<-- "docs/services/push/ntfy/config.md"
 
@@ -54,7 +54,7 @@ Commonly used parameters can be added as query parameters to customize notificat
 
 !!! example "High-priority notification with tags"
     ```uri
-    ntfy://ntfy.sh/alerts/?priority=5&tags=warning,fire&title=System+Alert
+    ntfy://ntfy.sh/alerts?priority=5&tags=warning,fire&title=System+Alert
     ```
 
 !!! note
@@ -85,15 +85,15 @@ Ntfy supports two TLS-related configuration options to handle different security
 
 !!! example "With parameters"
     ```uri
-    ntfy://ntfy.sh/updates/?priority=4&tags=info,computer&title=Server+Update
+    ntfy://ntfy.sh/updates?priority=4&tags=info,computer&title=Server+Update
     ```
 
 !!! example "Delayed notification"
     ```uri
-    ntfy://ntfy.sh/reminders/?delay=1h&title=Meeting+in+1+hour
+    ntfy://ntfy.sh/reminders?delay=1h&title=Meeting+in+1+hour
     ```
 
 !!! example "With action button"
     ```uri
-    ntfy://ntfy.sh/tasks/?actions=[{"action":"view","label":"Open Dashboard","url":"https://dashboard.example.com"}]&title=Task+Completed
+    ntfy://ntfy.sh/tasks?actions=[{"action":"view","label":"Open Dashboard","url":"https://dashboard.example.com"}]&title=Task+Completed
     ```
