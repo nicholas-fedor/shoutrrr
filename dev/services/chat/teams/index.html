@@ -1446,17 +1446,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extracting_the_token" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Extracting the token
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2630,17 +2619,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extracting_the_token" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Extracting the token
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2673,94 +2651,57 @@
 
 <h1 id="teams">Teams<a class="headerlink" href="#teams" title="Permanent link">&para;</a></h1>
 <div class="admonition attention">
-<p class="admonition-title">New webhook URL format only</p>
-<p>Shoutrrr now only supports the new Teams webhook URL format with an
-organization-specific domain.</p>
-<p>You must specify your organization domain using:</p>
-<p><div class="highlight"><pre><span></span><code>?host=example.webhook.office.com
-</code></pre></div>
-Where <code>example</code> is your organization's short name.</p>
-<p>Legacy webhook formats (e.g., <code>outlook.office.com</code>) are no longer supported.</p>
+<p class="admonition-title">Office 365 Connector Retirement</p>
+<p>As noted in Microsoft's <a href="https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/">update</a>,
+Office 365 Connectors within Microsoft Teams have been retired.</p>
+<p>The legacy <code>webhook.office.com</code> webhook URLs and MessageCard format are no longer functional.</p>
+<p>Shoutrrr now uses Power Automate workflow incoming webhooks exclusively.
+Existing configurations using the old URL format must be migrated to the new
+<code>teams://?host=&lt;workflow URL&gt;</code> format documented below.</p>
 </div>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>teams://group@tenant/altId/groupOwner/extraId?host=organization.webhook.office.com[&amp;color=color][&amp;title=title]
+<div class="highlight"><pre><span></span><code>teams://?host=&lt;Power Automate workflow URL&gt;[&amp;color=&lt;hex color&gt;][&amp;title=&lt;title&gt;]
 </code></pre></div>
 <p>Where:</p>
 <ul>
-<li><code>group</code>: The first UUID component from the webhook URL.</li>
-<li><code>tenant</code>: The second UUID component from the webhook URL.</li>
-<li><code>altId</code>: The third component (hex string) from the webhook URL.</li>
-<li><code>groupOwner</code>: The fourth UUID component from the webhook URL.</li>
-<li><code>extraId</code>: The fifth component at the end of the webhook URL.</li>
-<li><code>organization</code>: Your organization name for the webhook domain (required).</li>
-<li><code>color</code>: Optional hex color code for the message card (e.g., <code>FF0000</code> for red).</li>
-<li><code>title</code>: Optional title for the message card.</li>
+<li><code>host</code>: The full Power Automate workflow incoming webhook URL (required).</li>
+<li><code>color</code> <em>(optional)</em>: Title text color. Accepts Adaptive Card color names (<code>accent</code>, <code>good</code>, <code>warning</code>, <code>attention</code>, <code>dark</code>, <code>light</code>, <code>default</code>) or common color names (<code>red</code>, <code>green</code>, <code>blue</code>, <code>yellow</code>, <code>orange</code>).</li>
+<li><code>title</code> <em>(optional)</em>: Title displayed as a bold header in the Adaptive Card.</li>
 </ul>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Group</strong>
-  Default: <em>empty</em>
-  URL part: <code class="service-url">teams://<strong>group</strong>@tenant/altid/groupowner/extraid</code></li>
-<li><strong>Tenant</strong>
-  Default: <em>empty</em>
-  URL part: <code class="service-url">teams://group@<strong>tenant</strong>/altid/groupowner/extraid</code></li>
-<li><strong>AltID</strong>
-  Default: <em>empty</em>
-  URL part: <code class="service-url">teams://group@tenant/<strong>altid</strong>/groupowner/extraid</code></li>
-<li><strong>GroupOwner</strong>
-  Default: <em>empty</em>
-  URL part: <code class="service-url">teams://group@tenant/altid/<strong>groupowner</strong>/extraid</code></li>
-<li><strong>ExtraID</strong>
-  Default: <em>empty</em>
-  URL part: <code class="service-url">teams://group@tenant/altid/groupowner/<strong>extraid</strong></code></li>
-</ul>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
 <p>Props can be either supplied using the params argument, or through the URL using
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>color</strong>
+<p><strong>host</strong> - The full Power Automate workflow incoming webhook URL (<strong>Required</strong>)</p>
+</li>
+<li>
+<p><strong>color</strong> - Title text color (accent, good, warning, attention, dark, light, or default)
   Default: <em>empty</em></p>
 </li>
 <li>
-<p><strong>host</strong>
-  Default: <em>empty</em></p>
-</li>
-<li>
-<p><strong>title</strong>
+<p><strong>title</strong> - Title displayed as a bold header in the Adaptive Card
   Default: <em>empty</em></p>
 </li>
 </ul>
 <h2 id="setting_up_a_webhook">Setting up a webhook<a class="headerlink" href="#setting_up_a_webhook" title="Permanent link">&para;</a></h2>
-<p>To use the Microsoft Teams notification service, you need to set up a custom
-incoming webhook. Follow the instructions in <a href="https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook#create-an-incoming-webhook">this Microsoft guide</a>.</p>
-<h2 id="extracting_the_token">Extracting the token<a class="headerlink" href="#extracting_the_token" title="Permanent link">&para;</a></h2>
-<p>The token is extracted from your webhook URL:</p>
-<pre><code>https://<b>&lt;organization&gt;</b>.webhook.office.com/webhookb2/<b>&lt;group&gt;</b>@<b>&lt;tenant&gt;</b>/IncomingWebhook/<b>&lt;altId&gt;</b>/<b>&lt;groupOwner&gt;</b>/<b>&lt;extraId&gt;</b></code></pre>
-
-<div class="admonition note">
-<p class="admonition-title">Important components</p>
-<p>All parts of the webhook URL are required:</p>
-<ul>
-<li><code>organization</code>: Your organization name (e.g., <code>contoso</code>).</li>
-<li><code>group</code>: First UUID component.</li>
-<li><code>tenant</code>: Second UUID component.</li>
-<li><code>altId</code>: Third component (hex string).</li>
-<li><code>groupOwner</code>: Fourth UUID component.</li>
-<li><code>extraId</code>: Fifth component.</li>
-</ul>
-</div>
+<p>To use the Microsoft Teams notification service with Power Automate, create a new
+workflow in Power Automate and add the "When a Teams webhook request is received"
+trigger. Copy the generated webhook URL from the trigger.</p>
+<p>For more information, see the
+<a href="https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook">Microsoft Learn documentation</a>.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code># Original webhook URL:
-https://contoso.webhook.office.com/webhookb2/11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/IncomingWebhook/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05
-
-# Shoutrrr URL:
-teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-cccccccccccc/33333333012222222222333333333344/44444444-4444-4444-8444-cccccccccccc/V2ESyij_gAljSoUQHvZoZYzlpAoAXExyOl26dlf1xHEx05?host=contoso.webhook.office.com&amp;color=FF0000&amp;title=Alert
+<p>Teams/Power Automate workflow webhook URL:</p>
+<div class="highlight"><pre><span></span><code>https://prod-00.westus.logic.azure.com:443/workflows/abc123/triggers/manual/paths/invoke?api-version=2016-06-00&amp;sp=/triggers/manual/run&amp;sv=1.0&amp;sig=XXXXXXXX
+</code></pre></div>
+<p>Shoutrrr URL:</p>
+<div class="highlight"><pre><span></span><code>teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2Fabc123%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX&amp;title=Alert
 </code></pre></div>
 <p>In this example:</p>
 <ul>
-<li><code>color=FF0000</code> sets a red theme.</li>
-<li><code>title=Alert</code> adds a custom title to the message card.</li>
+<li>The <code>host</code> param is the full Power Automate workflow webhook URL (percent-encoded).</li>
+<li><code>title=Alert</code> adds a bold title header to the Adaptive Card.</li>
 </ul>
 
 
@@ -2784,7 +2725,7 @@ teams://11111111-4444-4444-8444-cccccccccccc@22222222-4444-4444-8444-ccccccccccc
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 30, 2026 02:13:13 UTC"><span class="timeago" datetime="2026-05-30T02:13:13+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 30, 2026 02:13:13 UTC">2026-05-30</span>
   </span>
 
     
