@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add sgtM-devs as a contributor for doc by @allcontributors[bot] in [#891](https://github.com/nicholas-fedor/shoutrrr/pull/891)
+
 ### Changed
 
 - Migrate from Office 365 Connectors to Power Automate workflow webhooks by @nicholas-fedor in [#887](https://github.com/nicholas-fedor/shoutrrr/pull/887)
