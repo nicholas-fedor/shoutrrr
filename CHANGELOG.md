@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#885](https://github.com/nicholas-fedor/shoutrrr/pull/885)
 - Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#882](https://github.com/nicholas-fedor/shoutrrr/pull/882)
 
+### Fixed
+
+- Expand webhook URL validation to support Power Automate endpoints by @nicholas-fedor in [#893](https://github.com/nicholas-fedor/shoutrrr/pull/893)
+
 ### Removed
 
 - Remove forward slash before parameters to correct URL format by @sgtM-devs in [#889](https://github.com/nicholas-fedor/shoutrrr/pull/889)
