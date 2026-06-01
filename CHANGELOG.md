@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update commitlint monorepo to v21.0.2 by @renovate[bot] in [#895](https://github.com/nicholas-fedor/shoutrrr/pull/895)
+- Update securego/gosec action to v2.27.0 by @renovate[bot] in [#896](https://github.com/nicholas-fedor/shoutrrr/pull/896)
 - Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#885](https://github.com/nicholas-fedor/shoutrrr/pull/885)
 - Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#882](https://github.com/nicholas-fedor/shoutrrr/pull/882)
 
