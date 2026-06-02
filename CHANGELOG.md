@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update go toolchain directive to v1.26.4 by @renovate[bot] in [#905](https://github.com/nicholas-fedor/shoutrrr/pull/905)
+
+## [0.16.0] - 2026-06-02
+
 ### Added
 
 - Add sgtM-devs as a contributor for doc by @allcontributors[bot] in [#891](https://github.com/nicholas-fedor/shoutrrr/pull/891)
@@ -1777,7 +1783,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.1...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.0...HEAD)
+- [0.16.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.1...v0.16.0)
 - [0.15.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.0...v0.15.1)
 - [0.15.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.3...v0.15.0)
 - [0.14.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.14.2...v0.14.3)
