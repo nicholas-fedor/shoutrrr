@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.36.1 by @renovate[bot] in [#903](https://github.com/nicholas-fedor/shoutrrr/pull/903)
+- Update actions/checkout action to v6.0.3 by @renovate[bot] in [#902](https://github.com/nicholas-fedor/shoutrrr/pull/902)
 - Update securego/gosec action to v2.27.1 by @renovate[bot] in [#898](https://github.com/nicholas-fedor/shoutrrr/pull/898)
 - Update commitlint monorepo to v21.0.2 by @renovate[bot] in [#895](https://github.com/nicholas-fedor/shoutrrr/pull/895)
 - Update securego/gosec action to v2.27.0 by @renovate[bot] in [#896](https://github.com/nicholas-fedor/shoutrrr/pull/896)
