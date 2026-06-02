@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Accept 202 Accepted as valid response status code by @nicholas-fedor in [#900](https://github.com/nicholas-fedor/shoutrrr/pull/900)
 - Expand webhook URL validation to support Power Automate endpoints by @nicholas-fedor in [#893](https://github.com/nicholas-fedor/shoutrrr/pull/893)
 
 ### Removed
