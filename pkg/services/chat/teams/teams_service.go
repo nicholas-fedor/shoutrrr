@@ -185,7 +185,7 @@ func (s *Service) doSend(config *Config, message string) error {
 
 	defer func() { _ = res.Body.Close() }()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("%w: %s", ErrSendFailedStatus, res.Status)
 	}
 

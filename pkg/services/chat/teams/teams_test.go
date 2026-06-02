@@ -47,6 +47,20 @@ var _ = ginkgo.Describe("the teams service", func() {
 			err = service.Send("Message", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
+		ginkgo.It("should not report an error if the server responds with 202 Accepted", func() {
+			serviceURL, _ := url.Parse(serviceURLBase)
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				workflowURL,
+				httpmock.NewStringResponder(http.StatusAccepted, ""),
+			)
+
+			err = service.Send("Message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 		ginkgo.It("should report an error if the server returns non-200", func() {
 			serviceURL, _ := url.Parse(serviceURLBase)
 			err = service.Initialize(serviceURL, logger)
