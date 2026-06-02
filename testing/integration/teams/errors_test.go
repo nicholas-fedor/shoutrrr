@@ -35,6 +35,27 @@ func TestSendWithHTTPError(t *testing.T) {
 	})
 }
 
+func TestSendWith202Accepted(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &MockHTTPClient{}
+		service := createTestService(
+			t,
+			integrationBase,
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.Anything).
+			Return(createMockResponse(http.StatusAccepted, ""), nil).
+			Once()
+
+		err := service.Send("Test message", nil)
+		require.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
 func TestSendWith400BadRequest(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
