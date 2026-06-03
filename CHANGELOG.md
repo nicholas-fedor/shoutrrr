@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add publish-docs to release-stable workflow by @nicholas-fedor in [#907](https://github.com/nicholas-fedor/shoutrrr/pull/907)
+
 ### Chores
 
 - Update go toolchain directive to v1.26.4 by @renovate[bot] in [#905](https://github.com/nicholas-fedor/shoutrrr/pull/905)
