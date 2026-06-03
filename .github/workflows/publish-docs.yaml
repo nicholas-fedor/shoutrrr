@@ -1,7 +1,18 @@
 name: Publish Documentation
 
 on:
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to deploy (e.g., v0.16.0). Leave empty for dev."
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy (e.g., v0.16.0). Leave empty for dev."
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -83,9 +94,13 @@ jobs:
         id: mike
         env:
           TAG_NAME: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             echo "version=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+            echo "aliases=latest" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            echo "version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
             echo "aliases=latest" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
