@@ -2,6 +2,11 @@ name: Publish Documentation
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: "Version to deploy (e.g., v0.16.0). Leave empty for dev."
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       version:
