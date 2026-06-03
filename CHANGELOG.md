@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go docker tag to v1.26.4 by @renovate[bot] in [#909](https://github.com/nicholas-fedor/shoutrrr/pull/909)
 - Update go toolchain directive to v1.26.4 by @renovate[bot] in [#905](https://github.com/nicholas-fedor/shoutrrr/pull/905)
 
 ## [0.16.0] - 2026-06-02
