@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add publish-docs to release-stable workflow by @nicholas-fedor in [#907](https://github.com/nicholas-fedor/shoutrrr/pull/907)
 
+### Changed
+
+- Update contributing documentation by @nicholas-fedor in [#916](https://github.com/nicholas-fedor/shoutrrr/pull/916)
+
 ### Chores
 
 - Update github/codeql-action action to v4.36.2 by @renovate[bot] in [#914](https://github.com/nicholas-fedor/shoutrrr/pull/914)
