@@ -42,9 +42,10 @@ const contentMaxSize = 10000
 // topicMaxLength defines the maximum allowed topic length in characters.
 const topicMaxLength = 60
 
-// hostValidator ensures the host is a valid hostname or domain.
+// hostValidator ensures the host is a valid hostname or domain,
+// optionally followed by a colon and port number.
 var hostValidator = regexp.MustCompile(
-	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`,
+	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:[0-9]+)?$`,
 )
 
 // NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.

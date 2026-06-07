@@ -285,8 +285,8 @@ func (r MarkdownTreeRenderer) writeURLFields(
 		// Write the primary field information.
 		r.writeFieldPrimary(stringBuilder, field)
 
-		// Begin the URL example with the scheme and HTML formatting.
-		stringBuilder.WriteString("  URL part: <code class=\"service-url\">")
+		// Write the URL example on a new line within the same list item.
+		stringBuilder.WriteString("<br>URL part: <code class=\"service-url\">")
 		stringBuilder.WriteString(scheme)
 		stringBuilder.WriteString("://")
 
@@ -343,7 +343,7 @@ func (r MarkdownTreeRenderer) writeURLFields(
 					slug = "port"
 				}
 
-				// Highlight the current field with bold tags.
+				// Highlight the current field with bold HTML tags.
 				if fieldInfo == field {
 					stringBuilder.WriteString("<strong>")
 					stringBuilder.WriteString(slug)

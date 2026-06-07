@@ -1,29 +1,84 @@
 # Zulip Chat
 
+[Zulip](https://zulip.com/) is an open-source group chat application that supports both live and asynchronous conversations.
+Shoutrrr's Zulip service sends notifications to Zulip streams using bot credentials.
+
 ## URL Format
 
-The shoutrrr service URL should look like this:
 !!! info ""
     zulip://__`botmail`__:__`botkey`__@__`host`__/?stream=__`stream`__&topic=__`topic`__
 
 --8<-- "docs/services/chat/zulip/config.md"
 
 !!! note
-    Since __`botmail`__  is a mail address you need to URL escape the `@` in it to `%40`.
+    When constructing the service URL manually, the `@` in the bot e-mail address must be
+    URL-encoded as `%40`. When using the Go API or the playground, this is handled automatically.
 
-### Examples
+!!! note
+    The __`host`__ field may include a non-standard port (e.g., `zulip.example.com:8443`).
+    When using the default HTTPS port (443), the port can be omitted.
 
-Stream and topic are both optional and can be given as parameters to the Send method:
+## Bot Setup
 
-```go
-  sender, _ := shoutrrr.CreateSender(url)
+To use Shoutrrr with Zulip, you need to create a bot in your Zulip organization:
 
-  params := make(types.Params)
-  params["stream"] = "mystream"
-  params["topic"] = "This is my topic"
+1. Go to **Settings** → **Personal settings** → **Bots**
+2. Click **Add a new bot**
+3. Choose **Generic bot** as the bot type
+4. Fill in the bot name and optionally an avatar
+5. Click **Create bot**
+6. Copy the bot's **email** and **API key**
 
-  sender.Send(message, &params)
-```
+Use the bot email as the `botmail` and the API key as the `botkey` in your service URL.
 
-!!! example "Example service URL"
-    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo&topic=bar
+## Stream and Topic
+
+Both `stream` and `topic` are optional. They can be provided in the service URL or overridden
+at send time using `types.Params`:
+
+- **Stream**: The name of the Zulip stream to send messages to (e.g., `general`, `alerts`)
+- **Topic**: The message topic within the stream (e.g., `server-monitoring`). Zulip topics keep
+  conversations organized within a stream.
+
+If neither is specified, the message is sent to the default stream configured for the bot.
+
+## Examples
+
+!!! example "Basic notification (default stream)"
+    ```uri
+    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com
+    ```
+
+!!! example "With stream and topic in URL"
+    ```uri
+    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=alerts&topic=monitoring
+    ```
+
+!!! example "With custom port"
+    ```uri
+    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com:8443?stream=general
+    ```
+
+!!! example "Override stream and topic at send time"
+    ```go
+    sender, _ := shoutrrr.CreateSender(url)
+
+    params := make(types.Params)
+    params["stream"] = "alerts"
+    params["topic"] = "disk-space-warning"
+
+    sender.Send("Disk usage exceeded 90% on server-01", &params)
+    ```
+
+!!! example "Using the title alias for topic"
+    ```go
+    params := make(types.Params)
+    params["title"] = "deployment-notification"
+
+    sender.Send("Deployed v2.3.1 to production", &params)
+    ```
+
+!!! example "Using the CLI"
+    ```bash
+    shoutrrr send --url "zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts" --message "Server restarted"
+    ```

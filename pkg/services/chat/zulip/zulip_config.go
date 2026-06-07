@@ -12,11 +12,11 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	BotMail string `desc:"Bot e-mail address"  url:"user"`
-	BotKey  string `desc:"API Key"             url:"pass"`
-	Host    string `desc:"API server hostname" url:"host,port"`
-	Stream  string `desc:"Target stream name"                  key:"stream"      optional:""`
-	Topic   string `desc:"Message topic"                       key:"topic,title" optional:""`
+	BotMail string `desc:"Bot e-mail address"                       url:"user"`
+	BotKey  string `desc:"API key"                                  url:"pass"`
+	Host    string `desc:"API server hostname (with optional port)" url:"host"`
+	Stream  string `desc:"Target stream name"                                  key:"stream"      optional:""`
+	Topic   string `desc:"Message topic"                                       key:"topic,title" optional:""`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -72,7 +72,7 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 
 	c.BotMail = serviceURL.User.Username()
 	c.BotKey, isSet = serviceURL.User.Password()
-	c.Host = serviceURL.Hostname()
+	c.Host = serviceURL.Host
 
 	// Allow dummy URL during documentation generation
 	if !isDummyURL(serviceURL) {

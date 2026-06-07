@@ -19,7 +19,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 ### URL Fields
 
 * __Host__ (__Required__)
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
 
 ### Query/Param Props
 
@@ -42,13 +42,13 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 ### URL Fields
 
 * __Host__ (__Required__)
-  URL part: <code class="service-url">mock://<strong>host</strong>/path1/path2/path3</code>
+<br>URL part: <code class="service-url">mock://<strong>host</strong>/path1/path2/path3</code>
 * __Path1__ (__Required__)
-  URL part: <code class="service-url">mock://host/<strong>path1</strong>/path2/path3</code>
+<br>URL part: <code class="service-url">mock://host/<strong>path1</strong>/path2/path3</code>
 * __Path2__ (__Required__)
-  URL part: <code class="service-url">mock://host/path1/<strong>path2</strong>/path3</code>
+<br>URL part: <code class="service-url">mock://host/path1/<strong>path2</strong>/path3</code>
 * __Path3__ (__Required__)
-  URL part: <code class="service-url">mock://host/path1/path2/<strong>path3</strong></code>
+<br>URL part: <code class="service-url">mock://host/path1/path2/<strong>path3</strong></code>
 
 ### Query/Param Props
 
@@ -104,7 +104,7 @@ var _ = ginkgo.Describe("RenderMarkdown", func() {
 ### URL Fields
 
 * __Host__ (__Required__)
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
 
 ### Query/Param Props
 
@@ -129,7 +129,7 @@ There is nothing to set!`[1:] // Remove initial newline
 ### URL Fields
 
 * __Host__ (__Required__)
-  URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
 
 ### Query/Param Props
 
