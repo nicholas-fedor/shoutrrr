@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/actionlint-action action to v1.0.4 by @renovate[bot] in [#919](https://github.com/nicholas-fedor/shoutrrr/pull/919)
+- Update codecov/codecov-action action to v6.0.2 by @renovate[bot] in [#918](https://github.com/nicholas-fedor/shoutrrr/pull/918)
 - Update github/codeql-action action to v4.36.2 by @renovate[bot] in [#914](https://github.com/nicholas-fedor/shoutrrr/pull/914)
 - Update matrixdotorg/synapse:latest docker digest to 6965329 by @renovate[bot] in [#913](https://github.com/nicholas-fedor/shoutrrr/pull/913)
 - Update github.com/google/pprof digest to 7023385 by @renovate[bot] in [#911](https://github.com/nicholas-fedor/shoutrrr/pull/911)
