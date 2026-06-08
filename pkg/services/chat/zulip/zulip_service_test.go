@@ -662,21 +662,24 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
 		})
 
-		ginkgo.It("should return an error for invalid host format", func() {
+		ginkgo.It("should proceed with host validation already done by caller", func() {
 			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
 
 			service := newTestService(mockClient)
 			cfg := &Config{
 				BotMail: "bot@example.com",
 				BotKey:  "secret-key",
-				Host:    "not a valid host!",
+				Host:    "zulip.example.com",
 				Stream:  "general",
 			}
 
 			err := service.doSend(context.Background(), cfg, "Test message")
 
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("should return an error for non-200 response", func() {

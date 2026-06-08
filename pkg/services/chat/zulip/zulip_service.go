@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,12 +64,27 @@ const registerTimeout = 10 * time.Second
 const maxErrorBodySize = 4 * 1024
 
 // hostValidator ensures the host is a valid hostname or domain,
-// optionally followed by a colon and port number.
+// optionally followed by a colon and port number (1-65535).
 var hostValidator = regexp.MustCompile(
-	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:[0-9]+)?$`,
+	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:[0-9]{1,5})?$`,
 )
 
-// NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.
+// validateHost checks that the host string is a valid hostname with optional port (1-65535).
+func validateHost(host string) error {
+	if !hostValidator.MatchString(host) {
+		return fmt.Errorf("%w: %q", ErrInvalidHost, host)
+	}
+
+	if _, portStr, ok := strings.Cut(host, ":"); ok && portStr != "" {
+		port, parseErr := strconv.Atoi(portStr)
+		if parseErr != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("%w: %q", ErrInvalidHost, host)
+		}
+	}
+
+	return nil
+}
+
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -138,11 +154,11 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 		return err
 	}
 
-	if !hostValidator.MatchString(config.Host) {
-		return fmt.Errorf("%w: %q", ErrInvalidHost, config.Host)
+	if err := validateHost(config.Host); err != nil {
+		return err
 	}
 
-	s.mu.Do(s.fetchLimits)
+	s.mu.Do(func() { s.fetchLimits(ctx) })
 
 	topicLength := len([]rune(config.Topic))
 	if topicLength > s.topicMaxLength {
@@ -189,11 +205,6 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	apiURL := s.getAPIURL(config)
 
-	// Validate the host to mitigate SSRF risks
-	if !hostValidator.MatchString(config.Host) {
-		return fmt.Errorf("%w: %q", ErrInvalidHost, config.Host)
-	}
-
 	payload := CreatePayload(config, message)
 
 	req, err := http.NewRequestWithContext(
@@ -236,10 +247,14 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 
 // fetchLimits calls the Zulip register endpoint to fetch server-side size limits.
 // Uses defaults if the call fails.
-func (s *Service) fetchLimits() {
+func (s *Service) fetchLimits(ctx context.Context) {
+	if err := validateHost(s.Config.Host); err != nil {
+		return
+	}
+
 	registerURL := s.getRegisterURL()
 
-	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
+	ctx, cancel := context.WithTimeout(ctx, registerTimeout)
 	defer cancel()
 
 	form := url.Values{}
