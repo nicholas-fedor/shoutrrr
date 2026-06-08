@@ -7,7 +7,6 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip/mocks"
@@ -19,9 +18,8 @@ func TestAPIURLFormatCompliance(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := mocks.NewMockHTTPClient(t)
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		service := createTestService(
 			t,
@@ -52,17 +50,42 @@ func TestAPIPayloadStructureCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
 		require.NoError(t, err)
-		assertRequestContains(t, mockClient, "type=stream")
+		assertRequestContains(t, mockClient, "type=channel")
 		assertRequestContains(t, mockClient, "to=general")
 		assertRequestContains(t, mockClient, "topic=announcements")
 		assertRequestContains(t, mockClient, "content=Test+message")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestAPIPayloadDirectMessageCompliance(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
+
+		params := createTestParams("type", "direct", "to", "user1@example.com,user2@example.com")
+		err := service.Send("DM test", params)
+
+		require.NoError(t, err)
+		// to should be JSON array
+		assertRequestContains(t, mockClient, "type=direct")
+		assertRequestContains(t, mockClient, `to=%5B%22user1%40example.com%22%2C%22user2%40example.com%22%5D`)
+		assertRequestContains(t, mockClient, "content=DM+test")
 
 		mockClient.AssertExpectations(t)
 	})
@@ -78,9 +101,8 @@ func TestAPIContentTypeHeaderCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -103,9 +125,8 @@ func TestAPIMethodCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -128,9 +149,8 @@ func TestAPICredentialInURLCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -154,9 +174,8 @@ func TestAPIHTTPSCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -179,9 +198,8 @@ func TestAPIWithoutTopicCompliance(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -207,18 +225,41 @@ func TestAPIWithOnlyTopicNoStream(t *testing.T) {
 		mockClient := mocks.NewMockHTTPClient(t)
 		service := createTestService(
 			t,
-			"zulip://bot@example.com:secret-key@zulip.example.com?topic=announcements",
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=announcements",
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "topic=announcements")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestAPIDirectWithToOnlyNoStream(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
+
+		params := createTestParams("type", "direct", "to", "dm-user@example.com")
+		err := service.Send("DM only-to", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "type=direct")
+		assertRequestContains(t, mockClient, "to=%5B%22dm-user%40example.com%22%5D")
 
 		mockClient.AssertExpectations(t)
 	})

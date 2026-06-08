@@ -24,4 +24,10 @@ var (
 
 	// ErrInvalidHost indicates the host format is invalid.
 	ErrInvalidHost = errors.New("invalid host format")
+
+	// ErrInvalidMessageType indicates the message type is not supported.
+	ErrInvalidMessageType = errors.New("invalid message type")
+
+	// ErrMissingRecipient indicates no recipient was specified for the message.
+	ErrMissingRecipient = errors.New("no recipient specified for the message")
 )

@@ -74,6 +74,35 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
+
+		ginkgo.It("should send a direct message when DM recipient is configured", func() {
+			serviceURLStr := buildServiceURL()
+
+			dmTo := os.Getenv("SHOUTRRR_ZULIP_DM_TO")
+			if dmTo == "" {
+				// Fall back to the bot's own email to exercise the DM code path
+				// without requiring an extra env var. Self-DMs are usually allowed
+				// and validate the type/to/JSON recipient formatting.
+				dmTo = os.Getenv("SHOUTRRR_ZULIP_BOT_MAIL")
+			}
+
+			if serviceURLStr == "" || dmTo == "" {
+				ginkgo.Skip("Zulip DM recipient not configured, skipping direct message E2E test")
+			}
+
+			serviceURL, err := url.Parse(serviceURLStr)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			service := &zulip.Service{}
+			err = service.Initialize(serviceURL, testutils.TestLogger())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Send("E2E Test: Direct message notification", &types.Params{
+				"type": "direct",
+				"to":   dmTo,
+			})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 	})
 
 	ginkgo.When("no server is configured", func() {

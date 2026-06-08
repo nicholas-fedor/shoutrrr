@@ -2,11 +2,14 @@ package zulip
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -24,6 +27,12 @@ type DefaultHTTPClient struct {
 	client *http.Client
 }
 
+// registerResponse represents the relevant fields from the Zulip register endpoint.
+type registerResponse struct {
+	MaxMessageLength int `json:"max_message_length"`
+	MaxTopicLength   int `json:"max_topic_length"`
+}
+
 // Service sends notifications to a pre-configured Zulip channel or user.
 type Service struct {
 	standard.Standard
@@ -31,16 +40,27 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
+
+	mu             sync.Once
+	contentMaxSize int
+	topicMaxLength int
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests to Zulip.
 const defaultHTTPTimeout = 30 * time.Second
 
-// contentMaxSize defines the maximum allowed message size in bytes.
+// contentMaxSize defines the default maximum allowed message size in bytes.
 const contentMaxSize = 10000
 
-// topicMaxLength defines the maximum allowed topic length in characters.
+// topicMaxLength defines the default maximum allowed topic length in characters.
 const topicMaxLength = 60
+
+// registerTimeout is the timeout for the register API call.
+const registerTimeout = 10 * time.Second
+
+// maxErrorBodySize limits how much of a non-OK response body we read to prevent
+// memory exhaustion from huge error bodies returned by the server.
+const maxErrorBodySize = 4 * 1024
 
 // hostValidator ensures the host is a valid hostname or domain,
 // optionally followed by a colon and port number.
@@ -78,6 +98,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 	s.HTTPClient = NewDefaultHTTPClient()
+	s.contentMaxSize = contentMaxSize
+	s.topicMaxLength = topicMaxLength
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -112,12 +134,18 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 		config.Title = ""
 	}
 
+	if err := ValidateMessageType(config.Type); err != nil {
+		return err
+	}
+
+	s.mu.Do(s.fetchLimits)
+
 	topicLength := len([]rune(config.Topic))
-	if topicLength > topicMaxLength {
+	if topicLength > s.topicMaxLength {
 		return fmt.Errorf(
 			"%w: %d characters, got %d",
 			ErrTopicTooLong,
-			topicMaxLength,
+			s.topicMaxLength,
 			topicLength,
 		)
 	}
@@ -128,13 +156,26 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	}
 
 	messageSize := len(message)
-	if messageSize > contentMaxSize {
+	if messageSize > s.contentMaxSize {
 		return fmt.Errorf(
 			"%w: %d bytes, got %d bytes",
 			ErrMessageTooLong,
-			contentMaxSize,
+			s.contentMaxSize,
 			messageSize,
 		)
+	}
+
+	if config.Type == MessageTypeDirect {
+		recipients := config.To
+		if recipients == "" && config.Stream != "" {
+			recipients = config.Stream
+		}
+
+		if recipients == "" {
+			return ErrMissingRecipient
+		}
+	} else if config.Stream == "" {
+		return ErrMissingRecipient
 	}
 
 	return s.doSend(ctx, config, message)
@@ -171,10 +212,65 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(res.Body, maxErrorBodySize+1))
+		if readErr == nil && len(body) > 0 {
+			trunc := ""
+
+			if len(body) > maxErrorBodySize {
+				body = body[:maxErrorBodySize]
+				trunc = " [truncated]"
+			}
+
+			return fmt.Errorf("failed to send zulip message: %w: %d, body: %s%s", ErrResponseStatusFailure, res.StatusCode, string(body), trunc)
+		}
+
 		return fmt.Errorf("failed to send zulip message: %w: %d", ErrResponseStatusFailure, res.StatusCode)
 	}
 
 	return nil
+}
+
+// fetchLimits calls the Zulip register endpoint to fetch server-side size limits.
+// Uses defaults if the call fails.
+func (s *Service) fetchLimits() {
+	registerURL := s.getRegisterURL()
+
+	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
+	defer cancel()
+
+	form := url.Values{}
+	form.Set("fetch_event_types", `["realm"]`)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		return
+	}
+
+	var reg registerResponse
+	if err := json.NewDecoder(res.Body).Decode(&reg); err != nil {
+		return
+	}
+
+	if reg.MaxMessageLength > 0 {
+		s.contentMaxSize = reg.MaxMessageLength
+	}
+
+	if reg.MaxTopicLength > 0 {
+		s.topicMaxLength = reg.MaxTopicLength
+	}
 }
 
 // getAPIURL constructs the API URL for Zulip based on the Config.
@@ -183,6 +279,16 @@ func (s *Service) getAPIURL(config *Config) string {
 		User:   url.UserPassword(config.BotMail, config.BotKey),
 		Host:   config.Host,
 		Path:   "/api/v1/messages",
+		Scheme: "https",
+	}).String()
+}
+
+// getRegisterURL constructs the register API URL from the service config.
+func (s *Service) getRegisterURL() string {
+	return (&url.URL{
+		User:   url.UserPassword(s.Config.BotMail, s.Config.BotKey),
+		Host:   s.Config.Host,
+		Path:   "/api/v1/register",
 		Scheme: "https",
 	}).String()
 }

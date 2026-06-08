@@ -16,9 +16,25 @@
 //
 //   - BotMail: The bot's email address for authentication (required)
 //   - BotKey: The bot's API key for authentication (required)
-//   - Host: The Zulip server hostname (required)
-//   - Stream: The target stream name (optional)
-//   - Topic: The target topic within the stream (optional, defaults to empty)
+//   - Host: The Zulip server hostname (with optional port) (required)
+//   - Type: Message type, "channel" or "direct" (optional, defaults to channel)
+//   - Stream: The target stream (channel) name (optional)
+//   - Topic: The target topic within the stream (optional)
+//   - Title: Notification title prepended to message content (optional)
+//   - To: Comma-separated recipients for direct messages (optional)
+//   - ReadBySender: Whether to mark sent DM read by the bot (optional, default false)
+//
+// # Direct Messages
+//
+// Set Type to MessageTypeDirect (or "direct" in params/URL) and provide recipients via the To
+// field or "to" param (comma separated emails/IDs). The "stream" field can be used as fallback
+// recipient for direct if To is not set.
+//
+// # Server-Side Limits
+//
+// On first send, the service fetches max_message_length and max_topic_length from the
+// Zulip /api/v1/register endpoint (realm section). Falls back to built-in defaults (10000 bytes
+// content, 60 chars topic) if the call fails or returns zero/ non-success.
 //
 // # Usage Example
 //
@@ -32,7 +48,8 @@
 // # Payload Creation
 //
 // The package provides CreatePayload for building properly formatted form-encoded requests
-// for the Zulip messages API, supporting stream and topic targeting.
+// for the Zulip messages API, supporting channel/direct types, JSON-encoded recipient lists
+// for DMs, topics, and read_by_sender.
 //
 // # URL Format
 //
@@ -40,14 +57,20 @@
 //
 //	zulip://botmail:botkey@host?stream=general&topic=alerts
 //
+// Or for direct:
+//
+//	zulip://botmail:botkey@host?type=direct&to=user1@example.com,user2@example.com
+//
 // # Validation
 //
 // The package includes validation for:
 //   - Bot email address presence
 //   - API key presence
-//   - Host configuration
-//   - Topic length limits (60 characters maximum)
-//   - Message size limits (10,000 bytes maximum)
+//   - Host configuration (including optional :port)
+//   - Message type (channel/direct/empty)
+//   - Recipient presence per message type
+//   - Topic length (server or default 60 chars)
+//   - Message size (server or default 10000 bytes)
 //
 // For more information about Zulip bots, visit: https://zulip.com/help/bots-and-integrations
 package zulip

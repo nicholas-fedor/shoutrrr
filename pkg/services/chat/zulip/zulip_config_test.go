@@ -14,11 +14,15 @@ var _ = ginkgo.Describe("Config", func() {
 	ginkgo.Describe("Clone", func() {
 		ginkgo.It("should create an independent copy with all fields preserved", func() {
 			original := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-				Topic:   "announcements",
+				BotMail:      "bot@example.com",
+				BotKey:       "secret-key",
+				Host:         "zulip.example.com",
+				Type:         MessageTypeChannel,
+				Stream:       "general",
+				Topic:        "announcements",
+				Title:        "Deployment",
+				To:           "user1@example.com,user2@example.com",
+				ReadBySender: true,
 			}
 
 			clone := original.Clone()
@@ -27,8 +31,12 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(clone.BotMail).To(gomega.Equal(original.BotMail))
 			gomega.Expect(clone.BotKey).To(gomega.Equal(original.BotKey))
 			gomega.Expect(clone.Host).To(gomega.Equal(original.Host))
+			gomega.Expect(clone.Type).To(gomega.Equal(original.Type))
 			gomega.Expect(clone.Stream).To(gomega.Equal(original.Stream))
 			gomega.Expect(clone.Topic).To(gomega.Equal(original.Topic))
+			gomega.Expect(clone.Title).To(gomega.Equal(original.Title))
+			gomega.Expect(clone.To).To(gomega.Equal(original.To))
+			gomega.Expect(clone.ReadBySender).To(gomega.Equal(original.ReadBySender))
 		})
 
 		ginkgo.It("should create a distinct pointer from the original", func() {
@@ -52,8 +60,12 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(clone.BotMail).To(gomega.BeEmpty())
 			gomega.Expect(clone.BotKey).To(gomega.BeEmpty())
 			gomega.Expect(clone.Host).To(gomega.BeEmpty())
+			gomega.Expect(clone.Type).To(gomega.BeEmpty())
 			gomega.Expect(clone.Stream).To(gomega.BeEmpty())
 			gomega.Expect(clone.Topic).To(gomega.BeEmpty())
+			gomega.Expect(clone.Title).To(gomega.BeEmpty())
+			gomega.Expect(clone.To).To(gomega.BeEmpty())
+			gomega.Expect(clone.ReadBySender).To(gomega.BeFalse())
 		})
 	})
 
@@ -128,6 +140,36 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(resultURL.Query().Get("stream")).To(gomega.BeEmpty())
 			gomega.Expect(resultURL.Query().Get("topic")).To(gomega.BeEmpty())
 		})
+
+		ginkgo.It("should include type, to, and read_by_sender when set for direct message", func() {
+			cfg := &Config{
+				BotMail:      "bot@example.com",
+				BotKey:       "secret-key",
+				Host:         "zulip.example.com",
+				Type:         MessageTypeDirect,
+				To:           "user1@example.com,user2@example.com",
+				ReadBySender: true,
+			}
+
+			resultURL := cfg.GetURL()
+
+			gomega.Expect(resultURL.Query().Get("type")).To(gomega.Equal("direct"))
+			gomega.Expect(resultURL.Query().Get("to")).To(gomega.Equal("user1@example.com,user2@example.com"))
+			gomega.Expect(resultURL.Query().Get("read_by_sender")).To(gomega.Equal("true"))
+		})
+
+		ginkgo.It("should omit read_by_sender when false", func() {
+			cfg := &Config{
+				BotMail: "bot@example.com",
+				BotKey:  "secret-key",
+				Host:    "zulip.example.com",
+				Stream:  "general",
+			}
+
+			resultURL := cfg.GetURL()
+
+			gomega.Expect(resultURL.Query().Get("read_by_sender")).To(gomega.BeEmpty())
+		})
 	})
 
 	ginkgo.Describe("SetURL", func() {
@@ -157,6 +199,28 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com"))
 			gomega.Expect(cfg.Stream).To(gomega.BeEmpty())
 			gomega.Expect(cfg.Topic).To(gomega.BeEmpty())
+		})
+
+		ginkgo.It("should parse type, to, and read_by_sender from URL for direct message", func() {
+			cfg := &Config{}
+			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=direct&to=user1@example.com,user2@example.com&read_by_sender=true")
+
+			err := cfg.SetURL(serviceURL)
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(cfg.Type).To(gomega.Equal(MessageTypeDirect))
+			gomega.Expect(cfg.To).To(gomega.Equal("user1@example.com,user2@example.com"))
+			gomega.Expect(cfg.ReadBySender).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should default read_by_sender to false when not set to true", func() {
+			cfg := &Config{}
+			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=channel&stream=general")
+
+			err := cfg.SetURL(serviceURL)
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("should return ErrMissingBotMail when bot mail is empty", func() {
@@ -277,6 +341,9 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com"))
 			gomega.Expect(cfg.Stream).To(gomega.Equal("general"))
 			gomega.Expect(cfg.Topic).To(gomega.Equal("announcements"))
+			gomega.Expect(cfg.Type).To(gomega.BeEmpty())
+			gomega.Expect(cfg.To).To(gomega.BeEmpty())
+			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("should return ErrMissingBotMail when bot mail is empty", func() {
@@ -333,6 +400,20 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(config.Host).To(gomega.Equal("zulip.example.com"))
 			gomega.Expect(config.Stream).To(gomega.Equal("general"))
 			gomega.Expect(config.Topic).To(gomega.Equal("announcements"))
+			gomega.Expect(config.Type).To(gomega.BeEmpty())
+			gomega.Expect(config.To).To(gomega.BeEmpty())
+			gomega.Expect(config.ReadBySender).To(gomega.BeFalse())
+		})
+
+		ginkgo.It("should create a valid config from URL with direct message fields", func() {
+			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=direct&to=user@example.com&read_by_sender=true")
+
+			config, err := CreateConfigFromURL(serviceURL)
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.Type).To(gomega.Equal(MessageTypeDirect))
+			gomega.Expect(config.To).To(gomega.Equal("user@example.com"))
+			gomega.Expect(config.ReadBySender).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should return an error for invalid URL", func() {
@@ -352,6 +433,9 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.Stream).To(gomega.BeEmpty())
 			gomega.Expect(config.Topic).To(gomega.BeEmpty())
+			gomega.Expect(config.Type).To(gomega.BeEmpty())
+			gomega.Expect(config.To).To(gomega.BeEmpty())
+			gomega.Expect(config.ReadBySender).To(gomega.BeFalse())
 		})
 	})
 

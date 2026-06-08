@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -128,4 +130,40 @@ func assertRequestMatches(
 	if !found {
 		t.Errorf("Expected request to match %s, but no matching call found", description)
 	}
+}
+
+// assertNoMessagesAPICall asserts that no HTTP call was made to the Zulip messages endpoint
+// (used for early validation errors after the register fetch has occurred).
+func assertNoMessagesAPICall(t *testing.T, mockClient *mocks.MockHTTPClient) {
+	t.Helper()
+
+	for i := range mockClient.Calls {
+		call := &mockClient.Calls[i]
+		if call.Method == "Do" {
+			req := call.Arguments[0].(*http.Request)
+			if req.URL.Path == "/api/v1/messages" {
+				t.Errorf("unexpected call to messages API path")
+
+				return
+			}
+		}
+	}
+}
+
+// setupRegisterThenMessage sets up the mock client to expect the internal /register call
+// (for server limits, returns no specific limits so defaults are used) followed by the
+// messages API call with the provided response. This is required because Send now triggers
+// fetchLimits on first use.
+func setupRegisterThenMessage(t *testing.T, mockClient *mocks.MockHTTPClient, msgResp *http.Response) {
+	t.Helper()
+
+	// register (limits fetch) - body without max_* fields -> fallback to defaults
+	mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+		Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+		Once()
+
+	// actual messages send
+	mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+		Return(msgResp, nil).
+		Once()
 }

@@ -92,3 +92,25 @@ If neither is specified, the message is sent to the default stream configured fo
     ```bash
     shoutrrr send --url "zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts" --message "Server restarted"
     ```
+
+## Direct Messages
+
+To send a direct message, set the `type` parameter to `direct` and provide recipients via the `to` parameter (comma-separated emails or user IDs). The `stream` value can serve as a fallback recipient list for direct messages. The `topic` parameter is ignored for direct messages (only channels use topics).
+
+!!! example "Direct message via params"
+    ```go
+    params := make(types.Params)
+    params["type"] = "direct"
+    params["to"] = "user1@example.com,user2@example.com"
+
+    sender.Send("Hello via DM", &params)
+    ```
+
+!!! example "Direct message service URL"
+    ```
+    zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?type=direct&to=user1@example.com,user2@example.com
+    ```
+
+## Server-Side Limits
+
+The service fetches `max_message_length` and `max_topic_length` from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 bytes for content and 60 characters for topics. Length checks use rune count for topics (Unicode aware) and byte count for message content.

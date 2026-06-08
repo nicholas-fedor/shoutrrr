@@ -8,17 +8,30 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// MessageType indicates the type of Zulip message to send.
+type MessageType string
+
 // Config for the zulip service.
 type Config struct {
 	standard.EnumlessConfig
 
-	BotMail string `desc:"Bot e-mail address"                       url:"user"`
-	BotKey  string `desc:"API key"                                  url:"pass"`
-	Host    string `desc:"API server hostname (with optional port)" url:"host"`
-	Stream  string `desc:"Target stream name"                                  key:"stream" optional:""`
-	Topic   string `desc:"Stream topic"                                        key:"topic"  optional:""`
-	Title   string `desc:"Notification title prepended to message"             key:"title"  optional:""`
+	BotMail      string      `desc:"Bot e-mail address"                         url:"user"`
+	BotKey       string      `desc:"API key"                                    url:"pass"`
+	Host         string      `desc:"API server hostname (with optional port)"   url:"host"`
+	Type         MessageType `desc:"Message type (channel or direct)"                      key:"type"           optional:""`
+	Stream       string      `desc:"Target stream name"                                    key:"stream"         optional:""`
+	Topic        string      `desc:"Stream topic"                                          key:"topic"          optional:""`
+	Title        string      `desc:"Notification title prepended to message"               key:"title"          optional:""`
+	To           string      `desc:"Comma-separated user IDs or emails for DMs"            key:"to"             optional:""`
+	ReadBySender bool        `desc:"Mark the message read by its sender"                   key:"read_by_sender" optional:"" default:"No"`
 }
+
+const (
+	// MessageTypeChannel sends a message to a channel (stream).
+	MessageTypeChannel MessageType = "channel"
+	// MessageTypeDirect sends a direct message to users.
+	MessageTypeDirect MessageType = "direct"
+)
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "zulip"
@@ -26,12 +39,15 @@ const Scheme = "zulip"
 // Clone creates a copy of the Config.
 func (c *Config) Clone() *Config {
 	return &Config{
-		BotMail: c.BotMail,
-		BotKey:  c.BotKey,
-		Host:    c.Host,
-		Stream:  c.Stream,
-		Topic:   c.Topic,
-		Title:   c.Title,
+		BotMail:      c.BotMail,
+		BotKey:       c.BotKey,
+		Host:         c.Host,
+		Type:         c.Type,
+		Stream:       c.Stream,
+		Topic:        c.Topic,
+		Title:        c.Title,
+		To:           c.To,
+		ReadBySender: c.ReadBySender,
 	}
 }
 
@@ -62,6 +78,18 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 
 	if c.Title != "" {
 		query.Set("title", c.Title)
+	}
+
+	if c.Type != "" {
+		query.Set("type", string(c.Type))
+	}
+
+	if c.To != "" {
+		query.Set("to", c.To)
+	}
+
+	if c.ReadBySender {
+		query.Set("read_by_sender", "true")
 	}
 
 	return &url.URL{
@@ -98,6 +126,12 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Stream = serviceURL.Query().Get("stream")
 	c.Topic = serviceURL.Query().Get("topic")
 	c.Title = serviceURL.Query().Get("title")
+	c.Type = MessageType(serviceURL.Query().Get("type"))
+	c.To = serviceURL.Query().Get("to")
+
+	if serviceURL.Query().Get("read_by_sender") == "true" {
+		c.ReadBySender = true
+	}
 
 	return nil
 }

@@ -112,6 +112,8 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			gomega.Expect(svc.Config.Stream).To(gomega.Equal("general"))
 			gomega.Expect(svc.Config.Topic).To(gomega.Equal("announcements"))
 			gomega.Expect(svc.HTTPClient).NotTo(gomega.BeNil())
+			gomega.Expect(svc.contentMaxSize).To(gomega.Equal(contentMaxSize))
+			gomega.Expect(svc.topicMaxLength).To(gomega.Equal(topicMaxLength))
 		})
 
 		ginkgo.It("should set the logger", func() {
@@ -274,6 +276,9 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			}
 			service.SetLogger(&mockLogger{})
 			service.pkr = format.NewPropKeyResolver(service.Config)
+			service.contentMaxSize = contentMaxSize
+			service.topicMaxLength = topicMaxLength
+			service.mu.Do(func() {})
 
 			err := service.Send("Test message", &types.Params{"title": "My Topic"})
 
@@ -349,6 +354,9 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			}
 			service.SetLogger(&mockLogger{})
 			service.pkr = format.NewPropKeyResolver(service.Config)
+			service.contentMaxSize = contentMaxSize
+			service.topicMaxLength = topicMaxLength
+			service.mu.Do(func() {})
 
 			longTitle := strings.Repeat("a", topicMaxLength+1)
 			err := service.Send("Test message", &types.Params{"title": longTitle})
@@ -406,6 +414,40 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			err := service.Send(exactMessage, nil)
 
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("should error for invalid message type", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			service := newTestService(mockClient)
+
+			err := service.Send("Test message", &types.Params{"type": "invalid"})
+
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid message type"))
+		})
+
+		ginkgo.It("should error when no stream is set for channel message", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			service := &Service{
+				Config: &Config{
+					BotMail: "bot@example.com",
+					BotKey:  "secret-key",
+					Host:    "zulip.example.com",
+				},
+				HTTPClient: mockClient,
+			}
+			service.SetLogger(&mockLogger{})
+			service.pkr = format.NewPropKeyResolver(service.Config)
+			service.contentMaxSize = contentMaxSize
+			service.topicMaxLength = topicMaxLength
+			service.mu.Do(func() {})
+
+			err := service.Send("Test message", nil)
+
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err).To(gomega.MatchError(ErrMissingRecipient))
 		})
 	})
 
@@ -509,6 +551,45 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
 		})
+
+		ginkgo.It("should send direct message with type=direct and to param as JSON", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			var capturedReq *http.Request
+
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
+				capturedReq = args.Get(0).(*http.Request)
+			}).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
+
+			service := newTestService(mockClient)
+			service.Config.Stream = "" // no stream, use to
+
+			err := service.SendWithContext(context.Background(), "Test direct", &types.Params{
+				"type": "direct",
+				"to":   "user1@example.com,user2@example.com",
+			})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			body, _ := io.ReadAll(capturedReq.Body)
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("type=direct"))
+			gomega.Expect(string(body)).To(gomega.ContainSubstring(`to=%5B%22user1%40example.com%22%2C%22user2%40example.com%22%5D`))
+		})
+
+		ginkgo.It("should error when no recipient for direct message", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			service := newTestService(mockClient)
+			service.Config.Stream = ""
+
+			err := service.SendWithContext(context.Background(), "Test message", &types.Params{"type": "direct"})
+
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err).To(gomega.MatchError(ErrMissingRecipient))
+		})
 	})
 
 	ginkgo.Describe("doSend", func() {
@@ -575,7 +656,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			body, readErr := io.ReadAll(capturedReq.Body)
 			gomega.Expect(readErr).NotTo(gomega.HaveOccurred())
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("type=stream"))
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("type=channel"))
 			gomega.Expect(string(body)).To(gomega.ContainSubstring("to=general"))
 			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=Hello+World"))
 			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
@@ -693,6 +774,84 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(parsed.Path).To(gomega.Equal("/api/v1/messages"))
 		})
+
+		ginkgo.It("should use server-side size limits from register endpoint", func() {
+			httpmock.Activate()
+
+			defer httpmock.DeactivateAndReset()
+
+			registerURL := (&url.URL{
+				User:   url.UserPassword("bot@example.com", "secret-key"),
+				Host:   "zulip.example.com",
+				Path:   "/api/v1/register",
+				Scheme: "https",
+			}).String()
+			httpmock.RegisterResponder(
+				"POST",
+				registerURL,
+				httpmock.NewStringResponder(http.StatusOK, `{"max_message_length":5000,"max_topic_length":30}`),
+			)
+
+			apiURL := (&url.URL{
+				Host:   "zulip.example.com",
+				Path:   "/api/v1/messages",
+				Scheme: "https",
+				User:   url.UserPassword("bot@example.com", "secret-key"),
+			}).String()
+			httpmock.RegisterResponder(
+				"POST",
+				apiURL,
+				httpmock.NewStringResponder(http.StatusOK, ""),
+			)
+
+			svc := &Service{}
+			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general")
+			err := svc.Initialize(serviceURL, testutils.TestLogger())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			longMessage := strings.Repeat("a", 5001)
+			err = svc.Send(longMessage, nil)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.Equal("message exceeds max size: 5000 bytes, got 5001 bytes"))
+		})
+
+		ginkgo.It("should fall back to defaults when register fails", func() {
+			httpmock.Activate()
+
+			defer httpmock.DeactivateAndReset()
+
+			registerURL := (&url.URL{
+				User:   url.UserPassword("bot@example.com", "secret-key"),
+				Host:   "zulip.example.com",
+				Path:   "/api/v1/register",
+				Scheme: "https",
+			}).String()
+			httpmock.RegisterResponder(
+				"POST",
+				registerURL,
+				httpmock.NewStringResponder(http.StatusServiceUnavailable, ""),
+			)
+
+			apiURL := (&url.URL{
+				Host:   "zulip.example.com",
+				Path:   "/api/v1/messages",
+				Scheme: "https",
+				User:   url.UserPassword("bot@example.com", "secret-key"),
+			}).String()
+			httpmock.RegisterResponder(
+				"POST",
+				apiURL,
+				httpmock.NewStringResponder(http.StatusOK, ""),
+			)
+
+			svc := &Service{}
+			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general")
+			err := svc.Initialize(serviceURL, testutils.TestLogger())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = svc.Send("test message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 	})
 
 	ginkgo.Describe("Params update", func() {
@@ -733,6 +892,10 @@ func newTestService(mockClient *mocks.MockHTTPClient) *Service {
 	}
 	service.SetLogger(&mockLogger{})
 	service.pkr = format.NewPropKeyResolver(service.Config)
+	service.contentMaxSize = contentMaxSize
+	service.topicMaxLength = topicMaxLength
+	// Prime the Once so fetchLimits (which would call HTTPClient) is skipped in mock-based unit tests.
+	service.mu.Do(func() {})
 
 	return service
 }

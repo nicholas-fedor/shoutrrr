@@ -21,6 +21,9 @@ import (
 //   - SHOUTRRR_ZULIP_BOT_KEY: Bot API key
 //   - SHOUTRRR_ZULIP_STREAM: Target stream name (optional)
 //   - SHOUTRRR_ZULIP_TOPIC: Message topic (optional)
+//   - SHOUTRRR_ZULIP_DM_TO: Comma-separated recipients (emails or user IDs) for direct message tests (optional; falls back to bot mail for self-DM to exercise the feature)
+//   - SHOUTRRR_ZULIP_TYPE: Message type (channel/direct) for tests (optional)
+//   - SHOUTRRR_ZULIP_READ_BY_SENDER: "true" to set read_by_sender (optional)
 func Test_Zulip_E2E(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +65,18 @@ func buildServiceURL() string {
 
 	if topic := os.Getenv("SHOUTRRR_ZULIP_TOPIC"); topic != "" {
 		q.Set("topic", topic)
+	}
+
+	if typ := os.Getenv("SHOUTRRR_ZULIP_TYPE"); typ != "" {
+		q.Set("type", typ)
+	}
+
+	if to := os.Getenv("SHOUTRRR_ZULIP_DM_TO"); to != "" {
+		q.Set("to", to)
+	}
+
+	if read := os.Getenv("SHOUTRRR_ZULIP_READ_BY_SENDER"); read == "true" {
+		q.Set("read_by_sender", "true")
 	}
 
 	if len(q) > 0 {

@@ -24,9 +24,8 @@ func TestServiceSendPlainText(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Hello, World!", nil)
 
@@ -47,9 +46,8 @@ func TestServiceSendEmptyMessage(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("", nil)
 
@@ -70,9 +68,8 @@ func TestServiceSendWithStreamParam(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("stream", "general")
 		err := service.Send("Test message", params)
@@ -94,9 +91,8 @@ func TestServiceSendWithTopicParam(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("topic", "announcements")
 		err := service.Send("Test message", params)
@@ -118,9 +114,8 @@ func TestServiceSendWithNilParams(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test message", nil)
 
@@ -142,9 +137,8 @@ func TestServiceSendWithContext(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		ctx := context.Background()
 		err := service.SendWithContext(ctx, "Context message", nil)
@@ -165,6 +159,11 @@ func TestServiceSendWithCancelledContext(t *testing.T) {
 			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
 			mockClient,
 		)
+
+		// register succeeds (once), messages call gets the cancel (the ctx is for the send)
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
 
 		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
 			Return(nil, context.Canceled).
@@ -191,9 +190,8 @@ func TestServiceSendWithTitleParam(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("topic", "Alert")
 		err := service.Send("Something happened", params)
@@ -215,9 +213,8 @@ func TestServiceSendTitleAsTopicFallback(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("title", "Fallback Topic")
 		err := service.Send("body content", params)
@@ -239,9 +236,8 @@ func TestServiceSendTitleDoesNotOverrideExplicitTopic(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("title", "Notification Title")
 		err := service.Send("body content", params)
@@ -266,12 +262,18 @@ func TestServiceSendTitleExceedingTopicLimit(t *testing.T) {
 
 		longTitle := strings.Repeat("a", 61)
 		params := createTestParams("title", longTitle)
+
+		// register happens; title-as-topic length check fails before messages Do
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
+
 		err := service.Send("body content", params)
 
 		require.Error(t, err)
 		require.ErrorIs(t, err, zulip.ErrTopicTooLong)
 
-		mockClient.AssertExpectations(t)
+		assertNoMessagesAPICall(t, mockClient)
 	})
 }
 
@@ -285,9 +287,8 @@ func TestServiceSendWithBothTopicAndTitle(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("topic", "my-topic", "title", "my-title")
 		err := service.Send("body content", params)
@@ -310,9 +311,8 @@ func TestServiceSendWithUnicodeMessage(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Hello 世界 🌍", nil) //nolint:gosmopolitan // unicode test message
 
@@ -333,9 +333,8 @@ func TestServiceSendWithSpecialCharacters(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send("Test <script>alert('xss')</script>", nil)
 
@@ -358,9 +357,8 @@ func TestServiceSendWithLongMessage(t *testing.T) {
 
 		longMessage := strings.Repeat("a", 10000)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		err := service.Send(longMessage, nil)
 
@@ -382,59 +380,17 @@ func TestServiceSendWithMessageExceedingLimit(t *testing.T) {
 
 		longMessage := strings.Repeat("a", 10001)
 
+		// only register (fetch) happens; size error before messages Do
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
+
 		err := service.Send(longMessage, nil)
 
 		require.Error(t, err)
 		require.ErrorIs(t, err, zulip.ErrMessageTooLong)
 
-		mockClient.AssertNotCalled(t, "Do", mock.AnythingOfType("*http.Request"))
-	})
-}
-
-func TestServiceSendWithTopicExceedingLimit(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		mockClient := mocks.NewMockHTTPClient(t)
-		service := createTestService(
-			t,
-			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
-			mockClient,
-		)
-
-		longTopic := strings.Repeat("a", 61)
-
-		params := createTestParams("topic", longTopic)
-		err := service.Send("Test message", params)
-
-		require.Error(t, err)
-		require.ErrorIs(t, err, zulip.ErrTopicTooLong)
-
-		mockClient.AssertNotCalled(t, "Do", mock.AnythingOfType("*http.Request"))
-	})
-}
-
-func TestServiceSendWithTopicAtExactLimit(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		mockClient := mocks.NewMockHTTPClient(t)
-		service := createTestService(
-			t,
-			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
-			mockClient,
-		)
-
-		exactTopic := strings.Repeat("a", 60)
-
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
-
-		params := createTestParams("topic", exactTopic)
-		err := service.Send("Test message", params)
-
-		require.NoError(t, err)
-
-		mockClient.AssertExpectations(t)
+		assertNoMessagesAPICall(t, mockClient)
 	})
 }
 
@@ -448,15 +404,191 @@ func TestServiceSendParamsDoNotMutateConfig(t *testing.T) {
 			mockClient,
 		)
 
-		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
-			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
-			Once()
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		params := createTestParams("topic", "modified")
 		err := service.Send("Test message", params)
 
 		require.NoError(t, err)
+		require.Equal(t, "original", service.Config.Topic)
 		assertRequestContains(t, mockClient, "topic=modified")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+// --- New tests for direct message support and server-side limit fetching ---
+
+func TestServiceSendDirectMessage(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
+
+		params := createTestParams("type", "direct", "to", "user1@example.com,user2@example.com")
+		err := service.Send("Direct hello", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "type=direct")
+		assertRequestContains(t, mockClient, `to=%5B%22user1%40example.com%22%2C%22user2%40example.com%22%5D`)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendDirectWithReadBySender(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		setupRegisterThenMessage(t, mockClient, msgResp)
+
+		params := createTestParams("type", "direct", "to", "dm@example.com", "read_by_sender", "true")
+		err := service.Send("DM with read", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "read_by_sender=true")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendInvalidMessageType(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		// type validation happens before fetch, so no Do calls at all
+		err := service.Send("bad type", createTestParams("type", "foo"))
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, zulip.ErrInvalidMessageType)
+
+		mockClient.AssertNotCalled(t, "Do", mock.AnythingOfType("*http.Request"))
+	})
+}
+
+func TestServiceSendMissingRecipientChannel(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once() // register only
+
+		err := service.Send("no recipient", nil)
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, zulip.ErrMissingRecipient)
+
+		assertNoMessagesAPICall(t, mockClient)
+	})
+}
+
+func TestServiceSendMissingRecipientDirect(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once() // register only
+
+		err := service.Send("dm no to", createTestParams("type", "direct"))
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, zulip.ErrMissingRecipient)
+
+		assertNoMessagesAPICall(t, mockClient)
+	})
+}
+
+func TestServiceSendUsesCustomServerLimits(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		// first call: register returns custom limits (larger)
+		registerResp := createMockResponse(http.StatusOK, `{"max_message_length": 20000, "max_topic_length": 120}`)
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(registerResp, nil).
+			Once()
+
+		// second: messages
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(msgResp, nil).
+			Once()
+
+		// 15000 byte message should be allowed with custom 20000 limit
+		longMsg := strings.Repeat("a", 15000)
+		err := service.Send(longMsg, nil)
+
+		require.NoError(t, err)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendFallsBackToDefaultLimitsOnRegisterFailure(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		// register fails -> fallback to defaults (10000)
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusServiceUnavailable, ""), nil).
+			Once()
+
+		// the send should still happen (using default limit)
+		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(msgResp, nil).
+			Once()
+
+		err := service.Send("short after fallback", nil)
+
+		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
 	})
