@@ -14,7 +14,7 @@ shoutrrr docs [FLAG] <SERVICE>
 
 ### Flags
 
-| Flag                 | Description                       |
+| Flag                  | Description                       |
 |-----------------------|-----------------------------------|
 | `-f, --format string` | Output format (default "console") |
 | `-h, --help`          | Help for `docs` command           |
@@ -60,9 +60,10 @@ shoutrrr docs --format markdown discord
 ### URL Fields
 
 *  __Token__ (**Required**)
-  URL part: <code class="service-url">discord://<strong>token</strong>@webhookid/</code>
+<br>URL part: <code class="service-url">discord://<strong>token</strong>@webhookid/</code>
 *  __WebhookID__ (**Required**)
-  URL part: <code class="service-url">discord://token@<strong>webhookid</strong>/</code>
+<br>URL part: <code class="service-url">discord://token@<strong>webhookid</strong>/</code>
+
 ### Query/Param Props
 
 Props can be either supplied using the params argument, or through the URL using

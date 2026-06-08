@@ -98,7 +98,7 @@ func printDocs(docFormat string, services []string) cmd.ExitError {
 	case "markdown":
 		renderer = format.MarkdownTreeRenderer{
 			HeaderPrefix:      "### ",
-			PropsDescription:  "Props can be either supplied using the params argument, or through the URL using\n`?key=value&key=value` etc.\n",
+			PropsDescription:  "Props can be either supplied using the params argument or through the URL using\n`?key=value&key=value` etc.\n",
 			PropsEmptyMessage: "*The services does not support any query/param props*\n",
 		}
 	default:
