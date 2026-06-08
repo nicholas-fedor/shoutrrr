@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/govulncheck-action action to v1.0.5 by @renovate[bot] in [#925](https://github.com/nicholas-fedor/shoutrrr/pull/925)
+- Update nicholas-fedor/actionlint-action action to v1.0.5 by @renovate[bot] in [#924](https://github.com/nicholas-fedor/shoutrrr/pull/924)
 - Update codecov/codecov-action action to v7 by @renovate[bot] in [#921](https://github.com/nicholas-fedor/shoutrrr/pull/921)
 - Update nicholas-fedor/actionlint-action action to v1.0.4 by @renovate[bot] in [#919](https://github.com/nicholas-fedor/shoutrrr/pull/919)
 - Update codecov/codecov-action action to v6.0.2 by @renovate[bot] in [#918](https://github.com/nicholas-fedor/shoutrrr/pull/918)
