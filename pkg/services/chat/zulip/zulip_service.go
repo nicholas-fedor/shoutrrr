@@ -105,6 +105,13 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	// If no topic is set, fall back to using the title as the topic
+	// for backward compatibility with tools that only provide a title.
+	if config.Topic == "" && config.Title != "" {
+		config.Topic = config.Title
+		config.Title = ""
+	}
+
 	topicLength := len([]rune(config.Topic))
 	if topicLength > topicMaxLength {
 		return fmt.Errorf(
@@ -113,6 +120,11 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 			topicMaxLength,
 			topicLength,
 		)
+	}
+
+	// Prepend title to message content when both topic and title are set.
+	if config.Title != "" {
+		message = fmt.Sprintf("%s\n\n%s", config.Title, message)
 	}
 
 	messageSize := len(message)

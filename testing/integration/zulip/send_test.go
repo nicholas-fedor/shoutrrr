@@ -195,11 +195,106 @@ func TestServiceSendWithTitleParam(t *testing.T) {
 			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
 			Once()
 
-		params := createTestParams("title", "Alert")
+		params := createTestParams("topic", "Alert")
 		err := service.Send("Something happened", params)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "topic=Alert")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendTitleAsTopicFallback(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
+
+		params := createTestParams("title", "Fallback Topic")
+		err := service.Send("body content", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "topic=Fallback+Topic")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendTitleDoesNotOverrideExplicitTopic(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=explicit",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
+
+		params := createTestParams("title", "Notification Title")
+		err := service.Send("body content", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "topic=explicit")
+		assertRequestContains(t, mockClient, "content=Notification+Title")
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendTitleExceedingTopicLimit(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		longTitle := strings.Repeat("a", 61)
+		params := createTestParams("title", longTitle)
+		err := service.Send("body content", params)
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, zulip.ErrTopicTooLong)
+
+		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestServiceSendWithBothTopicAndTitle(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := mocks.NewMockHTTPClient(t)
+		service := createTestService(
+			t,
+			"zulip://bot@example.com:secret-key@zulip.example.com?stream=general",
+			mockClient,
+		)
+
+		mockClient.On("Do", mock.AnythingOfType("*http.Request")).
+			Return(createMockResponse(http.StatusOK, `{"result": "success"}`), nil).
+			Once()
+
+		params := createTestParams("topic", "my-topic", "title", "my-title")
+		err := service.Send("body content", params)
+
+		require.NoError(t, err)
+		assertRequestContains(t, mockClient, "topic=my-topic")
+		assertRequestContains(t, mockClient, "content=my-title%0A%0Abody+content")
 
 		mockClient.AssertExpectations(t)
 	})

@@ -251,6 +251,136 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			gomega.Expect(err).To(gomega.MatchError(ErrTopicTooLong))
 		})
 
+		ginkgo.It("should use title as topic when topic is not set", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			var capturedReq *http.Request
+
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
+				capturedReq = args.Get(0).(*http.Request)
+			}).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
+
+			service := &Service{
+				Config: &Config{
+					BotMail: "bot@example.com",
+					BotKey:  "secret-key",
+					Host:    "zulip.example.com",
+					Stream:  "general",
+				},
+				HTTPClient: mockClient,
+			}
+			service.SetLogger(&mockLogger{})
+			service.pkr = format.NewPropKeyResolver(service.Config)
+
+			err := service.Send("Test message", &types.Params{"title": "My Topic"})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			body, _ := io.ReadAll(capturedReq.Body)
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=My+Topic"))
+
+			mockClient.AssertExpectations(ginkgo.GinkgoT())
+		})
+
+		ginkgo.It("should not override topic with title when both are set", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			var capturedReq *http.Request
+
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
+				capturedReq = args.Get(0).(*http.Request)
+			}).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
+
+			service := newTestService(mockClient)
+
+			err := service.Send("Test message", &types.Params{"title": "Notification Title"})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			body, _ := io.ReadAll(capturedReq.Body)
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=Notification+Title"))
+
+			mockClient.AssertExpectations(ginkgo.GinkgoT())
+		})
+
+		ginkgo.It("should prepend title to message when both topic and title are set", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			var capturedReq *http.Request
+
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
+				capturedReq = args.Get(0).(*http.Request)
+			}).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
+
+			service := newTestService(mockClient)
+
+			err := service.Send("body text", &types.Params{"title": "My Title"})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			body, _ := io.ReadAll(capturedReq.Body)
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=My+Title%0A%0Abody+text"))
+
+			mockClient.AssertExpectations(ginkgo.GinkgoT())
+		})
+
+		ginkgo.It("should return error when title used as topic fallback exceeds max length", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			service := &Service{
+				Config: &Config{
+					BotMail: "bot@example.com",
+					BotKey:  "secret-key",
+					Host:    "zulip.example.com",
+					Stream:  "general",
+				},
+				HTTPClient: mockClient,
+			}
+			service.SetLogger(&mockLogger{})
+			service.pkr = format.NewPropKeyResolver(service.Config)
+
+			longTitle := strings.Repeat("a", topicMaxLength+1)
+			err := service.Send("Test message", &types.Params{"title": longTitle})
+
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err).To(gomega.MatchError(ErrTopicTooLong))
+		})
+
+		ginkgo.It("should handle empty title param gracefully", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+			var capturedReq *http.Request
+
+			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
+				capturedReq = args.Get(0).(*http.Request)
+			}).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
+			}, nil).Once()
+
+			service := newTestService(mockClient)
+
+			err := service.Send("Test message", &types.Params{"title": ""})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			body, _ := io.ReadAll(capturedReq.Body)
+			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
+
+			mockClient.AssertExpectations(ginkgo.GinkgoT())
+		})
+
 		ginkgo.It("should return an error when message exceeds max size", func() {
 			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
 

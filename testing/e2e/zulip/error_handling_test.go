@@ -54,8 +54,6 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {
 				ginkgo.Skip("Zulip server not configured, skipping auth error test")
-
-				return
 			}
 
 			parsedURL, err := url.Parse(serviceURLStr)
@@ -78,8 +76,6 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {
 				ginkgo.Skip("Zulip server not configured, skipping invalid stream test")
-
-				return
 			}
 
 			serviceURL, err := url.Parse(serviceURLStr)

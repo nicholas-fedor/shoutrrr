@@ -22,12 +22,12 @@ Shoutrrr's Zulip service sends notifications to Zulip streams using bot credenti
 
 To use Shoutrrr with Zulip, you need to create a bot in your Zulip organization:
 
-1. Go to **Settings** → **Personal settings** → **Bots**
-2. Click **Add a new bot**
-3. Choose **Generic bot** as the bot type
+1. Go to __Settings__ → __Personal settings__ → __Bots__
+2. Click __Add a new bot__
+3. Choose __Generic bot__ as the bot type
 4. Fill in the bot name and optionally an avatar
-5. Click **Create bot**
-6. Copy the bot's **email** and **API key**
+5. Click __Create bot__
+6. Copy the bot's __email__ and __API key__
 
 Use the bot email as the `botmail` and the API key as the `botkey` in your service URL.
 
@@ -36,9 +36,11 @@ Use the bot email as the `botmail` and the API key as the `botkey` in your servi
 Both `stream` and `topic` are optional. They can be provided in the service URL or overridden
 at send time using `types.Params`:
 
-- **Stream**: The name of the Zulip stream to send messages to (e.g., `general`, `alerts`)
-- **Topic**: The message topic within the stream (e.g., `server-monitoring`). Zulip topics keep
+- __Stream__: The name of the Zulip stream to send messages to (e.g., `general`, `alerts`)
+- __Topic__: The message topic within the stream (e.g., `server-monitoring`). Zulip topics keep
   conversations organized within a stream.
+- __Title__: A notification title that is prepended to the message content. If no `topic` is
+  set, the `title` is used as the topic instead.
 
 If neither is specified, the message is sent to the default stream configured for the bot.
 
@@ -70,10 +72,18 @@ If neither is specified, the message is sent to the default stream configured fo
     sender.Send("Disk usage exceeded 90% on server-01", &params)
     ```
 
-!!! example "Using the title alias for topic"
+!!! example "Add a notification title to the message"
     ```go
     params := make(types.Params)
-    params["title"] = "deployment-notification"
+    params["title"] = "Deployment Notification"
+
+    sender.Send("Deployed v2.3.1 to production", &params)
+    ```
+
+!!! example "Override topic at send time"
+    ```go
+    params := make(types.Params)
+    params["topic"] = "deployment-notification"
 
     sender.Send("Deployed v2.3.1 to production", &params)
     ```

@@ -15,8 +15,9 @@ type Config struct {
 	BotMail string `desc:"Bot e-mail address"                       url:"user"`
 	BotKey  string `desc:"API key"                                  url:"pass"`
 	Host    string `desc:"API server hostname (with optional port)" url:"host"`
-	Stream  string `desc:"Target stream name"                                  key:"stream"      optional:""`
-	Topic   string `desc:"Message topic"                                       key:"topic,title" optional:""`
+	Stream  string `desc:"Target stream name"                                  key:"stream" optional:""`
+	Topic   string `desc:"Stream topic"                                        key:"topic"  optional:""`
+	Title   string `desc:"Notification title prepended to message"             key:"title"  optional:""`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -30,6 +31,7 @@ func (c *Config) Clone() *Config {
 		Host:    c.Host,
 		Stream:  c.Stream,
 		Topic:   c.Topic,
+		Title:   c.Title,
 	}
 }
 
@@ -56,6 +58,10 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 
 	if c.Topic != "" {
 		query.Set("topic", c.Topic)
+	}
+
+	if c.Title != "" {
+		query.Set("title", c.Title)
 	}
 
 	return &url.URL{
@@ -91,6 +97,7 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 
 	c.Stream = serviceURL.Query().Get("stream")
 	c.Topic = serviceURL.Query().Get("topic")
+	c.Title = serviceURL.Query().Get("title")
 
 	return nil
 }

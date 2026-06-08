@@ -18,8 +18,6 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {
 				ginkgo.Skip("Zulip server not configured, skipping basic message test")
-
-				return
 			}
 
 			serviceURL, err := url.Parse(serviceURLStr)
@@ -37,8 +35,6 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {
 				ginkgo.Skip("Zulip server not configured, skipping topic test")
-
-				return
 			}
 
 			serviceURL, err := url.Parse(serviceURLStr)
@@ -58,8 +54,6 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {
 				ginkgo.Skip("Zulip server not configured, skipping stream params test")
-
-				return
 			}
 
 			serviceURL, err := url.Parse(serviceURLStr)
