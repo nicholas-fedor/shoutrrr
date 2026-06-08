@@ -1513,7 +1513,34 @@
   
 </li>
         
-          <li class="md-nav__item">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bot_setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bot Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stream_and_topic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stream and Topic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#examples" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1523,9 +1550,26 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#direct_messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server-Side Limits
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2591,7 +2635,34 @@
   
 </li>
         
-          <li class="md-nav__item">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bot_setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bot Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stream_and_topic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stream and Topic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#examples" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2601,9 +2672,26 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#direct_messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server-Side Limits
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2628,52 +2716,148 @@
 
 
 <h1 id="zulip_chat">Zulip Chat<a class="headerlink" href="#zulip_chat" title="Permanent link">&para;</a></h1>
+<p><a href="https://zulip.com/">Zulip</a> is an open-source group chat application that supports both live and asynchronous conversations.
+Shoutrrr's Zulip service sends notifications to Zulip streams using bot credentials.</p>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
-<p>The shoutrrr service URL should look like this:</p>
 <div class="admonition info">
 <p>zulip://<strong><code>botmail</code></strong>:<strong><code>botkey</code></strong>@<strong><code>host</code></strong>/?stream=<strong><code>stream</code></strong>&amp;topic=<strong><code>topic</code></strong></p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>BotMail</strong> - Bot e-mail address (<strong>Required</strong>)
-  URL part: <code class="service-url">zulip://<strong>botmail</strong>:botkey@host:port/</code></li>
-<li><strong>BotKey</strong> - API Key (<strong>Required</strong>)
-  URL part: <code class="service-url">zulip://botmail:<strong>botkey</strong>@host:port/</code></li>
-<li><strong>Host</strong> - API server hostname (<strong>Required</strong>)
-  URL part: <code class="service-url">zulip://botmail:botkey@<strong>host</strong>:<strong>port</strong>/</code></li>
+<br>URL part: <code class="service-url">zulip://<strong>botmail</strong>:botkey@host/</code></li>
+<li><strong>BotKey</strong> - API key (<strong>Required</strong>)
+<br>URL part: <code class="service-url">zulip://botmail:<strong>botkey</strong>@host/</code></li>
+<li><strong>Host</strong> - API server hostname (with optional port) (<strong>Required</strong>)
+<br>URL part: <code class="service-url">zulip://botmail:botkey@<strong>host</strong>/</code></li>
 </ul>
 <h3 id="queryparam_props">Query/Param Props<a class="headerlink" href="#queryparam_props" title="Permanent link">&para;</a></h3>
-<p>Props can be either supplied using the params argument, or through the URL using
+<p>Props can be either supplied using the params argument or through the URL using
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
+<li>
+<p><strong>read_by_sender</strong> - Mark the message read by its sender
+  Default: ❌ <code>No</code></p>
+</li>
 <li>
 <p><strong>stream</strong> - Target stream name
   Default: <em>empty</em></p>
 </li>
 <li>
-<p><strong>topic</strong> - Message topic
-  Default: <em>empty</em>
-  Aliases: <code>title</code></p>
+<p><strong>title</strong> - Notification title prepended to message
+  Default: <em>empty</em></p>
+</li>
+<li>
+<p><strong>to</strong> - Comma-separated user IDs or emails for DMs
+  Default: <em>empty</em></p>
+</li>
+<li>
+<p><strong>topic</strong> - Stream topic
+  Default: <em>empty</em></p>
+</li>
+<li>
+<p><strong>type</strong> - Message type (channel or direct)
+  Default: <em>empty</em></p>
 </li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Since <strong><code>botmail</code></strong>  is a mail address you need to URL escape the <code>@</code> in it to <code>%40</code>.</p>
+<p>When constructing the service URL manually, the <code>@</code> in the bot e-mail address must be
+URL-encoded as <code>%40</code>. When using the Go API or the playground, this is handled automatically.</p>
 </div>
-<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
-<p>Stream and topic are both optional and can be given as parameters to the Send method:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
-
-<span class="w">  </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
-<span class="w">  </span><span class="nx">params</span><span class="p">[</span><span class="s">&quot;stream&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;mystream&quot;</span>
-<span class="w">  </span><span class="nx">params</span><span class="p">[</span><span class="s">&quot;topic&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;This is my topic&quot;</span>
-
-<span class="w">  </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">message</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <strong><code>host</code></strong> field may include a non-standard port (e.g., <code>zulip.example.com:8443</code>).
+When using the default HTTPS port (443), the port can be omitted.</p>
+</div>
+<h2 id="bot_setup">Bot Setup<a class="headerlink" href="#bot_setup" title="Permanent link">&para;</a></h2>
+<p>To use Shoutrrr with Zulip, you need to create a bot in your Zulip organization:</p>
+<ol>
+<li>Go to <strong>Settings</strong> → <strong>Personal settings</strong> → <strong>Bots</strong></li>
+<li>Click <strong>Add a new bot</strong></li>
+<li>Choose <strong>Generic bot</strong> as the bot type</li>
+<li>Fill in the bot name and optionally an avatar</li>
+<li>Click <strong>Create bot</strong></li>
+<li>Copy the bot's <strong>email</strong> and <strong>API key</strong></li>
+</ol>
+<p>Use the bot email as the <code>botmail</code> and the API key as the <code>botkey</code> in your service URL.</p>
+<h2 id="stream_and_topic">Stream and Topic<a class="headerlink" href="#stream_and_topic" title="Permanent link">&para;</a></h2>
+<p>Both <code>stream</code> and <code>topic</code> are optional. They can be provided in the service URL or overridden
+at send time using <code>types.Params</code>:</p>
+<ul>
+<li><strong>Stream</strong>: The name of the Zulip stream to send messages to (e.g., <code>general</code>, <code>alerts</code>)</li>
+<li><strong>Topic</strong>: The message topic within the stream (e.g., <code>server-monitoring</code>). Zulip topics keep
+  conversations organized within a stream.</li>
+<li><strong>Title</strong>: A notification title that is prepended to the message content. If no <code>topic</code> is
+  set, the <code>title</code> is used as the topic instead.</li>
+</ul>
+<p>If neither is specified, the message is sent to the default stream configured for the bot.</p>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
-<p class="admonition-title">Example service URL</p>
-<p>zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=foo&amp;topic=bar</p>
+<p class="admonition-title">Basic notification (default stream)</p>
+<div class="highlight"><pre><span></span><code>zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com
+</code></pre></div>
 </div>
+<div class="admonition example">
+<p class="admonition-title">With stream and topic in URL</p>
+<div class="highlight"><pre><span></span><code>zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?stream=alerts&amp;topic=monitoring
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">With custom port</p>
+<div class="highlight"><pre><span></span><code>zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com:8443?stream=general
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Override stream and topic at send time</p>
+<div class="highlight"><pre><span></span><code><span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+
+<span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;stream&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;alerts&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;topic&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;disk-space-warning&quot;</span>
+
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Disk usage exceeded 90% on server-01&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Add a notification title to the message</p>
+<div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;title&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;Deployment Notification&quot;</span>
+
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Deployed v2.3.1 to production&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Override topic at send time</p>
+<div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;topic&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;deployment-notification&quot;</span>
+
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Deployed v2.3.1 to production&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Using the CLI</p>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Server restarted&quot;</span>
+</code></pre></div>
+</div>
+<h2 id="direct_messages">Direct Messages<a class="headerlink" href="#direct_messages" title="Permanent link">&para;</a></h2>
+<p>To send a direct message, set the <code>type</code> parameter to <code>direct</code> and provide recipients via the <code>to</code> parameter (comma-separated emails or user IDs). The <code>stream</code> value can serve as a fallback recipient list for direct messages. The <code>topic</code> parameter is ignored for direct messages (only channels use topics).</p>
+<div class="admonition example">
+<p class="admonition-title">Direct message via params</p>
+<div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;type&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;direct&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">&quot;to&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;user1@example.com,user2@example.com&quot;</span>
+
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Hello via DM&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Direct message service URL</p>
+<div class="highlight"><pre><span></span><code>zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?type=direct&amp;to=user1@example.com,user2@example.com
+</code></pre></div>
+</div>
+<h2 id="server-side_limits">Server-Side Limits<a class="headerlink" href="#server-side_limits" title="Permanent link">&para;</a></h2>
+<p>The service fetches <code>max_message_length</code> and <code>max_topic_length</code> from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 bytes for content and 60 characters for topics. Length checks use rune count for topics (Unicode aware) and byte count for message content.</p>
 
 
 
@@ -2696,7 +2880,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="June 8, 2026 12:19:48 UTC"><span class="timeago" datetime="2026-06-08T12:19:48+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 8, 2026 12:19:48 UTC">2026-06-08</span>
   </span>
 
     
