@@ -223,6 +223,19 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
 		})
 
+		ginkgo.It("should reset read_by_sender when parsing a second URL without the parameter", func() {
+			cfg := &Config{}
+			urlWithReadBySender := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?read_by_sender=true")
+			err := cfg.SetURL(urlWithReadBySender)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(cfg.ReadBySender).To(gomega.BeTrue())
+
+			urlWithoutReadBySender := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
+			err = cfg.SetURL(urlWithoutReadBySender)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
+		})
+
 		ginkgo.It("should return ErrMissingBotMail when bot mail is empty", func() {
 			cfg := &Config{}
 			serviceURL := testutils.URLMust("zulip://:secret-key@zulip.example.com")

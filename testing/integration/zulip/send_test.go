@@ -193,7 +193,7 @@ func TestServiceSendWithTitleParam(t *testing.T) {
 		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
 		setupRegisterThenMessage(t, mockClient, msgResp)
 
-		params := createTestParams("topic", "Alert")
+		params := createTestParams("title", "Alert")
 		err := service.Send("Something happened", params)
 
 		require.NoError(t, err)

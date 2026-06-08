@@ -219,7 +219,7 @@ func TestAPIWithoutTopicCompliance(t *testing.T) {
 	})
 }
 
-func TestAPIWithOnlyTopicNoStream(t *testing.T) {
+func TestAPIWithTopicCompliance(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := mocks.NewMockHTTPClient(t)

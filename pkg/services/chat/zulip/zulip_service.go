@@ -138,6 +138,10 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 		return err
 	}
 
+	if !hostValidator.MatchString(config.Host) {
+		return fmt.Errorf("%w: %q", ErrInvalidHost, config.Host)
+	}
+
 	s.mu.Do(s.fetchLimits)
 
 	topicLength := len([]rune(config.Topic))

@@ -24,9 +24,7 @@ import (
 //   - SHOUTRRR_ZULIP_DM_TO: Comma-separated recipients (emails or user IDs) for direct message tests (optional; falls back to bot mail for self-DM to exercise the feature)
 //   - SHOUTRRR_ZULIP_TYPE: Message type (channel/direct) for tests (optional)
 //   - SHOUTRRR_ZULIP_READ_BY_SENDER: "true" to set read_by_sender (optional)
-func Test_Zulip_E2E(t *testing.T) {
-	t.Parallel()
-
+func Test_Zulip_E2E(t *testing.T) { //nolint:paralleltest // mutates process-wide env via loadEnvFile
 	loadEnvFile(".env")
 
 	gomega.RegisterFailHandler(ginkgo.Fail)

@@ -162,6 +162,30 @@ var _ = ginkgo.Describe("CreatePayload", func() {
 		gomega.Expect(payload.Get("type")).To(gomega.Equal("channel"))
 		gomega.Expect(payload.Get("to")).To(gomega.Equal("foo"))
 	})
+
+	ginkgo.It("should serialize numeric recipient IDs as JSON strings for direct messages", func() {
+		cfg := &Config{
+			Type: MessageTypeDirect,
+			To:   "123,456",
+		}
+
+		payload := CreatePayload(cfg, "test message")
+
+		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
+		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["123","456"]`))
+	})
+
+	ginkgo.It("should fall back to stream for numeric recipient IDs when to is empty", func() {
+		cfg := &Config{
+			Type:   MessageTypeDirect,
+			Stream: "789",
+		}
+
+		payload := CreatePayload(cfg, "test message")
+
+		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
+		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["789"]`))
+	})
 })
 
 var _ = ginkgo.Describe("ValidateMessageType", func() {

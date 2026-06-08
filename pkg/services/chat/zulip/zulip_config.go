@@ -128,10 +128,7 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Title = serviceURL.Query().Get("title")
 	c.Type = MessageType(serviceURL.Query().Get("type"))
 	c.To = serviceURL.Query().Get("to")
-
-	if serviceURL.Query().Get("read_by_sender") == "true" {
-		c.ReadBySender = true
-	}
+	c.ReadBySender = serviceURL.Query().Get("read_by_sender") == "true"
 
 	return nil
 }
