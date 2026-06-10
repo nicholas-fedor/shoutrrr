@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.0 docker digest to a2d49ea by @renovate[bot] in [#943](https://github.com/nicholas-fedor/shoutrrr/pull/943)
 - Update alpine docker tag to v3.24.0 by @renovate[bot] in [#941](https://github.com/nicholas-fedor/shoutrrr/pull/941)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.1 by @renovate[bot] in [#939](https://github.com/nicholas-fedor/shoutrrr/pull/939)
 
