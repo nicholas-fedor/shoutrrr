@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/net to v0.56.0 by @renovate[bot] in [#948](https://github.com/nicholas-fedor/shoutrrr/pull/948)
 - Update dependency python to v3.14.6 by @renovate[bot] in [#946](https://github.com/nicholas-fedor/shoutrrr/pull/946)
 - Update emqx/emqx:latest docker digest to 01cd0f3 by @renovate[bot] in [#945](https://github.com/nicholas-fedor/shoutrrr/pull/945)
 - Update alpine:3.24.0 docker digest to a2d49ea by @renovate[bot] in [#943](https://github.com/nicholas-fedor/shoutrrr/pull/943)
