@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.2 by @renovate[bot] in [#953](https://github.com/nicholas-fedor/shoutrrr/pull/953)
 - Update module github.com/onsi/ginkgo/v2 to v2.30.0 by @renovate[bot] in [#951](https://github.com/nicholas-fedor/shoutrrr/pull/951)
 - Update module golang.org/x/tools to v0.46.0 by @renovate[bot] in [#950](https://github.com/nicholas-fedor/shoutrrr/pull/950)
 - Update module golang.org/x/net to v0.56.0 by @renovate[bot] in [#948](https://github.com/nicholas-fedor/shoutrrr/pull/948)
@@ -1343,8 +1344,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update Build workflow: add QEMU and refine attestation subject-path to archives only by @nicholas-fedor
 - Add support for message_thread_id by @yegle
-- Add network-observe interface for snap by @simskij
-- Add network plug to snap by @simskij
+- Add network-observe interface for snap by @simonaronsson
+- Add network plug to snap by @simonaronsson
 - Add home assistant example by @piksel
 - Add ntfy service by @piksel
 - Add support for custom client host by @piksel
@@ -1395,9 +1396,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for oauth2 and gmail generators by @piksel
 - Add Rocket.chat support by @dmitry-kovalev
 - Add new vectorized logotype by @piksel
-- Add teams docs by @simskij
-- Add multiple url example by @simskij
-- Add root cmd by @simskij
+- Add teams docs by @simonaronsson
+- Add multiple url example by @simonaronsson
+- Add root cmd by @simonaronsson
 - Add basic join service support by @piksel
 - Add basic documentation by @piksel
 - Add tests for new params by @piksel
@@ -1405,8 +1406,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add zulip chat service by @arnested
 - Add favicon and transparent logotype by @piksel
 - Add some branding to mkdocs by @piksel
-- Add codecov publish to ci by @simskij
-- Add badges required by awesome-go by @simskij
+- Add codecov publish to ci by @simonaronsson
+- Add badges required by awesome-go by @simonaronsson
 - Add codehilite markdown extension by @piksel
 - Added mattermost documentation
 - Add hangouts chat to navigation by @arnested
@@ -1416,27 +1417,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add basic XMPP tests by @piksel
 - Add basic XMPP service by @piksel
 - Add Codacy badge by @codacy-badger
-- Add logo 🙏 by @simskij
+- Add logo 🙏 by @simonaronsson
 - Add more test coverage and test utils by @piksel
-- Add gitter webhook by @simskij
+- Add gitter webhook by @simonaronsson
 - Add additional test coverage by @piksel
 - Add IFTTT webhook service by @piksel
 - Add missing documentation by @piksel
 - Add queued sender implementation by @piksel
 - Add missing go docs by @piksel
-- Add pushbullet embryo by @simskij
+- Add pushbullet embryo by @simonaronsson
 - Add plugin interfaces by @piksel
 - Add simple smtp implementation by @piksel
 - Add basic smtp plugin by @piksel
-- Add teams routing by @simskij
-- Add logic for msteams by @simskij
-- Add discord, telegram, slack and pushover by @simskij
-- Additional removal of logrus deps by @simskij
-- Add rudimentary support for telegram by @simskij
-- Add tagline to readme by @simskij
-- Add badges by @simskij
-- Add codacy integration by @simskij
-- Add router and router tests by @simskij
+- Add teams routing by @simonaronsson
+- Add logic for msteams by @simonaronsson
+- Add discord, telegram, slack and pushover by @simonaronsson
+- Additional removal of logrus deps by @simonaronsson
+- Add rudimentary support for telegram by @simonaronsson
+- Add tagline to readme by @simonaronsson
+- Add badges by @simonaronsson
+- Add codacy integration by @simonaronsson
+- Add router and router tests by @simonaronsson
 
 ### Changed
 
@@ -1461,19 +1462,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mention usage in Green Orb by @atgreen
 - Set default client host by @piksel
 - Extra data and custom headers by @piksel
-- Update matrix docs to mention `title` caveat by @simskij
+- Update matrix docs to mention `title` caveat by @simonaronsson
 - Make Zulip documentation examples more consistent by @arnested
-- Make the cli available as a snap by @simskij
+- Make the cli available as a snap by @simonaronsson
 - Fetch entire repo before pushing by @piksel
 - Cleanup and improve GitHub Actions by @arnested
 - Wrap errors by @arnested
-- Delete funding.yml by @simskij
+- Delete funding.yml by @simonaronsson
 - Send multiple messages when exceeding limits by @piksel
 - Update overview URL example by @piksel
 - Update telegram, matrix and cli output by @piksel
 - Move CLI command to /shoutrrr by @arnested
 - Update url extraction docs by @piksel
-- Create pull_request_template.md by @simskij
+- Create pull_request_template.md by @simonaronsson
 - Set repo token creds by @piksel
 - TLC by @piksel
 - Telegram generator/bot by @piksel
@@ -1486,7 +1487,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Format engine overhaul by @piksel
 - Format update, preparations for rich message support by @piksel
 - Ground work for rich message support by @piksel
-- Create post-release.yml by @simskij
+- Create post-release.yml by @simonaronsson
 - Use custom theme colors by @piksel
 - Do not rewrite channel name without hashes by @ellisab
 - Fix for issue https://github.com/containrrr/shoutrrr/issues/71
@@ -1494,95 +1495,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement generator API and basic generator by @piksel
 - Allow sending of json messages to discord by @PssbleTrngle
 - Update paths to logotype by @piksel
-- Merge pull request #32 from containrrr/fix/replace-cli by @simskij
+- Merge pull request #32 from containrrr/fix/replace-cli by @simonaronsson
 - Merge branch 'master' into fix/replace-cli by @piksel
 - Update site_url to new apex domain by @piksel
-- Update README.md by @simskij
-- Run ci on pull requests by @simskij
-- Isolate the cli into it's own folder by @simskij
-- Reduce duplication by @simskij
-- Switch cli to use cobra and viper by @simskij
-- Execute from main file location by @simskij
-- Deploy image on each commit by @simskij
-- Switch to login action by @simskij
-- Use correct secret name by @simskij
-- Fetch secrets correctly by @simskij
-- Switch to password stdin by @simskij
-- Publish to dockerhub by @simskij
-- Merge pull request #48 from containrrr/fix/telegram-err-handling by @simskij
-- Merge pull request #38 from amirschnell/#35_Change_URL_format_for_mattermost by @simskij
+- Update README.md by @simonaronsson
+- Run ci on pull requests by @simonaronsson
+- Isolate the cli into it's own folder by @simonaronsson
+- Reduce duplication by @simonaronsson
+- Switch cli to use cobra and viper by @simonaronsson
+- Execute from main file location by @simonaronsson
+- Deploy image on each commit by @simonaronsson
+- Switch to login action by @simonaronsson
+- Use correct secret name by @simonaronsson
+- Fetch secrets correctly by @simonaronsson
+- Switch to password stdin by @simonaronsson
+- Publish to dockerhub by @simonaronsson
+- Merge pull request #48 from containrrr/fix/telegram-err-handling by @simonaronsson
+- Merge pull request #38 from amirschnell/#35_Change_URL_format_for_mattermost by @simonaronsson
 - Updated documentation
 - Changed URL format for mattermost
-- Merge pull request #43 from containrrr/feature/join by @simskij
-- Merge pull request #42 from arnested/dont-crash-on-no-senders by @simskij
+- Merge pull request #43 from containrrr/feature/join by @simonaronsson
+- Merge pull request #42 from arnested/dont-crash-on-no-senders by @simonaronsson
 - Return error when sending with no senders created by @arnested
 - Update nav menu with new services by @piksel
-- Merge pull request #41 from containrrr/docs/pushover by @simskij
-- Merge pull request #40 from containrrr/feat/pushover-params by @simskij
-- Merge pull request #39 from arnested/zulip by @simskij
+- Merge pull request #41 from containrrr/docs/pushover by @simonaronsson
+- Merge pull request #40 from containrrr/feat/pushover-params by @simonaronsson
+- Merge pull request #39 from arnested/zulip by @simonaronsson
 - Update pushover URL format (again) by @piksel
 - Update pushover URL format by @piksel
-- Update main.yml by @simskij
-- Update main.yml by @simskij
-- Merge pull request #29 from amirschnell/master by @simskij
+- Update main.yml by @simonaronsson
+- Update main.yml by @simonaronsson
+- Merge pull request #29 from amirschnell/master by @simonaronsson
 - Corrected typos
-- Merge pull request #28 from arnested/fix-create-sernder-doc by @simskij
-- Merge pull request #27 from arnested/hangouts-doc-navigation by @simskij
-- Merge pull request #26 from containrrr/all-contributors/add-arnested by @simskij
+- Merge pull request #28 from arnested/fix-create-sernder-doc by @simonaronsson
+- Merge pull request #27 from arnested/hangouts-doc-navigation by @simonaronsson
+- Merge pull request #26 from containrrr/all-contributors/add-arnested by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Merge pull request #13 from arnested/hangouts-chat by @simskij
-- Merge pull request #25 from containrrr/all-contributors/add-arnested by @simskij
+- Merge pull request #13 from arnested/hangouts-chat by @simonaronsson
+- Merge pull request #25 from containrrr/all-contributors/add-arnested by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Merge pull request #23 from mbrandau/patch-1 by @simskij
+- Merge pull request #23 from mbrandau/patch-1 by @simonaronsson
 - Fix links by @mbrandau
-- Merge pull request #24 from containrrr/all-contributors/add-simskij by @simskij
+- Merge pull request #24 from containrrr/all-contributors/add-simskij by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Update README.md by @simskij
-- Update README.md by @simskij
-- Update README.md by @simskij
-- Update README.md by @simskij
-- Merge pull request #22 from containrrr/all-contributors/add-MrLuje by @simskij
+- Update README.md by @simonaronsson
+- Update README.md by @simonaronsson
+- Update README.md by @simonaronsson
+- Update README.md by @simonaronsson
+- Merge pull request #22 from containrrr/all-contributors/add-MrLuje by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Merge pull request #21 from containrrr/all-contributors/add-lukapeschke by @simskij
+- Merge pull request #21 from containrrr/all-contributors/add-lukapeschke by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Merge pull request #20 from containrrr/all-contributors/add-piksel by @simskij
+- Merge pull request #20 from containrrr/all-contributors/add-piksel by @simonaronsson
 - Update .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
-- Merge pull request #19 from containrrr/all-contributors/add-amirschnell by @simskij
+- Merge pull request #19 from containrrr/all-contributors/add-amirschnell by @simonaronsson
 - Create .all-contributorsrc [skip ci] by @allcontributors[bot]
 - Update README.md [skip ci] by @allcontributors[bot]
 - Documentation by @mbrandau
-- Move import by @simskij
+- Move import by @simonaronsson
 - Feat(services) add mattermost service
-- Shorten readme and point at the docs by @simskij
-- Update README.md by @simskij
-- Update README.md by @simskij
+- Shorten readme and point at the docs by @simonaronsson
+- Update README.md by @simonaronsson
+- Update README.md by @simonaronsson
 - Setup python 3
 - Deploy docs using mkocs
-- Merge pull request #10 from MrLuje/pushbullet by @simskij
+- Merge pull request #10 from MrLuje/pushbullet by @simonaronsson
 - Typo & review by @MrLuje
 - Update readme by @MrLuje
-- Update main.yml by @simskij
-- Update main.yml by @simskij
-- Upgrade xerrors pkg by @simskij
-- Update and rename go.yml to main.yml by @simskij
-- Create go.yml by @simskij
-- Trigger codacy by @simskij
-- Create funding.yml by @simskij
-- Improve test coverage for ifttt by @simskij
-- Improve test coverage of pushover by @simskij
-- Merge pull request #7 from lukapeschke/master by @simskij
-- Update CONTRIBUTING.md by @simskij
-- Create CONTRIBUTING.md by @simskij
-- Update README.md by @simskij
-- Fix Codacy badge in README.md by @simskij
+- Update main.yml by @simonaronsson
+- Update main.yml by @simonaronsson
+- Upgrade xerrors pkg by @simonaronsson
+- Update and rename go.yml to main.yml by @simonaronsson
+- Create go.yml by @simonaronsson
+- Trigger codacy by @simonaronsson
+- Create funding.yml by @simonaronsson
+- Improve test coverage for ifttt by @simonaronsson
+- Improve test coverage of pushover by @simonaronsson
+- Merge pull request #7 from lukapeschke/master by @simonaronsson
+- Update CONTRIBUTING.md by @simonaronsson
+- Create CONTRIBUTING.md by @simonaronsson
+- Update README.md by @simonaronsson
+- Fix Codacy badge in README.md by @simonaronsson
 - Use Params type and simplify router API by @piksel
-- Restructure and tidy up by @simskij
+- Restructure and tidy up by @simonaronsson
 - Fix lint/vet/code style and comments by @piksel
 - Reorder and remove unused code by @piksel
 - Implement templating and multipart messages by @piksel
@@ -1590,22 +1591,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split queryless and enumless config composites by @piksel
 - Move to new split api by @piksel
 - Move logging, add composites by @piksel
-- Update README.md by @simskij
+- Update README.md by @simonaronsson
 - Change test runner to 'go test' by @piksel
-- Rename to service and cleanup interface by @simskij
+- Rename to service and cleanup interface by @simonaronsson
 - Merge branch 'master' of https://github.com/containrrr/shoutrrr into plugin-smtp by @piksel
-- Update README.md by @simskij
+- Update README.md by @simonaronsson
 - Extend SMTP plugin support by @piksel
-- Update README.md by @simskij
-- Cleanup discord as well by @simskij
-- Clean up by @simskij
-- Skip integration tests if env vars are missing by @simskij
-- Make bogus token more obvious to prevent spam from GG by @simskij
-- Mid refactoring by @simskij
-- Center badges by @simskij
-- Update README.md by @simskij
-- Update README.md by @simskij
-- Initial commit by @simskij
+- Update README.md by @simonaronsson
+- Cleanup discord as well by @simonaronsson
+- Clean up by @simonaronsson
+- Skip integration tests if env vars are missing by @simonaronsson
+- Make bogus token more obvious to prevent spam from GG by @simonaronsson
+- Mid refactoring by @simonaronsson
+- Center badges by @simonaronsson
+- Update README.md by @simonaronsson
+- Update README.md by @simonaronsson
+- Initial commit by @simonaronsson
 
 ### Chores
 
@@ -1667,8 +1668,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switch from deprecated discordapp.com domain by @darktohka
 - Merge pr #160: assert service compliance by @piksel
 - Move deploy docs to separate workflow by @piksel
-- Reduce cyclomatic complexity for failures by @simskij
-- Move kind comparisons to util by @simskij
+- Reduce cyclomatic complexity for failures by @simonaronsson
+- Move kind comparisons to util by @simonaronsson
 
 ### Fixed
 
@@ -1731,7 +1732,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix generate docs and expand on getting started by @piksel
 - Use pkr for fields to make them settable from url by @piksel
 - Dont panic on send http errors by @piksel
-- Fix codacy badge by @simskij
+- Fix codacy badge by @simonaronsson
 - Handle errors better by @piksel
 - Correctly handle time outs in send by @piksel
 - Move xmpp service to the correct path by @piksel
@@ -1745,49 +1746,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix goreleaser config for new cli by @piksel
 - Allow legacy CLI invocation and fix generate by @piksel
 - Check for StartTLS support before requesting it by @piksel
-- Fix typo by @simskij
-- Fix linting issues by @simskij
-- Fix env var resolution for verify and generate by @simskij
-- Fix errors by @simskij
-- Fix viper resolution and send args by @simskij
+- Fix typo by @simonaronsson
+- Fix linting issues by @simonaronsson
+- Fix env var resolution for verify and generate by @simonaronsson
+- Fix errors by @simonaronsson
+- Fix viper resolution and send args by @simonaronsson
 - Fix error handling for telegram API by @piksel
 - Fixed tests
 - Fix missing link by @piksel
 - Fix logotype url by @piksel
 - Fix path to logotype in mkdocs by @piksel
-- Fix spelling some more by @simskij
-- Fix spelling by @simskij
-- Fix issues reported by goreportcard by @simskij
-- Fix formatting by @simskij
+- Fix spelling some more by @simonaronsson
+- Fix spelling by @simonaronsson
+- Fix issues reported by goreportcard by @simonaronsson
+- Fix formatting by @simonaronsson
 - Fix CreateSender() return values by @arnested
-- Fix logo link by @simskij
-- Fix referencing issue with the discord config by @simskij
+- Fix logo link by @simonaronsson
+- Fix referencing issue with the discord config by @simonaronsson
 - Lint error by @MrLuje
 - Update golang.org/x/xerrors by @MrLuje
-- Improve test coverage by @simskij
-- Fix codacy warnings by @simskij
+- Improve test coverage by @simonaronsson
+- Fix codacy warnings by @simonaronsson
 - Fix README links by @piksel
 - Fix logotype URL by @piksel
 - Add shebang to build script by @piksel
 - Additional lint fixes by @piksel
-- Fix fmt/lint/vet by @simskij
+- Fix fmt/lint/vet by @simonaronsson
 - Additional updates to broken parts of API by @piksel
 - Remade API since the prior one was really broken by @piksel
 - Simplify template API and make it optional by @piksel
 - Using new API changes by @piksel
-- Fix codacy warnings by @simskij
-- Fix codacy issues by @simskij
-- Fix sprintf error by @simskij
-- Fix codacy issues by @simskij
-- Fix readme by @simskij
-- Fix blank line issue by @simskij
+- Fix codacy warnings by @simonaronsson
+- Fix codacy issues by @simonaronsson
+- Fix sprintf error by @simonaronsson
+- Fix codacy issues by @simonaronsson
+- Fix readme by @simonaronsson
+- Fix blank line issue by @simonaronsson
 
 ### Removed
 
-- Remove godacov again by @simskij
-- Remove idea folder by @simskij
-- Remove weird errors import by @simskij
-- Remove logrus from tests by @simskij
+- Remove godacov again by @simonaronsson
+- Remove idea folder by @simonaronsson
+- Remove weird errors import by @simonaronsson
+- Remove logrus from tests by @simonaronsson
 
 ### New Contributors
 
@@ -1799,7 +1800,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @piksel made their first contribution
 - @keocheung made their first contribution
 - @eoleedi made their first contribution
-- @simskij made their first contribution
+- @simonaronsson made their first contribution
 - @yegle made their first contribution
 - @arnested made their first contribution
 - @allcontributors[bot] made their first contribution
