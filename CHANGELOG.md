@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.4 by @renovate[bot] in [#964](https://github.com/nicholas-fedor/shoutrrr/pull/964)
 - Update module github.com/onsi/gomega to v1.42.0 by @renovate[bot] in [#961](https://github.com/nicholas-fedor/shoutrrr/pull/961)
 - Update module github.com/onsi/ginkgo/v2 to v2.31.0 by @renovate[bot] in [#960](https://github.com/nicholas-fedor/shoutrrr/pull/960)
 - Update nicholas-fedor/actionlint-action action to v1.0.8 by @renovate[bot] in [#957](https://github.com/nicholas-fedor/shoutrrr/pull/957)
