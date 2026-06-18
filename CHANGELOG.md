@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/checkout action to v7 by @renovate[bot] in [#975](https://github.com/nicholas-fedor/shoutrrr/pull/975)
 - Update module github.com/pelletier/go-toml/v2 to v2.4.0 by @renovate[bot] in [#973](https://github.com/nicholas-fedor/shoutrrr/pull/973)
 - Update matrixdotorg/synapse:latest docker digest to da325af by @renovate[bot] in [#971](https://github.com/nicholas-fedor/shoutrrr/pull/971)
 - Update alpine docker tag to v3.24.1 by @renovate[bot] in [#970](https://github.com/nicholas-fedor/shoutrrr/pull/970)
