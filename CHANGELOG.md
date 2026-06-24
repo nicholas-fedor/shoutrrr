@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/setup-python action to v6.3.0 by @renovate[bot] in [#999](https://github.com/nicholas-fedor/shoutrrr/pull/999)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.8 by @renovate[bot] in [#998](https://github.com/nicholas-fedor/shoutrrr/pull/998)
 - Update module github.com/pelletier/go-toml/v2 to v2.4.2 by @renovate[bot] in [#995](https://github.com/nicholas-fedor/shoutrrr/pull/995)
 - Update actions/setup-go action to v6.5.0 by @renovate[bot] in [#996](https://github.com/nicholas-fedor/shoutrrr/pull/996)
 - Update module github.com/onsi/gomega to v1.42.1 by @renovate[bot] in [#993](https://github.com/nicholas-fedor/shoutrrr/pull/993)
