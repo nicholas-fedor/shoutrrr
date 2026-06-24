@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/actionlint-action action to v1.0.14 by @renovate[bot] in [#1001](https://github.com/nicholas-fedor/shoutrrr/pull/1001)
 - Update actions/setup-python action to v6.3.0 by @renovate[bot] in [#999](https://github.com/nicholas-fedor/shoutrrr/pull/999)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.8 by @renovate[bot] in [#998](https://github.com/nicholas-fedor/shoutrrr/pull/998)
 - Update module github.com/pelletier/go-toml/v2 to v2.4.2 by @renovate[bot] in [#995](https://github.com/nicholas-fedor/shoutrrr/pull/995)
