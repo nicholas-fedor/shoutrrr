@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/onsi/gomega to v1.42.1 by @renovate[bot] in [#993](https://github.com/nicholas-fedor/shoutrrr/pull/993)
 - Update actions/cache action to v6 by @renovate[bot] in [#990](https://github.com/nicholas-fedor/shoutrrr/pull/990)
 - Update module github.com/onsi/ginkgo/v2 to v2.32.0 by @renovate[bot] in [#988](https://github.com/nicholas-fedor/shoutrrr/pull/988)
 - Update nicholas-fedor/actionlint-action action to v1.0.13 by @renovate[bot] in [#986](https://github.com/nicholas-fedor/shoutrrr/pull/986)
