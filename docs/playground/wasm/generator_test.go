@@ -56,6 +56,24 @@ func TestGenerateURLString(t *testing.T) {
 			configJSON: `{}`,
 			wantURL:    "logger://",
 		},
+		{
+			name:       "generates smtp URL with host and port",
+			service:    "smtp",
+			configJSON: `{"Host":"smtp.example.com","Port":"587","FromAddress":"sender@example.com","ToAddresses":"recipient@example.com"}`,
+			wantSubstr: []string{"smtp://", "smtp.example.com:587"},
+		},
+		{
+			name:        "returns error for invalid port value",
+			service:     "smtp",
+			configJSON:  `{"Host":"smtp.example.com","Port":"notanumber","FromAddress":"sender@example.com","ToAddresses":"recipient@example.com"}`,
+			wantErrResp: true,
+		},
+		{
+			name:        "returns error for port exceeding uint16 max",
+			service:     "smtp",
+			configJSON:  `{"Host":"smtp.example.com","Port":"65536","FromAddress":"sender@example.com","ToAddresses":"recipient@example.com"}`,
+			wantErrResp: true,
+		},
 	}
 
 	for _, tt := range tests {

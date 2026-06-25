@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,9 @@ var errFieldNotSettable = errors.New("field not settable")
 
 // errInvalidBoolValue is returned when a bool field receives an invalid value.
 var errInvalidBoolValue = errors.New("invalid bool value")
+
+// errInvalidUintValue is returned when a uint field receives an unparseable value.
+var errInvalidUintValue = errors.New("invalid uint value")
 
 // errUnsupportedFieldType is returned when a field type is unsupported for string assignment.
 var errUnsupportedFieldType = errors.New("unsupported field type for string assignment")
@@ -106,9 +110,12 @@ func getEnumNames(ef types.EnumFormatter) []string {
 }
 
 // setFieldFromString sets configValue[fieldName] to value using reflection.
-// Supports string and bool field types. Bool values are parsed via
-// format.ParseBool(). Returns an error if the field is invalid, cannot be set,
-// or the value cannot be parsed for the field type.
+// Supports string, bool, and unsigned integer field types. Bool values are
+// parsed via format.ParseBool(). Unsigned integers are parsed via
+// strconv.ParseUint using the field's bit size. Returns an error if the field
+// is invalid, cannot be set, or the value cannot be parsed for the field type.
+//
+//nolint:exhaustive // uint kinds handled; all others fallback to default.
 func setFieldFromString(configValue reflect.Value, fieldName, value string) error {
 	field := configValue.FieldByName(fieldName)
 	if !field.IsValid() {
@@ -119,7 +126,6 @@ func setFieldFromString(configValue reflect.Value, fieldName, value string) erro
 		return fmt.Errorf("%w: %q", errFieldNotSettable, fieldName)
 	}
 
-	//nolint:exhaustive // Only handling string and bool fields.
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
@@ -132,6 +138,17 @@ func setFieldFromString(configValue reflect.Value, fieldName, value string) erro
 		}
 
 		field.SetBool(bv)
+
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		bits := field.Type().Bits()
+
+		parsed, err := strconv.ParseUint(value, 10, bits)
+		if err != nil {
+			return fmt.Errorf("%w: %q for field %q: %w", errInvalidUintValue, value, fieldName, err)
+		}
+
+		field.SetUint(parsed)
 
 		return nil
 	default:
