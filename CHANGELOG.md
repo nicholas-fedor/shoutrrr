@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/tools to v0.47.0 by @renovate[bot] in [#1005](https://github.com/nicholas-fedor/shoutrrr/pull/1005)
 - Lock file maintenance by @renovate[bot] in [#978](https://github.com/nicholas-fedor/shoutrrr/pull/978)
 - Update nicholas-fedor/actionlint-action action to v1.0.14 by @renovate[bot] in [#1001](https://github.com/nicholas-fedor/shoutrrr/pull/1001)
 - Update actions/setup-python action to v6.3.0 by @renovate[bot] in [#999](https://github.com/nicholas-fedor/shoutrrr/pull/999)
