@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/attest-build-provenance action to v4.1.1 by @renovate[bot] in [#1007](https://github.com/nicholas-fedor/shoutrrr/pull/1007)
+- Update actions/cache action to v6.1.0 by @renovate[bot] in [#1008](https://github.com/nicholas-fedor/shoutrrr/pull/1008)
 - Update module golang.org/x/tools to v0.47.0 by @renovate[bot] in [#1005](https://github.com/nicholas-fedor/shoutrrr/pull/1005)
 - Lock file maintenance by @renovate[bot] in [#978](https://github.com/nicholas-fedor/shoutrrr/pull/978)
 - Update nicholas-fedor/actionlint-action action to v1.0.14 by @renovate[bot] in [#1001](https://github.com/nicholas-fedor/shoutrrr/pull/1001)
