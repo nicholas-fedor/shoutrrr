@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.10 by @renovate[bot] in [#1014](https://github.com/nicholas-fedor/shoutrrr/pull/1014)
+- Update nicholas-fedor/actionlint-action action to v1.0.15 by @renovate[bot] in [#1013](https://github.com/nicholas-fedor/shoutrrr/pull/1013)
 - Update commitlint monorepo to v21.1.0 by @renovate[bot] in [#1011](https://github.com/nicholas-fedor/shoutrrr/pull/1011)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.9 by @renovate[bot] in [#1010](https://github.com/nicholas-fedor/shoutrrr/pull/1010)
 - Update actions/attest-build-provenance action to v4.1.1 by @renovate[bot] in [#1007](https://github.com/nicholas-fedor/shoutrrr/pull/1007)
