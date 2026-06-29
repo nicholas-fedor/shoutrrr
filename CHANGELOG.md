@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update goreleaser/goreleaser-action action to v7.2.3 by @renovate[bot] in [#1017](https://github.com/nicholas-fedor/shoutrrr/pull/1017)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.10 by @renovate[bot] in [#1014](https://github.com/nicholas-fedor/shoutrrr/pull/1014)
 - Update nicholas-fedor/actionlint-action action to v1.0.15 by @renovate[bot] in [#1013](https://github.com/nicholas-fedor/shoutrrr/pull/1013)
 - Update commitlint monorepo to v21.1.0 by @renovate[bot] in [#1011](https://github.com/nicholas-fedor/shoutrrr/pull/1011)
