@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update emqx/emqx:latest docker digest to 0b27d6a by @renovate[bot] in [#1026](https://github.com/nicholas-fedor/shoutrrr/pull/1026)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.11 by @renovate[bot] in [#1027](https://github.com/nicholas-fedor/shoutrrr/pull/1027)
 - Update nicholas-fedor/actionlint-action action to v1.0.16 by @renovate[bot] in [#1024](https://github.com/nicholas-fedor/shoutrrr/pull/1024)
 - Update github/codeql-action action to v4.36.3 by @renovate[bot] in [#1023](https://github.com/nicholas-fedor/shoutrrr/pull/1023)
 - Update docker/setup-qemu-action action to v4.2.0 by @renovate[bot] in [#1021](https://github.com/nicholas-fedor/shoutrrr/pull/1021)
