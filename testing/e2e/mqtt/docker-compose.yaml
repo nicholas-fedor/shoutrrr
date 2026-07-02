@@ -17,7 +17,7 @@
 
 services:
   emqx:
-    image: emqx/emqx:latest@sha256:01cd0f37fe258998bea07ed25fafbbdb00eb35daf59fd1491f6f1b4881d49961
+    image: emqx/emqx:latest@sha256:0b27d6a5039522058779822a12e1b63a1cf7f297cfa0ae45776b36820873c730
     container_name: emqx
     ports:
       - "1883:1883" # MQTT TCP
