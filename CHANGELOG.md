@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update emqx/emqx:latest docker digest to 0ba2990 by @renovate[bot] in [#1033](https://github.com/nicholas-fedor/shoutrrr/pull/1033)
 - Lock file maintenance by @renovate[bot] in [#1016](https://github.com/nicholas-fedor/shoutrrr/pull/1016)
 - Update docker/setup-buildx-action action to v4.2.0 by @renovate[bot] in [#1030](https://github.com/nicholas-fedor/shoutrrr/pull/1030)
 - Update docker/login-action action to v4.3.0 by @renovate[bot] in [#1029](https://github.com/nicholas-fedor/shoutrrr/pull/1029)
