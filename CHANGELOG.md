@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/login-action action to v4.4.0 by @renovate[bot] in [#1038](https://github.com/nicholas-fedor/shoutrrr/pull/1038)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.12 by @renovate[bot] in [#1037](https://github.com/nicholas-fedor/shoutrrr/pull/1037)
 - Update commitlint monorepo to v21.2.0 by @renovate[bot] in [#1035](https://github.com/nicholas-fedor/shoutrrr/pull/1035)
 - Update emqx/emqx:latest docker digest to 0ba2990 by @renovate[bot] in [#1033](https://github.com/nicholas-fedor/shoutrrr/pull/1033)
 - Lock file maintenance by @renovate[bot] in [#1016](https://github.com/nicholas-fedor/shoutrrr/pull/1016)
