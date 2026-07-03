@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update commitlint monorepo to v21.2.0 by @renovate[bot] in [#1035](https://github.com/nicholas-fedor/shoutrrr/pull/1035)
 - Update emqx/emqx:latest docker digest to 0ba2990 by @renovate[bot] in [#1033](https://github.com/nicholas-fedor/shoutrrr/pull/1033)
 - Lock file maintenance by @renovate[bot] in [#1016](https://github.com/nicholas-fedor/shoutrrr/pull/1016)
 - Update docker/setup-buildx-action action to v4.2.0 by @renovate[bot] in [#1030](https://github.com/nicholas-fedor/shoutrrr/pull/1030)
