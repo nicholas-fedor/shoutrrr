@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/text to v0.39.0 by @renovate[bot] in [#1051](https://github.com/nicholas-fedor/shoutrrr/pull/1051)
+- Update cimg/go:1.26.4 docker digest to 66a357f by @renovate[bot] in [#1050](https://github.com/nicholas-fedor/shoutrrr/pull/1050)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.15 by @renovate[bot] in [#1046](https://github.com/nicholas-fedor/shoutrrr/pull/1046)
 - Update module github.com/pelletier/go-toml/v2 to v2.4.3 by @renovate[bot] in [#1044](https://github.com/nicholas-fedor/shoutrrr/pull/1044)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.14 by @renovate[bot] in [#1041](https://github.com/nicholas-fedor/shoutrrr/pull/1041)
