@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1054](https://github.com/nicholas-fedor/shoutrrr/pull/1054)
+
 ### Chores
 
 - Update module golang.org/x/text to v0.39.0 by @renovate[bot] in [#1051](https://github.com/nicholas-fedor/shoutrrr/pull/1051)
