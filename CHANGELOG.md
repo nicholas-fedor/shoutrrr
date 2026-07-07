@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1056](https://github.com/nicholas-fedor/shoutrrr/pull/1056)
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1054](https://github.com/nicholas-fedor/shoutrrr/pull/1054)
 
 ### Chores
