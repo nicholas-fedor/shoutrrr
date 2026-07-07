@@ -61,7 +61,7 @@ type MockRichSender_SendItems_Call struct {
 // SendItems is a helper method to define mock.On call
 //   - items []types.MessageItem
 //   - params types.Params
-func (_e *MockRichSender_Expecter) SendItems(items interface{}, params interface{}) *MockRichSender_SendItems_Call {
+func (_e *MockRichSender_Expecter) SendItems(items any, params any) *MockRichSender_SendItems_Call {
 	return &MockRichSender_SendItems_Call{Call: _e.mock.On("SendItems", items, params)}
 }
 

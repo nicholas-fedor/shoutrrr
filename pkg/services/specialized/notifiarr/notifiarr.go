@@ -23,8 +23,9 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // presenceFlags holds boolean flags indicating presence of Discord fields.
@@ -60,7 +61,7 @@ var (
 	ErrInvalidURL = errors.New("invalid URL format")
 	// ErrInvalidChannelID indicates an invalid channel ID.
 	ErrInvalidChannelID = errors.New("invalid channel ID")
-	// ErrNoDiscordFields indicates no Discord fields are present.
+	// ErrNoDiscordFields indicates no Discord fields present.
 	ErrNoDiscordFields = errors.New("no Discord fields present")
 )
 
@@ -232,6 +233,23 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return nil
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		s.httpClient = nil
+
+		return
+	}
+
+	if c, ok := client.(*http.Client); ok && c == nil {
+		s.httpClient = nil
+
+		return
+	}
+
+	s.httpClient = client
+}
+
 // buildDiscordPayload constructs the Discord payload if any fields are present.
 func (s *Service) buildDiscordPayload(
 	flags presenceFlags,
@@ -368,8 +386,12 @@ func (s *Service) doSend(payload []byte) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// Send the HTTP request
-	res, err := http.DefaultClient.Do(req)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{}
+	}
+
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", err)
 	}

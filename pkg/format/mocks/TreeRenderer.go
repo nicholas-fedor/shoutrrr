@@ -61,7 +61,7 @@ type MockTreeRenderer_RenderTree_Call struct {
 // RenderTree is a helper method to define mock.On call
 //   - root *format.ContainerNode
 //   - scheme string
-func (_e *MockTreeRenderer_Expecter) RenderTree(root interface{}, scheme interface{}) *MockTreeRenderer_RenderTree_Call {
+func (_e *MockTreeRenderer_Expecter) RenderTree(root any, scheme any) *MockTreeRenderer_RenderTree_Call {
 	return &MockTreeRenderer_RenderTree_Call{Call: _e.mock.On("RenderTree", root, scheme)}
 }
 

@@ -8,12 +8,13 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 // Sender handles HTTP request execution and response processing.
 type Sender interface {
-	SendRequest(client *http.Client, url string, request *MessageRequest, headers http.Header) error
+	SendRequest(client types.HTTPClient, url string, request *MessageRequest, headers http.Header) error
 }
 
 // DefaultSender provides the default implementation of Sender.
@@ -30,7 +31,7 @@ type DefaultSender struct{}
 //
 // Returns: error if the request fails or server returns an error, nil on success.
 func (s *DefaultSender) SendRequest(
-	client *http.Client,
+	client types.HTTPClient,
 	url string,
 	request *MessageRequest,
 	headers http.Header,
@@ -114,7 +115,7 @@ func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) err
 //
 // Returns: the response body as bytes if successful, or an error.
 func (s *DefaultSender) sendRequestWithHeaders(
-	client *http.Client,
+	client types.HTTPClient,
 	url string,
 	request *MessageRequest,
 	headers http.Header,

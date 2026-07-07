@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/gotify"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,7 +40,7 @@ func (_m *MockSender) EXPECT() *MockSender_Expecter {
 }
 
 // SendRequest provides a mock function for the type MockSender
-func (_mock *MockSender) SendRequest(client *http.Client, url string, request *gotify.MessageRequest, headers http.Header) error {
+func (_mock *MockSender) SendRequest(client types.HTTPClient, url string, request *gotify.MessageRequest, headers http.Header) error {
 	ret := _mock.Called(client, url, request, headers)
 
 	if len(ret) == 0 {
@@ -47,7 +48,7 @@ func (_mock *MockSender) SendRequest(client *http.Client, url string, request *g
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(*http.Client, string, *gotify.MessageRequest, http.Header) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(types.HTTPClient, string, *gotify.MessageRequest, http.Header) error); ok {
 		r0 = returnFunc(client, url, request, headers)
 	} else {
 		r0 = ret.Error(0)
@@ -61,19 +62,19 @@ type MockSender_SendRequest_Call struct {
 }
 
 // SendRequest is a helper method to define mock.On call
-//   - client *http.Client
+//   - client types.HTTPClient
 //   - url string
 //   - request *gotify.MessageRequest
 //   - headers http.Header
-func (_e *MockSender_Expecter) SendRequest(client interface{}, url interface{}, request interface{}, headers interface{}) *MockSender_SendRequest_Call {
+func (_e *MockSender_Expecter) SendRequest(client any, url any, request any, headers any) *MockSender_SendRequest_Call {
 	return &MockSender_SendRequest_Call{Call: _e.mock.On("SendRequest", client, url, request, headers)}
 }
 
-func (_c *MockSender_SendRequest_Call) Run(run func(client *http.Client, url string, request *gotify.MessageRequest, headers http.Header)) *MockSender_SendRequest_Call {
+func (_c *MockSender_SendRequest_Call) Run(run func(client types.HTTPClient, url string, request *gotify.MessageRequest, headers http.Header)) *MockSender_SendRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *http.Client
+		var arg0 types.HTTPClient
 		if args[0] != nil {
-			arg0 = args[0].(*http.Client)
+			arg0 = args[0].(types.HTTPClient)
 		}
 		var arg1 string
 		if args[1] != nil {
@@ -102,7 +103,7 @@ func (_c *MockSender_SendRequest_Call) Return(err error) *MockSender_SendRequest
 	return _c
 }
 
-func (_c *MockSender_SendRequest_Call) RunAndReturn(run func(client *http.Client, url string, request *gotify.MessageRequest, headers http.Header) error) *MockSender_SendRequest_Call {
+func (_c *MockSender_SendRequest_Call) RunAndReturn(run func(client types.HTTPClient, url string, request *gotify.MessageRequest, headers http.Header) error) *MockSender_SendRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }

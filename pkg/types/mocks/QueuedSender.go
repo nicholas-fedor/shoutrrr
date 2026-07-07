@@ -49,7 +49,7 @@ type MockQueuedSender_Enqueue_Call struct {
 
 // Enqueue is a helper method to define mock.On call
 //   - message string
-func (_e *MockQueuedSender_Expecter) Enqueue(message interface{}) *MockQueuedSender_Enqueue_Call {
+func (_e *MockQueuedSender_Expecter) Enqueue(message any) *MockQueuedSender_Enqueue_Call {
 	return &MockQueuedSender_Enqueue_Call{Call: _e.mock.On("Enqueue", message)}
 }
 
@@ -95,9 +95,9 @@ type MockQueuedSender_Enqueuef_Call struct {
 // Enqueuef is a helper method to define mock.On call
 //   - format string
 //   - v ...any
-func (_e *MockQueuedSender_Expecter) Enqueuef(format interface{}, v ...interface{}) *MockQueuedSender_Enqueuef_Call {
+func (_e *MockQueuedSender_Expecter) Enqueuef(format any, v ...any) *MockQueuedSender_Enqueuef_Call {
 	return &MockQueuedSender_Enqueuef_Call{Call: _e.mock.On("Enqueuef",
-		append([]interface{}{format}, v...)...)}
+		append([]any{format}, v...)...)}
 }
 
 func (_c *MockQueuedSender_Enqueuef_Call) Run(run func(format string, v ...any)) *MockQueuedSender_Enqueuef_Call {
@@ -143,7 +143,7 @@ type MockQueuedSender_Flush_Call struct {
 
 // Flush is a helper method to define mock.On call
 //   - params *map[string]string
-func (_e *MockQueuedSender_Expecter) Flush(params interface{}) *MockQueuedSender_Flush_Call {
+func (_e *MockQueuedSender_Expecter) Flush(params any) *MockQueuedSender_Flush_Call {
 	return &MockQueuedSender_Flush_Call{Call: _e.mock.On("Flush", params)}
 }
 

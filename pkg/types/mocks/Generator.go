@@ -73,7 +73,7 @@ type MockGenerator_Generate_Call struct {
 //   - service types.Service
 //   - props map[string]string
 //   - args []string
-func (_e *MockGenerator_Expecter) Generate(service interface{}, props interface{}, args interface{}) *MockGenerator_Generate_Call {
+func (_e *MockGenerator_Expecter) Generate(service any, props any, args any) *MockGenerator_Generate_Call {
 	return &MockGenerator_Generate_Call{Call: _e.mock.On("Generate", service, props, args)}
 }
 

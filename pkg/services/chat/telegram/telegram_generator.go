@@ -71,7 +71,10 @@ func (g *Generator) Generate(
 
 	userDialog.Writelnf("Fetching bot info...")
 
-	g.client = &Client{token: token}
+	g.client = &Client{
+		token:      token,
+		httpClient: nil,
+	}
 
 	botInfo, err := g.client.GetBotInfo()
 	if err != nil {

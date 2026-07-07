@@ -62,7 +62,7 @@ type MockConnectionManager_AwaitConnection_Call struct {
 
 // AwaitConnection is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockConnectionManager_Expecter) AwaitConnection(ctx interface{}) *MockConnectionManager_AwaitConnection_Call {
+func (_e *MockConnectionManager_Expecter) AwaitConnection(ctx any) *MockConnectionManager_AwaitConnection_Call {
 	return &MockConnectionManager_AwaitConnection_Call{Call: _e.mock.On("AwaitConnection", ctx)}
 }
 
@@ -113,7 +113,7 @@ type MockConnectionManager_Disconnect_Call struct {
 
 // Disconnect is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockConnectionManager_Expecter) Disconnect(ctx interface{}) *MockConnectionManager_Disconnect_Call {
+func (_e *MockConnectionManager_Expecter) Disconnect(ctx any) *MockConnectionManager_Disconnect_Call {
 	return &MockConnectionManager_Disconnect_Call{Call: _e.mock.On("Disconnect", ctx)}
 }
 
@@ -176,7 +176,7 @@ type MockConnectionManager_Publish_Call struct {
 // Publish is a helper method to define mock.On call
 //   - ctx context.Context
 //   - publish *paho.Publish
-func (_e *MockConnectionManager_Expecter) Publish(ctx interface{}, publish interface{}) *MockConnectionManager_Publish_Call {
+func (_e *MockConnectionManager_Expecter) Publish(ctx any, publish any) *MockConnectionManager_Publish_Call {
 	return &MockConnectionManager_Publish_Call{Call: _e.mock.On("Publish", ctx, publish)}
 }
 

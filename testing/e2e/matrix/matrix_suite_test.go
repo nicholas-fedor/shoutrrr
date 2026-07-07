@@ -175,6 +175,10 @@ func loadEnvFile(filename string) {
 			}
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return
+	}
 }
 
 // getOrInitSharedService initializes the shared Matrix service once in a

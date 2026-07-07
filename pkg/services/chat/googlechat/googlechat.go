@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -17,8 +18,11 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
+	Config     *Config
+	httpClient types.HTTPClient
 }
+
+const defaultHTTPTimeout = 10 * time.Second
 
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
 var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
@@ -33,6 +37,10 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
+
+	if s.httpClient == nil {
+		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	}
 
 	return s.Config.SetURL(serviceURL)
 }
@@ -61,7 +69,7 @@ func (s *Service) Send(message string, _ *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending notification to Google Chat: %w", err)
 	}
@@ -73,6 +81,11 @@ func (s *Service) Send(message string, _ *types.Params) error {
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // getAPIURL constructs the service URL for Google Chat notifications.

@@ -47,9 +47,13 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
+
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.HTTPClient = NewDefaultHTTPClient() // Default client for backward compatibility
-	s.Sleeper = RealSleeper{}             // Default sleeper
+	if s.HTTPClient == nil {
+		s.HTTPClient = NewDefaultHTTPClient()
+	}
+
+	s.Sleeper = RealSleeper{} // Default sleeper
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -103,6 +107,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 // SendItems delivers message items with enhanced metadata and formatting to Discord.
 func (s *Service) SendItems(items []types.MessageItem, params *types.Params) error {
 	return s.sendItems(items, params)
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.HTTPClient = client
 }
 
 // doSend executes an HTTP POST request to deliver the payload to Discord.

@@ -61,7 +61,7 @@ type MockSender_Send_Call struct {
 // Send is a helper method to define mock.On call
 //   - message string
 //   - params *types.Params
-func (_e *MockSender_Expecter) Send(message interface{}, params interface{}) *MockSender_Send_Call {
+func (_e *MockSender_Expecter) Send(message any, params any) *MockSender_Send_Call {
 	return &MockSender_Send_Call{Call: _e.mock.On("Send", message, params)}
 }
 

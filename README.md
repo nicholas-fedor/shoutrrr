@@ -179,6 +179,35 @@ sender, err := shoutrrr.CreateSender(urls...)
 sender.Send("Hello world (or slack channel) !", map[string]string { /* ... */ })
 ```
 
+##### Custom HTTP Client (SSRF / Egress Control)
+
+```go
+import (
+    "crypto/tls"
+    "log"
+    "net/http"
+
+    "github.com/nicholas-fedor/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr/pkg/types"
+)
+
+customClient := &http.Client{
+    Transport: &http.Transport{
+        TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+    },
+}
+
+sender, err := shoutrrr.NewSenderWithOptions(
+    nil,
+    types.SenderOptions{HTTPClient: customClient},
+    "discord://token@channel",
+)
+if err != nil {
+    log.Fatal(err)
+}
+sender.Send("Hello with custom egress!", nil)
+```
+
 ### Use Through the CLI
 
 ```bash

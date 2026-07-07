@@ -22,7 +22,7 @@ type Service struct {
 
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient *http.Client
+	httpClient types.HTTPClient
 	client     jsonclient.Client
 }
 
@@ -54,22 +54,28 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		s.Config.Scheme = "http"
 	}
 
-	s.httpClient = &http.Client{
-		Timeout: HTTPTimeout * time.Second,
-	}
-
 	// Configure HTTP transport: skip TLS verification if disabled, enforce TLS 1.2 minimum
 	if s.Config.DisableTLSVerification {
-		s.httpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-				MinVersion:         tls.VersionTLS12,
-			},
+		if s.httpClient == nil {
+			s.httpClient = &http.Client{
+				Timeout: HTTPTimeout * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true,
+						MinVersion:         tls.VersionTLS12,
+					},
+				},
+			}
+			s.Log("Warning: TLS verification is disabled, making connections insecure")
 		}
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	} else {
-		s.httpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		if s.httpClient == nil {
+			s.httpClient = &http.Client{
+				Timeout: HTTPTimeout * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				},
+			}
 		}
 	}
 
@@ -96,9 +102,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
-func (s *Service) SetHTTPClient(httpClient *http.Client) {
-	s.httpClient = httpClient
-	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+	if client != nil {
+		s.client = jsonclient.NewWithHTTPClient(client)
+	}
 }
 
 // sendAPI sends a notification to the ntfy API.

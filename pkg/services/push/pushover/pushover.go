@@ -18,9 +18,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
-	Client *http.Client
+	Config     *Config
+	pkr        format.PropKeyResolver
+	Client     *http.Client
+	httpClient types.HTTPClient
 }
 
 // hookURL is the Pushover API endpoint for sending messages.
@@ -39,9 +40,12 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
+
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.Client = &http.Client{
-		Timeout: defaultHTTPTimeout,
+	if s.Client == nil {
+		s.Client = &http.Client{
+			Timeout: defaultHTTPTimeout,
+		}
 	}
 
 	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
@@ -64,6 +68,20 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+}
+
+// httpClientOrDefault returns the custom client or the default Client.
+func (s *Service) httpClientOrDefault() types.HTTPClient {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+
+	return s.Client
 }
 
 // sendToDevice sends a notification to a specific Pushover device.
@@ -97,7 +115,9 @@ func (s *Service) sendToDevice(device, message string, config *Config) error {
 
 	req.Header.Set("Content-Type", contentType)
 
-	res, err := s.Client.Do(req)
+	client := s.httpClientOrDefault()
+
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request to Pushover API: %w", err)
 	}

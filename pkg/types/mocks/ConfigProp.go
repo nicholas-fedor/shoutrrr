@@ -112,7 +112,7 @@ type MockConfigProp_SetFromProp_Call struct {
 
 // SetFromProp is a helper method to define mock.On call
 //   - propValue string
-func (_e *MockConfigProp_Expecter) SetFromProp(propValue interface{}) *MockConfigProp_SetFromProp_Call {
+func (_e *MockConfigProp_Expecter) SetFromProp(propValue any) *MockConfigProp_SetFromProp_Call {
 	return &MockConfigProp_SetFromProp_Call{Call: _e.mock.On("SetFromProp", propValue)}
 }
 

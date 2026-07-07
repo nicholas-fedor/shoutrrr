@@ -204,7 +204,8 @@ func parseRecipients(pathParts []string) ([]string, error) {
 
 		case inGroupID && !strings.HasPrefix(part, "+"):
 			// Continue building group ID (not a phone number)
-			currentGroupID.WriteString("/" + part)
+			currentGroupID.WriteString("/")
+			currentGroupID.WriteString(part)
 
 		default:
 			// Finalize any group ID in progress

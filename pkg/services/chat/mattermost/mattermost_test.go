@@ -2,6 +2,7 @@ package mattermost
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -154,7 +155,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				err := service.Initialize(mattermostURL, testutils.TestLogger())
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
 				httpmock.RegisterResponder(
 					"POST",
 					"http://host:8080/hooks/token",
@@ -186,7 +187,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				service := Service{}
 				err = service.Initialize(serviceURL, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
 				httpmock.RegisterResponder(
 					"POST",
 					"https://mattermost.host/hooks/token",
@@ -205,7 +206,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 				service := Service{}
 				err = service.Initialize(serviceURL, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.ActivateNonDefault(service.httpClient)
+				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
 				httpmock.RegisterResponder(
 					"POST",
 					"https://mattermost.host/hooks/token",
@@ -464,7 +465,7 @@ var _ = ginkgo.Describe("the mattermost service", func() {
 			service := Service{}
 			err = service.Initialize(serviceURL, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.ActivateNonDefault(service.httpClient)
+			httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
 
 			httpmock.RegisterResponder(
 				"POST",

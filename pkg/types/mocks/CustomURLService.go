@@ -118,7 +118,7 @@ type MockCustomURLService_GetServiceURLFromCustom_Call struct {
 
 // GetServiceURLFromCustom is a helper method to define mock.On call
 //   - customURL *url.URL
-func (_e *MockCustomURLService_Expecter) GetServiceURLFromCustom(customURL interface{}) *MockCustomURLService_GetServiceURLFromCustom_Call {
+func (_e *MockCustomURLService_Expecter) GetServiceURLFromCustom(customURL any) *MockCustomURLService_GetServiceURLFromCustom_Call {
 	return &MockCustomURLService_GetServiceURLFromCustom_Call{Call: _e.mock.On("GetServiceURLFromCustom", customURL)}
 }
 
@@ -180,7 +180,7 @@ type MockCustomURLService_GetTemplate_Call struct {
 
 // GetTemplate is a helper method to define mock.On call
 //   - id string
-func (_e *MockCustomURLService_Expecter) GetTemplate(id interface{}) *MockCustomURLService_GetTemplate_Call {
+func (_e *MockCustomURLService_Expecter) GetTemplate(id any) *MockCustomURLService_GetTemplate_Call {
 	return &MockCustomURLService_GetTemplate_Call{Call: _e.mock.On("GetTemplate", id)}
 }
 
@@ -232,7 +232,7 @@ type MockCustomURLService_Initialize_Call struct {
 // Initialize is a helper method to define mock.On call
 //   - serviceURL *url.URL
 //   - logger types.StdLogger
-func (_e *MockCustomURLService_Expecter) Initialize(serviceURL interface{}, logger interface{}) *MockCustomURLService_Initialize_Call {
+func (_e *MockCustomURLService_Expecter) Initialize(serviceURL any, logger any) *MockCustomURLService_Initialize_Call {
 	return &MockCustomURLService_Initialize_Call{Call: _e.mock.On("Initialize", serviceURL, logger)}
 }
 
@@ -289,7 +289,7 @@ type MockCustomURLService_Send_Call struct {
 // Send is a helper method to define mock.On call
 //   - message string
 //   - params *types.Params
-func (_e *MockCustomURLService_Expecter) Send(message interface{}, params interface{}) *MockCustomURLService_Send_Call {
+func (_e *MockCustomURLService_Expecter) Send(message any, params any) *MockCustomURLService_Send_Call {
 	return &MockCustomURLService_Send_Call{Call: _e.mock.On("Send", message, params)}
 }
 
@@ -334,7 +334,7 @@ type MockCustomURLService_SetLogger_Call struct {
 
 // SetLogger is a helper method to define mock.On call
 //   - logger types.StdLogger
-func (_e *MockCustomURLService_Expecter) SetLogger(logger interface{}) *MockCustomURLService_SetLogger_Call {
+func (_e *MockCustomURLService_Expecter) SetLogger(logger any) *MockCustomURLService_SetLogger_Call {
 	return &MockCustomURLService_SetLogger_Call{Call: _e.mock.On("SetLogger", logger)}
 }
 
@@ -386,7 +386,7 @@ type MockCustomURLService_SetTemplateFile_Call struct {
 // SetTemplateFile is a helper method to define mock.On call
 //   - id string
 //   - file string
-func (_e *MockCustomURLService_Expecter) SetTemplateFile(id interface{}, file interface{}) *MockCustomURLService_SetTemplateFile_Call {
+func (_e *MockCustomURLService_Expecter) SetTemplateFile(id any, file any) *MockCustomURLService_SetTemplateFile_Call {
 	return &MockCustomURLService_SetTemplateFile_Call{Call: _e.mock.On("SetTemplateFile", id, file)}
 }
 
@@ -443,7 +443,7 @@ type MockCustomURLService_SetTemplateString_Call struct {
 // SetTemplateString is a helper method to define mock.On call
 //   - id string
 //   - body string
-func (_e *MockCustomURLService_Expecter) SetTemplateString(id interface{}, body interface{}) *MockCustomURLService_SetTemplateString_Call {
+func (_e *MockCustomURLService_Expecter) SetTemplateString(id any, body any) *MockCustomURLService_SetTemplateString_Call {
 	return &MockCustomURLService_SetTemplateString_Call{Call: _e.mock.On("SetTemplateString", id, body)}
 }
 

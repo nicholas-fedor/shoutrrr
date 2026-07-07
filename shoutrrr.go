@@ -15,7 +15,7 @@
 //	sender, err := shoutrrr.CreateSender("slack://webhook/...", "discord://webhook/...")
 //
 // The package uses a default router, but you can also create custom routers
-// using router.New for more control over the notification pipeline.
+// using router.NewWithOptions for more control over the notification pipeline.
 package shoutrrr
 
 import (
@@ -46,23 +46,50 @@ func Send(rawURL, message string) error {
 }
 
 // CreateSender constructs a new service router for the given URLs without a logger.
+//
+// Deprecated: Use CreateSenderWithOptions.
 func CreateSender(rawURLs ...string) (*router.ServiceRouter, error) {
-	sr, err := router.New(nil, rawURLs...)
+	serviceRouter, err := router.NewWithOptions(nil, types.SenderOptions{}, rawURLs...)
 	if err != nil {
 		return nil, fmt.Errorf("creating sender for URLs %v: %w", rawURLs, err)
 	}
 
-	return sr, nil
+	return serviceRouter, nil
+}
+
+// CreateSenderWithOptions constructs a new service router for the given URLs
+// and SenderOptions without a logger.
+func CreateSenderWithOptions(opts types.SenderOptions, rawURLs ...string) (*router.ServiceRouter, error) {
+	serviceRouter, err := router.NewWithOptions(nil, opts, rawURLs...)
+	if err != nil {
+		return nil, fmt.Errorf("creating sender with options for URLs %v: %w", rawURLs, err)
+	}
+
+	return serviceRouter, nil
 }
 
 // NewSender constructs a new service router with a logger for the given URLs.
+//
+// Deprecated: Use NewSenderWithOptions.
 func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRouter, error) {
-	sr, err := router.New(logger, serviceURLs...)
+	serviceRouter, err := router.NewWithOptions(logger, types.SenderOptions{}, serviceURLs...)
 	if err != nil {
 		return nil, fmt.Errorf("creating sender with logger for URLs %v: %w", serviceURLs, err)
 	}
 
-	return sr, nil
+	return serviceRouter, nil
+}
+
+// NewSenderWithOptions constructs a new service router using the given logger,
+// SenderOptions, and URLs. Use this to supply a custom HTTPClient for all
+// outbound requests (e.g. for SSRF protection or custom proxies/TLS).
+func NewSenderWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURLs ...string) (*router.ServiceRouter, error) {
+	serviceRouter, err := router.NewWithOptions(logger, opts, serviceURLs...)
+	if err != nil {
+		return nil, fmt.Errorf("creating sender with options for URLs %v: %w", serviceURLs, err)
+	}
+
+	return serviceRouter, nil
 }
 
 // SetLogger configures the logger for all services in the default router.

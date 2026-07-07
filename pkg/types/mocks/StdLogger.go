@@ -53,9 +53,9 @@ type MockStdLogger_Print_Call struct {
 
 // Print is a helper method to define mock.On call
 //   - args ...any
-func (_e *MockStdLogger_Expecter) Print(args ...interface{}) *MockStdLogger_Print_Call {
+func (_e *MockStdLogger_Expecter) Print(args ...any) *MockStdLogger_Print_Call {
 	return &MockStdLogger_Print_Call{Call: _e.mock.On("Print",
-		append([]interface{}{}, args...)...)}
+		append([]any{}, args...)...)}
 }
 
 func (_c *MockStdLogger_Print_Call) Run(run func(args ...any)) *MockStdLogger_Print_Call {
@@ -102,9 +102,9 @@ type MockStdLogger_Printf_Call struct {
 // Printf is a helper method to define mock.On call
 //   - format string
 //   - args ...any
-func (_e *MockStdLogger_Expecter) Printf(format interface{}, args ...interface{}) *MockStdLogger_Printf_Call {
+func (_e *MockStdLogger_Expecter) Printf(format any, args ...any) *MockStdLogger_Printf_Call {
 	return &MockStdLogger_Printf_Call{Call: _e.mock.On("Printf",
-		append([]interface{}{format}, args...)...)}
+		append([]any{format}, args...)...)}
 }
 
 func (_c *MockStdLogger_Printf_Call) Run(run func(format string, args ...any)) *MockStdLogger_Printf_Call {
@@ -155,9 +155,9 @@ type MockStdLogger_Println_Call struct {
 
 // Println is a helper method to define mock.On call
 //   - args ...any
-func (_e *MockStdLogger_Expecter) Println(args ...interface{}) *MockStdLogger_Println_Call {
+func (_e *MockStdLogger_Expecter) Println(args ...any) *MockStdLogger_Println_Call {
 	return &MockStdLogger_Println_Call{Call: _e.mock.On("Println",
-		append([]interface{}{}, args...)...)}
+		append([]any{}, args...)...)}
 }
 
 func (_c *MockStdLogger_Println_Call) Run(run func(args ...any)) *MockStdLogger_Println_Call {

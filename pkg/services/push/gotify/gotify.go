@@ -21,7 +21,7 @@ type Service struct {
 	Config     *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
 	pkr        format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
 	mu         sync.Mutex             // Protects HTTP client initialization for thread safety
-	httpClient *http.Client           // HTTP client instance configured with appropriate timeout and transport settings for API calls
+	httpClient types.HTTPClient       // HTTP client instance configured with appropriate timeout and transport settings for API calls
 	client     jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
 
 	// Interface dependencies (injected during initialization)
@@ -30,12 +30,6 @@ type Service struct {
 	payloadBuilder    PayloadBuilder
 	validator         Validator
 	sender            Sender
-}
-
-// GetHTTPClient returns the HTTP client used by this service.
-// This method implements the MockClientService interface for testing.
-func (s *Service) GetHTTPClient() *http.Client {
-	return s.httpClient
 }
 
 // GetID returns the identifier for this service.
@@ -109,6 +103,29 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.sendRequest(postURL, request, headers)
+}
+
+// SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if client == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
+	}
+
+	if c, ok := client.(*http.Client); ok && c == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
+	}
+
+	s.httpClient = client
+	s.client = jsonclient.NewWithHTTPClient(client)
 }
 
 // buildRequest constructs the URL, payload, and headers for the HTTP request.

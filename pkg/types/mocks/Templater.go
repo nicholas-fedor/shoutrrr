@@ -72,7 +72,7 @@ type MockTemplater_GetTemplate_Call struct {
 
 // GetTemplate is a helper method to define mock.On call
 //   - id string
-func (_e *MockTemplater_Expecter) GetTemplate(id interface{}) *MockTemplater_GetTemplate_Call {
+func (_e *MockTemplater_Expecter) GetTemplate(id any) *MockTemplater_GetTemplate_Call {
 	return &MockTemplater_GetTemplate_Call{Call: _e.mock.On("GetTemplate", id)}
 }
 
@@ -124,7 +124,7 @@ type MockTemplater_SetTemplateFile_Call struct {
 // SetTemplateFile is a helper method to define mock.On call
 //   - id string
 //   - file string
-func (_e *MockTemplater_Expecter) SetTemplateFile(id interface{}, file interface{}) *MockTemplater_SetTemplateFile_Call {
+func (_e *MockTemplater_Expecter) SetTemplateFile(id any, file any) *MockTemplater_SetTemplateFile_Call {
 	return &MockTemplater_SetTemplateFile_Call{Call: _e.mock.On("SetTemplateFile", id, file)}
 }
 
@@ -181,7 +181,7 @@ type MockTemplater_SetTemplateString_Call struct {
 // SetTemplateString is a helper method to define mock.On call
 //   - id string
 //   - body string
-func (_e *MockTemplater_Expecter) SetTemplateString(id interface{}, body interface{}) *MockTemplater_SetTemplateString_Call {
+func (_e *MockTemplater_Expecter) SetTemplateString(id any, body any) *MockTemplater_SetTemplateString_Call {
 	return &MockTemplater_SetTemplateString_Call{Call: _e.mock.On("SetTemplateString", id, body)}
 }
 

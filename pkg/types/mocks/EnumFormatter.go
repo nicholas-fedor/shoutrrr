@@ -105,7 +105,7 @@ type MockEnumFormatter_Parse_Call struct {
 
 // Parse is a helper method to define mock.On call
 //   - s string
-func (_e *MockEnumFormatter_Expecter) Parse(s interface{}) *MockEnumFormatter_Parse_Call {
+func (_e *MockEnumFormatter_Expecter) Parse(s any) *MockEnumFormatter_Parse_Call {
 	return &MockEnumFormatter_Parse_Call{Call: _e.mock.On("Parse", s)}
 }
 
@@ -156,7 +156,7 @@ type MockEnumFormatter_Print_Call struct {
 
 // Print is a helper method to define mock.On call
 //   - e int
-func (_e *MockEnumFormatter_Expecter) Print(e interface{}) *MockEnumFormatter_Print_Call {
+func (_e *MockEnumFormatter_Expecter) Print(e any) *MockEnumFormatter_Print_Call {
 	return &MockEnumFormatter_Print_Call{Call: _e.mock.On("Print", e)}
 }
 

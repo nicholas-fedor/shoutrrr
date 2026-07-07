@@ -73,7 +73,7 @@ type MockPayloadBuilder_ParseExtras_Call struct {
 // ParseExtras is a helper method to define mock.On call
 //   - params *types.Params
 //   - config *gotify.Config
-func (_e *MockPayloadBuilder_Expecter) ParseExtras(params interface{}, config interface{}) *MockPayloadBuilder_ParseExtras_Call {
+func (_e *MockPayloadBuilder_Expecter) ParseExtras(params any, config any) *MockPayloadBuilder_ParseExtras_Call {
 	return &MockPayloadBuilder_ParseExtras_Call{Call: _e.mock.On("ParseExtras", params, config)}
 }
 
@@ -134,7 +134,7 @@ type MockPayloadBuilder_PrepareRequest_Call struct {
 //   - config *gotify.Config
 //   - extras map[string]any
 //   - date string
-func (_e *MockPayloadBuilder_Expecter) PrepareRequest(message interface{}, config interface{}, extras interface{}, date interface{}) *MockPayloadBuilder_PrepareRequest_Call {
+func (_e *MockPayloadBuilder_Expecter) PrepareRequest(message any, config any, extras any, date any) *MockPayloadBuilder_PrepareRequest_Call {
 	return &MockPayloadBuilder_PrepareRequest_Call{Call: _e.mock.On("PrepareRequest", message, config, extras, date)}
 }
 

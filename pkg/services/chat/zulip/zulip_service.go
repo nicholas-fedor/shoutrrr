@@ -112,8 +112,12 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
+
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.HTTPClient = NewDefaultHTTPClient()
+	if s.HTTPClient == nil {
+		s.HTTPClient = NewDefaultHTTPClient()
+	}
+
 	s.contentMaxSize = contentMaxSize
 	s.topicMaxLength = topicMaxLength
 
@@ -199,6 +203,11 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	}
 
 	return s.doSend(ctx, config, message)
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.HTTPClient = client
 }
 
 // doSend sends the notification to Zulip using the configured API URL.

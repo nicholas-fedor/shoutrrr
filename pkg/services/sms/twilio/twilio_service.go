@@ -59,3 +59,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	return errors.Join(errs...)
 }
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		s.HTTPClient = DefaultHTTPClient()
+
+		return
+	}
+
+	s.HTTPClient = client
+}
