@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update go toolchain directive to v1.26.5 by @renovate[bot] in [#1065](https://github.com/nicholas-fedor/shoutrrr/pull/1065)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.16 by @renovate[bot] in [#1062](https://github.com/nicholas-fedor/shoutrrr/pull/1062)
 - Update matrixdotorg/synapse:latest docker digest to 6882d26 by @renovate[bot] in [#1061](https://github.com/nicholas-fedor/shoutrrr/pull/1061)
 - Update step-security/harden-runner action to v2.20.0 by @renovate[bot] in [#1059](https://github.com/nicholas-fedor/shoutrrr/pull/1059)
