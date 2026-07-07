@@ -2366,10 +2366,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#custom_http_client" class="md-nav__link">
+  <a href="#custom_http_client_per-sender_recommended_for_ssrfegress_control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Custom HTTP Client
+        Custom HTTP Client (Per-Sender, Recommended for SSRF/Egress Control)
       
     </span>
   </a>
@@ -2394,10 +2394,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using_environment_variable_for_proxy" class="md-nav__link">
+  <a href="#using_environment_variable_for_proxy_global" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using Environment Variable for Proxy
+        Using Environment Variable for Proxy (Global)
       
     </span>
   </a>
@@ -2405,10 +2405,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using_custom_http_client_in_go" class="md-nav__link">
+  <a href="#using_custom_http_client_in_go_per-sender_ssrf_control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using Custom HTTP Client in Go
+        Using Custom HTTP Client in Go (Per-Sender / SSRF Control)
       
     </span>
   </a>
@@ -2624,10 +2624,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#custom_http_client" class="md-nav__link">
+  <a href="#custom_http_client_per-sender_recommended_for_ssrfegress_control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Custom HTTP Client
+        Custom HTTP Client (Per-Sender, Recommended for SSRF/Egress Control)
       
     </span>
   </a>
@@ -2652,10 +2652,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using_environment_variable_for_proxy" class="md-nav__link">
+  <a href="#using_environment_variable_for_proxy_global" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using Environment Variable for Proxy
+        Using Environment Variable for Proxy (Global)
       
     </span>
   </a>
@@ -2663,10 +2663,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using_custom_http_client_in_go" class="md-nav__link">
+  <a href="#using_custom_http_client_in_go_per-sender_ssrf_control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using Custom HTTP Client in Go
+        Using Custom HTTP Client in Go (Per-Sender / SSRF Control)
       
     </span>
   </a>
@@ -2712,41 +2712,104 @@
 <h1 id="proxy_setup">Proxy Setup<a class="headerlink" href="#proxy_setup" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr supports proxying HTTP requests for notification services, allowing you to route traffic through a proxy server. This can be configured using an environment variable or by customizing the HTTP client in code.</p>
+<p><strong>For per-sender egress control and SSRF protection (recommended for untrusted notification URLs), use a custom <code>http.Client</code> via <code>SenderOptions</code>.</strong></p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <h3 id="environment_variable">Environment Variable<a class="headerlink" href="#environment_variable" title="Permanent link">&para;</a></h3>
-<p>Set the <code>HTTP_PROXY</code> environment variable to the proxy URL. This applies to all HTTP-based services used by Shoutrrr.</p>
+<p>Set the <code>HTTP_PROXY</code> environment variable to the proxy URL.
+This applies to all HTTP-based services used by Shoutrrr that rely on the default transport.</p>
 <div class="highlight"><span class="filename">Set HTTP_PROXY Environment Variable</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span><span class="s2">&quot;socks5://localhost:1337&quot;</span>
 </code></pre></div>
-<h3 id="custom_http_client">Custom HTTP Client<a class="headerlink" href="#custom_http_client" title="Permanent link">&para;</a></h3>
-<p>Override the default HTTP client in your Go code to configure a proxy with specific transport settings.</p>
-<div class="highlight"><span class="filename">Configure Custom HTTP Client with Proxy</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-<span class="w">    </span><span class="s">&quot;log&quot;</span>
-<span class="w">    </span><span class="s">&quot;net/http&quot;</span>
-<span class="w">    </span><span class="s">&quot;net/url&quot;</span>
-<span class="w">    </span><span class="s">&quot;time&quot;</span>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is a process-global setting and affects <code>http.DefaultClient</code> and clients that inherit <code>http.DefaultTransport</code>.
+It is not suitable for per-sender SSRF controls.</p>
+</div>
+<h3 id="custom_http_client_per-sender_recommended_for_ssrfegress_control">Custom HTTP Client (Per-Sender, Recommended for SSRF/Egress Control)<a class="headerlink" href="#custom_http_client_per-sender_recommended_for_ssrfegress_control" title="Permanent link">&para;</a></h3>
+<p>Supply a custom <code>*http.Client</code> (with custom <code>Transport</code>, <code>DialContext</code>, TLS config, etc.) when creating a sender or router. The client is injected into services that support it and used for all their outbound HTTP.</p>
+<p>Use <code>shoutrrr.NewSenderWithOptions</code> (or <code>CreateSenderWithOptions</code>, <code>router.NewWithOptions</code>).</p>
+<div class="highlight"><span class="filename">Configure Custom HTTP Client for SSRF Protection</span><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w"> </span><span class="s">&quot;context&quot;</span>
+<span class="w"> </span><span class="s">&quot;fmt&quot;</span>
+<span class="w"> </span><span class="s">&quot;log&quot;</span>
+<span class="w"> </span><span class="s">&quot;net&quot;</span>
+<span class="w"> </span><span class="s">&quot;net/http&quot;</span>
+<span class="w"> </span><span class="s">&quot;time&quot;</span>
+
+<span class="w"> </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr&quot;</span>
+<span class="w"> </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr/pkg/types&quot;</span>
 <span class="p">)</span>
 
-<span class="nx">proxyURL</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">url</span><span class="p">.</span><span class="nx">Parse</span><span class="p">(</span><span class="s">&quot;socks5://localhost:1337&quot;</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">&quot;Error parsing proxy URL: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="c1">// isAllowedHost is an example SSRF guard. Implement your own policy.</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">isAllowedHost</span><span class="p">(</span><span class="nx">host</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="c1">// Reject loopback, private, link-local, etc. Adjust to your needs.</span>
+<span class="w"> </span><span class="nx">ip</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">ParseIP</span><span class="p">(</span><span class="nx">host</span><span class="p">)</span>
+<span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nx">ip</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// For hostnames you may resolve or apply allow-list here.</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="w"> </span><span class="p">}</span>
+<span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsLoopback</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsPrivate</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsLinkLocalUnicast</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsLinkLocalMulticast</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w"> </span><span class="p">}</span>
+<span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
 <span class="p">}</span>
 
-<span class="nx">http</span><span class="p">.</span><span class="nx">DefaultClient</span><span class="p">.</span><span class="nx">Transport</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Transport</span><span class="p">{</span>
-<span class="w">    </span><span class="nx">Proxy</span><span class="p">:</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">ProxyURL</span><span class="p">(</span><span class="nx">proxyURL</span><span class="p">),</span>
-<span class="w">    </span><span class="nx">DialContext</span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="nx">net</span><span class="p">.</span><span class="nx">Dialer</span><span class="p">{</span>
-<span class="w">        </span><span class="nx">Timeout</span><span class="p">:</span><span class="w">   </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">KeepAlive</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">    </span><span class="p">}).</span><span class="nx">DialContext</span><span class="p">,</span>
-<span class="w">    </span><span class="nx">ForceAttemptHTTP2</span><span class="p">:</span><span class="w">     </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">    </span><span class="nx">MaxIdleConns</span><span class="p">:</span><span class="w">          </span><span class="mi">100</span><span class="p">,</span>
-<span class="w">    </span><span class="nx">IdleConnTimeout</span><span class="p">:</span><span class="w">       </span><span class="mi">90</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">    </span><span class="nx">TLSHandshakeTimeout</span><span class="p">:</span><span class="w">   </span><span class="mi">10</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">    </span><span class="nx">ExpectContinueTimeout</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="c1">// Custom Transport with DialContext that performs egress/SSRF checks.</span>
+<span class="w"> </span><span class="nx">transport</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Transport</span><span class="p">{</span>
+<span class="w">  </span><span class="nx">DialContext</span><span class="p">:</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">network</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">net</span><span class="p">.</span><span class="nx">Conn</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">   </span><span class="nx">host</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">SplitHostPort</span><span class="p">(</span><span class="nx">addr</span><span class="p">)</span>
+<span class="w">   </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">host</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">addr</span><span class="w"> </span><span class="c1">// no port</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="w">   </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nx">isAllowedHost</span><span class="p">(</span><span class="nx">host</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">net</span><span class="p">.</span><span class="nx">OpError</span><span class="p">{</span><span class="nx">Op</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dial&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Net</span><span class="p">:</span><span class="w"> </span><span class="nx">network</span><span class="p">,</span><span class="w"> </span><span class="nx">Addr</span><span class="p">:</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">Err</span><span class="p">:</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;destination blocked by egress policy&quot;</span><span class="p">)}</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="w">   </span><span class="nx">d</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">net</span><span class="p">.</span><span class="nx">Dialer</span><span class="p">{</span><span class="nx">Timeout</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span><span class="w"> </span><span class="nx">KeepAlive</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">}</span>
+<span class="w">   </span><span class="k">return</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">DialContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">network</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="p">)</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="c1">// Proxy: http.ProxyFromEnvironment, // opt-in if you also want env proxies for this client</span>
+<span class="w">  </span><span class="nx">ForceAttemptHTTP2</span><span class="p">:</span><span class="w">     </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">MaxIdleConns</span><span class="p">:</span><span class="w">          </span><span class="mi">100</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">IdleConnTimeout</span><span class="p">:</span><span class="w">       </span><span class="mi">90</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">TLSHandshakeTimeout</span><span class="p">:</span><span class="w">   </span><span class="mi">10</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">ExpectContinueTimeout</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+<span class="w"> </span><span class="p">}</span>
+
+<span class="w"> </span><span class="nx">customClient</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Client</span><span class="p">{</span>
+<span class="w">  </span><span class="nx">Transport</span><span class="p">:</span><span class="w"> </span><span class="nx">transport</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">Timeout</span><span class="p">:</span><span class="w">   </span><span class="mi">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
+<span class="w"> </span><span class="p">}</span>
+
+<span class="w"> </span><span class="nx">opts</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{</span>
+<span class="w">  </span><span class="nx">HTTPClient</span><span class="p">:</span><span class="w"> </span><span class="nx">customClient</span><span class="p">,</span>
+<span class="w">  </span><span class="c1">// Timeout: 30 * time.Second, // optional per-router override</span>
+<span class="w"> </span><span class="p">}</span>
+
+<span class="w"> </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;discord://abc123@123456789&quot;</span>
+<span class="w"> </span><span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">NewSenderWithOptions</span><span class="p">(</span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">opts</span><span class="p">,</span><span class="w"> </span><span class="nx">url</span><span class="p">)</span>
+<span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w"> </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Hello via custom client!&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">);</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">   </span><span class="nx">log</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Error:&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+<p><strong>Notes on custom clients:</strong></p>
+<ul>
+<li>A non-nil <code>SenderOptions.HTTPClient</code> is propagated by the router to services implementing <code>types.HTTPClientSetter</code>.</li>
+<li>Custom clients usually bypass <code>HTTP_PROXY</code>/<code>HTTPS_PROXY</code> unless their <code>Transport.Proxy</code> is configured to consult the environment.</li>
+<li>All default timeouts/TLS behavior is preserved when no custom client is supplied.</li>
+<li>The same client instance is reused for the lifetime of the sender/router.</li>
+</ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <!-- markdownlint-disable -->
-<h3 id="using_environment_variable_for_proxy">Using Environment Variable for Proxy<a class="headerlink" href="#using_environment_variable_for_proxy" title="Permanent link">&para;</a></h3>
+<h3 id="using_environment_variable_for_proxy_global">Using Environment Variable for Proxy (Global)<a class="headerlink" href="#using_environment_variable_for_proxy_global" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Set Proxy and Send Notification</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span><span class="s2">&quot;socks5://localhost:1337&quot;</span>
@@ -2755,43 +2818,49 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
 </div>
-<h3 id="using_custom_http_client_in_go">Using Custom HTTP Client in Go<a class="headerlink" href="#using_custom_http_client_in_go" title="Permanent link">&para;</a></h3>
+<h3 id="using_custom_http_client_in_go_per-sender_ssrf_control">Using Custom HTTP Client in Go (Per-Sender / SSRF Control)<a class="headerlink" href="#using_custom_http_client_in_go_per-sender_ssrf_control" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Proxy</span><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
+<div class="highlight"><span class="filename">Send Notification with Custom Client (SSRF-safe)</span><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">&quot;context&quot;</span>
 <span class="w">    </span><span class="s">&quot;log&quot;</span>
+<span class="w">    </span><span class="s">&quot;net&quot;</span>
 <span class="w">    </span><span class="s">&quot;net/http&quot;</span>
-<span class="w">    </span><span class="s">&quot;net/url&quot;</span>
 <span class="w">    </span><span class="s">&quot;time&quot;</span>
+
 <span class="w">    </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr&quot;</span>
+<span class="w">    </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr/pkg/types&quot;</span>
 <span class="p">)</span>
 
+<span class="kd">func</span><span class="w"> </span><span class="nx">isAllowedHost</span><span class="p">(</span><span class="nx">host</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">ip</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">ParseIP</span><span class="p">(</span><span class="nx">host</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">ip</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">!</span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsLoopback</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">!</span><span class="nx">ip</span><span class="p">.</span><span class="nx">IsPrivate</span><span class="p">()</span>
+<span class="p">}</span>
+
 <span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">proxyURL</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">url</span><span class="p">.</span><span class="nx">Parse</span><span class="p">(</span><span class="s">&quot;socks5://localhost:1337&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">transport</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Transport</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">DialContext</span><span class="p">:</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">network</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">net</span><span class="p">.</span><span class="nx">Conn</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">host</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">SplitHostPort</span><span class="p">(</span><span class="nx">addr</span><span class="p">)</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nx">isAllowedHost</span><span class="p">(</span><span class="nx">host</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">DeadlineExceeded</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="nx">net</span><span class="p">.</span><span class="nx">Dialer</span><span class="p">{</span><span class="nx">Timeout</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">}).</span><span class="nx">DialContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">network</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="p">)</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">custom</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Client</span><span class="p">{</span><span class="nx">Transport</span><span class="p">:</span><span class="w"> </span><span class="nx">transport</span><span class="p">}</span>
+
+<span class="w">    </span><span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">NewSenderWithOptions</span><span class="p">(</span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{</span><span class="nx">HTTPClient</span><span class="p">:</span><span class="w"> </span><span class="nx">custom</span><span class="p">},</span><span class="w"> </span><span class="s">&quot;discord://abc123@123456789&quot;</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">&quot;Error parsing proxy URL: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">DefaultClient</span><span class="p">.</span><span class="nx">Transport</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">http</span><span class="p">.</span><span class="nx">Transport</span><span class="p">{</span>
-<span class="w">        </span><span class="nx">Proxy</span><span class="p">:</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">ProxyURL</span><span class="p">(</span><span class="nx">proxyURL</span><span class="p">),</span>
-<span class="w">        </span><span class="nx">DialContext</span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="nx">net</span><span class="p">.</span><span class="nx">Dialer</span><span class="p">{</span>
-<span class="w">            </span><span class="nx">Timeout</span><span class="p">:</span><span class="w">   </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">            </span><span class="nx">KeepAlive</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">        </span><span class="p">}).</span><span class="nx">DialContext</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">ForceAttemptHTTP2</span><span class="p">:</span><span class="w">     </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">MaxIdleConns</span><span class="p">:</span><span class="w">          </span><span class="mi">100</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">IdleConnTimeout</span><span class="p">:</span><span class="w">       </span><span class="mi">90</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">TLSHandshakeTimeout</span><span class="p">:</span><span class="w">   </span><span class="mi">10</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">        </span><span class="nx">ExpectContinueTimeout</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span>
-<span class="w">    </span><span class="p">}</span>
-
-<span class="w">    </span><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;discord://abc123@123456789&quot;</span>
-<span class="w">    </span><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Hello via proxy!&quot;</span><span class="p">)</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nx">log</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Error:&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Hello via custom egress-controlled client!&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">);</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">log</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
@@ -2832,7 +2901,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="August 8, 2025 12:36:57 UTC"><span class="timeago" datetime="2025-08-08T12:36:57+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 8, 2025 12:36:57 UTC">2025-08-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="July 7, 2026 23:15:13 UTC"><span class="timeago" datetime="2026-07-07T23:15:13+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 7, 2026 23:15:13 UTC">2026-07-07</span>
   </span>
 
     
