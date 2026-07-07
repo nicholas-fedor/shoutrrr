@@ -77,10 +77,22 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SetHTTPClient sets a custom HTTP client for the service.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	s.httpClient = client
-	if client != nil {
-		s.client = jsonclient.NewWithHTTPClient(client)
+	if client == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
 	}
+
+	if c, ok := client.(*http.Client); ok && c == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
+	}
+
+	s.httpClient = client
+	s.client = jsonclient.NewWithHTTPClient(client)
 }
 
 // doSend sends a push notification to a specific target and validates the response.

@@ -98,8 +98,11 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 
 	apiURL.RawQuery = data.Encode()
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		apiURL.String(),
 		http.NoBody,

@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -257,7 +258,9 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 
 	// Inject custom HTTP client if provided and the service supports it.
 	if r.httpClient != nil {
-		if setter, ok := service.(types.HTTPClientSetter); ok {
+		if client, ok := r.httpClient.(*http.Client); ok && client == nil {
+			// skip typed-nil
+		} else if setter, ok := service.(types.HTTPClientSetter); ok {
 			setter.SetHTTPClient(r.httpClient)
 		}
 	}

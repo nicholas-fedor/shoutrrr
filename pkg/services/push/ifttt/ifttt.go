@@ -89,8 +89,11 @@ func (s *Service) createAPIURLForEvent(event string) string {
 
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.
 func (s *Service) doSend(payload []byte, postURL string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		postURL,
 		bytes.NewBuffer(payload),

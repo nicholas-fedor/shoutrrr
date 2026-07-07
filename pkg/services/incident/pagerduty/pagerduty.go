@@ -90,6 +90,12 @@ func (s *Service) SendWithContext(
 // SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
 // requiring proxies, custom TLS configurations, etc.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+
+		return
+	}
+
 	s.httpClient = client
 }
 

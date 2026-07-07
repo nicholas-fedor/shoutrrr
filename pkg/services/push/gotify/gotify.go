@@ -108,12 +108,24 @@ func (s *Service) Send(message string, params *types.Params) error {
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if client == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
+	}
+
+	if c, ok := client.(*http.Client); ok && c == nil {
+		s.httpClient = nil
+		s.client = nil
+
+		return
+	}
 
 	s.httpClient = client
-	if client != nil {
-		s.client = jsonclient.NewWithHTTPClient(client)
-	}
-	s.mu.Unlock()
+	s.client = jsonclient.NewWithHTTPClient(client)
 }
 
 // buildRequest constructs the URL, payload, and headers for the HTTP request.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -20,6 +21,8 @@ type Service struct {
 	Config     *Config
 	httpClient types.HTTPClient
 }
+
+const defaultHTTPTimeout = 10 * time.Second
 
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
 var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
@@ -36,7 +39,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 
 	if s.httpClient == nil {
-		s.httpClient = &http.Client{}
+		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 
 	return s.Config.SetURL(serviceURL)

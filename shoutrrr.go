@@ -48,8 +48,6 @@ func Send(rawURL, message string) error {
 // CreateSender constructs a new service router for the given URLs without a logger.
 //
 // Deprecated: Use CreateSenderWithOptions.
-//
-//go:fix inline
 func CreateSender(rawURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(nil, types.SenderOptions{}, rawURLs...)
 	if err != nil {
@@ -73,8 +71,6 @@ func CreateSenderWithOptions(opts types.SenderOptions, rawURLs ...string) (*rout
 // NewSender constructs a new service router with a logger for the given URLs.
 //
 // Deprecated: Use NewSenderWithOptions.
-//
-//go:fix inline
 func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(logger, types.SenderOptions{}, serviceURLs...)
 	if err != nil {

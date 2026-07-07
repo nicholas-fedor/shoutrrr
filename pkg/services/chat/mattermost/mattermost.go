@@ -93,7 +93,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	client := s.httpClient
 	if client == nil {
-		client = &http.Client{Transport: &http.Transport{}}
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+				MinVersion:         tls.VersionTLS12,
+			},
+		}
+		client = &http.Client{Transport: transport}
 	}
 
 	res, err := client.Do(req)
