@@ -112,5 +112,7 @@ func loadEnvFile(filename string) {
 		}
 	}
 
-	_ = scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return
+	}
 }

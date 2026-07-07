@@ -107,4 +107,8 @@ func loadEnvFile(filename string) {
 			_ = os.Setenv(key, value) // Ignore error as it's test setup
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return
+	}
 }
