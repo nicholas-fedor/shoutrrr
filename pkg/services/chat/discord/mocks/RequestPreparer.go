@@ -74,7 +74,7 @@ type MockRequestPreparer_PrepareRequest_Call struct {
 // PrepareRequest is a helper method to define mock.On call
 //   - ctx context.Context
 //   - requestURL string
-func (_e *MockRequestPreparer_Expecter) PrepareRequest(ctx interface{}, requestURL interface{}) *MockRequestPreparer_PrepareRequest_Call {
+func (_e *MockRequestPreparer_Expecter) PrepareRequest(ctx any, requestURL any) *MockRequestPreparer_PrepareRequest_Call {
 	return &MockRequestPreparer_PrepareRequest_Call{Call: _e.mock.On("PrepareRequest", ctx, requestURL)}
 }
 

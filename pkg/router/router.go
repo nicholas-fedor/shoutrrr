@@ -12,10 +12,11 @@ import (
 
 // ServiceRouter is responsible for routing a message to a specific notification service using the notification URL.
 type ServiceRouter struct {
-	logger   types.StdLogger
-	services []types.Service
-	queue    []string
-	Timeout  time.Duration
+	logger     types.StdLogger
+	services   []types.Service
+	queue      []string
+	Timeout    time.Duration
+	httpClient types.HTTPClient
 }
 
 // DefaultTimeout is the default duration for service operation timeouts.
@@ -31,6 +32,40 @@ var (
 	ErrCustomURLConversion    = errors.New("failed to convert custom URL")
 	ErrInitializeFailed       = errors.New("failed to initialize service")
 )
+
+// New creates a new service router using the specified logger and service URLs.
+//
+// Deprecated: Use NewWithOptions.
+//
+//go:fix inline
+func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) {
+	return NewWithOptions(logger, types.SenderOptions{}, serviceURLs...)
+}
+
+// NewWithOptions creates a new service router using the specified logger, options,
+// and service URLs. If opts.HTTPClient is non-nil, it will be injected into
+// services that support it (via SetHTTPClient or internal client replacement).
+func NewWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURLs ...string) (*ServiceRouter, error) {
+	router := ServiceRouter{
+		logger:     logger,
+		services:   nil,
+		queue:      nil,
+		Timeout:    DefaultTimeout,
+		httpClient: opts.HTTPClient,
+	}
+
+	if opts.Timeout > 0 {
+		router.Timeout = opts.Timeout
+	}
+
+	for _, serviceURL := range serviceURLs {
+		if err := router.AddService(serviceURL); err != nil {
+			return nil, fmt.Errorf("error initializing router services: %w", err)
+		}
+	}
+
+	return &router, nil
+}
 
 // AddService initializes the specified service from its URL, and adds it if no errors occur.
 func (r *ServiceRouter) AddService(serviceURL string) error {
@@ -220,6 +255,13 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 		return service, fmt.Errorf("%s: %w", scheme, ErrInitializeFailed)
 	}
 
+	// Inject custom HTTP client if provided and the service supports it.
+	if r.httpClient != nil {
+		if setter, ok := service.(types.HTTPClientSetter); ok {
+			setter.SetHTTPClient(r.httpClient)
+		}
+	}
+
 	return service, nil
 }
 
@@ -229,24 +271,6 @@ func (r *ServiceRouter) log(v ...any) {
 	}
 
 	r.logger.Println(v...)
-}
-
-// New creates a new service router using the specified logger and service URLs.
-func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) {
-	router := ServiceRouter{
-		logger:   logger,
-		services: nil,
-		queue:    nil,
-		Timeout:  DefaultTimeout,
-	}
-
-	for _, serviceURL := range serviceURLs {
-		if err := router.AddService(serviceURL); err != nil {
-			return nil, fmt.Errorf("error initializing router services: %w", err)
-		}
-	}
-
-	return &router, nil
 }
 
 // newService returns a new uninitialized service instance.

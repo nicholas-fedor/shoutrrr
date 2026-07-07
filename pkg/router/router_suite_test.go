@@ -8,6 +8,8 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 const (
@@ -136,7 +138,7 @@ func ExampleNew() {
 func ExampleServiceRouter_Enqueue() {
 	logger := log.New(os.Stdout, "", 0)
 
-	sr, err := New(logger, "logger://")
+	sr, err := NewWithOptions(logger, types.SenderOptions{}, "logger://")
 	if err != nil {
 		log.Fatalf("could not create router: %s", err)
 	}

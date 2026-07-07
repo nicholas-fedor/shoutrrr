@@ -64,7 +64,7 @@ type MockHTTPClientManager_CreateClient_Call struct {
 
 // CreateClient is a helper method to define mock.On call
 //   - transport *http.Transport
-func (_e *MockHTTPClientManager_Expecter) CreateClient(transport interface{}) *MockHTTPClientManager_CreateClient_Call {
+func (_e *MockHTTPClientManager_Expecter) CreateClient(transport any) *MockHTTPClientManager_CreateClient_Call {
 	return &MockHTTPClientManager_CreateClient_Call{Call: _e.mock.On("CreateClient", transport)}
 }
 
@@ -117,7 +117,7 @@ type MockHTTPClientManager_CreateTransport_Call struct {
 
 // CreateTransport is a helper method to define mock.On call
 //   - config *gotify.Config
-func (_e *MockHTTPClientManager_Expecter) CreateTransport(config interface{}) *MockHTTPClientManager_CreateTransport_Call {
+func (_e *MockHTTPClientManager_Expecter) CreateTransport(config any) *MockHTTPClientManager_CreateTransport_Call {
 	return &MockHTTPClientManager_CreateTransport_Call{Call: _e.mock.On("CreateTransport", config)}
 }
 

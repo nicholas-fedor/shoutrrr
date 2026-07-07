@@ -3,6 +3,7 @@ package matrix
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -15,9 +16,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	client *client
-	pkr    format.PropKeyResolver
+	Config     *Config
+	client     *client
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // Scheme identifies this service in configuration URLs.
@@ -48,6 +50,15 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	if serviceURL.Hostname() != "dummy.com" && serviceURL.Host != "" {
 		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
+		if s.httpClient != nil {
+			switch c := s.httpClient.(type) {
+			case *http.Client:
+				s.client.httpClient = &DefaultHTTPClient{client: c}
+			default:
+				s.client.httpClient = s.httpClient
+			}
+		}
+
 		if s.Config.User != "" {
 			return s.client.login(context.Background(), s.Config.User, s.Config.Password)
 		}
@@ -93,6 +104,19 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service (propagated to internal client).
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+	if s.client != nil {
+		switch c := client.(type) {
+		case *http.Client:
+			s.client.httpClient = &DefaultHTTPClient{client: c}
+		default:
+			s.client.httpClient = client
+		}
+	}
 }
 
 // createMessage creates the full message body by prepending the title if provided.

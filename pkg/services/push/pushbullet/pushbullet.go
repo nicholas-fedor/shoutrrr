@@ -3,6 +3,7 @@ package pushbullet
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -15,9 +16,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	client jsonclient.Client
-	Config *Config
-	pkr    format.PropKeyResolver
+	client     jsonclient.Client
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // Constants.
@@ -51,7 +53,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	s.client = jsonclient.NewClient()
+	s.client = jsonclient.NewWithHTTPClient(s.httpClientOrDefault())
 	s.client.Headers().Set("Access-Token", s.Config.Token)
 
 	return nil
@@ -65,7 +67,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	for _, target := range config.Targets {
-		if err := doSend(&config, target, message, s.client); err != nil {
+		if err := s.doSend(&config, target, message); err != nil {
 			return err
 		}
 	}
@@ -73,15 +75,23 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+	if client != nil {
+		s.client = jsonclient.NewWithHTTPClient(client)
+	}
+}
+
 // doSend sends a push notification to a specific target and validates the response.
-func doSend(config *Config, target, message string, client jsonclient.Client) error {
+func (s *Service) doSend(config *Config, target, message string) error {
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 
 	response := PushResponse{}
-	if err := client.Post(pushesEndpoint, push, &response); err != nil {
+	if err := s.client.Post(pushesEndpoint, push, &response); err != nil {
 		errorResponse := &ResponseError{}
-		if client.ErrorResponse(err, errorResponse) {
+		if s.client.ErrorResponse(err, errorResponse) {
 			return fmt.Errorf("API error: %w", errorResponse)
 		}
 
@@ -116,4 +126,19 @@ func doSend(config *Config, target, message string, client jsonclient.Client) er
 	}
 
 	return nil
+}
+
+// httpClientOrDefault returns the injected client or a default Client.
+func (s *Service) httpClientOrDefault() *http.Client {
+	if s.httpClient != nil {
+		if c, ok := s.httpClient.(*http.Client); ok {
+			return c
+		}
+	}
+
+	if s.httpClient == nil {
+		return &http.Client{}
+	}
+
+	return &http.Client{}
 }

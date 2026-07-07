@@ -118,7 +118,7 @@ type MockService_GetTemplate_Call struct {
 
 // GetTemplate is a helper method to define mock.On call
 //   - id string
-func (_e *MockService_Expecter) GetTemplate(id interface{}) *MockService_GetTemplate_Call {
+func (_e *MockService_Expecter) GetTemplate(id any) *MockService_GetTemplate_Call {
 	return &MockService_GetTemplate_Call{Call: _e.mock.On("GetTemplate", id)}
 }
 
@@ -170,7 +170,7 @@ type MockService_Initialize_Call struct {
 // Initialize is a helper method to define mock.On call
 //   - serviceURL *url.URL
 //   - logger types.StdLogger
-func (_e *MockService_Expecter) Initialize(serviceURL interface{}, logger interface{}) *MockService_Initialize_Call {
+func (_e *MockService_Expecter) Initialize(serviceURL any, logger any) *MockService_Initialize_Call {
 	return &MockService_Initialize_Call{Call: _e.mock.On("Initialize", serviceURL, logger)}
 }
 
@@ -227,7 +227,7 @@ type MockService_Send_Call struct {
 // Send is a helper method to define mock.On call
 //   - message string
 //   - params *types.Params
-func (_e *MockService_Expecter) Send(message interface{}, params interface{}) *MockService_Send_Call {
+func (_e *MockService_Expecter) Send(message any, params any) *MockService_Send_Call {
 	return &MockService_Send_Call{Call: _e.mock.On("Send", message, params)}
 }
 
@@ -272,7 +272,7 @@ type MockService_SetLogger_Call struct {
 
 // SetLogger is a helper method to define mock.On call
 //   - logger types.StdLogger
-func (_e *MockService_Expecter) SetLogger(logger interface{}) *MockService_SetLogger_Call {
+func (_e *MockService_Expecter) SetLogger(logger any) *MockService_SetLogger_Call {
 	return &MockService_SetLogger_Call{Call: _e.mock.On("SetLogger", logger)}
 }
 
@@ -324,7 +324,7 @@ type MockService_SetTemplateFile_Call struct {
 // SetTemplateFile is a helper method to define mock.On call
 //   - id string
 //   - file string
-func (_e *MockService_Expecter) SetTemplateFile(id interface{}, file interface{}) *MockService_SetTemplateFile_Call {
+func (_e *MockService_Expecter) SetTemplateFile(id any, file any) *MockService_SetTemplateFile_Call {
 	return &MockService_SetTemplateFile_Call{Call: _e.mock.On("SetTemplateFile", id, file)}
 }
 
@@ -381,7 +381,7 @@ type MockService_SetTemplateString_Call struct {
 // SetTemplateString is a helper method to define mock.On call
 //   - id string
 //   - body string
-func (_e *MockService_Expecter) SetTemplateString(id interface{}, body interface{}) *MockService_SetTemplateString_Call {
+func (_e *MockService_Expecter) SetTemplateString(id any, body any) *MockService_SetTemplateString_Call {
 	return &MockService_SetTemplateString_Call{Call: _e.mock.On("SetTemplateString", id, body)}
 }
 

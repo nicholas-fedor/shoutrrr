@@ -21,8 +21,9 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // JSONTemplate identifies the JSON format for webhook payloads.
@@ -140,6 +141,23 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return nil
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		s.httpClient = nil
+
+		return
+	}
+
+	if c, ok := client.(*http.Client); ok && c == nil {
+		s.httpClient = nil
+
+		return
+	}
+
+	s.httpClient = client
+}
+
 // doSend executes the HTTP request to send a notification to the webhook.
 func (s *Service) doSend(config *Config, params types.Params) error {
 	// Get the webhook URL as string
@@ -177,8 +195,13 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 		req.Header.Set(key, value)
 	}
 
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{}
+	}
+
 	// Send the HTTP request
-	res, err := http.DefaultClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", err)
 	}

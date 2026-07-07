@@ -62,7 +62,7 @@ type MockClient_ErrorResponse_Call struct {
 // ErrorResponse is a helper method to define mock.On call
 //   - err error
 //   - response any
-func (_e *MockClient_Expecter) ErrorResponse(err interface{}, response interface{}) *MockClient_ErrorResponse_Call {
+func (_e *MockClient_Expecter) ErrorResponse(err any, response any) *MockClient_ErrorResponse_Call {
 	return &MockClient_ErrorResponse_Call{Call: _e.mock.On("ErrorResponse", err, response)}
 }
 
@@ -119,7 +119,7 @@ type MockClient_Get_Call struct {
 // Get is a helper method to define mock.On call
 //   - url string
 //   - response any
-func (_e *MockClient_Expecter) Get(url interface{}, response interface{}) *MockClient_Get_Call {
+func (_e *MockClient_Expecter) Get(url any, response any) *MockClient_Get_Call {
 	return &MockClient_Get_Call{Call: _e.mock.On("Get", url, response)}
 }
 
@@ -223,7 +223,7 @@ type MockClient_Post_Call struct {
 //   - url string
 //   - request any
 //   - response any
-func (_e *MockClient_Expecter) Post(url interface{}, request interface{}, response interface{}) *MockClient_Post_Call {
+func (_e *MockClient_Expecter) Post(url any, request any, response any) *MockClient_Post_Call {
 	return &MockClient_Post_Call{Call: _e.mock.On("Post", url, request, response)}
 }
 

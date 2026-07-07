@@ -50,7 +50,7 @@ type MockSleeper_Sleep_Call struct {
 
 // Sleep is a helper method to define mock.On call
 //   - d time.Duration
-func (_e *MockSleeper_Expecter) Sleep(d interface{}) *MockSleeper_Sleep_Call {
+func (_e *MockSleeper_Expecter) Sleep(d any) *MockSleeper_Sleep_Call {
 	return &MockSleeper_Sleep_Call{Call: _e.mock.On("Sleep", d)}
 }
 

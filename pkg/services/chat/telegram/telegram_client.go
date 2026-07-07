@@ -3,19 +3,23 @@ package telegram
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 // Client for Telegram API.
 type Client struct {
-	token string
+	token      string
+	httpClient types.HTTPClient
 }
 
 // GetBotInfo returns the bot User info.
 func (c *Client) GetBotInfo() (*User, error) {
 	response := &userResponse{}
-	err := jsonclient.Get(c.apiURL("getMe"), response)
+	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	err := jc.Get(c.apiURL("getMe"), response)
 
 	if !response.OK {
 		return nil, GetErrorResponse(jsonclient.ErrorBody(err))
@@ -38,7 +42,8 @@ func (c *Client) GetUpdates(
 		AllowedUpdates: allowedUpdates,
 	}
 	response := &updatesResponse{}
-	err := jsonclient.Post(c.apiURL("getUpdates"), request, response)
+	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	err := jc.Post(c.apiURL("getUpdates"), request, response)
 
 	if !response.OK {
 		return nil, GetErrorResponse(jsonclient.ErrorBody(err))
@@ -50,7 +55,8 @@ func (c *Client) GetUpdates(
 // SendMessage sends the specified Message.
 func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
 	response := &messageResponse{}
-	err := jsonclient.Post(c.apiURL("sendMessage"), message, response)
+	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	err := jc.Post(c.apiURL("sendMessage"), message, response)
 
 	if !response.OK {
 		return nil, GetErrorResponse(jsonclient.ErrorBody(err))
@@ -61,6 +67,15 @@ func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
 
 func (c *Client) apiURL(endpoint string) string {
 	return fmt.Sprintf(apiFormat, c.token, endpoint)
+}
+
+// httpClientOrDefault returns the injected client or a default Client.
+func (c *Client) httpClientOrDefault() types.HTTPClient {
+	if c.httpClient != nil {
+		return c.httpClient
+	}
+
+	return &http.Client{Timeout: defaultHTTPTimeout}
 }
 
 // GetErrorResponse retrieves the error message from a failed request.

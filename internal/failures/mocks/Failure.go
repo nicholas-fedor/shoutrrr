@@ -148,7 +148,7 @@ type MockFailure_Is_Call struct {
 
 // Is is a helper method to define mock.On call
 //   - target error
-func (_e *MockFailure_Expecter) Is(target interface{}) *MockFailure_Is_Call {
+func (_e *MockFailure_Expecter) Is(target any) *MockFailure_Is_Call {
 	return &MockFailure_Is_Call{Call: _e.mock.On("Is", target)}
 }
 

@@ -20,16 +20,11 @@ type Service struct {
 
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient *http.Client
+	httpClient types.HTTPClient
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
 const defaultHTTPTimeout = 10 * time.Second
-
-// GetHTTPClient returns the service's HTTP client for testing purposes.
-func (s *Service) GetHTTPClient() *http.Client {
-	return s.httpClient
-}
 
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
@@ -96,7 +91,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := s.httpClient.Do(req)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Transport: &http.Transport{}}
+	}
+
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
 	}
@@ -108,6 +108,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // buildURL constructs the API URL for Mattermost based on the Config.

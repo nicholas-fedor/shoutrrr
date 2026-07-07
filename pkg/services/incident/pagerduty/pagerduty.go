@@ -22,7 +22,7 @@ type Service struct {
 
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient *http.Client
+	httpClient types.HTTPClient
 }
 
 const (
@@ -89,7 +89,7 @@ func (s *Service) SendWithContext(
 
 // SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
 // requiring proxies, custom TLS configurations, etc.
-func (s *Service) SetHTTPClient(client *http.Client) {
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
 }
 

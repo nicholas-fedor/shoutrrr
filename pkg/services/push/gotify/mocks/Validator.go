@@ -69,7 +69,7 @@ type MockValidator_ValidateDate_Call struct {
 
 // ValidateDate is a helper method to define mock.On call
 //   - date string
-func (_e *MockValidator_Expecter) ValidateDate(date interface{}) *MockValidator_ValidateDate_Call {
+func (_e *MockValidator_Expecter) ValidateDate(date any) *MockValidator_ValidateDate_Call {
 	return &MockValidator_ValidateDate_Call{Call: _e.mock.On("ValidateDate", date)}
 }
 
@@ -120,7 +120,7 @@ type MockValidator_ValidateMessage_Call struct {
 
 // ValidateMessage is a helper method to define mock.On call
 //   - message string
-func (_e *MockValidator_Expecter) ValidateMessage(message interface{}) *MockValidator_ValidateMessage_Call {
+func (_e *MockValidator_Expecter) ValidateMessage(message any) *MockValidator_ValidateMessage_Call {
 	return &MockValidator_ValidateMessage_Call{Call: _e.mock.On("ValidateMessage", message)}
 }
 
@@ -171,7 +171,7 @@ type MockValidator_ValidatePriority_Call struct {
 
 // ValidatePriority is a helper method to define mock.On call
 //   - priority int
-func (_e *MockValidator_Expecter) ValidatePriority(priority interface{}) *MockValidator_ValidatePriority_Call {
+func (_e *MockValidator_Expecter) ValidatePriority(priority any) *MockValidator_ValidatePriority_Call {
 	return &MockValidator_ValidatePriority_Call{Call: _e.mock.On("ValidatePriority", priority)}
 }
 
@@ -222,7 +222,7 @@ type MockValidator_ValidateServiceInitialized_Call struct {
 
 // ValidateServiceInitialized is a helper method to define mock.On call
 //   - config *gotify.Config
-func (_e *MockValidator_Expecter) ValidateServiceInitialized(config interface{}) *MockValidator_ValidateServiceInitialized_Call {
+func (_e *MockValidator_Expecter) ValidateServiceInitialized(config any) *MockValidator_ValidateServiceInitialized_Call {
 	return &MockValidator_ValidateServiceInitialized_Call{Call: _e.mock.On("ValidateServiceInitialized", config)}
 }
 
@@ -273,7 +273,7 @@ type MockValidator_ValidateToken_Call struct {
 
 // ValidateToken is a helper method to define mock.On call
 //   - token string
-func (_e *MockValidator_Expecter) ValidateToken(token interface{}) *MockValidator_ValidateToken_Call {
+func (_e *MockValidator_Expecter) ValidateToken(token any) *MockValidator_ValidateToken_Call {
 	return &MockValidator_ValidateToken_Call{Call: _e.mock.On("ValidateToken", token)}
 }
 

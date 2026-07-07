@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -87,8 +88,11 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
+
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.HTTPClient = NewDefaultHTTPClient()
+	if s.HTTPClient == nil {
+		s.HTTPClient = NewDefaultHTTPClient()
+	}
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -135,6 +139,11 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 	return s.Send(message, params)
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.HTTPClient = client
+}
+
 // sendAPI sends a notification to the Bark server using the configured endpoint.
 // This method handles JSON serialization, HTTP request creation, and response parsing.
 //
@@ -179,10 +188,11 @@ func (s *Service) sendAPI(config *Config, message string) error {
 
 	httpResp, err := s.HTTPClient.Do(httpReq)
 	if err != nil {
-		// Try to parse error response
-		jsonClient := jsonclient.NewClient()
-		if jsonClient.ErrorResponse(err, &response) {
-			return &response
+		var jsonErr jsonclient.Error
+		if errors.As(err, &jsonErr) {
+			if json.Unmarshal([]byte(jsonErr.Body), &response) == nil {
+				return &response
+			}
 		}
 
 		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, err)

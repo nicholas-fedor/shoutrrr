@@ -17,6 +17,12 @@
 //   - Templater: Provides template management for message formatting.
 //   - ServiceConfig: Common interface for service configuration types.
 //   - Generator: Interface for tools that generate service configurations.
+//   - HTTPClient: Interface for outbound HTTP operations (satisfied by *http.Client).
+//     Used for SSRF protection and custom egress control.
+//   - HTTPClientSetter: Implemented by services to accept a custom HTTPClient
+//     (injected by router.NewWithOptions / NewSenderWithOptions).
+//   - SenderOptions: Options for creating senders/routers, including HTTPClient
+//     and Timeout overrides.
 //
 // # Message Types
 //
@@ -52,6 +58,13 @@
 //   - CustomURLConfig: Interface for configurations that support custom URL
 //     resolution.
 //   - MessageLimit: Defines limits for message content.
+//   - HTTPClient: Narrow interface for outbound HTTP (Do(*http.Request)).
+//     *http.Client satisfies it. Use to supply custom Transport/Dialer/TLS for
+//     SSRF protection or per-sender egress control.
+//   - HTTPClientSetter: Implemented by services so the router can inject a
+//     custom HTTPClient after Initialize.
+//   - SenderOptions: Carries HTTPClient and Timeout overrides for
+//     NewSenderWithOptions / router.NewWithOptions.
 //
 // The types in this package are designed to be used by both service
 // implementers and consumers of the shoutrrr library, providing a consistent

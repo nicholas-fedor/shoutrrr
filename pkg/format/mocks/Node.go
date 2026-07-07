@@ -141,7 +141,7 @@ type MockNode_Update_Call struct {
 
 // Update is a helper method to define mock.On call
 //   - tv reflect.Value
-func (_e *MockNode_Expecter) Update(tv interface{}) *MockNode_Update_Call {
+func (_e *MockNode_Expecter) Update(tv any) *MockNode_Update_Call {
 	return &MockNode_Update_Call{Call: _e.mock.On("Update", tv)}
 }
 

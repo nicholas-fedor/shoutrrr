@@ -9,7 +9,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -74,7 +73,7 @@ var _ = ginkgo.Describe("services", func() {
 		})
 
 		for key, serviceURL := range serviceURLs {
-			serviceRouter, _ = router.New(logger)
+			serviceRouter, _ = router.NewWithOptions(logger, types.SenderOptions{})
 
 			ginkgo.It("should not throw an error for "+key, func() {
 				if key == "smtp" {
@@ -90,8 +89,10 @@ var _ = ginkgo.Describe("services", func() {
 
 				httpmock.Activate()
 
-				if mockService, ok := service.(testutils.MockClientService); ok {
-					httpmock.ActivateNonDefault(mockService.GetHTTPClient())
+				customClient := &http.Client{}
+				if setter, ok := service.(types.HTTPClientSetter); ok {
+					httpmock.ActivateNonDefault(customClient)
+					setter.SetHTTPClient(customClient)
 				}
 
 				respStatus := http.StatusOK
@@ -129,8 +130,10 @@ var _ = ginkgo.Describe("services", func() {
 
 					httpmock.Activate()
 
-					if mockService, ok := service.(testutils.MockClientService); ok {
-						httpmock.ActivateNonDefault(mockService.GetHTTPClient())
+					customClient := &http.Client{}
+					if setter, ok := service.(types.HTTPClientSetter); ok {
+						httpmock.ActivateNonDefault(customClient)
+						setter.SetHTTPClient(customClient)
 					}
 
 					httpmock.RegisterResponder(
@@ -146,6 +149,33 @@ var _ = ginkgo.Describe("services", func() {
 				})
 			}
 		}
+	})
+
+	ginkgo.Describe("custom HTTP client injection", func() {
+		ginkgo.It("should use the injected client when sending a notification", func() {
+			customClient := &http.Client{}
+			httpmock.ActivateNonDefault(customClient)
+			ginkgo.DeferCleanup(httpmock.DeactivateAndReset)
+
+			httpmock.RegisterResponder(
+				"POST",
+				"https://example.com/webhook",
+				httpmock.NewStringResponder(http.StatusOK, ""),
+			)
+
+			sr, err := router.NewWithOptions(
+				logger,
+				types.SenderOptions{HTTPClient: customClient},
+				"generic+https://example.com/webhook",
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			service, err := sr.Locate("generic+https://example.com/webhook")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Send("test", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 	})
 })
 

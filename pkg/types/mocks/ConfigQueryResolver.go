@@ -68,7 +68,7 @@ type MockConfigQueryResolver_Get_Call struct {
 
 // Get is a helper method to define mock.On call
 //   - key string
-func (_e *MockConfigQueryResolver_Expecter) Get(key interface{}) *MockConfigQueryResolver_Get_Call {
+func (_e *MockConfigQueryResolver_Expecter) Get(key any) *MockConfigQueryResolver_Get_Call {
 	return &MockConfigQueryResolver_Get_Call{Call: _e.mock.On("Get", key)}
 }
 
@@ -166,7 +166,7 @@ type MockConfigQueryResolver_Set_Call struct {
 // Set is a helper method to define mock.On call
 //   - key string
 //   - value string
-func (_e *MockConfigQueryResolver_Expecter) Set(key interface{}, value interface{}) *MockConfigQueryResolver_Set_Call {
+func (_e *MockConfigQueryResolver_Expecter) Set(key any, value any) *MockConfigQueryResolver_Set_Call {
 	return &MockConfigQueryResolver_Set_Call{Call: _e.mock.On("Set", key, value)}
 }
 

@@ -16,13 +16,11 @@ import (
 )
 
 // HTTPClient defines the interface for HTTP operations.
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
+type HTTPClient = types.HTTPClient
 
 // defaultHTTPClient implements HTTPClient using http.Client with a timeout.
 type defaultHTTPClient struct {
-	client *http.Client
+	client types.HTTPClient
 }
 
 // Service sends notifications to Microsoft Teams via Power Automate workflow webhooks.
@@ -48,11 +46,6 @@ func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
-}
-
-// GetHTTPClient returns the service's HTTP client for testing purposes.
-func (s *Service) GetHTTPClient() HTTPClient {
-	return s.httpClient
 }
 
 // GetID returns the service identifier.
@@ -92,8 +85,21 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SetHTTPClient sets the HTTP client for testing purposes.
-func (s *Service) SetHTTPClient(client HTTPClient) {
-	s.httpClient = client
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		s.httpClient = &defaultHTTPClient{
+			client: &http.Client{Timeout: defaultHTTPTimeout},
+		}
+
+		return
+	}
+
+	switch c := client.(type) {
+	case *http.Client:
+		s.httpClient = &defaultHTTPClient{client: c}
+	case HTTPClient:
+		s.httpClient = c
+	}
 }
 
 // colorToEnum maps user-provided color values to valid Adaptive Card TextBlock.color enum values.

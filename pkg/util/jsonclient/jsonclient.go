@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // Client defines the interface for JSON HTTP operations.
@@ -27,9 +29,9 @@ type Error struct {
 	err        error
 }
 
-// client wraps http.Client for JSON operations.
+// client wraps an HTTP client for JSON operations.
 type client struct {
-	httpClient *http.Client
+	httpClient types.HTTPClient
 	headers    http.Header
 	indent     string
 }
@@ -44,6 +46,9 @@ const HTTPClientErrorThreshold = 400
 var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 
 // DefaultClient provides a singleton JSON client using http.DefaultClient.
+//
+// Deprecated: Use NewWithHTTPClient with an explicit client instead.
+// This will continue to use http.DefaultClient.
 var DefaultClient = NewClient()
 
 // Error returns the string representation of the error.
@@ -71,12 +76,14 @@ func ErrorBody(e error) string {
 }
 
 // NewClient creates a new JSON client using the default http.Client.
+//
+// Deprecated: Use NewWithHTTPClient with an explicit client instead.
 func NewClient() Client {
 	return NewWithHTTPClient(http.DefaultClient)
 }
 
-// NewWithHTTPClient creates a new JSON client using the specified http.Client.
-func NewWithHTTPClient(httpClient *http.Client) Client {
+// NewWithHTTPClient creates a new JSON client using the specified HTTP client.
+func NewWithHTTPClient(httpClient types.HTTPClient) Client {
 	return &client{
 		httpClient: httpClient,
 		headers: http.Header{
@@ -87,6 +94,8 @@ func NewWithHTTPClient(httpClient *http.Client) Client {
 }
 
 // Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
+//
+// Deprecated: Create a Client with NewWithHTTPClient and call Get on it instead.
 func Get(url string, response any) error {
 	if err := DefaultClient.Get(url, response); err != nil {
 		return fmt.Errorf("getting JSON from %q: %w", url, err)
@@ -96,6 +105,8 @@ func Get(url string, response any) error {
 }
 
 // Post sends a request as JSON and unmarshals the response into the provided object using DefaultClient.
+//
+// Deprecated: Create a Client with NewWithHTTPClient and call Post on it instead.
 func Post(url string, request, response any) error {
 	if err := DefaultClient.Post(url, request, response); err != nil {
 		return fmt.Errorf("posting JSON to %q: %w", url, err)

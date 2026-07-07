@@ -20,9 +20,9 @@ type Service struct {
 	standard.Standard
 
 	// Config holds the Rocket.Chat service configuration.
-	Config *Config
-	// Client is the HTTP client used for API requests.
-	Client *http.Client
+	Config     *Config
+	Client     *http.Client
+	httpClient types.HTTPClient
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
@@ -97,7 +97,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err = s.Client.Do(req)
+	res, err = s.httpClientOrDefault().Do(req)
 	if err != nil {
 		return fmt.Errorf(
 			"posting to URL: %w\nHOST: %s\nPORT: %s",
@@ -127,6 +127,25 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+	if s.Client != nil {
+		if c, ok := client.(*http.Client); ok {
+			s.Client = c
+		}
+	}
+}
+
+// httpClientOrDefault returns the custom client or the internal Client.
+func (s *Service) httpClientOrDefault() types.HTTPClient {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+
+	return s.Client
 }
 
 // buildURL constructs the API URL for Rocket.Chat based on the Config.

@@ -3,7 +3,9 @@ package telegram
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -14,14 +16,16 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // apiFormat defines the Telegram API endpoint template.
 const (
-	apiFormat = "https://api.telegram.org/bot%s/%s"
-	maxlength = 4096
+	apiFormat          = "https://api.telegram.org/bot%s/%s"
+	maxlength          = 4096
+	defaultHTTPTimeout = 10 * time.Second
 )
 
 // ErrMessageTooLong indicates that the message exceeds the maximum allowed length.
@@ -69,10 +73,24 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.sendMessageForChatIDs(message, &config)
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+}
+
+// httpClientOrDefault returns the custom client or a default client.
+func (s *Service) httpClientOrDefault() types.HTTPClient {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+
+	return &http.Client{Timeout: defaultHTTPTimeout}
+}
+
 // sendMessageForChatIDs sends the message to all configured chat IDs.
 func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
 	for _, chat := range s.Config.Chats {
-		if err := sendMessageToAPI(message, chat, config); err != nil {
+		if err := s.sendMessageToAPI(message, chat, config); err != nil {
 			return err
 		}
 	}
@@ -81,8 +99,8 @@ func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.
-func sendMessageToAPI(message, chat string, config *Config) error {
-	client := &Client{token: config.Token}
+func (s *Service) sendMessageToAPI(message, chat string, config *Config) error {
+	client := &Client{token: config.Token, httpClient: s.httpClientOrDefault()}
 	payload := createSendMessagePayload(message, chat, config)
 	_, err := client.SendMessage(&payload)
 

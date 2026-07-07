@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -16,14 +17,16 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 const (
 	// hookURL defines the Join API endpoint for sending push notifications.
-	hookURL     = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
-	contentType = "text/plain"
+	hookURL        = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
+	contentType    = "text/plain"
+	defaultTimeout = 10 * time.Second
 )
 
 // GetID returns the identifier for this service.
@@ -67,6 +70,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.sendToDevices(devices, message, title, icon)
 }
 
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
+}
+
 func (s *Service) sendToDevices(devices, message, title, icon string) error {
 	config := s.Config
 
@@ -102,7 +110,12 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 
 	req.Header.Set("Content-Type", contentType)
 
-	res, err := http.DefaultClient.Do(req)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: defaultTimeout}
+	}
+
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to Join: %w", err)
 	}

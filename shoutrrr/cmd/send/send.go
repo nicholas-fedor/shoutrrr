@@ -166,7 +166,7 @@ func run(cmd *cobra.Command) error {
 	}
 
 	// Create service router and send notification.
-	serviceRouter, err := router.New(logger, urls...)
+	serviceRouter, err := router.NewWithOptions(logger, types.SenderOptions{}, urls...)
 	if err != nil {
 		return cli.ConfigurationError(fmt.Sprintf("error invoking send: %s", err))
 	}

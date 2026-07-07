@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -17,13 +18,15 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // apiURLFormat defines the IFTTT webhook URL template.
 const (
-	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
+	apiURLFormat   = "https://maker.ifttt.com/trigger/%s/with/key/%s"
+	defaultTimeout = 10 * time.Second
 )
 
 // ErrSendFailed indicates a failure to send an IFTTT event notification.
@@ -66,12 +69,17 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	for _, event := range config.Events {
 		apiURL := s.createAPIURLForEvent(event)
-		if err := doSend(payload, apiURL); err != nil {
+		if err := s.doSend(payload, apiURL); err != nil {
 			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
 		}
 	}
 
 	return nil
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // createAPIURLForEvent builds an IFTTT webhook URL for a specific event.
@@ -80,7 +88,7 @@ func (s *Service) createAPIURLForEvent(event string) string {
 }
 
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.
-func doSend(payload []byte, postURL string) error {
+func (s *Service) doSend(payload []byte, postURL string) error {
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -93,7 +101,12 @@ func doSend(payload []byte, postURL string) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: defaultTimeout}
+	}
+
+	res, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to IFTTT webhook: %w", err)
 	}

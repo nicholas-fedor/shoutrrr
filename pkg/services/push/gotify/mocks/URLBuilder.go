@@ -69,7 +69,7 @@ type MockURLBuilder_BuildURL_Call struct {
 
 // BuildURL is a helper method to define mock.On call
 //   - config *gotify.Config
-func (_e *MockURLBuilder_Expecter) BuildURL(config interface{}) *MockURLBuilder_BuildURL_Call {
+func (_e *MockURLBuilder_Expecter) BuildURL(config any) *MockURLBuilder_BuildURL_Call {
 	return &MockURLBuilder_BuildURL_Call{Call: _e.mock.On("BuildURL", config)}
 }
 

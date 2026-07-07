@@ -20,8 +20,9 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // alertEndpointTemplate is the OpsGenie API endpoint template for sending alerts.
@@ -65,6 +66,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.sendAlert(serviceURL, config.APIKey, &payload)
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
@@ -148,7 +154,12 @@ func (s *Service) sendAlert(serviceURL, apiKey string, payload *AlertPayload) er
 	req.Header.Add("Authorization", "GenieKey "+apiKey)
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{}
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to OpsGenie: %w", err)
 	}

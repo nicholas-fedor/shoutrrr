@@ -154,7 +154,7 @@ type MockServiceConfig_SetURL_Call struct {
 
 // SetURL is a helper method to define mock.On call
 //   - serviceURL *url.URL
-func (_e *MockServiceConfig_Expecter) SetURL(serviceURL interface{}) *MockServiceConfig_SetURL_Call {
+func (_e *MockServiceConfig_Expecter) SetURL(serviceURL any) *MockServiceConfig_SetURL_Call {
 	return &MockServiceConfig_SetURL_Call{Call: _e.mock.On("SetURL", serviceURL)}
 }
 

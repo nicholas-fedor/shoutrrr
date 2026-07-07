@@ -19,8 +19,9 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // HTTP request timeout duration.
@@ -94,6 +95,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.sendMessage(message, &config, messageParams)
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // buildAPIURL constructs the Signal API endpoint URL from the configuration.
@@ -195,6 +201,15 @@ func (s *Service) createRequest(
 	return req, cancel, nil
 }
 
+// httpClientOrDefault returns the injected client or a default client.
+func (s *Service) httpClientOrDefault() types.HTTPClient {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+
+	return &http.Client{Timeout: defaultHTTPTimeout}
+}
+
 // parseResponse reads and logs the response from the Signal API.
 //
 // Parameters:
@@ -241,7 +256,7 @@ func (s *Service) sendMessage(message string, config *Config, params *types.Para
 // Returns:
 //   - error: if the request fails or returns a non-success status, nil otherwise
 func (s *Service) sendRequest(req *http.Request) error {
-	client := &http.Client{}
+	client := s.httpClientOrDefault()
 
 	resp, err := client.Do(req)
 	if err != nil {

@@ -27,9 +27,4 @@
 //   - Eavesdropper: Interface for capturing connection conversations
 //   - CreateFailWriter: Simulates write failures for testing error handling
 //   - CreateTextConFaker: Creates fake textproto.Conn for protocol testing
-//
-// HTTP Mocking (mock_client_service.go)
-//
-// Defines the MockClientService interface for mocking HTTP client behavior
-// in integration tests.
 package testutils

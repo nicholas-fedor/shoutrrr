@@ -24,8 +24,9 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config *Config
-	pkr    format.PropKeyResolver
+	Config     *Config
+	pkr        format.PropKeyResolver
+	httpClient types.HTTPClient
 }
 
 // Constants for the Lark service configuration and limits.
@@ -52,9 +53,7 @@ var (
 	ErrInvalidSignature = errors.New("failed to generate valid signature")
 )
 
-// httpClient is configured with a default timeout.
-//
-
+// httpClient is the fallback default client (used only when no custom client is set).
 var httpClient = &http.Client{Timeout: defaultTime}
 
 // GetID returns the service identifier.
@@ -91,6 +90,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.doSend(&config, message, params)
+}
+
+// SetHTTPClient sets a custom HTTP client for the service.
+func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	s.httpClient = client
 }
 
 // doSend sends the notification to Lark using the configured API URL.
@@ -204,6 +208,15 @@ func (s *Service) handleResponse(resp *http.Response) error {
 	return nil
 }
 
+// httpClientOrDefault returns the custom client or the package default.
+func (s *Service) httpClientOrDefault() types.HTTPClient {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+
+	return httpClient
+}
+
 // preparePayload constructs and marshals the request payload for the Lark API.
 func (s *Service) preparePayload(
 	message string,
@@ -236,7 +249,9 @@ func (s *Service) sendRequest(postURL string, payload []byte) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	client := s.httpClientOrDefault()
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, err)
 	}
