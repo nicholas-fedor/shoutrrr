@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for injecting custom HTTP client by @nicholas-fedor in [#1064](https://github.com/nicholas-fedor/shoutrrr/pull/1064)
+
 ### Changed
 
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1056](https://github.com/nicholas-fedor/shoutrrr/pull/1056)
@@ -15,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sync to v0.22.0 by @renovate[bot] in [#1069](https://github.com/nicholas-fedor/shoutrrr/pull/1069)
+- Update github/codeql-action action to v4.37.0 by @renovate[bot] in [#1068](https://github.com/nicholas-fedor/shoutrrr/pull/1068)
 - Update go toolchain directive to v1.26.5 by @renovate[bot] in [#1065](https://github.com/nicholas-fedor/shoutrrr/pull/1065)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.16 by @renovate[bot] in [#1062](https://github.com/nicholas-fedor/shoutrrr/pull/1062)
 - Update matrixdotorg/synapse:latest docker digest to 6882d26 by @renovate[bot] in [#1061](https://github.com/nicholas-fedor/shoutrrr/pull/1061)
