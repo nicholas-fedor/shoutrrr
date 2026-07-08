@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.17 by @renovate[bot] in [#1071](https://github.com/nicholas-fedor/shoutrrr/pull/1071)
+- Update cimg/go docker tag to v1.26.5 by @renovate[bot] in [#1070](https://github.com/nicholas-fedor/shoutrrr/pull/1070)
 - Update module golang.org/x/sync to v0.22.0 by @renovate[bot] in [#1069](https://github.com/nicholas-fedor/shoutrrr/pull/1069)
 - Update github/codeql-action action to v4.37.0 by @renovate[bot] in [#1068](https://github.com/nicholas-fedor/shoutrrr/pull/1068)
 - Update go toolchain directive to v1.26.5 by @renovate[bot] in [#1065](https://github.com/nicholas-fedor/shoutrrr/pull/1065)
