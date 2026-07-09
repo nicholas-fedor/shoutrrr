@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to e2ebcbe by @renovate[bot] in [#1079](https://github.com/nicholas-fedor/shoutrrr/pull/1079)
 - Update module golang.org/x/tools to v0.48.0 by @renovate[bot] in [#1077](https://github.com/nicholas-fedor/shoutrrr/pull/1077)
 - Update module golang.org/x/net to v0.57.0 by @renovate[bot] in [#1074](https://github.com/nicholas-fedor/shoutrrr/pull/1074)
 - Update module golang.org/x/mod to v0.38.0 by @renovate[bot] in [#1073](https://github.com/nicholas-fedor/shoutrrr/pull/1073)
