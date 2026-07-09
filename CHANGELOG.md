@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/tools to v0.48.0 by @renovate[bot] in [#1077](https://github.com/nicholas-fedor/shoutrrr/pull/1077)
 - Update module golang.org/x/net to v0.57.0 by @renovate[bot] in [#1074](https://github.com/nicholas-fedor/shoutrrr/pull/1074)
 - Update module golang.org/x/mod to v0.38.0 by @renovate[bot] in [#1073](https://github.com/nicholas-fedor/shoutrrr/pull/1073)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.17 by @renovate[bot] in [#1071](https://github.com/nicholas-fedor/shoutrrr/pull/1071)
