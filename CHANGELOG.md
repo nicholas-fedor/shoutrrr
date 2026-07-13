@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.20 by @renovate[bot] in [#1087](https://github.com/nicholas-fedor/shoutrrr/pull/1087)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.19 by @renovate[bot] in [#1085](https://github.com/nicholas-fedor/shoutrrr/pull/1085)
 - Update dependency @commitlint/cli to v21.2.1 by @renovate[bot] in [#1083](https://github.com/nicholas-fedor/shoutrrr/pull/1083)
 - Update github.com/google/pprof digest to b9395ee by @renovate[bot] in [#1081](https://github.com/nicholas-fedor/shoutrrr/pull/1081)
