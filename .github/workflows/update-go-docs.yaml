@@ -18,7 +18,7 @@ jobs:
           egress-policy: audit
 
       - name: Run pkg.go.dev Update
-        uses: nicholas-fedor/go-proxy-pull-action@71cf841a5653108a6f0d2e2c00695f22d673d2d6 # v1.1.23
+        uses: nicholas-fedor/go-proxy-pull-action@8267f032489ff3349c10664cb3f1ecd74f4a9b47 # v1.1.24
         with:
           goproxy: https://proxy.golang.org
           import_path: github.com/nicholas-fedor/shoutrrr
