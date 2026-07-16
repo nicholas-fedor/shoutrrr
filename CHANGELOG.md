@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/setup-go action to v7 by @renovate[bot] in [#1096](https://github.com/nicholas-fedor/shoutrrr/pull/1096)
 - Update module github.com/mattn/go-isatty to v0.0.23 by @renovate[bot] in [#1097](https://github.com/nicholas-fedor/shoutrrr/pull/1097)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.25 by @renovate[bot] in [#1098](https://github.com/nicholas-fedor/shoutrrr/pull/1098)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.24 by @renovate[bot] in [#1095](https://github.com/nicholas-fedor/shoutrrr/pull/1095)
