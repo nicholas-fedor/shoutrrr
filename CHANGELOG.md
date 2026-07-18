@@ -112,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix smtp port field error by @nicholas-fedor in [#1003](https://github.com/nicholas-fedor/shoutrrr/pull/1003)
 
+### Removed
+
+- Remove go report card badge by @nicholas-fedor in [#1104](https://github.com/nicholas-fedor/shoutrrr/pull/1104)
+
 ## [0.16.1] - 2026-06-09
 
 ### Added
