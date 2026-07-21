@@ -395,6 +395,69 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 		})
 	})
 
+	ginkgo.When("using a Gotify 3.0.0+ token format", func() {
+		var mockManager *MockHTTPClientManager
+
+		ginkgo.BeforeEach(func() {
+			service = &Service{}
+			service.SetLogger(logger)
+			activateHTTPMockGinkgo()
+
+			serviceURL := testutils.URLMust(
+				"gotify://my.gotify.tld/gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
+			)
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			mockManager = &MockHTTPClientManager{}
+			service.httpClientManager = mockManager
+			service.httpClient = nil
+			service.client = nil
+		})
+
+		ginkgo.AfterEach(func() {
+			httpmock.DeactivateAndReset()
+		})
+
+		ginkgo.It("accepts a valid new-format application token", func() {
+			httpmock.RegisterResponder(
+				"POST",
+				"https://my.gotify.tld/message?token=gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
+				testutils.JSONRespondMust(200, map[string]any{
+					"id":       float64(1),
+					"appid":    float64(1),
+					"message":  "Message",
+					"title":    "Shoutrrr notification",
+					"priority": float64(0),
+					"date":     "2023-01-01T00:00:00Z",
+				}),
+			)
+
+			err := service.Send("Message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+		ginkgo.It("rejects a new-format token missing the identifier character", func() {
+			serviceURL := testutils.URLMust(
+				"gotify://my.gotify.tld/gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
+			)
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = service.Send("Message", nil)
+			gomega.Expect(err).
+				To(gomega.MatchError("failed to build request: invalid gotify token: \"gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU\""))
+		})
+		ginkgo.It("rejects a new-format token that is too short", func() {
+			serviceURL := testutils.URLMust(
+				"gotify://my.gotify.tld/gtfya.123",
+			)
+			err := service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = service.Send("Message", nil)
+			gomega.Expect(err).
+				To(gomega.MatchError("failed to build request: invalid gotify token: \"gtfya.123\""))
+		})
+	})
+
 	ginkgo.Describe("sending the payload", func() {
 		var mockManager *MockHTTPClientManager
 
@@ -1333,6 +1396,40 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				result, err := service.payloadBuilder.ParseExtras(params, config)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(result).To(gomega.Equal(map[string]any{"config": "value"}))
+			})
+		})
+
+		ginkgo.Describe("validateToken", func() {
+			ginkgo.It("accepts valid legacy tokens", func() {
+				gomega.Expect(service.validator.ValidateToken("Aaa.bbb.ccc.ddd")).To(gomega.BeTrue())
+			})
+			ginkgo.It("accepts valid new-format application tokens", func() {
+				gomega.Expect(service.validator.ValidateToken("gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
+					To(gomega.BeTrue())
+			})
+			ginkgo.It("accepts valid new-format client tokens", func() {
+				gomega.Expect(service.validator.ValidateToken("gtfyc.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
+					To(gomega.BeTrue())
+			})
+			ginkgo.It("rejects empty tokens", func() {
+				gomega.Expect(service.validator.ValidateToken("")).To(gomega.BeFalse())
+			})
+			ginkgo.It("rejects legacy tokens that are too short", func() {
+				gomega.Expect(service.validator.ValidateToken("short")).To(gomega.BeFalse())
+			})
+			ginkgo.It("rejects legacy tokens with invalid prefix", func() {
+				gomega.Expect(service.validator.ValidateToken("Baa.bbb.ccc.ddd")).To(gomega.BeFalse())
+			})
+			ginkgo.It("rejects legacy tokens with invalid characters", func() {
+				gomega.Expect(service.validator.ValidateToken("Aaa!bbb.ccc.ddd")).
+					To(gomega.BeFalse())
+			})
+			ginkgo.It("rejects new-format tokens that are missing the identifier character", func() {
+				gomega.Expect(service.validator.ValidateToken("gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
+					To(gomega.BeFalse())
+			})
+			ginkgo.It("rejects new-format tokens that are too short", func() {
+				gomega.Expect(service.validator.ValidateToken("gtfya.123")).To(gomega.BeFalse())
 			})
 		})
 
