@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to c0723d5 by @renovate[bot] in [#1116](https://github.com/nicholas-fedor/shoutrrr/pull/1116)
+- Update github/codeql-action action to v4.37.2 by @renovate[bot] in [#1117](https://github.com/nicholas-fedor/shoutrrr/pull/1117)
 - Update actions/setup-python action to v7 by @renovate[bot] in [#1107](https://github.com/nicholas-fedor/shoutrrr/pull/1107)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.28 by @renovate[bot] in [#1113](https://github.com/nicholas-fedor/shoutrrr/pull/1113)
 - Update module github.com/go-logr/logr to v1.4.4 by @renovate[bot] in [#1111](https://github.com/nicholas-fedor/shoutrrr/pull/1111)
