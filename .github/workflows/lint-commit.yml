@@ -9,6 +9,7 @@ jobs:
   lint:
     name: Lint Commit Message
     runs-on: ubuntu-latest
+    if: github.event.pull_request.user.type != 'Bot'
     steps:
       - name: Harden the Runner (Step Security)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
