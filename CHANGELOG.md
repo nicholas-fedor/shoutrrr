@@ -14,11 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Skip bot-generated commits by @nicholas-fedor in [#1121](https://github.com/nicholas-fedor/shoutrrr/pull/1121)
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1056](https://github.com/nicholas-fedor/shoutrrr/pull/1056)
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1054](https://github.com/nicholas-fedor/shoutrrr/pull/1054)
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1047](https://github.com/nicholas-fedor/shoutrrr/pull/1047)
 - Update matrixdotorg/synapse:latest docker digest to c0723d5 by @renovate[bot] in [#1116](https://github.com/nicholas-fedor/shoutrrr/pull/1116)
 - Update github/codeql-action action to v4.37.2 by @renovate[bot] in [#1117](https://github.com/nicholas-fedor/shoutrrr/pull/1117)
 - Update actions/setup-python action to v7 by @renovate[bot] in [#1107](https://github.com/nicholas-fedor/shoutrrr/pull/1107)
