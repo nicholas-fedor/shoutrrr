@@ -117,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Add Gotify v3 token format support by @nicholas-fedor in [#1119](https://github.com/nicholas-fedor/shoutrrr/pull/1119)
 - Fix smtp port field error by @nicholas-fedor in [#1003](https://github.com/nicholas-fedor/shoutrrr/pull/1003)
 
 ### Removed
