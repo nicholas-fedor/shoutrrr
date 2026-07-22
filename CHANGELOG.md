@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.30 by @renovate[bot] in [#1127](https://github.com/nicholas-fedor/shoutrrr/pull/1127)
 - Update github/codeql-action action to v4.37.3 by @renovate[bot] in [#1125](https://github.com/nicholas-fedor/shoutrrr/pull/1125)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.29 by @renovate[bot] in [#1123](https://github.com/nicholas-fedor/shoutrrr/pull/1123)
 
