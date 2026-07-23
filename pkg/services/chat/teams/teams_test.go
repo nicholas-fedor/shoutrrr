@@ -175,6 +175,8 @@ var _ = ginkgo.Describe("the teams service", func() {
 				"https://prod-00.westus.logic.azure.de/workflows/abc123/triggers/manual/paths/invoke",
 				"https://default.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/abc123/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXXXXXXX",
 				"https://prefix.environment.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/abc123/triggers/manual/paths/invoke",
+				"https://default0123456789abcdef.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/04/workflows/abc123/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXXXXXXX",
+				"https://prod-00.westus.logic.azure.com/powerautomate/automations/direct/cu/04/workflows/abc123/triggers/manual/paths/invoke",
 			}
 			for _, u := range validURLs {
 				err := ValidateWebhookURL(u)
@@ -185,6 +187,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 		ginkgo.It("should reject invalid URLs", func() {
 			invalidURLs := []string{
 				"https://example.com/webhook",
+				"https://default.environment.api.powerplatform.com/powerautomate/automations/workflows/abc123/triggers/manual/paths/invoke",
 				"",
 			}
 			for _, u := range invalidURLs {
