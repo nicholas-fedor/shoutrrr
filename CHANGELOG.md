@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ossf/scorecard-action action to v2.4.4 by @renovate[bot] in [#1137](https://github.com/nicholas-fedor/shoutrrr/pull/1137)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.31 by @renovate[bot] in [#1136](https://github.com/nicholas-fedor/shoutrrr/pull/1136)
 - Update docker/login-action action to v4.5.0 by @renovate[bot] in [#1134](https://github.com/nicholas-fedor/shoutrrr/pull/1134)
 - Update module github.com/mattn/go-isatty to v0.0.24 by @renovate[bot] in [#1133](https://github.com/nicholas-fedor/shoutrrr/pull/1133)
 - Update matrixdotorg/synapse:latest docker digest to 9b846e3 by @renovate[bot] in [#1129](https://github.com/nicholas-fedor/shoutrrr/pull/1129)
