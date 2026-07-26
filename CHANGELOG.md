@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update github/codeql-action action to v4.37.3 by @renovate[bot] in [#1125](https://github.com/nicholas-fedor/shoutrrr/pull/1125)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.29 by @renovate[bot] in [#1123](https://github.com/nicholas-fedor/shoutrrr/pull/1123)
 
+### Fixed
+
+- Allow optional routing segments in webhook URL validation by @nicholas-fedor in [#1147](https://github.com/nicholas-fedor/shoutrrr/pull/1147)
+
 ## [0.16.2] - 2026-07-21
 
 ### Added
