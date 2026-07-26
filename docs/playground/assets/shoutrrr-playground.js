@@ -147,8 +147,7 @@
           }
         } else {
           // Prefer data-default attribute, fall back to intrinsic defaultValue.
-          el.value =
-            el.getAttribute("data-default") || el.defaultValue || "";
+          el.value = el.getAttribute("data-default") || el.defaultValue || "";
         }
       });
       updateUrl();
@@ -172,15 +171,24 @@
     // URL input - parse on input with debounce
     dom.urlInput.addEventListener("input", debounce(parseUrlInput, 500));
 
+    // Sync the browser URL with the currently selected service using
+    // history.replaceState so the bar always reflects the active service.
+    dom.serviceSelect.addEventListener("change", function () {
+      syncServiceURL(currentService);
+    });
+
     // Message input - update CLI command
-    dom.messageInput.addEventListener("input", debounce(function () {
-      if (!dom.urlOutput.classList.contains("playground-error")) {
-        var url = dom.urlOutput.textContent;
-        if (url) {
-          dom.cliOutput.textContent = buildCliCommand(url);
+    dom.messageInput.addEventListener(
+      "input",
+      debounce(function () {
+        if (!dom.urlOutput.classList.contains("playground-error")) {
+          var url = dom.urlOutput.textContent;
+          if (url) {
+            dom.cliOutput.textContent = buildCliCommand(url);
+          }
         }
-      }
-    }, 300));
+      }, 300),
+    );
 
     // Send button
     dom.sendBtn.addEventListener("click", function () {
@@ -188,7 +196,8 @@
 
       var url = dom.urlOutput.textContent;
       var config = (window.__shoutrrrPlayground || {}).config || {};
-      var message = dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
+      var message =
+        dom.messageInput.value.trim() || config.defaultMessage || "Hello World";
 
       if (!url || dom.urlOutput.classList.contains("playground-error")) {
         dom.sendResult.innerHTML =
@@ -219,9 +228,11 @@
           var msg = parsed.error || String(errorJSON);
           var friendly = describeSendError(msg);
           dom.sendResult.innerHTML =
-            '<span class="playground-error">' + escapeHtml(friendly) + "</span>";
+            '<span class="playground-error">' +
+            escapeHtml(friendly) +
+            "</span>";
           dom.sendBtn.disabled = false;
-        }
+        },
       );
     });
   }
@@ -268,7 +279,7 @@
       var go = new Go();
       var result = await WebAssembly.instantiateStreaming(
         fetch(config.wasmPath),
-        go.importObject
+        go.importObject,
       );
 
       // Persistently override window.fetch with wasmFetch for the page
@@ -292,7 +303,7 @@
             '<p class="playground-error">WASM runtime error: ' +
             escapeHtml(err.message) +
             "</p>";
-        }
+        },
       );
 
       // The WASM Go runtime is initialised and functions are callable
@@ -314,6 +325,56 @@
     dom.loading.style.display = "none";
     dom.content.style.display = "block";
     loadServices();
+    applyQueryService();
+  }
+
+  // --- Query Parameter Deep-Linking ---
+
+  /**
+   * Reads the `service` query parameter from the current URL. If present and
+   * the service is available in the dropdown, selects it automatically so the
+   * playground opens directly to the requested service.
+   */
+  function applyQueryService() {
+    var service = getDeepLinkService();
+    if (!service || !dom.serviceSelect) return;
+
+    var found = false;
+    for (var i = 0; i < dom.serviceSelect.options.length; i++) {
+      if (dom.serviceSelect.options[i].value === service) {
+        found = true;
+        break;
+      }
+    }
+
+    if (found) {
+      dom.serviceSelect.value = service;
+      dom.serviceSelect.dispatchEvent(new Event("change"));
+    }
+  }
+
+  /**
+   * Extracts the service name from the URL query string (`?service=`).
+   * Returns null if not present or invalid.
+   * @returns {string|null}
+   */
+  function getDeepLinkService() {
+    return new URLSearchParams(window.location.search).get("service");
+  }
+
+  /**
+   * Updates the browser URL to reflect the given service using
+   * history.replaceState. Other query parameters are preserved.
+   * @param {string} service - The currently selected service name
+   */
+  function syncServiceURL(service) {
+    var url = new URL(window.location.href);
+    if (service) {
+      url.searchParams.set("service", service);
+    } else {
+      url.searchParams.delete("service");
+    }
+    history.replaceState(null, "", url.toString());
   }
 
   // --- Documentation Link ---
@@ -667,7 +728,7 @@
 
     var config = collectFormValues();
     var parsed = safeParseJSON(
-      shoutrrrGenerateURL(currentService, JSON.stringify(config))
+      shoutrrrGenerateURL(currentService, JSON.stringify(config)),
     );
 
     if (parsed.error) {
@@ -709,7 +770,12 @@
     var config = (window.__shoutrrrPlayground || {}).config || {};
     var defaultMsg = config.defaultMessage || "Hello World";
     var msg = message || dom.messageInput.value.trim() || defaultMsg;
-    return "shoutrrr send --url " + shellEscape(url) + " --message " + shellEscape(msg);
+    return (
+      "shoutrrr send --url " +
+      shellEscape(url) +
+      " --message " +
+      shellEscape(msg)
+    );
   }
 
   /**
@@ -756,6 +822,7 @@
 
     currentService = parsed.result.service;
     dom.serviceSelect.value = currentService;
+    syncServiceURL(currentService);
 
     var schemaParsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
     if (schemaParsed.error) return;
@@ -779,7 +846,7 @@
       var name = keys[i];
       var value = values[name];
       var field = dom.configTbody.querySelector(
-        '[name="' + CSS.escape(name) + '"]'
+        '[name="' + CSS.escape(name) + '"]',
       );
       if (!field) continue;
 
@@ -950,7 +1017,7 @@
         autoInit: true,
       },
       window.ShoutrrrPlaygroundConfig || {},
-      options || {}
+      options || {},
     );
 
     initialised = true;
@@ -976,10 +1043,7 @@
 
   // Auto-init if container exists, deferring to DOMContentLoaded if needed.
   function tryAutoInit() {
-    var cfg = Object.assign(
-      {},
-      window.ShoutrrrPlaygroundConfig || {}
-    );
+    var cfg = Object.assign({}, window.ShoutrrrPlaygroundConfig || {});
     if (cfg.autoInit === false) return;
 
     var containerId = cfg.containerId || "playground-app";
