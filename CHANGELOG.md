@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add service deep-linking via query parameters by @nicholas-fedor in [#1142](https://github.com/nicholas-fedor/shoutrrr/pull/1142)
+
 ### Chores
 
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.32 by @renovate[bot] in [#1140](https://github.com/nicholas-fedor/shoutrrr/pull/1140)
