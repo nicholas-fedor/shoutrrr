@@ -822,6 +822,7 @@
 
     currentService = parsed.result.service;
     dom.serviceSelect.value = currentService;
+    syncServiceURL(currentService);
 
     var schemaParsed = safeParseJSON(shoutrrrGetConfigSchema(currentService));
     if (schemaParsed.error) return;
