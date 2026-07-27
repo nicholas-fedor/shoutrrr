@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.33 by @renovate[bot] in [#1149](https://github.com/nicholas-fedor/shoutrrr/pull/1149)
 - Update module go.yaml.in/yaml/v3 to v3.0.5 by @renovate[bot] in [#1146](https://github.com/nicholas-fedor/shoutrrr/pull/1146)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.32 by @renovate[bot] in [#1140](https://github.com/nicholas-fedor/shoutrrr/pull/1140)
 - Update docker/login-action action to v4.5.1 by @renovate[bot] in [#1139](https://github.com/nicholas-fedor/shoutrrr/pull/1139)
