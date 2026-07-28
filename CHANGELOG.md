@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/jarcoal/httpmock to v1.4.2 by @renovate[bot] in [#1156](https://github.com/nicholas-fedor/shoutrrr/pull/1156)
+- Update docker/login-action action to v4.5.2 by @renovate[bot] in [#1154](https://github.com/nicholas-fedor/shoutrrr/pull/1154)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.34 by @renovate[bot] in [#1152](https://github.com/nicholas-fedor/shoutrrr/pull/1152)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.33 by @renovate[bot] in [#1149](https://github.com/nicholas-fedor/shoutrrr/pull/1149)
 - Update module go.yaml.in/yaml/v3 to v3.0.5 by @renovate[bot] in [#1146](https://github.com/nicholas-fedor/shoutrrr/pull/1146)
