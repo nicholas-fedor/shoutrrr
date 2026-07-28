@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1150](https://github.com/nicholas-fedor/shoutrrr/pull/1150)
 - Update matrixdotorg/synapse:latest docker digest to 6345789 by @renovate[bot] in [#1157](https://github.com/nicholas-fedor/shoutrrr/pull/1157)
 - Update module github.com/jarcoal/httpmock to v1.4.2 by @renovate[bot] in [#1156](https://github.com/nicholas-fedor/shoutrrr/pull/1156)
 - Update docker/login-action action to v4.5.2 by @renovate[bot] in [#1154](https://github.com/nicholas-fedor/shoutrrr/pull/1154)
