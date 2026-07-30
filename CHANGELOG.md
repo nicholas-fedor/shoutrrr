@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update github/codeql-action action to v4.37.4 by @renovate[bot] in [#1162](https://github.com/nicholas-fedor/shoutrrr/pull/1162)
+- Update docker/login-action action to v4.6.0 by @renovate[bot] in [#1160](https://github.com/nicholas-fedor/shoutrrr/pull/1160)
+
+## [0.16.3] - 2026-07-28
+
 ### Added
 
 - Add service deep-linking via query parameters by @nicholas-fedor in [#1142](https://github.com/nicholas-fedor/shoutrrr/pull/1142)
@@ -1962,7 +1969,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.2...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...HEAD)
+- [0.16.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.2...v0.16.3)
 - [0.16.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.1...v0.16.2)
 - [0.16.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.0...v0.16.1)
 - [0.16.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.15.1...v0.16.0)
