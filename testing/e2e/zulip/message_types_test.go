@@ -44,7 +44,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			err = service.Initialize(serviceURL, testutils.TestLogger())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = service.Send("E2E Test: Unicode — 日本語 🎉 émojis ñ", nil) //nolint:gosmopolitan // unicode test message
+			err = service.Send("E2E Test: Unicode — 日本語 🎉 émojis ñ", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 

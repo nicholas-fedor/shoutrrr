@@ -69,7 +69,6 @@ func TestEmptyMessageItems(t *testing.T) {
 	})
 }
 
-//nolint:gosmopolitan // Intentional string literal containing rune in Han script
 func TestUnicodeMessages(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

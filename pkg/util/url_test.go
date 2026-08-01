@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//nolint:gosmopolitan // Unicode characters used intentionally for testing user/password handling
 func TestURLUserPassword(t *testing.T) {
 	t.Parallel()
 

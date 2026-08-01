@@ -233,7 +233,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			service := newTestService(mockClient)
 			// 60 multi-byte characters (3 bytes each = 180 bytes, but only 60 runes)
-			unicodeTopic := strings.Repeat("日", topicMaxLength) //nolint:gosmopolitan // unicode topic test
+			unicodeTopic := strings.Repeat("日", topicMaxLength)
 
 			err := service.Send("Test message", &types.Params{"topic": unicodeTopic})
 
@@ -245,7 +245,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			service := newTestService(mockClient)
 			// 61 multi-byte characters = 61 runes > 60 max
-			unicodeTopic := strings.Repeat("日", topicMaxLength+1) //nolint:gosmopolitan // unicode topic test
+			unicodeTopic := strings.Repeat("日", topicMaxLength+1)
 
 			err := service.Send("Test message", &types.Params{"topic": unicodeTopic})
 

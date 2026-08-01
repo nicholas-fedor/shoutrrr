@@ -48,6 +48,7 @@ var messageLevelStrings = [MessageLevelCount]string{
 	"Error",
 }
 
+// String returns the string representation of the message level.
 func (lvl MessageLevel) String() string {
 	if lvl >= messageLevelCount {
 		return messageLevelStrings[0]
@@ -56,7 +57,35 @@ func (lvl MessageLevel) String() string {
 	return messageLevelStrings[lvl]
 }
 
+// ParseMessageLevel parses a string into a MessageLevel.
+//
+// The match is case-insensitive. If the input does not match a known level
+// name, then Unknown is returned with false.
+//
+// Parameters:
+//   - s: the string to parse.
+//
+// Returns:
+//   - MessageLevel: the parsed level.
+//   - bool: true if the parse succeeded.
+func ParseMessageLevel(s string) (MessageLevel, bool) {
+	for i, name := range messageLevelStrings {
+		if strings.EqualFold(name, s) {
+			return MessageLevel(i), true
+		}
+	}
+
+	return Unknown, false
+}
+
 // WithField appends the key/value pair to the message items fields.
+//
+// Parameters:
+//   - key: the field key.
+//   - value: the field value.
+//
+// Returns:
+//   - *MessageItem: the receiver for chaining.
 func (mi *MessageItem) WithField(key, value string) *MessageItem {
 	mi.Fields = append(mi.Fields, Field{
 		Key:   key,
@@ -67,7 +96,16 @@ func (mi *MessageItem) WithField(key, value string) *MessageItem {
 }
 
 // ItemsToPlain joins together the MessageItems' Text using newlines.
-// Used implement the rich sender API by redirecting to the plain sender implementation.
+//
+// It is used by ServiceRouter.SendItems as the fallback for services that do
+// not implement RichSender; only Text is preserved, while Level, Timestamp,
+// Fields, and File are discarded.
+//
+// Parameters:
+//   - items: the message items to convert.
+//
+// Returns:
+//   - string: the concatenated plain text.
 func ItemsToPlain(items []MessageItem) string {
 	builder := strings.Builder{}
 	for _, item := range items {

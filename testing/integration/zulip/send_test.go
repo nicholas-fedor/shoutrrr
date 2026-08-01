@@ -314,7 +314,7 @@ func TestServiceSendWithUnicodeMessage(t *testing.T) {
 		msgResp := createMockResponse(http.StatusOK, `{"result": "success"}`)
 		setupRegisterThenMessage(t, mockClient, msgResp)
 
-		err := service.Send("Hello 世界 🌍", nil) //nolint:gosmopolitan // unicode test message
+		err := service.Send("Hello 世界 🌍", nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "content=")

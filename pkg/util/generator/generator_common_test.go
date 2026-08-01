@@ -1229,7 +1229,6 @@ func TestValidateFormat(t *testing.T) {
 	}
 }
 
-//nolint:gosmopolitan // Unicode characters used intentionally for testing rune handling
 func TestRequired(t *testing.T) {
 	t.Parallel()
 
