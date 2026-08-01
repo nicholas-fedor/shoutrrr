@@ -100,7 +100,7 @@ func TestServiceSendToMultipleRooms(t *testing.T) {
 // HTML and Markdown special characters that might need escaping
 // or special handling in Matrix messages.
 //
-//nolint:gosmopolitan // Intentional string literal containing rune in Han script
+
 func TestServiceSendWithSpecialCharacters(t *testing.T) {
 	t.Parallel()
 

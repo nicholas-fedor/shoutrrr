@@ -11,7 +11,7 @@ type Field struct {
 // FieldsFromMap creates a Fields slice from a map, optionally sorting keys.
 func FieldsFromMap(fieldMap map[string]string, sorted bool) []Field {
 	keys := make([]string, 0, len(fieldMap))
-	fields := make([]Field, 0, len(fieldMap))
+	fields := make([]Field, len(fieldMap))
 
 	for key := range fieldMap {
 		keys = append(keys, key)

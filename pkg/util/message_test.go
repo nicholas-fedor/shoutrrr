@@ -91,7 +91,6 @@ func TestPartitionMessage(t *testing.T) {
 	}
 }
 
-//nolint:gosmopolitan // Unicode characters used intentionally for testing rune handling
 func TestEllipsis(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +148,6 @@ func TestEllipsis(t *testing.T) {
 	}
 }
 
-//nolint:gosmopolitan // Unicode characters used intentionally for testing rune handling
 func TestMessageItemsFromLines(t *testing.T) {
 	t.Parallel()
 

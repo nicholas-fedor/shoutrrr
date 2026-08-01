@@ -104,7 +104,6 @@ func TestPublishSpecialCharactersInTopic(t *testing.T) {
 	})
 }
 
-//nolint:gosmopolitan // Unicode characters used intentionally for testing rune handling
 func TestPublishUnicodeInMessage(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

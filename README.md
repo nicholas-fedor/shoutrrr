@@ -15,7 +15,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/47eed72de79448e2a6e297d770355544)](https://www.codacy.com/gh/nicholas-fedor/shoutrrr/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nicholas-fedor/shoutrrr&amp;utm_campaign=Badge_Grade)
 [![github code size in bytes](https://img.shields.io/github/languages/code-size/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr)
 [![Pulls from DockerHub](https://img.shields.io/docker/pulls/nickfedor/shoutrrr.svg)](https://hub.docker.com/r/nickfedor/shoutrrr)
-[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/nicholas-fedor/shoutrrr) 
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/nicholas-fedor/shoutrrr)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nicholas-fedor/shoutrrr)<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-20-orange.svg?style=flat-square)](#contributors-)<!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![license](https://img.shields.io/github/license/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr/blob/main/LICENSE)
@@ -41,9 +41,15 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
     - [Option 2 - Using a sender](#option-2---using-a-sender)
       - [Single URL](#single-url)
       - [Multiple URLs](#multiple-urls)
+      - [Custom HTTP Client (SSRF / Egress Control)](#custom-http-client-ssrf--egress-control)
+      - [Message Levels](#message-levels)
+      - [Per-Target Errors](#per-target-errors)
+      - [Context Propagation](#context-propagation)
+      - [Format Conversion](#format-conversion)
   - [Use Through the CLI](#use-through-the-cli)
   - [Use as a GitHub Action](#use-as-a-github-action)
 - [Supported Services](#supported-services)
+  - [Service Discovery](#service-discovery)
 - [Contributors ✨](#contributors-)
 - [Related Project(s)](#related-projects)
 
@@ -163,7 +169,8 @@ err := shoutrrr.Send(url, "Hello world (or slack channel) !")
 ```go
 url := "slack://token-a/token-b/token-c"
 sender, err := shoutrrr.CreateSender(url)
-sender.Send("Hello world (or slack channel) !", map[string]string { /* ... */ })
+params := types.Params{}
+sender.Send("Hello world (or slack channel) !", &params)
 ```
 
 ##### Multiple URLs
@@ -174,7 +181,8 @@ urls := []string {
   "discord://token@channel"
 }
 sender, err := shoutrrr.CreateSender(urls...)
-sender.Send("Hello world (or slack channel) !", map[string]string { /* ... */ })
+params := types.Params{}
+sender.Send("Hello world (or slack channel) !", &params)
 ```
 
 ##### Custom HTTP Client (SSRF / Egress Control)
@@ -205,6 +213,57 @@ if err != nil {
 }
 sender.Send("Hello with custom egress!", nil)
 ```
+
+##### Message Levels
+
+Services that support severity or priority can receive a semantic level through the `level` param.
+
+Shoutrrr defines five levels: `Unknown`, `Debug`, `Info`, `Warning`, and `Error`. The default is `Info`.
+
+```go
+params := types.Params{}
+params.SetLevel(types.Warning)
+params.SetTitle("Disk usage high")
+
+errs := sender.Send("Root partition at 92%", &params)
+```
+
+Services that implement `types.RichSender` (such as Discord) receive the full `[]types.MessageItem` slice when using `SendItems`, preserving level, fields, and file attachments.
+
+Services that do not implement `RichSender` fall back to plain text automatically.
+
+##### Per-Target Errors
+
+`Sender.Send`, `*ServiceRouter.SendAsync`, and `*ServiceRouter.SendItems` return one error per unique configured target, in the deduplicated target order produced by `CreateSender`. Each error is wrapped in `*types.TargetError`, which carries the service URL/ID and supports `errors.Unwrap`, `errors.Is`, and `errors.As`:
+
+```go
+errs := sender.Send("deploy complete", nil)
+for i, err := range errs {
+    if err == nil {
+        continue
+    }
+    var targetErr *types.TargetError
+    if errors.As(err, &targetErr) {
+        log.Printf("failed to send to %s: %v", targetErr.URL, targetErr.Err)
+    }
+}
+```
+
+##### Context Propagation
+
+Services that implement `types.ContextSender` or `types.ContextAttachmentSender` receive a `context.Context` derived from the router's base context with a per-service timeout.
+
+This enables cancellation and deadline propagation without changing the existing `Sender` or `RichSender` contracts.
+
+##### Format Conversion
+
+```go
+import "github.com/nicholas-fedor/shoutrrr/pkg/format"
+
+body, err := format.ConvertFormat("Hello **world**", "markdown", "text")
+```
+
+Supported conversions: `text` ↔ `markdown` ↔ `html`.
 
 ### Use Through the CLI
 
@@ -267,6 +326,22 @@ jobs:
 | Twilio       | Twilio SMS notifications             |
 | Zulip        | Zulip chat                           |
 | XMPP         | XMPP messages (if enabled)           |
+
+### Service Discovery
+
+Use `services.SupportedSchemas()` and `services.SupportsSchema(schema)` to enumerate or check available notification services without constructing a router:
+
+```go
+import "github.com/nicholas-fedor/shoutrrr/pkg/services"
+
+for _, schema := range services.SupportedSchemas() {
+    fmt.Println(schema)
+}
+
+if services.SupportsSchema("discord") {
+    // ...
+}
+```
 
 ## Contributors ✨
 

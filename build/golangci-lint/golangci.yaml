@@ -594,6 +594,7 @@ linters:
           - funlen
           - gocyclo
           - gosec
+          - gosmopolitan
           - promlinter
           - usetesting
           - varnamelen

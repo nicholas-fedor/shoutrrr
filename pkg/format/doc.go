@@ -31,6 +31,19 @@
 //   - GetConfigFieldString: Get string representation of a config field
 //   - GetConfigFormat: Get type and field information from a service config
 //
+// # Format Conversion
+//
+// The package provides conversion between text, markdown, and HTML formats:
+//
+//   - markdown ↔ text
+//   - html ↔ text
+//   - text ↔ markdown
+//   - text ↔ html
+//   - markdown ↔ html
+//
+// Key functions:
+//   - ConvertFormat: Convert between any supported formats
+//
 // # Property Serialization
 //
 // The package provides serialization/deserialization support for configuration properties

@@ -14,6 +14,15 @@
 //   - Service: The primary interface for all notification services, combining
 //     sending, templating, and lifecycle management capabilities.
 //   - Sender: Defines the basic contract for sending notifications.
+//   - RichSender: Interface for services that support structured message items
+//     (attachments, fields, timestamps). The router dispatches SendItems to
+//     services implementing this interface; services that don't fall back to
+//     plain text via ItemsToPlain.
+//   - ContextSender: Opt-in interface for services that accept a context.Context
+//     for cancellation and deadline propagation via SendContext.
+//   - ContextAttachmentSender: Opt-in interface for services that accept a
+//     context.Context in SendItemsContext for cancellation and deadline
+//     propagation on rich sends.
 //   - Templater: Provides template management for message formatting.
 //   - ServiceConfig: Common interface for service configuration types.
 //   - Generator: Interface for tools that generate service configurations.
@@ -31,9 +40,13 @@
 //   - MessageItem: Represents an individual notification entry with text,
 //     timestamp, level, and optional fields or file attachments.
 //   - MessageLevel: Denotes the urgency/severity of a message (Unknown, Debug,
-//     Info, Warning, Error).
+//     Info, Warning, Error). Params.SetLevel and Params.Level provide a
+//     convention for passing severity through the send pipeline.
 //   - Field: Key/value pairs for extra data in log messages.
 //   - File: Represents file attachments for messages.
+//   - TargetError: Wraps a send failure with the service URL/ID that produced it,
+//     enabling callers to identify which target failed in a multi-target send.
+//     Implements Unwrap so errors.Is and errors.As work against the underlying error.
 //
 // # Configuration Types
 //
@@ -41,7 +54,7 @@
 //
 //   - Params: A string map for providing additional variables to service
 //     templates, with helper methods for setting and retrieving common
-//     parameters like title and message.
+//     parameters like title, message, and level.
 //   - ServiceOpts: Interface describing service options including verbosity,
 //     logging, and properties.
 //   - ConfigQueryResolver: Interface for getting, setting, and listing service
@@ -54,17 +67,9 @@
 //   - EnumFormatter: Handles formatting of enumerated configuration values.
 //   - StdLogger: Standard logging interface used by services.
 //   - QueuedSender: Interface for senders that support message queuing.
-//   - RichSender: Interface for senders supporting rich message content.
 //   - CustomURLConfig: Interface for configurations that support custom URL
 //     resolution.
 //   - MessageLimit: Defines limits for message content.
-//   - HTTPClient: Narrow interface for outbound HTTP (Do(*http.Request)).
-//     *http.Client satisfies it. Use to supply custom Transport/Dialer/TLS for
-//     SSRF protection or per-sender egress control.
-//   - HTTPClientSetter: Implemented by services so the router can inject a
-//     custom HTTPClient after Initialize.
-//   - SenderOptions: Carries HTTPClient and Timeout overrides for
-//     NewSenderWithOptions / router.NewWithOptions.
 //
 // The types in this package are designed to be used by both service
 // implementers and consumers of the shoutrrr library, providing a consistent

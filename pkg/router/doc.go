@@ -15,6 +15,12 @@
 //   - Sending messages synchronously and asynchronously
 //   - Managing service lifecycles
 //   - Queueing and flushing batched messages
+//   - Dispatching structured MessageItems to services that implement RichSender
+//   - Propagating context.Context to services that implement ContextSender
+//
+// Errors returned from Send/SendAsync/SendItems are wrapped in *types.TargetError
+// so callers can identify which service failed and use errors.Is/errors.As against
+// the underlying error.
 //
 // Service Factory (servicemap.go)
 //
@@ -25,6 +31,11 @@
 //   - Push: Gotify, Pushover, Pushbullet, ntfy, etc.
 //   - SMS: Twilio
 //   - Incident: PagerDuty, OpsGenie
+//
+// Schema Registry (schema_registry.go)
+//
+// SupportedSchemas and SupportsSchema expose the set of registered service
+// schemes, enabling discovery without constructing a router.
 //
 // Basic usage:
 //

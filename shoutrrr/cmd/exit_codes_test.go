@@ -9,7 +9,7 @@ import (
 
 // TestExitError_Error tests the Error() method of ExitError.
 //
-//nolint:gosmopolitan // Intentional string literal containing rune in Han script (gosmopolitan)
+
 func TestExitError_Error(t *testing.T) {
 	t.Parallel()
 
