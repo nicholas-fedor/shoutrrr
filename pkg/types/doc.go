@@ -16,8 +16,8 @@
 //   - Sender: Defines the basic contract for sending notifications.
 //   - RichSender: Interface for services that support structured message items
 //     (attachments, fields, timestamps). The router dispatches SendItems to
-//     services implementing this interface; services that don't fall back to
-//     plain text via ItemsToPlain.
+//     services implementing this interface; services that don't implement it
+//     fall back to plain text via ItemsToPlain.
 //   - ContextSender: Opt-in interface for services that accept a context.Context
 //     for cancellation and deadline propagation via SendContext.
 //   - ContextAttachmentSender: Opt-in interface for services that accept a
