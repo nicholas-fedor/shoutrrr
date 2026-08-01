@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Enhance router dispatch, error handling, and format conversion by @nicholas-fedor in [#1168](https://github.com/nicholas-fedor/shoutrrr/pull/1168)
+
 ### Chores
 
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.35 by @renovate[bot] in [#1163](https://github.com/nicholas-fedor/shoutrrr/pull/1163)
