@@ -196,6 +196,7 @@ func TestConvertFormatHTMLToMarkdown(t *testing.T) {
 		{"html entities decoded", "&lt;script&gt;", "<script>"},
 		{"anchor with nested bold", `<a href="http://example.com"><strong>bold</strong> link</a>`, "[**bold** link](http://example.com)"},
 		{"anchor without href", "<a>link</a>", "[link]"},
+		{"anchor preserves href case", `<a href="http://example.com/Path?Token=Abc">link</a>`, "[link](http://example.com/Path?Token=Abc)"},
 		{"mixed entities and tags", "<p>a&amp;b</p>", "a&b"},
 	}
 

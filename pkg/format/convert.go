@@ -226,14 +226,14 @@ func htmlToMarkdown(body string) string {
 
 				end := strings.Index(lower[start:], `"`)
 				if end != -1 {
-					lastHref = lower[start : start+end]
+					lastHref = tag[start : start+end]
 				}
 			} else if idx := strings.Index(lower, `href='`); idx != -1 {
 				start := idx + len(`href='`)
 
 				end := strings.Index(lower[start:], `'`)
 				if end != -1 {
-					lastHref = lower[start : start+end]
+					lastHref = tag[start : start+end]
 				}
 			}
 

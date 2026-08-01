@@ -246,6 +246,6 @@ if services.SupportsSchema("discord") {
 ## Notes
 
 - **Error Handling**: `Send` returns a single error. `Sender.Send`, `SendItems`, and `SendAsync` return one error per service. Check `len(errs) > 0` to handle failures. Each error is wrapped in `*types.TargetError` with the service URL.
-- **Parameters**: `params` is a `*types.Params` value. Use its setter methods, such as `SetTitle`, `SetMessage`, and `SetLevel`, to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
+- **Parameters**: `params` is a `*types.Params` value for `Send`, `SendAsync`, and `Flush`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
 - **Timeouts**: Each service send operation has a 10-second timeout.
 - **Deduplication**: Duplicate URLs are automatically removed when creating a `Sender`.

@@ -389,7 +389,11 @@ func awaitResult(results chan error, result <-chan error, timeout time.Duration,
 	select {
 	case res := <-result:
 		if res != nil {
-			res = &types.TargetError{URL: serviceID, Err: res}
+			if errors.Is(res, context.DeadlineExceeded) {
+				res = &types.TargetError{URL: serviceID, Err: fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID)}
+			} else {
+				res = &types.TargetError{URL: serviceID, Err: res}
+			}
 		}
 
 		results <- res
