@@ -31,7 +31,6 @@ var (
 	ErrParseURLFailed         = errors.New("failed to parse URL")
 	ErrSendFailed             = errors.New("failed to send message")
 	ErrCustomURLConversion    = errors.New("failed to convert custom URL")
-	ErrInitializeFailed       = errors.New("failed to initialize service")
 )
 
 // New creates a new service router using the specified logger and service URLs.
@@ -253,7 +252,7 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 
 	err = service.Initialize(serviceURL, r.logger)
 	if err != nil {
-		return service, fmt.Errorf("%s: %w", scheme, ErrInitializeFailed)
+		return service, fmt.Errorf("%s: %w", scheme, err)
 	}
 
 	// Inject custom HTTP client if provided and the service supports it.
