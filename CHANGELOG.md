@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update github/codeql-action action to v4.37.4 by @renovate[bot] in [#1162](https://github.com/nicholas-fedor/shoutrrr/pull/1162)
 - Update docker/login-action action to v4.6.0 by @renovate[bot] in [#1160](https://github.com/nicholas-fedor/shoutrrr/pull/1160)
 
+### Fixed
+
+- Preserve original service initialization error by @nicholas-fedor in [#1166](https://github.com/nicholas-fedor/shoutrrr/pull/1166)
+
 ## [0.16.3] - 2026-07-28
 
 ### Added
