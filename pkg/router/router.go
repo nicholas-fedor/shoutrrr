@@ -464,6 +464,11 @@ func sendItemsToService(
 		go func() { result <- sender.SendItemsContext(sendCtx, items, params) }()
 	case types.RichSender:
 		go func() { result <- sender.SendItems(items, params) }()
+	case types.ContextSender:
+		sendCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		go func() { result <- sender.SendContext(sendCtx, types.ItemsToPlain(items), &params) }()
 	default:
 		go func() { result <- service.Send(types.ItemsToPlain(items), &params) }()
 	}

@@ -277,6 +277,61 @@ func TestSendItemsContextPropagation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // Modifies shared serviceMap; cannot run in parallel.
+func TestSendItemsDispatchesToContextSender(t *testing.T) {
+	var receivedMsg string
+
+	mockService := mocks.NewMockService(t)
+	mockContextSender := mocks.NewMockContextSender(t)
+
+	svc := &struct {
+		*mocks.MockService
+		*mocks.MockContextSender
+	}{
+		MockService:       mockService,
+		MockContextSender: mockContextSender,
+	}
+
+	mockService.EXPECT().Initialize(mock.Anything, mock.Anything).Return(nil)
+	mockService.EXPECT().GetID().Return("mock-ctx-sender")
+	mockContextSender.EXPECT().SendContext(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, msg string, params *types.Params) error {
+		receivedMsg = msg
+
+		return nil
+	})
+
+	serviceMap["mock-ctx-sender"] = func() types.Service { return svc }
+	defer delete(serviceMap, "mock-ctx-sender")
+
+	mockLogger := mocks.NewMockStdLogger(t)
+
+	router, err := NewWithOptions(mockLogger, types.SenderOptions{}, "mock-ctx-sender://")
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	items := []types.MessageItem{
+		{Text: "hello"},
+		{Text: "world"},
+	}
+	params := types.Params{}
+	params["key"] = "value"
+
+	errs := router.SendItems(items, params)
+
+	if len(errs) != 1 {
+		t.Fatalf("SendItems returned %d errors, want 1", len(errs))
+	}
+
+	if errs[0] != nil {
+		t.Fatalf("SendItems returned error: %v", errs[0])
+	}
+
+	if receivedMsg != "hello\nworld\n" {
+		t.Errorf("SendContext received message %q, want %q", receivedMsg, "hello\nworld\n")
+	}
+}
+
 //nolint:paralleltest // Simple isolated test, no shared state.
 func TestTargetErrorUnwrap(t *testing.T) {
 	inner := errors.New("inner error")
