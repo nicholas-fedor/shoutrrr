@@ -36,7 +36,7 @@ Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support m
   - `SendItems(items []types.MessageItem, params types.Params) []error`: Sends structured message items to services that support rich formatting.
   - `SendAsync(message string, params *types.Params) chan error`: Sends a message asynchronously and returns a channel of errors.
   - `Enqueue(message string, v ...interface{})`: Queues a formatted message for later sending.
-  - `Flush(params *types.Params) []error`: Sends all queued messages and resets the queue.
+  - `Flush(params *types.Params)`: Sends all queued messages and resets the queue.
 - **Behavior**: Deduplicates URLs, initializes services, and supports asynchronous sending with a 10-second timeout per service.
 
 !!! Example
@@ -73,11 +73,7 @@ Allows queuing messages for deferred sending, useful for aggregating notificatio
     if err != nil {
         log.Fatal(err)
     }
-    defer func() {
-        if errs := sender.Flush(nil); len(errs) > 0 {
-            log.Fatal(errs[0])
-        }
-    }()
+    defer sender.Flush(nil)
 
     sender.Enqueue("Started doing work")
     if err := doWork(); err != nil {
@@ -224,11 +220,7 @@ if services.SupportsSchema("discord") {
     start := time.Now()
     params := types.Params{}
     params.SetTitle("Task Summary")
-    defer func() {
-        if errs := sender.Flush(&params); len(errs) > 0 {
-            log.Fatal(errs[0])
-        }
-    }()
+    defer sender.Flush(&params)
     sender.Enqueue("Task started")
     time.Sleep(time.Second)
     sender.Enqueue("Task finished in %v", time.Now().Sub(start))
