@@ -14,7 +14,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -45,17 +44,11 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping basic text test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			message := "E2E Test: Basic text content notification"
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceived(service.Config.Topic, message)
 		})
@@ -66,15 +59,9 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping empty message test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send("", nil)).NotTo(gomega.HaveOccurred())
 
 			ginkgo.GinkgoWriter.Write([]byte("Empty message sent successfully\n"))
 		})
@@ -85,21 +72,15 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping title test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: Message with title"
 			expectedTitle := "Test Title"
 
-			err = service.Send(message, &types.Params{
+			gomega.Expect(service.Send(message, &types.Params{
 				"title": expectedTitle,
-			})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceivedWithTitle(topic, message, expectedTitle)
 		})
@@ -110,20 +91,14 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping priority test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: High priority message"
 
-			err = service.Send(message, &types.Params{
+			gomega.Expect(service.Send(message, &types.Params{
 				"priority": "5",
-			})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceivedWithPriority(topic, message, 5)
 		})
@@ -134,20 +109,14 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping tags test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: Tagged message"
 
-			err = service.Send(message, &types.Params{
+			gomega.Expect(service.Send(message, &types.Params{
 				"tags": "warning,skull",
-			})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceivedWithTags(topic, message, []string{"warning", "skull"})
 		})
@@ -159,18 +128,12 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 			}
 
 			serviceURLStr += "&markdown=yes"
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: **bold** and *italic* markdown"
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceived(topic, message)
 		})
@@ -181,18 +144,12 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 				ginkgo.Skip("ntfy server not configured, skipping unicode test")
 			}
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: Special chars <>@#$% and unicode 世界 🌍"
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceived(topic, message)
 		})

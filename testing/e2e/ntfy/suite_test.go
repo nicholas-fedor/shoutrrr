@@ -12,6 +12,9 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 )
 
 // envValueTrue is the string value for boolean true in environment variables.
@@ -90,6 +93,18 @@ func addQueryParam(rawURL, key, value string) string {
 	return serviceURL.String()
 }
 
+// initializeService parses a service URL string, creates an ntfy.Service, and initializes it.
+func initializeService(urlStr string) *ntfy.Service {
+	serviceURL, err := url.Parse(urlStr)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+	service := &ntfy.Service{}
+	err = service.Initialize(serviceURL, testutils.TestLogger())
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+	return service
+}
+
 // loadEnvFile loads environment variables from a .env file.
 func loadEnvFile(filename string) {
 	file, err := os.Open(filename)
@@ -124,19 +139,24 @@ func loadEnvFile(filename string) {
 	}
 }
 
-// getNtfyBaseURL returns the base URL for the ntfy server using shared host and scheme logic.
+// getNtfyBaseURL returns the base URL for the ntfy server using the SHOUTRRR_NTFY_URL environment variable.
 func getNtfyBaseURL() string {
-	host := os.Getenv("SHOUTRRR_NTFY_HOST")
-	if host == "" {
-		host = "localhost:8080"
+	baseURL := os.Getenv("SHOUTRRR_NTFY_URL")
+	if baseURL == "" {
+		baseURL = "ntfy://localhost:8080/shoutrrr-e2e-test"
 	}
 
-	scheme := "http"
-	if os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS") != envValueTrue {
-		scheme = "https"
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "http://localhost:8080"
 	}
 
-	return scheme + "://" + host
+	scheme := "https"
+	if os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS") == envValueTrue {
+		scheme = "http"
+	}
+
+	return scheme + "://" + parsed.Host
 }
 
 // isNtfyServerAvailable checks if the ntfy server is reachable.

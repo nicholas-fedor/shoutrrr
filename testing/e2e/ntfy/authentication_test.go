@@ -1,13 +1,11 @@
 package e2e_test
 
 import (
-	"net/url"
 	"os"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 )
 
@@ -28,18 +26,12 @@ var _ = ginkgo.Describe("ntfy E2E Authentication Tests", func() {
 			}
 
 			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: Authenticated message"
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceived(topic, message)
 		})
@@ -53,18 +45,12 @@ var _ = ginkgo.Describe("ntfy E2E Authentication Tests", func() {
 			}
 
 			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			topic := service.Config.Topic
 			message := "E2E Test: Username-only auth message"
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
 			verifyMessageReceived(topic, message)
 		})

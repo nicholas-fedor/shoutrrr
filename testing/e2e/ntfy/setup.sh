@@ -275,6 +275,8 @@ setup_all() {
 # =============================================================================
 
 main() {
+    load_env_file
+
     # Parse command-line arguments
     local command="setup-all"
 

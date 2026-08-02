@@ -66,11 +66,12 @@ The test suite is organized as a flat directory structure with individual test f
 
 ```bash
 testing/integration/ntfy/
-├── utils_test.go        # Helper functions and mock implementations
-├── config_test.go       # Configuration and URL parsing tests
-├── send_test.go         # Message sending tests
-├── errors_test.go       # Error handling tests
-└── README.md            # This documentation
+├── utils_test.go           # Helper functions and mock implementations
+├── config_test.go          # Configuration and URL parsing tests
+├── send_test.go            # Message sending tests
+├── errors_test.go          # Error handling tests
+├── api_compliance_test.go  # API compliance tests
+└── README.md               # This documentation
 ```
 
 ### Test Organization
@@ -81,3 +82,4 @@ Tests validate that the service correctly interacts with external APIs without i
 - **Config Tests** (`config_test.go`): Service configuration application in external API requests
 - **Send Tests** (`send_test.go`): Service handling of various message types and external API responses
 - **Error Tests** (`errors_test.go`): Service error handling when external APIs return failures
+- **API Compliance Tests** (`api_compliance_test.go`): URL format, HTTP method, Content-Type including Markdown, User-Agent, and Basic Auth behavior

@@ -1,13 +1,11 @@
 package e2e_test
 
 import (
-	"net/url"
 	"os"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 )
 
@@ -21,12 +19,7 @@ var _ = ginkgo.Describe("ntfy E2E Config Tests", func() {
 
 		ginkgo.It("should initialize with default configuration", func() {
 			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.Topic).NotTo(gomega.BeEmpty())
 			gomega.Expect(service.Config.Host).NotTo(gomega.BeEmpty())
@@ -34,12 +27,7 @@ var _ = ginkgo.Describe("ntfy E2E Config Tests", func() {
 
 		ginkgo.It("should initialize with credentials from URL", func() {
 			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			username := os.Getenv("SHOUTRRR_NTFY_USERNAME")
 			password := os.Getenv("SHOUTRRR_NTFY_PASSWORD")
@@ -54,13 +42,19 @@ var _ = ginkgo.Describe("ntfy E2E Config Tests", func() {
 		})
 
 		ginkgo.It("should initialize with DisableTLS when configured", func() {
-			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			previous, hadPrevious := os.LookupEnv("SHOUTRRR_NTFY_DISABLE_TLS")
+			_ = os.Setenv("SHOUTRRR_NTFY_DISABLE_TLS", "true")
 
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer func() {
+				if hadPrevious {
+					_ = os.Setenv("SHOUTRRR_NTFY_DISABLE_TLS", previous)
+				} else {
+					_ = os.Unsetenv("SHOUTRRR_NTFY_DISABLE_TLS")
+				}
+			}()
+
+			serviceURLStr := buildServiceURL()
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
 			gomega.Expect(service.Config.Scheme).To(gomega.Equal("http"))
@@ -68,48 +62,28 @@ var _ = ginkgo.Describe("ntfy E2E Config Tests", func() {
 
 		ginkgo.It("should initialize with priority from URL", func() {
 			serviceURLStr := addQueryParam(buildServiceURL(), "priority", "Max")
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.Priority.String()).To(gomega.Equal("Max"))
 		})
 
 		ginkgo.It("should initialize with markdown enabled from URL", func() {
 			serviceURLStr := addQueryParam(buildServiceURL(), "markdown", "yes")
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.Markdown).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should initialize with tags from URL", func() {
 			serviceURLStr := addQueryParam(buildServiceURL(), "tags", "warning,skull")
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.Tags).To(gomega.ConsistOf("warning", "skull"))
 		})
 
 		ginkgo.It("should initialize with title from URL", func() {
 			serviceURLStr := addQueryParam(buildServiceURL(), "title", "MyTitle")
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := initializeService(serviceURLStr)
 
 			gomega.Expect(service.Config.Title).To(gomega.Equal("MyTitle"))
 		})

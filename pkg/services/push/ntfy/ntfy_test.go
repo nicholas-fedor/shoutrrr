@@ -274,7 +274,7 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
 		})
 
-		ginkgo.It("should skip Cache header when Cache is disabled", func() {
+		ginkgo.It("should set Cache header to no when Cache is disabled", func() {
 			service.Config.Cache = false
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
@@ -285,7 +285,7 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(headers.Get("Cache")).To(gomega.Equal("no"))
 		})
 
-		ginkgo.It("should skip Firebase header when Firebase is disabled", func() {
+		ginkgo.It("should set Firebase header to no when Firebase is disabled", func() {
 			service.Config.Firebase = false
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).

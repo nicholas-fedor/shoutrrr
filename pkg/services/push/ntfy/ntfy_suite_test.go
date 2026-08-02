@@ -19,8 +19,7 @@ func (n *noOpLogger) Print(_ ...any)            {}
 func (n *noOpLogger) Printf(_ string, _ ...any) {}
 func (n *noOpLogger) Println(_ ...any)          {}
 
-func TestNtfy(t *testing.T) {
-	t.Parallel()
+func TestNtfy(t *testing.T) { //nolint:paralleltest // Ginkgo manages its own parallelization
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Ntfy Suite")
 }

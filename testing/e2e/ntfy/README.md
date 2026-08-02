@@ -64,20 +64,14 @@ A local ntfy server is required for e2e testing. The provided `docker-compose.ya
 
 ### Quick Start
 
-1. Start the ntfy server using docker compose:
+1. Start the ntfy server and wait for it to be ready using the setup script:
 
     ```bash
     cd testing/e2e/ntfy
-    docker compose up -d
-    ```
-
-2. Wait for the server to be ready:
-
-    ```bash
     ./setup.sh setup-all
     ```
 
-3. Run the e2e tests:
+2. Run the e2e tests:
 
     ```bash
     go test -v ./testing/e2e/ntfy/...

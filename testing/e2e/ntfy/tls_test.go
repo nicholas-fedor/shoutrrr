@@ -20,6 +20,11 @@ var _ = ginkgo.Describe("ntfy E2E TLS Tests", func() {
 		})
 
 		ginkgo.It("should send a message over HTTP when DisableTLS is set", func() {
+			disableTLS := os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS")
+			if disableTLS != "true" {
+				ginkgo.Skip("HTTP test skipped because DisableTLS is not set")
+			}
+
 			serviceURLStr := buildServiceURL()
 			serviceURL, err := url.Parse(serviceURLStr)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
