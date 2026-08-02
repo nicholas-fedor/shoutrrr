@@ -116,8 +116,12 @@ func (s *Service) sendAPI(config *Config, message string) error {
 
 	// Prepare request headers
 	headers := s.client.Headers()
-	headers.Del("Content-Type")
-	headers.Set("Content-Type", "text/plain; charset=utf-8")
+	if config.Markdown {
+		headers.Set("Content-Type", "text/markdown")
+	} else {
+		headers.Set("Content-Type", "text/plain; charset=utf-8")
+	}
+
 	headers.Set("User-Agent", "shoutrrr/"+meta.Version)
 	addHeaderIfNotEmpty(&headers, "Title", config.Title)
 	addHeaderIfNotEmpty(&headers, "Priority", config.Priority.String())

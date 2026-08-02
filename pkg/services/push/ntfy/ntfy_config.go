@@ -27,6 +27,7 @@ type Config struct {
 	Delay                  string   `                  desc:"Timestamp or duration for delayed delivery, see https://docs.ntfy.sh/publish/#scheduled-delivery" key:"delay,at,in"                                       optional:""`
 	Email                  string   `                  desc:"E-mail address for e-mail notifications"                                                          key:"email"                                             optional:""`
 	Icon                   string   `                  desc:"URL to use as notification icon"                                                                  key:"icon"                                              optional:""`
+	Markdown               bool     `default:"no"      desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting"                key:"markdown"`
 	Cache                  bool     `default:"yes"     desc:"Cache messages"                                                                                   key:"cache"`
 	Firebase               bool     `default:"yes"     desc:"Send to firebase"                                                                                 key:"firebase"`
 	DisableTLSVerification bool     `default:"no"      desc:"Disable TLS certificate verification"                                                             key:"disabletlsverification"`
