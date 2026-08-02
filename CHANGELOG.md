@@ -8,12 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add markdown support by @nicholas-fedor in [#1172](https://github.com/nicholas-fedor/shoutrrr/pull/1172)
+
 ### Changed
 
 - Enhance router dispatch, error handling, and format conversion by @nicholas-fedor in [#1168](https://github.com/nicholas-fedor/shoutrrr/pull/1168)
 
 ### Chores
 
+- Pin binwiederhier/ntfy docker tag to 081b53d by @renovate[bot] in [#1173](https://github.com/nicholas-fedor/shoutrrr/pull/1173)
 - Update github.com/google/pprof digest to 5106ece by @renovate[bot] in [#1170](https://github.com/nicholas-fedor/shoutrrr/pull/1170)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.35 by @renovate[bot] in [#1163](https://github.com/nicholas-fedor/shoutrrr/pull/1163)
 - Update github/codeql-action action to v4.37.4 by @renovate[bot] in [#1162](https://github.com/nicholas-fedor/shoutrrr/pull/1162)
