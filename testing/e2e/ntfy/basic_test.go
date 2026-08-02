@@ -19,13 +19,14 @@ import (
 )
 
 type ntfyMessage struct {
-	ID       string   `json:"id"`
-	Event    string   `json:"event"`
-	Topic    string   `json:"topic"`
-	Message  string   `json:"message"`
-	Title    string   `json:"title"`
-	Priority int      `json:"priority"`
-	Tags     []string `json:"tags"`
+	ID          string   `json:"id"`
+	Event       string   `json:"event"`
+	Topic       string   `json:"topic"`
+	Message     string   `json:"message"`
+	Title       string   `json:"title"`
+	Priority    int      `json:"priority"`
+	Tags        []string `json:"tags"`
+	ContentType string   `json:"content_type"`
 }
 
 const defaultMessageTimeout = 5 * time.Second
@@ -135,7 +136,12 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 
 			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
 
-			verifyMessageReceived(topic, message)
+			msg, err := pollForMessage(topic, message)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
+			gomega.Expect(msg).NotTo(gomega.BeNil())
+			gomega.Expect(msg.Event).To(gomega.Equal("message"))
+			gomega.Expect(msg.Topic).To(gomega.ContainSubstring(topic))
+			gomega.Expect(msg.ContentType).To(gomega.Equal("text/markdown"), "received event should reflect Markdown Content-Type")
 		})
 
 		ginkgo.It("should send a message with special characters and unicode", func() {
