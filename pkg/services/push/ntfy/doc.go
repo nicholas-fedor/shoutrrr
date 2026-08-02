@@ -33,6 +33,7 @@
 //   - delay: timestamp or duration for delayed delivery (e.g., "30m", "1h", "2023-12-25T10:00:00Z")
 //   - email: email address for email notifications
 //   - icon: URL to use as notification icon
+//   - markdown: enable Markdown formatting
 //   - cache: whether to cache messages (default: yes)
 //   - firebase: whether to send via Firebase (default: yes)
 //   - disabletls: set to "yes" to disable TLS verification

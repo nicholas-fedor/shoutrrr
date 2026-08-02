@@ -1,0 +1,29 @@
+# ntfy server for local E2E testing
+#
+# https://hub.docker.com/r/binwiederhier/ntfy
+#
+# Usage:
+#   docker compose up -d
+#
+# API endpoint: http://localhost:8080
+#
+# Note: No authentication is configured for local testing.
+
+services:
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    command:
+      - serve
+      - --visitor-request-limit-exempt-hosts=localhost,127.0.0.1,::1
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data:/var/cache/ntfy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
