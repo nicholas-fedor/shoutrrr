@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.37 by @renovate[bot] in [#1181](https://github.com/nicholas-fedor/shoutrrr/pull/1181)
+- Update github/codeql-action action to v4.37.5 by @renovate[bot] in [#1179](https://github.com/nicholas-fedor/shoutrrr/pull/1179)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.36 by @renovate[bot] in [#1177](https://github.com/nicholas-fedor/shoutrrr/pull/1177)
 - Update github.com/google/pprof digest to ef3492d by @renovate[bot] in [#1175](https://github.com/nicholas-fedor/shoutrrr/pull/1175)
 - Pin binwiederhier/ntfy docker tag to 081b53d by @renovate[bot] in [#1173](https://github.com/nicholas-fedor/shoutrrr/pull/1173)
