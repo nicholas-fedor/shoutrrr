@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 39f47bc by @renovate[bot] in [#1186](https://github.com/nicholas-fedor/shoutrrr/pull/1186)
 - Update github/codeql-action action to v4.37.6 by @renovate[bot] in [#1183](https://github.com/nicholas-fedor/shoutrrr/pull/1183)
 - Update binwiederhier/ntfy:latest docker digest to f2419f4 by @renovate[bot] in [#1182](https://github.com/nicholas-fedor/shoutrrr/pull/1182)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.37 by @renovate[bot] in [#1181](https://github.com/nicholas-fedor/shoutrrr/pull/1181)
