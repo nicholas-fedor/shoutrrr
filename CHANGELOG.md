@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.38 by @renovate[bot] in [#1188](https://github.com/nicholas-fedor/shoutrrr/pull/1188)
+
+## [0.17.0] - 2026-08-04
+
 ### Added
 
 - Add markdown support by @nicholas-fedor in [#1172](https://github.com/nicholas-fedor/shoutrrr/pull/1172)
@@ -1991,7 +1997,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...HEAD)
+- [0.17.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...v0.17.0)
 - [0.16.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.2...v0.16.3)
 - [0.16.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.1...v0.16.2)
 - [0.16.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.0...v0.16.1)
