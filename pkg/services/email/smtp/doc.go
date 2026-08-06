@@ -3,7 +3,7 @@
 // authentication, encryption, and message formatting options.
 //
 // The package supports the following features:
-//   - Authentication methods: None, Plain, CRAM-MD5, and OAuth2.
+//   - Authentication methods: None, Plain, Login, CRAM-MD5, and OAuth2.
 //   - Encryption methods: None, ExplicitTLS (using STARTTLS), ImplicitTLS (TLS for the entire session), and Auto (port-based selection).
 //   - Message formats: Plain text or HTML with multipart/alternative support.
 //   - Configuration via a URL scheme (e.g., `smtp://user:password@host:port/?fromAddress=sender@example.com&toAddresses=recipient@example.com`).
@@ -55,7 +55,7 @@
 //   - FromAddress and FromName: The sender's email address and display name.
 //   - ToAddresses: A list of recipient email addresses.
 //   - Subject: The email subject (defaults to "Shoutrrr Notification").
-//   - Auth: The authentication method (None, Plain, CRAMMD5, OAuth2, or Unknown).
+//   - Auth: The authentication method (None, Plain, Login, CRAMMD5, OAuth2, or Unknown).
 //   - Encryption: The encryption method (None, ExplicitTLS, ImplicitTLS, or Auto).
 //   - UseStartTLS: Whether to use STARTTLS for encryption (default: true).
 //   - UseHTML: Whether to send the message as HTML (default: false).
@@ -82,6 +82,7 @@
 // The package supports multiple authentication methods, defined in [authType] and [AuthTypes]:
 //   - None: No authentication.
 //   - Plain: Username and password-based authentication.
+//   - Login: Username and password-based authentication. Useful if mail servers don't support AUTH PLAIN.
 //   - CRAMMD5: Challenge-response authentication using CRAM-MD5.
 //   - OAuth2: Token-based authentication for services like Gmail (see [OAuth2Auth]).
 //     Note that OAuth2 support is limited to static access tokens and does not
