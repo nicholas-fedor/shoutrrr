@@ -249,6 +249,8 @@ func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
 		return smtp.CRAMMD5Auth(config.Username, config.Password), nil
 	case AuthTypes.OAuth2:
 		return OAuth2Auth(config.Username, config.Password), nil
+	case AuthTypes.Login:
+		return LoginAuth(config.Username, config.Password, config.Host), nil
 	case AuthTypes.Unknown:
 		return nil, fail(FailAuthType, nil, config.Auth.String())
 	default:
