@@ -290,6 +290,46 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 		})
+		ginkgo.When("given auth=Login", func() {
+			ginkgo.It("should complete the multi-step AUTH LOGIN dialog", func() {
+				testURL := modifyURL(BaseAuthURL, map[string]string{
+					"auth":    "Login",
+					"useHTML": "no",
+				})
+
+				// Multi-step LOGIN: AUTH LOGIN, then two 334 challenges, then 235.
+				// Challenge payloads are base64 of common prompts. The client ignores them.
+				err := testIntegration(testURL, []string{
+					"250-mx.google.com at your service",
+					"250-SIZE 35651584",
+					"250-AUTH LOGIN PLAIN",
+					"250 8BITMIME",
+					"334 VXNlciBOYW1lAA==", // "User Name\0" — non-exact prompt must still work
+					"334 UGFzc3dvcmQ=",     // "Password"
+					"235 Accepted",
+					"250 Sender OK",
+					"250 Receiver OK",
+					"354 Go ahead",
+					"250 Data OK",
+					"250 Sender OK",
+					"250 Receiver OK",
+					"354 Go ahead",
+					"250 Data OK",
+					"221 OK",
+				}, "", "",
+					"AUTH LOGIN",
+					"dXNlcg==",     // base64("user")
+					"cGFzc3dvcmQ=", // base64("password")
+				)
+				if msg, test := standard.IsTestSetupFailure(err); test {
+					ginkgo.Skip(msg)
+
+					return
+				}
+
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+		})
 		ginkgo.When("given e-mail addresses with pluses in the configuration URL", func() {
 			ginkgo.It("should send notifications without any errors", func() {
 				testURL := BasePlusURL
