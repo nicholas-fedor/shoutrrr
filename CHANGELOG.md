@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1200](https://github.com/nicholas-fedor/shoutrrr/pull/1200)
 - Update module golang.org/x/text to v0.41.0 by @renovate[bot] in [#1211](https://github.com/nicholas-fedor/shoutrrr/pull/1211)
 - Update module github.com/onsi/ginkgo/v2 to v2.32.1 by @renovate[bot] in [#1209](https://github.com/nicholas-fedor/shoutrrr/pull/1209)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.42 by @renovate[bot] in [#1208](https://github.com/nicholas-fedor/shoutrrr/pull/1208)
