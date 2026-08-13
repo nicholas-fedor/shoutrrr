@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/tools to v0.49.0 by @renovate[bot] in [#1216](https://github.com/nicholas-fedor/shoutrrr/pull/1216)
+- Update github/codeql-action action to v4.37.7 by @renovate[bot] in [#1215](https://github.com/nicholas-fedor/shoutrrr/pull/1215)
+- Update module golang.org/x/net to v0.58.0 by @renovate[bot] in [#1213](https://github.com/nicholas-fedor/shoutrrr/pull/1213)
 - Lock file maintenance by @renovate[bot] in [#1200](https://github.com/nicholas-fedor/shoutrrr/pull/1200)
 - Update module golang.org/x/text to v0.41.0 by @renovate[bot] in [#1211](https://github.com/nicholas-fedor/shoutrrr/pull/1211)
 - Update module github.com/onsi/ginkgo/v2 to v2.32.1 by @renovate[bot] in [#1209](https://github.com/nicholas-fedor/shoutrrr/pull/1209)
