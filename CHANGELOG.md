@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.45 by @renovate[bot] in [#1228](https://github.com/nicholas-fedor/shoutrrr/pull/1228)
+- Update commitlint monorepo to v21.2.2 by @renovate[bot] in [#1227](https://github.com/nicholas-fedor/shoutrrr/pull/1227)
 - Update step-security/harden-runner action to v2.21.0 by @renovate[bot] in [#1225](https://github.com/nicholas-fedor/shoutrrr/pull/1225)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.44 by @renovate[bot] in [#1224](https://github.com/nicholas-fedor/shoutrrr/pull/1224)
 - Update cimg/go docker tag to v1.26.6 by @renovate[bot] in [#1222](https://github.com/nicholas-fedor/shoutrrr/pull/1222)
