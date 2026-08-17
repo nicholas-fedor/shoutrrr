@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/stretchr/testify to v1.12.0 by @renovate[bot] in [#1233](https://github.com/nicholas-fedor/shoutrrr/pull/1233)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.46 by @renovate[bot] in [#1231](https://github.com/nicholas-fedor/shoutrrr/pull/1231)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.45 by @renovate[bot] in [#1228](https://github.com/nicholas-fedor/shoutrrr/pull/1228)
 - Update commitlint monorepo to v21.2.2 by @renovate[bot] in [#1227](https://github.com/nicholas-fedor/shoutrrr/pull/1227)
 - Update step-security/harden-runner action to v2.21.0 by @renovate[bot] in [#1225](https://github.com/nicholas-fedor/shoutrrr/pull/1225)
