@@ -265,12 +265,13 @@ func Test_maskPushoverQuery(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		urlStr   string
-		wantTok  string
-		wantUser string
-		wantKey  string
-		wantPass string
+		name         string
+		urlStr       string
+		wantTok      string
+		wantUser     string
+		wantKey      string
+		wantKeyParam string
+		wantPass     string
 	}{
 		{
 			name:     "masks token and user",
@@ -291,14 +292,16 @@ func Test_maskPushoverQuery(t *testing.T) {
 			wantUser: "",
 		},
 		{
-			name:    "masks encryptionkey query parameter",
-			urlStr:  "pushover://?encryptionkey=secret-hex-key",
-			wantKey: redactedStr,
+			name:         "masks encryptionkey query parameter",
+			urlStr:       "pushover://?encryptionkey=secret-hex-key",
+			wantKey:      redactedStr,
+			wantKeyParam: "encryptionkey",
 		},
 		{
-			name:    "masks key alias query parameter",
-			urlStr:  "pushover://?key=secret-hex-key",
-			wantKey: redactedStr,
+			name:         "masks key alias query parameter",
+			urlStr:       "pushover://?key=secret-hex-key",
+			wantKey:      redactedStr,
+			wantKeyParam: "key",
 		},
 		{
 			name:     "masks API token in URL userinfo",
@@ -325,14 +328,9 @@ func Test_maskPushoverQuery(t *testing.T) {
 				assert.Equal(t, tt.wantUser, query.Get("user"), "user mismatch")
 			}
 
-			if tt.wantKey != "" {
-				if query.Has("encryptionkey") {
-					assert.Equal(t, tt.wantKey, query.Get("encryptionkey"), "encryptionkey mismatch")
-				}
-
-				if query.Has("key") {
-					assert.Equal(t, tt.wantKey, query.Get("key"), "key mismatch")
-				}
+			if tt.wantKeyParam != "" {
+				require.True(t, query.Has(tt.wantKeyParam), "expected %s to be present", tt.wantKeyParam)
+				assert.Equal(t, tt.wantKey, query.Get(tt.wantKeyParam), tt.wantKeyParam+" mismatch")
 			}
 
 			if tt.wantPass != "" {

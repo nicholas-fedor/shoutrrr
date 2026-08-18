@@ -113,7 +113,7 @@
 //
 // Encrypt message and title with a 256-bit key also configured in the Pushover app:
 //
-//	url := "pushover://userkey:apitoken@?encryptionkey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+//	url := "pushover://:apitoken@userkey?encryptionkey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 //	err := shoutrrr.Send(url, "This message is encrypted")
 //
 // # Error Handling

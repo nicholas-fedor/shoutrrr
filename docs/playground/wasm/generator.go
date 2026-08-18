@@ -12,6 +12,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -178,6 +179,10 @@ func generateURLString(serviceName, configJSON string) string {
 
 	if generatedURL == nil {
 		return fmt.Sprintf(`{"url":%q}`, serviceName+"://")
+	}
+
+	if serviceName == pushover.Scheme {
+		pushover.MaskURL(generatedURL)
 	}
 
 	return fmt.Sprintf(`{"url":%q}`, generatedURL.String())
