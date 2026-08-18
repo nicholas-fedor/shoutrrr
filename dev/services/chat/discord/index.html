@@ -2848,14 +2848,14 @@
 <p>You can customize the webhook's appearance by overriding the default username and avatar that were set when creating the webhook.</p>
 <div class="admonition example">
 <p class="admonition-title">Custom Username and Avatar</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid?username=MyBot&amp;avatar=https://example.com/avatar.png&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from custom bot!&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://token@webhookid?username=MyBot&amp;avatar=https://example.com/avatar.png"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from custom bot!"</span>
 </code></pre></div>
 </div>
 <h2 id="message_content">Message Content<a class="headerlink" href="#message_content" title="Permanent link">&para;</a></h2>
 <p>For simple text messages without embeds, Shoutrrr now uses Discord's <code>content</code> field directly, providing cleaner message formatting and better compatibility with Discord's features.</p>
 <div class="admonition example">
 <p class="admonition-title">Simple Text Message</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello, World!&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://token@webhookid"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, World!"</span>
 </code></pre></div>
 <p>This sends a plain text message using the <code>content</code> field instead of an embed.</p>
 </div>
@@ -2877,7 +2877,7 @@ This is implemented through Shoutrrr's PartitionMessage utility and is not a Dis
 <p>When <code>splitLines</code> is enabled (default), each line of the input becomes a separate embedded item. When disabled, long messages are automatically chunked to fit within Discord's limits.</p>
 <div class="admonition example">
 <p class="admonition-title">Long Message Chunking</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://token@webhookid?splitLines=false&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;This is a very long message that will be automatically split into multiple chunks if it exceeds Discord&#39;s 2000 character limit per message.&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://token@webhookid?splitLines=false"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."</span>
 </code></pre></div>
 </div>
 <div class="admonition note">

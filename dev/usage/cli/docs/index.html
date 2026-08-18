@@ -2757,7 +2757,7 @@ ColorDebug<span class="w"> </span>uint<span class="w">            </span>The<spa
 ColorError<span class="w"> </span>uint<span class="w">            </span>The<span class="w"> </span>color<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>left<span class="w"> </span>border<span class="w"> </span><span class="k">for</span><span class="w"> </span>error<span class="w"> </span>messages<span class="w">              </span>&lt;Default:<span class="w"> </span>0xd60510&gt;
 ColorInfo<span class="w">  </span>uint<span class="w">            </span>The<span class="w"> </span>color<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>left<span class="w"> </span>border<span class="w"> </span><span class="k">for</span><span class="w"> </span>info<span class="w"> </span>messages<span class="w">               </span>&lt;Default:<span class="w"> </span>0x2488ff&gt;
 ColorWarn<span class="w">  </span>uint<span class="w">            </span>The<span class="w"> </span>color<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>left<span class="w"> </span>border<span class="w"> </span><span class="k">for</span><span class="w"> </span>warning<span class="w"> </span>messages<span class="w">            </span>&lt;Default:<span class="w"> </span>0xffc441&gt;
-JSON<span class="w">       </span>bool<span class="w">            </span>Whether<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>the<span class="w"> </span>whole<span class="w"> </span>message<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span>JSON<span class="w"> </span>payload<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>using<span class="w"> </span>it<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span><span class="s1">&#39;content&#39;</span><span class="w"> </span>field<span class="w">  </span>&lt;Default:<span class="w"> </span>No&gt;
+JSON<span class="w">       </span>bool<span class="w">            </span>Whether<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>the<span class="w"> </span>whole<span class="w"> </span>message<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span>JSON<span class="w"> </span>payload<span class="w"> </span>instead<span class="w"> </span>of<span class="w"> </span>using<span class="w"> </span>it<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span><span class="s1">'content'</span><span class="w"> </span>field<span class="w">  </span>&lt;Default:<span class="w"> </span>No&gt;
 SplitLines<span class="w"> </span>bool<span class="w">            </span>Whether<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>each<span class="w"> </span>line<span class="w"> </span>as<span class="w"> </span>a<span class="w"> </span>separate<span class="w"> </span>embedded<span class="w"> </span>item<span class="w">        </span>&lt;Default:<span class="w"> </span>Yes&gt;
 ThreadID<span class="w">   </span>string<span class="w">          </span>The<span class="w"> </span>thread<span class="w"> </span>ID<span class="w"> </span>to<span class="w"> </span>send<span class="w"> </span>the<span class="w"> </span>message<span class="w"> </span>to
 Title<span class="w">      </span>string
@@ -2771,9 +2771,9 @@ WebhookID<span class="w">  </span>string<span class="w">                        
 <div class="highlight"><span class="filename">Expected Result</span><pre><span></span><code><span class="gu">### URL Fields</span>
 
 <span class="k">*</span><span class="w"> </span> <span class="gs">__Token__</span> (<span class="gs">**Required**</span>)
-&lt;br&gt;URL part: &lt;code class=&quot;service-url&quot;&gt;discord://&lt;strong&gt;token&lt;/strong&gt;@webhookid/&lt;/code&gt;
+&lt;br&gt;URL part: &lt;code class="service-url"&gt;discord://&lt;strong&gt;token&lt;/strong&gt;@webhookid/&lt;/code&gt;
 <span class="k">*</span><span class="w"> </span> <span class="gs">__WebhookID__</span> (<span class="gs">**Required**</span>)
-&lt;br&gt;URL part: &lt;code class=&quot;service-url&quot;&gt;discord://token@&lt;strong&gt;webhookid&lt;/strong&gt;/&lt;/code&gt;
+&lt;br&gt;URL part: &lt;code class="service-url"&gt;discord://token@&lt;strong&gt;webhookid&lt;/strong&gt;/&lt;/code&gt;
 
 <span class="gu">### Query/Param Props</span>
 
@@ -2799,7 +2799,7 @@ Props can be either supplied using the params argument, or through the URL using
 <span class="k">*</span><span class="w"> </span> <span class="gs">__ColorWarn__</span> - The color of the left border for warning messages
   Default: <span class="sb">`0xffc441`</span>
 
-<span class="k">*</span><span class="w"> </span> <span class="gs">__JSON__</span> - Whether to send the whole message as the JSON payload instead of using it as the &#39;content&#39; field
+<span class="k">*</span><span class="w"> </span> <span class="gs">__JSON__</span> - Whether to send the whole message as the JSON payload instead of using it as the 'content' field
   Default: ❌ <span class="sb">`No`</span>
 
 <span class="k">*</span><span class="w"> </span> <span class="gs">__SplitLines__</span> - Whether to send each line as a separate embedded item

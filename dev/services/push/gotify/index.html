@@ -3652,7 +3652,7 @@ It can contain uppercase and lowercase letters, numbers, and the special charact
 <p>Messages must contain at least one character. Empty messages are not allowed.</p>
 <div class="admonition failure">
 <p class="admonition-title">Validation Failure Example</p>
-<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;gotify://example.com/message?token=token&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;&quot;</span>
+<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://example.com/message?token=token"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">""</span>
 </code></pre></div>
 <strong>Error</strong>: <code>message cannot be empty</code></p>
 </div>
@@ -3660,7 +3660,7 @@ It can contain uppercase and lowercase letters, numbers, and the special charact
 <p>Priority values must be integers between -2 and 10 inclusive. Values outside this range will be rejected.</p>
 <div class="admonition failure">
 <p class="admonition-title">Validation Failure Example</p>
-<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;gotify://example.com/message?token=token&amp;priority=15&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;test&quot;</span>
+<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://example.com/message?token=token&amp;priority=15"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"test"</span>
 </code></pre></div>
 <strong>Error</strong>: <code>priority must be between -2 and 10</code></p>
 </div>
@@ -3668,7 +3668,7 @@ It can contain uppercase and lowercase letters, numbers, and the special charact
 <p>Shoutrrr supports multiple date input formats, automatically converting them to ISO 8601 for the Gotify API. Invalid date formats are logged as warnings, and the notification uses Gotify's server timestamp instead.</p>
 <div class="admonition failure">
 <p class="admonition-title">Validation Failure Example</p>
-<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;gotify://example.com/message?token=token&amp;date=invalid-date&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;test&quot;</span>
+<p><div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://example.com/message?token=token&amp;date=invalid-date"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"test"</span>
 </code></pre></div>
 <strong>Warning logged</strong>: <code>invalid date format</code>
 <strong>Result</strong>: Notification sent with server timestamp</p>
@@ -3852,10 +3852,10 @@ It can contain uppercase and lowercase letters, numbers, and the special charact
 </ul>
 <h3 id="testing_your_configuration">Testing Your Configuration<a class="headerlink" href="#testing_your_configuration" title="Permanent link">&para;</a></h3>
 <p>You can test your Gotify configuration using the Shoutrrr CLI:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;gotify://your-server/message?token=token&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://your-server/message?token=token"</span>
 </code></pre></div>
 <p>This validates the URL format and service configuration. To send a test notification, use:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;gotify://your-server/message?token=token&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Test notification&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"gotify://your-server/message?token=token"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Test notification"</span>
 </code></pre></div>
 <h3 id="gotify_server_logs">Gotify Server Logs<a class="headerlink" href="#gotify_server_logs" title="Permanent link">&para;</a></h3>
 <p>Check the Gotify server logs for additional error details. Common log locations:</p>

@@ -2840,13 +2840,13 @@ To do this, you can add a <em>user</em> and/or <em>channel</em> to the service U
 The following example contains all parameters that are currently supported.</p>
 <div class="highlight"><pre><span></span><code>params := (*types.Params)(
  &amp;map[string]string{
-  &quot;username&quot;: &quot;overwriteUserName&quot;,
-  &quot;channel&quot;: &quot;overwriteChannel&quot;,
-        &quot;icon&quot;: &quot;overwriteIcon&quot;,
+  "username": "overwriteUserName",
+  "channel": "overwriteChannel",
+        "icon": "overwriteIcon",
  },
 )
 
-service.Send(&quot;this is a message&quot;, params)
+service.Send("this is a message", params)
 </code></pre></div>
 <p>This will overwrite any options, that you passed via URL.</p>
 

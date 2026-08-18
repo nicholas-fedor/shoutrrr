@@ -3275,7 +3275,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a simple notification using your Notifiarr API key:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Basic Notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from Shoutrrr!&quot;</span>
+<div class="highlight"><span class="filename">Send Basic Notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from Shoutrrr!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3284,7 +3284,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification that will be forwarded to a specific Discord channel:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to Discord Channel</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Alert: System status changed&quot;</span>
+<div class="highlight"><span class="filename">Send to Discord Channel</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Alert: System status changed"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3293,7 +3293,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification with custom thumbnail and color:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Thumbnail and Color</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/alert.png&amp;color=FF0000&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Critical Alert&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Server is down!&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Color</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/alert.png&amp;color=FF0000"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Critical Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Server is down!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3302,7 +3302,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification with a custom image:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;image=https://example.com/chart.png&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Sales Report&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Monthly sales chart attached&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;image=https://example.com/chart.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Sales Report"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Monthly sales chart attached"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3311,7 +3311,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification with both thumbnail and image:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Thumbnail and Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/icon.png&amp;image=https://example.com/full-image.png&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;Product Update&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;New product launch details&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with Thumbnail and Image</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678&amp;thumbnail=https://example.com/icon.png&amp;image=https://example.com/full-image.png"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"Product Update"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"New product launch details"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3320,7 +3320,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification that mentions specific Discord users (parsed from message content). Both standard mentions <code>&lt;@123&gt;</code> and nickname mentions <code>&lt;@!456&gt;</code> are supported. <strong>Note:</strong> Only the first user mention and first role mention in the message will be used for pinging.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with User Mentions</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hey &lt;@123456789&gt; and &lt;@!987654321&gt;, the deployment is complete!&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with User Mentions</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hey &lt;@123456789&gt; and &lt;@!987654321&gt;, the deployment is complete!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3329,7 +3329,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification with a custom app name:</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Custom App Name</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?name=MyApp&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello from MyApp!&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with Custom App Name</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?name=MyApp"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello from MyApp!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3338,7 +3338,7 @@ It supports routing notifications to Discord channels and other configured servi
 <p>Send a notification with a custom title (appears in Discord embed):</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Notification with Title</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;notifiarr://your-api-key-here?channel=123456789012345678&quot;</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;System Alert&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Disk space running low on server&quot;</span>
+<div class="highlight"><span class="filename">Send Notification with Title</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"notifiarr://your-api-key-here?channel=123456789012345678"</span><span class="w"> </span>--title<span class="w"> </span><span class="s2">"System Alert"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Disk space running low on server"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -3348,37 +3348,37 @@ It supports routing notifications to Discord channels and other configured servi
 <h3 id="request_format">Request Format<a class="headerlink" href="#request_format" title="Permanent link">&para;</a></h3>
 <p>The service sends a POST request with a JSON payload containing the notification data. The payload structure follows the official Notifiarr API specification:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;notification&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional event ID&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;update&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="nt">"notification"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MyApp"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional event ID"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"update"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
 <span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;discord&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;channel&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">123456789012345678</span>
+<span class="w">  </span><span class="nt">"discord"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"ids"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"channel"</span><span class="p">:</span><span class="w"> </span><span class="mi">123456789012345678</span>
 <span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;color&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional color (6-digit hex)&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;images&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;thumbnail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional thumbnail URL&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;image&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional image URL&quot;</span>
+<span class="w">    </span><span class="nt">"color"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional color (6-digit hex)"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"images"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"thumbnail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional thumbnail URL"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"image"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional image URL"</span>
 <span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional notification title&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional icon URL&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional content text&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Your notification message&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;footer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Optional footer text&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional notification title"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"icon"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional icon URL"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional content text"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Your notification message"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"footer"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Optional footer text"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">        </span><span class="p">{</span>
-<span class="w">          </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Field title&quot;</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Field content&quot;</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;inline&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">          </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Field title"</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Field content"</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"inline"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">      </span><span class="p">]</span>
 <span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;ping&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;pingUser&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">123456789</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;pingRole&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">111111111</span>
+<span class="w">    </span><span class="nt">"ping"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"pingUser"</span><span class="p">:</span><span class="w"> </span><span class="mi">123456789</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"pingRole"</span><span class="p">:</span><span class="w"> </span><span class="mi">111111111</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>

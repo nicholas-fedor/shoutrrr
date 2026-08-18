@@ -2813,31 +2813,31 @@ at send time using <code>types.Params</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
 
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;stream&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;alerts&quot;</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;topic&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;disk-space-warning&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"stream"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"alerts"</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"topic"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"disk-space-warning"</span>
 
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Disk usage exceeded 90% on server-01&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Disk usage exceeded 90% on server-01"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Add a notification title to the message</p>
 <div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;title&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;Deployment Notification&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"title"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"Deployment Notification"</span>
 
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Deployed v2.3.1 to production&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Deployed v2.3.1 to production"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Override topic at send time</p>
 <div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;topic&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;deployment-notification&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"topic"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"deployment-notification"</span>
 
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Deployed v2.3.1 to production&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Deployed v2.3.1 to production"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Using the CLI</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Server restarted&quot;</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"zulip://bot%40example.com:api-key@zulip.example.com?stream=alerts"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Server restarted"</span>
 </code></pre></div>
 </div>
 <h2 id="direct_messages">Direct Messages<a class="headerlink" href="#direct_messages" title="Permanent link">&para;</a></h2>
@@ -2845,10 +2845,10 @@ at send time using <code>types.Params</code>:</p>
 <div class="admonition example">
 <p class="admonition-title">Direct message via params</p>
 <div class="highlight"><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">)</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;type&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;direct&quot;</span>
-<span class="nx">params</span><span class="p">[</span><span class="s">&quot;to&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;user1@example.com,user2@example.com&quot;</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"type"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"direct"</span>
+<span class="nx">params</span><span class="p">[</span><span class="s">"to"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"user1@example.com,user2@example.com"</span>
 
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Hello via DM&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Hello via DM"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="admonition example">

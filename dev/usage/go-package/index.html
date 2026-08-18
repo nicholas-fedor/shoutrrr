@@ -2870,7 +2870,7 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The Shoutrrr Go package (<code>github.com/nicholas-fedor/shoutrrr</code>) enables sending notifications to various services (e.g., <code>discord</code>, <code>slack</code>, <code>telegram</code>, <code>smtp</code>, etc.) using service URLs. It provides two primary methods: a direct <code>Send</code> function for simple use cases and a <code>Sender</code> struct for advanced scenarios with multiple URLs, message queuing, and parameter customization.</p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
-<div class="highlight"><span class="filename">Go Import Statement</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr&quot;</span>
+<div class="highlight"><span class="filename">Go Import Statement</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
 </code></pre></div>
 <h3 id="direct_send">Direct Send<a class="headerlink" href="#direct_send" title="Permanent link">&para;</a></h3>
 <p>Sends a notification to a single service URL.</p>
@@ -2880,10 +2880,10 @@
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to a Single Slack URL</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;slack://token-a/token-b/token-c&quot;</span>
-<span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Hello, Slack!&quot;</span><span class="p">)</span>
+<div class="highlight"><span class="filename">Send to a Single Slack URL</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"slack://token-a/token-b/token-c"</span>
+<span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"Hello, Slack!"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Error:&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 </div>
@@ -2902,19 +2902,19 @@
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Create Sender with Multiple URLs</span><pre><span></span><code><span class="nx">urls</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span>
-<span class="w">    </span><span class="s">&quot;slack://token-a/token-b/token-c&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="s">&quot;telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel"</span><span class="p">,</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="o">...</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="p">...)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
-<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">&quot;Test Notification&quot;</span><span class="p">)</span>
-<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Hello, world!&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Test Notification"</span><span class="p">)</span>
+<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Hello, world!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Error:&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2927,19 +2927,19 @@
 <!-- markdownlint-disable -->
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Queue and Flush Notifications</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;discord://abc123@123456789&quot;</span>
+<div class="highlight"><span class="filename">Queue and Flush Notifications</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"discord://abc123@123456789"</span>
 <span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="k">defer</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Flush</span><span class="p">(</span><span class="kc">nil</span><span class="p">)</span>
 
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">&quot;Started doing work&quot;</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">"Started doing work"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">doWork</span><span class="p">();</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">&quot;Error: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">"Error: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="k">return</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">&quot;Work completed successfully!&quot;</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">"Work completed successfully!"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <!-- markdownlint-restore -->
@@ -2955,10 +2955,10 @@ Services that do not implement <code>RichSender</code> fall back to plain text a
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Send Structured Message Items</span><pre><span></span><code><span class="nx">items</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="nx">types</span><span class="p">.</span><span class="nx">MessageItem</span><span class="p">{</span>
-<span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Deployment complete&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Info</span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Rollback available&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Warning</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">"Deployment complete"</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Info</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">"Rollback available"</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Warning</span><span class="p">},</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">&quot;discord://webhook&quot;</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">"discord://webhook"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
@@ -2972,14 +2972,14 @@ This enables cancellation and deadline propagation without changing the existing
 <p><code>*ServiceRouter.Send</code>, <code>*ServiceRouter.SendAsync</code>, <code>*ServiceRouter.SendItems</code>, and <code>*ServiceRouter.Route</code> return one error per unique configured target, in the deduplicated target order produced by <code>CreateSender</code>. Each error is wrapped in <code>*types.TargetError</code>, which carries the service URL/ID and supports <code>errors.Unwrap</code>, <code>errors.Is</code>, and <code>errors.As</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Handle Per-Target Errors</span><pre><span></span><code><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;deploy complete&quot;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">)</span>
+<div class="highlight"><span class="filename">Handle Per-Target Errors</span><pre><span></span><code><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"deploy complete"</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">)</span>
 <span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="k">continue</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">targetErr</span><span class="w"> </span><span class="o">*</span><span class="nx">types</span><span class="p">.</span><span class="nx">TargetError</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">errors</span><span class="p">.</span><span class="nx">As</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">targetErr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">&quot;failed to send to %s: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">URL</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">Err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"failed to send to %s: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">URL</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">Err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2992,30 +2992,30 @@ The default is <code>Info</code>.</p>
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Set Message Level</span><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
 <span class="nx">params</span><span class="p">.</span><span class="nx">SetLevel</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Warning</span><span class="p">)</span>
-<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">&quot;Disk usage high&quot;</span><span class="p">)</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">&quot;discord://webhook&quot;</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Disk usage high"</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">"discord://webhook"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
-<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;Root partition at 92%&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Root partition at 92%"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <h3 id="format_conversion">Format Conversion<a class="headerlink" href="#format_conversion" title="Permanent link">&para;</a></h3>
 <p>Converts message bodies between supported formats.</p>
-<div class="highlight"><span class="filename">Convert Message Format</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr/pkg/format&quot;</span>
+<div class="highlight"><span class="filename">Convert Message Format</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/format"</span>
 
-<span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">format</span><span class="p">.</span><span class="nx">ConvertFormat</span><span class="p">(</span><span class="s">&quot;Hello **world**&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;markdown&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;text&quot;</span><span class="p">)</span>
+<span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">format</span><span class="p">.</span><span class="nx">ConvertFormat</span><span class="p">(</span><span class="s">"Hello **world**"</span><span class="p">,</span><span class="w"> </span><span class="s">"markdown"</span><span class="p">,</span><span class="w"> </span><span class="s">"text"</span><span class="p">)</span>
 </code></pre></div>
 <p>Supported conversions: <code>text</code> ↔ <code>markdown</code> ↔ <code>html</code>.</p>
 <h3 id="service_discovery">Service Discovery<a class="headerlink" href="#service_discovery" title="Permanent link">&para;</a></h3>
 <p>Enumerates or checks available notification services without constructing a router.</p>
-<div class="highlight"><span class="filename">Discover Available Services</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">&quot;github.com/nicholas-fedor/shoutrrr/pkg/services&quot;</span>
+<div class="highlight"><span class="filename">Discover Available Services</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/services"</span>
 
 <span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">schema</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">services</span><span class="p">.</span><span class="nx">SupportedSchemas</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nx">schema</span><span class="p">)</span>
 <span class="p">}</span>
 
-<span class="k">if</span><span class="w"> </span><span class="nx">services</span><span class="p">.</span><span class="nx">SupportsSchema</span><span class="p">(</span><span class="s">&quot;discord&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">services</span><span class="p">.</span><span class="nx">SupportsSchema</span><span class="p">(</span><span class="s">"discord"</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -3024,17 +3024,17 @@ The default is <code>Info</code>.</p>
 <h3 id="send_with_parameters_and_error_handling">Send with Parameters and Error Handling<a class="headerlink" href="#send_with_parameters_and_error_handling" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send with Title and Error Handling</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;discord://abc123@123456789&quot;</span>
+<div class="highlight"><span class="filename">Send with Title and Error Handling</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"discord://abc123@123456789"</span>
 <span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
-<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">&quot;Alert&quot;</span><span class="p">)</span>
-<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">&quot;System alert!&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Alert"</span><span class="p">)</span>
+<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"System alert!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">&quot;Error:&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -3047,20 +3047,20 @@ The default is <code>Info</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Queue Messages for Multiple Services</span><pre><span></span><code><span class="nx">urls</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span>
-<span class="w">    </span><span class="s">&quot;slack://token-a/token-b/token-c&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="s">&quot;discord://abc123@123456789&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"discord://abc123@123456789"</span><span class="p">,</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="o">...</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="p">...)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="nx">start</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">()</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
-<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">&quot;Task Summary&quot;</span><span class="p">)</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Task Summary"</span><span class="p">)</span>
 <span class="k">defer</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Flush</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">&quot;Task started&quot;</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">"Task started"</span><span class="p">)</span>
 <span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
-<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">&quot;Task finished in %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">Sub</span><span class="p">(</span><span class="nx">start</span><span class="p">))</span>
+<span class="nx">sender</span><span class="p">.</span><span class="nx">Enqueue</span><span class="p">(</span><span class="s">"Task finished in %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">Sub</span><span class="p">(</span><span class="nx">start</span><span class="p">))</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output (Success)</span><pre><span></span><code>(No output on success)
 </code></pre></div>

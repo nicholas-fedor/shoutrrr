@@ -2727,7 +2727,7 @@
 <h3 id="verify_a_valid_discord_url">Verify a Valid Discord URL<a class="headerlink" href="#verify_a_valid_discord_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Discord URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://abc123@123456789&quot;</span>
+<div class="highlight"><span class="filename">Verify Discord URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Token: abc123
 WebhookID: 123456789
@@ -2736,7 +2736,7 @@ WebhookID: 123456789
 <h3 id="verify_an_invalid_url">Verify an Invalid URL<a class="headerlink" href="#verify_an_invalid_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Invalid URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;invalid://abc123&quot;</span>
+<div class="highlight"><span class="filename">Verify Invalid URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"invalid://abc123"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>error verifying URL: service not recognized
 </code></pre></div>
@@ -2744,7 +2744,7 @@ WebhookID: 123456789
 <h3 id="verify_a_malformed_url">Verify a Malformed URL<a class="headerlink" href="#verify_a_malformed_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Malformed URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://&quot;</span>
+<div class="highlight"><span class="filename">Verify Malformed URL</span><pre><span></span><code>shoutrrr<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>error verifying URL: invalid URL format
 </code></pre></div>

@@ -2898,22 +2898,22 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
 <h3 id="runtime_configuration">Runtime Configuration<a class="headerlink" href="#runtime_configuration" title="Permanent link">&para;</a></h3>
 <p>This lazy approach allows you to override connection settings (Host, Port, Username, Password, TLS settings) via params on the first <code>Send()</code> call:</p>
 <div class="highlight"><span class="filename">Example Lazy Initialization Runtime Configuration</span><pre><span></span><code><span class="c1">// Placeholder MQTT URL (will be overridden on first send)</span>
-<span class="nx">mqttURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;mqtt://placeholder:1883/topic&quot;</span>
+<span class="nx">mqttURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"mqtt://placeholder:1883/topic"</span>
 
 <span class="c1">// Create a logger for the service</span>
-<span class="nx">logger</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;mqtt: &quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">LstdFlags</span><span class="p">)</span>
+<span class="nx">logger</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span><span class="w"> </span><span class="s">"mqtt: "</span><span class="p">,</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">LstdFlags</span><span class="p">)</span>
 
 <span class="c1">// The message to send</span>
-<span class="nx">message</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">&quot;Hello from shoutrrr!&quot;</span>
+<span class="nx">message</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"Hello from shoutrrr!"</span>
 
 <span class="c1">// Initialize with a placeholder URL</span>
 <span class="nx">service</span><span class="p">.</span><span class="nx">Initialize</span><span class="p">(</span><span class="nx">mqttURL</span><span class="p">,</span><span class="w"> </span><span class="nx">logger</span><span class="p">)</span>
 
 <span class="c1">// Override connection settings on first send</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
-<span class="w">    </span><span class="s">&quot;host&quot;</span><span class="p">:</span><span class="w">     </span><span class="s">&quot;actual-broker.example.com&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="s">&quot;username&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;actual-user&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="s">&quot;password&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;actual-password&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"host"</span><span class="p">:</span><span class="w">     </span><span class="s">"actual-broker.example.com"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"username"</span><span class="p">:</span><span class="w"> </span><span class="s">"actual-user"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"password"</span><span class="p">:</span><span class="w"> </span><span class="s">"actual-password"</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="nx">service</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">message</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>

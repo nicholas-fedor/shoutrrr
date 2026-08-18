@@ -2707,12 +2707,12 @@
 <ol>
 <li>
 <p>Save the completion script to a location of your preference:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">Invoke-Expression</span> <span class="s2">&quot;shoutrrr.exe completions powershell | Out-File -FilePath $HOME\Documents\PowerShell\Scripts\shoutrrr_completion.ps1&quot;</span>
+<div class="highlight"><pre><span></span><code><span class="nb">Invoke-Expression</span> <span class="s2">"shoutrrr.exe completions powershell | Out-File -FilePath $HOME\Documents\PowerShell\Scripts\shoutrrr_completion.ps1"</span>
 </code></pre></div>
 </li>
 <li>
 <p>Invoke the completion script within your PowerShell profile:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">Add-Content</span> <span class="n">-Path</span> <span class="nv">$PROFILE</span> <span class="n">-Value</span> <span class="s1">&#39;. $HOME\Documents\PowerShell\Scripts\shoutrrr.ps1&#39;</span>
+<div class="highlight"><pre><span></span><code><span class="nb">Add-Content</span> <span class="n">-Path</span> <span class="nv">$PROFILE</span> <span class="n">-Value</span> <span class="s1">'. $HOME\Documents\PowerShell\Scripts\shoutrrr.ps1'</span>
 </code></pre></div>
 </li>
 <li>

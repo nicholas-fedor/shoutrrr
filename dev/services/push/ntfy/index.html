@@ -2785,6 +2785,10 @@
   Default: <em>empty</em></p>
 </li>
 <li>
+<p><strong>markdown</strong> - Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting
+  Default: ❌ <code>no</code></p>
+</li>
+<li>
 <p><strong>priority</strong> - Message priority with 1=min, 3=default and 5=max
   Default: <code>default</code>
   Possible values: <code>Min</code>, <code>Low</code>, <code>Default</code>, <code>High</code>, <code>Max</code></p>
@@ -2885,7 +2889,7 @@
 </div>
 <div class="admonition example">
 <p class="admonition-title">With action button</p>
-<div class="highlight"><pre><span></span><code>ntfy://ntfy.sh/tasks?actions=[{&quot;action&quot;:&quot;view&quot;,&quot;label&quot;:&quot;Open Dashboard&quot;,&quot;url&quot;:&quot;https://dashboard.example.com&quot;}]&amp;title=Task+Completed
+<div class="highlight"><pre><span></span><code>ntfy://ntfy.sh/tasks?actions=[{"action":"view","label":"Open Dashboard","url":"https://dashboard.example.com"}]&amp;title=Task+Completed
 </code></pre></div>
 </div>
 

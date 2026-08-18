@@ -2813,7 +2813,7 @@
 <h3 id="send_a_notification">Send a Notification<a class="headerlink" href="#send_a_notification" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to Discord</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;discord://abc123@123456789&quot;</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">&quot;Hello, Docker!&quot;</span>
+<div class="highlight"><span class="filename">Send to Discord</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Docker!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
@@ -2834,7 +2834,7 @@ WebhookID: 123456789
 <h3 id="verify_a_url_with_verbose_output">Verify a URL with Verbose Output<a class="headerlink" href="#verify_a_url_with_verbose_output" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">&quot;slack://token-a/token-b/token-c&quot;</span>
+<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://token-a/token-b/token-c"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URL valid
 </code></pre></div>
@@ -2842,7 +2842,7 @@ WebhookID: 123456789
 <h3 id="send_from_stdin_with_environment_variables">Send from Stdin with Environment Variables<a class="headerlink" href="#send_from_stdin_with_environment_variables" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Message from stdin&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">&quot;slack://token-a/token-b/token-c&quot;</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">&quot;-&quot;</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
+<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">"Message from stdin"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">"slack://token-a/token-b/token-c"</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">"-"</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Reading from STDIN...
 Read 20 byte(s)
