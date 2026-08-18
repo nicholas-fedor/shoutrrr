@@ -13,6 +13,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -275,21 +276,13 @@ func maskSMTPUser(parsedURL *url.URL) {
 	}
 }
 
-// maskPushoverQuery redacts token and user query parameters in a Pushover URL.
+// maskPushoverQuery redacts the API token in URL userinfo and sensitive query
+// parameters in a Pushover URL.
 //
 // Parameters:
 //   - parsedURL: The Pushover URL to modify.
 func maskPushoverQuery(parsedURL *url.URL) {
-	queryParams := parsedURL.Query()
-	if queryParams.Get("token") != "" {
-		queryParams.Set("token", redactedStr)
-	}
-
-	if queryParams.Get("user") != "" {
-		queryParams.Set("user", redactedStr)
-	}
-
-	parsedURL.RawQuery = queryParams.Encode()
+	pushover.MaskURL(parsedURL)
 }
 
 // maskGotifyQuery redacts the token query parameter in a Gotify URL.

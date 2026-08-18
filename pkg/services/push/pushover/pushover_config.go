@@ -10,15 +10,21 @@ import (
 
 // Config for the Pushover notification service.
 type Config struct {
-	Token    string   `desc:"API Token/Key" url:"pass"`
-	User     string   `desc:"User Key"      url:"host"`
-	Devices  []string `                                key:"devices"  optional:""`
-	Priority int8     `                                key:"priority"             default:"0"`
-	Title    string   `                                key:"title"    optional:""`
+	Token         string   `desc:"API Token/Key"                                                  url:"pass"`
+	User          string   `desc:"User Key"                                                       url:"host"`
+	Devices       []string `                                                                                 key:"devices"           optional:""`
+	Priority      int8     `                                                                                 key:"priority"                      default:"0"`
+	Title         string   `                                                                                 key:"title"             optional:""`
+	EncryptionKey string   `desc:"256-bit AES key as 64 hex characters for end-to-end encryption"            key:"encryptionkey,key" optional:""`
 }
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "pushover"
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "pushover"
+
+	// redactedPlaceholder replaces secrets when a Pushover URL is masked.
+	redactedPlaceholder = "REDACTED"
+)
 
 // Enums returns the fields that should use a corresponding EnumFormatter to Print/Parse their values.
 func (c *Config) Enums() map[string]types.EnumFormatter {
@@ -62,6 +68,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
+		return err
+	}
+
 	if serviceURL.String() != "pushover://dummy@dummy.com" {
 		if len(c.User) < 1 {
 			return ErrUserMissing
@@ -73,4 +83,37 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	return nil
+}
+
+// MaskURL redacts the API token in URL userinfo and sensitive query parameters.
+//
+// Parameters:
+//   - parsedURL: The Pushover URL to modify.
+func MaskURL(parsedURL *url.URL) {
+	if parsedURL == nil {
+		return
+	}
+
+	if parsedURL.User != nil {
+		parsedURL.User = url.UserPassword(parsedURL.User.Username(), redactedPlaceholder)
+	}
+
+	queryParams := parsedURL.Query()
+	if queryParams.Get("token") != "" {
+		queryParams.Set("token", redactedPlaceholder)
+	}
+
+	if queryParams.Get("user") != "" {
+		queryParams.Set("user", redactedPlaceholder)
+	}
+
+	if queryParams.Get("encryptionkey") != "" {
+		queryParams.Set("encryptionkey", redactedPlaceholder)
+	}
+
+	if queryParams.Get("key") != "" {
+		queryParams.Set("key", redactedPlaceholder)
+	}
+
+	parsedURL.RawQuery = queryParams.Encode()
 }

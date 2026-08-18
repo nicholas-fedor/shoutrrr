@@ -359,6 +359,38 @@ func TestGenerateURL(t *testing.T) {
 	}
 }
 
+// TestGenerateURLMasksPushoverSecrets verifies that WASM URL generation redacts
+// the Pushover API token and encryption key before returning the URL.
+func TestGenerateURLMasksPushoverSecrets(t *testing.T) {
+	t.Parallel()
+
+	const (
+		token         = "secret-api-token"
+		encryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	)
+
+	result := generateURLString("pushover",
+		`{"Token":"`+token+`","User":"userkey","EncryptionKey":"`+encryptionKey+`"}`)
+
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("failed to unmarshal result: %v", err)
+	}
+
+	got := parsed["url"]
+	if strings.Contains(got, token) {
+		t.Errorf("generated URL contains API token: %q", got)
+	}
+
+	if strings.Contains(got, encryptionKey) {
+		t.Errorf("generated URL contains encryption key: %q", got)
+	}
+
+	if !strings.Contains(got, "REDACTED") {
+		t.Errorf("generated URL missing redaction placeholder: %q", got)
+	}
+}
+
 // TestExtractScheme verifies URL scheme extraction.
 func TestExtractScheme(t *testing.T) {
 	t.Parallel()

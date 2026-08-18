@@ -1,8 +1,18 @@
 package pushover_test
 
 import (
+	"bytes"
+	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -14,9 +24,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-const hookURL = "https://api.pushover.net/1/messages.json"
+const (
+	hookURL                = "https://api.pushover.net/1/messages.json"
+	testEncryptionKey      = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	testEncryptionKeyMixed = "0123456789ABCDEF0123456789abcdef0123456789ABCDEF0123456789abcdef"
+)
 
 var (
 	service        *pushover.Service
@@ -120,6 +135,11 @@ var _ = ginkgo.Describe("the pushover config", func() {
 			err := keyResolver.Set("devicey", "a,b,c,d")
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
+		ginkgo.It("should accept the encryption key alias", func() {
+			err := keyResolver.Set("key", testEncryptionKey)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.EncryptionKey).To(gomega.Equal(testEncryptionKey))
+		})
 	})
 	ginkgo.When("getting a config key", func() {
 		ginkgo.It("should join it with commas if the key is devices", func() {
@@ -135,9 +155,63 @@ var _ = ginkgo.Describe("the pushover config", func() {
 	})
 
 	ginkgo.When("listing the query fields", func() {
-		ginkgo.It("should return the keys \"devices\",\"priority\",\"title\"", func() {
+		ginkgo.It("should return the keys \"devices\",\"encryptionkey\",\"key\",\"priority\",\"title\"", func() {
 			fields := keyResolver.QueryFields()
-			gomega.Expect(fields).To(gomega.Equal([]string{"devices", "priority", "title"}))
+			gomega.Expect(fields).To(gomega.Equal([]string{
+				"devices",
+				"encryptionkey",
+				"key",
+				"priority",
+				"title",
+			}))
+		})
+	})
+
+	ginkgo.When("configuring end-to-end encryption", func() {
+		ginkgo.It("should accept a mixed-case 64-character hex key", func() {
+			serviceURL, err := url.Parse(
+				"pushover://:apptoken@usertoken?encryptionkey=" + testEncryptionKeyMixed,
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = config.SetURL(serviceURL)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.EncryptionKey).To(gomega.Equal(testEncryptionKeyMixed))
+		})
+		ginkgo.It("should reject a short encryption key", func() {
+			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?encryptionkey=0123456789abcdef")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = config.SetURL(serviceURL)
+			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
+		})
+		ginkgo.It("should reject a long encryption key", func() {
+			serviceURL, err := url.Parse(
+				"pushover://:apptoken@usertoken?encryptionkey=" + testEncryptionKey + "ab",
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = config.SetURL(serviceURL)
+			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
+		})
+		ginkgo.It("should reject a non-hex encryption key", func() {
+			serviceURL, err := url.Parse(
+				"pushover://:apptoken@usertoken?encryptionkey=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = config.SetURL(serviceURL)
+			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
+		})
+		ginkgo.It("should round-trip the encryption key through GetURL", func() {
+			config.User = "simme"
+			config.Token = "test-token"
+			config.EncryptionKey = testEncryptionKey
+
+			serviceURL := config.GetURL()
+			gomega.Expect(serviceURL.Query().Get("encryptionkey")).To(gomega.Equal(testEncryptionKey))
+			gomega.Expect(serviceURL.Query().Get("key")).To(gomega.BeEmpty())
+
+			roundTrip := &pushover.Config{}
+			err := roundTrip.SetURL(serviceURL)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(roundTrip.EncryptionKey).To(gomega.Equal(testEncryptionKey))
 		})
 	})
 
@@ -176,6 +250,95 @@ var _ = ginkgo.Describe("the pushover config", func() {
 			err = service.Send("Message", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
+		ginkgo.It("should send plaintext without an encrypted flag when no key is set", func() {
+			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?title=Plain+Title")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				hookURL,
+				func(req *http.Request) (*http.Response, error) {
+					gomega.Expect(req.ParseForm()).To(gomega.Succeed())
+					gomega.Expect(req.Form.Get("encrypted")).To(gomega.BeEmpty())
+					gomega.Expect(req.Form.Get("message")).To(gomega.Equal("Message"))
+					gomega.Expect(req.Form.Get("title")).To(gomega.Equal("Plain Title"))
+
+					return httpmock.NewStringResponse(200, ""), nil
+				},
+			)
+
+			err = service.Send("Message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+		ginkgo.It("should encrypt message and title when an encryption key is set", func() {
+			serviceURL, err := url.Parse(
+				"pushover://:apptoken@usertoken?encryptionkey=" +
+					testEncryptionKey +
+					"&title=Secret+Title",
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			keyBytes, err := hex.DecodeString(testEncryptionKey)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				hookURL,
+				func(req *http.Request) (*http.Response, error) {
+					gomega.Expect(req.ParseForm()).To(gomega.Succeed())
+					gomega.Expect(req.Form.Get("encrypted")).To(gomega.Equal("1"))
+					gomega.Expect(req.Form.Get("message")).NotTo(gomega.Equal("Secret message"))
+					gomega.Expect(req.Form.Get("title")).NotTo(gomega.Equal("Secret Title"))
+
+					message, decErr := decryptPushoverField(req.Form.Get("message"), keyBytes)
+					gomega.Expect(decErr).NotTo(gomega.HaveOccurred())
+					gomega.Expect(message).To(gomega.Equal("Secret message"))
+
+					title, decErr := decryptPushoverField(req.Form.Get("title"), keyBytes)
+					gomega.Expect(decErr).NotTo(gomega.HaveOccurred())
+					gomega.Expect(title).To(gomega.Equal("Secret Title"))
+
+					return httpmock.NewStringResponse(200, ""), nil
+				},
+			)
+
+			err = service.Send("Secret message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+		ginkgo.It("should fail to initialize when the encryption key is invalid", func() {
+			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?encryptionkey=short")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
+		})
+		ginkgo.It("should not send when params supply an invalid encryption key", func() {
+			serviceURL, err := url.Parse("pushover://:apptoken@usertoken")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			httpmock.RegisterResponder(
+				"POST",
+				hookURL,
+				func(*http.Request) (*http.Response, error) {
+					ginkgo.Fail("HTTP request should not be sent")
+
+					return nil, errors.New("unexpected HTTP request")
+				},
+			)
+
+			err = service.Send("Message", &types.Params{"encryptionkey": "short"})
+			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
+			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(0))
+		})
 	})
 })
 
@@ -196,4 +359,85 @@ func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
 	err := config.SetURL(serviceURL)
 	gomega.Expect(err).To(gomega.HaveOccurred())
 	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
+}
+
+func decryptPushoverField(encoded string, key []byte) (string, error) {
+	payload, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+
+	const hmacSize = sha256.Size
+	if len(payload) < aes.BlockSize+hmacSize {
+		return "", errors.New("ciphertext too short")
+	}
+
+	iv := payload[:aes.BlockSize]
+	mac := payload[len(payload)-hmacSize:]
+	ciphertext := payload[aes.BlockSize : len(payload)-hmacSize]
+
+	expected := hmac.New(sha256.New, key)
+	if _, err := expected.Write(iv); err != nil {
+		return "", err
+	}
+
+	if _, err := expected.Write(ciphertext); err != nil {
+		return "", err
+	}
+
+	if !hmac.Equal(mac, expected.Sum(nil)) {
+		return "", errors.New("hmac mismatch")
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	if len(ciphertext)%aes.BlockSize != 0 {
+		return "", errors.New("ciphertext not a multiple of block size")
+	}
+
+	plain := make([]byte, len(ciphertext))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plain, ciphertext)
+
+	unpadded, err := pkcs7Unpad(plain, aes.BlockSize)
+	if err != nil {
+		return "", err
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(unpadded))
+	if err != nil {
+		return "", err
+	}
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+
+	if err := reader.Close(); err != nil {
+		return "", err
+	}
+
+	return string(decompressed), nil
+}
+
+func pkcs7Unpad(data []byte, blockSize int) ([]byte, error) {
+	if len(data) == 0 || len(data)%blockSize != 0 {
+		return nil, errors.New("invalid padding")
+	}
+
+	padLen := int(data[len(data)-1])
+	if padLen == 0 || padLen > blockSize || padLen > len(data) {
+		return nil, errors.New("invalid padding")
+	}
+
+	for _, b := range data[len(data)-padLen:] {
+		if b != byte(padLen) {
+			return nil, errors.New("invalid padding")
+		}
+	}
+
+	return data[:len(data)-padLen], nil
 }
