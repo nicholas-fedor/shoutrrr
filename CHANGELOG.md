@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add end-to-end encryption support by @nicholas-fedor in [#1234](https://github.com/nicholas-fedor/shoutrrr/pull/1234)
 - Add smtp AUTH LOGIN authentication method by @schnoellm in [#1185](https://github.com/nicholas-fedor/shoutrrr/pull/1185)
 
 ### Chores
