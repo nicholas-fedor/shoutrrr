@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 )
 
 // Test_loadArgsFromAltSources tests the loadArgsFromAltSources function with various scenarios.
@@ -109,6 +111,12 @@ func Test_maskSensitiveURL(t *testing.T) {
 			want:          "pushover://pushover.net?token=REDACTED&user=REDACTED",
 		},
 		{
+			name:          "pushover service masks userinfo token and encryption key",
+			serviceSchema: "pushover",
+			urlStr:        "pushover://Token:secret-api-token@userkey/?encryptionkey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			want:          "pushover://Token:REDACTED@userkey/?encryptionkey=REDACTED",
+		},
+		{
 			name:          "gotify service masks token",
 			serviceSchema: "gotify",
 			urlStr:        "gotify://gotify.net?token=secret",
@@ -136,6 +144,24 @@ func Test_maskSensitiveURL(t *testing.T) {
 			assert.Equal(t, tt.want, got, "maskSensitiveURL() returned unexpected value")
 		})
 	}
+}
+
+// Test_maskSensitiveURL_pushoverGeneratePath verifies that the default generate
+// path redacts both Config.Token and Config.EncryptionKey.
+func Test_maskSensitiveURL_pushoverGeneratePath(t *testing.T) {
+	t.Parallel()
+
+	cfg := &pushover.Config{
+		Token:         "secret-api-token",
+		User:          "userkey",
+		EncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	}
+
+	masked := maskSensitiveURL(pushover.Scheme, cfg.GetURL().String())
+
+	assert.NotContains(t, masked, cfg.Token, "API token must not appear in the masked URL")
+	assert.NotContains(t, masked, cfg.EncryptionKey, "encryption key must not appear in the masked URL")
+	assert.Contains(t, masked, redactedStr, "masked URL should contain the redaction placeholder")
 }
 
 // Test_maskUser tests the maskUser function.
@@ -243,6 +269,8 @@ func Test_maskPushoverQuery(t *testing.T) {
 		urlStr   string
 		wantTok  string
 		wantUser string
+		wantKey  string
+		wantPass string
 	}{
 		{
 			name:     "masks token and user",
@@ -261,6 +289,21 @@ func Test_maskPushoverQuery(t *testing.T) {
 			urlStr:   "pushover://?other=value",
 			wantTok:  "",
 			wantUser: "",
+		},
+		{
+			name:    "masks encryptionkey query parameter",
+			urlStr:  "pushover://?encryptionkey=secret-hex-key",
+			wantKey: redactedStr,
+		},
+		{
+			name:    "masks key alias query parameter",
+			urlStr:  "pushover://?key=secret-hex-key",
+			wantKey: redactedStr,
+		},
+		{
+			name:     "masks API token in URL userinfo",
+			urlStr:   "pushover://Token:secret-api-token@userkey/",
+			wantPass: redactedStr,
 		},
 	}
 
@@ -282,7 +325,23 @@ func Test_maskPushoverQuery(t *testing.T) {
 				assert.Equal(t, tt.wantUser, query.Get("user"), "user mismatch")
 			}
 
-			if tt.wantTok == "" && tt.wantUser == "" {
+			if tt.wantKey != "" {
+				if query.Has("encryptionkey") {
+					assert.Equal(t, tt.wantKey, query.Get("encryptionkey"), "encryptionkey mismatch")
+				}
+
+				if query.Has("key") {
+					assert.Equal(t, tt.wantKey, query.Get("key"), "key mismatch")
+				}
+			}
+
+			if tt.wantPass != "" {
+				pass, hasPass := parsedURL.User.Password()
+				assert.True(t, hasPass, "password should be set")
+				assert.Equal(t, tt.wantPass, pass, "userinfo token mismatch")
+			}
+
+			if tt.wantTok == "" && tt.wantUser == "" && tt.wantKey == "" && tt.wantPass == "" {
 				// Verify other params are unchanged
 				assert.Equal(t, "value", query.Get("other"), "other param should be unchanged")
 			}

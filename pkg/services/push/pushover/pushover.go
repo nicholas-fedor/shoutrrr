@@ -62,6 +62,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if _, err := parseEncryptionKey(config.EncryptionKey); err != nil {
+		return err
+	}
+
 	device := strings.Join(config.Devices, ",")
 	if err := s.sendToDevice(device, message, config); err != nil {
 		return fmt.Errorf("failed to send notifications to pushover devices: %w", err)
@@ -86,6 +90,18 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 
 // sendToDevice sends a notification to a specific Pushover device.
 func (s *Service) sendToDevice(device, message string, config *Config) error {
+	key, err := parseEncryptionKey(config.EncryptionKey)
+	if err != nil {
+		return err
+	}
+
+	if key != nil {
+		message, err = encryptField(message, key)
+		if err != nil {
+			return err
+		}
+	}
+
 	data := url.Values{}
 	data.Set("device", device)
 	data.Set("user", config.User)
@@ -93,7 +109,19 @@ func (s *Service) sendToDevice(device, message string, config *Config) error {
 	data.Set("message", message)
 
 	if config.Title != "" {
-		data.Set("title", config.Title)
+		title := config.Title
+		if key != nil {
+			title, err = encryptField(title, key)
+			if err != nil {
+				return err
+			}
+		}
+
+		data.Set("title", title)
+	}
+
+	if key != nil {
+		data.Set("encrypted", "1")
 	}
 
 	if config.Priority >= -2 && config.Priority <= 1 {

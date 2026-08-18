@@ -275,11 +275,16 @@ func maskSMTPUser(parsedURL *url.URL) {
 	}
 }
 
-// maskPushoverQuery redacts token and user query parameters in a Pushover URL.
+// maskPushoverQuery redacts the API token in URL userinfo and sensitive query
+// parameters in a Pushover URL.
 //
 // Parameters:
 //   - parsedURL: The Pushover URL to modify.
 func maskPushoverQuery(parsedURL *url.URL) {
+	if parsedURL.User != nil {
+		parsedURL.User = url.UserPassword(parsedURL.User.Username(), redactedStr)
+	}
+
 	queryParams := parsedURL.Query()
 	if queryParams.Get("token") != "" {
 		queryParams.Set("token", redactedStr)
@@ -287,6 +292,14 @@ func maskPushoverQuery(parsedURL *url.URL) {
 
 	if queryParams.Get("user") != "" {
 		queryParams.Set("user", redactedStr)
+	}
+
+	if queryParams.Get("encryptionkey") != "" {
+		queryParams.Set("encryptionkey", redactedStr)
+	}
+
+	if queryParams.Get("key") != "" {
+		queryParams.Set("key", redactedStr)
 	}
 
 	parsedURL.RawQuery = queryParams.Encode()

@@ -10,11 +10,12 @@ import (
 
 // Config for the Pushover notification service.
 type Config struct {
-	Token    string   `desc:"API Token/Key" url:"pass"`
-	User     string   `desc:"User Key"      url:"host"`
-	Devices  []string `                                key:"devices"  optional:""`
-	Priority int8     `                                key:"priority"             default:"0"`
-	Title    string   `                                key:"title"    optional:""`
+	Token         string   `desc:"API Token/Key"                                                  url:"pass"`
+	User          string   `desc:"User Key"                                                       url:"host"`
+	Devices       []string `                                                                                 key:"devices"           optional:""`
+	Priority      int8     `                                                                                 key:"priority"                      default:"0"`
+	Title         string   `                                                                                 key:"title"             optional:""`
+	EncryptionKey string   `desc:"256-bit AES key as 64 hex characters for end-to-end encryption"            key:"encryptionkey,key" optional:""`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -60,6 +61,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}
+	}
+
+	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
+		return err
 	}
 
 	if serviceURL.String() != "pushover://dummy@dummy.com" {

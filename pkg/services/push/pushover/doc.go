@@ -25,6 +25,7 @@
 //   - devices: comma-separated list of target device names (optional, sends to all devices if not specified)
 //   - priority: message priority (-2 to 1, default: 0)
 //   - title: notification title (optional, defaults to application name)
+//   - encryptionkey: 64-character hex AES-256 key for end-to-end encryption (optional, alias: key)
 //
 // Priority levels:
 //   - -2: lowest - no sound, no notification, stored for later
@@ -108,6 +109,13 @@
 //	url := "pushover://userkey:apitoken@?title=INCIDENT&priority=1"
 //	err := shoutrrr.Send(url, "Database connection lost - immediate attention required")
 //
+// ## End-to-end encryption
+//
+// Encrypt message and title with a 256-bit key also configured in the Pushover app:
+//
+//	url := "pushover://userkey:apitoken@?encryptionkey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+//	err := shoutrrr.Send(url, "This message is encrypted")
+//
 // # Error Handling
 //
 // The service returns errors for various failure scenarios. Always check the returned error:
@@ -127,10 +135,11 @@
 //
 // # Security Considerations
 //
-// - Store API tokens securely - avoid hardcoding them in source code or configuration files
+// - Store API tokens and encryption keys securely - avoid hardcoding them in source code or configuration files
 // - Use appropriate priority levels - high priority notifications bypass quiet hours and should be reserved for critical events
 // - Consider device-specific targeting when needed using the devices parameter
-// - The user key is not secret, but the API token should be treated as a secret
+// - The user key is not secret, but the API token and encryption key should be treated as secrets
+// - When encryptionkey is set, message and title are encrypted client-side; an invalid key or encryption failure refuses to send
 // - Pushover notifications may contain sensitive information - consider this when sending notifications
 // - Review Pushover's terms of service for any usage restrictions
 //
@@ -145,5 +154,6 @@
 // - The Pushover API endpoint is https://api.pushover.net/1/messages.json
 // - Notifications are delivered instantly under normal conditions
 // - Priority -2 messages are stored for 7 days, -1 and 0 for 30 days, 1 for 7 days
-// - Maximum message length is 1024 characters
+// - Maximum message length is 1024 characters; encrypted fields are larger than plaintext and can exceed this limit
+// - End-to-end encryption is supported by the Pushover iOS and Android apps when the same key is configured on the device
 package pushover

@@ -29,4 +29,24 @@ _pushover://shoutrrr:__`token`__@__`userKey`__/?devices=__`device`__&title=Custo
 !!! note
     Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.
 
+## End-to-end encryption
+
+Pushover [end-to-end encryption](https://pushover.net/api#e2ee) encrypts `message` and `title` on the client before they are sent.
+Generate a 256-bit key and configure the same value in the Pushover iOS or Android app:
+
+```bash
+openssl rand -hex 32
+```
+
+Then include it in the service URL:
+
+_pushover://shoutrrr:__`token`__@__`userKey`__/?encryptionkey=__`64-char-hex`___
+
+`key` is accepted as an alias for `encryptionkey`.
+A valid key enables encryption automatically.
+An invalid key fails during URL verification, and encryption errors refuse to send rather than falling back to plaintext.
+
+Encrypted fields are larger than the original text and still count toward Pushover's 1024-character field limit.
+Desktop clients cannot decrypt end-to-end encrypted messages.
+
 Please refer to the [Pushover API documentation](https://pushover.net/api#messages) for more information.
