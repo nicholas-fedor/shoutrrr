@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#1240](https://github.com/nicholas-fedor/shoutrrr/pull/1240)
+- Update module github.com/stretchr/testify to v1.12.1 by @renovate[bot] in [#1239](https://github.com/nicholas-fedor/shoutrrr/pull/1239)
+
+## [0.17.1] - 2026-08-18
+
 ### Added
 
 - Add end-to-end encryption support by @nicholas-fedor in [#1234](https://github.com/nicholas-fedor/shoutrrr/pull/1234)
@@ -2034,7 +2041,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.1...HEAD)
+- [0.17.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...v0.17.1)
 - [0.17.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...v0.17.0)
 - [0.16.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.2...v0.16.3)
 - [0.16.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.1...v0.16.2)
