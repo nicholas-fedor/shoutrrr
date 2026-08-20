@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go docker tag to v1.27.0 by @renovate[bot] in [#1246](https://github.com/nicholas-fedor/shoutrrr/pull/1246)
+- Update go toolchain directive to v1.27.0 by @renovate[bot] in [#1243](https://github.com/nicholas-fedor/shoutrrr/pull/1243)
 - Update cimg/go docker tag to v1.26.7 by @renovate[bot] in [#1242](https://github.com/nicholas-fedor/shoutrrr/pull/1242)
 - Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#1240](https://github.com/nicholas-fedor/shoutrrr/pull/1240)
 - Update module github.com/stretchr/testify to v1.12.1 by @renovate[bot] in [#1239](https://github.com/nicholas-fedor/shoutrrr/pull/1239)
