@@ -198,6 +198,16 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "andig",
+      "name": "andig",
+      "avatar_url": "https://avatars.githubusercontent.com/u/184815?v=4",
+      "profile": "https://evcc.io",
+      "contributions": [
+        "bug",
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

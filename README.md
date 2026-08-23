@@ -17,7 +17,8 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 [![Pulls from DockerHub](https://img.shields.io/docker/pulls/nickfedor/shoutrrr.svg)](https://hub.docker.com/r/nickfedor/shoutrrr)
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/nicholas-fedor/shoutrrr)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nicholas-fedor/shoutrrr)<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-20-orange.svg?style=flat-square)](#contributors-)<!-- ALL-CONTRIBUTORS-BADGE:END -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-21-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![license](https://img.shields.io/github/license/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr/blob/main/LICENSE)
 </div>
 <!-- markdownlint-restore -->
@@ -378,6 +379,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/noelob"><img src="https://avatars.githubusercontent.com/u/643338?v=4?s=100" width="100px;" alt="Noel O'Brien"/><br /><sub><b>Noel O'Brien</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=noelob" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=noelob" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://caleblemoine.dev"><img src="https://avatars.githubusercontent.com/u/21261388?v=4?s=100" width="100px;" alt="Caleb Lemoine"/><br /><sub><b>Caleb Lemoine</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=circa10a" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=circa10a" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://hieddie.org"><img src="https://avatars.githubusercontent.com/u/205121303?v=4?s=100" width="100px;" alt="Eddie 'Sergeant' M"/><br /><sub><b>Eddie 'Sergeant' M</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=sgtM-devs" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://evcc.io"><img src="https://avatars.githubusercontent.com/u/184815?v=4?s=100" width="100px;" alt="andig"/><br /><sub><b>andig</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/issues?q=author%3Aandig" title="Bug reports">🐛</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=andig" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
