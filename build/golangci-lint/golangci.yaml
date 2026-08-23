@@ -235,7 +235,7 @@ linters:
       #   - 'example\.com/package\.ExampleStruct[\d]{1,2}'
       # List of regular expressions to match type names that should be skipped from checking.
       # Anonymous structs can be matched by '<anonymous>' alias.
-      # Has precedence over `include`.
+      # Has precedence over `enforce-patterns`.
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
@@ -294,7 +294,7 @@ linters:
       # Allows empty structures in variable declarations.
       # Default: false
       allow-empty-declarations: true
-      # When true, only types marked with //exhaustruct:enforce directive or matching enforce-rx patterns are checked.
+      # When true, only types marked with //exhaustruct:enforce directive or matching enforce-patterns are checked.
       # Default: false
       # explicit-mode: true
 
