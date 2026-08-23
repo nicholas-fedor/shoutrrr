@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#1240](https://github.com/nicholas-fedor/shoutrrr/pull/1240)
 - Update module github.com/stretchr/testify to v1.12.1 by @renovate[bot] in [#1239](https://github.com/nicholas-fedor/shoutrrr/pull/1239)
 
+### Fixed
+
+- Encode non-ASCII Subject and From headers per RFC 2047 by @andig in [#1253](https://github.com/nicholas-fedor/shoutrrr/pull/1253)
+
+### New Contributors
+
+- @andig made their first contribution in [#1253](https://github.com/nicholas-fedor/shoutrrr/pull/1253)
+
 ## [0.17.1] - 2026-08-18
 
 ### Added
