@@ -49,7 +49,7 @@ func (err *ResponseError) Error() string {
 
 // NewNotePush creates a new push request.
 //
-//nolint:exhaustruct // PushRequest targeting fields (Email, ChannelTag, DeviceIden) are set by SetTarget method
+//nolint:exhaustruct_v5 // PushRequest targeting fields (Email, ChannelTag, DeviceIden) are set by SetTarget method
 func NewNotePush(message, title string) *PushRequest {
 	return &PushRequest{
 		Type:  "note",

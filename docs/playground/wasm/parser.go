@@ -145,7 +145,7 @@ func extractWebhookDisplay(configValue reflect.Value) string {
 		return ""
 	}
 
-	webhookURL, ok := results[0].Interface().(*url.URL)
+	webhookURL, ok := reflect.TypeAssert[*url.URL](results[0])
 	if !ok {
 		return ""
 	}

@@ -34,7 +34,8 @@ var ParseModes = &parseModeVals{
 			"Markdown",
 			"HTML",
 			"MarkdownV2",
-		}),
+		},
+	),
 }
 
 func (pm parseMode) String() string {

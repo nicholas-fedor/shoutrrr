@@ -149,7 +149,7 @@ func (s *Service) getRequestBody(
 		body.Content.Text = message
 	} else {
 		body.MsgType = MsgTypePost
-		//nolint:exhaustruct // Item fields are populated inline; Link is optional
+		//nolint:exhaustruct_v5 // Item fields are populated inline; Link is optional
 		content := [][]Item{{{Tag: TagValueTextContent, Text: message}}}
 
 		if params != nil {
@@ -162,7 +162,7 @@ func (s *Service) getRequestBody(
 			}
 		}
 
-		//nolint:exhaustruct // Post fields are populated inline; Zh is optional
+		//nolint:exhaustruct_v5 // Post fields are populated inline; Zh is optional
 		body.Content.Post = &Post{
 			En: &Message{
 				Title:   title,

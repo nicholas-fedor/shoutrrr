@@ -47,6 +47,7 @@ linters:
     - intrange # Intrange is a linter to find places where for loops could make use of an integer range.
     - mirror # Reports wrong mirror patterns of bytes/strings usage.
     - misspell # Finds commonly misspelled English words.
+    - modernize # A suite of analyzers that suggest simplifications to Go code, using modern language and library features.
     - nakedret # Checks that functions with naked returns are not longer than a maximum size (can be zero).
     - nlreturn # Nlreturn checks for a new line before return and branch statements to increase code clarity.
     - nolintlint # Reports ill-formed or insufficient nolint directives.
@@ -79,7 +80,7 @@ linters:
     - errname # Checks that sentinel errors are prefixed with the `Err` and error types are suffixed with the `Error`.
     - errcheck # Errcheck is a program for checking for unchecked errors in Go code. These unchecked errors can be critical bugs in some cases.
     - exhaustive # Check exhaustiveness of enum switch statements.
-    - exhaustruct # Checks if all structure fields are initialized.
+    - exhaustruct_v5 # Checks if all structure fields are initialized
     - forbidigo # Forbids identifiers.
     - forcetypeassert # Finds forced type assertions.
     - funcorder # Checks the order of functions, methods, and constructors.
@@ -99,7 +100,6 @@ linters:
     - loggercheck # Checks key value pairs for common logger libraries (kitlog,klog,logr,zap).
     - makezero # Finds slice declarations with non-zero initial length.
     - mnd # An analyzer to detect magic numbers.
-    - modernize # A suite of analyzers that suggest simplifications to Go code, using modern language and library features.
     - musttag # Enforce field tags in (un)marshaled structs.
     - nilerr # Finds the code that returns nil even if it checks that the error is not nil.
     - nilnesserr # Reports constructs that checks for err != nil, but returns a different nil value error.
@@ -129,6 +129,7 @@ linters:
     - arangolint # Opinionated best practices for arangodb client.
     - cyclop # Checks function and package cyclomatic complexity.
     - depguard # Checks if package imports are in a list of acceptable packages.
+    - exhaustruct # Checks if all structure fields are initialized.
     - funlen # Checks for long functions.
     - gochecknoglobals # Check that no global variables exist.
     - gochecknoinits # Checks that no init functions are present in Go code.
@@ -220,26 +221,26 @@ linters:
       verbose: true
 
     ####################################################################################################
-    # https://golangci-lint.run/docs/linters/configuration/#exhaustruct
-    exhaustruct:
-      # List of regular expressions to match type names that should be processed.
+    # https://golangci-lint.run/docs/linters/configuration/#exhaustruct_v5
+    exhaustruct_v5:
+      # List of regular expressions to match type names that should be checked.
       # Anonymous structs can be matched by '<anonymous>' alias.
       #
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
       # Default: []
-      # include:
+      # enforce-patterns:
       #   - '.+\.Test'
       #   - 'example\.com/package\.ExampleStruct[\d]{1,2}'
-      # List of regular expressions to match type names that should be excluded from processing.
+      # List of regular expressions to match type names that should be skipped from checking.
       # Anonymous structs can be matched by '<anonymous>' alias.
       # Has precedence over `include`.
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
       # Default: []
-      exclude:
+      ignore-patterns:
         # Exclude test files - pattern matches type names from test files
         - '.*_test\.\w+$'
         # Exclude cobra.Command - typically used with partial initialization
@@ -266,6 +267,16 @@ linters:
         - '.*/oauth2\.Config'
         # Exclude tls.Dialer - embedded net.Dialer with zero-value defaults
         - '.*/tls\.Dialer'
+      # List of regular expressions to match type names where
+      # all fields are treated as optional. Anonymous structs can be matched by
+      # '<anonymous>' alias.
+      #
+      # Each regular expression must match the full type name, including package path.
+      # For example, to match type `net/http.Cookie` regular expression should be
+      # `.*/http\.Cookie`, but not `http\.Cookie`.
+      # Default: []
+      # optional-patterns:
+      #   - '.+Foo'
       # Allows empty structures, effectively excluding them from the check.
       # Default: false
       allow-empty: true
@@ -275,7 +286,7 @@ linters:
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
       # Default: []
-      # allow-empty-rx:
+      # allow-empty-patterns:
       #   - '.*/http\.Cookie'
       # Allows empty structures in return statements.
       # Default: false
@@ -283,6 +294,9 @@ linters:
       # Allows empty structures in variable declarations.
       # Default: false
       allow-empty-declarations: true
+      # When true, only types marked with //exhaustruct:enforce directive or matching enforce-rx patterns are checked.
+      # Default: false
+      # explicit-mode: true
 
     ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#forbidigo
@@ -589,7 +603,7 @@ linters:
           - errcheck
           - errorlint
           - exhaustive
-          - exhaustruct
+          - exhaustruct_v5
           - forcetypeassert
           - funlen
           - gocyclo
@@ -758,7 +772,10 @@ formatters:
     # https://golangci-lint.run/docs/formatters/configuration/#gofumpt
     gofumpt:
       module-path: "github.com/nicholas-fedor/shoutrrr"
-      extra-rules: true
+      extra:
+        group-params: true
+        clothe-returns: true
+        balance-calls: true
     ##################################################################################################
     # https://golangci-lint.run/docs/formatters/configuration/#goimports
     goimports:

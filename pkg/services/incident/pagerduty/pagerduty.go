@@ -327,11 +327,11 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 		switch contextType {
 		case "link":
 			// Create a link context with href
-			//nolint:exhaustruct // link type only needs Type+Href
+			//nolint:exhaustruct_v5 // link type only needs Type+Href
 			ctxVar = PagerDutyContext{Type: "link", Href: value}
 		case "image":
 			// Create an image context with src
-			//nolint:exhaustruct // image type only needs Type+Src
+			//nolint:exhaustruct_v5 // image type only needs Type+Src
 			ctxVar = PagerDutyContext{Type: "image", Src: value}
 		case "text":
 			// Skip text contexts

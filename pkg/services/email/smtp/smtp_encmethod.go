@@ -48,7 +48,8 @@ var EncMethods = &encMethodVals{
 			"ExplicitTLS",
 			"ImplicitTLS",
 			"Auto",
-		}),
+		},
+	),
 }
 
 func (at encMethod) String() string {

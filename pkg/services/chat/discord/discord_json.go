@@ -106,7 +106,7 @@ func processEmbedFields(
 			thumbnail = &embedThumbnail{URL: field.Value}
 		default:
 			// Regular fields become embed fields
-			//nolint:exhaustruct // Inline is optional and defaults to false
+			//nolint:exhaustruct_v5 // Inline is optional and defaults to false
 			embedFields = append(embedFields, embedField{
 				Name:  field.Key,
 				Value: field.Value,
@@ -166,7 +166,7 @@ func CreatePayloadFromItems(
 
 		author, image, thumbnail, embedFields := processEmbedFields(item.Fields)
 
-		//nolint:exhaustruct // Fields are conditionally set below
+		//nolint:exhaustruct_v5 // Fields are conditionally set below
 		embeddedItem := embedItem{
 			Content:   item.Text,
 			Color:     color,
@@ -177,7 +177,7 @@ func CreatePayloadFromItems(
 		}
 
 		if item.Level != types.Unknown {
-			//nolint:exhaustruct // IconURL is optional
+			//nolint:exhaustruct_v5 // IconURL is optional
 			embeddedItem.Footer = &embedFooter{
 				Text: item.Level.String(),
 			}

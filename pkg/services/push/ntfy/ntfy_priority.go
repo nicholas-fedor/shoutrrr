@@ -47,7 +47,8 @@ var Priority = &priorityVals{
 			"4":      int(PriorityHigh),
 			"5":      int(PriorityMax),
 			"urgent": int(PriorityMax),
-		}),
+		},
+	),
 }
 
 func (p priority) String() string {

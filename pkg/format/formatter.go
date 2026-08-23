@@ -61,7 +61,7 @@ func GetServiceConfig(service types.Service) types.ServiceConfig {
 		panic("failed to create new config instance")
 	}
 
-	if config, ok := configRef.Interface().(types.ServiceConfig); ok {
+	if config, ok := reflect.TypeAssert[types.ServiceConfig](configRef); ok {
 		return config
 	}
 

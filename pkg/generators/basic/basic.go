@@ -63,7 +63,7 @@ func (g *Generator) Generate(
 		return nil, err
 	}
 
-	if config, ok := configPtr.Interface().(types.ServiceConfig); ok {
+	if config, ok := reflect.TypeAssert[types.ServiceConfig](configPtr); ok {
 		return config, nil
 	}
 
@@ -172,7 +172,7 @@ func (g *Generator) promptUserForFields(
 	props map[string]string,
 	scanner *bufio.Scanner,
 ) error {
-	serviceConfig, ok := configPtr.Interface().(types.ServiceConfig)
+	serviceConfig, ok := reflect.TypeAssert[types.ServiceConfig](configPtr)
 	if !ok {
 		return ErrInvalidConfigType
 	}

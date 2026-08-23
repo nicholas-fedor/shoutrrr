@@ -237,9 +237,9 @@ func initWebhookURL(service types.Service, webhookURL string) error {
 	}
 
 	// Call SetURL on the actual config.
-	setter, ok := configRef.Interface().(interface {
+	setter, ok := reflect.TypeAssert[interface {
 		SetURL(webhookURL *url.URL) error
-	})
+	}](configRef)
 	if !ok {
 		return errNoSetURL
 	}
@@ -287,7 +287,7 @@ func getServiceConfigFromService(service types.Service) (types.ServiceConfig, bo
 		return nil, false
 	}
 
-	svcConfig, ok := configRef.Interface().(types.ServiceConfig)
+	svcConfig, ok := reflect.TypeAssert[types.ServiceConfig](configRef)
 
 	return svcConfig, ok
 }

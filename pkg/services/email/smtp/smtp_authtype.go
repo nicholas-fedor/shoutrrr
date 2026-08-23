@@ -42,7 +42,8 @@ var AuthTypes = &authTypeVals{
 			"Unknown",
 			"OAuth2",
 			"Login",
-		}),
+		},
+	),
 }
 
 func (at authType) String() string {

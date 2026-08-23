@@ -138,7 +138,7 @@ func (s *Service) doSend(config *Config, message string) error {
 	body := make([]adaptiveBlock, 0, len(lines)+1)
 
 	if config.Title != "" {
-		//nolint:exhaustruct // Color, Wrap are optional and set conditionally
+		//nolint:exhaustruct_v5 // Color, Wrap are optional and set conditionally
 		titleBlock := adaptiveBlock{
 			Type:   "TextBlock",
 			Text:   config.Title,
@@ -155,7 +155,7 @@ func (s *Service) doSend(config *Config, message string) error {
 			continue
 		}
 
-		//nolint:exhaustruct // Color, Weight, Size are optional and default to zero values
+		//nolint:exhaustruct_v5 // Color, Weight, Size are optional and default to zero values
 		body = append(body, adaptiveBlock{
 			Type: "TextBlock",
 			Text: line,
