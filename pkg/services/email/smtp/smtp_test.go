@@ -157,10 +157,30 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 					}
 					headers := service.getHeaders("rec1@example.com", "Subject")
 
+					gomega.Expect(headers["From"]).
+						To(gomega.Equal("=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>"))
+
 					address, err := mail.ParseAddress(headers["From"])
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(address.Name).To(gomega.Equal("Grüßer"))
 					gomega.Expect(address.Address).To(gomega.Equal("sender@example.com"))
+				})
+			})
+			ginkgo.When("the sender name or address requires quoting", func() {
+				ginkgo.It("should quote them", func() {
+					service.Config = &Config{
+						FromName:    "Doe, John",
+						FromAddress: "odd name@example.com",
+					}
+					headers := service.getHeaders("rec1@example.com", "Subject")
+
+					gomega.Expect(headers["From"]).
+						To(gomega.Equal(`"Doe, John" <"odd name"@example.com>`))
+					gomega.Expect(mail.ParseAddress(headers["From"])).
+						To(gomega.Equal(&mail.Address{
+							Name:    "Doe, John",
+							Address: `odd name@example.com`,
+						}))
 				})
 			})
 			ginkgo.When("no sender name is configured", func() {
