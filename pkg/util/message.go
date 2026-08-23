@@ -64,7 +64,7 @@ func PartitionMessage(
 			}
 		}
 
-		//nolint:exhaustruct // MessageItem only requires Text field for this use case
+		//nolint:exhaustruct_v5 // MessageItem only requires Text field for this use case
 		items = append(items, types.MessageItem{
 			Text: string(runes[chunkOffset:chunkEnd]),
 		})
@@ -136,7 +136,7 @@ func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.Me
 			continue
 		}
 
-		//nolint:exhaustruct // MessageItem only requires Text field for this use case
+		//nolint:exhaustruct_v5 // MessageItem only requires Text field for this use case
 		items = append(items, types.MessageItem{
 			Text: line,
 		})

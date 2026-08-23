@@ -148,7 +148,8 @@ var QoSValues = &qosVals{
 			"at_most_once":  int(QoSAtMostOnce),
 			"at_least_once": int(QoSAtLeastOnce),
 			"exactly_once":  int(QoSExactlyOnce),
-		}),
+		},
+	),
 }
 
 // Enums returns a map of enum type names to their formatters.

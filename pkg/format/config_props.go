@@ -14,7 +14,7 @@ var ErrNotConfigProp = errors.New("struct field cannot be used as a prop")
 func GetConfigPropFromString(structType reflect.Type, value string) (reflect.Value, error) {
 	valuePtr := reflect.New(structType)
 
-	configProp, ok := valuePtr.Interface().(types.ConfigProp)
+	configProp, ok := reflect.TypeAssert[types.ConfigProp](valuePtr)
 	if !ok {
 		return reflect.Value{}, ErrNotConfigProp
 	}
@@ -35,7 +35,7 @@ func GetConfigPropString(propPtr reflect.Value) (string, error) {
 	}
 
 	if propPtr.CanInterface() {
-		if configProp, ok := propPtr.Interface().(types.ConfigProp); ok {
+		if configProp, ok := reflect.TypeAssert[types.ConfigProp](propPtr); ok {
 			s, err := configProp.GetPropValue()
 			if err != nil {
 				return "", fmt.Errorf("failed to get config prop string: %w", err)

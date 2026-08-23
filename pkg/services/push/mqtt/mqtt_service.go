@@ -215,7 +215,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Publish the message to the configured topic with QoS and retention settings
-	//nolint:exhaustruct // paho.Publish PacketID is auto-generated, Properties optional for MQTT v5
+	//nolint:exhaustruct_v5 // paho.Publish PacketID is auto-generated, Properties optional for MQTT v5
 	resp, err := s.connectionManager.Publish(
 		ctx,
 		&paho.Publish{
@@ -420,13 +420,13 @@ func (s *Service) initClient() error {
 	ctx := s.ctx
 
 	// Create autopaho client configuration
-	//nolint:exhaustruct // autopaho.ClientConfig has many optional fields with library defaults
+	//nolint:exhaustruct_v5 // autopaho.ClientConfig has many optional fields with library defaults
 	cliCfg := autopaho.ClientConfig{
 		ServerUrls:                    []*url.URL{serverURL},
 		KeepAlive:                     keepAliveInterval,
 		CleanStartOnInitialConnection: s.Config.CleanSession,
 		SessionExpiryInterval:         sessionExpiryInterval,
-		ClientConfig: paho.ClientConfig{
+		ClientConfig: paho.ClientConfig{ //nolint:exhaustruct_v5 // remaining fields use library defaults
 			ClientID: s.Config.ClientID,
 			OnServerDisconnect: func(disconnect *paho.Disconnect) {
 				s.Logf("Server disconnected: reason code %d", disconnect.ReasonCode)

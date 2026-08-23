@@ -134,7 +134,7 @@ func convertFields(nodes []format.Node, config types.ServiceConfig) []fieldSchem
 	for _, node := range nodes {
 		field := node.Field()
 
-		//nolint:exhaustruct // EnumValues set conditionally below.
+		//nolint:exhaustruct_v5 // EnumValues set conditionally below.
 		schema := fieldSchema{
 			Name:         field.Name,
 			Type:         classifyType(field.Type, field.IsEnum()),

@@ -52,7 +52,7 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 			continue
 		}
 
-		//nolint:exhaustruct // Partial initialization is intentional, other fields are set below
+		//nolint:exhaustruct_v5 // Partial initialization is intentional, other fields are set below
 		info := FieldInfo{
 			Name:          fieldDef.Name,
 			Type:          fieldDef.Type,

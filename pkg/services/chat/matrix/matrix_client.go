@@ -321,7 +321,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 	deviceID := generateDeviceID(user, c.apiURL.Host)
 	c.logf("Using device ID: %v\n", deviceID)
 
-	//nolint:exhaustruct // Intentional zero-value initialization for apiReqLogin
+	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
 		ctx,
 		apiLogin,
@@ -361,7 +361,7 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 	deviceID := generateDeviceID("", c.apiURL.Host)
 	c.logf("Using device ID: %v\n", deviceID)
 
-	//nolint:exhaustruct // Intentional zero-value initialization for apiReqLogin
+	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
 		ctx,
 		apiLogin,
@@ -580,7 +580,7 @@ func normalizeHostForDeviceID(host string) string {
 
 // newClient creates a new Matrix client with the specified host and TLS settings.
 //
-//nolint:exhaustruct // Intentional partial initialization
+//nolint:exhaustruct_v5 // Intentional partial initialization
 func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 	client := &client{
 		logger: logger,
