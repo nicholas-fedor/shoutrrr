@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"log"
+	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -124,6 +126,69 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				ginkgo.It("should return that value", func() {
 					gomega.Expect(service.resolveClientHost(&Config{ClientHost: "computah"})).
 						To(gomega.Equal("computah"))
+				})
+			})
+		})
+		ginkgo.When("constructing the message headers", func() {
+			ginkgo.When("the subject contains non-ASCII characters", func() {
+				ginkgo.It("should encode it as an RFC 2047 encoded-word", func() {
+					service.Config = &Config{FromAddress: "sender@example.com"}
+					headers := service.getHeaders("rec1@example.com", "Plan überschritten")
+
+					gomega.Expect(headers["Subject"]).
+						To(gomega.Equal("=?UTF-8?q?Plan_=C3=BCberschritten?="))
+					gomega.Expect(new(mime.WordDecoder).DecodeHeader(headers["Subject"])).
+						To(gomega.Equal("Plan überschritten"))
+				})
+			})
+			ginkgo.When("the subject is pure ASCII", func() {
+				ginkgo.It("should leave it unencoded", func() {
+					service.Config = &Config{FromAddress: "sender@example.com"}
+					headers := service.getHeaders("rec1@example.com", "Plan exceeded")
+
+					gomega.Expect(headers["Subject"]).To(gomega.Equal("Plan exceeded"))
+				})
+			})
+			ginkgo.When("the sender name contains non-ASCII characters", func() {
+				ginkgo.It("should encode it and keep the address parseable", func() {
+					service.Config = &Config{
+						FromName:    "Grüßer",
+						FromAddress: "sender@example.com",
+					}
+					headers := service.getHeaders("rec1@example.com", "Subject")
+
+					gomega.Expect(headers["From"]).
+						To(gomega.Equal("=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>"))
+
+					address, err := mail.ParseAddress(headers["From"])
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(address.Name).To(gomega.Equal("Grüßer"))
+					gomega.Expect(address.Address).To(gomega.Equal("sender@example.com"))
+				})
+			})
+			ginkgo.When("the sender name or address requires quoting", func() {
+				ginkgo.It("should quote them", func() {
+					service.Config = &Config{
+						FromName:    "Doe, John",
+						FromAddress: "odd name@example.com",
+					}
+					headers := service.getHeaders("rec1@example.com", "Subject")
+
+					gomega.Expect(headers["From"]).
+						To(gomega.Equal(`"Doe, John" <"odd name"@example.com>`))
+					gomega.Expect(mail.ParseAddress(headers["From"])).
+						To(gomega.Equal(&mail.Address{
+							Name:    "Doe, John",
+							Address: `odd name@example.com`,
+						}))
+				})
+			})
+			ginkgo.When("no sender name is configured", func() {
+				ginkgo.It("should only emit the address", func() {
+					service.Config = &Config{FromAddress: "sender+tag@example.com"}
+					headers := service.getHeaders("rec1@example.com", "Subject")
+
+					gomega.Expect(headers["From"]).To(gomega.Equal("<sender+tag@example.com>"))
 				})
 			})
 		})
@@ -352,7 +417,7 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				}, "<pre>{{ .message }}</pre>", "{{ .message }}",
 					"RCPT TO:<rec1+tag@example.com>",
 					"To: rec1+tag@example.com",
-					"From:  <sender+tag@example.com>")
+					"From: <sender+tag@example.com>")
 				if msg, test := standard.IsTestSetupFailure(err); test {
 					ginkgo.Skip(msg)
 

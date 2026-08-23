@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -269,11 +271,15 @@ func (s *Service) getHeaders(toAddress, subject string) map[string]string {
 		contentType = contentPlain
 	}
 
+	// Header values must be US-ASCII (RFC 5322 2.2), so any non-ASCII content is
+	// wrapped in RFC 2047 encoded-words. Pure ASCII values are passed through as-is.
+	from := &mail.Address{Name: conf.FromName, Address: conf.FromAddress}
+
 	return map[string]string{
-		"Subject":      subject,
+		"Subject":      mime.QEncoding.Encode("UTF-8", subject),
 		"Date":         time.Now().Format(time.RFC1123Z),
 		"To":           toAddress,
-		"From":         fmt.Sprintf("%s <%s>", conf.FromName, conf.FromAddress),
+		"From":         from.String(),
 		"MIME-version": "1.0",
 		"Content-Type": contentType,
 	}
