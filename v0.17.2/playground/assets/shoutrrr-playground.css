@@ -1,0 +1,670 @@
+/* Shoutrrr Playground - Styles
+ *
+ * Custom properties can be overridden for theming:
+ *   :root {
+ *     --playground-primary: #0ea5e9;
+ *     --playground-bg: #1e293b;
+ *   }
+ */
+
+:root {
+  --playground-font: var(--md-text-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  --playground-code-font: var(--md-code-font-family, monospace);
+  --playground-bg: var(--md-code-bg-color);
+  --playground-bg-input: var(--md-default-bg-color);
+  --playground-border: var(--md-default-fg-color--lightest);
+  --playground-text: var(--md-default-fg-color);
+  --playground-text-light: var(--md-default-fg-color--light);
+  --playground-primary: var(--md-primary-fg-color);
+  --playground-primary-dark: var(--md-primary-fg-color--dark);
+  --playground-error: #d32f2f;
+  --playground-success: #2e7d32;
+  --playground-radius: 6px;
+  --playground-radius-lg: 8px;
+}
+
+.playground-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.playground-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.playground-header p {
+  color: var(--playground-text-light);
+  font-size: 1rem;
+  margin: 0;
+}
+
+#playground-app {
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  padding: 0 1rem;
+  font-family: var(--playground-font);
+}
+
+#playground-loading {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--playground-text-light);
+}
+
+/* Sections with card styling */
+
+.playground-section {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background: var(--playground-bg);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius-lg);
+}
+
+/* Section header with actions */
+
+.playground-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.playground-section-header h3 {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--playground-text);
+}
+
+/* Collapse button */
+
+.playground-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--playground-text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.playground-collapse-btn:hover {
+  color: var(--playground-primary);
+}
+
+.playground-collapse-btn svg {
+  fill: currentcolor;
+  transition: transform 0.15s ease;
+}
+
+.playground-collapse-btn.collapsed svg {
+  transform: rotate(-90deg);
+}
+
+/* Clear button */
+
+.playground-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: transparent;
+  color: var(--playground-text-light);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.playground-clear-btn:hover {
+  background: var(--playground-border);
+  color: var(--playground-text);
+}
+
+.playground-clear-btn svg {
+  fill: currentcolor;
+}
+
+#playground-app .md-typeset h3 {
+  font-weight: 600;
+}
+
+.playground-section > h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--playground-text);
+  text-align: center;
+}
+
+.playground-section--centered .playground-input-group > label {
+  text-align: center;
+}
+
+/* Service selector and URL parser row */
+
+.playground-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.playground-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.playground-input-group h3 {
+  margin: 0 0 0.25rem;
+  text-align: center;
+}
+
+.playground-input-group > label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--playground-text);
+}
+
+.playground-input-or {
+  font-size: 0.85rem;
+  color: var(--playground-text-light);
+  padding-bottom: 0.6rem;
+  flex-shrink: 0;
+}
+
+#service-select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
+  cursor: pointer;
+}
+
+#service-select:focus {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: -1px;
+}
+
+/* Documentation link below service selector / URL parser row */
+
+.playground-doc-link {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--playground-text-light);
+  text-align: center;
+}
+
+.playground-doc-link a {
+  color: var(--playground-primary);
+  text-decoration: none;
+}
+
+.playground-doc-link a:hover {
+  text-decoration: underline;
+}
+
+/* URL input */
+
+#url-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: var(--playground-code-font);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
+}
+
+#url-input:focus {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: -1px;
+}
+
+/* Buttons */
+
+.playground-send button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--playground-radius);
+  background: var(--playground-primary);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.playground-send button:hover {
+  background: var(--playground-primary-dark);
+}
+
+.playground-send button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Config table */
+
+.playground-config-table-wrapper {
+  overflow: hidden;
+}
+
+.playground-config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.playground-config-table thead {
+  border-bottom: 2px solid var(--playground-border);
+}
+
+.playground-config-table th {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--playground-text-light);
+  white-space: nowrap;
+}
+
+.playground-config-table td {
+  padding: 0.6rem 0.75rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--playground-border);
+}
+
+/* Value column with copy wrapper */
+.playground-config-table td:has(.playground-input-copy-wrapper) {
+  padding: 0.3rem 0.5rem;
+}
+
+.playground-config-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.playground-config-table tbody tr:hover {
+  background: var(--playground-border);
+}
+
+/* Table cell content */
+
+.playground-field-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.playground-required {
+  color: var(--playground-error);
+  font-weight: 700;
+  margin-left: 0.15rem;
+}
+
+.playground-field-type {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: var(--playground-border);
+  color: var(--playground-text-light);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.playground-description {
+  color: var(--playground-text-light);
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+/* Table inputs */
+
+.playground-config-table input[type="text"],
+.playground-config-table input[type="password"],
+.playground-config-table select {
+  width: 100%;
+  min-width: 120px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--playground-border);
+  border-radius: 4px;
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
+  box-sizing: border-box;
+}
+
+.playground-config-table input:focus,
+.playground-config-table select:focus {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: -1px;
+}
+
+.playground-config-table input:focus-visible,
+.playground-config-table select:focus-visible {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: 2px;
+}
+
+.playground-config-table input:focus:not(:focus-visible),
+.playground-config-table select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Table checkbox */
+
+.playground-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.playground-checkbox-wrapper input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--playground-primary);
+}
+
+.playground-checkbox-hint {
+  font-size: 0.8rem;
+  color: var(--playground-text-light);
+}
+
+/* Input with inline copy button */
+
+.playground-input-copy-wrapper {
+  position: relative;
+  display: flex;
+  min-height: 2.25rem;
+}
+
+.playground-input-copy-wrapper input,
+.playground-input-copy-wrapper select {
+  flex: 1;
+  padding-right: 2rem;
+}
+
+.playground-inline-copy-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--playground-text-light);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.playground-input-copy-wrapper:hover .playground-inline-copy-btn,
+.playground-inline-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.playground-inline-copy-btn:hover {
+  background: var(--playground-border);
+  color: var(--playground-text);
+}
+
+.playground-inline-copy-btn.copied {
+  opacity: 1;
+  color: var(--playground-success);
+}
+
+.playground-inline-copy-btn svg {
+  fill: currentcolor;
+}
+
+/* Focus-visible for keyboard navigation only */
+
+#service-select:focus-visible,
+#url-input:focus-visible,
+.playground-config-table input:focus-visible,
+.playground-config-table select:focus-visible,
+.playground-send input:focus-visible,
+.playground-send button:focus-visible {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: 2px;
+}
+
+#service-select:focus:not(:focus-visible),
+#url-input:focus:not(:focus-visible),
+.playground-config-table input:focus:not(:focus-visible),
+.playground-config-table select:focus:not(:focus-visible),
+.playground-send input:focus:not(:focus-visible),
+.playground-send button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Code block with inline copy button */
+
+.playground-code-block {
+  position: relative;
+  display: flex;
+}
+
+.playground-code-block code {
+  flex: 1;
+  min-height: 2.5rem;
+  padding: 0.6rem 2.5rem 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  background: var(--playground-bg-input);
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--playground-text);
+  line-height: 1.5;
+}
+
+.playground-copy-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg);
+  color: var(--playground-text-light);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.playground-code-block:hover .playground-copy-btn,
+.playground-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.playground-copy-btn:hover {
+  background: var(--playground-border);
+  color: var(--playground-text);
+}
+
+.playground-copy-btn.copied {
+  opacity: 1;
+  color: var(--playground-success);
+}
+
+.playground-copy-btn svg {
+  fill: currentcolor;
+}
+
+/* Output section grouping */
+
+.playground-output-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.playground-output-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.playground-output-item > label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--playground-text-light);
+}
+
+/* Send section */
+
+.playground-send {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.playground-send input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--playground-border);
+  border-radius: var(--playground-radius);
+  background: var(--playground-bg-input);
+  color: var(--playground-text);
+}
+
+.playground-send input:focus {
+  outline: 2px solid var(--playground-primary);
+  outline-offset: -1px;
+}
+
+#send-result {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.playground-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--playground-text-light);
+}
+
+.playground-note a {
+  color: var(--playground-primary);
+}
+
+/* Status messages */
+
+.playground-error {
+  color: var(--playground-error);
+}
+
+.playground-success {
+  color: var(--playground-success);
+}
+
+/* Responsive */
+
+@media (max-width: 640px) {
+  .playground-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .playground-input-or {
+    text-align: center;
+    padding: 0.25rem 0;
+  }
+
+  .playground-input-group {
+    min-width: 0;
+  }
+
+  /* Convert table to stacked card layout */
+  .playground-config-table thead {
+    display: none;
+  }
+
+  .playground-config-table tbody tr {
+    display: block;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--playground-border);
+  }
+
+  .playground-config-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .playground-config-table tbody tr:hover {
+    background: transparent;
+  }
+
+  .playground-config-table td {
+    display: block;
+    padding: 0.25rem 0;
+    border-bottom: none;
+  }
+
+  .playground-config-table td:first-child {
+    font-weight: 500;
+  }
+
+  .playground-config-table td:nth-child(2),
+  .playground-config-table td:nth-child(3) {
+    font-size: 0.8rem;
+    color: var(--playground-text-light);
+  }
+
+  .playground-description {
+    max-width: none;
+  }
+
+  .playground-config-table input[type="text"],
+  .playground-config-table input[type="password"],
+  .playground-config-table select {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  #playground-app {
+    margin: 1rem;
+    padding: 0 0.5rem;
+  }
+
+  .playground-section {
+    padding: 1rem;
+  }
+
+  .playground-send {
+    flex-direction: column;
+  }
+}
