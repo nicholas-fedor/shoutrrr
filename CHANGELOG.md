@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add schnoellm as a contributor for code by @allcontributors[bot] in [#1265](https://github.com/nicholas-fedor/shoutrrr/pull/1265)
+
+### Chores
+
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.48 by @renovate[bot] in [#1268](https://github.com/nicholas-fedor/shoutrrr/pull/1268)
+- Update github.com/google/pprof digest to 4d45320 by @renovate[bot] in [#1267](https://github.com/nicholas-fedor/shoutrrr/pull/1267)
+
+## [0.17.2] - 2026-08-25
+
+### Added
+
 - Add andig as a contributor for bug, and code by @allcontributors[bot] in [#1255](https://github.com/nicholas-fedor/shoutrrr/pull/1255)
 
 ### Chores
@@ -2064,7 +2075,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.1...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.2...HEAD)
+- [0.17.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.1...v0.17.2)
 - [0.17.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...v0.17.1)
 - [0.17.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...v0.17.0)
 - [0.16.3](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.2...v0.16.3)
