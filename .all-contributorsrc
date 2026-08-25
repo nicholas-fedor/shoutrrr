@@ -208,6 +208,15 @@
         "bug",
         "code"
       ]
+    },
+    {
+      "login": "schnoellm",
+      "name": "schnoellm",
+      "avatar_url": "https://avatars.githubusercontent.com/u/15618065?v=4",
+      "profile": "https://github.com/schnoellm",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
