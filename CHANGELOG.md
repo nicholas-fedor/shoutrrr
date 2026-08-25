@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1259](https://github.com/nicholas-fedor/shoutrrr/pull/1259)
 - Update github.com/google/pprof digest to 8a17677 by @renovate[bot] in [#1261](https://github.com/nicholas-fedor/shoutrrr/pull/1261)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.47 by @renovate[bot] in [#1258](https://github.com/nicholas-fedor/shoutrrr/pull/1258)
 - Update golangci-lint configuration by @nicholas-fedor in [#1256](https://github.com/nicholas-fedor/shoutrrr/pull/1256)
