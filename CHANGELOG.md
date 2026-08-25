@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to 8a17677 by @renovate[bot] in [#1261](https://github.com/nicholas-fedor/shoutrrr/pull/1261)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.47 by @renovate[bot] in [#1258](https://github.com/nicholas-fedor/shoutrrr/pull/1258)
 - Update golangci-lint configuration by @nicholas-fedor in [#1256](https://github.com/nicholas-fedor/shoutrrr/pull/1256)
 - Update github/codeql-action action to v4.37.8 by @renovate[bot] in [#1250](https://github.com/nicholas-fedor/shoutrrr/pull/1250)
 - Update emqx/emqx:latest docker digest to 4ba2e45 by @renovate[bot] in [#1249](https://github.com/nicholas-fedor/shoutrrr/pull/1249)
