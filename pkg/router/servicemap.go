@@ -24,6 +24,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/signalgrid"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/generic"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/logger"
@@ -54,6 +55,7 @@ var serviceMap = map[string]func() types.Service{
 	"pushover":   func() types.Service { return &pushover.Service{} },
 	"rocketchat": func() types.Service { return &rocketchat.Service{} },
 	"signal":     func() types.Service { return &signal.Service{} },
+	"signalgrid": func() types.Service { return &signalgrid.Service{} },
 	"slack":      func() types.Service { return &slack.Service{} },
 	"smtp":       func() types.Service { return &smtp.Service{} },
 	"teams":      func() types.Service { return &teams.Service{} },

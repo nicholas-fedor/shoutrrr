@@ -248,6 +248,8 @@ func maskSensitiveURL(serviceSchema, urlStr string) string {
 		maskPushoverQuery(parsedURL)
 	case "gotify":
 		maskGotifyQuery(parsedURL)
+	case "signalgrid":
+		maskSignalgrid(parsedURL)
 	default:
 		maskGeneric(parsedURL)
 	}
@@ -296,6 +298,18 @@ func maskGotifyQuery(parsedURL *url.URL) {
 	}
 
 	parsedURL.RawQuery = queryParams.Encode()
+}
+
+// maskSignalgrid redacts the client key in userinfo and the channel token in the host.
+//
+// Parameters:
+//   - parsedURL: The Signalgrid URL to modify.
+func maskSignalgrid(parsedURL *url.URL) {
+	maskUser(parsedURL, redactedStr)
+
+	if parsedURL.Host != "" {
+		parsedURL.Host = redactedStr
+	}
 }
 
 // maskGeneric redacts userinfo and all query parameters for unrecognized services.

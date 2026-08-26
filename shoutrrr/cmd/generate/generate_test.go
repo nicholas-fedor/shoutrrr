@@ -123,6 +123,12 @@ func Test_maskSensitiveURL(t *testing.T) {
 			want:          "gotify://gotify.net?token=REDACTED",
 		},
 		{
+			name:          "signalgrid service masks user and host",
+			serviceSchema: "signalgrid",
+			urlStr:        "signalgrid://ClientKey@ChannelToken?title=Alert",
+			want:          "signalgrid://REDACTED@REDACTED?title=Alert",
+		},
+		{
 			name:          "generic service masks user and query params",
 			serviceSchema: "unknown",
 			urlStr:        "https://user:pass@host?a=1&b=2",

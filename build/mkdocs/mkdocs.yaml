@@ -141,6 +141,7 @@ nav:
           - Ntfy: services/push/ntfy/index.md
           - Pushbullet: services/push/pushbullet/index.md
           - Pushover: services/push/pushover/index.md
+          - Signalgrid: services/push/signalgrid/index.md
       - Incident and Alert Management:
           - OpsGenie: services/incident/opsgenie/index.md
           - PagerDuty: services/incident/pagerduty/index.md
