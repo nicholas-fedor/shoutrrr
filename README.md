@@ -319,6 +319,7 @@ jobs:
 | Pushbullet   | Pushbullet push notifications        |
 | Pushover     | Pushover push notifications          |
 | Rocket.Chat  | Rocket.Chat webhooks                 |
+| Signalgrid   | Signalgrid push notifications        |
 | Slack        | Slack webhooks or Bot API            |
 | SMTP         | Email notifications                  |
 | Teams        | Microsoft Teams webhooks             |

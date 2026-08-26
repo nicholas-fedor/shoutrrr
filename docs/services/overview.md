@@ -34,6 +34,7 @@ Click on the service for a more thorough explanation.
 | [Ntfy](./push/ntfy/index.md)             | *ntfy://__`username`__:__`password`<__@ntfy.sh>/__`topic`__*                                                            |
 | [Pushbullet](./push/pushbullet/index.md) | *pushbullet://__`api-token`__[/__`device`__/#__`channel`__/__`email`__]*                                                |
 | [Pushover](./push/pushover/index.md)     | *pushover://shoutrrr:__`apiToken`__@__`userKey`__/?devices=__`device1`__[,__`device2`__, ...]*                          |
+| [Signalgrid](./push/signalgrid/index.md) | *signalgrid://__`client-key`__@__`channel`__*                                                                          |
 
 ## Incident Services
 

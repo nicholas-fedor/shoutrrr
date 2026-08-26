@@ -55,6 +55,7 @@ var serviceMap = map[string]func() types.Service{
 	"pushover":   func() types.Service { return &pushover.Service{} },
 	"rocketchat": func() types.Service { return &rocketchat.Service{} },
 	"signal":     func() types.Service { return &signal.Service{} },
+	"signalgrid": func() types.Service { return &signalgrid.Service{} },
 	"slack":      func() types.Service { return &slack.Service{} },
 	"smtp":       func() types.Service { return &smtp.Service{} },
 	"teams":      func() types.Service { return &teams.Service{} },
@@ -62,5 +63,4 @@ var serviceMap = map[string]func() types.Service{
 	"twilio":     func() types.Service { return &twilio.Service{} },
 	"wecom":      func() types.Service { return &wecom.Service{} },
 	"zulip":      func() types.Service { return &zulip.Service{} },
-	"signalgrid": func() types.Service { return &signalgrid.Service{} },
 }
