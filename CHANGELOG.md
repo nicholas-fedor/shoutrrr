@@ -8,8 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update securego/gosec action to v2.29.0 by @renovate[bot] in [#1272](https://github.com/nicholas-fedor/shoutrrr/pull/1272)
+
+## [0.18.0] - 2026-08-26
+
 ### Added
 
+- Add signalgridco as a contributor for code, and test by @allcontributors[bot] in [#1271](https://github.com/nicholas-fedor/shoutrrr/pull/1271)
 - Add Signalgrid notification service by @signalgridco in [#1266](https://github.com/nicholas-fedor/shoutrrr/pull/1266)
 - Add schnoellm as a contributor for code by @allcontributors[bot] in [#1265](https://github.com/nicholas-fedor/shoutrrr/pull/1265)
 
@@ -2080,7 +2087,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.2...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.18.0...HEAD)
+- [0.18.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.2...v0.18.0)
 - [0.17.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.1...v0.17.2)
 - [0.17.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...v0.17.1)
 - [0.17.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.16.3...v0.17.0)
