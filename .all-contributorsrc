@@ -217,6 +217,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "signalgridco",
+      "name": "Signalgrid",
+      "avatar_url": "https://avatars.githubusercontent.com/u/252333881?v=4",
+      "profile": "https://signalgrid.co",
+      "contributions": [
+        "code",
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7,

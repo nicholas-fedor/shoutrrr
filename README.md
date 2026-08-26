@@ -17,7 +17,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
 [![Pulls from DockerHub](https://img.shields.io/docker/pulls/nickfedor/shoutrrr.svg)](https://hub.docker.com/r/nickfedor/shoutrrr)
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/nicholas-fedor/shoutrrr)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nicholas-fedor/shoutrrr)<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-23-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![license](https://img.shields.io/github/license/nicholas-fedor/shoutrrr.svg?style=flat-square)](https://github.com/nicholas-fedor/shoutrrr/blob/main/LICENSE)
 </div>
@@ -384,6 +384,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/schnoellm"><img src="https://avatars.githubusercontent.com/u/15618065?v=4?s=100" width="100px;" alt="schnoellm"/><br /><sub><b>schnoellm</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=schnoellm" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://signalgrid.co"><img src="https://avatars.githubusercontent.com/u/252333881?v=4?s=100" width="100px;" alt="Signalgrid"/><br /><sub><b>Signalgrid</b></sub></a><br /><a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=signalgridco" title="Code">💻</a> <a href="https://github.com/nicholas-fedor/shoutrrr/commits?author=signalgridco" title="Tests">⚠️</a></td>
     </tr>
   </tbody>
 </table>
