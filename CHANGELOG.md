@@ -10,12 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add Signalgrid notification service by @signalgridco in [#1266](https://github.com/nicholas-fedor/shoutrrr/pull/1266)
 - Add schnoellm as a contributor for code by @allcontributors[bot] in [#1265](https://github.com/nicholas-fedor/shoutrrr/pull/1265)
 
 ### Chores
 
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.48 by @renovate[bot] in [#1268](https://github.com/nicholas-fedor/shoutrrr/pull/1268)
 - Update github.com/google/pprof digest to 4d45320 by @renovate[bot] in [#1267](https://github.com/nicholas-fedor/shoutrrr/pull/1267)
+
+### New Contributors
+
+- @signalgridco made their first contribution in [#1266](https://github.com/nicholas-fedor/shoutrrr/pull/1266)
 
 ## [0.17.2] - 2026-08-25
 
