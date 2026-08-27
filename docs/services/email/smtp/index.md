@@ -19,7 +19,7 @@ A `Username` and `Password` are required only when the server expects authentica
 !!! Example "Minimal authenticated send"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
     Connects to `mail.example.com` on port 587, authenticates as `user`, and sends to `ops@example.com`.
@@ -41,7 +41,7 @@ Common ports:
 !!! Example "Submission on 587"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 ### Username and Password
@@ -65,7 +65,7 @@ Common ports:
 !!! Example "Named sender"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&fromname=Shoutrrr&toaddresses=ops@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&fromname=Shoutrrr&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 ### Recipients
@@ -76,13 +76,13 @@ Common ports:
 !!! Example "Multiple recipients"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com,oncall@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com,oncall@example.com&requirestarttls=yes
     ```
 
 !!! Example "Plus-address recipient"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
     ```
 
 ### Subject
@@ -93,7 +93,7 @@ Common ports:
 !!! Example "Custom subject"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&subject=Disk%20space%20low
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&subject=Disk%20space%20low&requirestarttls=yes
     ```
 
 ### Authentication
@@ -112,7 +112,7 @@ Common ports:
 !!! Example "AUTH LOGIN"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=Login
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=Login&requirestarttls=yes
     ```
 
 !!! Example "OAuth2 access token"
@@ -130,12 +130,12 @@ Common ports:
 - `usestarttls` defaults to yes and is independent of `encryption`.
 - `encryption=None` still attempts STARTTLS unless you also set `usestarttls=no`.
 
-| Value         | Behavior                                                                     |
-|---------------|------------------------------------------------------------------------------|
-| `None`        | No implicit TLS; STARTTLS is still attempted unless `usestarttls=no`         |
-| `ExplicitTLS` | STARTTLS after connect                                                       |
-| `ImplicitTLS` | TLS from the first byte (typical for port 465)                               |
-| `Auto`        | Implicit TLS on port 465; otherwise explicit TLS when the server supports it |
+| Value         | Behavior                                                                                             |
+|---------------|------------------------------------------------------------------------------------------------------|
+| `None`        | No implicit TLS; STARTTLS is still attempted unless `usestarttls=no`                                 |
+| `ExplicitTLS` | STARTTLS after connect when `usestarttls` is enabled; with `usestarttls=no` the session is plaintext |
+| `ImplicitTLS` | TLS from the first byte (typical for port 465)                                                       |
+| `Auto`        | Implicit TLS on port 465; otherwise STARTTLS when `usestarttls` is enabled                           |
 
 !!! Example "Implicit TLS on 465"
 
@@ -177,7 +177,7 @@ Common ports:
 !!! Example "Skip verify on an internal relay"
 
     ```uri
-    smtp://user:pass@mail.internal:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&skiptlsverify=yes
+    smtp://user:pass@mail.internal:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&skiptlsverify=yes&requirestarttls=yes
     ```
 
 ### HTML Body
@@ -190,7 +190,7 @@ Common ports:
 !!! Example "HTML notification"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&requirestarttls=yes
     ```
 
     Pass HTML as the message body, for example `<p>Disk usage is <strong>92%</strong>.</p>`.
@@ -204,7 +204,7 @@ Common ports:
 !!! Example "Auto client host"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&clienthost=auto
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&clienthost=auto&requirestarttls=yes
     ```
 
 ### Timeout
@@ -216,7 +216,7 @@ Common ports:
 !!! Example "Thirty-second timeout"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&timeout=30s
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&timeout=30s&requirestarttls=yes
     ```
 
 ## Message Templates
@@ -243,7 +243,7 @@ Common ports:
 !!! Example "STARTTLS on port 587"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&requirestarttls=yes
     ```
 
 !!! Example "Implicit TLS on port 465"
@@ -255,13 +255,13 @@ Common ports:
 !!! Example "HTML body"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&subject=Alert
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&usehtml=yes&subject=Alert&requirestarttls=yes
     ```
 
 !!! Example "Plus-address recipient"
 
     ```uri
-    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com
+    smtp://user:pass@mail.example.com:587/?fromaddress=alerts@example.com&toaddresses=ops+prod@example.com&requirestarttls=yes
     ```
 
 !!! Example "Unauthenticated local relay"
