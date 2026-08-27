@@ -33,6 +33,11 @@ type mockConn struct {
 	closeCount int
 }
 
+// captureWriter records writes for writeMessagePart tests.
+type captureWriter struct {
+	bytes.Buffer
+}
+
 var tt *testing.T
 
 var (
@@ -305,6 +310,23 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			err := service.writeMessagePart(writer, message, "dummy")
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(matchFailure(FailMessageTemplate))
+		})
+	})
+
+	ginkgo.When("writing a message part without a template", func() {
+		ginkgo.It("should write the HTML body as-is without wrapping in pre", func() {
+			service := Service{}
+			writer := &captureWriter{}
+			err := service.writeMessagePart(writer, "<p>styled</p>", "HTML")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(writer.String()).To(gomega.Equal("<p>styled</p>"))
+		})
+		ginkgo.It("should write the plain body as-is", func() {
+			service := Service{}
+			writer := &captureWriter{}
+			err := service.writeMessagePart(writer, "plain text", "plain")
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(writer.String()).To(gomega.Equal("plain text"))
 		})
 	})
 
@@ -808,6 +830,10 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("smtp"))
 	})
 })
+
+func (c *captureWriter) Close() error {
+	return nil
+}
 
 func (m *mockConn) Close() error {
 	m.closeCount++
