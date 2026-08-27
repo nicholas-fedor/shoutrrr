@@ -1,6 +1,7 @@
 # Email
 
-Shoutrrr can send notifications as email over SMTP. It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and similar) using a single service URL.
+Shoutrrr can send notifications as email over SMTP.
+It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and similar) using a single service URL.
 
 ## URL Format
 
@@ -27,7 +28,10 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Host and Port
 
-`Host` is the SMTP server hostname or IP address and is required. `Port` defaults to `25`. Common ports:
+- `Host` is the SMTP server hostname or IP address and is required.
+- `Port` defaults to `25`.
+
+Common ports:
 
 - __25__: traditional SMTP (often blocked on residential networks)
 - __587__: submission with STARTTLS
@@ -42,7 +46,10 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Username and Password
 
-`Username` and `Password` are the SMTP credentials. Both default to empty. Leave them empty for servers that allow unauthenticated relay. For `auth=OAuth2`, put the access token in the password field.
+- `Username` and `Password` are the SMTP credentials.
+- Both default to empty.
+- Leave them empty for servers that allow unauthenticated relay.
+- For `auth=OAuth2`, put the access token in the password field.
 
 !!! Example "No credentials"
 
@@ -52,7 +59,8 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### From Address and From Name
 
-`fromaddress` (alias `from`) is the envelope and header From address and is required. `fromname` is an optional display name shown by mail clients.
+- `fromaddress` (alias `from`) is the envelope and header From address and is required.
+- `fromname` is an optional display name shown by mail clients.
 
 !!! Example "Named sender"
 
@@ -62,7 +70,8 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Recipients
 
-`toaddresses` (alias `to`) is a comma-separated list of recipient addresses and is required. Plus-tags in addresses (`user+tag@example.com`) are preserved; spaces that come from URL-decoding `+` are turned back into `+`.
+- `toaddresses` (alias `to`) is a comma-separated list of recipient addresses and is required.
+- Plus-tags in addresses (`user+tag@example.com`) are preserved and spaces that come from URL-decoding `+` are turned back into `+`.
 
 !!! Example "Multiple recipients"
 
@@ -78,7 +87,8 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Subject
 
-`subject` (alias `title`) is the email subject. Default: `Shoutrrr Notification`.
+- `subject` (alias `title`) is the email subject.
+- When the URL omits `subject`, the header is empty.
 
 !!! Example "Custom subject"
 
@@ -108,18 +118,21 @@ A `Username` and `Password` are required only when the server expects authentica
 !!! Example "OAuth2 access token"
 
     ```uri
-    smtp://user:ya29.token@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2
+    smtp://user:ya29.token@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&requirestarttls=yes
     ```
 
-    The token is not refreshed. Supply a current access token for each send.
+    The token is not refreshed.
+    Supply a current access token for each send.
 
 ### Encryption
 
-`encryption` selects how TLS is applied. Default: `Auto`.
+- `encryption` selects how TLS is applied. Default: `Auto`.
+- `usestarttls` defaults to yes and is independent of `encryption`.
+- `encryption=None` still attempts STARTTLS unless you also set `usestarttls=no`.
 
 | Value         | Behavior                                                                     |
 |---------------|------------------------------------------------------------------------------|
-| `None`        | No TLS                                                                       |
+| `None`        | No implicit TLS; STARTTLS is still attempted unless `usestarttls=no`         |
 | `ExplicitTLS` | STARTTLS after connect                                                       |
 | `ImplicitTLS` | TLS from the first byte (typical for port 465)                               |
 | `Auto`        | Implicit TLS on port 465; otherwise explicit TLS when the server supports it |
@@ -132,7 +145,8 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### StartTLS
 
-`usestarttls` (alias `starttls`) defaults to yes. When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning and continues unencrypted unless `requirestarttls` is set.
+- `usestarttls` (alias `starttls`) defaults to yes.
+- When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning and continues unencrypted unless `requirestarttls` is set.
 
 !!! Example "Disable STARTTLS"
 
@@ -142,7 +156,8 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Require StartTLS
 
-`requirestarttls` defaults to no. When yes, send fails if STARTTLS is enabled but the server does not support it.
+- `requirestarttls` defaults to no.
+- When yes, send fails if STARTTLS is enabled but the server does not support it.
 
 !!! Example "Fail closed without STARTTLS"
 
@@ -152,10 +167,12 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Skip TLS Certificate Verification
 
-`skiptlsverify` defaults to no. When TLS is negotiated, `yes` disables server certificate verification; however, it does not enable TLS.
+- `skiptlsverify` defaults to no.
+- When TLS is negotiated, `yes` disables server certificate verification; however, it does not enable TLS.
 
 !!! danger "Security Risk"
-    Skipping certificate verification makes the connection vulnerable to man-in-the-middle attacks. Only use this on networks you trust, such as a lab or an internal mail relay with a private CA.
+    Skipping certificate verification makes the connection vulnerable to man-in-the-middle attacks.
+    Only use this on networks you trust, such as a lab or an internal mail relay with a private CA.
 
 !!! Example "Skip verify on an internal relay"
 
@@ -165,7 +182,10 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### HTML Body
 
-`usehtml` defaults to no. When yes, the message is sent as `multipart/alternative` with a `text/plain` part and a `text/html` part. The same message string is used for both parts. The HTML part is sent __as-is__ (not wrapped in `<pre>`).
+- `usehtml` defaults to no.
+- When yes, the message is sent as `multipart/alternative` with a `text/plain` part and a `text/html` part.
+- The same message string is used for both parts.
+- The HTML part is sent __as-is__.
 
 !!! Example "HTML notification"
 
@@ -177,7 +197,9 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Client Host
 
-`clienthost` is the hostname sent in the SMTP `EHLO`/`HELO` handshake. Default: `localhost`. Set it to `auto` to use the operating system hostname (falling back to `localhost` if lookup fails).
+- `clienthost` is the hostname sent in the SMTP `EHLO`/`HELO` handshake.
+- Default: `localhost`.
+- Set it to `auto` to use the operating system hostname (falling back to `localhost` if lookup fails).
 
 !!! Example "Auto client host"
 
@@ -187,7 +209,9 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ### Timeout
 
-`timeout` is a Go duration for SMTP operations. Default: `10s`.
+- `timeout` is a Go duration applied when establishing the SMTP connection.
+- Default: `10s`.
+- Later commands (EHLO, AUTH, DATA) are not covered by this deadline.
 
 !!! Example "Thirty-second timeout"
 
@@ -197,19 +221,22 @@ A `Username` and `Password` are required only when the server expects authentica
 
 ## Message Templates
 
-SMTP templates are a __Go library API only__. They are not URL or CLI parameters.
+- SMTP templates are only available via the __Shoutrrr API__.
+- They are not URL or CLI parameters.
+- IDs are `"plain"` and `"HTML"`.
+- The template data map has a `message` key.
 
-IDs are `"plain"` and `"HTML"`. The template data map has a `message` key.
+!!! Example "`<div>`-wrapped message body"
 
-```go
-err := service.SetTemplateString("HTML", `<div>{{ .message }}</div>`)
-```
+    ```go
+    err := service.SetTemplateString("HTML", `<div>{{ .message }}</div>`)
+    ```
 
-If you want a `<pre>` wrapper around an HTML part, include it in the message or set an `"HTML"` template:
+!!! Example "If you want a `<pre>` wrapper around an HTML part, include it in the message or set an `"HTML"` template"
 
-```go
-err := service.SetTemplateString("HTML", `<pre>{{ .message }}</pre>`)
-```
+    ```go
+    err := service.SetTemplateString("HTML", `<pre>{{ .message }}</pre>`)
+    ```
 
 ## Examples
 
