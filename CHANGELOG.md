@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.49 by @renovate[bot] in [#1275](https://github.com/nicholas-fedor/shoutrrr/pull/1275)
 - Update securego/gosec action to v2.29.0 by @renovate[bot] in [#1272](https://github.com/nicholas-fedor/shoutrrr/pull/1272)
 
+### Fixed
+
+- Stop wrapping raw html bodies in <pre> tags by @nicholas-fedor in [#1278](https://github.com/nicholas-fedor/shoutrrr/pull/1278)
+
 ## [0.18.0] - 2026-08-26
 
 ### Added
