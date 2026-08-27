@@ -107,9 +107,9 @@
 //
 // # Notes
 //
-// - The package uses the standard Go `net/smtp` library for SMTP operations.
-// - It supports multipart email messages (plain text and HTML) using a randomly generated boundary.
-// - The [Service] struct implements the shoutrrr [standard.Standard] and [standard.Templater] interfaces for logging and message templating.
-// - The package handles plus signs (`+`) in email addresses correctly, replacing spaces with plus signs as needed (see [Config.FixEmailTags]).
-// - For OAuth2 authentication, the [OAuth2Auth] function implements the SASL XOAUTH2 protocol, suitable for services like Gmail.
+//   - The package uses the standard Go `net/smtp` library for SMTP operations.
+//   - It supports multipart email messages (plain text and HTML) using a randomly generated boundary.
+//   - The [Service] struct implements the shoutrrr [standard.Standard] and [standard.Templater] interfaces for logging and message templating.
+//   - The package handles plus signs (`+`) in email addresses correctly, replacing spaces with plus signs as needed (see [Config.FixEmailTags]).
+//   - For OAuth2 authentication, the [OAuth2Auth] function implements the SASL XOAUTH2 protocol, suitable for services like Gmail.
 package smtp
