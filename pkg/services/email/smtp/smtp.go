@@ -359,12 +359,7 @@ func (s *Service) writeMessagePart(
 			return fail(FailMessageTemplate, err)
 		}
 	} else {
-		content := message
-		if template == "HTML" {
-			content = fmt.Sprintf("<pre>%s</pre>", message)
-		}
-
-		if _, err := fmt.Fprint(writeCloser, content); err != nil {
+		if _, err := fmt.Fprint(writeCloser, message); err != nil {
 			return fail(FailMessageRaw, err)
 		}
 	}
