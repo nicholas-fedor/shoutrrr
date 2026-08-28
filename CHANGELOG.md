@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update anchore/sbom-action action to v0.24.2 by @renovate[bot] in [#1286](https://github.com/nicholas-fedor/shoutrrr/pull/1286)
+- Update anchore/sbom-action action to v0.24.1 by @renovate[bot] in [#1284](https://github.com/nicholas-fedor/shoutrrr/pull/1284)
 - Update binwiederhier/ntfy:latest docker digest to 6ef4b81 by @renovate[bot] in [#1283](https://github.com/nicholas-fedor/shoutrrr/pull/1283)
 - Update module github.com/onsi/gomega to v1.43.0 by @renovate[bot] in [#1280](https://github.com/nicholas-fedor/shoutrrr/pull/1280)
 - Update github/codeql-action action to v4.37.9 by @renovate[bot] in [#1274](https://github.com/nicholas-fedor/shoutrrr/pull/1274)
