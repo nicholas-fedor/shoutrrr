@@ -8,8 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Document configuration options and examples by @nicholas-fedor in [#1282](https://github.com/nicholas-fedor/shoutrrr/pull/1282)
+
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 6ef4b81 by @renovate[bot] in [#1283](https://github.com/nicholas-fedor/shoutrrr/pull/1283)
+- Update module github.com/onsi/gomega to v1.43.0 by @renovate[bot] in [#1280](https://github.com/nicholas-fedor/shoutrrr/pull/1280)
 - Update github/codeql-action action to v4.37.9 by @renovate[bot] in [#1274](https://github.com/nicholas-fedor/shoutrrr/pull/1274)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.49 by @renovate[bot] in [#1275](https://github.com/nicholas-fedor/shoutrrr/pull/1275)
 - Update securego/gosec action to v2.29.0 by @renovate[bot] in [#1272](https://github.com/nicholas-fedor/shoutrrr/pull/1272)
