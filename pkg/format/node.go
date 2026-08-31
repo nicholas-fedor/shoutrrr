@@ -65,34 +65,56 @@ const (
 	BaseHexLen     = 16
 )
 
-// Field returns the inner FieldInfo.
+// Field returns the FieldInfo associated with this value node.
+//
+// Returns:
+//   - The node's FieldInfo.
 func (n *ValueNode) Field() *FieldInfo {
 	return n.FieldInfo
 }
 
-// TokenType returns a NodeTokenType that matches the value.
+// TokenType returns the syntax-highlighting token type for this node's value.
+//
+// Returns:
+//   - The NodeTokenType that matches the stored value.
 func (n *ValueNode) TokenType() NodeTokenType {
 	return n.tokenType
 }
 
-// Update updates the value string from the provided value.
+// Update refreshes the node's display string and token type from the provided value.
+//
+// Parameters:
+//   - tv: The reflected field value to render.
 func (n *ValueNode) Update(tv reflect.Value) {
 	value, token := getValueNodeValue(tv, n.FieldInfo)
 	n.Value = value
 	n.tokenType = token
 }
 
-// Field returns the inner FieldInfo.
+// Field returns the FieldInfo associated with this container node.
+//
+// Returns:
+//   - The node's FieldInfo.
 func (n *ContainerNode) Field() *FieldInfo {
 	return n.FieldInfo
 }
 
-// TokenType always returns ContainerToken for ContainerNode.
+// TokenType returns ContainerToken for every container node.
+//
+// Returns:
+//   - ContainerToken.
 func (n *ContainerNode) TokenType() NodeTokenType {
 	return ContainerToken
 }
 
-// Update updates the items to match the provided value.
+// Update rebuilds the container's child items to match the provided value.
+//
+// Array and slice values replace Items with one node per element.
+// Map values replace Items with one node per key, sorted by key name.
+// Other kinds are left unchanged.
+//
+// Parameters:
+//   - tv: The reflected container value to expand into child items.
 func (n *ContainerNode) Update(tv reflect.Value) {
 	switch n.Type.Kind() {
 	case reflect.Array, reflect.Slice:
@@ -129,6 +151,12 @@ func (n *ContainerNode) Update(tv reflect.Value) {
 	}
 }
 
+// updateArrayNode rebuilds the container's Items from an array or slice value.
+//
+// Each element becomes a ValueNode named by its index.
+//
+// Parameters:
+//   - arrayValue: The reflected array or slice to expand.
 func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 	itemCount := arrayValue.Len()
 	n.Items = make([]Node, 0, itemCount)
@@ -155,6 +183,14 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 	}
 }
 
+// getArrayNode builds a ContainerNode whose children represent the elements of an array or slice.
+//
+// Parameters:
+//   - arrayValue: The reflected array or slice to expand.
+//   - fieldInfo: Metadata for the array or slice field.
+//
+// Returns:
+//   - A ContainerNode with one child node per element.
 func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	node := &ContainerNode{
 		FieldInfo:    fieldInfo,
@@ -166,12 +202,23 @@ func getArrayNode(arrayValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode
 	return node
 }
 
+// sortNodeItems sorts node items in place by their FieldInfo name.
+//
+// Parameters:
+//   - nodeItems: The slice of nodes to sort.
 func sortNodeItems(nodeItems []Node) {
 	sort.Slice(nodeItems, func(i, j int) bool {
 		return nodeItems[i].Field().Name < nodeItems[j].Field().Name
 	})
 }
 
+// updateMapNode rebuilds the container's Items from a map value.
+//
+// Each map entry becomes a ValueNode named by its string key.
+// Items are sorted by key, and MaxKeyLength is set to the longest key.
+//
+// Parameters:
+//   - mapValue: The reflected map to expand.
 func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 	base := n.Base
 	if base == 0 {
@@ -210,6 +257,16 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 	n.MaxKeyLength = maxKeyLength
 }
 
+// getMapNode builds a ContainerNode whose children represent the entries of a map.
+//
+// Pointer values are dereferenced before the map is expanded.
+//
+// Parameters:
+//   - mapValue: The reflected map, or a pointer to a map.
+//   - fieldInfo: Metadata for the map field.
+//
+// Returns:
+//   - A ContainerNode with one child node per map entry.
 func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	if mapValue.Kind() == reflect.Pointer {
 		mapValue = mapValue.Elem()
@@ -225,6 +282,17 @@ func getMapNode(mapValue reflect.Value, fieldInfo *FieldInfo) *ContainerNode {
 	return node
 }
 
+// getNode builds the tree node that represents a single config field.
+//
+// Arrays, slices, and maps become ContainerNodes.
+// Every other kind becomes a ValueNode.
+//
+// Parameters:
+//   - fieldVal: The reflected field value.
+//   - fieldInfo: Metadata for the field.
+//
+// Returns:
+//   - A Node for the field.
 func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 	switch fieldInfo.Type.Kind() {
 	case reflect.Array, reflect.Slice:
@@ -261,6 +329,16 @@ func getNode(fieldVal reflect.Value, fieldInfo *FieldInfo) Node {
 	}
 }
 
+// getRootNode builds the root ContainerNode for a service config value.
+//
+// It reflects the struct fields, attaches enum formatters when the value
+// implements types.Enummer, and sorts the resulting child nodes by field name.
+//
+// Parameters:
+//   - value: The config value, typically a struct or a pointer to a struct.
+//
+// Returns:
+//   - A ContainerNode whose children represent the config fields.
 func getRootNode(value any) *ContainerNode {
 	structValue := reflect.ValueOf(value)
 	if structValue.Kind() == reflect.Pointer {
@@ -310,8 +388,16 @@ func getRootNode(value any) *ContainerNode {
 	}
 }
 
-// getValueNode wraps a field value in a ValueNode, pairing its rendered display
-// string with the token type used to color it.
+// getValueNode wraps a field value in a ValueNode.
+//
+// The node's Value is the rendered display string and tokenType is the token used to color it.
+//
+// Parameters:
+//   - fieldVal: The reflected field value to render.
+//   - fieldInfo: Metadata for the field.
+//
+// Returns:
+//   - A ValueNode pairing the display string with its token type.
 func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	value, tokenType := getValueNodeValue(fieldVal, fieldInfo)
 
@@ -322,9 +408,18 @@ func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	}
 }
 
-// getValueNodeValue renders a field value as its display string, along with the token
-// type used to color it. Enums print via their formatter and durations via Go duration
-// syntax; all other kinds are formatted from their reflect.Kind.
+// getValueNodeValue renders a field value as its display string and token type.
+//
+// Enums print via their formatter and durations via Go duration syntax.
+// All other kinds are formatted from their reflect.Kind.
+//
+// Parameters:
+//   - fieldValue: The reflected field value to render.
+//   - fieldInfo: Metadata for the field, including enum and duration type.
+//
+// Returns:
+//   - The display string for the value.
+//   - The NodeTokenType used to color that string.
 func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, NodeTokenType) {
 	kind := fieldValue.Kind()
 
@@ -336,6 +431,7 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 	if fieldInfo.IsEnum() {
 		return fieldInfo.EnumFormatter.Print(int(fieldValue.Int())), EnumToken
 	}
+
 	if fieldInfo.Type == durationType {
 		return time.Duration(fieldValue.Int()).String(), StringToken
 	}
@@ -383,6 +479,17 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 	}
 }
 
+// getContainerValueString renders an array, slice, or map as a single display string.
+//
+// Elements are joined with the field's ItemSeparator.
+// Map entries are written as key:value pairs and sorted by key.
+//
+// Parameters:
+//   - fieldValue: The reflected array, slice, or map to render.
+//   - fieldInfo: Metadata for the container field, including ItemSeparator and Base.
+//
+// Returns:
+//   - The joined display string for the container's items.
 func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) string {
 	itemSeparator := fieldInfo.ItemSeparator
 	sliceLength := fieldValue.Len()

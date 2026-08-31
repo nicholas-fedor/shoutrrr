@@ -93,6 +93,7 @@ func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (
 	if field.EnumFormatter != nil {
 		return setEnumField(configField, field, inputValue)
 	}
+
 	if field.Type == durationType {
 		return setDurationField(configField, inputValue)
 	}
