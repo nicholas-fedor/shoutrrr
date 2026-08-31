@@ -3,6 +3,7 @@ package format
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -73,6 +74,44 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 					gomega.Expect(err).To(gomega.HaveOccurred())
 					gomega.Expect(valid).To(gomega.BeFalse())
 					gomega.Expect(ts.Unsigned).To(gomega.Equal(uint(2)))
+				})
+			})
+		})
+		ginkgo.When("setting a duration value", func() {
+			ginkgo.When("the value has a unit", func() {
+				ginkgo.It("should set it", func() {
+					valid, err := SetConfigField(tv, nodeMap["Duration"].Field(), "1h2m3s")
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(valid).To(gomega.BeTrue())
+					gomega.Expect(ts.Duration).
+						To(gomega.Equal(time.Hour + 2*time.Minute + 3*time.Second))
+				})
+			})
+			ginkgo.When("the value is a bare non-zero number", func() {
+				ginkgo.It("should return an error rather than assume nanoseconds", func() {
+					ts.Duration = time.Second
+					valid, err := SetConfigField(tv, nodeMap["Duration"].Field(), "10")
+					gomega.Expect(err).To(gomega.MatchError(ErrParseDurationFailed))
+					gomega.Expect(valid).To(gomega.BeFalse())
+					gomega.Expect(ts.Duration).To(gomega.Equal(time.Second))
+				})
+			})
+			ginkgo.When("the value is a bare zero", func() {
+				ginkgo.It("should be accepted as a zero duration", func() {
+					ts.Duration = time.Second
+					valid, err := SetConfigField(tv, nodeMap["Duration"].Field(), "0")
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(valid).To(gomega.BeTrue())
+					gomega.Expect(ts.Duration).To(gomega.BeZero())
+				})
+			})
+			ginkgo.When("the value is invalid", func() {
+				ginkgo.It("should return an error", func() {
+					ts.Duration = time.Second
+					valid, err := SetConfigField(tv, nodeMap["Duration"].Field(), "z7")
+					gomega.Expect(err).To(gomega.MatchError(ErrParseDurationFailed))
+					gomega.Expect(valid).To(gomega.BeFalse())
+					gomega.Expect(ts.Duration).To(gomega.Equal(time.Second))
 				})
 			})
 		})
@@ -206,6 +245,9 @@ var _ = ginkgo.Describe("SetConfigField", func() {
 			})
 			ginkgo.It("should format unsigned integers identical to input", func() {
 				testSetAndFormat(tv, nodeMap["Unsigned"], "5", "5")
+			})
+			ginkgo.It("should format durations identical to input", func() {
+				testSetAndFormat(tv, nodeMap["Duration"], "1h2m3s", "1h2m3s")
 			})
 			ginkgo.It("should format structs identical to input", func() {
 				testSetAndFormat(tv, nodeMap["SubProp"], "@whoa", "@whoa")

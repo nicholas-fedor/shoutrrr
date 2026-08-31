@@ -21,6 +21,9 @@
 // found in service configurations:
 //
 //   - Basic types: strings, integers, booleans
+//   - Duration types: [time.Duration], parsed and rendered with Go duration syntax
+//     (e.g. "10s", "1h2m3s"). Bare, non-zero numbers are rejected; however, "0" is
+//     accepted as the zero duration
 //   - Complex types: maps, slices, arrays, structs
 //   - Enum types: enumerated values with named options
 //

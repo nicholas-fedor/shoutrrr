@@ -2,6 +2,7 @@ package format
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -22,6 +23,19 @@ var _ = ginkgo.Describe("Query Formatter", func() {
 				query := BuildQuery(&pkr)
 				// (pkr, )
 				gomega.Expect(query).To(gomega.Equal("str=test"))
+			})
+		})
+		ginkgo.When("a duration property is at its default", func() {
+			ginkgo.It("should be omitted from the query string", func() {
+				query := BuildQuery(&pkr)
+				gomega.Expect(query).NotTo(gomega.ContainSubstring("duration="))
+			})
+		})
+		ginkgo.When("a duration property has been changed from default", func() {
+			ginkgo.It("should be included in the query string", func() {
+				ts.Duration = 30 * time.Second
+				query := BuildQuery(&pkr)
+				gomega.Expect(query).To(gomega.ContainSubstring("duration=30s"))
 			})
 		})
 		ginkgo.When("a custom query key conflicts with a config property key", func() {

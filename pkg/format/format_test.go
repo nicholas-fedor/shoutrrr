@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -24,7 +25,8 @@ type subStruct struct {
 type testStruct struct {
 	Signed          int `default:"0"        key:"signed"`
 	Unsigned        uint
-	Str             string `default:"notempty" key:"str"`
+	Duration        time.Duration `default:"10s"      key:"duration"`
+	Str             string        `default:"notempty" key:"str"`
 	StrSlice        []string
 	StrArray        [3]string
 	Sub             subStruct

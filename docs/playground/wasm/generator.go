@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
@@ -21,9 +20,6 @@ var errNoConfigField = errors.New("service has no Config field")
 
 // errNoSetURL is returned when a config does not support SetURL.
 var errNoSetURL = errors.New("config does not support SetURL")
-
-// errCannotSetDurationField is returned when a duration field cannot be set.
-var errCannotSetDurationField = errors.New("cannot set duration field")
 
 // generateURLString builds a Shoutrrr URL from serviceName and configJSON.
 // The configJSON is a JSON object mapping field names to string values.
@@ -47,28 +43,17 @@ func generateURLString(serviceName, configJSON string) string {
 	pkr := format.NewPropKeyResolver(config)
 	configValue := reflect.Indirect(reflect.ValueOf(config))
 	configSchema := format.GetConfigFormat(config)
-	durationType := reflect.TypeFor[time.Duration]()
 
-	// Apply defaults manually to handle duration fields correctly.
-	// PropKeyResolver.Set() can't parse duration strings like "10s" as integers,
-	// so we detect duration fields and parse them with time.ParseDuration instead.
+	// Apply defaults.
 	for _, node := range configSchema.Items {
 		field := node.Field()
 		if field.DefaultValue == "" {
 			continue
 		}
 
-		if field.Type == durationType {
-			// Parse duration defaults directly.
-			if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
-				configValue.FieldByName(field.Name).SetInt(int64(dur))
-			}
-		} else {
-			// Apply non-duration defaults via PropKeyResolver.
-			for _, key := range field.Keys {
-				if err := pkr.Set(key, field.DefaultValue); err != nil {
-					return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
-				}
+		for _, key := range field.Keys {
+			if err := pkr.Set(key, field.DefaultValue); err != nil {
+				return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
 			}
 		}
 	}
@@ -110,15 +95,9 @@ func generateURLString(serviceName, configJSON string) string {
 					continue
 				}
 
-				if field.Type == durationType {
-					if dur, err := time.ParseDuration(field.DefaultValue); err == nil {
-						fieldVal.SetInt(int64(dur))
-					}
-				} else {
-					for _, key := range field.Keys {
-						if err := pkr.Set(key, field.DefaultValue); err != nil {
-							return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
-						}
+				for _, key := range field.Keys {
+					if err := pkr.Set(key, field.DefaultValue); err != nil {
+						return marshalError(fmt.Errorf("invalid default for %q: %w", key, err))
 					}
 				}
 			}
@@ -129,27 +108,6 @@ func generateURLString(serviceName, configJSON string) string {
 	for key, value := range values {
 		if value == "" {
 			continue
-		}
-
-		// Handle time.Duration fields by parsing them directly.
-		// PropKeyResolver.Set() tries to parse duration strings like "10s" as
-		// integers, which fails. Parse user-provided durations the same way
-		// defaults are handled above.
-		if field := configValue.FieldByName(key); field.IsValid() {
-			if field.Type() == reflect.TypeFor[time.Duration]() {
-				dur, err := time.ParseDuration(value)
-				if err != nil {
-					return marshalError(fmt.Errorf("invalid duration %q for %q: %w", value, key, err))
-				}
-
-				if !field.CanSet() {
-					return marshalError(fmt.Errorf("%w %q to %q", errCannotSetDurationField, key, value))
-				}
-
-				field.SetInt(int64(dur))
-
-				continue
-			}
 		}
 
 		if err := pkr.Set(key, value); err != nil {

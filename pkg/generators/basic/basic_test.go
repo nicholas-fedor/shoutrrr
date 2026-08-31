@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -386,6 +387,24 @@ func TestGenerator_getInputValue(t *testing.T) {
 			input:   "\n",
 			want:    "localhost",
 			wantErr: false,
+		},
+		{
+			name:    "duration from user input",
+			field:   &format.FieldInfo{Name: "Timeout", Type: reflect.TypeFor[time.Duration]()},
+			propKey: "timeout",
+			props:   map[string]string{},
+			input:   "30s\n",
+			want:    "30s",
+			wantErr: false,
+		},
+		{
+			name:    "duration rejects a value without a unit",
+			field:   &format.FieldInfo{Name: "Timeout", Type: reflect.TypeFor[time.Duration]()},
+			propKey: "timeout",
+			props:   map[string]string{},
+			input:   "30\n",
+			want:    "",
+			wantErr: true,
 		},
 	}
 

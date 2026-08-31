@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -18,6 +19,8 @@ const (
 	Int32BitSize     = 32 // Bit size for 32-bit integers
 	Int64BitSize     = 64 // Bit size for 64-bit integers
 )
+
+var durationType = reflect.TypeFor[time.Duration]()
 
 // Errors defined as static variables for better error handling.
 var (
@@ -35,6 +38,7 @@ var (
 	ErrUnexpectedIntKind     = errors.New("unexpected int kind")
 	ErrParseIntFailed        = errors.New("failed to parse integer")
 	ErrParseUintFailed       = errors.New("failed to parse unsigned integer")
+	ErrParseDurationFailed   = errors.New("failed to parse duration")
 )
 
 // GetServiceConfig extracts the inner config from a service.
@@ -90,6 +94,10 @@ func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (
 		return setEnumField(configField, field, inputValue)
 	}
 
+	if field.Type == durationType {
+		return setDurationField(configField, inputValue)
+	}
+
 	switch field.Type.Kind() {
 	case reflect.String:
 		configField.SetString(inputValue)
@@ -122,6 +130,18 @@ func SetConfigField(config reflect.Value, field *FieldInfo, inputValue string) (
 	default:
 		return false, fmt.Errorf("%w: %v", ErrInvalidFieldKind, field.Type.Kind())
 	}
+}
+
+// setDurationField handles time.Duration field setting.
+func setDurationField(configField reflect.Value, inputValue string) (bool, error) {
+	duration, err := time.ParseDuration(inputValue)
+	if err != nil {
+		return false, fmt.Errorf("%w: %w", ErrParseDurationFailed, err)
+	}
+
+	configField.SetInt(int64(duration))
+
+	return true, nil
 }
 
 // setIntField handles integer field setting.
