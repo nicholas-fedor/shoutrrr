@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -124,8 +125,14 @@ func (g *Generator) getInputValue(
 		// More specific type validation
 		if field.Type != nil {
 			kind := field.Type.Kind()
-			if kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
-				kind == reflect.Int32 || kind == reflect.Int64 {
+
+			switch {
+			case field.Type == reflect.TypeFor[time.Duration]():
+				if _, err := time.ParseDuration(input); err != nil {
+					return "", fmt.Errorf("invalid duration value for %s: %w", field.Name, err)
+				}
+			case kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
+				kind == reflect.Int32 || kind == reflect.Int64:
 				if _, err := strconv.ParseInt(input, 10, field.Type.Bits()); err != nil {
 					return "", fmt.Errorf("invalid integer value for %s: %w", field.Name, err)
 				}

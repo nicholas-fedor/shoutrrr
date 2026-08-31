@@ -40,7 +40,7 @@ const (
 	contentMultipart            = "multipart/alternative; boundary=%s"
 	DefaultSMTPPort             = 25               // DefaultSMTPPort is the standard port for SMTP communication.
 	boundaryByteLen             = 8                // boundaryByteLen is the number of bytes for the multipart boundary.
-	DefaultTimeout              = 10               // DefaultTimeout is the default timout in seconds
+	DefaultTimeout              = 10               // DefaultTimeout is the default timeout in seconds
 	shortResponseErrorSubstring = "short response" // Error substring from textproto indicating a short response that is sometimes received during session closure.
 )
 

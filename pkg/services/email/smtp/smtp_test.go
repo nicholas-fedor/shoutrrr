@@ -826,6 +826,50 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 		})
 	})
 
+	ginkgo.When("configuring timeout via params", func() {
+		ginkgo.It("should use the specified timeout", func() {
+			config := &Config{}
+			resolver := format.NewPropKeyResolver(config)
+			params := types.Params{"timeout": "1h2m3s"}
+
+			err := resolver.UpdateConfigFromParams(config, &params)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.Timeout).To(gomega.Equal(1*time.Hour + 2*time.Minute + 3*time.Second))
+		})
+
+		ginkgo.It("should reject a bare non-zero timeout value", func() {
+			config := &Config{Timeout: 5 * time.Second}
+			resolver := format.NewPropKeyResolver(config)
+			params := types.Params{"timeout": "10"}
+
+			err := resolver.UpdateConfigFromParams(config, &params)
+			gomega.Expect(err).To(gomega.MatchError(format.ErrParseDurationFailed))
+			gomega.Expect(config.Timeout).To(gomega.Equal(5 * time.Second))
+		})
+	})
+
+	ginkgo.When("applying the default props", func() {
+		ginkgo.It("should apply the tagged timeout default", func() {
+			config := &Config{}
+			resolver := format.NewPropKeyResolver(config)
+
+			gomega.Expect(resolver.SetDefaultProps(config)).To(gomega.Succeed())
+			gomega.Expect(config.Timeout).To(gomega.Equal(DefaultTimeout * time.Second))
+		})
+	})
+
+	ginkgo.When("serializing the timeout", func() {
+		ginkgo.It("should render it as a duration rather than a nanosecond count", func() {
+			config := &Config{}
+			resolver := format.NewPropKeyResolver(config)
+			config.Timeout = 10 * time.Second
+
+			value, err := resolver.Get("timeout")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(value).To(gomega.Equal("10s"))
+		})
+	})
+
 	ginkgo.It("returns the correct service identifier", func() {
 		gomega.Expect(service.GetID()).To(gomega.Equal("smtp"))
 	})

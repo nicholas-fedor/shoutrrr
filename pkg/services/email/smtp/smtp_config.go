@@ -106,15 +106,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	queryParts := make([]string, 0, len(primaryKeys)+1)
 	for _, key := range primaryKeys {
-		if key == "timeout" {
-			queryParts = append(
-				queryParts,
-				fmt.Sprintf("%s=%s", key, url.QueryEscape(c.Timeout.String())),
-			)
-
-			continue
-		}
-
 		value, err := resolver.Get(key)
 		if err != nil {
 			continue // Skip invalid fields
@@ -148,17 +139,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	for key, vals := range serviceURL.Query() {
-		if key == "timeout" {
-			duration, err := time.ParseDuration(vals[0])
-			if err != nil {
-				return fmt.Errorf("parsing timeout parameter %q: %w", vals[0], err)
-			}
-
-			c.Timeout = duration
-
-			continue
-		}
-
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
 		}

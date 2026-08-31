@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -309,6 +310,8 @@ func getRootNode(value any) *ContainerNode {
 	}
 }
 
+// getValueNode wraps a field value in a ValueNode, pairing its rendered display
+// string with the token type used to color it.
 func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	value, tokenType := getValueNodeValue(fieldVal, fieldInfo)
 
@@ -319,6 +322,9 @@ func getValueNode(fieldVal reflect.Value, fieldInfo *FieldInfo) *ValueNode {
 	}
 }
 
+// getValueNodeValue renders a field value as its display string, along with the token
+// type used to color it. Enums print via their formatter and durations via Go duration
+// syntax; all other kinds are formatted from their reflect.Kind.
 func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, NodeTokenType) {
 	kind := fieldValue.Kind()
 
@@ -329,6 +335,9 @@ func getValueNodeValue(fieldValue reflect.Value, fieldInfo *FieldInfo) (string, 
 
 	if fieldInfo.IsEnum() {
 		return fieldInfo.EnumFormatter.Print(int(fieldValue.Int())), EnumToken
+	}
+	if fieldInfo.Type == durationType {
+		return time.Duration(fieldValue.Int()).String(), StringToken
 	}
 
 	switch kind {
