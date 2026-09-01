@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add JosephKav as a contributor for code, and test by @allcontributors[bot] in [#1294](https://github.com/nicholas-fedor/shoutrrr/pull/1294)
+
 ### Changed
 
 - Document configuration options and examples by @nicholas-fedor in [#1282](https://github.com/nicholas-fedor/shoutrrr/pull/1282)
@@ -26,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Apply send params to connection and headers by @JosephKav in [#1295](https://github.com/nicholas-fedor/shoutrrr/pull/1295)
+- Parse and render time.Duration fields as durations by @JosephKav in [#1292](https://github.com/nicholas-fedor/shoutrrr/pull/1292)
 - Stop wrapping raw html bodies in <pre> tags by @nicholas-fedor in [#1278](https://github.com/nicholas-fedor/shoutrrr/pull/1278)
 
 ## [0.18.0] - 2026-08-26
