@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extract session and harden SMTP sends by @nicholas-fedor in [#1296](https://github.com/nicholas-fedor/shoutrrr/pull/1296)
 - Document configuration options and examples by @nicholas-fedor in [#1282](https://github.com/nicholas-fedor/shoutrrr/pull/1282)
 
 ### Chores
