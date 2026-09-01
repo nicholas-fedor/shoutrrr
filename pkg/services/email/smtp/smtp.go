@@ -105,7 +105,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
-	client, err := getClientConnection(ctx, s.Config)
+	client, err := getClientConnection(ctx, &config)
 	if err != nil {
 		return fail(FailGetSMTPClient, err)
 	}
@@ -261,11 +261,9 @@ func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
 }
 
 // getHeaders constructs email headers for the SMTP message.
-func (s *Service) getHeaders(toAddress, subject string) map[string]string {
-	conf := s.Config
-
+func (s *Service) getHeaders(config *Config, toAddress string) map[string]string {
 	var contentType string
-	if conf.UseHTML {
+	if config.UseHTML {
 		contentType = fmt.Sprintf(contentMultipart, s.multipartBoundary)
 	} else {
 		contentType = contentPlain
@@ -273,10 +271,10 @@ func (s *Service) getHeaders(toAddress, subject string) map[string]string {
 
 	// Header values must be US-ASCII (RFC 5322 2.2), so any non-ASCII content is
 	// wrapped in RFC 2047 encoded-words. Pure ASCII values are passed through as-is.
-	from := &mail.Address{Name: conf.FromName, Address: conf.FromAddress}
+	from := &mail.Address{Name: config.FromName, Address: config.FromAddress}
 
 	return map[string]string{
-		"Subject":      mime.QEncoding.Encode("UTF-8", subject),
+		"Subject":      mime.QEncoding.Encode("UTF-8", config.Subject),
 		"Date":         time.Now().Format(time.RFC1123Z),
 		"To":           toAddress,
 		"From":         from.String(),
@@ -323,7 +321,7 @@ func (s *Service) sendToRecipient(
 		return fail(FailOpenDataStream, err)
 	}
 
-	if err := writeHeaders(writeCloser, s.getHeaders(toAddress, config.Subject)); err != nil {
+	if err := writeHeaders(writeCloser, s.getHeaders(config, toAddress)); err != nil {
 		return err
 	}
 

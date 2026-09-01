@@ -137,8 +137,10 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 		ginkgo.When("constructing the message headers", func() {
 			ginkgo.When("the subject contains non-ASCII characters", func() {
 				ginkgo.It("should encode it as an RFC 2047 encoded-word", func() {
-					service.Config = &Config{FromAddress: "sender@example.com"}
-					headers := service.getHeaders("rec1@example.com", "Plan überschritten")
+					headers := service.getHeaders(
+						&Config{FromAddress: "sender@example.com", Subject: "Plan überschritten"},
+						"rec1@example.com",
+					)
 
 					gomega.Expect(headers["Subject"]).
 						To(gomega.Equal("=?UTF-8?q?Plan_=C3=BCberschritten?="))
@@ -148,19 +150,21 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			})
 			ginkgo.When("the subject is pure ASCII", func() {
 				ginkgo.It("should leave it unencoded", func() {
-					service.Config = &Config{FromAddress: "sender@example.com"}
-					headers := service.getHeaders("rec1@example.com", "Plan exceeded")
+					headers := service.getHeaders(
+						&Config{FromAddress: "sender@example.com", Subject: "Plan exceeded"},
+						"rec1@example.com",
+					)
 
 					gomega.Expect(headers["Subject"]).To(gomega.Equal("Plan exceeded"))
 				})
 			})
 			ginkgo.When("the sender name contains non-ASCII characters", func() {
 				ginkgo.It("should encode it and keep the address parseable", func() {
-					service.Config = &Config{
+					headers := service.getHeaders(&Config{
 						FromName:    "Grüßer",
 						FromAddress: "sender@example.com",
-					}
-					headers := service.getHeaders("rec1@example.com", "Subject")
+						Subject:     "Subject",
+					}, "rec1@example.com")
 
 					gomega.Expect(headers["From"]).
 						To(gomega.Equal("=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>"))
@@ -173,11 +177,11 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			})
 			ginkgo.When("the sender name or address requires quoting", func() {
 				ginkgo.It("should quote them", func() {
-					service.Config = &Config{
+					headers := service.getHeaders(&Config{
 						FromName:    "Doe, John",
 						FromAddress: "odd name@example.com",
-					}
-					headers := service.getHeaders("rec1@example.com", "Subject")
+						Subject:     "Subject",
+					}, "rec1@example.com")
 
 					gomega.Expect(headers["From"]).
 						To(gomega.Equal(`"Doe, John" <"odd name"@example.com>`))
@@ -190,8 +194,10 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			})
 			ginkgo.When("no sender name is configured", func() {
 				ginkgo.It("should only emit the address", func() {
-					service.Config = &Config{FromAddress: "sender+tag@example.com"}
-					headers := service.getHeaders("rec1@example.com", "Subject")
+					headers := service.getHeaders(
+						&Config{FromAddress: "sender+tag@example.com", Subject: "Subject"},
+						"rec1@example.com",
+					)
 
 					gomega.Expect(headers["From"]).To(gomega.Equal("<sender+tag@example.com>"))
 				})
@@ -259,6 +265,61 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 				gomega.Expect(service.Send("test message", &types.Params{"invalid": "value"})).
 					To(matchFailure(FailApplySendParams))
 			})
+		})
+	})
+
+	ginkgo.When("send params change the message content", func() {
+		ginkgo.It("should build the headers from the params", func() {
+			serviceURL := testutils.URLMust(BaseNoAuthURL)
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			config := service.Config.Clone()
+			gomega.Expect(service.propKeyResolver.UpdateConfigFromParams(&config, &types.Params{
+				"fromaddress": "override@example.com",
+				"fromname":    "Override",
+				"subject":     "Overridden",
+				"usehtml":     "yes",
+			})).To(gomega.Succeed())
+
+			textCon, tcfaker := testutils.CreateTextConFaker([]string{
+				"250-mx.google.com at your service",
+				"250 8BITMIME",
+				"250 Sender OK",
+				"250 Receiver OK",
+				"354 Go ahead",
+				"250 Data OK",
+				"221 OK",
+			}, "\r\n")
+			client := &smtp.Client{Text: textCon}
+			fakeTLSEnabled(client, serviceURL.Hostname())
+
+			gomega.Expect(service.doSend(client, "Test message", &config)).
+				To(gomega.Succeed())
+
+			received := tcfaker.GetClientSentences()
+			gomega.Expect(received).To(gomega.ContainElement("MAIL FROM:<override@example.com> BODY=8BITMIME"))
+			gomega.Expect(received).To(gomega.ContainElement(`From: "Override" <override@example.com>`))
+			gomega.Expect(received).To(gomega.ContainElement("Subject: Overridden"))
+			gomega.Expect(received).
+				To(gomega.ContainElement(gomega.HavePrefix("Content-Type: multipart/alternative; boundary=")))
+		})
+	})
+
+	ginkgo.When("send params change the connection settings", func() {
+		ginkgo.It("should dial using the encryption method from the params", func() {
+			address, firstByte, stop := startGreetingServer()
+			defer stop()
+
+			serviceURL := testutils.URLMust(
+				"smtp://" + address + "/?encryption=ImplicitTLS&auth=none&usestarttls=no" +
+					"&fromAddress=sender@example.com&toAddresses=rec1@example.com&timeout=5s",
+			)
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			// The server hangs up after greeting, so the furthest a send can get is the handshake.
+			gomega.Expect(service.Send("test message", &types.Params{"encryption": "None"})).
+				To(matchFailure(FailHandshake))
+			gomega.Eventually(firstByte).Should(gomega.Receive(gomega.Equal(byte('E'))))
 		})
 	})
 
@@ -920,6 +981,35 @@ func fakeTLSEnabled(client *smtp.Client, hostname string) {
 	cr.SetString(hostname)
 }
 
+// startGreetingServer greets a single client with an SMTP banner and reports the first byte it sends
+// back: a plaintext client replies with EHLO, whereas implicit TLS opens with a handshake record.
+func startGreetingServer() (string, <-chan byte, func()) {
+	var listenConfig net.ListenConfig
+
+	listener, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+	firstByte := make(chan byte, 1)
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		_ = conn.SetDeadline(time.Now().Add(time.Second))
+		_, _ = conn.Write([]byte("220 mock.local ESMTP\r\n"))
+
+		received := make([]byte, 1)
+		if _, err := conn.Read(received); err == nil {
+			firstByte <- received[0]
+		}
+	}()
+
+	return listener.Addr().String(), firstByte, func() { _ = listener.Close() }
+}
+
 // matchFailure is a simple wrapper around `fail` and `gomega.MatchError` to make it easier to use in tests.
 func matchFailure(id failures.FailureID) gomegaTypes.GomegaMatcher {
 	return gomega.MatchError(fail(id, nil))
@@ -970,7 +1060,9 @@ func testIntegration(
 	textCon, tcfaker := testutils.CreateTextConFaker(responses, "\r\n")
 	client := &smtp.Client{Text: textCon}
 	fakeTLSEnabled(client, serviceURL.Hostname())
-	ferr := service.doSend(client, "Test message", service.Config)
+
+	config := service.Config.Clone()
+	ferr := service.doSend(client, "Test message", &config)
 
 	received := tcfaker.GetClientSentences()
 	for _, expected := range expectRec {
