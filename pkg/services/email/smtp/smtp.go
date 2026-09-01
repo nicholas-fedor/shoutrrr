@@ -30,6 +30,8 @@ const (
 	defaultTimeout = 10 * time.Second
 )
 
+var _ types.ContextSender = (*Service)(nil)
+
 // GetID returns the service identifier.
 //
 // Returns:
@@ -85,9 +87,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send sends a notification message to email recipients.
 //
-// It clones the service configuration, applies optional runtime params, opens
-// an SMTP client, and delivers the message. A timeout from [Config.Timeout]
-// bounds the connection and session. Non-positive timeouts use [defaultTimeout].
+// It delegates to [Service.SendContext] with [context.Background].
 //
 // Parameters:
 //   - message: The notification body sent as the email message.
@@ -96,6 +96,24 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // Returns:
 //   - An error if configuration updates, connection, or delivery fail.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext sends a notification message to email recipients.
+//
+// It clones the service configuration, applies optional runtime params, opens
+// an SMTP client, and delivers the message. A timeout from [Config.Timeout]
+// bounds the connection and session, derived from ctx so caller cancellation
+// and deadlines propagate. Non-positive timeouts use [defaultTimeout].
+//
+// Parameters:
+//   - ctx: Parent context for cancellation and deadlines.
+//   - message: The notification body sent as the email message.
+//   - params: Optional runtime overrides for configuration fields ([types.Params]).
+//
+// Returns:
+//   - An error if configuration updates, connection, or delivery fail.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := s.Config.Clone()
 	if err := s.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
 		return fail(FailApplySendParams, err)
@@ -106,7 +124,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		effectiveTimeout(config.Timeout),
 	)
 	defer cancel()

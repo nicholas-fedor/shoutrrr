@@ -2,6 +2,7 @@ package smtp
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"net/smtp"
 	"net/url"
@@ -157,6 +158,39 @@ var _ = ginkgo.Describe("Service", func() {
 			err := service.Send("test message", nil)
 
 			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", sendTimeout+2*time.Second))
+			gomega.Expect(err).To(matchFailure(FailHandshake))
+		})
+	})
+
+	ginkgo.Describe("SendContext", func() {
+		ginkgo.It("should fail when the caller context is already canceled", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			svc := Service{Config: &Config{Host: "example.com", Port: 25, Timeout: time.Second}}
+			err := svc.SendContext(ctx, "test message", nil)
+			gomega.Expect(err).To(matchFailure(FailGetSMTPClient))
+			gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+		})
+
+		ginkgo.It("should time out the handshake using the caller context deadline", func() {
+			address, stop := startHangingGreetingServer()
+			defer stop()
+
+			parentTimeout := 200 * time.Millisecond
+			serviceURL := testutils.URLMust(
+				"smtp://" + address + "/?auth=none&usestarttls=no" +
+					"&fromAddress=sender@example.com&toAddresses=rec1@example.com&timeout=10s",
+			)
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			ctx, cancel := context.WithTimeout(context.Background(), parentTimeout)
+			defer cancel()
+
+			start := time.Now()
+			err := service.SendContext(ctx, "test message", nil)
+
+			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", parentTimeout+2*time.Second))
 			gomega.Expect(err).To(matchFailure(FailHandshake))
 		})
 	})
