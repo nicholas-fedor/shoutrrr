@@ -294,7 +294,7 @@ var _ = ginkgo.Describe("the SMTP service", func() {
 			fakeTLSEnabled(client, serviceURL.Hostname())
 
 			gomega.Expect(service.doSend(client, "Test message", &config)).
-				To(gomega.BeNil())
+				To(gomega.Succeed())
 
 			received := tcfaker.GetClientSentences()
 			gomega.Expect(received).To(gomega.ContainElement("MAIL FROM:<override@example.com> BODY=8BITMIME"))
@@ -984,7 +984,9 @@ func fakeTLSEnabled(client *smtp.Client, hostname string) {
 // startGreetingServer greets a single client with an SMTP banner and reports the first byte it sends
 // back: a plaintext client replies with EHLO, whereas implicit TLS opens with a handshake record.
 func startGreetingServer() (string, <-chan byte, func()) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var listenConfig net.ListenConfig
+
+	listener, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	firstByte := make(chan byte, 1)
