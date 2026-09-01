@@ -17,7 +17,7 @@ type session struct {
 	config *Config
 	// svc provides logging and message templates.
 	svc *Service
-	// closed is true after [session.quit] has closed the client.
+	// closed is true after the connection has been closed by Quit or Close.
 	closed bool
 }
 
@@ -59,6 +59,7 @@ func (s *session) closeIfOpen() {
 	}
 
 	s.closeClient()
+	s.closed = true
 }
 
 // deliver sends the message to each configured recipient.
@@ -114,10 +115,12 @@ func (s *session) ehloName() string {
 	return hostname
 }
 
-// quit ends the SMTP session with QUIT and closes the client.
+// quit ends the SMTP session with QUIT.
 //
-// Errors matching [shortResponseErrorSubstring] on QUIT are logged and ignored
-// because they do not affect delivery. Other QUIT errors are appended to errs.
+// A successful [smtp.Client.Quit] already closes the connection, so Close is
+// not called again. When QUIT fails, the client is closed explicitly.
+// Errors matching [shortResponseErrorSubstring] are logged and ignored because
+// they do not affect delivery. Other QUIT errors are appended to errs.
 //
 // Parameters:
 //   - errs: Accumulated delivery errors to extend if QUIT fails.
@@ -125,18 +128,21 @@ func (s *session) ehloName() string {
 // Returns:
 //   - The original error slice, possibly with a session-closure failure appended.
 func (s *session) quit(errs []error) []error {
-	if err := s.client.Quit(); err != nil {
-		// Ignore known "short response" errors from quirky servers (e.g., Office 365 on close),
-		// as they don't impact delivery.
-		if strings.Contains(err.Error(), shortResponseErrorSubstring) {
-			s.svc.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
-		} else {
-			errs = append(errs, fail(FailClosingSession, err))
-		}
+	err := s.client.Quit()
+	if err == nil {
+		s.closed = true
+
+		return errs
 	}
 
-	s.closed = true
+	if strings.Contains(err.Error(), shortResponseErrorSubstring) {
+		s.svc.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
+	} else {
+		errs = append(errs, fail(FailClosingSession, err))
+	}
+
 	s.closeClient()
+	s.closed = true
 
 	return errs
 }

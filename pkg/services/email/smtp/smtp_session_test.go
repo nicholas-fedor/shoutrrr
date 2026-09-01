@@ -73,6 +73,7 @@ var _ = ginkgo.Describe("session", func() {
 			sess.closed = false
 			sess.closeIfOpen()
 			gomega.Expect(mock.closeCount).To(gomega.Equal(1))
+			gomega.Expect(sess.closed).To(gomega.BeTrue())
 		})
 	})
 
@@ -721,7 +722,7 @@ var _ = ginkgo.Describe("session", func() {
 					To(gomega.ContainSubstring("Warning: Ignoring session closure error (delivery succeeded)"))
 			})
 
-			ginkgo.It("should log warning when QUIT succeeds but Close fails", func() {
+			ginkgo.It("should not close again after a successful QUIT", func() {
 				serviceURL, _ := url.Parse(baseNoAuthURL)
 				localService := &Service{}
 				gomega.Expect(localService.Initialize(serviceURL, logger)).To(gomega.Succeed())
@@ -745,11 +746,14 @@ var _ = ginkgo.Describe("session", func() {
 				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
 				client := &smtp.Client{Text: textCon}
 				fakeTLSEnabled(client, serviceURL.Hostname())
-				injectConn(client, &mockConn{})
+
+				mock := &mockConn{}
+				injectConn(client, mock)
 
 				gomega.Expect(runSMTPSession(localService, client, localService.Config)).To(gomega.Succeed())
 				gomega.Expect(buf.String()).
-					To(gomega.ContainSubstring("Warning: Failed to close SMTP client connection: mock close error"))
+					NotTo(gomega.ContainSubstring("Failed to close SMTP client connection"))
+				gomega.Expect(mock.closeCount).To(gomega.Equal(1))
 			})
 
 			ginkgo.It("should close the client when the handshake fails", func() {
