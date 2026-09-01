@@ -66,11 +66,11 @@
 //
 // The configuration URL follows the format:
 //
-//	`smtp://<username>:<password>@<host>:<port>/?fromAddress=<email>&toAddresses=<email1>,<email2>&subject=<subject>&auth=<auth>&encryption=<encryption>&useStartTLS=<yes/no>&useHTML=<yes/no>&clientHost=<hostname>&requirestarttls=<yes/no>&timeout=<duration>`
+//	`smtp://<username>:<password>@<host>:<port>/?fromAddress=<email>&toAddresses=<email1>,<email2>&subject=<subject>&auth=<auth>&encryption=<encryption>&useStartTLS=<yes/no>&useHTML=<yes/no>&clientHost=<hostname>&requirestarttls=<yes/no>&skiptlsverify=<yes/no>&timeout=<duration>`
 //
 // Example URL:
 //
-//	`smtp://user:pass@example.com:587/?fromAddress=sender@example.com&toAddresses=rec1@example.com,rec2@example.com&subject=Alert&auth=Plain&encryption=Auto&useStartTLS=yes&useHTML=yes&clientHost=localhost&requirestarttls=yes&timeout=10s`
+//	`smtp://user:pass@example.com:587/?fromAddress=sender@example.com&toAddresses=rec1@example.com,rec2@example.com&subject=Alert&auth=Plain&encryption=Auto&useStartTLS=yes&useHTML=yes&clientHost=localhost&requirestarttls=yes&skiptlsverify=no&timeout=10s`
 //
 // # Error Handling
 //
