@@ -109,6 +109,8 @@ Common ports:
 | `OAuth2`  | SASL XOAUTH2 with a __static__ access token in the password field (no refresh) |
 | `Unknown` | If a username is set, treated as `Plain`; otherwise `None`                     |
 
+`Plain`, `Login`, and `OAuth2` refuse to send credentials on an unencrypted connection unless the server name is `localhost`, `127.0.0.1`, or `::1`.
+
 !!! Example "AUTH LOGIN"
 
     ```uri
@@ -209,9 +211,8 @@ Common ports:
 
 ### Timeout
 
-- `timeout` is a Go duration applied when establishing the SMTP connection.
+- `timeout` is a Go duration covering the TCP/TLS dial and the SMTP session (EHLO, AUTH, DATA, QUIT).
 - Default: `10s`.
-- Later commands (EHLO, AUTH, DATA) are not covered by this deadline.
 
 !!! Example "Thirty-second timeout"
 

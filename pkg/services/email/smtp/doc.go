@@ -54,13 +54,14 @@
 //   - Username and Password: Credentials for authentication (if required).
 //   - FromAddress and FromName: The sender's email address and display name.
 //   - ToAddresses: A list of recipient email addresses.
-//   - Subject: The email subject (defaults to "Shoutrrr Notification").
+//   - Subject: The email subject (empty when omitted).
 //   - Auth: The authentication method (None, Plain, Login, CRAMMD5, OAuth2, or Unknown).
 //   - Encryption: The encryption method (None, ExplicitTLS, ImplicitTLS, or Auto).
 //   - UseStartTLS: Whether to use STARTTLS for encryption (default: true).
 //   - UseHTML: Whether to send the message as HTML (default: false).
 //   - ClientHost: The client hostname used in the SMTP handshake (default: "localhost").
 //   - RequireStartTLS: Whether to fail if StartTLS is enabled but unsupported (default: false).
+//   - SkipTLSVerify: Whether to skip TLS certificate verification (default: false).
 //   - Timeout: Duration for SMTP operations timeout (default: 10 seconds).
 //
 // The configuration URL follows the format:
@@ -75,18 +76,18 @@
 //
 // The package defines a set of failure identifiers in `smtp_failures.go` (e.g., [FailGetSMTPClient], [FailAuthenticating], [FailSendRecipient])
 // to categorize errors that may occur during SMTP operations. These are wrapped using the [failures.Failure] interface
-// from the shoutrrr framework, providing detailed error messages and IDs for debugging.
+// from the Shoutrrr framework, providing detailed error messages and IDs for debugging.
 //
 // # Authentication
 //
 // The package supports multiple authentication methods, defined in [authType] and [AuthTypes]:
 //   - None: No authentication.
 //   - Plain: Username and password-based authentication.
-//   - Login: Username and password-based authentication. Useful if mail servers don't support AUTH PLAIN.
+//   - Login: Username and password-based authentication via [newLoginAuth]. Useful if mail servers don't support AUTH PLAIN.
 //   - CRAMMD5: Challenge-response authentication using CRAM-MD5.
-//   - OAuth2: Token-based authentication for services like Gmail (see [OAuth2Auth]).
+//   - OAuth2: Token-based authentication for services like Gmail (see [newOAuth2Auth]).
 //     Note that OAuth2 support is limited to static access tokens and does not
-//     handle token refresh or complex challenge-response flows.
+//     handle token refresh. A 334 challenge is answered with an empty continuation.
 //   - Unknown: Fallback when the authentication method is not specified or invalid.
 //
 // # Encryption
@@ -95,7 +96,7 @@
 //   - None: No encryption.
 //   - ExplicitTLS: Uses STARTTLS to initiate a secure connection.
 //   - ImplicitTLS: Uses TLS for the entire session (typically on port 465).
-//   - Auto: Automatically selects ImplicitTLS for port 465, otherwise attempts ExplicitTLS if supported.
+//   - Auto: Automatically selects ImplicitTLS for port [ImplicitTLSPort], otherwise attempts ExplicitTLS if supported.
 //
 // The [useImplicitTLS] function determines whether ImplicitTLS should be used based on the encryption method and port.
 //
@@ -107,9 +108,9 @@
 //
 // # Notes
 //
-//   - The package uses the standard Go `net/smtp` library for SMTP operations.
+//   - The package uses [smtp.Client] from net/smtp for SMTP operations.
 //   - It supports multipart email messages (plain text and HTML) using a randomly generated boundary.
 //   - The [Service] struct implements the shoutrrr [standard.Standard] and [standard.Templater] interfaces for logging and message templating.
-//   - The package handles plus signs (`+`) in email addresses correctly, replacing spaces with plus signs as needed (see [Config.FixEmailTags]).
-//   - For OAuth2 authentication, the [OAuth2Auth] function implements the SASL XOAUTH2 protocol, suitable for services like Gmail.
+//   - The package handles plus signs (`+`) in email addresses correctly, replacing spaces with plus signs as needed (see [Config.restorePlusAddresses]).
+//   - For OAuth2 authentication, [newOAuth2Auth] implements the SASL XOAUTH2 protocol, suitable for services like Gmail.
 package smtp

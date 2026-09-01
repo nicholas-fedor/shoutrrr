@@ -1,7 +1,6 @@
 package smtp
 
 import (
-	"errors"
 	"fmt"
 	"net/smtp"
 )
@@ -11,26 +10,17 @@ import (
 // Challenge prompt text from the server is ignored.
 // The username and password are sent in order as successive client responses.
 type loginAuth struct {
-	username, password string
-	host               string
-	respStep           uint8
+	// username is the SMTP account username sent as the first LOGIN response.
+	username string
+	// password is the SMTP account password sent as the second LOGIN response.
+	password string
+	// host is the expected SMTP server hostname checked in Start.
+	host string
+	// respStep tracks which LOGIN response to send next.
+	respStep uint8
 }
 
-var (
-	// errUnencryptedConnection is returned when authentication is attempted
-	// on a non-local server without TLS.
-	errUnencryptedConnection = errors.New("unencrypted connection")
-
-	// errWrongHostName is returned when the server name does not match the
-	// expected host.
-	errWrongHostName = errors.New("wrong host name")
-
-	// errUnexpectedServerChallenge is returned when the server issues an additional
-	// challenge after the client has finished sending credentials.
-	errUnexpectedServerChallenge = errors.New("unexpected server challenge")
-)
-
-// LoginAuth returns an [smtp.Auth] that implements SASL LOGIN authentication.
+// newLoginAuth returns an [smtp.Auth] that implements SASL LOGIN authentication.
 //
 // LOGIN is a multi-step mechanism commonly offered by servers that do not
 // support AUTH PLAIN:
@@ -48,11 +38,11 @@ var (
 // Parameters:
 //   - username: The SMTP account username.
 //   - password: The SMTP account password.
-//   - host: The expected SMTP server hostname, which must match [smtp.ServerInfo.Name] at Start.
+//   - host: The expected SMTP server hostname, which must match [smtp.ServerInfo.Name] at [loginAuth.Start].
 //
 // Returns:
 //   - An [smtp.Auth] that performs LOGIN authentication for the given credentials and host.
-func LoginAuth(username, password, host string) smtp.Auth {
+func newLoginAuth(username, password, host string) smtp.Auth {
 	return &loginAuth{
 		username: username,
 		password: password,
@@ -109,14 +99,14 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 // Start begins LOGIN authentication after validating TLS and host identity.
 //
 // Parameters:
-//   - server: Connection metadata from the SMTP client, including Name and TLS.
+//   - server: Connection metadata from the SMTP client, including Name and TLS ([smtp.ServerInfo]).
 //
 // Returns:
 //   - The authentication protocol name ("LOGIN").
 //   - An empty initial client response (LOGIN has no initial SASL payload).
 //   - A non-nil error if the connection is unencrypted to a non-local host or the host name does not match.
 func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	// Require TLS unless the server name is localhost. Without TLS, ServerInfo
+	// Require TLS unless the server name is localhost. Without TLS, [smtp.ServerInfo]
 	// cannot be trusted and an attacker could advertise LOGIN to harvest credentials.
 	if !server.TLS && !isLocalhost(server.Name) {
 		return "", nil, errUnencryptedConnection

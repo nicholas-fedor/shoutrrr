@@ -2,23 +2,9 @@ package smtp
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/tls"
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"io"
-	"mime"
-	"net"
-	"net/mail"
-	"net/smtp"
 	"net/url"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -26,38 +12,44 @@ import (
 
 // Service sends notifications to given email addresses via SMTP.
 type Service struct {
+	// Standard provides logging and other base service behavior.
 	standard.Standard
+	// Templater provides named message templates for plain and HTML parts.
 	standard.Templater
 
-	Config            *Config
-	multipartBoundary string
-	propKeyResolver   format.PropKeyResolver
+	// Config holds SMTP server, authentication, and message options.
+	Config *Config
+	// propKeyResolver applies URL and send-parameter overrides to [Config].
+	propKeyResolver format.PropKeyResolver
 }
 
 const (
-	contentHTML                 = "text/html; charset=\"UTF-8\""
-	contentPlain                = "text/plain; charset=\"UTF-8\""
-	contentMultipart            = "multipart/alternative; boundary=%s"
-	DefaultSMTPPort             = 25               // DefaultSMTPPort is the standard port for SMTP communication.
-	boundaryByteLen             = 8                // boundaryByteLen is the number of bytes for the multipart boundary.
-	DefaultTimeout              = 10               // DefaultTimeout is the default timeout in seconds
-	shortResponseErrorSubstring = "short response" // Error substring from textproto indicating a short response that is sometimes received during session closure.
-)
-
-// ErrNoAuth is a sentinel error indicating no authentication is required.
-var ErrNoAuth = errors.New("no authentication required")
-
-// Static errors for SMTP operations.
-var (
-	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
+	// DefaultSMTPPort is the standard port for SMTP communication.
+	DefaultSMTPPort = 25
+	// defaultTimeout is the default SMTP timeout.
+	defaultTimeout = 10 * time.Second
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - The scheme name [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+// Initialize loads [Config] from serviceURL and sets logger for this [Service].
+//
+// It applies SMTP defaults, parses the configuration URL, and infers Auth as
+// [AuthPlain] when a username is present or [AuthNone] otherwise if
+// Auth is [AuthUnknown].
+//
+// Parameters:
+//   - serviceURL: The SMTP configuration URL.
+//   - logger: Logger used for service output ([types.StdLogger]).
+//
+// Returns:
+//   - An error if the configuration URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -69,7 +61,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		UseHTML:     false,
 		Encryption:  EncMethods.Auto,
 		ClientHost:  "localhost",
-		Timeout:     DefaultTimeout * time.Second,
+		Timeout:     defaultTimeout,
 	}
 
 	pkr := format.NewPropKeyResolver(s.Config)
@@ -92,6 +84,17 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send sends a notification message to email recipients.
+//
+// It clones the service configuration, applies optional runtime params, opens
+// an SMTP client, and delivers the message. A timeout from [Config.Timeout]
+// bounds the connection and session. Non-positive timeouts use [defaultTimeout].
+//
+// Parameters:
+//   - message: The notification body sent as the email message.
+//   - params: Optional runtime overrides for configuration fields ([types.Params]).
+//
+// Returns:
+//   - An error if configuration updates, connection, or delivery fail.
 func (s *Service) Send(message string, params *types.Params) error {
 	config := s.Config.Clone()
 	if err := s.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
@@ -102,334 +105,39 @@ func (s *Service) Send(message string, params *types.Params) error {
 		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		effectiveTimeout(config.Timeout),
+	)
 	defer cancel()
 
-	client, err := getClientConnection(ctx, &config)
+	client, err := dialClient(ctx, &config)
 	if err != nil {
 		return fail(FailGetSMTPClient, err)
 	}
 
-	return s.doSend(client, message, &config)
+	return (&session{
+		client: client,
+		config: &config,
+		svc:    s,
+		closed: false,
+	}).run(message)
 }
 
-// getClientConnection establishes a connection to the SMTP server using the provided configuration.
-func getClientConnection(ctx context.Context, config *Config) (*smtp.Client, error) {
-	var (
-		conn net.Conn
-		err  error
-	)
-
-	addr := net.JoinHostPort(config.Host, strconv.FormatUint(uint64(config.Port), 10))
-
-	if useImplicitTLS(config.Encryption, config.Port) {
-		dialer := &tls.Dialer{
-			Config: &tls.Config{
-				ServerName:         config.Host,
-				MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
-				InsecureSkipVerify: config.SkipTLSVerify,
-			},
-		}
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-	} else {
-		dialer := &net.Dialer{}
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-	}
-
-	if err != nil {
-		return nil, fail(FailConnectToServer, err)
-	}
-
-	client, err := smtp.NewClient(conn, config.Host)
-	if err != nil {
-		return nil, fail(FailCreateSMTPClient, err)
-	}
-
-	return client, nil
-}
-
-// doSend sends an email message using the provided SMTP client and configuration.
-func (s *Service) doSend(client *smtp.Client, message string, config *Config) failure {
-	config.FixEmailTags()
-
-	clientHost := s.resolveClientHost(config)
-
-	if err := client.Hello(clientHost); err != nil {
-		return fail(FailHandshake, err)
-	}
-
-	if config.UseHTML {
-		b := make([]byte, boundaryByteLen)
-		if _, err := rand.Read(b); err != nil {
-			return fail(FailUnknown, err) // Fallback error for rare case
-		}
-
-		s.multipartBoundary = hex.EncodeToString(b)
-	}
-
-	if config.UseStartTLS && !useImplicitTLS(config.Encryption, config.Port) {
-		if supported, _ := client.Extension("StartTLS"); !supported {
-			if config.RequireStartTLS {
-				return fail(FailEnableStartTLS, ErrServerNoStartTLS)
-			}
-
-			s.Logf(
-				"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted",
-			)
-		} else {
-			if err := client.StartTLS(&tls.Config{
-				ServerName:         config.Host,
-				MinVersion:         tls.VersionTLS12,
-				MaxVersion:         tls.VersionTLS13,
-				InsecureSkipVerify: config.SkipTLSVerify,
-			}); err != nil {
-				return fail(FailEnableStartTLS, err)
-			}
-		}
-	}
-
-	auth, err := s.getAuth(config)
-	if err != nil && !errors.Is(err, ErrNoAuth) {
-		return err
-	} else if auth != nil {
-		if err := client.Auth(auth); err != nil {
-			return fail(FailAuthenticating, err)
-		}
-	}
-
-	var errs []error
-
-	for _, toAddress := range config.ToAddresses {
-		if err := s.sendToRecipient(client, toAddress, config, message); err != nil {
-			errs = append(errs, fail(FailSendRecipient, err, toAddress))
-			s.Logf("Failed to send to %q: %v", toAddress, err)
-
-			continue
-		}
-
-		s.Logf("Mail successfully sent to %q!", toAddress)
-	}
-
-	// Send the QUIT command and close the connection.
-	if err := client.Quit(); err != nil {
-		// Ignore known "short response" errors from quirky servers (e.g., Office 365 on close),
-		// as they don't impact delivery.
-		if strings.Contains(err.Error(), shortResponseErrorSubstring) {
-			s.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
-		} else {
-			// Bubble up other close errors (e.g., network drops)
-			errs = append(errs, fail(FailClosingSession, err))
-		}
-	}
-
-	// Best-effort cleanup to avoid descriptor leaks
-	if closeErr := client.Close(); closeErr != nil {
-		s.Logf("Warning: Failed to close SMTP client connection: %v", closeErr)
-	}
-
-	if len(errs) > 0 {
-		return failures.Wrap(
-			"failed to send to some recipients",
-			FailSendRecipient,
-			errors.Join(errs...),
-		)
-	}
-
-	return nil
-}
-
-// getAuth returns the appropriate SMTP authentication mechanism based on the configuration.
+// effectiveTimeout returns a positive SMTP timeout.
 //
-//nolint:exhaustive // false positive: switch covers all AuthTypes, linter confuses local authType with net/smtp.authType
-func (s *Service) getAuth(config *Config) (smtp.Auth, failure) {
-	switch config.Auth {
-	case AuthTypes.None:
-		return nil, fail(FailAuthType, ErrNoAuth)
-	case AuthTypes.Plain:
-		return smtp.PlainAuth("", config.Username, config.Password, config.Host), nil
-	case AuthTypes.CRAMMD5:
-		return smtp.CRAMMD5Auth(config.Username, config.Password), nil
-	case AuthTypes.OAuth2:
-		return OAuth2Auth(config.Username, config.Password), nil
-	case AuthTypes.Login:
-		return LoginAuth(config.Username, config.Password, config.Host), nil
-	case AuthTypes.Unknown:
-		return nil, fail(FailAuthType, nil, config.Auth.String())
-	default:
-		return nil, fail(FailAuthType, nil, config.Auth.String())
-	}
-}
-
-// getHeaders constructs email headers for the SMTP message.
-func (s *Service) getHeaders(config *Config, toAddress string) map[string]string {
-	var contentType string
-	if config.UseHTML {
-		contentType = fmt.Sprintf(contentMultipart, s.multipartBoundary)
-	} else {
-		contentType = contentPlain
+// Non-positive values fall back to [defaultTimeout] so [context.WithTimeout]
+// always bounds the connection and session.
+//
+// Parameters:
+//   - timeout: The configured session timeout.
+//
+// Returns:
+//   - timeout when it is positive; otherwise [defaultTimeout].
+func effectiveTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return defaultTimeout
 	}
 
-	// Header values must be US-ASCII (RFC 5322 2.2), so any non-ASCII content is
-	// wrapped in RFC 2047 encoded-words. Pure ASCII values are passed through as-is.
-	from := &mail.Address{Name: config.FromName, Address: config.FromAddress}
-
-	return map[string]string{
-		"Subject":      mime.QEncoding.Encode("UTF-8", config.Subject),
-		"Date":         time.Now().Format(time.RFC1123Z),
-		"To":           toAddress,
-		"From":         from.String(),
-		"MIME-version": "1.0",
-		"Content-Type": contentType,
-	}
-}
-
-// resolveClientHost determines the client hostname to use in the SMTP handshake.
-func (s *Service) resolveClientHost(config *Config) string {
-	if config.ClientHost != "auto" {
-		return config.ClientHost
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		s.Logf("Failed to get hostname, falling back to localhost: %v", err)
-
-		return "localhost"
-	}
-
-	return hostname
-}
-
-// sendToRecipient sends an email to a single recipient using the provided SMTP client.
-func (s *Service) sendToRecipient(
-	client *smtp.Client,
-	toAddress string,
-	config *Config,
-	message string,
-) failure {
-	// Set the sender and recipient first
-	if err := client.Mail(config.FromAddress); err != nil {
-		return fail(FailSetSender, err)
-	}
-
-	if err := client.Rcpt(toAddress); err != nil {
-		return fail(FailSetRecipient, err)
-	}
-
-	// Send the email body.
-	writeCloser, err := client.Data()
-	if err != nil {
-		return fail(FailOpenDataStream, err)
-	}
-
-	if err := writeHeaders(writeCloser, s.getHeaders(config, toAddress)); err != nil {
-		return err
-	}
-
-	var ferr failure
-	if config.UseHTML {
-		ferr = s.writeMultipartMessage(writeCloser, message)
-	} else {
-		ferr = s.writeMessagePart(writeCloser, message, "plain")
-	}
-
-	if ferr != nil {
-		return ferr
-	}
-
-	if err = writeCloser.Close(); err != nil {
-		return fail(FailCloseDataStream, err)
-	}
-
-	return nil
-}
-
-// writeMessagePart writes a single part of an email message using the specified template.
-func (s *Service) writeMessagePart(
-	writeCloser io.WriteCloser,
-	message string,
-	template string,
-) failure {
-	if tpl, found := s.GetTemplate(template); found {
-		data := make(map[string]string)
-
-		data["message"] = message
-		if err := tpl.Execute(writeCloser, data); err != nil {
-			return fail(FailMessageTemplate, err)
-		}
-	} else {
-		if _, err := fmt.Fprint(writeCloser, message); err != nil {
-			return fail(FailMessageRaw, err)
-		}
-	}
-
-	return nil
-}
-
-// writeMultipartMessage writes a multipart email message to the provided writer.
-func (s *Service) writeMultipartMessage(writeCloser io.WriteCloser, message string) failure {
-	if err := writeMultipartHeader(
-		writeCloser,
-		s.multipartBoundary,
-		contentPlain,
-	); err != nil {
-		return fail(FailPlainHeader, err)
-	}
-
-	if err := s.writeMessagePart(writeCloser, message, "plain"); err != nil {
-		return err
-	}
-
-	if err := writeMultipartHeader(
-		writeCloser,
-		s.multipartBoundary,
-		contentHTML,
-	); err != nil {
-		return fail(FailHTMLHeader, err)
-	}
-
-	if err := s.writeMessagePart(writeCloser, message, "HTML"); err != nil {
-		return err
-	}
-
-	if err := writeMultipartHeader(writeCloser, s.multipartBoundary, ""); err != nil {
-		return fail(FailMultiEndHeader, err)
-	}
-
-	return nil
-}
-
-// writeMultipartHeader writes a multipart boundary header to the provided writer.
-func writeMultipartHeader(writeCloser io.WriteCloser, boundary, contentType string) error {
-	suffix := "\n"
-	if len(contentType) < 1 {
-		suffix = "--"
-	}
-
-	if _, err := fmt.Fprintf(writeCloser, "\n\n--%s%s", boundary, suffix); err != nil {
-		return fmt.Errorf("writing multipart boundary: %w", err)
-	}
-
-	if contentType != "" {
-		if _, err := fmt.Fprintf(writeCloser, "Content-Type: %s\n\n", contentType); err != nil {
-			return fmt.Errorf("writing content type header: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// writeHeaders writes email headers to the provided writer.
-func writeHeaders(writeCloser io.WriteCloser, headers map[string]string) failure {
-	for key, val := range headers {
-		if _, err := fmt.Fprintf(writeCloser, "%s: %s\n", key, val); err != nil {
-			return fail(FailWriteHeaders, err)
-		}
-	}
-
-	_, err := fmt.Fprintln(writeCloser)
-	if err != nil {
-		return fail(FailWriteHeaders, err)
-	}
-
-	return nil
+	return timeout
 }
