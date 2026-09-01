@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Treat successful QUIT as already closed by @nicholas-fedor in [#1301](https://github.com/nicholas-fedor/shoutrrr/pull/1301)
 - Apply send params to connection and headers by @JosephKav in [#1295](https://github.com/nicholas-fedor/shoutrrr/pull/1295)
 - Parse and render time.Duration fields as durations by @JosephKav in [#1292](https://github.com/nicholas-fedor/shoutrrr/pull/1292)
 - Stop wrapping raw html bodies in <pre> tags by @nicholas-fedor in [#1278](https://github.com/nicholas-fedor/shoutrrr/pull/1278)
