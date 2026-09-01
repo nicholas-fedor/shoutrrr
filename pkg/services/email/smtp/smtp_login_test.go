@@ -1,161 +1,124 @@
 package smtp
 
 import (
-	"errors"
 	"net/smtp"
-	"strings"
-	"testing"
+
+	ginkgo "github.com/onsi/ginkgo/v2"
+	gomega "github.com/onsi/gomega"
 )
 
-func TestLoginAuthStart(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		host    string
-		server  *smtp.ServerInfo
-		wantErr error
-	}{
-		{
-			name:   "TLS and matching host",
-			host:   "mail.example.com",
-			server: &smtp.ServerInfo{Name: "mail.example.com", TLS: true},
-		},
-		{
-			name:   "localhost without TLS",
-			host:   "localhost",
-			server: &smtp.ServerInfo{Name: "localhost", TLS: false},
-		},
-		{
-			name:   "127.0.0.1 without TLS",
-			host:   "127.0.0.1",
-			server: &smtp.ServerInfo{Name: "127.0.0.1", TLS: false},
-		},
-		{
-			name:    "unencrypted remote",
-			host:    "mail.example.com",
-			server:  &smtp.ServerInfo{Name: "mail.example.com", TLS: false},
-			wantErr: errUnencryptedConnection,
-		},
-		{
-			name:    "wrong host",
-			host:    "mail.example.com",
-			server:  &smtp.ServerInfo{Name: "evil.example.com", TLS: true},
-			wantErr: errWrongHostName,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			auth := LoginAuth("user", "pass", tt.host)
-
-			mech, resp, err := auth.Start(tt.server)
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("Start() error = %v, want %v", err, tt.wantErr)
-			}
-
-			if tt.wantErr != nil {
-				return
-			}
-
-			if mech != "LOGIN" {
-				t.Errorf("Start() mech = %q, want LOGIN", mech)
-			}
-
-			if resp != nil {
-				t.Errorf("Start() resp = %v, want nil", resp)
-			}
+var _ = ginkgo.Describe("loginAuth", func() {
+	ginkgo.Describe("newLoginAuth", func() {
+		ginkgo.It("should store credentials and reset the response step", func() {
+			got := newLoginAuth("alice", "s3cret", "mail.example.com")
+			auth, ok := got.(*loginAuth)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(auth.username).To(gomega.Equal("alice"))
+			gomega.Expect(auth.password).To(gomega.Equal("s3cret"))
+			gomega.Expect(auth.host).To(gomega.Equal("mail.example.com"))
+			gomega.Expect(auth.respStep).To(gomega.BeZero())
 		})
-	}
-}
+	})
 
-func TestLoginAuthNext(t *testing.T) {
-	t.Parallel()
+	ginkgo.Describe("Start", func() {
+		ginkgo.It("should accept TLS and a matching host", func() {
+			auth := newLoginAuth("user", "pass", "mail.example.com")
+			mech, resp, err := auth.Start(&smtp.ServerInfo{Name: "mail.example.com", TLS: true})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(mech).To(gomega.Equal("LOGIN"))
+			gomega.Expect(resp).To(gomega.BeNil())
+		})
 
-	auth := LoginAuth("alice", "s3cret", "mail.example.com").(*loginAuth)
+		ginkgo.It("should accept localhost without TLS", func() {
+			auth := newLoginAuth("user", "pass", "localhost")
+			_, _, err := auth.Start(&smtp.ServerInfo{Name: "localhost", TLS: false})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 
-	// Successful two-step exchange. Challenge text is ignored.
-	resp, err := auth.Next([]byte("User Name\x00"), true)
-	if err != nil {
-		t.Fatalf("step 0: unexpected error: %v", err)
-	}
+		ginkgo.It("should accept 127.0.0.1 without TLS", func() {
+			auth := newLoginAuth("user", "pass", "127.0.0.1")
+			_, _, err := auth.Start(&smtp.ServerInfo{Name: "127.0.0.1", TLS: false})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 
-	if string(resp) != "alice" {
-		t.Fatalf("step 0: resp = %q, want alice", resp)
-	}
+		ginkgo.It("should accept ::1 without TLS", func() {
+			auth := newLoginAuth("user", "pass", "::1")
+			_, _, err := auth.Start(&smtp.ServerInfo{Name: "::1", TLS: false})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
 
-	resp, err = auth.Next([]byte("password:"), true)
-	if err != nil {
-		t.Fatalf("step 1: unexpected error: %v", err)
-	}
+		ginkgo.It("should reject an unencrypted remote server", func() {
+			auth := newLoginAuth("user", "pass", "mail.example.com")
+			_, _, err := auth.Start(&smtp.ServerInfo{Name: "mail.example.com", TLS: false})
+			gomega.Expect(err).To(gomega.MatchError(errUnencryptedConnection))
+		})
 
-	if string(resp) != "s3cret" {
-		t.Fatalf("step 1: resp = %q, want s3cret", resp)
-	}
+		ginkgo.It("should reject a mismatched host", func() {
+			auth := newLoginAuth("user", "pass", "mail.example.com")
+			_, _, err := auth.Start(&smtp.ServerInfo{Name: "evil.example.com", TLS: true})
+			gomega.Expect(err).To(gomega.MatchError(errWrongHostName))
+		})
 
-	// An extra challenge must abort with a non-nil error, not a dummy response.
-	resp, err = auth.Next([]byte("Username:"), true)
-	if err == nil {
-		t.Fatal("step 2: expected error, got nil")
-	}
+		ginkgo.It("should reset respStep so a later Next starts at the username", func() {
+			auth := newLoginAuth("u", "p", "localhost").(*loginAuth)
+			_, err := auth.Next(nil, true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-	if resp != nil {
-		t.Fatalf("step 2: resp = %v, want nil so net/smtp aborts", resp)
-	}
+			_, _, err = auth.Start(&smtp.ServerInfo{Name: "localhost", TLS: false})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(auth.respStep).To(gomega.BeZero())
 
-	if !errors.Is(err, errUnexpectedServerChallenge) {
-		t.Fatalf("step 2: error = %v, want %v", err, errUnexpectedServerChallenge)
-	}
+			resp, err := auth.Next([]byte("Username:"), true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(string(resp)).To(gomega.Equal("u"))
+		})
+	})
 
-	if got := err.Error(); !strings.Contains(got, "Username:") {
-		t.Fatalf("step 2: error = %q, want challenge quoted in message", got)
-	}
+	ginkgo.Describe("Next", func() {
+		ginkgo.It("should send the username then the password and reject extra challenges", func() {
+			auth := newLoginAuth("alice", "s3cret", "mail.example.com").(*loginAuth)
 
-	// more=false ends the exchange cleanly.
-	resp, err = auth.Next(nil, false)
-	if err != nil || resp != nil {
-		t.Fatalf("more=false: resp=%v err=%v, want nil,nil", resp, err)
-	}
-}
+			resp, err := auth.Next([]byte("User Name\x00"), true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(string(resp)).To(gomega.Equal("alice"))
 
-func TestLoginAuthNextResetsWithStart(t *testing.T) {
-	t.Parallel()
+			resp, err = auth.Next([]byte("password:"), true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(string(resp)).To(gomega.Equal("s3cret"))
 
-	auth := LoginAuth("u", "p", "localhost").(*loginAuth)
-	if _, err := auth.Next(nil, true); err != nil {
-		t.Fatalf("first Next: %v", err)
-	}
+			resp, err = auth.Next([]byte("Username:"), true)
+			gomega.Expect(err).To(gomega.MatchError(errUnexpectedServerChallenge))
+			gomega.Expect(resp).To(gomega.BeNil())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Username:"))
 
-	if _, _, err := auth.Start(&smtp.ServerInfo{Name: "localhost", TLS: false}); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
+			resp, err = auth.Next(nil, false)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(resp).To(gomega.BeNil())
+		})
 
-	if auth.respStep != 0 {
-		t.Fatalf("respStep after Start = %d, want 0", auth.respStep)
-	}
+		ginkgo.It("should send passwords that contain spaces and unicode", func() {
+			auth := newLoginAuth("alice", "päss word", "mail.example.com").(*loginAuth)
 
-	resp, err := auth.Next([]byte("Username:"), true)
-	if err != nil {
-		t.Fatalf("Next after Start: %v", err)
-	}
+			resp, err := auth.Next(nil, true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(string(resp)).To(gomega.Equal("alice"))
 
-	if string(resp) != "u" {
-		t.Fatalf("Next after Start: resp = %q, want u", resp)
-	}
-}
+			resp, err = auth.Next(nil, true)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(string(resp)).To(gomega.Equal("päss word"))
+		})
+	})
 
-func TestIsLocalhost(t *testing.T) {
-	t.Parallel()
+	ginkgo.Describe("isLocalhost", func() {
+		ginkgo.It("should recognize loopback identities", func() {
+			gomega.Expect(isLocalhost("localhost")).To(gomega.BeTrue())
+			gomega.Expect(isLocalhost("127.0.0.1")).To(gomega.BeTrue())
+			gomega.Expect(isLocalhost("::1")).To(gomega.BeTrue())
+		})
 
-	for _, name := range []string{"localhost", "127.0.0.1", "::1"} {
-		if !isLocalhost(name) {
-			t.Errorf("isLocalhost(%q) = false, want true", name)
-		}
-	}
-
-	if isLocalhost("example.com") {
-		t.Error("isLocalhost(example.com) = true, want false")
-	}
-}
+		ginkgo.It("should reject a remote hostname", func() {
+			gomega.Expect(isLocalhost("example.com")).To(gomega.BeFalse())
+			gomega.Expect(isLocalhost("")).To(gomega.BeFalse())
+		})
+	})
+})

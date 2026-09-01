@@ -4,20 +4,14 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
-// failure is an interface for SMTP-specific errors, implementing failures.Failure
-// to provide detailed error messages and IDs for debugging within the shoutrrr framework.
-type failure interface {
-	failures.Failure
-}
-
 const (
-	// FailUnknown is the default FailureID.
+	// FailUnknown is the default [failures.FailureID].
 	FailUnknown failures.FailureID = iota
 	// FailGetSMTPClient is returned when a SMTP client could not be created.
 	FailGetSMTPClient
 	// FailEnableStartTLS is returned when failing to enable StartTLS.
 	FailEnableStartTLS
-	// FailAuthType is returned when the Auth type could not be identified.
+	// FailAuthType is returned when the [Config.Auth] method could not be identified.
 	FailAuthType
 	// FailAuthenticating is returned when the authentication fails.
 	FailAuthenticating
@@ -35,11 +29,11 @@ const (
 	FailMessageTemplate
 	// FailMessageRaw is returned when a non-templated message could not be written to the stream.
 	FailMessageRaw
-	// FailSetSender is returned when the server didn't accept the sender address.
+	// FailSetSender is returned when the server did not accept MAIL FROM.
 	FailSetSender
 	// FailSetRecipient is returned when the server didn't accept the recipient address.
 	FailSetRecipient
-	// FailOpenDataStream is returned when the server didn't accept the data stream.
+	// FailOpenDataStream is returned when the server did not accept DATA.
 	FailOpenDataStream
 	// FailWriteHeaders is returned when the headers could not be written to the data stream.
 	FailWriteHeaders
@@ -47,17 +41,29 @@ const (
 	FailCloseDataStream
 	// FailConnectToServer is returned when the TCP connection to the server failed.
 	FailConnectToServer
-	// FailCreateSMTPClient is returned when the smtp.Client initialization failed.
+	// FailCreateSMTPClient is returned when SMTP client initialization failed.
 	FailCreateSMTPClient
-	// FailApplySendParams is returned when updating the send config failed.
+	// FailApplySendParams is returned when updating the send [Config] failed.
 	FailApplySendParams
 	// FailHandshake is returned when the initial HELLO handshake returned an error.
 	FailHandshake
+	// FailResetSession is returned when the server rejects RSET between recipients.
+	FailResetSession
 )
 
-// fail creates an SMTP-specific failure with a descriptive message and ID,
-// wrapping the provided error and optional arguments for additional context.
-func fail(failureID failures.FailureID, err error, args ...any) failure {
+// fail creates an SMTP-specific failure with a descriptive message and ID.
+//
+// The message is selected from failureID.
+// Optional args are interpolated into the message when it contains format verbs.
+//
+// Parameters:
+//   - failureID: Identifier selecting the failure message ([failures.FailureID]).
+//   - err: The underlying error to wrap, which may be nil.
+//   - args: Optional values interpolated into the failure message.
+//
+// Returns:
+//   - A failure wrapping err with the selected message and ID.
+func fail(failureID failures.FailureID, err error, args ...any) failures.Failure {
 	var msg string
 
 	switch failureID {
@@ -72,7 +78,7 @@ func fail(failureID failures.FailureID, err error, args ...any) failure {
 	case FailAuthenticating:
 		msg = "error authenticating"
 	case FailAuthType:
-		msg = "invalid authorization method '%s'"
+		msg = "invalid authentication method '%s'"
 	case FailSendRecipient:
 		msg = "error sending message to recipient %q"
 	case FailClosingSession:
@@ -88,11 +94,11 @@ func fail(failureID failures.FailureID, err error, args ...any) failure {
 	case FailMessageRaw:
 		msg = "error writing message"
 	case FailSetSender:
-		msg = "error creating new message"
+		msg = "error setting MAIL FROM"
 	case FailSetRecipient:
 		msg = "error setting RCPT"
 	case FailOpenDataStream:
-		msg = "error creating message stream"
+		msg = "error starting DATA"
 	case FailWriteHeaders:
 		msg = "error writing message headers"
 	case FailCloseDataStream:
@@ -101,6 +107,8 @@ func fail(failureID failures.FailureID, err error, args ...any) failure {
 		msg = "error applying params to send config"
 	case FailHandshake:
 		msg = "server did not accept the handshake"
+	case FailResetSession:
+		msg = "error resetting session between recipients"
 	// case FailUnknown:
 	default:
 		msg = "an unknown error occurred"

@@ -5,37 +5,38 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// encMethod is an SMTP transport encryption method.
 type encMethod int
 
+// encMethodVals holds named encryption methods and their enum formatter.
 type encMethodVals struct {
-	// None means no encryption
+	// None means no encryption.
 	None encMethod
-	// ExplicitTLS means that TLS needs to be initiated by using StartTLS
+	// ExplicitTLS means that TLS is initiated with STARTTLS.
 	ExplicitTLS encMethod
-	// ImplicitTLS means that TLS is used for the whole session
+	// ImplicitTLS means that TLS is used for the whole session.
 	ImplicitTLS encMethod
-	// Auto means that TLS will be implicitly used for port 465, otherwise explicit TLS will be used if supported
+	// Auto means implicit TLS on port [ImplicitTLSPort], otherwise explicit TLS when supported.
 	Auto encMethod
-
-	// Enum is the EnumFormatter instance for EncMethods
+	// Enum formats and parses encryption method values.
 	Enum types.EnumFormatter
 }
 
 const (
 	// EncNone represents no encryption.
-	EncNone encMethod = iota // 0
-	// EncExplicitTLS represents explicit TLS initiated with StartTLS.
-	EncExplicitTLS // 1
+	EncNone encMethod = iota
+	// EncExplicitTLS represents explicit TLS initiated with STARTTLS.
+	EncExplicitTLS
 	// EncImplicitTLS represents implicit TLS used throughout the session.
-	EncImplicitTLS // 2
+	EncImplicitTLS
 	// EncAuto represents automatic TLS selection based on port.
-	EncAuto // 3
+	EncAuto
 )
 
 // ImplicitTLSPort is the de facto standard SMTPS port for implicit TLS.
 const ImplicitTLSPort = 465
 
-// EncMethods is the enum helper for populating the Encryption field.
+// EncMethods is the enum helper for populating the [Config.Encryption] field.
 var EncMethods = &encMethodVals{
 	None:        EncNone,
 	ExplicitTLS: EncExplicitTLS,
@@ -52,11 +53,22 @@ var EncMethods = &encMethodVals{
 	),
 }
 
-func (at encMethod) String() string {
-	return EncMethods.Enum.Print(int(at))
+// String returns the encryption method name.
+//
+// Returns:
+//   - The canonical name of the encryption method, such as "Auto" or "ImplicitTLS".
+func (em encMethod) String() string {
+	return EncMethods.Enum.Print(int(em))
 }
 
-// useImplicitTLS determines if implicit TLS should be used based on encryption method and port.
+// useImplicitTLS reports whether implicit TLS should be used.
+//
+// Parameters:
+//   - encryption: The configured encryption method.
+//   - port: The SMTP server port.
+//
+// Returns:
+//   - true when [EncImplicitTLS] is selected, or when [EncAuto] is selected and port is [ImplicitTLSPort].
 func useImplicitTLS(encryption encMethod, port uint16) bool {
 	switch encryption {
 	case EncNone:
@@ -68,6 +80,7 @@ func useImplicitTLS(encryption encMethod, port uint16) bool {
 	case EncAuto:
 		return port == ImplicitTLSPort
 	default:
-		return false // Unreachable due to enum constraints, but included for safety
+		// Unreachable due to enum constraints, but included for safety.
+		return false
 	}
 }
