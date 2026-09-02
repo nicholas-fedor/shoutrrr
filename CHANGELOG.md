@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 1231c84 by @renovate[bot] in [#1314](https://github.com/nicholas-fedor/shoutrrr/pull/1314)
 - Update cimg/go docker tag to v1.27.1 by @renovate[bot] in [#1312](https://github.com/nicholas-fedor/shoutrrr/pull/1312)
 
 ## [0.19.0] - 2026-09-02
