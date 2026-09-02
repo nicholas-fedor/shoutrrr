@@ -4,6 +4,12 @@
 
 The Shoutrrr Go package (`github.com/nicholas-fedor/shoutrrr`) enables sending notifications to various services (e.g., `discord`, `slack`, `telegram`, `smtp`, etc.) using service URLs. It provides two primary methods: a direct `Send` function for simple use cases and a `Sender` struct for advanced scenarios with multiple URLs, message queuing, and parameter customization.
 
+### Minimum Supported Go Version
+
+Projects importing Shoutrrr are expected to follow the latest Go minor and/or patch semantic versions; ergo, Shoutrrr follows the latest minor Go version, i.e. 1.27. (Go refers to minor semantic version releases as major releases.)
+
+Go release information can be reviewed here: <https://go.dev/doc/devel/release>
+
 ## Usage
 
 ```go title="Go Import Statement"
