@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go:1.27.0 docker digest to 6026c28 by @renovate[bot] in [#1305](https://github.com/nicholas-fedor/shoutrrr/pull/1305)
 - Update go toolchain directive to v1.27.1 by @renovate[bot] in [#1303](https://github.com/nicholas-fedor/shoutrrr/pull/1303)
 - Update docker/setup-qemu-action action to v4.3.0 by @renovate[bot] in [#1298](https://github.com/nicholas-fedor/shoutrrr/pull/1298)
 - Update orhun/git-cliff-action action to v4.9.0 by @renovate[bot] in [#1299](https://github.com/nicholas-fedor/shoutrrr/pull/1299)
