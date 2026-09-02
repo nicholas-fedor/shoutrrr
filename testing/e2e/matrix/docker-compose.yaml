@@ -17,7 +17,7 @@
 
 services:
   synapse:
-    image: matrixdotorg/synapse:latest@sha256:18db676dd9f1a053edcf3033a78daeff035b773d58e5bc68802e379947332302
+    image: matrixdotorg/synapse:latest@sha256:1231c84d217f290e73db498f46a9af52aaafa38015502b4ebb7c111c8d097196
     container_name: synapse
     ports:
       - 8008:8008 # Client API
