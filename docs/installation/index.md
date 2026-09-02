@@ -74,6 +74,10 @@ Add Shoutrrr to your Go project using:
 go get github.com/nicholas-fedor/shoutrrr@latest
 ```
 
+### Minimum Supported Version Policy
+
+Projects importing Shoutrrr are expected to follow the latest Go minor and/or patch semantic version; ergo, Shoutrrr follows the latest minor Go version, i.e. 1.27.
+
 ## GitHub Action
 
 Use Shoutrrr in GitHub workflows to send notifications.

@@ -31,6 +31,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
   - [Binaries](#binaries)
   - [Container Images](#container-images)
   - [Go Package](#go-package)
+    - [Minimum Supported Version Policy](#minimum-supported-version-policy)
   - [GitHub Action](#github-action)
 - [Usage](#usage)
   - [CLI](#cli)
@@ -113,6 +114,10 @@ Install the latest release binary to `$HOME/go/bin` (ensure it's in your `PATH`)
 ```bash
 go get github.com/nicholas-fedor/shoutrrr@latest
 ```
+
+#### Minimum Supported Version Policy
+
+Projects importing Shoutrrr are expected to follow the latest Go minor and/or patch semantic version; ergo, Shoutrrr follows the latest minor Go version, i.e. 1.27.
 
 ### GitHub Action
 
