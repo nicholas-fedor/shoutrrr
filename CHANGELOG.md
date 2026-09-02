@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update cimg/go docker tag to v1.27.1 by @renovate[bot] in [#1312](https://github.com/nicholas-fedor/shoutrrr/pull/1312)
+
+## [0.19.0] - 2026-09-02
+
 ### Added
 
 - Add JosephKav as a contributor for code, and test by @allcontributors[bot] in [#1294](https://github.com/nicholas-fedor/shoutrrr/pull/1294)
@@ -2118,7 +2124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.18.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.19.0...HEAD)
+- [0.19.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.18.0...v0.19.0)
 - [0.18.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.2...v0.18.0)
 - [0.17.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.1...v0.17.2)
 - [0.17.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.17.0...v0.17.1)
