@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1290](https://github.com/nicholas-fedor/shoutrrr/pull/1290)
 - Update minimum supported Go version to 1.27 by @nicholas-fedor in [#1309](https://github.com/nicholas-fedor/shoutrrr/pull/1309)
 - Update github.com/google/pprof digest to ca85771 by @renovate[bot] in [#1306](https://github.com/nicholas-fedor/shoutrrr/pull/1306)
 - Update cimg/go:1.27.0 docker digest to 6026c28 by @renovate[bot] in [#1305](https://github.com/nicholas-fedor/shoutrrr/pull/1305)
