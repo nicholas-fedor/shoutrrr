@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to d6c3cb2 by @renovate[bot] in [#1318](https://github.com/nicholas-fedor/shoutrrr/pull/1318)
+- Update emqx/emqx:latest docker digest to 3b6d9c0 by @renovate[bot] in [#1316](https://github.com/nicholas-fedor/shoutrrr/pull/1316)
 - Update matrixdotorg/synapse:latest docker digest to 1231c84 by @renovate[bot] in [#1314](https://github.com/nicholas-fedor/shoutrrr/pull/1314)
 - Update cimg/go docker tag to v1.27.1 by @renovate[bot] in [#1312](https://github.com/nicholas-fedor/shoutrrr/pull/1312)
 
