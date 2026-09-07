@@ -7,6 +7,7 @@ import (
 )
 
 //go:fix inline
+//nolint:unused // Retained as a go:fix inline helper after call sites were rewritten to new(expr).
 func boolPtr(v bool) *bool {
 	return new(v)
 }
