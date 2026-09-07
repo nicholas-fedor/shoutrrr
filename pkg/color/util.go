@@ -6,8 +6,9 @@ import (
 	"strings"
 )
 
+//go:fix inline
 func boolPtr(v bool) *bool {
-	return &v
+	return new(v)
 }
 
 // noColorIsSet returns true if the NO_COLOR environment variable is set (regardless of value).

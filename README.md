@@ -43,7 +43,7 @@ Heavily inspired by <a href="https://github.com/caronc/apprise">caronc/apprise</
     - [Option 2 - Using a sender](#option-2---using-a-sender)
       - [Single URL](#single-url)
       - [Multiple URLs](#multiple-urls)
-      - [Custom HTTP Client (SSRF / Egress Control)](#custom-http-client-ssrf--egress-control)
+      - [Custom HTTP Client and DialContext (SSRF / Egress Control)](#custom-http-client-and-dialcontext-ssrf--egress-control)
       - [Message Levels](#message-levels)
       - [Per-Target Errors](#per-target-errors)
       - [Context Propagation](#context-propagation)
@@ -191,27 +191,36 @@ params := types.Params{}
 sender.Send("Hello world (or slack channel) !", &params)
 ```
 
-##### Custom HTTP Client (SSRF / Egress Control)
+##### Custom HTTP Client and DialContext (SSRF / Egress Control)
+
+`shoutrrr.Send` cannot take these options. Use `NewSenderWithOptions` (or `CreateSenderWithOptions`).
 
 ```go
 import (
+    "context"
     "crypto/tls"
     "log"
+    "net"
     "net/http"
 
     "github.com/nicholas-fedor/shoutrrr"
     "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+    return (&net.Dialer{}).DialContext(ctx, network, addr)
+}
+
 customClient := &http.Client{
     Transport: &http.Transport{
+        DialContext:     dial,
         TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
     },
 }
 
 sender, err := shoutrrr.NewSenderWithOptions(
     nil,
-    types.SenderOptions{HTTPClient: customClient},
+    types.SenderOptions{HTTPClient: customClient, DialContext: dial},
     "discord://token@channel",
 )
 if err != nil {

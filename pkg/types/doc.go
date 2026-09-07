@@ -30,8 +30,12 @@
 //     Used for SSRF protection and custom egress control.
 //   - HTTPClientSetter: Implemented by services to accept a custom HTTPClient
 //     (injected by router.NewWithOptions / NewSenderWithOptions).
-//   - SenderOptions: Options for creating senders/routers, including HTTPClient
-//     and Timeout overrides.
+//   - DialContextFunc: Signature of net.Dialer.DialContext for non-HTTP TCP
+//     connections. Used for SSRF protection and custom egress control.
+//   - DialContextSetter: Implemented by services to accept a custom DialContextFunc
+//     (injected by router.NewWithOptions / NewSenderWithOptions).
+//   - SenderOptions: Options for creating senders/routers, including HTTPClient,
+//     DialContext, and Timeout overrides.
 //
 // # Message Types
 //

@@ -1,7 +1,10 @@
 package services_test
 
 import (
+	"context"
+	"errors"
 	"log"
+	"net"
 	"net/http"
 	"testing"
 
@@ -166,6 +169,65 @@ var _ = ginkgo.Describe("services", func() {
 			sr, err := router.NewWithOptions(
 				logger,
 				types.SenderOptions{HTTPClient: customClient},
+				"generic+https://example.com/webhook",
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			service, err := sr.Locate("generic+https://example.com/webhook")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Send("test", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		})
+	})
+
+	ginkgo.Describe("custom DialContext injection", func() {
+		ginkgo.It("should use the injected dialer for SMTP", func() {
+			blocked := errors.New("destination blocked")
+
+			var gotNetwork, gotAddr string
+
+			dial := func(_ context.Context, network, addr string) (net.Conn, error) {
+				gotNetwork = network
+				gotAddr = addr
+
+				return nil, blocked
+			}
+
+			smtpURL := "smtp://mail.example.com:587/?fromAddress=from@host.tld&toAddresses=to@host.tld"
+			sr, err := router.NewWithOptions(
+				logger,
+				types.SenderOptions{DialContext: dial},
+				smtpURL,
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			errs := sr.Send("test", nil)
+			gomega.Expect(errs).To(gomega.HaveLen(1))
+			gomega.Expect(errs[0]).To(gomega.MatchError(blocked))
+			gomega.Expect(gotNetwork).To(gomega.Equal("tcp"))
+			gomega.Expect(gotAddr).To(gomega.Equal("mail.example.com:587"))
+		})
+
+		ginkgo.It("should leave HTTP services unaffected", func() {
+			customClient := &http.Client{}
+			httpmock.ActivateNonDefault(customClient)
+			ginkgo.DeferCleanup(httpmock.DeactivateAndReset)
+
+			httpmock.RegisterResponder(
+				"POST",
+				"https://example.com/webhook",
+				httpmock.NewStringResponder(http.StatusOK, ""),
+			)
+
+			sr, err := router.NewWithOptions(
+				logger,
+				types.SenderOptions{
+					HTTPClient: customClient,
+					DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+						return nil, errors.New("should not dial")
+					},
+				},
 				"generic+https://example.com/webhook",
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

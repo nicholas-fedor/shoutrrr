@@ -37,6 +37,7 @@ Sends a notification to a single service URL.
 Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support message queuing, and allow parameter customization.
 
 - **Function**: `shoutrrr.CreateSender(urls ...string) (*ServiceRouter, error)`
+- **With options**: `shoutrrr.NewSenderWithOptions` / `CreateSenderWithOptions` accept `types.SenderOptions`. `HTTPClient` is injected into HTTP services. `DialContext` is injected into TCP services that implement `types.DialContextSetter`. `shoutrrr.Send` cannot take these options.
 - **Methods**:
   - `Send(message string, params *types.Params) []error`: Sends a message to all configured services.
   - `SendItems(items []types.MessageItem, params types.Params) []error`: Sends structured message items to services that support rich formatting.

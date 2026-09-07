@@ -96,7 +96,7 @@ func NewWithConfig(cfg *Config, value ...Attribute) *Color {
 	}
 
 	if cfg.NoColor {
-		c.noColor = boolPtr(true)
+		c.noColor = new(true)
 	}
 
 	c.Add(value...)
@@ -150,14 +150,14 @@ func (c *Color) AddRGB(r, green, blue int) *Color {
 // Can be used for flags like "--no-color".
 // To enable back use EnableColor() method.
 func (c *Color) DisableColor() {
-	c.noColor = boolPtr(true)
+	c.noColor = new(true)
 }
 
 // EnableColor enables the color output.
 // Use it in conjunction with DisableColor().
 // Otherwise, this method has no side effects.
 func (c *Color) EnableColor() {
-	c.noColor = boolPtr(false)
+	c.noColor = new(false)
 }
 
 // Equals returns a boolean value indicating whether two colors are equal.

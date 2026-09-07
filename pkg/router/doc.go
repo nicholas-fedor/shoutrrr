@@ -55,10 +55,12 @@
 //
 //	err := service.Send("Hello, World!", nil)
 //
-// For SSRF protection or custom egress control, supply a custom HTTP client:
+// For SSRF protection or custom egress control, supply a custom HTTP client
+// and DialContext:
 //
 //	opts := types.SenderOptions{
-//	    HTTPClient: myClient,
+//	    HTTPClient:  myClient,
+//	    DialContext: myDial,
 //	}
 //	router, err := router.NewWithOptions(logger, opts, "slack://webhook/...")
 //	if err != nil {

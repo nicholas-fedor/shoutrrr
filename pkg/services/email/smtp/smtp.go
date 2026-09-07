@@ -21,6 +21,8 @@ type Service struct {
 	Config *Config
 	// propKeyResolver applies URL and send-parameter overrides to [Config].
 	propKeyResolver format.PropKeyResolver
+	// dialContext, if non-nil, is used for the SMTP TCP dial.
+	dialContext types.DialContextFunc
 }
 
 const (
@@ -30,7 +32,10 @@ const (
 	defaultTimeout = 10 * time.Second
 )
 
-var _ types.ContextSender = (*Service)(nil)
+var (
+	_ types.ContextSender     = (*Service)(nil)
+	_ types.DialContextSetter = (*Service)(nil)
+)
 
 // GetID returns the service identifier.
 //
@@ -129,7 +134,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	)
 	defer cancel()
 
-	client, err := dialClient(ctx, &config)
+	client, err := dialClient(ctx, &config, s.dialContext)
 	if err != nil {
 		return fail(FailGetSMTPClient, err)
 	}
@@ -140,6 +145,17 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		svc:    s,
 		closed: false,
 	}).run(message)
+}
+
+// SetDialContext sets a custom dial function for SMTP TCP connections.
+//
+// TLS wrapping for implicit TLS still happens after the TCP dial.
+// A nil dial restores the default [net.Dialer].
+//
+// Parameters:
+//   - dial: The dial function. Must be safe for concurrent use when non-nil.
+func (s *Service) SetDialContext(dial types.DialContextFunc) {
+	s.dialContext = dial
 }
 
 // effectiveTimeout returns a positive SMTP timeout.

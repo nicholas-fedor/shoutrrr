@@ -33,6 +33,33 @@ var _ = ginkgo.Describe("TLS and live SMTP dialog", func() {
 		gomega.Expect(mock.dataString()).To(gomega.ContainSubstring("hello"))
 	})
 
+	ginkgo.It("should complete implicit TLS after a custom TCP dial", func() {
+		mock := newMockSMTP()
+		mock.implicitTLS = true
+
+		address, stop := startMockSMTP(mock)
+		defer stop()
+
+		serviceURL := testutils.URLMust(mockSMTPURL(address,
+			"encryption=ImplicitTLS&usestarttls=no&skiptlsverify=yes"))
+		gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+		var gotNetwork, gotAddr string
+
+		service.SetDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			gotNetwork = network
+			gotAddr = addr
+
+			return (&net.Dialer{}).DialContext(ctx, network, addr)
+		})
+
+		gomega.Expect(service.Send("hello", nil)).To(gomega.Succeed())
+		gomega.Expect(gotNetwork).To(gomega.Equal("tcp"))
+		gomega.Expect(gotAddr).To(gomega.Equal(address))
+		gomega.Eventually(mock.firstByte).Should(gomega.Receive(gomega.Equal(byte(0x16))))
+		gomega.Expect(mock.dataString()).To(gomega.ContainSubstring("hello"))
+	})
+
 	ginkgo.It("should reject implicit TLS with an untrusted certificate", func() {
 		mock := newMockSMTP()
 		mock.implicitTLS = true
@@ -133,7 +160,7 @@ var _ = ginkgo.Describe("TLS and live SMTP dialog", func() {
 		_, err = dialClient(context.Background(), &Config{
 			Host: host,
 			Port: uint16(port),
-		})
+		}, nil)
 		gomega.Expect(err).To(matchFailure(FailCreateSMTPClient))
 	})
 

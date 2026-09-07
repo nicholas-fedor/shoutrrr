@@ -4,7 +4,9 @@
 
 Shoutrrr supports proxying HTTP requests for notification services, allowing you to route traffic through a proxy server. This can be configured using an environment variable or by customizing the HTTP client in code.
 
-**For per-sender egress control and SSRF protection (recommended for untrusted notification URLs), use a custom `http.Client` via `SenderOptions`.**
+**For per-sender egress control and SSRF protection (recommended for untrusted notification URLs), use a custom `http.Client` and `DialContext` via `SenderOptions`.**
+
+`shoutrrr.Send` cannot take these options. Use `shoutrrr.NewSenderWithOptions`, `CreateSenderWithOptions`, or `router.NewWithOptions`.
 
 ## Usage
 
@@ -83,10 +85,11 @@ func main() {
   Timeout:   60 * time.Second,
  }
 
- opts := types.SenderOptions{
-  HTTPClient: customClient,
-  // Timeout: 30 * time.Second, // optional per-router override
- }
+  opts := types.SenderOptions{
+   HTTPClient:  customClient,
+   DialContext: transport.DialContext,
+   // Timeout: 30 * time.Second, // optional per-router override
+  }
 
  url := "discord://abc123@123456789"
  sender, err := shoutrrr.NewSenderWithOptions(nil, opts, url)
@@ -102,11 +105,13 @@ func main() {
 }
 ```
 
-**Notes on custom clients:**
+**Notes on custom clients and dialers:**
 
 - A non-nil `SenderOptions.HTTPClient` is propagated by the router to services implementing `types.HTTPClientSetter`.
+- A non-nil `SenderOptions.DialContext` is propagated to services implementing `types.DialContextSetter` (SMTP and MQTT). TLS wrapping still happens after the TCP dial.
+- `DialContext` must be safe for concurrent use. A custom dialer bypasses MQTT `all_proxy`; implement proxying in the function if needed.
 - Custom clients usually bypass `HTTP_PROXY`/`HTTPS_PROXY` unless their `Transport.Proxy` is configured to consult the environment.
-- All default timeouts/TLS behavior is preserved when no custom client is supplied.
+- All default timeouts/TLS behavior is preserved when no custom client or dialer is supplied.
 - The same client instance is reused for the lifetime of the sender/router.
 
 ## Examples
@@ -161,7 +166,7 @@ func main() {
         }
         custom := &http.Client{Transport: transport}
 
-        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom}, "discord://abc123@123456789")
+        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom, DialContext: transport.DialContext}, "discord://abc123@123456789")
         if err != nil {
             log.Fatal(err)
         }
@@ -186,5 +191,6 @@ func main() {
 
 - **Environment Variable**: `HTTP_PROXY` supports protocols like `http`, `https`, or `socks5`. It affects all HTTP-based services globally.
 - **Custom HTTP Client**: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.
+- **Custom DialContext**: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use `HTTPClient`.
 - **Service Compatibility**: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).
 - **Timeouts**: The custom client example includes a 30-second dial timeout and 10-second TLS handshake timeout, adjustable as needed.

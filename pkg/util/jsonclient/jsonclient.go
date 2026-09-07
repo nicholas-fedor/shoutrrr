@@ -67,8 +67,7 @@ func (je Error) String() string {
 
 // ErrorBody extracts the request body from an error if it's a jsonclient.Error.
 func ErrorBody(e error) string {
-	var jsonError Error
-	if errors.As(e, &jsonError) {
+	if jsonError, ok := errors.AsType[Error](e); ok {
 		return jsonError.Body
 	}
 
@@ -117,8 +116,7 @@ func Post(url string, request, response any) error {
 
 // ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
 func (c *client) ErrorResponse(err error, response any) bool {
-	var errMsg Error
-	if errors.As(err, &errMsg) {
+	if errMsg, ok := errors.AsType[Error](err); ok {
 		return json.Unmarshal([]byte(errMsg.Body), response) == nil
 	}
 

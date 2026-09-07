@@ -194,8 +194,7 @@ func (s *Service) sendAPI(config *Config, message string) error {
 
 	httpResp, err := s.HTTPClient.Do(httpReq)
 	if err != nil {
-		var jsonErr jsonclient.Error
-		if errors.As(err, &jsonErr) {
+		if jsonErr, ok := errors.AsType[jsonclient.Error](err); ok {
 			if json.Unmarshal([]byte(jsonErr.Body), &response) == nil {
 				return &response
 			}
