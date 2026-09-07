@@ -8,8 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add support for injecting custom DialContext by @nicholas-fedor in [#1321](https://github.com/nicholas-fedor/shoutrrr/pull/1321)
+
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.50 by @renovate[bot] in [#1322](https://github.com/nicholas-fedor/shoutrrr/pull/1322)
 - Update github.com/google/pprof digest to 6331bc6 by @renovate[bot] in [#1320](https://github.com/nicholas-fedor/shoutrrr/pull/1320)
 - Update github.com/google/pprof digest to d6c3cb2 by @renovate[bot] in [#1318](https://github.com/nicholas-fedor/shoutrrr/pull/1318)
 - Update emqx/emqx:latest docker digest to 3b6d9c0 by @renovate[bot] in [#1316](https://github.com/nicholas-fedor/shoutrrr/pull/1316)
