@@ -199,6 +199,7 @@ sender.Send("Hello world (or slack channel) !", &params)
 import (
     "context"
     "crypto/tls"
+    "fmt"
     "log"
     "net"
     "net/http"
@@ -208,7 +209,25 @@ import (
 )
 
 dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-    return (&net.Dialer{}).DialContext(ctx, network, addr)
+    host, port, err := net.SplitHostPort(addr)
+    if err != nil {
+        return nil, err
+    }
+    ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+    if err != nil {
+        return nil, err
+    }
+    d := &net.Dialer{}
+    for _, ip := range ips {
+        if ip.IP.IsLoopback() || ip.IP.IsPrivate() || ip.IP.IsLinkLocalUnicast() || ip.IP.IsLinkLocalMulticast() {
+            continue
+        }
+        conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+        if err == nil {
+            return conn, nil
+        }
+    }
+    return nil, &net.OpError{Op: "dial", Net: network, Err: fmt.Errorf("destination blocked by egress policy")}
 }
 
 customClient := &http.Client{

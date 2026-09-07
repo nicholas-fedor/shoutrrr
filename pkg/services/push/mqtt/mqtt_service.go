@@ -295,7 +295,8 @@ func (s *Service) SetDialContext(dial types.DialContextFunc) {
 //   - serverURL: Broker URL whose host and port are dialed.
 //
 // Returns:
-//   - A connected [net.Conn], TLS-wrapped and thread-safe when cfg.TlsCfg is set.
+//   - A connected [net.Conn], TLS-wrapped when cfg.TlsCfg is set, always
+//     wrapped for thread-safe writes.
 //   - An error if the custom dialer is unset, dialing fails, or the handshake fails.
 func (s *Service) attemptConnection(
 	ctx context.Context,
@@ -312,7 +313,7 @@ func (s *Service) attemptConnection(
 	}
 
 	if cfg.TlsCfg == nil {
-		return conn, nil
+		return packets.NewThreadSafeConn(conn), nil
 	}
 
 	tlsCfg := cfg.TlsCfg.Clone()
