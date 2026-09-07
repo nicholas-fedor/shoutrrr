@@ -81,8 +81,9 @@ func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRo
 }
 
 // NewSenderWithOptions constructs a new service router using the given logger,
-// SenderOptions, and URLs. Use this to supply a custom HTTPClient for all
-// outbound requests (e.g. for SSRF protection or custom proxies/TLS).
+// SenderOptions, and URLs. Use this to supply a custom HTTPClient for HTTP
+// services and DialContext for TCP services (e.g. for SSRF protection or
+// custom proxies/TLS).
 func NewSenderWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(logger, opts, serviceURLs...)
 	if err != nil {

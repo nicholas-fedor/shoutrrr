@@ -140,6 +140,11 @@ var _ = ginkgo.Describe("MQTT Errors", func() {
 				To(gomega.Equal("MQTT connection manager not initialized"))
 		})
 
+		ginkgo.It("should match ErrNoDialContext", func() {
+			gomega.Expect(ErrNoDialContext.Error()).
+				To(gomega.Equal("custom dial context is not configured"))
+		})
+
 		ginkgo.It("should be usable with errors.Is for ErrPublishTimeout", func() {
 			err := ErrPublishTimeout
 			gomega.Expect(err).To(gomega.Equal(ErrPublishTimeout))

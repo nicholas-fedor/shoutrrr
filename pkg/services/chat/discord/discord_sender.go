@@ -171,14 +171,12 @@ func isTransientError(err error) bool {
 		return true
 	}
 
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](err); ok {
 		return netErr.Timeout() ||
 			netErr.Temporary() //nolint:staticcheck // Temporary is deprecated but still used for compatibility
 	}
 
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
+	if urlErr, ok := errors.AsType[*url.Error](err); ok {
 		return isTransientError(urlErr.Err)
 	}
 

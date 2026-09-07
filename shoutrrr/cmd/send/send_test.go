@@ -487,8 +487,7 @@ func Test_run(t *testing.T) {
 				}
 
 				if tt.wantErrType != "" {
-					var exitErr cli.ExitError
-					if errors.As(runErr, &exitErr) {
+					if exitErr, ok := errors.AsType[cli.ExitError](runErr); ok {
 						switch tt.wantErrType {
 						case "ConfigurationError":
 							assert.Equal(t, cli.ExConfig, exitErr.ExitCode, "Exit code should be ExConfig")

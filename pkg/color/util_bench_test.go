@@ -8,8 +8,8 @@ import (
 // Benchmark_boolPtr benchmarks the boolPtr function for creating boolean pointers.
 func Benchmark_boolPtr(b *testing.B) {
 	for b.Loop() {
-		_ = boolPtr(true)
-		_ = boolPtr(false)
+		_ = new(true)
+		_ = new(false)
 	}
 }
 

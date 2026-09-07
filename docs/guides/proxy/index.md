@@ -4,7 +4,9 @@
 
 Shoutrrr supports proxying HTTP requests for notification services, allowing you to route traffic through a proxy server. This can be configured using an environment variable or by customizing the HTTP client in code.
 
-**For per-sender egress control and SSRF protection (recommended for untrusted notification URLs), use a custom `http.Client` via `SenderOptions`.**
+**For per-sender egress control and SSRF protection (recommended for untrusted notification URLs), use a custom `http.Client` and `DialContext` via `SenderOptions`.**
+
+`shoutrrr.Send` cannot take these options. Use `shoutrrr.NewSenderWithOptions`, `CreateSenderWithOptions`, or `router.NewWithOptions`.
 
 ## Usage
 
@@ -42,34 +44,37 @@ import (
  "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// isAllowedHost is an example SSRF guard. Implement your own policy.
-func isAllowedHost(host string) bool {
- // Reject loopback, private, link-local, etc. Adjust to your needs.
- ip := net.ParseIP(host)
- if ip == nil {
-  // For hostnames you may resolve or apply allow-list here.
-  return true
+// isBlockedIP is an example SSRF guard. Implement your own policy.
+func isBlockedIP(ip net.IP) bool {
+ return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+func dialAllowed(ctx context.Context, network, addr string) (net.Conn, error) {
+ host, port, err := net.SplitHostPort(addr)
+ if err != nil {
+  return nil, err
  }
- if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-  return false
+ ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+ if err != nil {
+  return nil, err
  }
- return true
+ d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+ for _, ip := range ips {
+  if isBlockedIP(ip.IP) {
+   continue
+  }
+  conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+  if err == nil {
+   return conn, nil
+  }
+ }
+ return nil, &net.OpError{Op: "dial", Net: network, Err: fmt.Errorf("destination blocked by egress policy")}
 }
 
 func main() {
  // Custom Transport with DialContext that performs egress/SSRF checks.
  transport := &http.Transport{
-  DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-   host, _, err := net.SplitHostPort(addr)
-   if err != nil {
-    host = addr // no port
-   }
-   if !isAllowedHost(host) {
-    return nil, &net.OpError{Op: "dial", Net: network, Addr: nil, Err: fmt.Errorf("destination blocked by egress policy")}
-   }
-   d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
-   return d.DialContext(ctx, network, addr)
-  },
+  DialContext: dialAllowed,
   // Proxy: http.ProxyFromEnvironment, // opt-in if you also want env proxies for this client
   ForceAttemptHTTP2:     true,
   MaxIdleConns:          100,
@@ -83,10 +88,11 @@ func main() {
   Timeout:   60 * time.Second,
  }
 
- opts := types.SenderOptions{
-  HTTPClient: customClient,
-  // Timeout: 30 * time.Second, // optional per-router override
- }
+  opts := types.SenderOptions{
+   HTTPClient:  customClient,
+   DialContext: transport.DialContext,
+   // Timeout: 30 * time.Second, // optional per-router override
+  }
 
  url := "discord://abc123@123456789"
  sender, err := shoutrrr.NewSenderWithOptions(nil, opts, url)
@@ -102,11 +108,13 @@ func main() {
 }
 ```
 
-**Notes on custom clients:**
+**Notes on custom clients and dialers:**
 
 - A non-nil `SenderOptions.HTTPClient` is propagated by the router to services implementing `types.HTTPClientSetter`.
+- A non-nil `SenderOptions.DialContext` is propagated to services implementing `types.DialContextSetter` (SMTP and MQTT). TLS wrapping still happens after the TCP dial.
+- `DialContext` must be safe for concurrent use. A custom dialer bypasses MQTT `all_proxy`; implement proxying in the function if needed.
 - Custom clients usually bypass `HTTP_PROXY`/`HTTPS_PROXY` unless their `Transport.Proxy` is configured to consult the environment.
-- All default timeouts/TLS behavior is preserved when no custom client is supplied.
+- All default timeouts/TLS behavior is preserved when no custom client or dialer is supplied.
 - The same client instance is reused for the lifetime of the sender/router.
 
 ## Examples
@@ -132,6 +140,7 @@ func main() {
 
     import (
         "context"
+        "fmt"
         "log"
         "net"
         "net/http"
@@ -141,27 +150,37 @@ func main() {
         "github.com/nicholas-fedor/shoutrrr/pkg/types"
     )
 
-    func isAllowedHost(host string) bool {
-        ip := net.ParseIP(host)
-        if ip == nil {
-            return true
-        }
-        return !ip.IsLoopback() && !ip.IsPrivate()
+    func isBlockedIP(ip net.IP) bool {
+        return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
     }
 
     func main() {
         transport := &http.Transport{
             DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-                host, _, _ := net.SplitHostPort(addr)
-                if !isAllowedHost(host) {
-                    return nil, context.DeadlineExceeded
+                host, port, err := net.SplitHostPort(addr)
+                if err != nil {
+                    return nil, err
                 }
-                return (&net.Dialer{Timeout: 30 * time.Second}).DialContext(ctx, network, addr)
+                ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+                if err != nil {
+                    return nil, err
+                }
+                d := &net.Dialer{Timeout: 30 * time.Second}
+                for _, ip := range ips {
+                    if isBlockedIP(ip.IP) {
+                        continue
+                    }
+                    conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+                    if err == nil {
+                        return conn, nil
+                    }
+                }
+                return nil, &net.OpError{Op: "dial", Net: network, Err: fmt.Errorf("destination blocked by egress policy")}
             },
         }
         custom := &http.Client{Transport: transport}
 
-        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom}, "discord://abc123@123456789")
+        sender, err := shoutrrr.NewSenderWithOptions(nil, types.SenderOptions{HTTPClient: custom, DialContext: transport.DialContext}, "discord://abc123@123456789")
         if err != nil {
             log.Fatal(err)
         }
@@ -186,5 +205,6 @@ func main() {
 
 - **Environment Variable**: `HTTP_PROXY` supports protocols like `http`, `https`, or `socks5`. It affects all HTTP-based services globally.
 - **Custom HTTP Client**: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.
+- **Custom DialContext**: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use `HTTPClient`.
 - **Service Compatibility**: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).
 - **Timeouts**: The custom client example includes a 30-second dial timeout and 10-second TLS handshake timeout, adjustable as needed.

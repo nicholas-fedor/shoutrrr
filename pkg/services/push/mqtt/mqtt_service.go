@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/url"
 	"sync"
 	"time"
 
 	"github.com/eclipse/paho.golang/autopaho"
+	"github.com/eclipse/paho.golang/packets"
 	"github.com/eclipse/paho.golang/paho"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -28,6 +30,8 @@ type Service struct {
 	pkr format.PropKeyResolver
 	// connectionManager is the underlying MQTT connection manager for broker communication.
 	connectionManager ConnectionManager
+	// dialContext, if non-nil, is used for the MQTT TCP dial via AttemptConnection.
+	dialContext types.DialContextFunc
 	// clientMutex protects the connection initialization to ensure thread-safe
 	// lazy initialization while allowing retry on transient failures.
 	clientMutex sync.Mutex
@@ -70,6 +74,8 @@ const sessionExpiryInterval = 60
 // disconnectTimeout defines the maximum time in seconds to wait for graceful disconnection.
 // This prevents indefinite blocking when the broker is unresponsive during close operations.
 const disconnectTimeout = 5
+
+var _ types.DialContextSetter = (*Service)(nil)
 
 // Close gracefully shuts down the MQTT service by disconnecting from the broker
 // and canceling the connection context.
@@ -267,6 +273,64 @@ func (s *Service) SetConnectionManager(cm ConnectionManager) {
 	s.connectionInitialized = cm != nil
 }
 
+// SetDialContext sets a custom dial function for MQTT TCP connections.
+//
+// TLS wrapping for mqtts still happens after the TCP dial.
+// A nil dial restores the default autopaho dialer, including all_proxy handling.
+// This method should only be called before any Send operations to avoid
+// race conditions with lazy initialization.
+//
+// Parameters:
+//   - dial: The dial function. Must be safe for concurrent use when non-nil.
+func (s *Service) SetDialContext(dial types.DialContextFunc) {
+	s.dialContext = dial
+}
+
+// attemptConnection dials the MQTT broker using [Service.dialContext] and
+// optionally wraps the connection in TLS.
+//
+// Parameters:
+//   - ctx: Context that bounds dialing and the TLS handshake.
+//   - cfg: Autopaho client configuration providing TLS settings.
+//   - serverURL: Broker URL whose host and port are dialed.
+//
+// Returns:
+//   - A connected [net.Conn], TLS-wrapped when cfg.TlsCfg is set, always
+//     wrapped for thread-safe writes.
+//   - An error if the custom dialer is unset, dialing fails, or the handshake fails.
+func (s *Service) attemptConnection(
+	ctx context.Context,
+	cfg autopaho.ClientConfig, //nolint:gocritic // hugeParam: matches autopaho.AttemptConnection
+	serverURL *url.URL,
+) (net.Conn, error) {
+	if s.dialContext == nil {
+		return nil, ErrNoDialContext
+	}
+
+	conn, err := s.dialContext(ctx, "tcp", serverURL.Host)
+	if err != nil {
+		return nil, fmt.Errorf("dialing MQTT broker %q: %w", serverURL.Host, err)
+	}
+
+	if cfg.TlsCfg == nil {
+		return packets.NewThreadSafeConn(conn), nil
+	}
+
+	tlsCfg := cfg.TlsCfg.Clone()
+	if tlsCfg.ServerName == "" {
+		tlsCfg.ServerName = serverURL.Hostname()
+	}
+
+	tlsConn := tls.Client(conn, tlsCfg)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		_ = conn.Close()
+
+		return nil, fmt.Errorf("TLS handshake with MQTT broker %q: %w", serverURL.Host, err)
+	}
+
+	return packets.NewThreadSafeConn(tlsConn), nil
+}
+
 // createTLSConfig builds a TLS configuration based on the service settings.
 // It enforces TLS 1.2 as the minimum version and optionally skips certificate
 // verification when DisableTLSVerification is set (useful for testing or
@@ -426,11 +490,10 @@ func (s *Service) initClient() error {
 		KeepAlive:                     keepAliveInterval,
 		CleanStartOnInitialConnection: s.Config.CleanSession,
 		SessionExpiryInterval:         sessionExpiryInterval,
-		ClientConfig: paho.ClientConfig{ //nolint:exhaustruct_v5 // remaining fields use library defaults
-			ClientID: s.Config.ClientID,
-			OnServerDisconnect: func(disconnect *paho.Disconnect) {
-				s.Logf("Server disconnected: reason code %d", disconnect.ReasonCode)
-			},
+		//nolint:exhaustruct_v5 // remaining fields use library defaults
+		ClientID: s.Config.ClientID,
+		OnServerDisconnect: func(disconnect *paho.Disconnect) {
+			s.Logf("Server disconnected: reason code %d", disconnect.ReasonCode)
 		},
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
 			s.Logf("Connected to MQTT broker at %s", brokerURL)
@@ -456,6 +519,10 @@ func (s *Service) initClient() error {
 	// Configure TLS based on scheme and DisableTLS setting
 	if useTLS {
 		cliCfg.TlsCfg = s.createTLSConfig()
+	}
+
+	if s.dialContext != nil {
+		cliCfg.AttemptConnection = s.attemptConnection
 	}
 
 	// Create the connection manager

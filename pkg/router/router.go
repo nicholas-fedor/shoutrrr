@@ -14,11 +14,12 @@ import (
 
 // ServiceRouter is responsible for routing a message to a specific notification service using the notification URL.
 type ServiceRouter struct {
-	logger     types.StdLogger
-	services   []types.Service
-	queue      []string
-	Timeout    time.Duration
-	httpClient types.HTTPClient
+	logger      types.StdLogger
+	services    []types.Service
+	queue       []string
+	Timeout     time.Duration
+	httpClient  types.HTTPClient
+	dialContext types.DialContextFunc
 	//nolint:containedctx // Intentional: router derives per-service timeout contexts from this base.
 	ctx context.Context
 }
@@ -47,11 +48,12 @@ func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) 
 
 // NewWithOptions creates a new service router using the specified logger, options,
 // and service URLs. If opts.HTTPClient is non-nil, it will be injected into
-// services that support it (via SetHTTPClient or internal client replacement).
+// services that support it (via SetHTTPClient). If opts.DialContext is non-nil,
+// it will be injected into services that implement [types.DialContextSetter].
 //
 // Parameters:
 //   - logger: the logger to use for service output.
-//   - opts: the sender options, including timeout and HTTP client.
+//   - opts: the sender options, including timeout, HTTP client, and dial function.
 //   - serviceURLs: the service URLs to initialize.
 //
 // Returns:
@@ -59,12 +61,13 @@ func New(logger types.StdLogger, serviceURLs ...string) (*ServiceRouter, error) 
 //   - error: an error if any service fails to initialize.
 func NewWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURLs ...string) (*ServiceRouter, error) {
 	router := ServiceRouter{
-		logger:     logger,
-		services:   nil,
-		queue:      nil,
-		Timeout:    DefaultTimeout,
-		httpClient: opts.HTTPClient,
-		ctx:        context.Background(),
+		logger:      logger,
+		services:    nil,
+		queue:       nil,
+		Timeout:     DefaultTimeout,
+		httpClient:  opts.HTTPClient,
+		dialContext: opts.DialContext,
+		ctx:         context.Background(),
 	}
 
 	if opts.Timeout > 0 {
@@ -349,6 +352,12 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 			// skip typed-nil
 		} else if setter, ok := service.(types.HTTPClientSetter); ok {
 			setter.SetHTTPClient(r.httpClient)
+		}
+	}
+
+	if r.dialContext != nil {
+		if setter, ok := service.(types.DialContextSetter); ok {
+			setter.SetDialContext(r.dialContext)
 		}
 	}
 

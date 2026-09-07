@@ -39,7 +39,7 @@ func Test_boolPtr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := boolPtr(tt.input)
+			result := new(tt.input)
 			tt.checkPtr(t, result)
 		})
 	}

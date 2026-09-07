@@ -232,8 +232,7 @@ func asFailure(err error) failures.Failure {
 		return nil
 	}
 
-	var f failures.Failure
-	if errors.As(err, &f) {
+	if f, ok := errors.AsType[failures.Failure](err); ok {
 		return f
 	}
 

@@ -37,6 +37,9 @@ var (
 	// MQTT protocol only supports QoS levels 0, 1, and 2.
 	ErrInvalidQoS = errors.New("invalid QoS value: must be 0, 1, or 2")
 
+	// ErrNoDialContext is returned when a custom connection attempt runs without a dialer.
+	ErrNoDialContext = errors.New("custom dial context is not configured")
+
 	// ErrPasswordWithoutUsername is returned when a password is provided without a username.
 	// Password credentials require a username to be included in the URL.
 	ErrPasswordWithoutUsername = errors.New(

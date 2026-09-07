@@ -496,8 +496,7 @@ func isRateLimitedError(err error) bool {
 		return false
 	}
 
-	var apiErr *apiResError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*apiResError](err); ok {
 		return apiErr.IsRateLimited()
 	}
 

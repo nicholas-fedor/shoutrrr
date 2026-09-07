@@ -6,8 +6,10 @@ import (
 	"strings"
 )
 
+//go:fix inline
+//nolint:unused // Retained as a go:fix inline helper after call sites were rewritten to new(expr).
 func boolPtr(v bool) *bool {
-	return &v
+	return new(v)
 }
 
 // noColorIsSet returns true if the NO_COLOR environment variable is set (regardless of value).

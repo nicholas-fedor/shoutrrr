@@ -3,8 +3,12 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"net"
 	"net/url"
 	"sync"
+
+	"github.com/eclipse/paho.golang/autopaho"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 	gomega "github.com/onsi/gomega"
@@ -416,6 +420,130 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(svc.Config).NotTo(gomega.BeNil())
 			gomega.Expect(svc.connectionInitialized).To(gomega.BeFalse())
 			gomega.Expect(svc.connectionManager).To(gomega.BeNil())
+		})
+	})
+
+	ginkgo.Describe("SetDialContext", func() {
+		ginkgo.It("should satisfy DialContextSetter", func() {
+			var setter types.DialContextSetter = service
+			gomega.Expect(setter).NotTo(gomega.BeNil())
+		})
+
+		ginkgo.It("should store the custom dial function", func() {
+			dial := func(_ context.Context, _, _ string) (net.Conn, error) {
+				return nil, errors.New("unused")
+			}
+			service.SetDialContext(dial)
+			gomega.Expect(service.dialContext).NotTo(gomega.BeNil())
+		})
+	})
+
+	ginkgo.Describe("attemptConnection", func() {
+		ginkgo.It("should error when no custom dialer is configured", func() {
+			brokerURL, err := url.Parse("mqtt://broker.example.com:1883")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			_, err = service.attemptConnection(
+				context.Background(),
+				autopaho.ClientConfig{},
+				brokerURL,
+			)
+			gomega.Expect(err).To(gomega.MatchError(ErrNoDialContext))
+		})
+
+		ginkgo.It("should dial tcp at the broker host", func() {
+			blocked := errors.New("destination blocked")
+
+			var gotNetwork, gotAddr string
+
+			service.SetDialContext(func(_ context.Context, network, addr string) (net.Conn, error) {
+				gotNetwork = network
+				gotAddr = addr
+
+				return nil, blocked
+			})
+
+			brokerURL, err := url.Parse("mqtt://broker.example.com:1883")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			_, err = service.attemptConnection(
+				context.Background(),
+				autopaho.ClientConfig{},
+				brokerURL,
+			)
+			gomega.Expect(err).To(gomega.MatchError(blocked))
+			gomega.Expect(gotNetwork).To(gomega.Equal("tcp"))
+			gomega.Expect(gotAddr).To(gomega.Equal("broker.example.com:1883"))
+		})
+
+		ginkgo.It("should return a plain connection when TLS is not configured", func() {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defer listener.Close()
+
+			accepted := make(chan net.Conn, 1)
+
+			go func() {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+
+				accepted <- conn
+			}()
+
+			service.SetDialContext((&net.Dialer{}).DialContext)
+
+			brokerURL, err := url.Parse("mqtt://" + listener.Addr().String())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			conn, err := service.attemptConnection(
+				context.Background(),
+				autopaho.ClientConfig{},
+				brokerURL,
+			)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(conn).NotTo(gomega.BeNil())
+			gomega.Expect(conn.Close()).To(gomega.Succeed())
+
+			peer := <-accepted
+			gomega.Expect(peer.Close()).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should fail the TLS handshake against a plaintext listener", func() {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defer listener.Close()
+
+			go func() {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				defer conn.Close()
+
+				_, _ = conn.Read(make([]byte, 1))
+			}()
+
+			service.SetDialContext((&net.Dialer{}).DialContext)
+
+			brokerURL, err := url.Parse("mqtts://" + listener.Addr().String())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			_, err = service.attemptConnection(
+				context.Background(),
+				autopaho.ClientConfig{
+					TlsCfg: &tls.Config{
+						InsecureSkipVerify: true,
+						MinVersion:         tls.VersionTLS12,
+					},
+				},
+				brokerURL,
+			)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("TLS handshake"))
 		})
 	})
 })

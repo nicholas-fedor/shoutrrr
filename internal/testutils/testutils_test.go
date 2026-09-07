@@ -112,10 +112,6 @@ var _ = ginkgo.Describe("the testutils package", func() {
 
 		ginkgo.BeforeEach(func() {
 			service = dummyService{
-				Standard: standard.Standard{
-					Logger:    standard.Logger{},
-					Templater: standard.Templater{},
-				},
 				Config: dummyConfig{
 					EnumlessConfig: standard.EnumlessConfig{},
 					Foo:            0,

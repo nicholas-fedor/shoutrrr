@@ -42,8 +42,7 @@ func TestRun_FlagRetrievalError(t *testing.T) {
 
 	err := cmd.Run()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Exit code mismatch")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -79,8 +78,7 @@ func TestRun_UnknownService(t *testing.T) {
 	err := cmd.Run()
 	output := outputBuf.String()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Exit code mismatch")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -113,8 +111,7 @@ func TestRun_InvalidURLFormat(t *testing.T) {
 
 	err := cmd.Run()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Exit code mismatch")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -153,8 +150,7 @@ func TestRun_SubprocessErrorOutput(t *testing.T) {
 	output := outputBuf.String()
 
 	// Should exit with code 1
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Should exit with code 1")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -305,8 +301,7 @@ func TestRun_IntegrationWithExitCodes_InvalidURL(t *testing.T) {
 
 	err := cmd.Run()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Exit code mismatch")
 	} else {
 		t.Fatalf("Expected ExitError with code 1, got: %v", err)
@@ -405,8 +400,7 @@ func TestRun_StderrOutput(t *testing.T) {
 	err := cmd.Run()
 
 	// Should fail
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Should exit with code 1")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -529,8 +523,7 @@ func TestRun_WithUnknownSchemeFails(t *testing.T) {
 
 	err := cmd.Run()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Expected exit code 1 for invalid scheme")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
@@ -566,8 +559,7 @@ func TestRun_MultipleURLs(t *testing.T) {
 	err := cmd.Run()
 	output := outputBuf.String()
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		assert.Equal(t, 1, exitErr.ExitCode(), "Expected exit code 1 for multiple URLs")
 	} else {
 		t.Fatalf("Expected ExitError, got: %v", err)
