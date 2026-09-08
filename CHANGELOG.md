@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/tools to v0.50.0 by @renovate[bot] in [#1337](https://github.com/nicholas-fedor/shoutrrr/pull/1337)
+- Update module golang.org/x/net to v0.59.0 by @renovate[bot] in [#1336](https://github.com/nicholas-fedor/shoutrrr/pull/1336)
+- Update module golang.org/x/oauth2 to v0.37.0 by @renovate[bot] in [#1334](https://github.com/nicholas-fedor/shoutrrr/pull/1334)
 - Update module golang.org/x/text to v0.42.0 by @renovate[bot] in [#1333](https://github.com/nicholas-fedor/shoutrrr/pull/1333)
 - Update module golang.org/x/sync to v0.23.0 by @renovate[bot] in [#1330](https://github.com/nicholas-fedor/shoutrrr/pull/1330)
 - Update module golang.org/x/mod to v0.41.0 by @renovate[bot] in [#1329](https://github.com/nicholas-fedor/shoutrrr/pull/1329)
