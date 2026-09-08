@@ -6,6 +6,7 @@ toolchain go1.27.1
 
 require (
 	github.com/eclipse/paho.golang v0.23.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-colorable v0.1.15
 	github.com/onsi/ginkgo/v2 v2.32.1
@@ -27,7 +28,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect

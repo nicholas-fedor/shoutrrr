@@ -135,6 +135,7 @@ nav:
       - Push Notification Services:
           - Bark: services/push/bark/index.md
           - Gotify: services/push/gotify/index.md
+          - Home Assistant: services/push/homeassistant/index.md
           - IFTTT: services/push/ifttt/index.md
           - Join: services/push/join/index.md
           - MQTT: services/push/mqtt/index.md

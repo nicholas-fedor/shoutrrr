@@ -1,0 +1,20 @@
+# Home Assistant server for local E2E testing
+#
+# https://github.com/home-assistant/core
+#
+# Usage:
+#   ./setup.sh setup-all
+#
+# API endpoint: http://localhost:8123
+#
+# Credentials are created by setup.sh through the onboarding API.
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
+    container_name: shoutrrr-homeassistant
+    ports:
+      - "127.0.0.1:8123:8123"
+    volumes:
+      - ./config:/config
+    restart: unless-stopped
