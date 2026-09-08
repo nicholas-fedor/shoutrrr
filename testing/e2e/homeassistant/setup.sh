@@ -115,8 +115,7 @@ check_requirements() {
 }
 
 ha_curl() {
-    curl --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
-        --cacert "${CONFIG_DIR}/ssl/fullchain.pem" "$@"
+    curl --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" -k "$@"
 }
 
 prepare_tls_config() {
