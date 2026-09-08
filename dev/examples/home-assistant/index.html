@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../services/push/homeassistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../services/push/ifttt/" class="md-nav__link">
         
   
@@ -2460,10 +2488,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
+  <a href="#rest_notifications" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Usage
+        REST notifications
       
     </span>
   </a>
@@ -2471,49 +2499,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#webhook_trigger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#send_notification_to_home_assistant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Send Notification to Home Assistant
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#send_notification_with_http_and_verbose_output" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Send Notification with HTTP and Verbose Output
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Notes
+        Webhook trigger
       
     </span>
   </a>
@@ -2601,10 +2590,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
+  <a href="#rest_notifications" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Usage
+        REST notifications
       
     </span>
   </a>
@@ -2612,49 +2601,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#webhook_trigger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#send_notification_to_home_assistant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Send Notification to Home Assistant
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#send_notification_with_http_and_verbose_output" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Send Notification with HTTP and Verbose Output
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Notes
+        Webhook trigger
       
     </span>
   </a>
@@ -2683,10 +2633,40 @@
 
 <h1 id="home_assistant">Home Assistant<a class="headerlink" href="#home_assistant" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>This example demonstrates how to configure the Shoutrrr <code>generic</code> service to send notifications to Home Assistant via its webhook API.</p>
-<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
-<p>Configure the <code>generic</code> service URL to target Home Assistant's webhook endpoint. The URL requires the Home Assistant IP address, port, and webhook ID.</p>
+<p>Home Assistant can receive Shoutrrr notifications in two ways.</p>
+<p>Use the dedicated <code>homeassistant</code> service to create persistent notifications or call notify actions through the REST API with a long-lived access token.</p>
+<p>Use a webhook URL only when an automation should run from an unauthenticated <code>POST</code> to <code>/api/webhook/&lt;webhook_id&gt;</code>.</p>
+<h2 id="rest_notifications">REST notifications<a class="headerlink" href="#rest_notifications" title="Permanent link">&para;</a></h2>
+<p>Create a long-lived access token in your Home Assistant profile, then send to the REST API.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">HTTPS (Default)</label><label for="__tabbed_1_2">HTTP</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><span class="filename">Home Assistant REST URL for HTTPS</span><pre><span></span><code>homeassistant://&lt;LONG_LIVED_TOKEN&gt;@&lt;HA_HOST&gt;
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><span class="filename">Home Assistant REST URL for HTTP</span><pre><span></span><code>homeassistant://&lt;LONG_LIVED_TOKEN&gt;@&lt;HA_HOST&gt;:8123/?disabletls=yes
+</code></pre></div>
+</div>
+</div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send a persistent notification</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&amp;title=Update"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
+</code></pre></div>
+</div>
+<p>Reuse <code>nid</code> when later messages should replace the same persistent notification instead of stacking.</p>
+<div class="highlight"><pre><span></span><code>homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&amp;nid=watchtower
+</code></pre></div>
+<p>Call a notify action such as a companion-app notifier with <code>service</code>:</p>
+<div class="highlight"><pre><span></span><code>homeassistant://LONG_LIVED_TOKEN@ha.example.com?service=notify.mobile_app_phone
+</code></pre></div>
+<h2 id="webhook_trigger">Webhook trigger<a class="headerlink" href="#webhook_trigger" title="Permanent link">&para;</a></h2>
+<p>Configure a webhook trigger in Home Assistant, then POST JSON to <code>/api/webhook/&lt;WEBHOOK_ID&gt;</code>.
+In the automation, read the message from <code>{{ trigger.json.message }}</code>.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">HTTPS (Default)</label><label for="__tabbed_2_2">HTTP</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <div class="highlight"><span class="filename">Generic Service URL for HTTPS</span><pre><span></span><code>generic://&lt;HA_IP_ADDRESS&gt;:&lt;HA_PORT&gt;/api/webhook/&lt;WEBHOOK_ID&gt;?template=json
@@ -2698,39 +2678,17 @@
 </div>
 </div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Replace <code>&lt;HA_IP_ADDRESS&gt;</code>, <code>&lt;HA_PORT&gt;</code>, and <code>&lt;WEBHOOK_ID&gt;</code> with your Home Assistant instance details. In Home Assistant, use <code>{{ trigger.json.message }}</code> to extract the message from the JSON payload sent by Shoutrrr.</p>
-</div>
-<h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
-<!-- markdownlint-disable -->
-<h3 id="send_notification_to_home_assistant">Send Notification to Home Assistant<a class="headerlink" href="#send_notification_to_home_assistant" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Command to Home Assistant</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"generic://192.168.1.100:8123/api/webhook/abc123?template=json"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span>
+<div class="highlight"><span class="filename">Send Command to a webhook</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"generic://192.168.1.100:8123/api/webhook/abc123?template=json&amp;disabletls=yes"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
 </code></pre></div>
 </div>
-<h3 id="send_notification_with_http_and_verbose_output">Send Notification with HTTP and Verbose Output<a class="headerlink" href="#send_notification_with_http_and_verbose_output" title="Permanent link">&para;</a></h3>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send Command with HTTP and Verbose</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"generic://192.168.1.100:8123/api/webhook/abc123?template=json&amp;disabletls=yes"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Home Assistant!"</span><span class="w"> </span>--verbose
-</code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URLs: generic://192.168.1.100:8123/api/webhook/abc123?template=json&amp;disabletls=yes
-Message: Hello, Home Assistant!
-Notification sent
-</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Webhook IDs are unauthenticated. Treat them like passwords and keep <code>local_only</code> enabled unless internet access is required.</p>
 </div>
-<!-- markdownlint-restore -->
-
-<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Webhook Setup</strong>: Create a webhook in Home Assistant to obtain the <code>WEBHOOK_ID</code>.</li>
-<li><strong>Template</strong>: The <code>template=json</code> query parameter ensures the message is sent as a JSON payload.</li>
-<li><strong>Accessing Message</strong>: Use <code>{{ trigger.json.message }}</code> in Home Assistant automations to retrieve the message.</li>
-<li><strong>Credit</strong>: Example inspired by <a href="https://github.com/JeffCrum1">@JeffCrum1</a>, <a href="https://github.com/containrrr/shoutrrr/issues/325#issuecomment-1460105065">Issue #325</a>.</li>
-</ul>
 
 
 
@@ -2753,7 +2711,7 @@ Notification sent
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="August 8, 2025 12:36:57 UTC"><span class="timeago" datetime="2025-08-08T12:36:57+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 8, 2025 12:36:57 UTC">2025-08-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 8, 2026 05:08:00 UTC"><span class="timeago" datetime="2026-09-08T05:08:00+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 8, 2026 05:08:00 UTC">2026-09-08</span>
   </span>
 
     
