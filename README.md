@@ -338,8 +338,9 @@ jobs:
 | Discord      | Discord webhooks                     |
 | Generic      | Custom HTTP webhooks                 |
 | Google Chat  | Google Chat webhooks                 |
-| Gotify       | Gotify push notifications            |
-| IFTTT        | IFTTT webhooks                       |
+| Gotify         | Gotify push notifications            |
+| Home Assistant | Home Assistant REST notifications    |
+| IFTTT          | IFTTT webhooks                       |
 | Join         | Join push notifications              |
 | Lark         | Lark (Feishu) webhooks               |
 | Logger       | Local logging (for testing)          |

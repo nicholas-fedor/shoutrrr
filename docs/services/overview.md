@@ -28,6 +28,7 @@ Click on the service for a more thorough explanation.
 |------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
 | [Bark](./push/bark/index.md)             | *bark://__`devicekey`__@__`host`__*                                                                                     |
 | [Gotify](./push/gotify/index.md)         | *gotify://__`gotify-host`__/__`token`__*                                                                                |
+| [Home Assistant](./push/homeassistant/index.md) | *homeassistant://__`token`__@__`host`__[:__`port`__][/__`basepath`__]*                                           |
 | [IFTTT](./push/ifttt/index.md)           | *ifttt://__`key`__/?events=__`event1`__[,__`event2`__,...]&value1=__`value1`__&value2=__`value2`__&value3=__`value3`__* |
 | [Join](./push/join/index.md)             | *join://shoutrrr:__`api-key`__@join/?devices=__`device1`__[,__`device2`__, ...][&icon=__`icon`__][&title=__`title`__]*  |
 | [MQTT](./push/mqtt/index.md)             | *mqtt://[__`username`__[:__`password`__]@]__`host`__[:__`port`__]/__`topic`__*                                          |

@@ -2,11 +2,53 @@
 
 ## Overview
 
-This example demonstrates how to configure the Shoutrrr `generic` service to send notifications to Home Assistant via its webhook API.
+Home Assistant can receive Shoutrrr notifications in two ways.
 
-## Usage
+Use the dedicated `homeassistant` service to create persistent notifications or call notify actions through the REST API with a long-lived access token.
 
-Configure the `generic` service URL to target Home Assistant's webhook endpoint. The URL requires the Home Assistant IP address, port, and webhook ID.
+Use a webhook URL only when an automation should run from an unauthenticated `POST` to `/api/webhook/<webhook_id>`.
+
+## REST notifications
+
+Create a long-lived access token in your Home Assistant profile, then send to the REST API.
+
+=== "HTTPS (Default)"
+
+    ```url title="Home Assistant REST URL for HTTPS"
+    homeassistant://<LONG_LIVED_TOKEN>@<HA_HOST>
+    ```
+
+=== "HTTP"
+
+    ```url title="Home Assistant REST URL for HTTP"
+    homeassistant://<LONG_LIVED_TOKEN>@<HA_HOST>:8123/?disabletls=yes
+    ```
+
+!!! Example
+    ```bash title="Send a persistent notification"
+    shoutrrr send --url "homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&title=Update" --message "Hello, Home Assistant!"
+    ```
+
+    ```text title="Expected Output"
+    Notification sent
+    ```
+
+Reuse `nid` when later messages should replace the same persistent notification instead of stacking.
+
+```url
+homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&nid=watchtower
+```
+
+Call a notify action such as a companion-app notifier with `service`:
+
+```url
+homeassistant://LONG_LIVED_TOKEN@ha.example.com?service=notify.mobile_app_phone
+```
+
+## Webhook trigger
+
+Configure a webhook trigger in Home Assistant, then POST JSON to `/api/webhook/<WEBHOOK_ID>`.
+In the automation, read the message from `{{ trigger.json.message }}`.
 
 === "HTTPS (Default)"
 
@@ -20,40 +62,14 @@ Configure the `generic` service URL to target Home Assistant's webhook endpoint.
     generic://<HA_IP_ADDRESS>:<HA_PORT>/api/webhook/<WEBHOOK_ID>?template=json&disabletls=yes
     ```
 
+!!! Example
+    ```bash title="Send Command to a webhook"
+    shoutrrr send --url "generic://192.168.1.100:8123/api/webhook/abc123?template=json&disabletls=yes" --message "Hello, Home Assistant!"
+    ```
+
+    ```text title="Expected Output"
+    Notification sent
+    ```
+
 !!! Note
-    Replace `<HA_IP_ADDRESS>`, `<HA_PORT>`, and `<WEBHOOK_ID>` with your Home Assistant instance details. In Home Assistant, use `{{ trigger.json.message }}` to extract the message from the JSON payload sent by Shoutrrr.
-
-## Example
-
-<!-- markdownlint-disable -->
-### Send Notification to Home Assistant
-
-!!! Example
-    ```bash title="Send Command to Home Assistant"
-    shoutrrr send --url "generic://192.168.1.100:8123/api/webhook/abc123?template=json" --message "Hello, Home Assistant!"
-    ```
-
-    ```text title="Expected Output"
-    Notification sent
-    ```
-
-### Send Notification with HTTP and Verbose Output
-
-!!! Example
-    ```bash title="Send Command with HTTP and Verbose"
-    shoutrrr send --url "generic://192.168.1.100:8123/api/webhook/abc123?template=json&disabletls=yes" --message "Hello, Home Assistant!" --verbose
-    ```
-
-    ```text title="Expected Output"
-    URLs: generic://192.168.1.100:8123/api/webhook/abc123?template=json&disabletls=yes
-    Message: Hello, Home Assistant!
-    Notification sent
-    ```
-<!-- markdownlint-restore -->
-
-## Notes
-
-- **Webhook Setup**: Create a webhook in Home Assistant to obtain the `WEBHOOK_ID`.
-- **Template**: The `template=json` query parameter ensures the message is sent as a JSON payload.
-- **Accessing Message**: Use `{{ trigger.json.message }}` in Home Assistant automations to retrieve the message.
-- **Credit**: Example inspired by [@JeffCrum1](https://github.com/JeffCrum1), [Issue #325](https://github.com/containrrr/shoutrrr/issues/325#issuecomment-1460105065).
+    Webhook IDs are unauthenticated. Treat them like passwords and keep `local_only` enabled unless internet access is required.
