@@ -27,31 +27,28 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(config.Host).To(gomega.Equal("ha.example.com"))
 			gomega.Expect(config.Port).To(gomega.Equal(0))
 			gomega.Expect(config.Path).To(gomega.BeEmpty())
-			gomega.Expect(config.DisableTLS).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("should parse an explicit port and path prefix", func() {
 			err := config.SetURL(mustParseURL(
-				"homeassistant://s3cret@ha.example.com:8123/hass/?disabletls=yes",
+				"homeassistant://s3cret@ha.example.com:8123/hass/",
 			))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.Port).To(gomega.Equal(8123))
 			gomega.Expect(config.Path).To(gomega.Equal("/hass"))
-			gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
 		})
 
-		ginkgo.It("should parse title, service, targets, nid, and skiptlsverify", func() {
+		ginkgo.It("should parse title, service, targets, and nid", func() {
 			err := config.SetURL(mustParseURL(
 				"homeassistant://s3cret@ha.example.com" +
 					"?title=Update&service=notify.mobile_app_phone&targets=device1,device2" +
-					"&nid=watchtower&skiptlsverify=yes",
+					"&nid=watchtower",
 			))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(config.Title).To(gomega.Equal("Update"))
 			gomega.Expect(config.Service).To(gomega.Equal("notify.mobile_app_phone"))
 			gomega.Expect(config.Targets).To(gomega.Equal([]string{"device1", "device2"}))
 			gomega.Expect(config.Nid).To(gomega.Equal("watchtower"))
-			gomega.Expect(config.SkipTLSVerify).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should reject a missing token", func() {
@@ -102,7 +99,6 @@ var _ = ginkgo.Describe("Config", func() {
 			config.Service = "notify.mobile_app_phone"
 			config.Targets = []string{"device1"}
 			config.Nid = "watchtower"
-			config.DisableTLS = true
 
 			got := config.GetURL()
 			gomega.Expect(got.Scheme).To(gomega.Equal(Scheme))
@@ -120,7 +116,6 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(roundTrip.Service).To(gomega.Equal("notify.mobile_app_phone"))
 			gomega.Expect(roundTrip.Targets).To(gomega.Equal([]string{"device1"}))
 			gomega.Expect(roundTrip.Nid).To(gomega.Equal("watchtower"))
-			gomega.Expect(roundTrip.DisableTLS).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should omit the implied HTTPS port", func() {
@@ -130,17 +125,6 @@ var _ = ginkgo.Describe("Config", func() {
 
 			got := config.GetURL()
 			gomega.Expect(got.Host).To(gomega.Equal("ha.example.com"))
-			gomega.Expect(got.Port()).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should omit the implied HTTP port when TLS is disabled", func() {
-			config.Token = "s3cret"
-			config.Host = "homeassistant.local"
-			config.Port = 8123
-			config.DisableTLS = true
-
-			got := config.GetURL()
-			gomega.Expect(got.Host).To(gomega.Equal("homeassistant.local"))
 			gomega.Expect(got.Port()).To(gomega.BeEmpty())
 		})
 
@@ -186,16 +170,6 @@ var _ = ginkgo.Describe("Config", func() {
 			config.Host = "ha.example.com"
 			gomega.Expect(config.apiURL(persistentDomain, persistentService)).To(
 				gomega.Equal("https://ha.example.com:443/api/services/persistent_notification/create"),
-			)
-		})
-
-		ginkgo.It("should use HTTP port 8123 when TLS is disabled and the port is omitted", func() {
-			config.Host = "homeassistant.local"
-			config.DisableTLS = true
-			gomega.Expect(config.apiURL(persistentDomain, persistentService)).To(
-				gomega.Equal(
-					"http://homeassistant.local:8123/api/services/persistent_notification/create",
-				),
 			)
 		})
 

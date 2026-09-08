@@ -28,12 +28,11 @@ func TestConfigQueryParameters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		service := createTestService(
 			t,
-			validHomeAssistantURL+"?title=Alert&nid=watchtower&disabletls=yes",
+			validHomeAssistantURL+"?title=Alert&nid=watchtower",
 		)
 
 		assert.Equal(t, "Alert", service.Config.Title)
 		assert.Equal(t, "watchtower", service.Config.Nid)
-		assert.True(t, service.Config.DisableTLS)
 	})
 }
 

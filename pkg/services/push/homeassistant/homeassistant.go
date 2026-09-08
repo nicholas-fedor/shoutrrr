@@ -122,19 +122,15 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // newHTTPClient returns the default HTTP client for Home Assistant requests.
 //
 // Returns:
-//   - An HTTP client with a 10s timeout, TLS 1.2 minimum, and optional skip-verify.
-func (s *Service) newHTTPClient() types.HTTPClient {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if s.Config != nil && s.Config.SkipTLSVerify {
-		tlsConfig.InsecureSkipVerify = true
-
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
+//   - An HTTP client with a 10s timeout, TLS 1.2 minimum, and redirects disabled.
+func (*Service) newHTTPClient() types.HTTPClient {
 	return &http.Client{
 		Timeout: defaultHTTPTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return ErrRedirect
+		},
 		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		},
 	}
 }
@@ -177,7 +173,7 @@ func (s *Service) send(message string, config *Config) error {
 
 	client := s.httpClient
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = s.newHTTPClient()
 	}
 
 	res, err := client.Do(req)

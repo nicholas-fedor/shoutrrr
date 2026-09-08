@@ -3,6 +3,8 @@ package e2e_test
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"net/url"
 	"os"
@@ -44,8 +46,37 @@ func initializeService(urlStr string) *homeassistant.Service {
 	service := &homeassistant.Service{}
 	err = service.Initialize(parsed, testutils.TestLogger())
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	service.SetHTTPClient(e2eHTTPClient())
 
 	return service
+}
+
+func e2eTLSConfig() *tls.Config {
+	pem, err := os.ReadFile("config/ssl/fullchain.pem")
+	if err != nil {
+		return nil
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil
+	}
+
+	return &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
+}
+
+func e2eHTTPClient() *http.Client {
+	tlsConfig := e2eTLSConfig()
+	if tlsConfig == nil {
+		return &http.Client{Timeout: defaultHTTPTimeout}
+	}
+
+	return &http.Client{
+		Timeout: defaultHTTPTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
 }
 
 func withNid(rawURL, nid string) string {
@@ -71,7 +102,12 @@ func isHomeAssistantAvailable() bool {
 	}
 
 	token := parsed.User.Username()
-	apiURL := "http://localhost:8123/api/"
+
+	if e2eTLSConfig() == nil {
+		return false
+	}
+
+	apiURL := "https://localhost:8123/api/"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -83,7 +119,8 @@ func isHomeAssistantAvailable() bool {
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := e2eHTTPClient()
+	client.Timeout = 2 * time.Second
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -96,8 +133,11 @@ func isHomeAssistantAvailable() bool {
 }
 
 func fetchPersistentNotification(token, nid string) haNotification {
-	dialer := websocket.Dialer{HandshakeTimeout: defaultHTTPTimeout}
-	conn, _, err := dialer.Dial("ws://localhost:8123/api/websocket", nil)
+	dialer := websocket.Dialer{
+		HandshakeTimeout: defaultHTTPTimeout,
+		TLSClientConfig:  e2eTLSConfig(),
+	}
+	conn, _, err := dialer.Dial("wss://localhost:8123/api/websocket", nil)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	defer func() { _ = conn.Close() }()

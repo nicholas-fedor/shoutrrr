@@ -33,7 +33,7 @@ COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yaml"
 CONFIG_DIR="${SCRIPT_DIR}/config"
 
 readonly HA_HOST="localhost:8123"
-readonly HA_BASE="http://${HA_HOST}"
+readonly HA_BASE="https://${HA_HOST}"
 readonly HA_CLIENT_ID="https://example.com/app"
 readonly HA_USERNAME="shoutrrr"
 readonly HA_PASSWORD="shoutrrr-e2e-password"
@@ -103,11 +103,36 @@ check_requirements() {
         missing_cmds+=("python3")
     fi
 
+    if ! command -v openssl &> /dev/null; then
+        missing_cmds+=("openssl")
+    fi
+
     if [[ ${#missing_cmds[@]} -gt 0 ]]; then
         error "Missing required commands: ${missing_cmds[*]}"
     fi
 
     debug "Using compose command: ${COMPOSE_CMD}"
+}
+
+ha_curl() {
+    curl --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" -k "$@"
+}
+
+prepare_tls_config() {
+    mkdir -p "${CONFIG_DIR}/ssl"
+
+    openssl req -x509 -newkey rsa:2048 -sha256 -days 1 -nodes \
+        -keyout "${CONFIG_DIR}/ssl/privkey.pem" \
+        -out "${CONFIG_DIR}/ssl/fullchain.pem" \
+        -subj "/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+    cat > "${CONFIG_DIR}/configuration.yaml" <<'YAML'
+default_config:
+http:
+  ssl_certificate: /config/ssl/fullchain.pem
+  ssl_key: /config/ssl/privkey.pem
+YAML
 }
 
 wait_for_onboarding() {
@@ -117,8 +142,7 @@ wait_for_onboarding() {
     info "Waiting for Home Assistant onboarding API at ${HA_BASE}..."
 
     while [[ $attempt -le $max_attempts ]]; do
-        if curl -s --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
-            -o /dev/null -w "%{http_code}" "${HA_BASE}/api/onboarding" 2>/dev/null | grep -q "200"; then
+        if ha_curl -s -o /dev/null -w "%{http_code}" "${HA_BASE}/api/onboarding" 2>/dev/null | grep -q "200"; then
             info "Home Assistant onboarding API is ready"
             return 0
         fi
@@ -144,7 +168,7 @@ complete_onboarding() {
     info "Creating Home Assistant user via onboarding API"
 
     local user_json user_status
-    user_json="$(curl -sS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
+    user_json="$(ha_curl -sS \
         -w "\n%{http_code}" \
         -X POST "${HA_BASE}/api/onboarding/users" \
         -H "Content-Type: application/json" \
@@ -157,7 +181,7 @@ complete_onboarding() {
     auth_code="$(printf '%s' "${user_json}" | json_field "auth_code")" || error "Failed to parse onboarding auth_code"
 
     local token_json token_status
-    token_json="$(curl -sS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
+    token_json="$(ha_curl -sS \
         -w "\n%{http_code}" \
         -X POST "${HA_BASE}/auth/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
@@ -171,13 +195,13 @@ complete_onboarding() {
     local access_token
     access_token="$(printf '%s' "${token_json}" | json_field "access_token")" || error "Failed to parse access_token"
 
-    curl -sS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
+    ha_curl -sS \
         -o /dev/null -X POST "${HA_BASE}/api/onboarding/core_config" \
         -H "Authorization: Bearer ${access_token}" \
         -H "Content-Type: application/json" \
         -d '{}' || warn "core_config onboarding step returned an error"
 
-    curl -sS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
+    ha_curl -sS \
         -o /dev/null -X POST "${HA_BASE}/api/onboarding/analytics" \
         -H "Authorization: Bearer ${access_token}" \
         -H "Content-Type: application/json" \
@@ -186,9 +210,14 @@ complete_onboarding() {
     local encoded_token
     encoded_token="$(printf '%s' "${access_token}" | urlencode)"
 
+    local previous_umask
+    previous_umask="$(umask)"
+    umask 077
     cat > "${ENV_FILE}" <<EOF
-SHOUTRRR_HOMEASSISTANT_URL=homeassistant://${encoded_token}@localhost:8123/?disabletls=yes
+SHOUTRRR_HOMEASSISTANT_URL=homeassistant://${encoded_token}@localhost:8123
 EOF
+    umask "${previous_umask}"
+    chmod 600 "${ENV_FILE}"
 
     info "Wrote ${ENV_FILE}"
 }
@@ -207,6 +236,9 @@ start_server() {
     cd "$SCRIPT_DIR"
 
     mkdir -p "${CONFIG_DIR}"
+    if [[ ! -f "${CONFIG_DIR}/ssl/fullchain.pem" ]]; then
+        prepare_tls_config
+    fi
 
     if $COMPOSE_CMD up -d; then
         info "Home Assistant started"

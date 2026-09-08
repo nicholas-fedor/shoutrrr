@@ -23,4 +23,7 @@ var (
 
 	// ErrUnexpectedStatus indicates that the Home Assistant API returned a non-success HTTP status.
 	ErrUnexpectedStatus = errors.New("homeassistant API returned unexpected status")
+
+	// ErrRedirect indicates that an authenticated request would follow an HTTP redirect.
+	ErrRedirect = errors.New("homeassistant redirects are disabled")
 )

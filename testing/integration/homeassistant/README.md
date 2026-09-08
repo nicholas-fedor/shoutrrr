@@ -8,7 +8,7 @@ The tests mock HTTP requests to the Home Assistant REST API and do not make outb
 ### Configuration
 
 - URL parsing for `homeassistant://TOKEN@host`
-- Query parameters (`title`, `nid`, `disabletls`, `service`, `targets`)
+- Query parameters (`title`, `nid`, `service`, `targets`)
 - Rejection of missing token or host
 
 ### Message Sending
@@ -30,7 +30,7 @@ The tests mock HTTP requests to the Home Assistant REST API and do not make outb
 - JSON content type
 - `Authorization: Bearer` header
 - User-Agent `shoutrrr/<version>`
-- Implied HTTP port 8123 when TLS is disabled
+- Explicit HTTPS port 8123
 - Reverse-proxy path prefix
 
 ## Running the Tests

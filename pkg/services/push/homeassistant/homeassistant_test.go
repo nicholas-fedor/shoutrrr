@@ -67,10 +67,10 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
 		})
 
-		ginkgo.It("should skip TLS verification when skiptlsverify is set", func() {
+		ginkgo.It("should verify TLS and refuse redirects", func() {
 			service.httpClient = nil
 			err := service.Initialize(
-				mustParseURL("homeassistant://s3cret@ha.example.com?skiptlsverify=yes"),
+				mustParseURL("homeassistant://s3cret@ha.example.com"),
 				logger,
 			)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -78,10 +78,15 @@ var _ = ginkgo.Describe("Service", func() {
 			httpClient, ok := service.httpClient.(*http.Client)
 			gomega.Expect(ok).To(gomega.BeTrue())
 
+			redirectReq, reqErr := http.NewRequest(http.MethodGet, "https://example.com", http.NoBody)
+			gomega.Expect(reqErr).NotTo(gomega.HaveOccurred())
+			gomega.Expect(httpClient.CheckRedirect(redirectReq, []*http.Request{redirectReq})).
+				To(gomega.MatchError(ErrRedirect))
+
 			transport, ok := httpClient.Transport.(*http.Transport)
 			gomega.Expect(ok).To(gomega.BeTrue())
 			gomega.Expect(transport.TLSClientConfig).NotTo(gomega.BeNil())
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
 			gomega.Expect(transport.TLSClientConfig.MinVersion).To(gomega.Equal(uint16(tls.VersionTLS12)))
 		})
 	})

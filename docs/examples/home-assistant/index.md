@@ -10,23 +10,15 @@ Use a webhook URL only when an automation should run from an unauthenticated `PO
 
 ## REST notifications
 
-Create a long-lived access token in your Home Assistant profile, then send to the REST API.
+Create a long-lived access token in your Home Assistant profile, then send to the REST API over HTTPS.
 
-=== "HTTPS (Default)"
-
-    ```url title="Home Assistant REST URL for HTTPS"
-    homeassistant://<LONG_LIVED_TOKEN>@<HA_HOST>
-    ```
-
-=== "HTTP"
-
-    ```url title="Home Assistant REST URL for HTTP"
-    homeassistant://<LONG_LIVED_TOKEN>@<HA_HOST>:8123/?disabletls=yes
-    ```
+```url title="Home Assistant REST URL"
+homeassistant://<LONG_LIVED_TOKEN>@<HA_HOST>
+```
 
 !!! Example
     ```bash title="Send a persistent notification"
-    shoutrrr send --url "homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&title=Update" --message "Hello, Home Assistant!"
+    shoutrrr send --url "homeassistant://LONG_LIVED_TOKEN@ha.example.com?title=Update" --message "Hello, Home Assistant!"
     ```
 
     ```text title="Expected Output"
@@ -36,7 +28,7 @@ Create a long-lived access token in your Home Assistant profile, then send to th
 Reuse `nid` when later messages should replace the same persistent notification instead of stacking.
 
 ```url
-homeassistant://LONG_LIVED_TOKEN@homeassistant.local:8123/?disabletls=yes&nid=watchtower
+homeassistant://LONG_LIVED_TOKEN@ha.example.com?nid=watchtower
 ```
 
 Call a notify action such as a companion-app notifier with `service`:
