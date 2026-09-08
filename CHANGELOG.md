@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add Home Assistant notification service by @nicholas-fedor in [#1328](https://github.com/nicholas-fedor/shoutrrr/pull/1328)
 - Add support for injecting custom DialContext by @nicholas-fedor in [#1321](https://github.com/nicholas-fedor/shoutrrr/pull/1321)
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.51 by @renovate[bot] in [#1326](https://github.com/nicholas-fedor/shoutrrr/pull/1326)
 - Lock file maintenance by @renovate[bot] in [#1323](https://github.com/nicholas-fedor/shoutrrr/pull/1323)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.50 by @renovate[bot] in [#1322](https://github.com/nicholas-fedor/shoutrrr/pull/1322)
 - Update github.com/google/pprof digest to 6331bc6 by @renovate[bot] in [#1320](https://github.com/nicholas-fedor/shoutrrr/pull/1320)
