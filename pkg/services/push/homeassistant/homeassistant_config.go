@@ -18,7 +18,7 @@ type Config struct {
 	Token string `desc:"Long-lived access token" url:"user"`
 	// Host is the Home Assistant hostname.
 	Host string `desc:"Home Assistant hostname" url:"host"`
-	// Port is the Home Assistant port. When omitted, HTTPS uses 443.
+	// Port is the Home Assistant port. When omitted, HTTPS uses 443 and HTTP uses 8123.
 	Port int `desc:"Home Assistant port" optional:"" url:"port"`
 	// Path is an optional reverse-proxy URL prefix.
 	Path string `desc:"Reverse-proxy path prefix" optional:"" url:"path"`
@@ -30,6 +30,10 @@ type Config struct {
 	Targets []string `desc:"Notify targets" key:"targets" optional:""`
 	// Nid is the persistent notification ID. It is omitted when empty.
 	Nid string `desc:"Persistent notification ID" key:"nid" optional:""`
+	// DisableTLS sends the request over HTTP instead of HTTPS.
+	DisableTLS bool `default:"No" desc:"Disable TLS (use HTTP)" key:"disabletls"`
+	// SkipTLSVerify skips TLS certificate verification.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 const (
@@ -39,8 +43,11 @@ const (
 	// dummyServiceURL is the placeholder URL used by documentation generation.
 	dummyServiceURL = "homeassistant://dummy@dummy.example"
 
-	// defaultTLSPort is used when the port is omitted.
+	// defaultTLSPort is used when the port is omitted and TLS is enabled.
 	defaultTLSPort = 443
+
+	// defaultHTTPPort is used when the port is omitted and TLS is disabled.
+	defaultHTTPPort = 8123
 
 	// persistentDomain is the Home Assistant domain for persistent notifications.
 	persistentDomain = "persistent_notification"
@@ -92,13 +99,18 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - The absolute POST URL.
 func (c *Config) apiURL(domain, service string) string {
+	scheme := "https"
+	if c.DisableTLS {
+		scheme = "http"
+	}
+
 	apiPath := path.Join(c.Path, "api", "services", domain, service)
 	if apiPath == "" || apiPath[0] != '/' {
 		apiPath = "/" + apiPath
 	}
 
 	return (&url.URL{
-		Scheme: "https",
+		Scheme: scheme,
 		Host:   net.JoinHostPort(c.Host, strconv.Itoa(c.requestPort())),
 		Path:   apiPath,
 	}).String()
@@ -156,8 +168,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // impliedPort returns the port used when the URL omits one.
 //
 // Returns:
-//   - 443, the default HTTPS port.
-func (*Config) impliedPort() int {
+//   - 8123 when TLS is disabled, otherwise 443.
+func (c *Config) impliedPort() int {
+	if c.DisableTLS {
+		return defaultHTTPPort
+	}
+
 	return defaultTLSPort
 }
 

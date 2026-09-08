@@ -67,12 +67,12 @@ func TestNotifyServicePath(t *testing.T) {
 	})
 }
 
-func TestExplicitHTTPSPort(t *testing.T) {
+func TestDisableTLSImpliedPort(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		service, mockClient := createTestServiceWithMock(
 			t,
-			"homeassistant://s3cret@homeassistant.local:8123",
+			"homeassistant://s3cret@homeassistant.local/?disabletls=yes",
 		)
 
 		err := service.Send("lan", nil)
@@ -80,7 +80,7 @@ func TestExplicitHTTPSPort(t *testing.T) {
 
 		req := findMatchingRequest(mockClient, func(req *http.Request) bool {
 			return req.URL.String() ==
-				"https://homeassistant.local:8123/api/services/persistent_notification/create"
+				"http://homeassistant.local:8123/api/services/persistent_notification/create"
 		})
 		require.NotNil(t, req)
 

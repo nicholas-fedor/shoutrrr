@@ -8,7 +8,6 @@
 //
 // The long-lived access token is the URL username. The host identifies the
 // Home Assistant instance. An optional path is a reverse-proxy prefix.
-// Requests always use HTTPS with certificate verification.
 //
 // # Query Parameters
 //
@@ -20,10 +19,12 @@
 //     Omitted for persistent notifications.
 //   - nid: persistent notification ID. Omitted when empty. Replaces an existing
 //     notification when reused.
+//   - disabletls: use HTTP instead of HTTPS. Default No.
+//   - skiptlsverify: skip TLS certificate verification. Default No.
 //
-// When the port is omitted, HTTPS uses 443.
+// When the port is omitted, HTTPS uses 443 and HTTP (disabletls=yes) uses 8123.
 //
 // # Example
 //
-//	homeassistant://<token>@ha.example.com?title=Update
+//	homeassistant://<token>@homeassistant.local:8123/?disabletls=yes&title=Update
 package homeassistant

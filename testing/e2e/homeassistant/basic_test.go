@@ -49,8 +49,20 @@ var _ = ginkgo.Describe("Home Assistant E2E", func() {
 		gomega.Expect(state.Message).To(gomega.Equal("second message"))
 	})
 
+	ginkgo.It("should send over HTTP when disabletls is set", func() {
+		gomega.Expect(serviceURL()).To(gomega.ContainSubstring("disabletls"))
+
+		rawURL := withNid(serviceURL(), "shoutrrr_e2e_http")
+		service := initializeService(rawURL)
+
+		gomega.Expect(service.Send("E2E Test: HTTP", nil)).NotTo(gomega.HaveOccurred())
+
+		state := fetchPersistentNotification(accessToken(rawURL), "shoutrrr_e2e_http")
+		gomega.Expect(state.Message).To(gomega.Equal("E2E Test: HTTP"))
+	})
+
 	ginkgo.It("should reject an unauthorized token", func() {
-		rawURL := "homeassistant://invalid-token@localhost:8123"
+		rawURL := "homeassistant://invalid-token@localhost:8123/?disabletls=yes"
 		service := initializeService(rawURL)
 
 		err := service.Send("should fail", nil)

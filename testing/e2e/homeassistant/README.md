@@ -12,7 +12,7 @@ The tests send real notifications to a local Home Assistant container and verify
 - Persistent notification create
 - Title
 - Notification ID replace
-- HTTPS with the test CA
+- HTTP (`disabletls=yes`)
 - Unauthorized token
 
 ## Setup Requirements
@@ -21,7 +21,6 @@ The tests send real notifications to a local Home Assistant container and verify
 - Docker and Docker Compose
 - curl
 - python3
-- openssl
 - Linux OS
 
 ### Quick Start
@@ -43,7 +42,7 @@ To stop the server:
 `setup.sh` writes `.env`:
 
 ```bash
-SHOUTRRR_HOMEASSISTANT_URL=homeassistant://TOKEN@localhost:8123
+SHOUTRRR_HOMEASSISTANT_URL=homeassistant://TOKEN@localhost:8123/?disabletls=yes
 ```
 
 The access token is created during onboarding. Run `setup-all` again if the token has expired.
