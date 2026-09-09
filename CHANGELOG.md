@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/onsi/ginkgo/v2 to v2.32.2 by @renovate[bot] in [#1338](https://github.com/nicholas-fedor/shoutrrr/pull/1338)
 - Update module golang.org/x/tools to v0.50.0 by @renovate[bot] in [#1337](https://github.com/nicholas-fedor/shoutrrr/pull/1337)
 - Update module golang.org/x/net to v0.59.0 by @renovate[bot] in [#1336](https://github.com/nicholas-fedor/shoutrrr/pull/1336)
 - Update module golang.org/x/oauth2 to v0.37.0 by @renovate[bot] in [#1334](https://github.com/nicholas-fedor/shoutrrr/pull/1334)
