@@ -1,14 +1,9 @@
 package signal
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
-	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -22,11 +17,13 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+	// injectedHTTPClient is true when SetHTTPClient supplied the client.
+	injectedHTTPClient bool
 }
 
-// HTTP request timeout duration.
-const (
-	defaultHTTPTimeout = 30 * time.Second
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
 )
 
 // GetID returns the identifier for this service.
@@ -50,8 +47,16 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
+	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
+
 	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
+	}
+
+	if s.httpClient == nil {
+		s.httpClient = s.newHTTPClient(s.Config.SkipTLSVerify)
 	}
 
 	return nil
@@ -61,231 +66,70 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //
 // Parameters:
 //   - message: the text message to send
-//   - params: optional parameters (e.g., attachments)
+//   - params: optional configuration overrides including title and attachments
 //
 // Returns:
 //   - error: if the send operation fails, nil otherwise
 func (s *Service) Send(message string, params *types.Params) error {
 	config := *s.Config
-
-	// Separate config params from message params (like attachments)
-	var (
-		configParams  *types.Params
-		messageParams *types.Params
-	)
-
-	if params != nil {
-		configParams = &types.Params{}
-		messageParams = &types.Params{}
-
-		for key, value := range *params {
-			// Check if this is a config parameter
-			if _, err := s.pkr.Get(key); err == nil {
-				// It's a valid config key
-				(*configParams)[key] = value
-			} else {
-				// It's a message parameter (like attachments)
-				(*messageParams)[key] = value
-			}
-		}
-
-		if err := s.pkr.UpdateConfigFromParams(&config, configParams); err != nil {
-			return fmt.Errorf("updating config from params: %w", err)
-		}
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return s.sendMessage(message, &config, messageParams)
+	return s.sendMessage(message, &config)
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
+//
+// Parameters:
+//   - client: the HTTP client to use for API requests
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
-}
-
-// buildAPIURL constructs the Signal API endpoint URL from the configuration.
-//
-// Parameters:
-//   - config: the service configuration
-//
-// Returns:
-//   - string: the full API endpoint URL
-func (s *Service) buildAPIURL(config *Config) string {
-	scheme := "https"
-	if config.DisableTLS {
-		scheme = "http"
-	}
-
-	return fmt.Sprintf("%s://%s:%d/v2/send", scheme, config.Host, config.Port)
-}
-
-// createPayload builds the JSON payload for the Signal API request.
-//
-// Parameters:
-//   - message: the message text
-//   - config: the service configuration
-//   - params: optional parameters (may include attachments)
-//
-// Returns:
-//   - sendMessagePayload: the payload struct to be sent
-func (s *Service) createPayload(
-	message string,
-	config *Config,
-	params *types.Params,
-) sendMessagePayload {
-	payload := sendMessagePayload{
-		Message:           message,
-		Number:            config.Source,
-		Recipients:        config.Recipients,
-		Base64Attachments: nil, // will be set if attachments provided
-	}
-
-	// Check for attachments in params (passed during Send call)
-	// Note: Shoutrrr doesn't have a standard attachment interface,
-	// so we check for "attachments" parameter with base64 data
-	if params != nil {
-		if attachments, ok := (*params)["attachments"]; ok && attachments != "" {
-			// Parse comma-separated base64 attachments
-			attachmentList := strings.Split(attachments, ",")
-			for i, attachment := range attachmentList {
-				attachmentList[i] = strings.TrimSpace(attachment)
-			}
-
-			payload.Base64Attachments = attachmentList
-		}
-	}
-
-	return payload
-}
-
-// createRequest builds the HTTP request for the Signal API.
-//
-// Parameters:
-//   - config: the service configuration
-//   - payload: the payload to send (passed as pointer for efficiency)
-//
-// Returns:
-//   - *http.Request: the constructed HTTP request
-//   - context.CancelFunc: a function to cancel the request context
-//   - error: if request creation fails, nil otherwise
-func (s *Service) createRequest(
-	config *Config,
-	payload *sendMessagePayload,
-) (*http.Request, context.CancelFunc, error) {
-	apiURL := s.buildAPIURL(config)
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshaling payload to JSON: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		defaultHTTPTimeout,
-	)
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		apiURL,
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		cancel()
-
-		return nil, nil, fmt.Errorf("creating HTTP request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	s.setAuthentication(req, config)
-
-	return req, cancel, nil
-}
-
-// httpClientOrDefault returns the injected client or a default client.
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return &http.Client{Timeout: defaultHTTPTimeout}
-}
-
-// parseResponse reads and logs the response from the Signal API.
-//
-// Parameters:
-//   - resp: the HTTP response to parse
-func (s *Service) parseResponse(resp *http.Response) {
-	var response sendMessageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		s.Logf("Warning: failed to parse response: %v", err)
-	} else {
-		s.Logf("Message sent successfully at timestamp %d", response.Timestamp)
-	}
+	s.injectedHTTPClient = client != nil
 }
 
 // sendMessage sends a message to all configured recipients.
+// Mixed recipient types are sent as separate /v2/send calls because the REST API
+// rejects phones, groups, and usernames in the same request.
 //
 // Parameters:
 //   - message: the message text to send
 //   - config: the service configuration
-//   - params: optional parameters (e.g., attachments)
 //
 // Returns:
 //   - error: if sending fails, nil otherwise
-func (s *Service) sendMessage(message string, config *Config, params *types.Params) error {
+func (s *Service) sendMessage(message string, config *Config) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
 	}
 
-	payload := s.createPayload(message, config, params)
+	var errs []error
 
-	req, cancel, err := s.createRequest(config, &payload)
-	if err != nil {
-		return err
-	}
-	defer cancel()
+	for _, batch := range batchRecipients(config.Recipients) {
+		batchConfig := *config
+		batchConfig.Recipients = batch
 
-	return s.sendRequest(req)
-}
+		payload := createPayload(message, &batchConfig)
 
-// sendRequest executes the HTTP request and processes the response.
-//
-// Parameters:
-//   - req: the HTTP request to execute
-//
-// Returns:
-//   - error: if the request fails or returns a non-success status, nil otherwise
-func (s *Service) sendRequest(req *http.Request) error {
-	client := s.httpClientOrDefault()
+		req, cancel, err := s.createRequest(&batchConfig, &payload)
+		if err != nil {
+			if cancel != nil {
+				cancel()
+			}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("sending HTTP request: %w", err)
-	}
+			errs = append(errs, err)
 
-	defer func() { _ = resp.Body.Close() }()
+			continue
+		}
 
-	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("%w: server returned status %d", ErrSendFailed, resp.StatusCode)
+		err = s.sendRequest(req, &batchConfig)
+
+		cancel()
+
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	// Parse response (optional, for logging)
-	s.parseResponse(resp)
-
-	return nil
-}
-
-// setAuthentication configures HTTP authentication headers on the request.
-//
-// Parameters:
-//   - req: the HTTP request to modify
-//   - config: the service configuration containing credentials
-func (s *Service) setAuthentication(req *http.Request, config *Config) {
-	// Add authentication - prefer Bearer token over Basic Auth
-	if config.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+config.Token)
-	} else if config.User != "" {
-		req.SetBasicAuth(config.User, config.Password)
-	}
+	return errors.Join(errs...)
 }

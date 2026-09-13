@@ -1,27 +1,17 @@
 package signal
 
 import (
-	"log"
+	"crypto/tls"
+	"net/http"
 	"net/url"
-	"testing"
 
-	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var (
-	logger *log.Logger
-
-	_ = ginkgo.BeforeSuite(func() {
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-	})
-)
-
-var _ = ginkgo.Describe("the signal service", func() {
+var _ = ginkgo.Describe("config", func() {
 	var signal *Service
 
 	ginkgo.BeforeEach(func() {
@@ -71,6 +61,20 @@ var _ = ginkgo.Describe("the signal service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 
+			ginkgo.It("should accept u: username recipients", func() {
+				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/u:someuser.123")
+				err := signal.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(signal.Config.Recipients).To(gomega.Equal([]string{"u:someuser.123"}))
+			})
+
+			ginkgo.It("should reject an empty u: username", func() {
+				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/u:")
+				err := signal.Initialize(serviceURL, logger)
+				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
+			})
+
 			ginkgo.When("parsing authentication", func() {
 				ginkgo.It("should parse user without password", func() {
 					serviceURL, _ := url.Parse(
@@ -109,6 +113,15 @@ var _ = ginkgo.Describe("the signal service", func() {
 					gomega.Expect(signal.Config.Host).To(gomega.Equal("myserver"))
 					gomega.Expect(signal.Config.Port).To(gomega.Equal(8080))
 				})
+
+				ginkgo.It("should store an IPv6 host without brackets", func() {
+					serviceURL, _ := url.Parse("signal://[::1]:9999/+1234567890/+0987654321")
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.Host).To(gomega.Equal("::1"))
+					gomega.Expect(signal.Config.Port).To(gomega.Equal(9999))
+					gomega.Expect(signal.Config.GetURL().Host).To(gomega.Equal("[::1]:9999"))
+				})
 			})
 
 			ginkgo.When("parsing TLS settings", func() {
@@ -126,6 +139,59 @@ var _ = ginkgo.Describe("the signal service", func() {
 					err := signal.Initialize(serviceURL, logger)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					gomega.Expect(signal.Config.DisableTLS).To(gomega.BeTrue())
+				})
+
+				ginkgo.It("should skip TLS verification when skiptlsverify=yes", func() {
+					serviceURL, _ := url.Parse(
+						"signal://localhost:8080/+1234567890/+0987654321?skiptlsverify=yes",
+					)
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.SkipTLSVerify).To(gomega.BeTrue())
+
+					httpClient, ok := signal.httpClient.(*http.Client)
+					gomega.Expect(ok).To(gomega.BeTrue())
+					transport, ok := httpClient.Transport.(*http.Transport)
+					gomega.Expect(ok).To(gomega.BeTrue())
+					gomega.Expect(transport.TLSClientConfig).NotTo(gomega.BeNil())
+					gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+					gomega.Expect(transport.TLSClientConfig.MinVersion).
+						To(gomega.Equal(uint16(tls.VersionTLS12)))
+				})
+			})
+
+			ginkgo.When("parsing text mode", func() {
+				ginkgo.It("should default to None", func() {
+					serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeNone))
+				})
+
+				ginkgo.It("should parse textmode=styled", func() {
+					serviceURL, _ := url.Parse(
+						"signal://localhost:8080/+1234567890/+0987654321?textmode=styled",
+					)
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeStyled))
+				})
+
+				ginkgo.It("should parse text_mode=styled", func() {
+					serviceURL, _ := url.Parse(
+						"signal://localhost:8080/+1234567890/+0987654321?text_mode=styled",
+					)
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeStyled))
+				})
+
+				ginkgo.It("should reject an invalid text mode", func() {
+					serviceURL, _ := url.Parse(
+						"signal://localhost:8080/+1234567890/+0987654321?textmode=markdown",
+					)
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).To(gomega.HaveOccurred())
 				})
 			})
 
@@ -161,146 +227,11 @@ var _ = ginkgo.Describe("the signal service", func() {
 					gomega.Expect(config.Host).To(gomega.Equal("localhost"))
 					gomega.Expect(config.Port).To(gomega.Equal(8080))
 				})
+
+				ginkgo.It("should default notify_self to yes", func() {
+					gomega.Expect(config.NotifySelf).To(gomega.BeTrue())
+				})
 			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		var err error
-
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-			err = signal.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupResponder(200, `{"timestamp": 1234567890}`)
-
-			err = signal.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should report an error if the server returns an error", func() {
-			serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-			err = signal.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupResponder(400, `{"error": "Bad Request"}`)
-
-			err = signal.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("server returned status 400"))
-		})
-
-		ginkgo.It("should handle attachments in parameters", func() {
-			serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-			err = signal.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupResponder(200, `{"timestamp": 1234567890}`)
-
-			params := types.Params{
-				"attachments": "base64data1,base64data2",
-			}
-
-			err = signal.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle different response formats", func() {
-			serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-			err = signal.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupResponder(201, `{"timestamp": "1234567890"}`) // String timestamp
-
-			err = signal.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle server errors gracefully", func() {
-			serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-			err = signal.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupResponder(500, `{"error": "Internal Server Error"}`)
-
-			err = signal.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("server returned status 500"))
-		})
-
-		ginkgo.It("should return error when no recipients configured", func() {
-			// Create a config with no recipients
-			signal.Config = &Config{
-				Host:       "localhost",
-				Port:       8080,
-				Source:     "+1234567890",
-				Recipients: []string{}, // Empty recipients
-			}
-
-			err = signal.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
-		})
-	})
-
-	ginkgo.Describe("parsing recipients", func() {
-		ginkgo.It("should parse valid phone numbers", func() {
-			recipients, err := parseRecipients([]string{"+1234567890", "+0987654321"})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(recipients).To(gomega.Equal([]string{"+1234567890", "+0987654321"}))
-		})
-
-		ginkgo.It("should parse valid group IDs", func() {
-			recipients, err := parseRecipients([]string{"group.testgroup", "group.abcdef123"})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(recipients).
-				To(gomega.Equal([]string{"group.testgroup", "group.abcdef123"}))
-		})
-
-		ginkgo.It("should parse group IDs with base64 characters", func() {
-			recipients, err := parseRecipients([]string{"group.ABCD/EFGH=", "group.xyz+abc"})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(recipients).
-				To(gomega.Equal([]string{"group.ABCD/EFGH=", "group.xyz+abc"}))
-		})
-
-		ginkgo.It("should parse mixed phone numbers and group IDs", func() {
-			recipients, err := parseRecipients(
-				[]string{"+1234567890", "group.testgroup", "+0987654321"},
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(recipients).
-				To(gomega.Equal([]string{"+1234567890", "group.testgroup", "+0987654321"}))
-		})
-
-		ginkgo.It("should return error for invalid recipients", func() {
-			_, err := parseRecipients([]string{"invalid-recipient"})
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
-		})
-
-		ginkgo.It("should return error for mixed valid and invalid recipients", func() {
-			_, err := parseRecipients([]string{"+1234567890", "invalid-recipient"})
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
-		})
-
-		ginkgo.It("should return error for empty recipient list", func() {
-			_, err := parseRecipients([]string{})
-			gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
-		})
-
-		ginkgo.It("should handle group IDs split across path segments", func() {
-			recipients, err := parseRecipients([]string{"group.ABCD", "EFGH="})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(recipients).To(gomega.Equal([]string{"group.ABCD/EFGH="}))
 		})
 	})
 
@@ -315,23 +246,7 @@ var _ = ginkgo.Describe("the signal service", func() {
 			config,
 			"signal://localhost:8080/+1234567890/+0987654321?foo=bar",
 		)
-		testutils.TestConfigGetEnumsCount(config, 0)
-		testutils.TestConfigGetFieldsCount(config, 10)
-	})
-
-	ginkgo.It("should return the correct service ID", func() {
-		service := &Service{}
-		gomega.Expect(service.GetID()).To(gomega.Equal("signal"))
+		testutils.TestConfigGetEnumsCount(config, 1)
+		testutils.TestConfigGetFieldsCount(config, 16)
 	})
 })
-
-func TestSignal(t *testing.T) {
-	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Signal Suite")
-}
-
-func setupResponder(code int, body string) {
-	targetURL := "https://localhost:8080/v2/send"
-	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, body))
-}

@@ -39,7 +39,7 @@ func TestContentTypeAuthorizationAndUserAgent(t *testing.T) {
 			return req.Method == http.MethodPost &&
 				req.Header.Get("Content-Type") == "application/json" &&
 				req.Header.Get("Authorization") == "Bearer s3cret" &&
-				req.Header.Get("User-Agent") == "shoutrrr/"+meta.Version
+				req.Header.Get("User-Agent") == meta.UserAgent()
 		})
 		require.NotNil(t, req)
 

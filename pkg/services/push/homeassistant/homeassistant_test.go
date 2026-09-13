@@ -113,7 +113,7 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(client.req.Header.Get("Content-Type")).To(gomega.Equal(contentType))
 			gomega.Expect(client.req.Header.Get("Authorization")).To(gomega.Equal("Bearer s3cret"))
 			gomega.Expect(client.req.Header.Get("User-Agent")).To(
-				gomega.Equal("shoutrrr/" + meta.Version),
+				gomega.Equal(meta.UserAgent()),
 			)
 
 			var payload requestPayload

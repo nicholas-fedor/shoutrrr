@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -104,7 +105,7 @@ func (p *JSONRequestPreparer) PrepareRequest(
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "shoutrrr")
+	req.Header.Set("User-Agent", meta.UserAgent())
 
 	return req, nil
 }
@@ -152,7 +153,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("User-Agent", "shoutrrr")
+	req.Header.Set("User-Agent", meta.UserAgent())
 
 	return req, nil
 }

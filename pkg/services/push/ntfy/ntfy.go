@@ -122,7 +122,7 @@ func (s *Service) sendAPI(config *Config, message string) error {
 		headers.Set("Content-Type", "text/plain; charset=utf-8")
 	}
 
-	headers.Set("User-Agent", "shoutrrr/"+meta.Version)
+	headers.Set("User-Agent", meta.UserAgent())
 	addHeaderIfNotEmpty(&headers, "Title", config.Title)
 	addHeaderIfNotEmpty(&headers, "Priority", config.Priority.String())
 	addHeaderIfNotEmpty(&headers, "Tags", strings.Join(config.Tags, ","))
