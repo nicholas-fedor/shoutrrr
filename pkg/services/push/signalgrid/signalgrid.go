@@ -145,7 +145,7 @@ func (s *Service) send(message string, config *Config) error {
 	}
 
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("User-Agent", "shoutrrr/"+meta.Version)
+	req.Header.Set("User-Agent", meta.UserAgent())
 
 	client := s.httpClient
 	if client == nil {

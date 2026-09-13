@@ -207,6 +207,20 @@ func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
 	}
 }
 
+func TestUserAgent(t *testing.T) { //nolint:paralleltest // Mutates package-global Version.
+	orig := Version
+
+	t.Cleanup(func() {
+		Version = orig
+	})
+
+	Version = "dev"
+
+	if got := UserAgent(); got != "shoutrrr/dev" {
+		t.Errorf("UserAgent() = %q, want %q", got, "shoutrrr/dev")
+	}
+}
+
 func TestGetMetaStr(t *testing.T) {
 	t.Parallel()
 

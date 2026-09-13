@@ -50,7 +50,7 @@ func TestUserAgentHeader(t *testing.T) {
 		require.NoError(t, err)
 
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {
-			return req.Header.Get("User-Agent") == "shoutrrr/"+meta.Version
+			return req.Header.Get("User-Agent") == meta.UserAgent()
 		}, "User-Agent header")
 
 		mockClient.AssertExpectations(t)

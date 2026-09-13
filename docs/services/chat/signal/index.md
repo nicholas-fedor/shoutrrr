@@ -7,11 +7,11 @@
 
 ## Setting up Signal API Server
 
-Signal notifications require a Signal API server that can send messages on behalf of a registered Signal account. These implementations are built on top of __[signal-cli](https://github.com/AsamK/signal-cli)__, the unofficial command-line interface for Signal (3.8k+ stars).
+Signal notifications require a Signal API server that can send messages on behalf of a registered Signal account. These implementations are built on top of __[signal-cli](https://github.com/AsamK/signal-cli)__, the unofficial command-line interface for Signal.
 
 Popular open-source implementations include:
 
-- __[signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)__: Dockerized REST API wrapper for signal-cli (2.1k+ stars)
+- __[signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)__: Dockerized REST API wrapper for signal-cli
 - __[secured-signal-api](https://github.com/codeshelldev/secured-signal-api)__: Security proxy for signal-cli-rest-api with authentication and access control
 
 Common setup involves:
@@ -54,11 +54,13 @@ Recipients can be:
 
 - __Phone numbers__: With country code (e.g., +0987654321)
 - __Group IDs__: In the format `group.groupId`
+- __Usernames__: In the format `u:nickname.123`
 
 ### TLS Configuration
 
 - Use `signal://` for HTTPS (default, recommended)
 - Use `signal://...?disabletls=yes` for HTTP (insecure, for local testing only)
+- Use `skiptlsverify=yes` to skip certificate verification (self-signed certificates only)
 
 ## Examples
 
@@ -92,32 +94,56 @@ signal://user:password@localhost:8080/+1234567890/+0987654321
 signal://localhost:8080/+1234567890/+0987654321?token=YOUR_API_TOKEN
 ```
 
+### Send to a username
+
+```
+signal://localhost:8080/+1234567890/u:someuser.123
+```
+
 ### Using HTTP instead of HTTPS
 
 ```
 signal://localhost:8080/+1234567890/+0987654321?disabletls=yes
 ```
 
+### Styled message
+
+```
+signal://localhost:8080/+1234567890/+0987654321?textmode=styled
+```
+
+When `textmode=styled`, the message body may include `*italic*`, `**bold**`, `~strikethrough~`, `||spoiler||`, and `` `monospace` ``. Escape a formatting character with two backslashes. If `textmode` is omitted, the JSON `text_mode` field is omitted and the API server default applies.
+
+### Title
+
+Signal has no separate title field. A non-empty `title` (URL query, or the send `title` param) is prepended as the first line of the message. With `textmode=styled` the title is wrapped in `**...**`.
+
+```
+signal://localhost:8080/+1234567890/+0987654321?title=Alert&textmode=styled
+```
+
 ## Attachments
 
-The Signal service supports sending base64-encoded attachments. Use the `attachments` parameter with comma-separated base64 data:
+Use the `attachments` query parameter or send param with comma-separated raw base64 values. If the value contains `data:`, it is sent as a single data URI (data URIs contain commas, so they are not split).
 
-```bash
-# Send with attachments via CLI
-shoutrrr send "signal://localhost:8080/+1234567890/+0987654321" \
-  "Message with attachment" \
-  --attachments "base64data1,base64data2"
+```
+signal://localhost:8080/+1234567890/+0987654321?attachments=base64data1,base64data2
 ```
 
 !!! note "Attachment Format"
-    Attachments must be provided as base64-encoded data. The API server handles the MIME type detection and file handling.
+    Raw base64 entries may be comma-separated. A `data:` URI must be sent as a single value.
 
 ## Optional Parameters
 
 You can specify additional parameters in the URL query string:
 
-- `disabletls=yes`: Force HTTP instead of HTTPS (same as using `signals://`)
+- `textmode` (alias `text_mode`): `None` (default, omit the field), `Normal`, or `Styled`
+- `title`: prepended to the message body
+- `notifyself`: default `Yes`. Set `notifyself=no` to send `notify_self=false`
+- `attachments`: comma-separated raw base64, or one `data:` URI
+- `disabletls=yes`: Force HTTP instead of HTTPS
+- `skiptlsverify=yes`: Skip TLS certificate verification
 
 ## Implementation Notes
 
-The Signal service sends messages using HTTP POST requests to the API server's send endpoint with JSON payloads containing the message, source number, and recipient list. The server handles the actual Signal protocol communication.
+Shoutrrr's Signal service sends messages using HTTP POST requests to a HTTP relay server's `/v2/send` endpoint with JSON payloads containing the message, source number, recipient list, and optional `text_mode`, `notify_self`, and `base64_attachments`. The relay server handles the actual Signal protocol communication.

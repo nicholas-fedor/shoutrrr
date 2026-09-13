@@ -33,6 +33,14 @@ var (
 	Date = unknownValue
 )
 
+// UserAgent returns the HTTP User-Agent used by Shoutrrr services.
+//
+// Returns:
+//   - The string "shoutrrr/" followed by the Version build variable.
+func UserAgent() string {
+	return "shoutrrr/" + Version
+}
+
 // GetMetaStr returns the formatted version string, including commit info only if available.
 func GetMetaStr() string {
 	version := GetVersion()
