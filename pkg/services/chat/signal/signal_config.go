@@ -15,9 +15,9 @@ import (
 type Config struct {
 	Host          string   `default:"localhost" desc:"Signal REST API server hostname or IP"                            key:"host"`
 	Port          int      `default:"8080"      desc:"Signal REST API server port"                                      key:"port"`
-	User          string   `                    desc:"Username for HTTP Basic Auth"                                     key:"user"`
-	Password      string   `                    desc:"Password for HTTP Basic Auth"                                     key:"password"           sensitive:"true"`
-	Token         string   `                    desc:"API token for Bearer authentication"                              key:"token,apikey"       sensitive:"true"`
+	User          string   `                    desc:"Username for HTTP Basic Auth"                                     key:"user"                optional:""`
+	Password      string   `                    desc:"Password for HTTP Basic Auth"                                     key:"password"           sensitive:"true" optional:""`
+	Token         string   `                    desc:"API token for Bearer authentication"                              key:"token,apikey"       sensitive:"true" optional:""`
 	Source        string   `                    desc:"Source phone number (with country code)"                          key:"source"`
 	Recipients    []string `                    desc:"Recipient phone numbers, group IDs, or u: usernames"              key:"recipients,to"`
 	Title         string   `                    desc:"Optional title prepended to the message body"                     key:"title"                               optional:""`
@@ -114,18 +114,20 @@ func (c *Config) parseAuth(serviceURL *url.URL) {
 // Parameters:
 //   - serviceURL: the URL to extract host and port from
 func (c *Config) parseHostPort(serviceURL *url.URL) {
-	host, portStr, err := net.SplitHostPort(serviceURL.Host)
-	if err != nil {
+	host := serviceURL.Hostname()
+	if host == "" {
 		host = serviceURL.Host
-		portStr = "8080"
 	}
 
 	c.Host = host
 
-	if portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			c.Port = port
-		}
+	portStr := serviceURL.Port()
+	if portStr == "" {
+		portStr = "8080"
+	}
+
+	if port, err := strconv.Atoi(portStr); err == nil {
+		c.Port = port
 	}
 }
 

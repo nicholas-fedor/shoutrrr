@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -16,6 +17,8 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+	// injectedHTTPClient is true when SetHTTPClient supplied the client.
+	injectedHTTPClient bool
 }
 
 var (
@@ -53,7 +56,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 
 	if s.httpClient == nil {
-		s.httpClient = s.newHTTPClient()
+		s.httpClient = s.newHTTPClient(s.Config.SkipTLSVerify)
 	}
 
 	return nil
@@ -82,9 +85,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - client: the HTTP client to use for API requests
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
+	s.injectedHTTPClient = client != nil
 }
 
 // sendMessage sends a message to all configured recipients.
+// Mixed recipient types are sent as separate /v2/send calls because the REST API
+// rejects phones, groups, and usernames in the same request.
 //
 // Parameters:
 //   - message: the message text to send
@@ -97,13 +103,33 @@ func (s *Service) sendMessage(message string, config *Config) error {
 		return ErrNoRecipients
 	}
 
-	payload := createPayload(message, config)
+	var errs []error
 
-	req, cancel, err := s.createRequest(config, &payload)
-	if err != nil {
-		return err
+	for _, batch := range batchRecipients(config.Recipients) {
+		batchConfig := *config
+		batchConfig.Recipients = batch
+
+		payload := createPayload(message, &batchConfig)
+
+		req, cancel, err := s.createRequest(&batchConfig, &payload)
+		if err != nil {
+			if cancel != nil {
+				cancel()
+			}
+
+			errs = append(errs, err)
+
+			continue
+		}
+
+		err = s.sendRequest(req, &batchConfig)
+
+		cancel()
+
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
-	defer cancel()
 
-	return s.sendRequest(req)
+	return errors.Join(errs...)
 }

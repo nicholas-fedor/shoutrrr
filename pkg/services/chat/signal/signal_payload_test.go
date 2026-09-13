@@ -24,6 +24,27 @@ var _ = ginkgo.Describe("payload", func() {
 		})
 	})
 
+	ginkgo.Describe("parseTimestamp", func() {
+		ginkgo.It("should accept an unquoted JSON number", func() {
+			n, err := parseTimestamp([]byte(`{"timestamp": 1234567890}`))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(n).To(gomega.Equal(int64(1234567890)))
+		})
+
+		ginkgo.It("should accept a quoted JSON number", func() {
+			n, err := parseTimestamp([]byte(`{"timestamp": "1234567890"}`))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(n).To(gomega.Equal(int64(1234567890)))
+		})
+	})
+
+	ginkgo.Describe("apiRecipients", func() {
+		ginkgo.It("should strip the u: prefix from usernames", func() {
+			gomega.Expect(apiRecipients([]string{"u:someuser.123", "+1234567890"})).
+				To(gomega.Equal([]string{"someuser.123", "+1234567890"}))
+		})
+	})
+
 	ginkgo.Describe("parseAttachments", func() {
 		ginkgo.It("should return nil for empty input", func() {
 			gomega.Expect(parseAttachments("")).To(gomega.BeNil())

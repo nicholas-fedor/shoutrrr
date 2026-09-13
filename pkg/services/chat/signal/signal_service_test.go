@@ -2,7 +2,9 @@ package signal
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -48,6 +50,20 @@ var _ = ginkgo.Describe("service", func() {
 			gomega.Expect(signal.Send("hi", nil)).NotTo(gomega.HaveOccurred())
 			gomega.Expect(stub.req).NotTo(gomega.BeNil())
 			gomega.Expect(stub.req.URL.Path).To(gomega.Equal("/v2/send"))
+		})
+
+		ginkgo.It("should keep an injected client when skiptlsverify is set on send", func() {
+			serviceURL, err := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(signal.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
+
+			stub := &stubHTTPClient{}
+			signal.SetHTTPClient(stub)
+
+			params := types.Params{"skiptlsverify": "yes"}
+			gomega.Expect(signal.Send("hi", &params)).NotTo(gomega.HaveOccurred())
+			gomega.Expect(signal.httpClient).To(gomega.BeIdenticalTo(stub))
+			gomega.Expect(stub.req).NotTo(gomega.BeNil())
 		})
 
 		ginkgo.It("should use DialContext from an injected HTTP client", func() {
@@ -214,6 +230,47 @@ var _ = ginkgo.Describe("service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(captured.payload.Base64Attachments).
 				To(gomega.Equal([]string{"data:image/png;base64,iVBOR"}))
+		})
+
+		ginkgo.It("should strip the u: prefix in the send payload", func() {
+			initMocked(signal, "signal://localhost:8080/+1234567890/u:someuser.123")
+			setupCapture(http.StatusOK, `{"timestamp": 1}`, &captured)
+
+			err := signal.Send("hi", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(captured.payload.Recipients).To(gomega.Equal([]string{"someuser.123"}))
+		})
+
+		ginkgo.It("should send mixed recipient types as separate requests", func() {
+			initMocked(
+				signal,
+				"signal://localhost:8080/+1234567890/+0987654321/u:someuser.123/group.testgroup",
+			)
+
+			var payloads []sendMessagePayload
+
+			httpmock.RegisterResponder(
+				"POST",
+				"https://localhost:8080/v2/send",
+				func(req *http.Request) (*http.Response, error) {
+					var payload sendMessagePayload
+
+					reqBody, err := io.ReadAll(req.Body)
+					if err == nil {
+						_ = json.Unmarshal(reqBody, &payload)
+						payloads = append(payloads, payload)
+					}
+
+					return httpmock.NewStringResponse(http.StatusOK, `{"timestamp":1}`), nil
+				},
+			)
+
+			err := signal.Send("hi", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(payloads).To(gomega.HaveLen(3))
+			gomega.Expect(payloads[0].Recipients).To(gomega.Equal([]string{"+0987654321"}))
+			gomega.Expect(payloads[1].Recipients).To(gomega.Equal([]string{"someuser.123"}))
+			gomega.Expect(payloads[2].Recipients).To(gomega.Equal([]string{"group.testgroup"}))
 		})
 
 		ginkgo.It("should handle different response formats", func() {

@@ -2,8 +2,14 @@
 
 ## URL Format
 
-!!! info ""
+!!! Info ""
     signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]
+
+--8<-- "docs/services/chat/signal/config.md"
+
+!!! Note "Authentication Priority"
+    If both token and user/password are provided, the API token takes precedence and uses Bearer authentication.
+    This is useful for [secured-signal-api](https://github.com/codeshelldev/secured-signal-api) which prefers Bearer tokens.
 
 ## Setting up Signal API Server
 
@@ -23,32 +29,10 @@ Common setup involves:
 
 The server must be able to receive SMS verification codes during initial setup and maintain a persistent connection to Signal's servers.
 
-!!! tip "Setup Resources"
+!!! Note "Setup Resources"
     See the [signal-cli-rest-api documentation](https://github.com/bbernhard/signal-cli-rest-api) and [secured-signal-api documentation](https://github.com/codeshelldev/secured-signal-api) for detailed setup instructions.
 
-## URL Parameters
-
-### Host and Port
-
-- `host`: The hostname or IP address of your Signal API server (default: localhost)
-- `port`: The port number (default: 8080)
-
-### Authentication
-
-The Signal service supports multiple authentication methods:
-
-- `user`: Username for HTTP Basic Authentication (optional)
-- `password`: Password for HTTP Basic Authentication (optional)
-- `token` or `apikey`: API token for Bearer authentication (optional)
-
-!!! tip "Authentication Priority"
-    If both token and user/password are provided, the API token takes precedence and uses Bearer authentication. This is useful for [secured-signal-api](https://github.com/codeshelldev/secured-signal-api) which prefers Bearer tokens.
-
-### Source Phone Number
-
-The `source_phone` is your Signal phone number with country code (e.g., +1234567890) that is registered with the API server.
-
-### Recipients
+## Recipients
 
 Recipients can be:
 
@@ -56,11 +40,17 @@ Recipients can be:
 - __Group IDs__: In the format `group.groupId`
 - __Usernames__: In the format `u:nickname.123`
 
-### TLS Configuration
+!!! Important
+    The Signal API rejects mixed recipient types in a single `/v2/send` request.
+    Shoutrrr splits them: all phone numbers go in one request, all usernames in another, and each group in its own request.
+    A URL that lists phones and a group therefore results in more than one POST.
+    If any of those requests fail, the others may already have been sent.
+
+## TLS Configuration
 
 - Use `signal://` for HTTPS (default, recommended)
 - Use `signal://...?disabletls=yes` for HTTP (insecure, for local testing only)
-- Use `skiptlsverify=yes` to skip certificate verification (self-signed certificates only)
+- Use `skiptlsverify=yes` to skip certificate-chain trust and hostname validation (expired, untrusted, and hostname-mismatched certificates). TLS 1.2 remains the minimum.
 
 ## Examples
 
@@ -75,6 +65,8 @@ signal://localhost:8080/+1234567890/+0987654321
 ```
 signal://localhost:8080/+1234567890/+0987654321/+1123456789/group.testgroup
 ```
+
+The two phone numbers are sent together. The group is a second `/v2/send` call.
 
 ### Send to a group
 
@@ -112,11 +104,16 @@ signal://localhost:8080/+1234567890/+0987654321?disabletls=yes
 signal://localhost:8080/+1234567890/+0987654321?textmode=styled
 ```
 
-When `textmode=styled`, the message body may include `*italic*`, `**bold**`, `~strikethrough~`, `||spoiler||`, and `` `monospace` ``. Escape a formatting character with two backslashes. If `textmode` is omitted, the JSON `text_mode` field is omitted and the API server default applies.
+!!! Note
+    - When `textmode=styled`, the message body may include `*italic*`, `**bold**`, `~strikethrough~`, `||spoiler||`, and `` `monospace` ``.
+    - Escape a formatting character with two backslashes.
+    - If `textmode` is omitted, the JSON `text_mode` field is omitted and the API server default applies.
 
 ### Title
 
-Signal has no separate title field. A non-empty `title` (URL query, or the send `title` param) is prepended as the first line of the message. With `textmode=styled` the title is wrapped in `**...**`.
+Signal has no separate title field.
+A non-empty `title` (URL query, or the send `title` param) is prepended as the first line of the message.
+With `textmode=styled` the title is wrapped in `**...**`.
 
 ```
 signal://localhost:8080/+1234567890/+0987654321?title=Alert&textmode=styled
@@ -124,26 +121,20 @@ signal://localhost:8080/+1234567890/+0987654321?title=Alert&textmode=styled
 
 ## Attachments
 
-Use the `attachments` query parameter or send param with comma-separated raw base64 values. If the value contains `data:`, it is sent as a single data URI (data URIs contain commas, so they are not split).
+Use the `attachments` query parameter or send param with comma-separated raw base64 values.
+If the value contains `data:`, it is sent as a single data URI (data URIs contain commas, so they are not split).
 
 ```
 signal://localhost:8080/+1234567890/+0987654321?attachments=base64data1,base64data2
 ```
 
-!!! note "Attachment Format"
-    Raw base64 entries may be comma-separated. A `data:` URI must be sent as a single value.
-
-## Optional Parameters
-
-You can specify additional parameters in the URL query string:
-
-- `textmode` (alias `text_mode`): `None` (default, omit the field), `Normal`, or `Styled`
-- `title`: prepended to the message body
-- `notifyself`: default `Yes`. Set `notifyself=no` to send `notify_self=false`
-- `attachments`: comma-separated raw base64, or one `data:` URI
-- `disabletls=yes`: Force HTTP instead of HTTPS
-- `skiptlsverify=yes`: Skip TLS certificate verification
+!!! Note "Attachment Format"
+    Raw base64 entries may be comma-separated.
+    A `data:` URI must be sent as a single value.
 
 ## Implementation Notes
 
-Shoutrrr's Signal service sends messages using HTTP POST requests to a HTTP relay server's `/v2/send` endpoint with JSON payloads containing the message, source number, recipient list, and optional `text_mode`, `notify_self`, and `base64_attachments`. The relay server handles the actual Signal protocol communication.
+Shoutrrr's Signal service sends messages using POST requests to the Signal API server's `/v2/send` endpoint.
+Requests use HTTPS by default and HTTP only when TLS is disabled.
+The JSON payload contains the message, source number, recipient list, and optional `text_mode`, `notify_self`, and `base64_attachments`.
+The API server handles the actual Signal protocol communication.

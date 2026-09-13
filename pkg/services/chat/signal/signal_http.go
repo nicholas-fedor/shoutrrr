@@ -66,9 +66,17 @@ func (s *Service) createRequest(
 		return nil, nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		defaultHTTPTimeout,
+	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		apiURL,
+		bytes.NewReader(jsonData),
+	)
 	if err != nil {
 		cancel()
 
@@ -84,11 +92,14 @@ func (s *Service) createRequest(
 
 // newHTTPClient returns the default HTTP client for Signal requests.
 //
+// Parameters:
+//   - skipTLSVerify: when true, skip certificate-chain and hostname verification
+//
 // Returns:
 //   - An HTTP client with a 30s timeout, TLS 1.2 minimum, and optional skip-verify.
-func (s *Service) newHTTPClient() types.HTTPClient {
+func (s *Service) newHTTPClient(skipTLSVerify bool) types.HTTPClient {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if s.Config != nil && s.Config.SkipTLSVerify {
+	if skipTLSVerify {
 		tlsConfig.InsecureSkipVerify = true
 
 		s.Log("Warning: TLS verification is disabled, making connections insecure")
@@ -111,26 +122,57 @@ func (s *Service) newHTTPClient() types.HTTPClient {
 // Parameters:
 //   - body: the raw response body
 func (s *Service) parseResponse(body []byte) {
-	var response sendMessageResponse
-	if err := json.Unmarshal(body, &response); err != nil {
+	timestamp, err := parseTimestamp(body)
+	if err != nil {
 		s.Logf("Warning: failed to parse response: %v", err)
-	} else {
-		s.Logf("Message sent successfully at timestamp %d", response.Timestamp)
+
+		return
 	}
+
+	s.Logf("Message sent successfully at timestamp %d", timestamp)
+}
+
+// parseTimestamp reads a numeric or quoted JSON timestamp from a 2xx body.
+//
+// Parameters:
+//   - body: the raw response body
+//
+// Returns:
+//   - int64: the timestamp value
+//   - error: if neither form can be parsed
+func parseTimestamp(body []byte) (int64, error) {
+	var numeric struct {
+		Timestamp int64 `json:"timestamp"`
+	}
+	if err := json.Unmarshal(body, &numeric); err == nil {
+		return numeric.Timestamp, nil
+	}
+
+	var quoted struct {
+		Timestamp string `json:"timestamp"`
+	}
+	if err := json.Unmarshal(body, &quoted); err != nil {
+		return 0, fmt.Errorf("decoding timestamp: %w", err)
+	}
+
+	n, err := strconv.ParseInt(quoted.Timestamp, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parsing timestamp %q: %w", quoted.Timestamp, err)
+	}
+
+	return n, nil
 }
 
 // sendRequest executes the HTTP request and processes the response.
 //
 // Parameters:
 //   - req: the HTTP request to execute
+//   - config: the per-send configuration used to select the HTTP client
 //
 // Returns:
 //   - error: if the request fails or returns a non-success status, nil otherwise
-func (s *Service) sendRequest(req *http.Request) error {
-	client := s.httpClient
-	if client == nil {
-		client = s.newHTTPClient()
-	}
+func (s *Service) sendRequest(req *http.Request, config *Config) error {
+	client := s.httpClientFor(config)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -158,7 +200,32 @@ func (s *Service) sendRequest(req *http.Request) error {
 	return nil
 }
 
+// httpClientFor returns the client for this send.
+// An injected client is used as-is. The default client matches config.SkipTLSVerify.
+//
+// Parameters:
+//   - config: the per-send configuration
+//
+// Returns:
+//   - types.HTTPClient: the client used for this request
+func (s *Service) httpClientFor(config *Config) types.HTTPClient {
+	if s.injectedHTTPClient && s.httpClient != nil {
+		return s.httpClient
+	}
+
+	skip := config != nil && config.SkipTLSVerify
+	initializedSkip := s.Config != nil && s.Config.SkipTLSVerify
+
+	if s.httpClient != nil && skip == initializedSkip {
+		return s.httpClient
+	}
+
+	return s.newHTTPClient(skip)
+}
+
 // setAuthentication configures HTTP authentication headers on the request.
+// disabletls and skiptlsverify send Bearer or Basic credentials over an
+// unverified or cleartext transport. Use those modes only on trusted networks.
 //
 // Parameters:
 //   - req: the HTTP request to modify

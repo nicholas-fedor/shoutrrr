@@ -63,4 +63,15 @@ var _ = ginkgo.Describe("recipients", func() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(recipients).To(gomega.Equal([]string{"group.ABCD/EFGH="}))
 	})
+
+	ginkgo.It("should batch mixed recipient types for separate sends", func() {
+		batches := batchRecipients(
+			[]string{"+1234567890", "u:someuser.123", "group.testgroup", "+0987654321"},
+		)
+		gomega.Expect(batches).To(gomega.Equal([][]string{
+			{"+1234567890", "+0987654321"},
+			{"u:someuser.123"},
+			{"group.testgroup"},
+		}))
+	})
 })

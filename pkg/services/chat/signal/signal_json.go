@@ -10,11 +10,6 @@ type sendMessagePayload struct {
 	NotifySelf        *bool    `json:"notify_self,omitempty"`
 }
 
-// sendMessageResponse is the success body from the Signal REST API.
-type sendMessageResponse struct {
-	Timestamp int64 `json:"timestamp"`
-}
-
 // sendErrorResponse is the error body from a failed send.
 type sendErrorResponse struct {
 	Error           string   `json:"error"`

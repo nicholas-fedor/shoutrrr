@@ -77,6 +77,44 @@ func parseRecipients(pathParts []string) ([]string, error) {
 	return recipients, nil
 }
 
+// batchRecipients splits recipients so each /v2/send payload is a single REST API type.
+// Phones share one batch, usernames share one batch, and each group is its own batch.
+//
+// Parameters:
+//   - recipients: validated phone numbers, group IDs, and u: usernames
+//
+// Returns:
+//   - [][]string: homogeneous batches
+func batchRecipients(recipients []string) [][]string {
+	var (
+		phones    []string
+		usernames []string
+		batches   [][]string
+	)
+
+	for _, recipient := range recipients {
+		switch {
+		case isValidGroupID(recipient):
+			batches = append(batches, []string{recipient})
+		case isValidUsername(recipient):
+			usernames = append(usernames, recipient)
+		default:
+			phones = append(phones, recipient)
+		}
+	}
+
+	var out [][]string
+	if len(phones) > 0 {
+		out = append(out, phones)
+	}
+
+	if len(usernames) > 0 {
+		out = append(out, usernames)
+	}
+
+	return append(out, batches...)
+}
+
 // isValidPhoneNumber checks if the string is a valid phone number.
 //
 // Parameters:

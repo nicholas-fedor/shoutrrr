@@ -14,7 +14,7 @@ func createPayload(message string, config *Config) sendMessagePayload {
 	payload := sendMessagePayload{
 		Message:           composeMessage(config.Title, message, config.TextMode == TextModeStyled),
 		Number:            config.Source,
-		Recipients:        config.Recipients,
+		Recipients:        apiRecipients(config.Recipients),
 		Base64Attachments: parseAttachments(config.Attachments),
 		TextMode:          config.TextMode.payloadValue(),
 	}
@@ -59,6 +59,31 @@ func composeMessage(title, message string, styled bool) string {
 //
 // Returns:
 //   - []string: attachment entries, or nil when empty
+//
+// apiRecipients maps URL recipients to REST API recipient strings.
+// Username values keep the u: prefix for URL parsing and drop it in the payload.
+//
+// Parameters:
+//   - recipients: parsed URL recipients
+//
+// Returns:
+//   - []string: recipients suitable for POST /v2/send
+func apiRecipients(recipients []string) []string {
+	out := make([]string, len(recipients))
+
+	for i, recipient := range recipients {
+		if rest, ok := strings.CutPrefix(recipient, usernamePrefix); ok && rest != "" {
+			out[i] = rest
+
+			continue
+		}
+
+		out[i] = recipient
+	}
+
+	return out
+}
+
 func parseAttachments(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

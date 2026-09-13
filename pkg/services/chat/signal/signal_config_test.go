@@ -113,6 +113,15 @@ var _ = ginkgo.Describe("config", func() {
 					gomega.Expect(signal.Config.Host).To(gomega.Equal("myserver"))
 					gomega.Expect(signal.Config.Port).To(gomega.Equal(8080))
 				})
+
+				ginkgo.It("should store an IPv6 host without brackets", func() {
+					serviceURL, _ := url.Parse("signal://[::1]:9999/+1234567890/+0987654321")
+					err := signal.Initialize(serviceURL, logger)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					gomega.Expect(signal.Config.Host).To(gomega.Equal("::1"))
+					gomega.Expect(signal.Config.Port).To(gomega.Equal(9999))
+					gomega.Expect(signal.Config.GetURL().Host).To(gomega.Equal("[::1]:9999"))
+				})
 			})
 
 			ginkgo.When("parsing TLS settings", func() {
