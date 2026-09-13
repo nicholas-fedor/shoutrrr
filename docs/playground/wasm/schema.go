@@ -20,6 +20,7 @@ const docBaseURL = "https://shoutrrr.nickfedor.com/"
 var serviceDocAliases = map[string]string{
 	"mqtts":    "mqtt",
 	"hangouts": "googlechat",
+	"xmpps":    "xmpp",
 }
 
 // deriveDocURL builds the documentation URL for a service by extracting the

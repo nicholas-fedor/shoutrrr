@@ -361,7 +361,7 @@ jobs:
 | Telegram     | Telegram bots                        |
 | Twilio       | Twilio SMS notifications             |
 | Zulip        | Zulip chat                           |
-| XMPP         | XMPP messages (if enabled)           |
+| XMPP         | XMPP chat and MUC notifications      |
 
 ### Service Discovery
 

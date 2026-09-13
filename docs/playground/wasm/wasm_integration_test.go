@@ -119,6 +119,7 @@ func TestAllServicesGenerateDefaultURL(t *testing.T) {
 			aliasMap := map[string]string{
 				"hangouts": "googlechat",
 				"mqtts":    "mqtt",
+				"xmpps":    "xmpp",
 			}
 
 			// checkScheme is the canonical scheme used for the URL prefix check.
@@ -145,6 +146,7 @@ func TestAliasMapConsistency(t *testing.T) {
 	aliasMap := map[string]string{
 		"hangouts": "googlechat",
 		"mqtts":    "mqtt",
+		"xmpps":    "xmpp",
 	}
 
 	for alias, canonical := range aliasMap {
