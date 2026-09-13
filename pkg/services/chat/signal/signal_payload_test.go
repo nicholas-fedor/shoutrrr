@@ -36,6 +36,22 @@ var _ = ginkgo.Describe("payload", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(n).To(gomega.Equal(int64(1234567890)))
 		})
+
+		ginkgo.It("should accept a numeric zero", func() {
+			n, err := parseTimestamp([]byte(`{"timestamp": 0}`))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(n).To(gomega.Equal(int64(0)))
+		})
+
+		ginkgo.It("should reject a missing timestamp", func() {
+			_, err := parseTimestamp([]byte(`{}`))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("should reject a null timestamp", func() {
+			_, err := parseTimestamp([]byte(`{"timestamp": null}`))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
 	})
 
 	ginkgo.Describe("apiRecipients", func() {

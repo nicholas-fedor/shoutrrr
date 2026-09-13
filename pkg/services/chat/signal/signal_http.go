@@ -142,10 +142,10 @@ func (s *Service) parseResponse(body []byte) {
 //   - error: if neither form can be parsed
 func parseTimestamp(body []byte) (int64, error) {
 	var numeric struct {
-		Timestamp int64 `json:"timestamp"`
+		Timestamp *int64 `json:"timestamp"`
 	}
-	if err := json.Unmarshal(body, &numeric); err == nil {
-		return numeric.Timestamp, nil
+	if err := json.Unmarshal(body, &numeric); err == nil && numeric.Timestamp != nil {
+		return *numeric.Timestamp, nil
 	}
 
 	var quoted struct {

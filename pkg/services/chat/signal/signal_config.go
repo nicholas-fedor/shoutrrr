@@ -15,13 +15,13 @@ import (
 type Config struct {
 	Host          string   `default:"localhost" desc:"Signal REST API server hostname or IP"                            key:"host"`
 	Port          int      `default:"8080"      desc:"Signal REST API server port"                                      key:"port"`
-	User          string   `                    desc:"Username for HTTP Basic Auth"                                     key:"user"                optional:""`
-	Password      string   `                    desc:"Password for HTTP Basic Auth"                                     key:"password"           sensitive:"true" optional:""`
-	Token         string   `                    desc:"API token for Bearer authentication"                              key:"token,apikey"       sensitive:"true" optional:""`
+	User          string   `                    desc:"Username for HTTP Basic Auth"                                     key:"user"               optional:""`
+	Password      string   `                    desc:"Password for HTTP Basic Auth"                                     key:"password"           optional:"" sensitive:"true"`
+	Token         string   `                    desc:"API token for Bearer authentication"                              key:"token,apikey"       optional:"" sensitive:"true"`
 	Source        string   `                    desc:"Source phone number (with country code)"                          key:"source"`
 	Recipients    []string `                    desc:"Recipient phone numbers, group IDs, or u: usernames"              key:"recipients,to"`
-	Title         string   `                    desc:"Optional title prepended to the message body"                     key:"title"                               optional:""`
-	Attachments   string   `                    desc:"Comma-separated raw base64 attachments; a data: value is one URI" key:"attachments"                         optional:""`
+	Title         string   `                    desc:"Optional title prepended to the message body"                     key:"title"              optional:""`
+	Attachments   string   `                    desc:"Comma-separated raw base64 attachments; a data: value is one URI" key:"attachments"        optional:""`
 	TextMode      textMode `default:"None"      desc:"Message text mode (None omits text_mode; Styled enables markup)"  key:"textmode,text_mode"`
 	DisableTLS    bool     `default:"No"        desc:"Disable TLS for Signal REST API connection"                       key:"disabletls"`
 	SkipTLSVerify bool     `default:"No"        desc:"Skip TLS certificate verification"                                key:"skiptlsverify"`
