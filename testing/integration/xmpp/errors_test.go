@@ -43,7 +43,7 @@ func TestSendWithChatError(t *testing.T) {
 	session := &mockSession{chatErr: errors.New("chat failed")}
 	service := createTestService(t, chatURL, session)
 
-	require.EqualError(t, service.Send("hello", nil), "chat failed")
+	require.ErrorIs(t, service.Send("hello", nil), session.chatErr)
 }
 
 func TestSendWithMUCError(t *testing.T) {
@@ -52,7 +52,7 @@ func TestSendWithMUCError(t *testing.T) {
 	session := &mockSession{roomErr: errors.New("join failed")}
 	service := createTestService(t, mucURL, session)
 
-	require.EqualError(t, service.Send("hello", nil), "join failed")
+	require.ErrorIs(t, service.Send("hello", nil), session.roomErr)
 }
 
 func TestSendWithInvalidParams(t *testing.T) {

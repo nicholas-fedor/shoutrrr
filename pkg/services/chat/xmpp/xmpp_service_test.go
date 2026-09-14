@@ -17,9 +17,10 @@ import (
 )
 
 type mockSession struct {
-	chats [][2]string
-	rooms [][4]string
-	err   error
+	chats  [][2]string
+	rooms  [][4]string
+	err    error
+	failTo string
 }
 
 var _ = ginkgo.Describe("service", func() {
@@ -178,7 +179,8 @@ var _ = ginkgo.Describe("service", func() {
 	})
 
 	ginkgo.It("should return chat send errors", func() {
-		session := &mockSession{err: errors.New("chat failed")}
+		chatErr := errors.New("chat failed")
+		session := &mockSession{err: chatErr}
 
 		gomega.Expect(service.Initialize(
 			testutils.URLMust("xmpp://alice:secret@xmpp.example.com/?to=bob@example.com"),
@@ -189,11 +191,35 @@ var _ = ginkgo.Describe("service", func() {
 		})
 		service.SetDialContext(pipeDialer())
 
-		gomega.Expect(service.Send("hello", nil)).To(gomega.MatchError("chat failed"))
+		gomega.Expect(service.Send("hello", nil)).To(gomega.MatchError(chatErr))
+	})
+
+	ginkgo.It("should send remaining targets after a chat failure", func() {
+		chatErr := errors.New("chat failed")
+		session := &mockSession{failTo: "fail@example.com", err: chatErr}
+
+		gomega.Expect(service.Initialize(
+			testutils.URLMust(
+				"xmpp://alice:secret@xmpp.example.com/?to=fail@example.com,bob@example.com",
+			),
+			testutils.TestLogger(),
+		)).To(gomega.Succeed())
+		service.SetSessionFactory(func(context.Context, *Config, net.Conn) (Session, error) {
+			return session, nil
+		})
+		service.SetDialContext(pipeDialer())
+
+		err := service.Send("hello", nil)
+		gomega.Expect(err).To(gomega.MatchError(chatErr))
+		gomega.Expect(session.chats).To(gomega.Equal([][2]string{
+			{"fail@example.com", "hello"},
+			{"bob@example.com", "hello"},
+		}))
 	})
 
 	ginkgo.It("should return MUC send errors", func() {
-		session := &mockSession{err: errors.New("muc failed")}
+		mucErr := errors.New("muc failed")
+		session := &mockSession{err: mucErr}
 
 		gomega.Expect(service.Initialize(
 			testutils.URLMust(
@@ -206,7 +232,7 @@ var _ = ginkgo.Describe("service", func() {
 		})
 		service.SetDialContext(pipeDialer())
 
-		gomega.Expect(service.Send("hello", nil)).To(gomega.MatchError("muc failed"))
+		gomega.Expect(service.Send("hello", nil)).To(gomega.MatchError(mucErr))
 	})
 
 	ginkgo.It("should reject unknown send params", func() {
@@ -254,6 +280,9 @@ func (*mockSession) Close() error {
 
 func (m *mockSession) SendChat(_ context.Context, to, body string) error {
 	m.chats = append(m.chats, [2]string{to, body})
+	if m.failTo != "" && to != m.failTo {
+		return nil
+	}
 
 	return m.err
 }

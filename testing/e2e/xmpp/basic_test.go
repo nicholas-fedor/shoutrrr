@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -17,10 +18,18 @@ var _ = ginkgo.Describe("XMPP E2E", func() {
 		serviceURL, err := url.Parse(rawURL)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+		probe, err := startInbox(serviceURL)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		defer probe.close()
+
 		service := &xmpp.Service{}
 		err = service.Initialize(serviceURL, testutils.TestLogger())
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(service.Send(message, nil)).To(gomega.Succeed())
+		gomega.Eventually(probe.bodies).
+			WithTimeout(5 * time.Second).
+			Should(gomega.Receive(gomega.Equal(message)))
 	}
 
 	ginkgo.It("should send a 1:1 chat over STARTTLS", func() {
@@ -53,6 +62,6 @@ var _ = ginkgo.Describe("XMPP E2E", func() {
 		service := &xmpp.Service{}
 		err = service.Initialize(serviceURL, testutils.TestLogger())
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		gomega.Expect(service.Send("should fail", nil)).NotTo(gomega.Succeed())
+		gomega.Expect(service.Send("should fail", nil)).To(gomega.MatchError(xmpp.ErrAuthenticationFailed))
 	})
 })

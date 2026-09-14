@@ -52,6 +52,10 @@ usage() {
 }
 
 check_requirements() {
+    if ! command -v openssl &> /dev/null; then
+        error "Missing required command: openssl"
+    fi
+
     if ! command -v docker &> /dev/null; then
         error "Missing required command: docker"
     fi

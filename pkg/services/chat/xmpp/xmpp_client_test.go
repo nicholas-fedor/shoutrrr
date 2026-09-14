@@ -3,6 +3,7 @@ package xmpp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 
 	"github.com/onsi/ginkgo/v2"
@@ -10,6 +11,21 @@ import (
 )
 
 var _ = ginkgo.Describe("client", func() {
+	ginkgo.Describe("wrapNegotiateError", func() {
+		ginkgo.It("should wrap SASL not-authorized as authentication failed", func() {
+			err := wrapNegotiateError(errors.New("not-authorized"))
+			gomega.Expect(err).To(gomega.MatchError(ErrAuthenticationFailed))
+			err = wrapNegotiateError(errors.New("Invalid username or password"))
+			gomega.Expect(err).To(gomega.MatchError(ErrAuthenticationFailed))
+		})
+
+		ginkgo.It("should wrap other negotiate errors without the auth sentinel", func() {
+			err := wrapNegotiateError(errors.New("features advertised out of order"))
+			gomega.Expect(err).NotTo(gomega.MatchError(ErrAuthenticationFailed))
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("negotiating XMPP session"))
+		})
+	})
+
 	ginkgo.Describe("newTLSConfig", func() {
 		ginkgo.It("should copy host and skip-verify onto the TLS config", func() {
 			cfg := &Config{Host: "xmpp.example.com", SkipTLSVerify: true}

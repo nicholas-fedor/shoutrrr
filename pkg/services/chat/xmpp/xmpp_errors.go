@@ -29,4 +29,7 @@ var (
 
 	// ErrInvalidRoomJID is returned when a rooms= value is not a valid JID.
 	ErrInvalidRoomJID = errors.New("room is not a valid JID")
+
+	// ErrAuthenticationFailed is returned when SASL authentication is rejected.
+	ErrAuthenticationFailed = errors.New("authentication failed")
 )

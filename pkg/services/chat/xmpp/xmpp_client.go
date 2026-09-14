@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"mellium.im/sasl"
 	"mellium.im/xmpp/jid"
@@ -104,7 +105,7 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 
 	session, err := mxmpp.NewClientSession(ctx, origin, stream, features...)
 	if err != nil {
-		return nil, fmt.Errorf("negotiating XMPP session: %w", err)
+		return nil, wrapNegotiateError(err)
 	}
 
 	mucClient := &muc.Client{}
@@ -136,6 +137,26 @@ func newTLSConfig(cfg *Config) *tls.Config {
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: cfg.SkipTLSVerify,
 	}
+}
+
+func wrapNegotiateError(err error) error {
+	if isAuthFailure(err) {
+		return fmt.Errorf("%w: %w", ErrAuthenticationFailed, err)
+	}
+
+	return fmt.Errorf("negotiating XMPP session: %w", err)
+}
+
+func isAuthFailure(err error) bool {
+	text := strings.ToLower(err.Error())
+
+	return strings.Contains(text, "not-authorized") ||
+		strings.Contains(text, "invalid username") ||
+		strings.Contains(text, "invalid-authzid") ||
+		strings.Contains(text, "credentials-expired") ||
+		strings.Contains(text, "account-disabled") ||
+		strings.Contains(text, "mechanism-too-weak") ||
+		strings.Contains(text, "temporary-auth-failure")
 }
 
 // Close ends the XMPP session and the underlying connection.

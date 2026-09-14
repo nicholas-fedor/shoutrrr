@@ -18,9 +18,9 @@ services:
     image: ghcr.io/processone/ejabberd:26.07@sha256:5aeb0faa39cfe38792c5eea9cc6344ba9ab6c59c708a24e897d6b471882c8497
     container_name: shoutrrr-xmpp-ejabberd
     ports:
-      - "5222:5222"
-      - "5223:5223"
-      - "5224:5224"
+      - "127.0.0.1:5222:5222"
+      - "127.0.0.1:5223:5223"
+      - "127.0.0.1:5224:5224"
     environment:
       - EJABBERD_MACRO_HOST=localhost
       - CTL_ON_CREATE=register sender localhost senderpass ; register recipient localhost recipientpass ; create_room alerts conference.localhost localhost ; create_room secret conference.localhost localhost ; change_room_option secret conference.localhost password roompass

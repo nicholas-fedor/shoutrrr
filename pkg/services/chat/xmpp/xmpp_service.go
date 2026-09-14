@@ -2,6 +2,7 @@ package xmpp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -87,8 +88,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 // SendContext sends a notification message over XMPP.
 //
 // It clones the service configuration, applies optional runtime params, dials
-// the server, negotiates a session, and sends chat and MUC messages. The
-// session is closed after the send.
+// the server, negotiates a session, and sends chat and MUC messages. Delivery
+// continues after a per-target failure. The session is closed after the send.
 //
 // Parameters:
 //   - ctx: Parent context for cancellation and deadlines.
@@ -96,7 +97,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime overrides for configuration fields ([types.Params]).
 //
 // Returns:
-//   - An error if configuration updates, connection, or delivery fail.
+//   - An aggregated error if any target delivery fails, or a setup error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := s.Config.Clone()
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
@@ -132,20 +133,22 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	body := composeMessage(config.Title, message)
 
+	var errs []error
+
 	for _, to := range config.To {
 		if err := session.SendChat(ctx, to, body); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("sending chat to %s: %w", to, err))
 		}
 	}
 
 	nick := config.mucNick()
 	for _, room := range config.Rooms {
 		if err := session.SendToRoom(ctx, room, nick, config.RoomPassword, body); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("sending groupchat to %s: %w", room, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // SetDialContext sets a custom dial function for XMPP TCP connections.

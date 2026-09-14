@@ -18,7 +18,7 @@ Click on the service for a more thorough explanation.
 | [Teams](./chat/teams/index.md)            | *teams://?host=__`Power Automate workflow URL`__*                                                                           |
 | [Telegram](./chat/telegram/index.md)      | *telegram://__`token`__@telegram?chats=__`@channel-1`__[,__`chat-id-1`__,...]*                                              |
 | [WeCom](./chat/wecom/index.md)            | *wecom://__`key`__*                                                                                                         |
-| [XMPP](./chat/xmpp/index.md)              | *xmpp://__`user`__:__`password`__@__`host`__[:__`port`__]/?to=__`jid`__[&rooms=__`roomjid`__]*                               |
+| [XMPP](./chat/xmpp/index.md)              | *xmpp://* or *xmpps://__`user`__:__`password`__@__`host`__[:__`port`__]/?to=__`jid`__[&rooms=__`roomjid`__]*                 |
 | [Zulip Chat](./chat/zulip/index.md)       | *zulip://__`bot-mail`__:__`bot-key`__@__`zulip-domain`__/?stream=__`name-or-id`__&topic=__`name`__*                         |
 
 \* Deprecated

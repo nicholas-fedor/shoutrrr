@@ -53,7 +53,8 @@ openssl x509 -req -days 3650 \
 
 cat "$CERTS_DIR/cert.pem" "$CERTS_DIR/key.pem" > "$CERTS_DIR/server.pem"
 
-chmod 644 "$CERTS_DIR"/*.pem
+chmod 644 "$CERTS_DIR/ca.pem" "$CERTS_DIR/cert.pem"
+chmod 600 "$CERTS_DIR/key.pem" "$CERTS_DIR/server.pem"
 rm -f "$CERTS_DIR/ca.key" "$CERTS_DIR/server.csr" "$CERTS_DIR/server.cnf" "$CERTS_DIR/ca.srl"
 
 echo "Certificates generated successfully."
