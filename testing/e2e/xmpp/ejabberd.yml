@@ -1,0 +1,56 @@
+hosts:
+  - localhost
+
+loglevel: warning
+
+certfiles:
+  - /opt/ejabberd/conf/server.pem
+
+listen:
+  -
+    port: 5222
+    ip: 0.0.0.0
+    module: ejabberd_c2s
+    starttls: true
+    max_stanza_size: 65536
+  -
+    port: 5223
+    ip: 0.0.0.0
+    module: ejabberd_c2s
+    tls: true
+    max_stanza_size: 65536
+  -
+    port: 5224
+    ip: 0.0.0.0
+    module: ejabberd_c2s
+    starttls: false
+    max_stanza_size: 65536
+
+auth_method: internal
+
+acl:
+  local:
+    user_regexp: ""
+
+access_rules:
+  local:
+    allow: local
+  c2s:
+    allow: all
+  muc:
+    allow: all
+  muc_create:
+    allow: local
+
+modules:
+  mod_disco: {}
+  mod_ping: {}
+  mod_roster: {}
+  mod_stream_mgmt: {}
+  mod_muc:
+    host: "conference.@HOST@"
+    access: muc
+    access_create: muc_create
+    access_persistent: muc_create
+    default_room_options:
+      persistent: true

@@ -12,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/teams"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/wecom"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/xmpp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/incident/opsgenie"
@@ -64,5 +65,7 @@ var serviceMap = map[string]func() types.Service{
 	"telegram":      func() types.Service { return &telegram.Service{} },
 	"twilio":        func() types.Service { return &twilio.Service{} },
 	"wecom":         func() types.Service { return &wecom.Service{} },
+	"xmpp":          func() types.Service { return &xmpp.Service{} },
+	"xmpps":         func() types.Service { return &xmpp.Service{} },
 	"zulip":         func() types.Service { return &zulip.Service{} },
 }

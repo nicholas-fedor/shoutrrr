@@ -36,7 +36,7 @@ var serviceURLs = map[string]string{
 	"teams":         "teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2F00000000-0000-0000-0000-000000000000%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-00%26sp%3D%2Ftriggers%2Fmanual%2Frun%26sv%3D1.0%26sig%3DXXXXXXXX",
 	"telegram":      "telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram?channels=channel",
 	"twilio":        "twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543",
-	"xmpp":          "xmpp://",
+	"xmpp":          "xmpp://alice:secret@example.com/?to=bob@example.com",
 	"zulip":         "zulip://mail:key@example.com/?stream=foo&topic=bar",
 }
 
@@ -88,7 +88,7 @@ var _ = ginkgo.Describe("services", func() {
 				}
 
 				if key == "xmpp" {
-					ginkgo.Skip("not supported")
+					ginkgo.Skip("xmpp does not use HTTP and needs a specific test")
 				}
 
 				service, err := serviceRouter.Locate(serviceURL)

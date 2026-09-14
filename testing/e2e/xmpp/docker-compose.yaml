@@ -1,0 +1,37 @@
+# ejabberd for local XMPP E2E testing
+#
+# https://docs.ejabberd.im/CONTAINER/
+#
+# Usage:
+#   ./setup.sh
+#
+# Accounts (created on first start):
+#   sender@localhost / senderpass
+#   recipient@localhost / recipientpass
+#
+# Rooms:
+#   alerts@conference.localhost
+#   secret@conference.localhost (password: roompass)
+
+services:
+  ejabberd:
+    image: ghcr.io/processone/ejabberd:26.07@sha256:5aeb0faa39cfe38792c5eea9cc6344ba9ab6c59c708a24e897d6b471882c8497
+    container_name: shoutrrr-xmpp-ejabberd
+    ports:
+      - "127.0.0.1:5222:5222"
+      - "127.0.0.1:5223:5223"
+      - "127.0.0.1:5224:5224"
+    environment:
+      - EJABBERD_MACRO_HOST=localhost
+      - CTL_ON_CREATE=register sender localhost senderpass ; register recipient localhost recipientpass ; create_room alerts conference.localhost localhost ; create_room secret conference.localhost localhost ; change_room_option secret conference.localhost password roompass
+      - CTL_ON_START=status
+    volumes:
+      - ./ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml:ro
+      - ./certs/server.pem:/opt/ejabberd/conf/server.pem:ro
+    healthcheck:
+      test: ["CMD", "ejabberdctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped

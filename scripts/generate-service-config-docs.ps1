@@ -7,7 +7,7 @@
 .DESCRIPTION
     This script generates Markdown documentation for Shoutrrr services using the shoutrrr CLI.
     It supports generating documentation for all services or a specific service.
-    Skips 'standard' and 'xmpp' services as they are not applicable.
+    Skips 'standard' services as they are not applicable.
 
 .PARAMETER ServiceName
     Optional. The name of a specific service to generate documentation for.
@@ -105,7 +105,7 @@ foreach ($categoryDir in $categoryDirs) {
         $service = $serviceDir.Name
 
         # Skip specific services
-        if ($service -eq "standard" -or $service -eq "xmpp") {
+        if ($service -eq "standard") {
             continue
         }
 

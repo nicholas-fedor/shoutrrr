@@ -131,6 +131,7 @@ nav:
           - Teams: services/chat/teams/index.md
           - Telegram: services/chat/telegram/index.md
           - WeCom: services/chat/wecom/index.md
+          - XMPP: services/chat/xmpp/index.md
           - Zulip: services/chat/zulip/index.md
       - Push Notification Services:
           - Bark: services/push/bark/index.md
