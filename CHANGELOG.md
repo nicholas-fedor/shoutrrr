@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add XMPP notification support by @nicholas-fedor in [#1346](https://github.com/nicholas-fedor/shoutrrr/pull/1346)
+
 ### Changed
 
 - Overhaul Signal notification service by @nicholas-fedor in [#1344](https://github.com/nicholas-fedor/shoutrrr/pull/1344)
