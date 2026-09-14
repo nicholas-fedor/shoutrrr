@@ -88,9 +88,20 @@ func (c *Config) GetURL() *url.URL {
 // Returns:
 //   - An error if the URL is invalid or required fields are missing.
 func (c *Config) SetURL(serviceURL *url.URL) error {
-	resolver := format.NewPropKeyResolver(c)
+	next := Config{}
+	resolver := format.NewPropKeyResolver(&next)
 
-	return c.setURL(&resolver, serviceURL)
+	if err := resolver.SetDefaultProps(&next); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
+
+	if err := next.setURL(&resolver, serviceURL); err != nil {
+		return err
+	}
+
+	*c = next
+
+	return nil
 }
 
 // authJIDString returns the SASL auth JID.

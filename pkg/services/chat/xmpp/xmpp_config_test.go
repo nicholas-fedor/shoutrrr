@@ -201,6 +201,35 @@ var _ = ginkgo.Describe("config", func() {
 			gomega.Expect(config.scheme).To(gomega.Equal(SchemeTLS))
 			gomega.Expect(config.Port).To(gomega.Equal(DefaultTLSPort))
 		})
+
+		ginkgo.It("should not keep omitted fields from a previous SetURL", func() {
+			config := &Config{}
+			gomega.Expect(config.SetURL(testutils.URLMust(
+				"xmpp://alice:secret@xmpp.example.com/" +
+					"?to=bob@example.com&rooms=alerts@conference.example.com&nick=bot",
+			))).To(gomega.Succeed())
+
+			gomega.Expect(config.SetURL(testutils.URLMust(
+				"xmpp://carol:other@xmpp.example.com/?to=dave@example.com",
+			))).To(gomega.Succeed())
+			gomega.Expect(config.User).To(gomega.Equal("carol"))
+			gomega.Expect(config.Password).To(gomega.Equal("other"))
+			gomega.Expect(config.To).To(gomega.Equal([]string{"dave@example.com"}))
+			gomega.Expect(config.Rooms).To(gomega.BeEmpty())
+			gomega.Expect(config.Nick).To(gomega.BeEmpty())
+		})
+
+		ginkgo.It("should leave the receiver unchanged when SetURL fails", func() {
+			config := &Config{}
+			gomega.Expect(config.SetURL(testutils.URLMust(
+				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
+			))).To(gomega.Succeed())
+
+			err := config.SetURL(testutils.URLMust("xmpp://alice:secret@xmpp.example.com/"))
+			gomega.Expect(err).To(gomega.MatchError(ErrMissingTargets))
+			gomega.Expect(config.Password).To(gomega.Equal("secret"))
+			gomega.Expect(config.To).To(gomega.Equal([]string{"bob@example.com"}))
+		})
 	})
 
 	ginkgo.Describe("GetURL", func() {

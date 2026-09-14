@@ -221,6 +221,7 @@ func captureBody(got chan string) xmux.MessageHandlerFunc {
 		var text string
 
 		var textSb218 strings.Builder
+
 		for {
 			tok, err := decoder.Token()
 			if err != nil {
@@ -231,6 +232,7 @@ func captureBody(got chan string) xmux.MessageHandlerFunc {
 				textSb218.WriteString(string(cd))
 			}
 		}
+
 		text += textSb218.String()
 
 		if text == "" {
