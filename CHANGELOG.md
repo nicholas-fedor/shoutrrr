@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update emqx/emqx:latest docker digest to 5ecbf93 by @renovate[bot] in [#1358](https://github.com/nicholas-fedor/shoutrrr/pull/1358)
 - Update codecov/codecov-action action to v7.1.1 by @renovate[bot] in [#1356](https://github.com/nicholas-fedor/shoutrrr/pull/1356)
 - Update docker/setup-buildx-action action to v4.4.1 by @renovate[bot] in [#1354](https://github.com/nicholas-fedor/shoutrrr/pull/1354)
 - Update matrixdotorg/synapse:latest docker digest to 7155ddc by @renovate[bot] in [#1353](https://github.com/nicholas-fedor/shoutrrr/pull/1353)
