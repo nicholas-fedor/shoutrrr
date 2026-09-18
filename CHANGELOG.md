@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.2 docker digest to 31b6477 by @renovate[bot] in [#1366](https://github.com/nicholas-fedor/shoutrrr/pull/1366)
+- Update module github.com/onsi/gomega to v1.43.1 by @renovate[bot] in [#1363](https://github.com/nicholas-fedor/shoutrrr/pull/1363)
 - Update alpine docker tag to v3.24.2 by @renovate[bot] in [#1362](https://github.com/nicholas-fedor/shoutrrr/pull/1362)
 - Update module cloud.google.com/go/compute/metadata to v0.9.1 by @renovate[bot] in [#1359](https://github.com/nicholas-fedor/shoutrrr/pull/1359)
 - Update emqx/emqx:latest docker digest to 5ecbf93 by @renovate[bot] in [#1358](https://github.com/nicholas-fedor/shoutrrr/pull/1358)
