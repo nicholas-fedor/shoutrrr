@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.38.1 by @renovate[bot] in [#1372](https://github.com/nicholas-fedor/shoutrrr/pull/1372)
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to d892268 by @renovate[bot] in [#1370](https://github.com/nicholas-fedor/shoutrrr/pull/1370)
 - Update alpine:3.24.2 docker digest to 294b683 by @renovate[bot] in [#1369](https://github.com/nicholas-fedor/shoutrrr/pull/1369)
 - Update module github.com/onsi/ginkgo/v2 to v2.33.0 by @renovate[bot] in [#1367](https://github.com/nicholas-fedor/shoutrrr/pull/1367)
 - Update alpine:3.24.2 docker digest to 31b6477 by @renovate[bot] in [#1366](https://github.com/nicholas-fedor/shoutrrr/pull/1366)
