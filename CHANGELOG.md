@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update commitlint monorepo to v21.2.3 by @renovate[bot] in [#1376](https://github.com/nicholas-fedor/shoutrrr/pull/1376)
+
+## [0.21.1] - 2026-09-22
+
+### Chores
+
 - Lock file maintenance by @renovate[bot] in [#1345](https://github.com/nicholas-fedor/shoutrrr/pull/1345)
 - Update orhun/git-cliff-action action to v4.9.1 by @renovate[bot] in [#1373](https://github.com/nicholas-fedor/shoutrrr/pull/1373)
 - Update github/codeql-action action to v4.38.1 by @renovate[bot] in [#1372](https://github.com/nicholas-fedor/shoutrrr/pull/1372)
@@ -2184,7 +2190,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.1...HEAD)
+- [0.21.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...v0.21.1)
 - [0.21.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.20.0...v0.21.0)
 - [0.20.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.19.0...v0.20.0)
 - [0.19.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.18.0...v0.19.0)
