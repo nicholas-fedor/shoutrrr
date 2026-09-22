@@ -74,6 +74,33 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(service.Config.Timeout).To(gomega.Equal(5 * time.Second))
 		})
 
+		ginkgo.It("should report the URL timeout as the send budget", func() {
+			serviceURL := testutils.URLMust(modifyURL(baseNoAuthURL, map[string]string{"timeout": "30s"}))
+
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(30 * time.Second))
+			gomega.Expect(service.Config.Timeout).To(gomega.Equal(30 * time.Second))
+		})
+
+		ginkgo.It("should report the default timeout when the URL omits it", func() {
+			serviceURL := testutils.URLMust(
+				"smtp://example.com/?fromAddress=sender@example.com&toAddresses=rec1@example.com",
+			)
+
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+			gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(defaultTimeout))
+		})
+
+		ginkgo.It("should apply a timeout param without changing the stored config", func() {
+			serviceURL := testutils.URLMust(modifyURL(baseNoAuthURL, map[string]string{"timeout": "30s"}))
+
+			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
+
+			params := types.Params{"timeout": "1m"}
+			gomega.Expect(service.ServiceTimeout(&params)).To(gomega.Equal(time.Minute))
+			gomega.Expect(service.Config.Timeout).To(gomega.Equal(30 * time.Second))
+		})
+
 		ginkgo.It("should fail when the configuration URL is invalid", func() {
 			serviceURL := testutils.URLMust("smtp://example.com/")
 

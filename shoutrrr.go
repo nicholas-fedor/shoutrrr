@@ -26,10 +26,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// defaultRouter manages the creation and routing of notification services.
-var defaultRouter = router.ServiceRouter{
-	Timeout: router.DefaultTimeout,
-}
+// defaultRouter locates services for [Send].
+// Its timeout is unset, so a send through this router uses each service's own budget.
+var defaultRouter = router.ServiceRouter{}
 
 // Send delivers a notification message using the specified URL.
 func Send(rawURL, message string) error {

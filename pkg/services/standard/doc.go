@@ -27,7 +27,9 @@
 //
 // This gives the Service access to all logging and templating methods through
 // composition. The Standard type implements the types.StdLogger and types.Templater
-// interfaces required by the shoutrrr.Service interface.
+// interfaces required by the shoutrrr.Service interface. Its ServiceTimeout
+// reports types.DefaultSendTimeout; override that method when a service's own
+// limit is longer.
 //
 // # Key Types
 //

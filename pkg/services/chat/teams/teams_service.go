@@ -84,6 +84,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.doSend(&config, message)
 }
 
+// ServiceTimeout returns the HTTP timeout used for a Teams send.
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultHTTPTimeout
+}
+
 // SetHTTPClient sets the HTTP client for testing purposes.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {

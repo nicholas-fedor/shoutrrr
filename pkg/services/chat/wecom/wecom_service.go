@@ -74,6 +74,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.doSend(config, message, params)
 }
 
+// ServiceTimeout returns the HTTP timeout used for a WeCom send.
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultTime
+}
+
 // SetHTTPClient sets a custom HTTP client for the service.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client

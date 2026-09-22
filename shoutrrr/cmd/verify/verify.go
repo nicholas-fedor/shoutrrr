@@ -68,10 +68,8 @@ func Run(cmd *cobra.Command, _ []string) {
 
 	URL := urls[0]
 
-	// Initialize the service router with default timeout (0 = no timeout).
-	serviceRouter = router.ServiceRouter{
-		Timeout: 0,
-	}
+	// Locate does not send. The zero timeout leaves each service's own budget in effect.
+	serviceRouter = router.ServiceRouter{}
 
 	// Locate the service for the provided URL.
 	service, err := serviceRouter.Locate(URL)

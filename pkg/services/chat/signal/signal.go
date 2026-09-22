@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -77,6 +78,17 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	return s.sendMessage(message, &config)
+}
+
+// ServiceTimeout returns the HTTP timeout used for a Signal send.
+//
+// Parameters:
+//   - params: Unused. The budget does not depend on send parameters.
+//
+// Returns:
+//   - [defaultHTTPTimeout].
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultHTTPTimeout
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.

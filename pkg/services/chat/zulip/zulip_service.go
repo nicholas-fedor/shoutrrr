@@ -205,6 +205,11 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.doSend(ctx, config, message)
 }
 
+// ServiceTimeout returns the HTTP timeout used for a Zulip send.
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultHTTPTimeout
+}
+
 // SetHTTPClient sets a custom HTTP client for the service.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.HTTPClient = client

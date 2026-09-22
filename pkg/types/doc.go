@@ -20,6 +20,8 @@
 //     fall back to plain text via ItemsToPlain.
 //   - ContextSender: Opt-in interface for services that accept a context.Context
 //     for cancellation and deadline propagation via SendContext.
+//   - ServiceTimeout: Per-service send budget. standard.Standard reports
+//     DefaultSendTimeout. Override it when the service's own limit is longer.
 //   - ContextAttachmentSender: Opt-in interface for services that accept a
 //     context.Context in SendItemsContext for cancellation and deadline
 //     propagation on rich sends.

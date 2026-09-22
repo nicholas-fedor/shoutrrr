@@ -213,6 +213,7 @@ Common ports:
 
 - `timeout` is a Go duration covering the TCP/TLS dial and the SMTP session (EHLO, AUTH, DATA, QUIT).
 - Default: `10s`.
+- With no sender timeout set, the router waits this long for SMTP, including values above 10s. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service on that sender.
 
 !!! Example "Thirty-second timeout"
 
