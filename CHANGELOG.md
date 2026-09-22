@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#1345](https://github.com/nicholas-fedor/shoutrrr/pull/1345)
+- Update orhun/git-cliff-action action to v4.9.1 by @renovate[bot] in [#1373](https://github.com/nicholas-fedor/shoutrrr/pull/1373)
 - Update github/codeql-action action to v4.38.1 by @renovate[bot] in [#1372](https://github.com/nicholas-fedor/shoutrrr/pull/1372)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to d892268 by @renovate[bot] in [#1370](https://github.com/nicholas-fedor/shoutrrr/pull/1370)
 - Update alpine:3.24.2 docker digest to 294b683 by @renovate[bot] in [#1369](https://github.com/nicholas-fedor/shoutrrr/pull/1369)
@@ -24,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update matrixdotorg/synapse:latest docker digest to 7155ddc by @renovate[bot] in [#1353](https://github.com/nicholas-fedor/shoutrrr/pull/1353)
 - Update docker/setup-qemu-action action to v4.4.0 by @renovate[bot] in [#1351](https://github.com/nicholas-fedor/shoutrrr/pull/1351)
 - Update docker/setup-buildx-action action to v4.4.0 by @renovate[bot] in [#1350](https://github.com/nicholas-fedor/shoutrrr/pull/1350)
+
+### Fixed
+
+- Use each service's send budget when Timeout is unset by @nicholas-fedor in [#1374](https://github.com/nicholas-fedor/shoutrrr/pull/1374)
 
 ## [0.21.0] - 2026-09-15
 
