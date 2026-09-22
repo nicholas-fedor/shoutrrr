@@ -98,7 +98,7 @@ archives:
     files:
       - LICENSE.md
     builds_info:
-      mtime: "{{ .CommitTimestamp }}"
+      mtime: "{{ .CommitDate }}"
 
 ################################################################################
 # Source Archive Configuration
