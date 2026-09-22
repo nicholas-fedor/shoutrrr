@@ -12,6 +12,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 var (
@@ -198,6 +199,18 @@ var _ = ginkgo.Describe("the standard failure implementation", func() {
 				gomega.Expect(msg).To(gomega.BeEmpty())
 			})
 		})
+	})
+})
+
+var _ = ginkgo.Describe("the standard send budget", func() {
+	ginkgo.It("should report the default send timeout", func() {
+		gomega.Expect(Standard{}.ServiceTimeout(nil)).To(gomega.Equal(types.DefaultSendTimeout))
+	})
+
+	ginkgo.It("should promote the budget through embedding", func() {
+		var budget types.ServiceTimeout = &struct{ Standard }{}
+
+		gomega.Expect(budget.ServiceTimeout(nil)).To(gomega.Equal(types.DefaultSendTimeout))
 	})
 })
 

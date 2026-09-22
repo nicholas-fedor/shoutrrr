@@ -108,7 +108,7 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 ## Notes
 
 - **Multi-Architecture**: Use platform-specific tags (e.g., `arm64v8-latest`) or let Docker select automatically with `latest`.
-- **Timeouts**: Inherits Shoutrrr's 10-second send timeout.
+- **Timeouts**: The default is 10 seconds per service. A longer service timeout, such as SMTP `timeout`, extends that service. The CLI does not set a sender-wide cap.
 - **Volumes**: Mount `/etc/ssl/certs` if custom CA certs are needed, or `/input` for file-based messages.
 - **Updates**: Pull latest images regularly. For production, pin to versioned tags.
 - **Debugging**: Add `-v` for verbose output in commands.

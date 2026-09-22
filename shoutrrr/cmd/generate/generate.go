@@ -43,9 +43,7 @@ var (
 
 // init initializes the command flags for the generate command.
 func init() {
-	serviceRouter = router.ServiceRouter{
-		Timeout: 0,
-	}
+	serviceRouter = router.ServiceRouter{}
 
 	Cmd.Flags().
 		StringP("service", "s", "", "Notification service to generate a URL for (e.g., discord, smtp)")

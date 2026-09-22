@@ -87,6 +87,11 @@ func (s *Service) SendWithContext(
 	return s.sendAlert(ctx, endpointURL, &payload)
 }
 
+// ServiceTimeout returns the HTTP timeout used for a PagerDuty send.
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultHTTPTimeout
+}
+
 // SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
 // requiring proxies, custom TLS configurations, etc.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {

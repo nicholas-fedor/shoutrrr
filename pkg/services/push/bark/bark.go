@@ -139,6 +139,17 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 	return s.Send(message, params)
 }
 
+// ServiceTimeout returns the HTTP timeout used for a Bark send.
+//
+// Parameters:
+//   - params: Unused. The budget does not depend on send parameters.
+//
+// Returns:
+//   - [defaultHTTPTimeout].
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultHTTPTimeout
+}
+
 // SetHTTPClient sets a custom HTTP client for the service.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {

@@ -35,6 +35,7 @@ const (
 var (
 	_ types.ContextSender     = (*Service)(nil)
 	_ types.DialContextSetter = (*Service)(nil)
+	_ types.ServiceTimeout    = (*Service)(nil)
 )
 
 // GetID returns the service identifier.
@@ -119,8 +120,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Returns:
 //   - An error if configuration updates, connection, or delivery fail.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	config := s.Config.Clone()
-	if err := s.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
+	config, err := s.sendConfig(params)
+	if err != nil {
 		return fail(FailApplySendParams, err)
 	}
 
@@ -147,6 +148,25 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	}).run(message)
 }
 
+// ServiceTimeout reports the SMTP session timeout.
+//
+// Params are applied to a clone of the stored configuration. A param that
+// does not apply leaves the configured timeout in place.
+//
+// Parameters:
+//   - params: Optional runtime overrides for configuration fields ([types.Params]).
+//
+// Returns:
+//   - The positive session timeout. Non-positive configured values use [defaultTimeout].
+func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return effectiveTimeout(s.Config.Timeout)
+	}
+
+	return effectiveTimeout(config.Timeout)
+}
+
 // SetDialContext sets a custom dial function for SMTP TCP connections.
 //
 // TLS wrapping for implicit TLS still happens after the TCP dial.
@@ -156,6 +176,25 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //   - dial: The dial function. Must be safe for concurrent use when non-nil.
 func (s *Service) SetDialContext(dial types.DialContextFunc) {
 	s.dialContext = dial
+}
+
+// sendConfig returns the configuration for one send.
+//
+// The stored configuration is cloned before params are applied.
+//
+// Parameters:
+//   - params: Optional runtime overrides for configuration fields ([types.Params]).
+//
+// Returns:
+//   - The cloned configuration.
+//   - An error if a param does not apply.
+func (s *Service) sendConfig(params *types.Params) (Config, error) {
+	config := s.Config.Clone()
+	if err := s.propKeyResolver.UpdateConfigFromParams(&config, params); err != nil {
+		return Config{}, err
+	}
+
+	return config, nil
 }
 
 // effectiveTimeout returns a positive SMTP timeout.

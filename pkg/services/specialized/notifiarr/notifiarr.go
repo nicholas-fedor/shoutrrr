@@ -42,9 +42,10 @@ const (
 	MentionTypeUser = 1
 	// MentionTypeRole represents a role mention type.
 	MentionTypeRole = 2
-	// requestTimeout is the timeout duration for HTTP requests to prevent hangs.
-	requestTimeout = 30 // seconds
 )
+
+// requestTimeout is the timeout for one Notifiarr request.
+const requestTimeout = 30 * time.Second
 
 // ErrSendFailed indicates a failure to send a notification to Notifiarr.
 var (
@@ -233,6 +234,11 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return nil
 }
 
+// ServiceTimeout returns the HTTP timeout used for a Notifiarr send.
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return requestTimeout
+}
+
 // SetHTTPClient sets a custom HTTP client for the service.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {
@@ -372,7 +378,7 @@ func (s *Service) doSend(payload []byte) error {
 	// Create context with timeout to prevent request hangs
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		time.Duration(requestTimeout)*time.Second,
+		requestTimeout,
 	)
 	defer cancel()
 

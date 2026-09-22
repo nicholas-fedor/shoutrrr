@@ -14,9 +14,11 @@ import (
 
 // ServiceRouter is responsible for routing a message to a specific notification service using the notification URL.
 type ServiceRouter struct {
-	logger      types.StdLogger
-	services    []types.Service
-	queue       []string
+	logger   types.StdLogger
+	services []types.Service
+	queue    []string
+	// Timeout caps every service when positive.
+	// Zero uses each service's own budget, with [DefaultTimeout] as the floor.
 	Timeout     time.Duration
 	httpClient  types.HTTPClient
 	dialContext types.DialContextFunc
@@ -24,8 +26,8 @@ type ServiceRouter struct {
 	ctx context.Context
 }
 
-// DefaultTimeout is the default duration for service operation timeouts.
-const DefaultTimeout = 10 * time.Second
+// DefaultTimeout is the send budget used when a service does not report a longer one.
+const DefaultTimeout = types.DefaultSendTimeout
 
 var (
 	ErrNoSenders              = errors.New("error sending message: no senders")
@@ -64,14 +66,10 @@ func NewWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURL
 		logger:      logger,
 		services:    nil,
 		queue:       nil,
-		Timeout:     DefaultTimeout,
+		Timeout:     opts.Timeout,
 		httpClient:  opts.HTTPClient,
 		dialContext: opts.DialContext,
 		ctx:         context.Background(),
-	}
-
-	if opts.Timeout > 0 {
-		router.Timeout = opts.Timeout
 	}
 
 	for _, serviceURL := range serviceURLs {
@@ -253,7 +251,7 @@ func (r *ServiceRouter) SendAsync(message string, params *types.Params) chan err
 	}
 
 	for _, service := range r.services {
-		go sendToService(service, proxy, r.Timeout, message, *params, r.ctx)
+		go sendToService(r, service, proxy, message, *params)
 	}
 
 	go func() {
@@ -285,7 +283,7 @@ func (r *ServiceRouter) SendItems(items []types.MessageItem, params types.Params
 	errs := make([]error, serviceCount)
 
 	for _, service := range r.services {
-		go sendItemsToService(service, proxy, r.Timeout, items, params, r.ctx)
+		go sendItemsToService(r, service, proxy, items, params)
 	}
 
 	for i := range r.services {
@@ -386,6 +384,36 @@ func newService(serviceScheme string) (types.Service, error) {
 	return serviceFactory(), nil
 }
 
+// sendBudget returns how long the router waits for one service.
+//
+// A positive Timeout is the ceiling. Otherwise the wait is the greater of
+// [DefaultTimeout] and the service's [types.ServiceTimeout].
+//
+// Parameters:
+//   - service: The service being sent to.
+//   - params: Send parameters passed through to ServiceTimeout.
+//
+// Returns:
+//   - The budget for this send.
+func (r *ServiceRouter) sendBudget(service types.Service, params *types.Params) time.Duration {
+	if r.Timeout > 0 {
+		return r.Timeout
+	}
+
+	budget := DefaultTimeout
+
+	serviceTimeout, ok := service.(types.ServiceTimeout)
+	if !ok {
+		return budget
+	}
+
+	if reported := serviceTimeout.ServiceTimeout(params); reported > budget {
+		return reported
+	}
+
+	return budget
+}
+
 // awaitResult waits for either the service result or a timeout, wrapping the
 // result in a TargetError if needed.
 //
@@ -414,26 +442,24 @@ func awaitResult(results chan error, result <-chan error, timeout time.Duration,
 // sendToService sends a message to a single service, respecting context and timeout.
 //
 // Parameters:
+//   - router: the router supplying the base context and the send budget.
 //   - service: the service to send to.
 //   - results: the channel to report the result error to.
-//   - timeout: the operation timeout.
 //   - message: the message to send.
 //   - params: the parameters to apply.
-//   - ctx: the base context for the operation.
 func sendToService(
+	router *ServiceRouter,
 	service types.Service,
 	results chan error,
-	timeout time.Duration,
 	message string,
 	params types.Params,
-	ctx context.Context,
 ) {
 	result := make(chan error, 1)
-
+	timeout := router.sendBudget(service, &params)
 	serviceID := service.GetID()
 
 	if sender, ok := service.(types.ContextSender); ok {
-		sendCtx, cancel := context.WithTimeout(ctx, timeout)
+		sendCtx, cancel := context.WithTimeout(router.ctx, timeout)
 		defer cancel()
 
 		go func() { result <- sender.SendContext(sendCtx, message, &params) }()
@@ -447,40 +473,34 @@ func sendToService(
 // sendItemsToService sends message items to a single service, respecting context and timeout.
 //
 // Parameters:
+//   - router: the router supplying the base context and the send budget.
 //   - service: the service to send to.
 //   - results: the channel to report the result error to.
-//   - timeout: the operation timeout.
 //   - items: the message items to send.
 //   - params: the parameters to apply.
-//   - ctx: the base context for the operation.
 func sendItemsToService(
+	router *ServiceRouter,
 	service types.Service,
 	results chan error,
-	timeout time.Duration,
 	items []types.MessageItem,
 	params types.Params,
-	ctx context.Context,
 ) {
 	result := make(chan error, 1)
+	timeout := router.sendBudget(service, &params)
 
-	serviceID := service.GetID()
+	sendCtx, cancel := context.WithTimeout(router.ctx, timeout)
+	defer cancel()
 
 	switch sender := service.(type) {
 	case types.ContextAttachmentSender:
-		sendCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
 		go func() { result <- sender.SendItemsContext(sendCtx, items, params) }()
 	case types.RichSender:
 		go func() { result <- sender.SendItems(items, params) }()
 	case types.ContextSender:
-		sendCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
 		go func() { result <- sender.SendContext(sendCtx, types.ItemsToPlain(items), &params) }()
 	default:
 		go func() { result <- service.Send(types.ItemsToPlain(items), &params) }()
 	}
 
-	awaitResult(results, result, timeout, serviceID)
+	awaitResult(results, result, timeout, service.GetID())
 }

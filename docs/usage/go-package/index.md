@@ -44,7 +44,7 @@ Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support m
   - `SendAsync(message string, params *types.Params) chan error`: Sends a message asynchronously and returns a channel of errors.
   - `Enqueue(message string, v ...interface{})`: Queues a formatted message for later sending.
   - `Flush(params *types.Params)`: Sends all queued messages and resets the queue.
-- **Behavior**: Deduplicates URLs, initializes services, and supports asynchronous sending with a 10-second timeout per service.
+- **Behavior**: Deduplicates URLs, initializes services, and sends asynchronously.
 
 !!! Example
     ```go title="Create Sender with Multiple URLs"
@@ -246,5 +246,5 @@ if services.SupportsSchema("discord") {
 
 - **Error Handling**: `Send` returns a single error. `Sender.Send`, `SendItems`, and `SendAsync` return one error per service. Check `len(errs) > 0` to handle failures. Each error is wrapped in `*types.TargetError` with the service URL.
 - **Parameters**: `params` is a `*types.Params` value for `Send`, `SendAsync`, and `Flush`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
-- **Timeouts**: Each service send operation has a 10-second timeout.
+- **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service unless `SenderOptions.Timeout` is set, which caps every service.
 - **Deduplication**: Duplicate URLs are automatically removed when creating a `Sender`.

@@ -151,6 +151,20 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return errors.Join(errs...)
 }
 
+// ServiceTimeout returns the session timeout used for an XMPP send.
+//
+// The budget is [defaultTimeout], which [Service.SendContext] applies to dial,
+// negotiation, and send.
+//
+// Parameters:
+//   - params: Unused. The budget does not depend on send parameters.
+//
+// Returns:
+//   - [defaultTimeout].
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return defaultTimeout
+}
+
 // SetDialContext sets a custom dial function for XMPP TCP connections.
 //
 // TLS wrapping for xmpps and STARTTLS still happens after the TCP dial.
