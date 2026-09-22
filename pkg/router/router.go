@@ -17,7 +17,7 @@ type ServiceRouter struct {
 	logger   types.StdLogger
 	services []types.Service
 	queue    []string
-	// Timeout caps every service when positive.
+	// Timeout, when positive, is the exact fixed timeout for every service.
 	// Zero uses each service's own budget, with [DefaultTimeout] as the floor.
 	Timeout     time.Duration
 	httpClient  types.HTTPClient
@@ -386,8 +386,8 @@ func newService(serviceScheme string) (types.Service, error) {
 
 // sendBudget returns how long the router waits for one service.
 //
-// A positive Timeout is the ceiling. Otherwise the wait is the greater of
-// [DefaultTimeout] and the service's [types.ServiceTimeout].
+// A positive Timeout is the exact fixed timeout for every service. Otherwise the
+// wait is the greater of [DefaultTimeout] and the service's [types.ServiceTimeout].
 //
 // Parameters:
 //   - service: The service being sent to.

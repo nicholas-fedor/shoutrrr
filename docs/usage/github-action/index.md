@@ -112,5 +112,5 @@ Add the action to your `.github/workflows` YAML file.
 
 - **Error Handling**: If sending fails, the action logs errors and may fail the step. Use `continue-on-error: true` if needed.
 - **Parameters**: The action passes `title` and `message` to `shoutrrr send`. For service-specific params, embed them in the URL.
-- **Timeouts**: The default is 10 seconds per service. A longer service timeout, such as SMTP `timeout`, extends that service. The action does not set a sender-wide cap.
+- **Timeouts**: The default is 10 seconds per service. A longer service timeout, such as SMTP `timeout`, extends that service. The action does not set a fixed sender timeout.
 - **Digest Pinning**: Pin to a specific SHA digest (e.g., `@caad2fd0be5099bbc16825bc8f71f9ff8e544ffe`) to maintain security best practices.

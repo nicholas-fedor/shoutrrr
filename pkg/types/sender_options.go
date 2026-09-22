@@ -13,7 +13,7 @@ import "time"
 // must be safe for concurrent use. TLS wrapping remains the service's
 // responsibility after the TCP dial. A nil value uses the service default.
 //
-// Timeout, if > 0, caps every service on the sender.
+// Timeout, if > 0, is the exact fixed timeout for every service on the sender.
 // Zero leaves each service's own send budget in effect.
 type SenderOptions struct {
 	// HTTPClient is the client used for all HTTP operations.
@@ -24,7 +24,7 @@ type SenderOptions struct {
 	// If nil, services use their default dialer.
 	DialContext DialContextFunc
 
-	// Timeout, when set, caps every service on the sender.
+	// Timeout, when set, is the exact fixed timeout for every service on the sender.
 	// Zero leaves each service's own send budget in effect.
 	Timeout time.Duration
 }

@@ -246,5 +246,5 @@ if services.SupportsSchema("discord") {
 
 - **Error Handling**: `Send` returns a single error. `Sender.Send`, `SendItems`, and `SendAsync` return one error per service. Check `len(errs) > 0` to handle failures. Each error is wrapped in `*types.TargetError` with the service URL.
 - **Parameters**: `params` is a `*types.Params` value for `Send`, `SendAsync`, and `Flush`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
-- **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service unless `SenderOptions.Timeout` is set, which caps every service.
+- **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service.
 - **Deduplication**: Duplicate URLs are automatically removed when creating a `Sender`.
