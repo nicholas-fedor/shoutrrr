@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.38.2 by @renovate[bot] in [#1380](https://github.com/nicholas-fedor/shoutrrr/pull/1380)
 - Update commitlint monorepo to v21.2.3 by @renovate[bot] in [#1376](https://github.com/nicholas-fedor/shoutrrr/pull/1376)
 - Lock file maintenance by @renovate[bot] in [#1345](https://github.com/nicholas-fedor/shoutrrr/pull/1345)
 - Update orhun/git-cliff-action action to v4.9.1 by @renovate[bot] in [#1373](https://github.com/nicholas-fedor/shoutrrr/pull/1373)
