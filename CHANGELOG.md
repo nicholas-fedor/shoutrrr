@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/onsi/gomega to v1.44.0 by @renovate[bot] in [#1384](https://github.com/nicholas-fedor/shoutrrr/pull/1384)
+- Update module cloud.google.com/go/compute/metadata to v0.10.0 by @renovate[bot] in [#1381](https://github.com/nicholas-fedor/shoutrrr/pull/1381)
 - Update github/codeql-action action to v4.38.2 by @renovate[bot] in [#1380](https://github.com/nicholas-fedor/shoutrrr/pull/1380)
 - Update commitlint monorepo to v21.2.3 by @renovate[bot] in [#1376](https://github.com/nicholas-fedor/shoutrrr/pull/1376)
 - Lock file maintenance by @renovate[bot] in [#1345](https://github.com/nicholas-fedor/shoutrrr/pull/1345)
