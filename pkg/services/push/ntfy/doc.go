@@ -23,6 +23,7 @@
 //
 // The following query parameters can be used to configure the service:
 //
+//   - token: access token for Bearer auth (e.g., "tk_..."), takes precedence over user and password
 //   - title: notification title
 //   - priority: message priority (1=min, 2=low, 3=default, 4=high, 5=max/urgent)
 //   - tags: comma-separated list of tags (may map to emojis)
@@ -73,6 +74,11 @@
 // ## Notification with authentication
 //
 //	url := "ntfy://user:password@ntfy.example.com/mytopic"
+//	err := shoutrrr.Send(url, "Authenticated notification")
+//
+// ## Notification with access token
+//
+//	url := "ntfy://ntfy.example.com/mytopic?token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
 //	err := shoutrrr.Send(url, "Authenticated notification")
 //
 // # Common Use Cases

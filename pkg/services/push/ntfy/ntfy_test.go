@@ -274,6 +274,32 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
 		})
 
+		ginkgo.It("should set Bearer Auth header when token is provided", func() {
+			service.Config.Token = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+
+			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+				Return(nil)
+
+			err := service.sendAPI(service.Config, "hello")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(headers.Get("Authorization")).
+				To(gomega.Equal("Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+		})
+
+		ginkgo.It("should prefer token over username and password", func() {
+			service.Config.Username = "user"
+			service.Config.Password = "pass"
+			service.Config.Token = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+
+			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+				Return(nil)
+
+			err := service.sendAPI(service.Config, "hello")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(headers.Get("Authorization")).
+				To(gomega.Equal("Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+		})
+
 		ginkgo.It("should set Cache header to no when Cache is disabled", func() {
 			service.Config.Cache = false
 
@@ -569,7 +595,7 @@ var _ = ginkgo.Describe("service API compliance", func() {
 		testutils.TestConfigGetInvalidQueryValue(&Config{})
 		testutils.TestConfigSetDefaultValues(&Config{})
 		testutils.TestConfigGetEnumsCount(&Config{}, 1)
-		testutils.TestConfigGetFieldsCount(&Config{}, 18)
+		testutils.TestConfigGetFieldsCount(&Config{}, 19)
 	})
 
 	ginkgo.It("should pass service API compliance checks", func() {

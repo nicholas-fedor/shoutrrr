@@ -169,6 +169,16 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(config.Password).To(gomega.Equal(""))
 		})
 
+		ginkgo.It("should parse token from query", func() {
+			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2")
+
+			err := config.SetURL(testURL)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.Token).To(gomega.Equal("tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+			gomega.Expect(config.Username).To(gomega.Equal(""))
+			gomega.Expect(config.Password).To(gomega.Equal(""))
+		})
+
 		ginkgo.It("should return ErrTopicRequired for empty topic", func() {
 			testURL := mustParseURL("ntfy://ntfy.example.com/")
 
@@ -366,7 +376,7 @@ var _ = ginkgo.Describe("Config", func() {
 
 			resolver := format.NewPropKeyResolver(cfg)
 			fields := resolver.QueryFields()
-			gomega.Expect(fields).To(gomega.HaveLen(18))
+			gomega.Expect(fields).To(gomega.HaveLen(19))
 		})
 	})
 })
