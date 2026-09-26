@@ -170,11 +170,11 @@ var _ = ginkgo.Describe("Config", func() {
 		})
 
 		ginkgo.It("should parse token from query", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2")
+			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_mytoken")
 
 			err := config.SetURL(testURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Token).To(gomega.Equal("tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+			gomega.Expect(config.Token).To(gomega.Equal("tk_mytoken"))
 			gomega.Expect(config.Username).To(gomega.Equal(""))
 			gomega.Expect(config.Password).To(gomega.Equal(""))
 		})

@@ -275,29 +275,27 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should set Bearer Auth header when token is provided", func() {
-			service.Config.Token = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+			service.Config.Token = "tk_mytoken"
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
 			err := service.sendAPI(service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).
-				To(gomega.Equal("Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
 		})
 
 		ginkgo.It("should prefer token over username and password", func() {
 			service.Config.Username = "user"
 			service.Config.Password = "pass"
-			service.Config.Token = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+			service.Config.Token = "tk_mytoken"
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
 			err := service.sendAPI(service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).
-				To(gomega.Equal("Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"))
+			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
 		})
 
 		ginkgo.It("should set Cache header to no when Cache is disabled", func() {

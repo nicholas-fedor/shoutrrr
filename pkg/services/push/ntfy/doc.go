@@ -78,7 +78,7 @@
 //
 // ## Notification with access token
 //
-//	url := "ntfy://ntfy.example.com/mytopic?token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+//	url := "ntfy://ntfy.example.com/mytopic?token=tk_mytoken"
 //	err := shoutrrr.Send(url, "Authenticated notification")
 //
 // # Common Use Cases

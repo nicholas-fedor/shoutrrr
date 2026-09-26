@@ -88,7 +88,7 @@ Ntfy supports two TLS-related configuration options to handle different security
 
 !!! example "With access token"
     ```uri
-    ntfy://ntfy.sh/privatetopic?token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2
+    ntfy://ntfy.sh/privatetopic?token=tk_mytoken
     ```
 
 !!! example "With parameters"
