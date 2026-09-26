@@ -123,6 +123,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Host = serviceURL.Host
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
+	c.Token = ""
 
 	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
 	for key, vals := range serviceURL.Query() {

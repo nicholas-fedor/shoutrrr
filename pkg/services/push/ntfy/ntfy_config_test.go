@@ -179,6 +179,15 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(config.Password).To(gomega.Equal(""))
 		})
 
+		ginkgo.It("should clear token when reused with a URL without token", func() {
+			err := config.SetURL(mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_mytoken"))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = config.SetURL(mustParseURL("ntfy://ntfy.example.com/mytopic"))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(config.Token).To(gomega.BeEmpty())
+		})
+
 		ginkgo.It("should return ErrTopicRequired for empty topic", func() {
 			testURL := mustParseURL("ntfy://ntfy.example.com/")
 

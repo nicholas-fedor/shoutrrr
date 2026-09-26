@@ -142,7 +142,10 @@ func (s *Service) sendAPI(config *Config, message string) error {
 		headers.Add("Firebase", "no")
 	}
 
-	// Access tokens use Bearer auth and take precedence over username and password
+	// Access tokens use Bearer auth and take precedence over username and password.
+	// The client reuses its header map, so drop credentials from a previous send first.
+	headers.Del("Authorization")
+
 	if config.Token != "" {
 		headers.Set("Authorization", "Bearer "+config.Token)
 	} else if config.Username != "" || config.Password != "" {
