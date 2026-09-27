@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add auth token parameter by @acul021 in [#1387](https://github.com/nicholas-fedor/shoutrrr/pull/1387)
+
 ### Changed
 
 - Use the commit date for archive mtime by @nicholas-fedor in [#1378](https://github.com/nicholas-fedor/shoutrrr/pull/1378)
@@ -39,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Use each service's send budget when Timeout is unset by @nicholas-fedor in [#1374](https://github.com/nicholas-fedor/shoutrrr/pull/1374)
+
+### New Contributors
+
+- @acul021 made their first contribution in [#1387](https://github.com/nicholas-fedor/shoutrrr/pull/1387)
 
 ## [0.21.0] - 2026-09-15
 
