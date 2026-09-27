@@ -17,6 +17,7 @@ type Config struct {
 	Topic                  string   `                  desc:"Target topic name"                                                                                                             url:"path"     required:""`
 	Password               string   `                  desc:"Auth password"                                                                                                                 url:"password"             optional:""`
 	Username               string   `                  desc:"Auth username"                                                                                                                 url:"user"                 optional:""`
+	Token                  string   `                  desc:"Access token for Bearer auth, takes precedence over username and password"                        key:"token"                                             optional:"" sensitive:"true"`
 	Scheme                 string   `default:"https"   desc:"Server protocol, http or https"                                                                   key:"scheme"`
 	Tags                   []string `                  desc:"List of tags that may or not map to emojis"                                                       key:"tags"                                              optional:""`
 	Priority               priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max"                                                 key:"priority"`
@@ -122,6 +123,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Host = serviceURL.Host
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
+	c.Token = ""
 
 	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
 	for key, vals := range serviceURL.Query() {

@@ -23,7 +23,10 @@ Ntfy supports both the public [ntfy.sh](https://ntfy.sh) service and self-hosted
     ntfy://my-ntfy-server.com:8080/mytopic
     ```
 
-Topics are user-defined and can be any string. For authentication, include username and password in the URL if your ntfy server requires it.
+Topics are user-defined and can be any string. If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
+
+!!! note
+    Shoutrrr sends the token as `Authorization: Bearer <token>`. If you set both a token and a username or password, the token wins and Shoutrrr skips Basic auth.
 
 ## Features
 
@@ -81,6 +84,11 @@ Ntfy supports two TLS-related configuration options to handle different security
 !!! example "With authentication"
     ```uri
     ntfy://username:password@ntfy.sh/privatetopic
+    ```
+
+!!! example "With access token"
+    ```uri
+    ntfy://ntfy.sh/privatetopic?token=tk_mytoken
     ```
 
 !!! example "With parameters"
