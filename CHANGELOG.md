@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 3e6710a by @renovate[bot] in [#1389](https://github.com/nicholas-fedor/shoutrrr/pull/1389)
 - Update github.com/google/pprof digest to aaccee0 by @renovate[bot] in [#1385](https://github.com/nicholas-fedor/shoutrrr/pull/1385)
 - Update module github.com/onsi/gomega to v1.44.0 by @renovate[bot] in [#1384](https://github.com/nicholas-fedor/shoutrrr/pull/1384)
 - Update module cloud.google.com/go/compute/metadata to v0.10.0 by @renovate[bot] in [#1381](https://github.com/nicholas-fedor/shoutrrr/pull/1381)
