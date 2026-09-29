@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to abeb932 by @renovate[bot] in [#1396](https://github.com/nicholas-fedor/shoutrrr/pull/1396)
 - Update ghcr.io/processone/ejabberd docker tag to v26.09 by @renovate[bot] in [#1395](https://github.com/nicholas-fedor/shoutrrr/pull/1395)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.52 by @renovate[bot] in [#1393](https://github.com/nicholas-fedor/shoutrrr/pull/1393)
 - Lock file maintenance by @renovate[bot] in [#1391](https://github.com/nicholas-fedor/shoutrrr/pull/1391)
