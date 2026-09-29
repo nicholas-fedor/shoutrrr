@@ -15,7 +15,7 @@
 
 services:
   ejabberd:
-    image: ghcr.io/processone/ejabberd:26.07@sha256:5aeb0faa39cfe38792c5eea9cc6344ba9ab6c59c708a24e897d6b471882c8497
+    image: ghcr.io/processone/ejabberd:26.09@sha256:ec5cf7bc85627fd9bde47309a34600d6c16895e9808807ec9ff57426f2508115
     container_name: shoutrrr-xmpp-ejabberd
     ports:
       - "127.0.0.1:5222:5222"
