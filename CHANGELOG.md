@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to ebaad5f by @renovate[bot] in [#1406](https://github.com/nicholas-fedor/shoutrrr/pull/1406)
 - Update module golang.org/x/tools to v0.51.0 by @renovate[bot] in [#1405](https://github.com/nicholas-fedor/shoutrrr/pull/1405)
 - Update anchore/sbom-action action to v0.24.3 by @renovate[bot] in [#1403](https://github.com/nicholas-fedor/shoutrrr/pull/1403)
 - Update github.com/google/pprof digest to 77d3b59 by @renovate[bot] in [#1401](https://github.com/nicholas-fedor/shoutrrr/pull/1401)
