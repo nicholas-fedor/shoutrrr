@@ -21,7 +21,7 @@ type Config struct {
 	Scheme                 string   `default:"https"   desc:"Server protocol, http or https"                                                                   key:"scheme"`
 	Tags                   []string `                  desc:"List of tags that may or not map to emojis"                                                       key:"tags"                                              optional:""`
 	Priority               priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max"                                                 key:"priority"`
-	Actions                []string `                  desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons"   key:"actions"                                           optional:"" sep:";"`
+	Actions                []string `                  desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons"   key:"actions"                                           optional:""                  sep:";"`
 	Click                  string   `                  desc:"Website opened when notification is clicked"                                                      key:"click"                                             optional:""`
 	Attach                 string   `                  desc:"URL of an attachment, see attach via URL"                                                         key:"attach"                                            optional:""`
 	Filename               string   `                  desc:"File name of the attachment"                                                                      key:"filename"                                          optional:""`
