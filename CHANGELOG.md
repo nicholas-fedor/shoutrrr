@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
+
+## [0.21.2] - 2026-10-06
+
 ### Added
 
 - Add auth token parameter by @acul021 in [#1387](https://github.com/nicholas-fedor/shoutrrr/pull/1387)
@@ -2215,7 +2221,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.2...HEAD)
+- [0.21.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...v0.21.2)
 - [0.21.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.20.0...v0.21.0)
 - [0.20.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.19.0...v0.20.0)
 - [0.19.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.18.0...v0.19.0)
