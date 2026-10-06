@@ -8,22 +8,35 @@ import (
 	"time"
 )
 
-func TestGetVersionInfo(t *testing.T) {
-	t.Parallel()
+// setBuildVars overrides the package-level build variables for one test and
+// restores them on cleanup. Callers must not run in parallel, because the
+// variables are shared package state.
+func setBuildVars(t *testing.T, version, commit, date string) {
+	t.Helper()
 
+	origVersion, origCommit, origDate := Version, Commit, Date
+
+	t.Cleanup(func() {
+		Version, Commit, Date = origVersion, origCommit, origDate
+	})
+
+	Version, Commit, Date = version, commit, date
+}
+
+func TestGetVersionInfo(t *testing.T) { //nolint:paralleltest // Mutates package-global build variables.
 	tests := []struct {
 		name         string
-		setVars      func()
+		version      string
+		commit       string
+		date         string
 		expect       Info
 		partialMatch bool
 	}{
 		{
-			name: "GoReleaser build",
-			setVars: func() {
-				Version = "0.0.1"
-				Commit = "abc123456789"
-				Date = "2025-05-07T00:00:00Z"
-			},
+			name:    "GoReleaser build",
+			version: "0.0.1",
+			commit:  "abc123456789",
+			date:    "2025-05-07T00:00:00Z",
 			expect: Info{
 				Version: "v0.0.1",
 				Commit:  "abc1234",
@@ -32,12 +45,10 @@ func TestGetVersionInfo(t *testing.T) {
 			partialMatch: false,
 		},
 		{
-			name: "Source build with default values",
-			setVars: func() {
-				Version = devVersion
-				Commit = unknownValue
-				Date = unknownValue
-			},
+			name:    "Source build with default values",
+			version: devVersion,
+			commit:  unknownValue,
+			date:    unknownValue,
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
@@ -46,12 +57,10 @@ func TestGetVersionInfo(t *testing.T) {
 			partialMatch: true,
 		},
 		{
-			name: "Source build with empty values",
-			setVars: func() {
-				Version = ""
-				Commit = ""
-				Date = ""
-			},
+			name:    "Source build with empty values",
+			version: "",
+			commit:  "",
+			date:    "",
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
@@ -60,12 +69,10 @@ func TestGetVersionInfo(t *testing.T) {
 			partialMatch: false,
 		},
 		{
-			name: "Invalid GoReleaser version",
-			setVars: func() {
-				Version = "v"
-				Commit = ""
-				Date = ""
-			},
+			name:    "Invalid GoReleaser version",
+			version: "v",
+			commit:  "",
+			date:    "",
 			expect: Info{
 				Version: unknownValue,
 				Commit:  unknownValue,
@@ -77,8 +84,7 @@ func TestGetVersionInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			tt.setVars()
+			setBuildVars(t, tt.version, tt.commit, tt.date)
 
 			info := GetMetaInfo()
 
@@ -102,12 +108,8 @@ func TestGetVersionInfo(t *testing.T) {
 	}
 }
 
-func TestGetVersionInfo_VCSData(t *testing.T) {
-	t.Parallel()
-
-	Version = devVersion
-	Commit = unknownValue
-	Date = unknownValue
+func TestGetVersionInfo_VCSData(t *testing.T) { //nolint:paralleltest // Mutates package-global build variables.
+	setBuildVars(t, devVersion, unknownValue, unknownValue)
 
 	info := GetMetaInfo()
 
@@ -193,12 +195,8 @@ func TestGetVersionInfo_VCSData(t *testing.T) {
 	}
 }
 
-func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
-	t.Parallel()
-
-	Version = devVersion
-	Commit = unknownValue
-	Date = unknownValue
+func TestGetVersionInfo_InvalidVCSTime(t *testing.T) { //nolint:paralleltest // Mutates package-global build variables.
+	setBuildVars(t, devVersion, unknownValue, unknownValue)
 
 	info := GetMetaInfo()
 
@@ -208,60 +206,47 @@ func TestGetVersionInfo_InvalidVCSTime(t *testing.T) {
 }
 
 func TestUserAgent(t *testing.T) { //nolint:paralleltest // Mutates package-global Version.
-	orig := Version
-
-	t.Cleanup(func() {
-		Version = orig
-	})
-
-	Version = "dev"
+	setBuildVars(t, "dev", Commit, Date)
 
 	if got := UserAgent(); got != "shoutrrr/dev" {
 		t.Errorf("UserAgent() = %q, want %q", got, "shoutrrr/dev")
 	}
 }
 
-func TestGetMetaStr(t *testing.T) {
-	t.Parallel()
-
+func TestGetMetaStr(t *testing.T) { //nolint:paralleltest // Mutates package-global build variables.
 	tests := []struct {
 		name    string
-		setVars func()
+		version string
+		commit  string
+		date    string
 		expect  string
 	}{
 		{
-			name: "With commit (GoReleaser build)",
-			setVars: func() {
-				Version = "0.8.10"
-				Commit = "a6fcf77abcdef"
-				Date = "2025-05-27T00:00:00Z"
-			},
-			expect: "v0.8.10 (Built on 2025-05-27 from Git SHA a6fcf77)",
+			name:    "With commit (GoReleaser build)",
+			version: "0.8.10",
+			commit:  "a6fcf77abcdef",
+			date:    "2025-05-27T00:00:00Z",
+			expect:  "v0.8.10 (Built on 2025-05-27 from Git SHA a6fcf77)",
 		},
 		{
-			name: "Without commit (go install build)",
-			setVars: func() {
-				Version = "0.8.10"
-				Commit = unknownValue
-				Date = unknownValue
-			},
-			expect: "v0.8.10 (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
+			name:    "Without commit (go install build)",
+			version: "0.8.10",
+			commit:  unknownValue,
+			date:    unknownValue,
+			expect:  "v0.8.10 (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
 		},
 		{
-			name: "Invalid version",
-			setVars: func() {
-				Version = "v"
-				Commit = unknownValue
-				Date = unknownValue
-			},
-			expect: "unknown (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
+			name:    "Invalid version",
+			version: "v",
+			commit:  unknownValue,
+			date:    unknownValue,
+			expect:  "unknown (Built on " + time.Now().UTC().Format("2006-01-02") + ")",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			tt.setVars()
+			setBuildVars(t, tt.version, tt.commit, tt.date)
 
 			result := GetMetaStr()
 			if !strings.HasPrefix(result, strings.Split(tt.expect, " (")[0]) ||

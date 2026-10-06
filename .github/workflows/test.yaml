@@ -8,6 +8,8 @@ on:
       - shoutrrr/**
       - pkg/**
       - internal/**
+      - testing/**
+      - docs/playground/wasm/**
       - shoutrrr.go
       - go.mod
       - go.sum
@@ -51,7 +53,14 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          go list ./... | grep -vE '/testing/e2e(/|$)' | xargs go test -v -coverprofile coverage.out -covermode atomic
+          # The race detector runs on the Linux leg only to keep the macOS and Windows legs fast.
+          race=""
+          if [ "${RUNNER_OS}" = "Linux" ]; then
+            race="-race"
+          fi
+
+          go list ./... | grep -vE '/testing/e2e(/|$)' |
+            xargs go test -v ${race} -coverpkg=./... -coverprofile coverage.out -covermode atomic
 
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
