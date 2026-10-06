@@ -354,7 +354,7 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
+		g := gomega.NewWithT(t)
 
 		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
@@ -379,14 +379,14 @@ func TestSendWithRetryRateLimitRetryAfter(t *testing.T) {
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		g.Expect(err).ToNot(gomega.HaveOccurred())
 	})
 }
 
 func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
+		g := gomega.NewWithT(t)
 
 		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
@@ -411,15 +411,15 @@ func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
-		gomega.Expect(err).To(gomega.HaveOccurred())
-		gomega.Expect(err).To(gomega.MatchError(ErrMaxRetries))
+		g.Expect(err).To(gomega.HaveOccurred())
+		g.Expect(err).To(gomega.MatchError(ErrMaxRetries))
 	})
 }
 
 func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		gomega.RegisterTestingT(t)
+		g := gomega.NewWithT(t)
 
 		mockClient := mocks.NewMockHTTPClient(t)
 		payload := []byte(`{"content":"test"}`)
@@ -439,8 +439,8 @@ func TestSendWithRetryMaxRetryTimeout(t *testing.T) {
 		ctx := context.Background()
 		err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
 
-		gomega.Expect(err).To(gomega.HaveOccurred())
-		gomega.Expect(err.Error()).To(gomega.ContainSubstring("rate limited by Discord"))
+		g.Expect(err).To(gomega.HaveOccurred())
+		g.Expect(err.Error()).To(gomega.ContainSubstring("rate limited by Discord"))
 	})
 }
 
