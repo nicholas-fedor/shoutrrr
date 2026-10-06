@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
 
+### Fixed
+
+- Fix data races and run tests with the race detector by @nicholas-fedor in [#1416](https://github.com/nicholas-fedor/shoutrrr/pull/1416)
+
 ## [0.21.2] - 2026-10-06
 
 ### Added
