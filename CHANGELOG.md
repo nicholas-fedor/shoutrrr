@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.22.0 by @renovate[bot] in [#1410](https://github.com/nicholas-fedor/shoutrrr/pull/1410)
+- Update github.com/google/pprof digest to 639476b by @renovate[bot] in [#1409](https://github.com/nicholas-fedor/shoutrrr/pull/1409)
 - Update github.com/google/pprof digest to ebaad5f by @renovate[bot] in [#1406](https://github.com/nicholas-fedor/shoutrrr/pull/1406)
 - Update module golang.org/x/tools to v0.51.0 by @renovate[bot] in [#1405](https://github.com/nicholas-fedor/shoutrrr/pull/1405)
 - Update anchore/sbom-action action to v0.24.3 by @renovate[bot] in [#1403](https://github.com/nicholas-fedor/shoutrrr/pull/1403)
