@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Count the title toward each batch's embed limit by @nicholas-fedor in [#1428](https://github.com/nicholas-fedor/shoutrrr/pull/1428)
 - Keep lines intact when batching messages by @nicholas-fedor in [#1426](https://github.com/nicholas-fedor/shoutrrr/pull/1426)
 - Return send errors in url order by @nicholas-fedor in [#1424](https://github.com/nicholas-fedor/shoutrrr/pull/1424)
 - Stop custom url panic and url leaks by @nicholas-fedor in [#1422](https://github.com/nicholas-fedor/shoutrrr/pull/1422)
