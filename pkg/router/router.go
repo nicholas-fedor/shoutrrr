@@ -122,7 +122,9 @@ func (r *ServiceRouter) Enqueue(message string, v ...any) {
 func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, error) {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
-		return "", &url.URL{}, fmt.Errorf("%s: %w", rawURL, ErrParseURLFailed)
+		// Parse errors quote parts of the URL, such as an invalid port, which can
+		// carry credentials, so the cause is not included.
+		return "", &url.URL{}, ErrParseURLFailed
 	}
 
 	scheme := serviceURL.Scheme
@@ -324,19 +326,26 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 	}
 
 	if serviceURL.Scheme != scheme {
-		r.log("Got custom URL:", serviceURL.String())
+		// Custom URLs can carry credentials and headers, so log only the scheme.
+		r.log("Got custom URL for service:", scheme)
 
 		customURLService, ok := service.(types.CustomURLService)
 		if !ok {
 			return nil, fmt.Errorf("%w: '%s' service", ErrCustomURLsNotSupported, scheme)
 		}
 
-		serviceURL, err = customURLService.GetServiceURLFromCustom(serviceURL)
+		convertedURL, err := customURLService.GetServiceURLFromCustom(serviceURL)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", serviceURL.String(), ErrCustomURLConversion)
+			return nil, fmt.Errorf("%w for '%s' service: %w", ErrCustomURLConversion, scheme, err)
 		}
 
-		r.log("Converted service URL:", serviceURL.String())
+		if convertedURL == nil {
+			return nil, fmt.Errorf("%w for '%s' service: no service URL returned", ErrCustomURLConversion, scheme)
+		}
+
+		serviceURL = convertedURL
+
+		r.log("Converted custom URL for service:", scheme)
 	}
 
 	err = service.Initialize(serviceURL, r.logger)
