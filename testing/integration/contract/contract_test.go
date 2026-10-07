@@ -71,16 +71,17 @@ const (
 
 // Failure kinds, one per distinct way a check can fail.
 const (
-	failNone             failureKind = iota // the check passed
-	failInit                                // the fixture failed to initialize
-	failInitIO                              // Initialize performed network I/O
-	failPanic                               // Send panicked
-	failDefaultTransport                    // Send used http.DefaultTransport
-	failNotInjected                         // Send skipped the injected client or dialer
-	failUnexpectedIO                        // a service without network access performed I/O
-	failRejectedParams                      // reserved params were rejected as unknown keys
-	failInjectedAfterNil                    // the injected client was still used after SetHTTPClient(nil)
-	failSecretLeak                          // a secret appeared in errors or logs
+	failNone              failureKind = iota // the check passed
+	failInit                                 // the fixture failed to initialize
+	failInitIO                               // Initialize performed network I/O
+	failPanic                                // Send panicked
+	failDefaultTransport                     // Send used http.DefaultTransport
+	failNotInjected                          // Send skipped the injected client or dialer
+	failUnexpectedIO                         // a service without network access performed I/O
+	failRejectedParams                       // reserved params were rejected as unknown keys
+	failInjectedAfterNil                     // the injected client was still used after SetHTTPClient(nil)
+	failNoFallbackRequest                    // no request went through the default client after SetHTTPClient(nil)
+	failSecretLeak                           // a secret appeared in errors or logs
 )
 
 var (
@@ -90,8 +91,13 @@ var (
 	errLookupBlocked    = errors.New("contract: DNS lookups are blocked")
 )
 
-// defaultTransportHits counts uses of http.DefaultTransport across the package.
-var defaultTransportHits atomic.Int64
+var (
+	// defaultTransportHits counts uses of http.DefaultTransport across the package.
+	defaultTransportHits atomic.Int64
+	// lookupHits counts blocked DNS lookups, which reveal requests made through
+	// transports other than http.DefaultTransport.
+	lookupHits atomic.Int64
+)
 
 // TestMain blocks every path to the real network for this package. Requests through
 // http.DefaultTransport are counted and refused, and DNS lookups fail, so a service
@@ -106,6 +112,8 @@ func TestMain(m *testing.M) {
 	net.DefaultResolver = &net.Resolver{
 		PreferGo: true,
 		Dial: func(context.Context, string, string) (net.Conn, error) {
+			lookupHits.Add(1)
+
 			return nil, errLookupBlocked
 		},
 	}
@@ -196,22 +204,30 @@ func fail(kind failureKind, msg string, args ...any) failure {
 func runInitializeNoIO(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
-	var result failure
+	var (
+		env     *env
+		before  int64
+		initErr error
+	)
 
+	// Count I/O only after synctest.Test returns, when every goroutine started
+	// during Initialize has exited.
 	synctest.Test(t, func(t *testing.T) {
-		env := newEnv(t, fx, false)
-		before := defaultTransportHits.Load()
+		env = newEnv(t, fx, false)
+		before = defaultTransportHits.Load()
 
-		_, err := env.locate(t)
-
-		if hits := int64(env.ioCount()) + defaultTransportHits.Load() - before; hits > 0 {
-			result = fail(failInitIO, "performed %d network operation(s) during Initialize", hits)
-		} else if err != nil {
-			t.Fatalf("fixture %q failed to initialize: %v", fx.url, err)
-		}
+		_, initErr = env.locate(t)
 	})
 
-	return result
+	if hits := int64(env.ioCount()) + defaultTransportHits.Load() - before; hits > 0 {
+		return fail(failInitIO, "performed %d network operation(s) during Initialize", hits)
+	}
+
+	if initErr != nil {
+		t.Fatalf("fixture %q failed to initialize: %v", fx.url, initErr)
+	}
+
+	return failure{}
 }
 
 // runSendUsesInjection verifies that Send goes through the injected client or dialer.
@@ -291,7 +307,9 @@ func runReservedParams(t *testing.T, fx *fixture) failure {
 }
 
 // runNilHTTPClient verifies that SetHTTPClient(nil) restores a usable default
-// instead of leaving the service to panic on Send.
+// client: Send must not panic, must stop using the injected client, and must make
+// its request through the default client. That request is observed either on
+// http.DefaultTransport or as a blocked DNS lookup from a dedicated transport.
 func runNilHTTPClient(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -315,13 +333,19 @@ func runNilHTTPClient(t *testing.T, fx *fixture) failure {
 		setter.SetHTTPClient(nil)
 
 		httpBefore := env.httpCalls()
+		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
 
 		if result = env.send(service, nil); result.kind != failNone {
 			return
 		}
 
-		if env.httpCalls() > httpBefore {
+		fallbackUsed := defaultTransportHits.Load() > defaultBefore || lookupHits.Load() > lookupBefore
+
+		switch {
+		case env.httpCalls() > httpBefore:
 			result = fail(failInjectedAfterNil, "Send still used the injected client after SetHTTPClient(nil)")
+		case fx.kind == netHTTP && !fallbackUsed:
+			result = fail(failNoFallbackRequest, "Send made no request through the default client after SetHTTPClient(nil)")
 		}
 	})
 
