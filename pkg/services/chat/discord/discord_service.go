@@ -210,7 +210,9 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 			break
 		}
 
-		plain = plain[len(plain)-omitted:]
+		// PartitionMessage reports the omitted text in runes, so slice by runes.
+		runes := []rune(plain)
+		plain = string(runes[len(runes)-omitted:])
 	}
 
 	return batches

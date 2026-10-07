@@ -313,6 +313,27 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			gomega.Expect(totalLength).To(gomega.Equal(len(largeMessage)))
 		})
 
+		ginkgo.It("should keep every rune of a long multi-byte message in order", func() {
+			runes := make([]rune, TotalChunkSize+1500)
+			for i := range runes {
+				runes[i] = rune(0x4E00 + i%1000)
+			}
+
+			plain := string(runes)
+
+			result := CreateItemsFromPlain(plain, false)
+
+			var joined strings.Builder
+
+			for _, batch := range result {
+				for _, item := range batch {
+					joined.WriteString(item.Text)
+				}
+			}
+
+			gomega.Expect(joined.String()).To(gomega.Equal(plain))
+		})
+
 		ginkgo.It("should handle empty string", func() {
 			plain := ""
 			splitLines := false

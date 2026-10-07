@@ -2,6 +2,7 @@ package util
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -80,26 +81,34 @@ func PartitionMessage(
 
 // Ellipsis truncates text to maxLength runes, appending an ellipsis if truncated.
 //
+// Truncation happens on rune boundaries, so multi-byte characters are never split.
+// When maxLength is too short to fit the ellipsis, the text is truncated without it.
+//
 // Parameters:
 //   - text: The string to potentially truncate.
-//   - maxLength: The maximum length in runes; must be at least len(ellipsis).
+//   - maxLength: The maximum length in runes.
 //
 // Returns:
-//   - The original text if it fits within maxLength, otherwise the truncated text
-//     with " [...]" appended.
+//   - The original text if it fits within maxLength, otherwise the truncated text,
+//     with " [...]" appended when it fits.
 func Ellipsis(text string, maxLength int) string {
-	if len(text) > maxLength {
-		text = text[:maxLength-len(ellipsis)] + ellipsis
+	runes := []rune(text)
+	if len(runes) <= maxLength {
+		return text
 	}
 
-	return text
+	if maxLength <= len(ellipsis) {
+		return string(runes[:max(maxLength, 0)])
+	}
+
+	return string(runes[:maxLength-len(ellipsis)]) + ellipsis
 }
 
 // MessageItemsFromLines creates batches of MessageItem from newline-separated text.
 //
 // This function splits the input by newlines and creates batches that respect
-// the chunk count and total chunk size limits. Individual lines that exceed
-// ChunkSize are truncated and have an ellipsis appended.
+// the chunk count and total chunk size limits, measured in runes. Empty lines are
+// skipped, and individual lines that exceed ChunkSize are truncated with an ellipsis.
 //
 // Parameters:
 //   - plain: The input text containing newline-separated lines.
@@ -108,32 +117,27 @@ func Ellipsis(text string, maxLength int) string {
 // Returns:
 //   - A slice of message item batches, where each batch is a slice of MessageItem.
 func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.MessageItem {
-	maxCount := limits.ChunkCount
-	lines := strings.Split(plain, "\n")
 	batches := make([][]types.MessageItem, 0)
-	items := make([]types.MessageItem, 0, Min(maxCount, len(lines)))
 
-	totalLength := 0
+	var (
+		items       []types.MessageItem
+		totalLength int
+	)
 
-	for _, line := range lines {
-		maxLen := limits.ChunkSize
-
-		if len(items) == maxCount || totalLength+maxLen > limits.TotalChunkSize {
-			// Current batch is full; start a new batch.
-			batches = append(batches, items)
-			items = items[:0]
-		}
-
-		runes := []rune(line)
-		if len(runes) > maxLen {
-			// Truncate long lines and append ellipsis.
-			runes = runes[:maxLen-len(ellipsis)]
-			line = string(runes) + ellipsis
-		}
-
-		if len(runes) < 1 {
-			// Skip empty lines.
+	for line := range strings.SplitSeq(plain, "\n") {
+		if line == "" {
 			continue
+		}
+
+		line = Ellipsis(line, limits.ChunkSize)
+		lineLength := utf8.RuneCountInString(line)
+
+		if len(items) > 0 &&
+			(len(items) == limits.ChunkCount || totalLength+lineLength > limits.TotalChunkSize) {
+			// The current batch is full, so start a new one.
+			batches = append(batches, items)
+			items = nil
+			totalLength = 0
 		}
 
 		//nolint:exhaustruct_v5 // MessageItem only requires Text field for this use case
@@ -141,7 +145,7 @@ func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.Me
 			Text: line,
 		})
 
-		totalLength += len(runes)
+		totalLength += lineLength
 	}
 
 	if len(items) > 0 {
