@@ -34,9 +34,17 @@ var ErrInvalidURL = errors.New("invalid URL")
 var (
 	// urlPattern matches an absolute URL in free text.
 	urlPattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^\s"'\\]+`)
-	// locationPattern matches the quoted header value in net/http's error for a
-	// redirect whose Location header cannot be parsed. The value can be relative.
-	locationPattern = regexp.MustCompile(`Location header "(?:[^"\\]|\\.)*"`)
+	// quotedPatterns match the values that net/http and net/url quote in parse
+	// errors, which can be relative URLs or URL fragments. Each is replaced with
+	// its label and a quoted [Placeholder].
+	quotedPatterns = []struct {
+		pattern *regexp.Regexp
+		label   string
+	}{
+		{regexp.MustCompile(`Location header "(?:[^"\\]|\\.)*"`), "Location header"},
+		{regexp.MustCompile(`parse "(?:[^"\\]|\\.)*"`), "parse"},
+		{regexp.MustCompile(`invalid port "(?:[^"\\]|\\.)*"`), "invalid port"},
+	}
 )
 
 // RequestURL reduces rawURL to its scheme and host, dropping userinfo, path, query
@@ -59,8 +67,8 @@ func RequestURL(rawURL string) string {
 // URLError redacts the URL in a *url.Error, such as the errors returned by
 // [http.Client.Do] and [url.Parse].
 //
-// The operation and underlying error are kept, so errors.Is, errors.As and
-// Timeout behave as before. Parse errors also replace the underlying error with
+// The operation and underlying error are kept, so errors.Is, errors.As, Timeout
+// and Temporary behave as before. Parse errors also replace the underlying error with
 // [ErrInvalidURL], because net/url quotes parts of the URL in them. Only an
 // outermost *url.Error is rebuilt; any other error is returned unchanged.
 //
@@ -82,8 +90,8 @@ func URLError(err error) error {
 	return &url.Error{Op: urlErr.Op, URL: RequestURL(urlErr.URL), Err: redactCause(urlErr.Err)}
 }
 
-// redactCause redacts the URLs quoted in a *url.Error cause, such as the Location
-// header of a malformed redirect.
+// redactCause redacts the URLs quoted in a *url.Error cause, such as both copies of
+// the Location header that net/http quotes for a malformed redirect.
 //
 // Parameters:
 //   - cause: the cause to redact, which may be nil.
@@ -98,7 +106,11 @@ func redactCause(cause error) error {
 
 	msg := cause.Error()
 
-	redacted := locationPattern.ReplaceAllString(msg, `Location header "`+Placeholder+`"`)
+	redacted := msg
+	for _, quoted := range quotedPatterns {
+		redacted = quoted.pattern.ReplaceAllLiteralString(redacted, quoted.label+` "`+Placeholder+`"`)
+	}
+
 	redacted = urlPattern.ReplaceAllStringFunc(redacted, RequestURL)
 
 	if redacted == msg {
@@ -151,6 +163,17 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 //   - string: the cause's message with its URLs redacted.
 func (e *redactedError) Error() string {
 	return e.msg
+}
+
+// Temporary reports whether the original cause, or any error it wraps, is
+// temporary, so that url.Error.Temporary keeps working on redacted errors.
+//
+// Returns:
+//   - bool: true when the cause chain reports a temporary failure.
+func (e *redactedError) Temporary() bool {
+	var temporary interface{ Temporary() bool }
+
+	return errors.As(e.err, &temporary) && temporary.Temporary()
 }
 
 // Timeout reports whether the original cause, or any error it wraps, is a timeout,

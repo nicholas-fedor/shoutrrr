@@ -17,6 +17,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
+// temporaryError is a cause that classifies itself as temporary.
+type temporaryError struct{}
+
 // testSecret is a credential embedded in test URLs that must never survive redaction.
 const testSecret = "SECRETredactTOKEN"
 
@@ -178,4 +181,58 @@ func TestURLErrorRedactsURLsInCause(t *testing.T) {
 	urlErr, ok := errors.AsType[*url.Error](err)
 	require.True(t, ok)
 	assert.True(t, urlErr.Timeout())
+}
+
+// TestHTTPClientRedactsRelativeRedirectLocation verifies that a malformed relative
+// redirect leaks neither copy of its Location header. net/http quotes the value
+// once in its own message and again in the parse error it wraps.
+func TestHTTPClientRedactsRelativeRedirectLocation(t *testing.T) {
+	t.Parallel()
+
+	for name, location := range map[string]string{
+		"invalid escape": "/hook%zz?token=" + testSecret,
+		"invalid port":   "https://hooks.example.invalid:" + testSecret + "/hook",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", location)
+				w.WriteHeader(http.StatusFound)
+			}))
+			t.Cleanup(server.Close)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, http.NoBody)
+			require.NoError(t, err)
+
+			res, err := HTTPClient(server.Client()).Do(req)
+			if res != nil {
+				require.NoError(t, res.Body.Close())
+			}
+
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), testSecret)
+		})
+	}
+}
+
+// Error returns a message that quotes a URL, so the cause is redacted.
+func (temporaryError) Error() string {
+	return "retry https://hooks.example.invalid/" + testSecret
+}
+
+// Temporary reports that the failure is temporary.
+func (temporaryError) Temporary() bool { return true }
+
+// TestURLErrorPreservesTemporary verifies that a redacted cause keeps the temporary
+// classification that url.Error.Temporary reports.
+func TestURLErrorPreservesTemporary(t *testing.T) {
+	t.Parallel()
+
+	err := URLError(&url.Error{Op: http.MethodGet, URL: "https://api.example.com/", Err: temporaryError{}})
+
+	urlErr, ok := errors.AsType[*url.Error](err)
+	require.True(t, ok)
+	assert.NotContains(t, urlErr.Error(), testSecret)
+	assert.True(t, urlErr.Temporary())
 }
