@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 1b64d38 by @renovate[bot] in [#1435](https://github.com/nicholas-fedor/shoutrrr/pull/1435)
+- Update actions/upload-artifact action to v7.0.2 by @renovate[bot] in [#1434](https://github.com/nicholas-fedor/shoutrrr/pull/1434)
+- Update binwiederhier/ntfy:latest docker digest to 4c599cf by @renovate[bot] in [#1433](https://github.com/nicholas-fedor/shoutrrr/pull/1433)
 - Update github.com/google/pprof digest to d99a617 by @renovate[bot] in [#1420](https://github.com/nicholas-fedor/shoutrrr/pull/1420)
 - Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
 
