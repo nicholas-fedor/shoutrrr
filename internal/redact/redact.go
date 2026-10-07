@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"regexp"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -14,11 +15,29 @@ type client struct {
 	inner types.HTTPClient
 }
 
+// redactedError is an error cause whose message has had its URLs redacted. It
+// unwraps to the original cause, so errors.Is and errors.As still match it.
+type redactedError struct {
+	// err is the original cause.
+	err error
+	// msg is the cause's message with its URLs redacted.
+	msg string
+}
+
 // Placeholder replaces a URL that cannot be reduced to its scheme and host.
 const Placeholder = "[redacted]"
 
 // ErrInvalidURL replaces the detail of a URL parse error, which can quote the URL.
 var ErrInvalidURL = errors.New("invalid URL")
+
+// Patterns for URLs that error messages can quote.
+var (
+	// urlPattern matches an absolute URL in free text.
+	urlPattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^\s"'\\]+`)
+	// locationPattern matches the quoted header value in net/http's error for a
+	// redirect whose Location header cannot be parsed. The value can be relative.
+	locationPattern = regexp.MustCompile(`Location header "(?:[^"\\]|\\.)*"`)
+)
 
 // RequestURL reduces rawURL to its scheme and host, dropping userinfo, path, query
 // and fragment, which can carry credentials.
@@ -60,7 +79,33 @@ func URLError(err error) error {
 		return &url.Error{Op: urlErr.Op, URL: Placeholder, Err: ErrInvalidURL}
 	}
 
-	return &url.Error{Op: urlErr.Op, URL: RequestURL(urlErr.URL), Err: urlErr.Err}
+	return &url.Error{Op: urlErr.Op, URL: RequestURL(urlErr.URL), Err: redactCause(urlErr.Err)}
+}
+
+// redactCause redacts the URLs quoted in a *url.Error cause, such as the Location
+// header of a malformed redirect.
+//
+// Parameters:
+//   - cause: the cause to redact, which may be nil.
+//
+// Returns:
+//   - error: cause itself when its message quotes no URL, otherwise a wrapper
+//     with a redacted message that unwraps to cause.
+func redactCause(cause error) error {
+	if cause == nil {
+		return nil
+	}
+
+	msg := cause.Error()
+
+	redacted := locationPattern.ReplaceAllString(msg, `Location header "`+Placeholder+`"`)
+	redacted = urlPattern.ReplaceAllStringFunc(redacted, RequestURL)
+
+	if redacted == msg {
+		return cause
+	}
+
+	return &redactedError{err: cause, msg: redacted}
 }
 
 // HTTPClient wraps httpClient so that the URLs in its transport errors are redacted.
@@ -98,4 +143,31 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	return res, nil
+}
+
+// Error returns the redacted message.
+//
+// Returns:
+//   - string: the cause's message with its URLs redacted.
+func (e *redactedError) Error() string {
+	return e.msg
+}
+
+// Timeout reports whether the original cause, or any error it wraps, is a timeout,
+// so that url.Error.Timeout keeps working on redacted errors.
+//
+// Returns:
+//   - bool: true when the cause chain reports a timeout.
+func (e *redactedError) Timeout() bool {
+	var timeout interface{ Timeout() bool }
+
+	return errors.As(e.err, &timeout) && timeout.Timeout()
+}
+
+// Unwrap returns the original cause.
+//
+// Returns:
+//   - error: the original, unredacted cause.
+func (e *redactedError) Unwrap() error {
+	return e.err
 }

@@ -3,8 +3,10 @@ package redact
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -133,4 +135,47 @@ func TestHTTPClientWrapsOnce(t *testing.T) {
 	assert.Same(t, wrapped, HTTPClient(wrapped))
 	assert.Nil(t, HTTPClient(nil))
 	assert.NotContains(t, Placeholder, testSecret)
+}
+
+// TestHTTPClientRedactsRedirectLocation verifies that a malformed redirect does not
+// leak its Location header. net/http quotes the header value in the cause of the
+// *url.Error it returns, so the cause must be redacted as well as the URL.
+func TestHTTPClientRedactsRedirectLocation(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "https://hooks.example.invalid/%zz?token="+testSecret)
+		w.WriteHeader(http.StatusFound)
+	}))
+	t.Cleanup(server.Close)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, http.NoBody)
+	require.NoError(t, err)
+
+	res, err := HTTPClient(server.Client()).Do(req)
+	if res != nil {
+		require.NoError(t, res.Body.Close())
+	}
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), testSecret)
+	assert.Contains(t, err.Error(), "Location header")
+}
+
+// TestURLErrorRedactsURLsInCause verifies that URLs quoted in the cause of a
+// *url.Error are reduced to scheme and host, while the cause stays matchable.
+func TestURLErrorRedactsURLsInCause(t *testing.T) {
+	t.Parallel()
+
+	cause := fmt.Errorf("redirect to https://hooks.example.invalid/%s refused: %w", testSecret, context.DeadlineExceeded)
+
+	err := URLError(&url.Error{Op: http.MethodGet, URL: "https://api.example.com/", Err: cause})
+
+	assert.NotContains(t, err.Error(), testSecret)
+	assert.Contains(t, err.Error(), "https://hooks.example.invalid")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	urlErr, ok := errors.AsType[*url.Error](err)
+	require.True(t, ok)
+	assert.True(t, urlErr.Timeout())
 }
