@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to d99a617 by @renovate[bot] in [#1420](https://github.com/nicholas-fedor/shoutrrr/pull/1420)
 - Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
 
 ### Fixed
