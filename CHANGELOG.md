@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add cross-service contract suite by @nicholas-fedor in [#1418](https://github.com/nicholas-fedor/shoutrrr/pull/1418)
+
 ### Chores
 
 - Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
