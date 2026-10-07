@@ -122,13 +122,9 @@ func (r *ServiceRouter) Enqueue(message string, v ...any) {
 func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, error) {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
-		// *url.Error embeds the raw URL, which can carry credentials, so report
-		// only the underlying parse problem.
-		if urlErr, ok := errors.AsType[*url.Error](err); ok {
-			err = urlErr.Err
-		}
-
-		return "", &url.URL{}, fmt.Errorf("%w: %w", ErrParseURLFailed, err)
+		// Parse errors quote parts of the URL, such as an invalid port, which can
+		// carry credentials, so the cause is not included.
+		return "", &url.URL{}, ErrParseURLFailed
 	}
 
 	scheme := serviceURL.Scheme

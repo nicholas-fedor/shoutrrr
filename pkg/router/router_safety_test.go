@@ -75,19 +75,35 @@ func TestGenericCustomURLConversionFailure(t *testing.T) {
 	}
 }
 
+// TestParseErrorOmitsURL verifies that parse errors never quote the URL, including
+// the parts that net/url echoes back, such as an invalid port.
 func TestParseErrorOmitsURL(t *testing.T) {
 	t.Parallel()
 
-	r := &ServiceRouter{}
-
-	_, _, err := r.ExtractServiceName("discord://" + routerTestSecret + "@123456/%zz")
-
-	if !errors.Is(err, ErrParseURLFailed) {
-		t.Fatalf("error = %v, want ErrParseURLFailed", err)
+	tests := []struct {
+		name   string
+		rawURL string
+	}{
+		{name: "invalid escape", rawURL: "discord://" + routerTestSecret + "@123456/%zz"},
+		{name: "invalid port", rawURL: "discord://123456:" + routerTestSecret + "/hook"},
 	}
 
-	if strings.Contains(err.Error(), routerTestSecret) {
-		t.Errorf("parse error leaks the URL: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &ServiceRouter{}
+
+			_, _, err := r.ExtractServiceName(tt.rawURL)
+
+			if !errors.Is(err, ErrParseURLFailed) {
+				t.Fatalf("error = %v, want ErrParseURLFailed", err)
+			}
+
+			if strings.Contains(err.Error(), routerTestSecret) {
+				t.Errorf("parse error leaks the URL: %v", err)
+			}
+		})
 	}
 }
 
