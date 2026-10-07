@@ -129,6 +129,10 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 
 // UpdateConfigFromParams mutates the provided config, updating the values from its corresponding params.
 // If the provided config is nil, the internal config will be updated instead.
+//
+// The reserved params set by [types.Params] helpers (title, message and level) are
+// applied when the config declares them and skipped otherwise, so every service
+// accepts them. Any other param without a matching key is an error.
 // The error returned is the first error that occurred; subsequent errors are discarded.
 func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	config types.ServiceConfig,
@@ -140,6 +144,10 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 
 	if params != nil {
 		for key, val := range *params {
+			if pkr.isUndeclaredReserved(key) {
+				continue
+			}
+
 			if err := pkr.set(confValue, key, val); err != nil && firstError == nil {
 				firstError = err
 			}
@@ -156,6 +164,28 @@ func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) re
 	}
 
 	return pkr.confValue
+}
+
+// isUndeclaredReserved reports whether key is a reserved param that the config does
+// not declare.
+//
+// Parameters:
+//   - key: the param key, matched case-insensitively.
+//
+// Returns:
+//   - bool: true when the param should be skipped.
+func (pkr *PropKeyResolver) isUndeclaredReserved(key string) bool {
+	key = strings.ToLower(key)
+	if _, declared := pkr.keyFields[key]; declared {
+		return false
+	}
+
+	switch key {
+	case types.TitleKey, types.MessageKey, types.LevelKey:
+		return true
+	default:
+		return false
+	}
 }
 
 // set sets the value of a target struct tagged with the corresponding key.
