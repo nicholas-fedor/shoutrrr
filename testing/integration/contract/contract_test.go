@@ -205,21 +205,25 @@ func runInitializeNoIO(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
 	var (
-		env     *env
-		before  int64
-		initErr error
+		env           *env
+		defaultBefore int64
+		lookupBefore  int64
+		initErr       error
 	)
 
 	// Count I/O only after synctest.Test returns, when every goroutine started
 	// during Initialize has exited.
 	synctest.Test(t, func(t *testing.T) {
 		env = newEnv(t, fx, false)
-		before = defaultTransportHits.Load()
+		defaultBefore, lookupBefore = defaultTransportHits.Load(), lookupHits.Load()
 
 		_, initErr = env.locate(t)
 	})
 
-	if hits := int64(env.ioCount()) + defaultTransportHits.Load() - before; hits > 0 {
+	hits := int64(env.ioCount()) +
+		defaultTransportHits.Load() - defaultBefore +
+		lookupHits.Load() - lookupBefore
+	if hits > 0 {
 		return fail(failInitIO, "performed %d network operation(s) during Initialize", hits)
 	}
 
