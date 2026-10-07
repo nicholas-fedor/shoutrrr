@@ -637,7 +637,8 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 
 				err := service.Send("Message", nil)
 				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("sending POST request to \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": Post \"https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd\": network failure"))
+					To(gomega.ContainSubstring("sending POST request: Post \"https://my.gotify.tld\": network failure"))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("Aaa.bbb.ccc.ddd"))
 			})
 			ginkgo.It("returns an error if params update fails", func() {
 				params := types.Params{"priority": "invalid"}
