@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -85,7 +86,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 			return fmt.Errorf("updating config from params: %w", err)
 		}
 
-		batches := CreateItemsFromPlain(message, config.SplitLines)
+		batches := createItemsFromPlain(message, config.SplitLines, config.Title)
 		for _, batch := range batches {
 			if err := s.sendItems(batch, params); err != nil {
 				s.Log(err)
@@ -196,14 +197,33 @@ func (s *Service) sendItems(items []types.MessageItem, params *types.Params) err
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
 func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
+	return createItemsFromPlain(plain, splitLines, "")
+}
+
+// createItemsFromPlain converts plain text into batches of MessageItems, one batch
+// per webhook request. Discord counts the title on a batch's first embed toward the
+// same total text limit as the descriptions, so each batch's budget is reduced by
+// the title's length.
+//
+// Parameters:
+//   - plain: the message text.
+//   - splitLines: whether to send each line as its own embed.
+//   - title: the title added to the first embed of every batch.
+//
+// Returns:
+//   - [][]types.MessageItem: the message items, grouped by request.
+func createItemsFromPlain(plain string, splitLines bool, title string) [][]types.MessageItem {
 	var batches [][]types.MessageItem
 
+	batchLimits := limits
+	batchLimits.TotalChunkSize = max(TotalChunkSize-utf8.RuneCountInString(title), 1)
+
 	if splitLines {
-		return util.MessageItemsFromLines(plain, limits)
+		return util.MessageItemsFromLines(plain, batchLimits)
 	}
 
 	for {
-		items, omitted := util.PartitionMessage(plain, limits, MaxSearchRunes)
+		items, omitted := util.PartitionMessage(plain, batchLimits, MaxSearchRunes)
 		batches = append(batches, items)
 
 		if omitted == 0 {

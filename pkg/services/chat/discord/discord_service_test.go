@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -311,6 +312,32 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			}
 
 			gomega.Expect(totalLength).To(gomega.Equal(len(largeMessage)))
+		})
+
+		ginkgo.DescribeTable("should keep each batch and its title within the embed text limit",
+			func(plain string, splitLines bool) {
+				title := strings.Repeat("t", 100)
+
+				batches := createItemsFromPlain(plain, splitLines, title)
+				gomega.Expect(batches).NotTo(gomega.BeEmpty())
+
+				for _, batch := range batches {
+					total := utf8.RuneCountInString(title)
+					for _, item := range batch {
+						total += utf8.RuneCountInString(item.Text)
+					}
+
+					gomega.Expect(total).To(gomega.BeNumerically("<=", TotalChunkSize))
+				}
+			},
+			ginkgo.Entry("split lines", strings.TrimSuffix(strings.Repeat(strings.Repeat("a", 1000)+"\n", 12), "\n"), true),
+			ginkgo.Entry("chunked", strings.Repeat("a", TotalChunkSize+1000), false),
+		)
+
+		ginkgo.It("should batch untitled messages the same as CreateItemsFromPlain", func() {
+			plain := strings.Repeat("a", TotalChunkSize+1000)
+
+			gomega.Expect(createItemsFromPlain(plain, false, "")).To(gomega.Equal(CreateItemsFromPlain(plain, false)))
 		})
 
 		ginkgo.It("should keep every rune of a long multi-byte message in order", func() {
