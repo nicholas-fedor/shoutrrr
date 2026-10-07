@@ -125,10 +125,28 @@ func TestEllipsis(t *testing.T) {
 			want:      "",
 		},
 		{
-			name:      "handles unicode - counts bytes not runes",
+			name:      "counts runes, not bytes",
 			text:      "Hello世界",
 			maxLength: 8,
-			want:      "He [...]",
+			want:      "Hello世界",
+		},
+		{
+			name:      "truncates multi-byte text on rune boundaries",
+			text:      "世界世界世界世界世界",
+			maxLength: 8,
+			want:      "世界 [...]",
+		},
+		{
+			name:      "truncates without ellipsis when the limit is shorter than it",
+			text:      "Hello World",
+			maxLength: 3,
+			want:      "Hel",
+		},
+		{
+			name:      "returns empty text for a zero limit",
+			text:      "Hello",
+			maxLength: 0,
+			want:      "",
 		},
 		{
 			name:      "returns text unchanged when len equals maxLength",
@@ -275,4 +293,75 @@ func TestMessageItemsFromLines_Truncation(t *testing.T) {
 		assert.Len(t, batches[0][0].Text, 20)
 		assert.True(t, strings.HasSuffix(batches[0][0].Text, " [...]"), "Truncated text should end with ellipsis")
 	})
+}
+
+// TestMessageItemsFromLinesContent verifies the text and grouping of each batch,
+// not just batch counts, so lines are never lost, duplicated or reordered when
+// they span several batches.
+func TestMessageItemsFromLinesContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		plain  string
+		limits types.MessageLimit
+		want   [][]string
+	}{
+		{
+			name:   "splits by chunk count",
+			plain:  "a\nb\nc\nd",
+			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 300, ChunkCount: 2},
+			want:   [][]string{{"a", "b"}, {"c", "d"}},
+		},
+		{
+			name:   "splits by total size",
+			plain:  "aaaa\nbbbb\ncccc\ndddd",
+			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 10, ChunkCount: 10},
+			want:   [][]string{{"aaaa", "bbbb"}, {"cccc", "dddd"}},
+		},
+		{
+			name:   "skips empty lines without emitting empty batches",
+			plain:  "a\n\n\nb\n\nc",
+			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 300, ChunkCount: 2},
+			want:   [][]string{{"a", "b"}, {"c"}},
+		},
+		{
+			name:   "keeps multi-byte lines intact",
+			plain:  "世界\nこんにちは\n안녕",
+			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 7, ChunkCount: 10},
+			want:   [][]string{{"世界", "こんにちは"}, {"안녕"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := MessageItemsFromLines(tt.plain, tt.limits)
+
+			assert.Equal(t, tt.want, batchTexts(got))
+		})
+	}
+}
+
+// batchTexts returns the text of every item, grouped by batch.
+//
+// Parameters:
+//   - batches: the message item batches.
+//
+// Returns:
+//   - [][]string: the item texts in batch order.
+func batchTexts(batches [][]types.MessageItem) [][]string {
+	texts := make([][]string, 0, len(batches))
+
+	for _, batch := range batches {
+		batchText := make([]string, 0, len(batch))
+		for _, item := range batch {
+			batchText = append(batchText, item.Text)
+		}
+
+		texts = append(texts, batchText)
+	}
+
+	return texts
 }
