@@ -1,11 +1,22 @@
 package format
 
 import (
+	"net/url"
+
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// titledConfig is a minimal service config that declares the reserved title key.
+type titledConfig struct {
+	standard.EnumlessConfig
+
+	// Title is the notification title.
+	Title string `default:"" key:"title"`
+}
 
 var _ = ginkgo.Describe("Prop Key Resolver", func() {
 	var (
@@ -42,6 +53,40 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 			})
 		})
 	})
+	ginkgo.Describe("Updating config props from reserved params", func() {
+		ginkgo.When("the config does not declare them", func() {
+			ginkgo.It("should skip them and apply the other params", func() {
+				err := pkr.UpdateConfigFromParams(nil, &types.Params{
+					types.TitleKey:   "title",
+					types.MessageKey: "message",
+					"Level":          "warning",
+					"str":            "val",
+				})
+
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(ts.Str).To(gomega.Equal("val"))
+			})
+		})
+		ginkgo.When("the config declares one", func() {
+			ginkgo.It("should apply it", func() {
+				titled := &titledConfig{}
+				titledResolver := NewPropKeyResolver(titled)
+
+				err := titledResolver.UpdateConfigFromParams(nil, &types.Params{types.TitleKey: "applied"})
+
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(titled.Title).To(gomega.Equal("applied"))
+			})
+		})
+		ginkgo.When("other unknown params are present", func() {
+			ginkgo.It("should still report them", func() {
+				err := pkr.UpdateConfigFromParams(nil, &types.Params{types.TitleKey: "title", "titel": "typo"})
+
+				gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("titel")))
+				gomega.Expect(err).To(gomega.MatchError(ErrInvalidConfigKey))
+			})
+		})
+	})
 	ginkgo.Describe("Setting default props", func() {
 		ginkgo.When("a default tag are set for a field", func() {
 			ginkgo.It("should have that value as default", func() {
@@ -58,3 +103,9 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 		})
 	})
 })
+
+// GetURL returns an empty URL; the resolver tests do not use it.
+func (c *titledConfig) GetURL() *url.URL { return &url.URL{} }
+
+// SetURL ignores the URL; the resolver tests do not use it.
+func (c *titledConfig) SetURL(_ *url.URL) error { return nil }
