@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop custom url panic and url leaks by @nicholas-fedor in [#1422](https://github.com/nicholas-fedor/shoutrrr/pull/1422)
 - Fix data races and run tests with the race detector by @nicholas-fedor in [#1416](https://github.com/nicholas-fedor/shoutrrr/pull/1416)
 
 ## [0.21.2] - 2026-10-06
