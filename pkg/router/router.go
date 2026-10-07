@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -142,6 +144,10 @@ func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, err
 // Parameters:
 //   - params: the parameters to apply to the combined message.
 func (r *ServiceRouter) Flush(params *types.Params) {
+	if len(r.queue) == 0 {
+		return
+	}
+
 	// Since this method is supposed to be deferred we just have to ignore errors
 	_ = r.Send(strings.Join(r.queue, "\n"), params)
 	r.queue = []string{}
@@ -205,7 +211,7 @@ func (r *ServiceRouter) Route(rawURL, message string) error {
 	}
 
 	if err := service.Send(message, nil); err != nil {
-		return &types.TargetError{URL: service.GetID(), Err: err}
+		return &types.TargetError{URL: service.GetID(), Index: 0, Err: err}
 	}
 
 	return nil
@@ -224,13 +230,17 @@ func (r *ServiceRouter) Send(message string, params *types.Params) []error {
 		return []error{ErrNoSenders}
 	}
 
-	serviceCount := len(r.services)
-	errs := make([]error, serviceCount)
-	results := r.SendAsync(message, params)
+	errs := make([]error, len(r.services))
 
-	for i := range r.services {
-		errs[i] = <-results
+	var waitGroup sync.WaitGroup
+
+	for i, service := range r.services {
+		serviceParams := cloneParams(params)
+
+		waitGroup.Go(func() { errs[i] = r.sendToService(i, service, message, serviceParams) })
 	}
+
+	waitGroup.Wait()
 
 	return errs
 }
@@ -242,25 +252,22 @@ func (r *ServiceRouter) Send(message string, params *types.Params) []error {
 //   - params: the parameters to apply.
 //
 // Returns:
-//   - chan error: a channel that will contain one error per service.
+//   - chan error: a channel that receives one result per service in completion
+//     order, then closes. Failures are *types.TargetError values whose Index
+//     identifies the configured URL.
 func (r *ServiceRouter) SendAsync(message string, params *types.Params) chan error {
-	serviceCount := len(r.services)
-	proxy := make(chan error, serviceCount)
-	errs := make(chan error, serviceCount)
+	errs := make(chan error, len(r.services))
 
-	if params == nil {
-		params = &types.Params{}
-	}
+	var waitGroup sync.WaitGroup
 
-	for _, service := range r.services {
-		go sendToService(r, service, proxy, message, *params)
+	for i, service := range r.services {
+		serviceParams := cloneParams(params)
+
+		waitGroup.Go(func() { errs <- r.sendToService(i, service, message, serviceParams) })
 	}
 
 	go func() {
-		for range serviceCount {
-			errs <- <-proxy
-		}
-
+		waitGroup.Wait()
 		close(errs)
 	}()
 
@@ -280,17 +287,17 @@ func (r *ServiceRouter) SendItems(items []types.MessageItem, params types.Params
 		return []error{ErrNoSenders}
 	}
 
-	serviceCount := len(r.services)
-	proxy := make(chan error, serviceCount)
-	errs := make([]error, serviceCount)
+	errs := make([]error, len(r.services))
 
-	for _, service := range r.services {
-		go sendItemsToService(r, service, proxy, items, params)
+	var waitGroup sync.WaitGroup
+
+	for i, service := range r.services {
+		serviceParams := cloneParams(&params)
+
+		waitGroup.Go(func() { errs[i] = r.sendItemsToService(i, service, items, serviceParams) })
 	}
 
-	for i := range r.services {
-		errs[i] = <-proxy
-	}
+	waitGroup.Wait()
 
 	return errs
 }
@@ -304,6 +311,20 @@ func (r *ServiceRouter) SetLogger(logger types.StdLogger) {
 	for _, service := range r.services {
 		service.SetLogger(logger)
 	}
+}
+
+// baseContext returns the context that per-service send contexts derive from.
+// A zero-value ServiceRouter has no context, so it falls back to the background
+// context.
+//
+// Returns:
+//   - context.Context: the base context for sends.
+func (r *ServiceRouter) baseContext() context.Context {
+	if r.ctx == nil {
+		return context.Background()
+	}
+
+	return r.ctx
 }
 
 // initService initializes a service from the given URL.
@@ -423,81 +444,26 @@ func (r *ServiceRouter) sendBudget(service types.Service, params *types.Params) 
 	return budget
 }
 
-// awaitResult waits for either the service result or a timeout, wrapping the
-// result in a TargetError if needed.
-//
-// Parameters:
-//   - results: the channel to report the final error to.
-//   - result: the channel carrying the service result.
-//   - timeout: the operation timeout.
-//   - serviceID: the identifier of the service for error wrapping.
-func awaitResult(results chan error, result <-chan error, timeout time.Duration, serviceID string) {
-	select {
-	case res := <-result:
-		if res != nil {
-			if errors.Is(res, context.DeadlineExceeded) {
-				res = &types.TargetError{URL: serviceID, Err: fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID)}
-			} else {
-				res = &types.TargetError{URL: serviceID, Err: res}
-			}
-		}
-
-		results <- res
-	case <-time.After(timeout):
-		results <- &types.TargetError{URL: serviceID, Err: fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID)}
-	}
-}
-
-// sendToService sends a message to a single service, respecting context and timeout.
-//
-// Parameters:
-//   - router: the router supplying the base context and the send budget.
-//   - service: the service to send to.
-//   - results: the channel to report the result error to.
-//   - message: the message to send.
-//   - params: the parameters to apply.
-func sendToService(
-	router *ServiceRouter,
-	service types.Service,
-	results chan error,
-	message string,
-	params types.Params,
-) {
-	result := make(chan error, 1)
-	timeout := router.sendBudget(service, &params)
-	serviceID := service.GetID()
-
-	if sender, ok := service.(types.ContextSender); ok {
-		sendCtx, cancel := context.WithTimeout(router.ctx, timeout)
-		defer cancel()
-
-		go func() { result <- sender.SendContext(sendCtx, message, &params) }()
-	} else {
-		go func() { result <- service.Send(message, &params) }()
-	}
-
-	awaitResult(results, result, timeout, serviceID)
-}
-
 // sendItemsToService sends message items to a single service, respecting context and timeout.
 //
 // Parameters:
-//   - router: the router supplying the base context and the send budget.
+//   - index: the position of the service among the configured URLs.
 //   - service: the service to send to.
-//   - results: the channel to report the result error to.
 //   - items: the message items to send.
-//   - params: the parameters to apply.
-func sendItemsToService(
-	router *ServiceRouter,
+//   - params: the parameters to apply, owned by this send.
+//
+// Returns:
+//   - error: nil on success, otherwise a *types.TargetError for the service.
+func (r *ServiceRouter) sendItemsToService(
+	index int,
 	service types.Service,
-	results chan error,
 	items []types.MessageItem,
 	params types.Params,
-) {
+) error {
 	result := make(chan error, 1)
-	timeout := router.sendBudget(service, &params)
+	timeout := r.sendBudget(service, &params)
 
-	sendCtx, cancel := context.WithTimeout(router.ctx, timeout)
+	sendCtx, cancel := context.WithTimeout(r.baseContext(), timeout)
 	defer cancel()
 
 	switch sender := service.(type) {
@@ -511,5 +477,83 @@ func sendItemsToService(
 		go func() { result <- service.Send(types.ItemsToPlain(items), &params) }()
 	}
 
-	awaitResult(results, result, timeout, service.GetID())
+	return awaitResult(result, timeout, service.GetID(), index)
+}
+
+// sendToService sends a message to a single service, respecting context and timeout.
+//
+// Parameters:
+//   - index: the position of the service among the configured URLs.
+//   - service: the service to send to.
+//   - message: the message to send.
+//   - params: the parameters to apply, owned by this send.
+//
+// Returns:
+//   - error: nil on success, otherwise a *types.TargetError for the service.
+func (r *ServiceRouter) sendToService(
+	index int,
+	service types.Service,
+	message string,
+	params types.Params,
+) error {
+	result := make(chan error, 1)
+	timeout := r.sendBudget(service, &params)
+
+	if sender, ok := service.(types.ContextSender); ok {
+		sendCtx, cancel := context.WithTimeout(r.baseContext(), timeout)
+		defer cancel()
+
+		go func() { result <- sender.SendContext(sendCtx, message, &params) }()
+	} else {
+		go func() { result <- service.Send(message, &params) }()
+	}
+
+	return awaitResult(result, timeout, service.GetID(), index)
+}
+
+// awaitResult waits for either the service result or a timeout, wrapping a
+// failure in a *types.TargetError.
+//
+// Parameters:
+//   - result: the channel carrying the service result.
+//   - timeout: the operation timeout.
+//   - serviceID: the identifier of the service for error wrapping.
+//   - index: the position of the service among the configured URLs.
+//
+// Returns:
+//   - error: nil on success, otherwise a *types.TargetError for the service.
+func awaitResult(result <-chan error, timeout time.Duration, serviceID string, index int) error {
+	select {
+	case res := <-result:
+		if res == nil {
+			return nil
+		}
+
+		if errors.Is(res, context.DeadlineExceeded) {
+			res = fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID)
+		}
+
+		return &types.TargetError{URL: serviceID, Index: index, Err: res}
+	case <-time.After(timeout):
+		return &types.TargetError{
+			URL:   serviceID,
+			Index: index,
+			Err:   fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID),
+		}
+	}
+}
+
+// cloneParams returns a copy of params that a single service send can own.
+//
+// Parameters:
+//   - params: the caller's params, which may be nil.
+//
+// Returns:
+//   - types.Params: an independent copy, empty when params is nil.
+func cloneParams(params *types.Params) types.Params {
+	if params == nil || *params == nil {
+		return types.Params{}
+	}
+
+	return maps.Clone(*params)
 }
