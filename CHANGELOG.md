@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
 - Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#1439](https://github.com/nicholas-fedor/shoutrrr/pull/1439)
 - Update github.com/google/pprof digest to 7bae8d8 by @renovate[bot] in [#1438](https://github.com/nicholas-fedor/shoutrrr/pull/1438)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 1b64d38 by @renovate[bot] in [#1435](https://github.com/nicholas-fedor/shoutrrr/pull/1435)
