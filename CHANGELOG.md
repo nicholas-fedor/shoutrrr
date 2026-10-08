@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Redact credentials from service errors and logs by @nicholas-fedor in [#1441](https://github.com/nicholas-fedor/shoutrrr/pull/1441)
 - Redact service urls from errors by @nicholas-fedor in [#1432](https://github.com/nicholas-fedor/shoutrrr/pull/1432)
 - Accept reserved params that a service does not declare by @nicholas-fedor in [#1430](https://github.com/nicholas-fedor/shoutrrr/pull/1430)
 - Count the title toward each batch's embed limit by @nicholas-fedor in [#1428](https://github.com/nicholas-fedor/shoutrrr/pull/1428)
