@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"net/url"
-	"sync"
 
 	"github.com/eclipse/paho.golang/autopaho"
 
@@ -225,57 +224,6 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 	})
 
-	ginkgo.Describe("getCancel", func() {
-		ginkgo.It("should return valid cancel function", func() {
-			cancel := service.getCancel()
-			gomega.Expect(cancel).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should initialize context field", func() {
-			service.getCancel()
-			// ctx is unexported, but we verify it was set by checking cancel is not nil
-			gomega.Expect(service.cancel).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It(
-			"should be thread-safe and return same cancel function on multiple calls",
-			func() {
-				var wg sync.WaitGroup
-
-				cancels := make([]context.CancelFunc, 10)
-
-				for i := range 10 {
-					wg.Add(1)
-
-					go func(idx int) {
-						defer wg.Done()
-
-						cancels[idx] = service.getCancel()
-					}(i)
-				}
-
-				wg.Wait()
-
-				// All cancel functions should be non-nil
-				for i := range 10 {
-					gomega.Expect(cancels[i]).NotTo(gomega.BeNil())
-				}
-			},
-		)
-
-		ginkgo.It("should allow cancel to be called without panic", func() {
-			cancel := service.getCancel()
-
-			gomega.Expect(func() { cancel() }).NotTo(gomega.Panic())
-		})
-
-		ginkgo.It("should allow cancel to be called multiple times safely", func() {
-			cancel := service.getCancel()
-			cancel()
-			gomega.Expect(func() { cancel() }).NotTo(gomega.Panic())
-		})
-	})
-
 	ginkgo.Describe("createTLSConfig", func() {
 		ginkgo.BeforeEach(func() {
 			// Initialize the standard logger to avoid nil pointer dereference
@@ -287,7 +235,7 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should create TLS config with verification enabled by default", func() {
 			service.Config.DisableTLSVerification = false
 
-			tlsConfig := service.createTLSConfig()
+			tlsConfig := service.createTLSConfig(service.Config)
 
 			gomega.Expect(tlsConfig).NotTo(gomega.BeNil())
 			gomega.Expect(tlsConfig.InsecureSkipVerify).To(gomega.BeFalse())
@@ -296,14 +244,14 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should create TLS config without verification when disabled", func() {
 			service.Config.DisableTLSVerification = true
 
-			tlsConfig := service.createTLSConfig()
+			tlsConfig := service.createTLSConfig(service.Config)
 
 			gomega.Expect(tlsConfig).NotTo(gomega.BeNil())
 			gomega.Expect(tlsConfig.InsecureSkipVerify).To(gomega.BeTrue())
 		})
 
 		ginkgo.It("should set minimum TLS version to 1.2", func() {
-			tlsConfig := service.createTLSConfig()
+			tlsConfig := service.createTLSConfig(service.Config)
 
 			gomega.Expect(tlsConfig).NotTo(gomega.BeNil())
 			gomega.Expect(tlsConfig.MinVersion).To(gomega.Equal(uint16(tls.VersionTLS12)))
@@ -311,14 +259,14 @@ var _ = ginkgo.Describe("Service", func() {
 
 		ginkgo.It("should return config even with nil Config.DisableTLSVerification", func() {
 			// DisableTLSVerification defaults to false
-			tlsConfig := service.createTLSConfig()
+			tlsConfig := service.createTLSConfig(service.Config)
 
 			gomega.Expect(tlsConfig).NotTo(gomega.BeNil())
 		})
 
 		ginkgo.It("should create independent TLS configs on multiple calls", func() {
-			tlsConfig1 := service.createTLSConfig()
-			tlsConfig2 := service.createTLSConfig()
+			tlsConfig1 := service.createTLSConfig(service.Config)
+			tlsConfig2 := service.createTLSConfig(service.Config)
 
 			// Each call creates a new config
 			gomega.Expect(tlsConfig1).NotTo(gomega.BeIdenticalTo(tlsConfig2))
@@ -334,7 +282,6 @@ var _ = ginkgo.Describe("Service", func() {
 
 		ginkgo.It("should handle nil connection manager gracefully", func() {
 			service.connectionManager = nil
-			service.closeOnce = sync.Once{} // Reset for this test
 
 			err := service.Close()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -342,7 +289,6 @@ var _ = ginkgo.Describe("Service", func() {
 
 		ginkgo.It("should be idempotent - safe to call multiple times", func() {
 			service.connectionManager = nil
-			service.closeOnce = sync.Once{} // Reset
 
 			err1 := service.Close()
 			err2 := service.Close()
@@ -351,44 +297,6 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(err1).NotTo(gomega.HaveOccurred())
 			gomega.Expect(err2).NotTo(gomega.HaveOccurred())
 			gomega.Expect(err3).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return same error on subsequent calls", func() {
-			service.connectionManager = nil
-			service.closeOnce = sync.Once{} // Reset
-			service.closeErr = nil          // Reset
-
-			// First close
-			_ = service.Close()
-
-			// Subsequent closes should return the same result (nil)
-			err1 := service.Close()
-			err2 := service.Close()
-
-			gomega.Expect(err1).ToNot(gomega.HaveOccurred())
-			gomega.Expect(err2).ToNot(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle close without initialized cancel function", func() {
-			service.connectionManager = nil
-			service.cancel = nil
-			service.closeOnce = sync.Once{} // Reset
-
-			err := service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should cancel context when cancel function exists", func() {
-			service.connectionManager = nil
-			service.closeOnce = sync.Once{} // Reset
-
-			// Initialize the cancel function
-			_ = service.getCancel()
-			gomega.Expect(service.cancel).NotTo(gomega.BeNil())
-
-			// Close should call cancel without error
-			err := service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})
 
@@ -407,7 +315,7 @@ var _ = ginkgo.Describe("Service", func() {
 			svc := &Service{}
 			gomega.Expect(svc.Config).To(gomega.BeNil())
 			gomega.Expect(svc.connectionManager).To(gomega.BeNil())
-			gomega.Expect(svc.connectionInitialized).To(gomega.BeFalse())
+			gomega.Expect(svc.ownedConnection).To(gomega.BeFalse())
 		})
 
 		ginkgo.It("should have correct default state after initialization", func() {
@@ -418,7 +326,7 @@ var _ = ginkgo.Describe("Service", func() {
 			err = svc.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(svc.Config).NotTo(gomega.BeNil())
-			gomega.Expect(svc.connectionInitialized).To(gomega.BeFalse())
+			gomega.Expect(svc.ownedConnection).To(gomega.BeFalse())
 			gomega.Expect(svc.connectionManager).To(gomega.BeNil())
 		})
 	})

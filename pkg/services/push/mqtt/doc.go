@@ -104,10 +104,7 @@
 //
 // # Connection Behavior
 //
-// The service establishes a connection to the MQTT broker on each Send call
-// and disconnects after the message is published. This ensures reliable
-// delivery while maintaining compatibility with various broker configurations.
-//
-// For high-volume messaging, consider using a dedicated MQTT client library
-// that maintains persistent connections.
+// The first Send opens a connection to the broker, and later sends reuse it.
+// A connection that no send has used for 60 seconds is closed, and the next Send
+// reconnects. Call Close to disconnect when the service is no longer needed.
 package mqtt

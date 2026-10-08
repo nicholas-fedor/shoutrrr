@@ -13,6 +13,10 @@ The end-to-end tests validate the complete MQTT notification functionality by co
 - Plain text messages with various content types
 - Basic connection and message publishing
 
+### Connection Lifecycle
+
+- Messages sent more than 10 seconds apart through one service, confirmed by a subscriber
+
 ### QoS (Quality of Service) Levels
 
 - QoS 0 (at most once) - Fire and forget

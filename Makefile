@@ -50,7 +50,7 @@ test-integration: ## Run integration tests for a specific service (usage: make t
 test-e2e: ## Run e2e tests for a specific service (usage: make test-e2e <service>)
 	@SVC=`echo $(MAKECMDGOALS) | cut -d' ' -f2`; \
 	if [ -z "$$SVC" ]; then echo "Usage: make test-e2e <service>"; exit 1; fi; \
-	$(GO) test -timeout 30s -v ./testing/e2e/$$SVC
+	$(GO) test -timeout 2m -v ./testing/e2e/$$SVC
 
 test-wasm: ## Compile WASM playground tests (coverage requires native WASI runtime)
 	GOOS=js GOARCH=wasm $(GO) test -c -o /dev/null ./docs/playground/wasm/

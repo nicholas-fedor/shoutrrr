@@ -74,6 +74,10 @@ type Config struct {
 	// Only use for testing or with self-signed certificates in trusted environments.
 	// Default: false (verification enabled)
 	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
+
+	// scheme is the URL scheme the config was parsed from, mqtt or mqtts. It selects
+	// TLS for the connection and is kept by GetURL.
+	scheme string
 }
 
 // QoS represents the Quality of Service (QoS) level for MQTT message delivery.
@@ -226,8 +230,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	// Build the base URL with scheme, host:port, and topic path
+	scheme := Scheme
+	if c.scheme == SchemeTLS {
+		scheme = SchemeTLS
+	}
+
 	result := &url.URL{
-		Scheme:     Scheme,
+		Scheme:     scheme,
 		Host:       fmt.Sprintf("%s:%d", c.Host, c.Port),
 		ForceQuery: true, // Always include the query string separator (?)
 		Path:       c.Topic,
@@ -261,6 +270,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns an error if parsing fails or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.scheme = serviceURL.Scheme
+
 	// Extract authentication credentials from URL user info if present
 	if serviceURL.User != nil {
 		// Get the password (may be empty if only username is provided)

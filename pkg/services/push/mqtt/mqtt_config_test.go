@@ -278,6 +278,17 @@ var _ = ginkgo.Describe("Config", func() {
 			gomega.Expect(config.Port).To(gomega.Equal(8883))
 		})
 
+		ginkgo.It("should keep the mqtts scheme in GetURL", func() {
+			config := &Config{}
+			testURL, err := url.Parse("mqtts://broker.example.com/test/topic")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = config.SetURL(testURL)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			gomega.Expect(config.GetURL().Scheme).To(gomega.Equal(SchemeTLS))
+		})
+
 		ginkgo.It("should parse client_id from query", func() {
 			config := &Config{}
 			testURL, err := url.Parse(
