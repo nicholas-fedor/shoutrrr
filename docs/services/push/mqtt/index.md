@@ -9,7 +9,7 @@ MQTT is a lightweight messaging protocol for small sensors and mobile devices, i
 - __TLS/SSL Support__: Secure connections via the `mqtts://` scheme
 - __Authentication__: Username/password authentication
 - __Clean Session__: Control whether the broker maintains session state
-- __Lazy Initialization__: The MQTT client is initialized on the first send, allowing runtime configuration changes before connection
+- __Managed Connection__: The first send connects to the broker, later sends reuse the connection, and an idle connection is closed after 60 seconds
 
 ## Getting Started
 
@@ -61,54 +61,35 @@ The MQTT service supports two URL schemes for connection security:
     - **TLS-terminating proxy**: When connecting through a proxy that handles TLS termination, where the connection from client-to-proxy uses TLS but proxy-to-broker is plain MQTT. For example, a reverse proxy like Traefik or nginx that terminates TLS and forwards to an internal MQTT broker.
     - **Testing environments**: Local development where encryption is not required.
 
-## Lazy Initialization
+## Connection Lifecycle
 
-The MQTT client uses lazy initialization, meaning the connection to the broker is not established until the first message is sent. This design allows runtime configuration changes to take effect before the connection is created.
+The service connects to the broker lazily and keeps the connection open between sends.
 
 ### How It Works
 
-1. When you call `Initialize()`, the service parses the URL and stores the configuration, but does not create the MQTT client
-2. On the first call to `Send()`, the client is initialized with the current configuration
-3. Once initialized, the client is reused for all subsequent sends
+1. `Initialize()` parses the URL and stores the configuration. It does not connect to the broker.
+2. The first `Send()` opens the connection, and later sends reuse it.
+3. A connection that has not been used for 60 seconds is closed. The next `Send()` opens a new one, so short-lived programs do not leave connections behind.
+4. `Close()` disconnects from the broker. A later `Send()` reconnects.
+
+A connection manager set with `SetConnectionManager()` belongs to the caller. The service never closes it for being idle, and `Close()` disconnects it.
 
 ### Error Behavior
 
-If the connection attempt during lazy initialization fails, the following behavior applies:
+If opening the connection fails, the error is returned to the caller and the next `Send()` tries again, so temporary network issues or broker unavailability do not require a new call to `Initialize()`. If the connection ends, for example because it was disconnected, the next `Send()` opens a new one.
 
-- The error is returned to the caller immediately
-- The internal client remains uninitialized after a failed attempt
-- Subsequent `Send()` calls will retry initialization, allowing for transient failure recovery
+### Send Params
 
-This retry behavior means that temporary network issues or broker unavailability can be resolved on the next `Send()` call without requiring a new call to `Initialize()`.
+Params apply to a single send and do not change the service configuration. The `qos` and `retained` params affect every send that uses them. The connection params (`clientid`, `cleansession`, `disabletls`, and `disabletlsverification`) apply when that send opens the connection, and are ignored while an existing connection is reused.
 
-### Runtime Configuration
-
-This lazy approach allows you to override connection settings (Host, Port, Username, Password, TLS settings) via params on the first `Send()` call:
-
-```go title="Example Lazy Initialization Runtime Configuration"
-// Placeholder MQTT URL (will be overridden on first send)
-mqttURL := "mqtt://placeholder:1883/topic"
-
-// Create a logger for the service
-logger := log.New(os.Stdout, "mqtt: ", log.LstdFlags)
-
-// The message to send
-message := "Hello from shoutrrr!"
-
-// Initialize with a placeholder URL
-service.Initialize(mqttURL, logger)
-
-// Override connection settings on first send
+```go title="Example Send Params"
+// Publish this message as retained with QoS 1, without changing later sends
 params := types.Params{
-    "host":     "actual-broker.example.com",
-    "username": "actual-user",
-    "password": "actual-password",
+    "qos":      "1",
+    "retained": "yes",
 }
 service.Send(message, &params)
 ```
-
-!!! Note
-    Configuration changes after the first `Send()` call will only affect message-related settings (Topic, QoS, Retained), not connection settings. The client connection cannot be reconfigured after initialization.
 
 ## Examples
 

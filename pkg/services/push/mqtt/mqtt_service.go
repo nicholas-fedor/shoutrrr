@@ -20,6 +20,11 @@ import (
 
 // Service implements the notification service interface for MQTT brokers.
 // It manages the connection lifecycle and message publishing to MQTT topics.
+//
+// A connection the service creates lives until [Service.Close], or until no send
+// has used it for [idleTimeout], and the next send reconnects. A connection
+// manager set with [Service.SetConnectionManager] belongs to the caller and is
+// never torn down for idleness or replaced.
 type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
@@ -28,36 +33,36 @@ type Service struct {
 	Config *Config
 	// pkr resolves property keys for configuration updates from URL parameters.
 	pkr format.PropKeyResolver
-	// connectionManager is the underlying MQTT connection manager for broker communication.
-	connectionManager ConnectionManager
 	// dialContext, if non-nil, is used for the MQTT TCP dial via AttemptConnection.
 	dialContext types.DialContextFunc
-	// clientMutex protects the connection initialization to ensure thread-safe
-	// lazy initialization while allowing retry on transient failures.
+	// connect creates a connection manager. Nil uses [autopaho.NewConnection].
+	connect connectFunc
+	// clientMutex guards the connection state below.
 	clientMutex sync.Mutex
-	// connectionInitialized indicates whether the MQTT client has been successfully
-	// initialized. This is set to true only after connectionManager is assigned.
-	connectionInitialized bool
-	// ctx is the context for managing the connection lifecycle.
-	// This is required to ensure that cancel() properly terminates the connection
-	// used by autopaho. The context is created alongside the cancel function in
-	// getCancel() and used in initClient() for the connection manager.
-	//
-	//nolint:containedctx // Required for proper cancellation wiring with autopaho
-	ctx context.Context
-	// cancel is the cancel function for cleaning up the connection.
-	cancel context.CancelFunc
-	// cancelOnce ensures the cancel function is initialized exactly once.
-	cancelOnce sync.Once
-	// closeOnce ensures the Close method is called exactly once.
-	closeOnce sync.Once
-	// closeErr stores any error from the close operation for return on subsequent calls.
-	closeErr error
-	// urlScheme stores the URL scheme from the config URL for scheme detection.
-	// This allows the scheme (mqtt or mqtts) to be used as the primary determinant
-	// for TLS handling, with port as secondary.
-	urlScheme string
+	// connectionManager is the underlying MQTT connection manager for broker communication.
+	connectionManager ConnectionManager
+	// ownedConnection reports whether the service created connectionManager, so it
+	// may replace the connection once it ends and tear it down when idle.
+	ownedConnection bool
+	// cancelConnection ends the lifetime of a connection the service created.
+	cancelConnection context.CancelFunc
+	// activeSends counts the sends in progress, which keeps the idle timer stopped.
+	activeSends int
+	// connectionSends tracks the sends using connectionManager, so tearing the
+	// connection down waits for them to finish.
+	connectionSends *sync.WaitGroup
+	// idleTimer tears down a connection the service created once it is idle.
+	idleTimer *time.Timer
+	// idleGeneration identifies the current idle period, so a timer that fires
+	// after a send has started does nothing.
+	idleGeneration uint64
 }
+
+// connectFunc creates a connection manager whose lifetime ends with ctx. The
+// service replaces a connection once it ends only when the manager exposes
+// Done() <-chan struct{}, as autopaho's does. A manager without Done is reused
+// until Close or an idle teardown.
+type connectFunc func(ctx context.Context, cfg *autopaho.ClientConfig) (ConnectionManager, error)
 
 // publishTimeout defines the maximum time in seconds to wait for message publication.
 // This prevents indefinite blocking when the broker is unresponsive during publish operations.
@@ -75,49 +80,34 @@ const sessionExpiryInterval = 60
 // This prevents indefinite blocking when the broker is unresponsive during close operations.
 const disconnectTimeout = 5
 
+// idleTimeout is how long a connection the service created stays open without
+// sends. Tearing it down bounds the goroutines and sockets left behind by
+// one-shot senders that never call Close.
+const idleTimeout = 60 * time.Second
+
 var _ types.DialContextSetter = (*Service)(nil)
 
-// Close gracefully shuts down the MQTT service by disconnecting from the broker
-// and canceling the connection context.
+// Close disconnects from the broker and ends the connection's lifetime. It first
+// waits for sends already using the connection to finish, then waits at most
+// [disconnectTimeout] seconds for the disconnect. Sends that start meanwhile open
+// a new connection. Calling it again is safe.
 //
-// This method is idempotent - multiple calls are safe and will not cause panics
-// or errors. The first call performs the actual cleanup; subsequent calls return
-// the same result as the first call.
-//
-// The shutdown process:
-//  1. Disconnects the connection manager with a 5-second timeout
-//  2. Cancels the context to signal termination to any goroutines
-//
-// Returns an error if the disconnect fails, wrapped with context about the failure.
-// Returns nil on successful cleanup or if already closed without error.
+// Returns:
+//   - error: the disconnect failure, or nil when there was no connection.
 func (s *Service) Close() error {
-	s.closeOnce.Do(func() {
-		// Disconnect the connection manager if it was initialized.
-		if s.connectionManager != nil {
-			// Create a context with timeout for the disconnect operation.
-			ctx, cancel := context.WithTimeout(
-				context.Background(),
-				disconnectTimeout*time.Second,
-			)
-			defer cancel()
+	s.clientMutex.Lock()
+	manager, cancel, sends := s.detachConnectionLocked()
+	s.clientMutex.Unlock()
 
-			// Attempt to disconnect from the broker.
-			if err := s.connectionManager.Disconnect(ctx); err != nil {
-				s.closeErr = fmt.Errorf("disconnecting from MQTT broker: %w", err)
+	if manager == nil {
+		return nil
+	}
 
-				return
-			}
-		}
+	if err := disconnect(manager, cancel, sends); err != nil {
+		return fmt.Errorf("disconnecting from MQTT broker: %w", err)
+	}
 
-		// Cancel the context to signal termination.
-		// The cancel function is initialized by getCancel(), which is called
-		// during initClient(). If the client was never initialized, cancel is nil.
-		if s.cancel != nil {
-			s.cancel()
-		}
-	})
-
-	return s.closeErr
+	return nil
 }
 
 // GetID returns the service identifier used for registration and URL scheme matching.
@@ -145,10 +135,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	// Set up logging for the service
 	s.SetLogger(logger)
 
-	// Store the URL scheme for use in initClient()
-	// This allows the scheme (mqtt or mqtts) to be used as the primary
-	// determinant for TLS handling
-	s.urlScheme = serviceURL.Scheme
+	// A connection the service created belongs to the previous configuration.
+	s.closeOwnedConnection()
 
 	// Initialize the configuration struct with default values
 	s.Config = &Config{}
@@ -176,11 +164,10 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // It handles connection establishment if needed and publishes the message
 // with the configured QoS level and retention settings.
 //
-// On the first call, this method triggers lazy initialization of the MQTT client,
-// applying any configuration changes from params before creating the client. This allows
-// Host, Port, Username, Password, and TLS settings to be overridden at runtime.
-// Subsequent calls reuse the existing client; config changes after the first Send
-// only affect message-related settings (Topic, QoS, Retained), not connection settings.
+// Params apply to this send only. A send that opens a connection uses its own
+// settings, including Host, Port, Username, Password, and TLS settings, for that
+// connection. Sends that reuse the connection apply only their message settings
+// (Topic, QoS, Retained).
 //
 // Parameters:
 //   - message: The notification message to publish to the topic
@@ -188,25 +175,27 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //
 // Returns an error if connection fails or publishing encounters an error.
 func (s *Service) Send(message string, params *types.Params) error {
-	// Apply any runtime parameter overrides to the configuration
-	if err := s.pkr.UpdateConfigFromParams(s.Config, params); err != nil {
+	config := *s.Config
+
+	// Apply any runtime parameter overrides to this send's configuration
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	// Validate QoS value is within MQTT protocol range (0-2)
-	if !s.Config.QoS.IsValid() {
+	if !config.QoS.IsValid() {
 		return fmt.Errorf(
 			"validating QoS value %d: %w",
-			s.Config.QoS,
+			config.QoS,
 			ErrInvalidQoS,
 		)
 	}
 
-	// Ensure the MQTT client is initialized.
-	// This now returns an error that can be retried on transient failures.
-	if err := s.initClient(); err != nil {
+	manager, sends, err := s.acquireConnection(&config)
+	if err != nil {
 		return fmt.Errorf("initializing MQTT client: %w", err)
 	}
+	defer s.releaseConnection(sends)
 
 	// Create a context with timeout for the publish operation
 	ctx, cancel := context.WithTimeout(
@@ -216,25 +205,25 @@ func (s *Service) Send(message string, params *types.Params) error {
 	defer cancel()
 
 	// Wait for connection to be established
-	if err := s.connectionManager.AwaitConnection(ctx); err != nil {
+	if err := manager.AwaitConnection(ctx); err != nil {
 		return fmt.Errorf("connecting to MQTT broker: %w", err)
 	}
 
 	// Publish the message to the configured topic with QoS and retention settings
 	//nolint:exhaustruct_v5 // paho.Publish PacketID is auto-generated, Properties optional for MQTT v5
-	resp, err := s.connectionManager.Publish(
+	resp, err := manager.Publish(
 		ctx,
 		&paho.Publish{
-			Topic:   s.Config.Topic,
-			QoS:     byte(s.Config.QoS), //nolint:gosec // QoS validated to 0-2
-			Retain:  s.Config.Retained,
+			Topic:   config.Topic,
+			QoS:     byte(config.QoS), //nolint:gosec // QoS validated to 0-2
+			Retain:  config.Retained,
 			Payload: []byte(message),
 		},
 	)
 	if err != nil {
 		return fmt.Errorf(
 			"publishing to MQTT topic %q: %w",
-			s.Config.Topic,
+			config.Topic,
 			err,
 		)
 	}
@@ -256,21 +245,30 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Log successful publication for debugging and monitoring
-	s.Logf("Successfully published message to topic %q", s.Config.Topic)
+	s.Logf("Successfully published message to topic %q", config.Topic)
 
 	return nil
 }
 
-// SetConnectionManager sets the connection manager for the service.
+// SetConnectionManager sets the connection manager for the service. The caller
+// owns manager: the service never tears it down for idleness or replaces it, and
+// Close disconnects it. A nil manager makes the next send open its own connection.
 //
 // Parameters:
-//   - cm: The ConnectionManager implementation to use
+//   - manager: The ConnectionManager implementation to use
 //
 // This method should only be called before any Send operations to avoid
 // race conditions with lazy initialization.
-func (s *Service) SetConnectionManager(cm ConnectionManager) {
-	s.connectionManager = cm
-	s.connectionInitialized = cm != nil
+func (s *Service) SetConnectionManager(manager ConnectionManager) {
+	s.closeOwnedConnection()
+
+	s.clientMutex.Lock()
+	defer s.clientMutex.Unlock()
+
+	s.connectionManager = manager
+	s.ownedConnection = false
+	s.cancelConnection = nil
+	s.connectionSends = &sync.WaitGroup{}
 }
 
 // SetDialContext sets a custom dial function for MQTT TCP connections.
@@ -284,6 +282,39 @@ func (s *Service) SetConnectionManager(cm ConnectionManager) {
 //   - dial: The dial function. Must be safe for concurrent use when non-nil.
 func (s *Service) SetDialContext(dial types.DialContextFunc) {
 	s.dialContext = dial
+}
+
+// acquireConnection returns the connection for a send, opening one with config
+// when there is none or when the connection the service created has ended. It
+// stops the idle timer until [Service.releaseConnection] is called.
+//
+// Parameters:
+//   - config: the send's configuration, used when a connection is opened.
+//
+// Returns:
+//   - ConnectionManager: the connection to publish through.
+//   - *sync.WaitGroup: the connection's sends, to pass to [Service.releaseConnection].
+//   - error: the failure to open a connection, which the next send retries.
+func (s *Service) acquireConnection(config *Config) (ConnectionManager, *sync.WaitGroup, error) {
+	s.clientMutex.Lock()
+	defer s.clientMutex.Unlock()
+
+	if s.ownedConnection && connectionEnded(s.connectionManager) {
+		_, cancel, _ := s.detachConnectionLocked()
+		cancel()
+	}
+
+	if s.connectionManager == nil {
+		if err := s.openConnectionLocked(config); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	s.activeSends++
+	s.connectionSends.Add(1)
+	s.stopIdleTimerLocked()
+
+	return s.connectionManager, s.connectionSends, nil
 }
 
 // attemptConnection dials the MQTT broker using [Service.dialContext] and
@@ -331,47 +362,94 @@ func (s *Service) attemptConnection(
 	return packets.NewThreadSafeConn(tlsConn), nil
 }
 
-// createTLSConfig builds a TLS configuration based on the service settings.
+// closeIdleConnection tears down the connection the service created when the
+// idle period identified by generation is still current.
+//
+// Parameters:
+//   - generation: the idle period the timer was started for.
+func (s *Service) closeIdleConnection(generation uint64) {
+	s.clientMutex.Lock()
+
+	if generation != s.idleGeneration || s.activeSends > 0 || !s.ownedConnection {
+		s.clientMutex.Unlock()
+
+		return
+	}
+
+	manager, cancel, sends := s.detachConnectionLocked()
+	s.clientMutex.Unlock()
+
+	if err := disconnect(manager, cancel, sends); err != nil {
+		s.Logf("Disconnecting idle MQTT connection: %v", err)
+	}
+}
+
+// closeOwnedConnection tears down a connection the service created and leaves a
+// connection manager set with [Service.SetConnectionManager] in place.
+func (s *Service) closeOwnedConnection() {
+	s.clientMutex.Lock()
+
+	if !s.ownedConnection {
+		s.clientMutex.Unlock()
+
+		return
+	}
+
+	manager, cancel, sends := s.detachConnectionLocked()
+	s.clientMutex.Unlock()
+
+	if err := disconnect(manager, cancel, sends); err != nil {
+		s.Logf("Disconnecting MQTT connection: %v", err)
+	}
+}
+
+// createTLSConfig builds a TLS configuration based on config.
 // It enforces TLS 1.2 as the minimum version and optionally skips certificate
 // verification when DisableTLSVerification is set (useful for testing or
 // self-signed certificates).
 //
+// Parameters:
+//   - config: the configuration of the connection being opened.
+//
 // Returns a *tls.Config ready for use with the MQTT client.
-func (s *Service) createTLSConfig() *tls.Config {
+func (s *Service) createTLSConfig(config *Config) *tls.Config {
 	// Start with a base config requiring TLS 1.2 or higher
-	config := &tls.Config{
+	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
 
 	// Skip certificate verification if explicitly disabled
 	// Warning: This makes the connection vulnerable to man-in-the-middle attacks
-	if s.Config.DisableTLSVerification {
-		config.InsecureSkipVerify = true
+	if config.DisableTLSVerification {
+		tlsConfig.InsecureSkipVerify = true
 
 		// Log a warning about the security implications
 		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	}
 
-	return config
+	return tlsConfig
 }
 
-// getCancel returns the cancel function, initializing both the context and cancel
-// function exactly once. The context is stored in s.ctx for use by initClient,
-// ensuring that calling s.cancel() will properly cancel the connection lifecycle.
+// detachConnectionLocked clears the connection state and stops the idle timer.
+// The caller holds clientMutex.
 //
-// Returns the cancel function for connection cleanup.
-func (s *Service) getCancel() context.CancelFunc {
-	s.cancelOnce.Do(func() {
-		// Create a cancellable context for managing the connection lifecycle.
-		// Both ctx and cancel are stored so that cancel() can terminate
-		// operations using this context.
-		s.ctx, s.cancel = context.WithTimeout(
-			context.Background(),
-			publishTimeout*time.Second,
-		)
-	})
+// Returns:
+//   - ConnectionManager: the detached connection, or nil when there was none.
+//   - context.CancelFunc: ends the detached connection's lifetime. It is never nil.
+//   - *sync.WaitGroup: the sends still using the detached connection, or nil.
+func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFunc, *sync.WaitGroup) {
+	manager, cancel, sends := s.connectionManager, s.cancelConnection, s.connectionSends
+	if cancel == nil {
+		cancel = func() {}
+	}
 
-	return s.cancel
+	s.connectionManager = nil
+	s.cancelConnection = nil
+	s.connectionSends = nil
+	s.ownedConnection = false
+	s.stopIdleTimerLocked()
+
+	return manager, cancel, sends
 }
 
 // getDefaultPortForScheme returns the standard port number for a given MQTT scheme.
@@ -392,49 +470,26 @@ func (s *Service) getDefaultPortForScheme(scheme string) int {
 	}
 }
 
-// initClient creates and configures the MQTT client using a mutex-protected pattern.
-// This ensures thread-safe lazy initialization while allowing retry on transient failures.
+// openConnectionLocked creates a connection manager for config. The caller holds
+// clientMutex.
 //
-// Unlike sync.Once, this pattern allows initialization to be retried if it fails,
-// preventing permanent failure states when transient errors occur during url.Parse
-// or autopaho.NewConnection.
-//
-// The client is lazily initialized on the first call to Send, not during Initialize.
-// This allows runtime configuration changes (Host, Port, Username, Password, TLS settings)
-// to be applied via UpdateConfigFromParams before the client is created.
-//
-// Once successfully initialized, the client is reused for all subsequent Send calls.
-// The mutex-protected pattern ensures that:
-//   - Only one goroutine can attempt initialization at a time
-//   - Successful initialization is recorded via connectionInitialized flag
-//   - Failed initialization can be retried on subsequent calls
-//
-// The client is configured with:
+// The connection is configured with:
 //   - Broker URL (with automatic scheme detection based on TLS settings)
 //   - Authentication credentials if provided
 //   - Connection timeout and callbacks for logging
 //   - TLS configuration for secure connections
 //
-// Returns an error if initialization fails, allowing callers to retry.
-func (s *Service) initClient() error {
-	// Lock the mutex to ensure thread-safe initialization
-	s.clientMutex.Lock()
-	defer s.clientMutex.Unlock()
-
-	// Check if already successfully initialized
-	if s.connectionInitialized {
-		return nil
-	}
-
-	// Ensure cancel function and context are initialized.
-	// This stores both s.ctx and s.cancel for connection lifecycle management.
-	_ = s.getCancel()
-
+// Parameters:
+//   - config: the configuration of the send that opens the connection.
+//
+// Returns:
+//   - error: the failure to create the connection manager.
+func (s *Service) openConnectionLocked(config *Config) error {
 	// Determine the connection scheme based on URL scheme and port configuration.
 	// The URL scheme is the primary determinant, with port-based defaults as fallback.
 	// User-specified port overrides the default; scheme determines TLS handling.
-	scheme := s.urlScheme
-	port := s.Config.Port
+	scheme := config.scheme
+	port := config.Port
 
 	// Apply default scheme if URL scheme is not set or is invalid
 	if scheme == "" {
@@ -449,7 +504,7 @@ func (s *Service) initClient() error {
 	}
 
 	// Handle scheme/port mismatches with warnings (but don't change the scheme)
-	if scheme == SchemeTLS && !s.Config.DisableTLS && port == DefaultPort {
+	if scheme == SchemeTLS && !config.DisableTLS && port == DefaultPort {
 		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
 		s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
 	} else if scheme == Scheme && port == DefaultTLSPort {
@@ -458,13 +513,13 @@ func (s *Service) initClient() error {
 	}
 
 	// Enable TLS when using secure scheme and TLS is not disabled
-	useTLS := scheme == SchemeTLS && !s.Config.DisableTLS
+	useTLS := scheme == SchemeTLS && !config.DisableTLS
 
 	// Build the broker URL
 	brokerURL := fmt.Sprintf(
 		"%s://%s:%d",
 		scheme,
-		s.Config.Host,
+		config.Host,
 		port,
 	)
 
@@ -478,20 +533,15 @@ func (s *Service) initClient() error {
 		)
 	}
 
-	// Use the service's context for connection lifecycle management.
-	// This ensures that calling s.cancel() will properly terminate
-	// the connection when shutdown is requested.
-	ctx := s.ctx
-
 	// Create autopaho client configuration
 	//nolint:exhaustruct_v5 // autopaho.ClientConfig has many optional fields with library defaults
 	cliCfg := autopaho.ClientConfig{
 		ServerUrls:                    []*url.URL{serverURL},
 		KeepAlive:                     keepAliveInterval,
-		CleanStartOnInitialConnection: s.Config.CleanSession,
+		CleanStartOnInitialConnection: config.CleanSession,
 		SessionExpiryInterval:         sessionExpiryInterval,
 		//nolint:exhaustruct_v5 // remaining fields use library defaults
-		ClientID: s.Config.ClientID,
+		ClientID: config.ClientID,
 		OnServerDisconnect: func(disconnect *paho.Disconnect) {
 			s.Logf("Server disconnected: reason code %d", disconnect.ReasonCode)
 		},
@@ -504,36 +554,146 @@ func (s *Service) initClient() error {
 	}
 
 	// Set authentication credentials if username is provided
-	if s.Config.Username != "" {
-		cliCfg.ConnectUsername = s.Config.Username
+	if config.Username != "" {
+		cliCfg.ConnectUsername = config.Username
 
 		// Set password if provided alongside username
-		if s.Config.Password != "" {
-			cliCfg.ConnectPassword = []byte(s.Config.Password)
+		if config.Password != "" {
+			cliCfg.ConnectPassword = []byte(config.Password)
 		}
-	} else if s.Config.Password != "" {
+	} else if config.Password != "" {
 		// Password without username creates invalid MQTT auth state
 		s.Log("Warning: Password provided without username; skipping password authentication")
 	}
 
 	// Configure TLS based on scheme and DisableTLS setting
 	if useTLS {
-		cliCfg.TlsCfg = s.createTLSConfig()
+		cliCfg.TlsCfg = s.createTLSConfig(config)
 	}
 
 	if s.dialContext != nil {
 		cliCfg.AttemptConnection = s.attemptConnection
 	}
 
-	// Create the connection manager
-	connectionManager, err := autopaho.NewConnection(ctx, cliCfg)
+	connect := s.connect
+	if connect == nil {
+		connect = newAutopahoConnection
+	}
+
+	// The connection lives until Close, an idle teardown, or a replacement after it ends.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	connectionManager, err := connect(ctx, &cliCfg)
 	if err != nil {
+		cancel()
+
 		return fmt.Errorf("creating MQTT connection: %w", err)
 	}
 
-	// Only set connectionManager and mark as initialized on success
 	s.connectionManager = connectionManager
-	s.connectionInitialized = true
+	s.ownedConnection = true
+	s.cancelConnection = cancel
+	s.connectionSends = &sync.WaitGroup{}
+
+	return nil
+}
+
+// releaseConnection ends a send started with [Service.acquireConnection] and
+// starts the idle timer when no other send uses a connection the service created.
+//
+// Parameters:
+//   - sends: the connection's sends, as returned by [Service.acquireConnection].
+func (s *Service) releaseConnection(sends *sync.WaitGroup) {
+	sends.Done()
+
+	s.clientMutex.Lock()
+	defer s.clientMutex.Unlock()
+
+	s.activeSends--
+	if s.activeSends > 0 || !s.ownedConnection || s.connectionManager == nil {
+		return
+	}
+
+	s.stopIdleTimerLocked()
+
+	generation := s.idleGeneration
+	s.idleTimer = time.AfterFunc(idleTimeout, func() { s.closeIdleConnection(generation) })
+}
+
+// stopIdleTimerLocked stops the idle timer and starts a new idle generation, so
+// a timer that already fired does nothing. The caller holds clientMutex.
+func (s *Service) stopIdleTimerLocked() {
+	s.idleGeneration++
+
+	if s.idleTimer != nil {
+		s.idleTimer.Stop()
+		s.idleTimer = nil
+	}
+}
+
+// newAutopahoConnection creates an autopaho connection manager.
+//
+// Parameters:
+//   - ctx: the connection's lifetime.
+//   - cfg: the client configuration.
+//
+// Returns:
+//   - ConnectionManager: the connection manager.
+//   - error: the failure to create it.
+func newAutopahoConnection(ctx context.Context, cfg *autopaho.ClientConfig) (ConnectionManager, error) {
+	manager, err := autopaho.NewConnection(ctx, *cfg)
+	if err != nil {
+		return nil, fmt.Errorf("starting autopaho connection: %w", err)
+	}
+
+	return manager, nil
+}
+
+// connectionEnded reports whether a connection manager that exposes Done, such as
+// autopaho's, has shut down.
+//
+// Parameters:
+//   - manager: the connection manager, which may be nil.
+//
+// Returns:
+//   - bool: true when manager's Done channel is closed.
+func connectionEnded(manager ConnectionManager) bool {
+	ender, ok := manager.(interface{ Done() <-chan struct{} })
+	if !ok {
+		return false
+	}
+
+	select {
+	case <-ender.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// disconnect waits for the sends still using manager, disconnects it, waiting at
+// most [disconnectTimeout] seconds, and then calls cancel to end its lifetime.
+//
+// Parameters:
+//   - manager: the connection to disconnect.
+//   - cancel: ends the connection's lifetime.
+//   - sends: the sends using the connection, or nil.
+//
+// Returns:
+//   - error: the disconnect failure.
+func disconnect(manager ConnectionManager, cancel context.CancelFunc, sends *sync.WaitGroup) error {
+	defer cancel()
+
+	if sends != nil {
+		sends.Wait()
+	}
+
+	ctx, stop := context.WithTimeout(context.Background(), disconnectTimeout*time.Second)
+	defer stop()
+
+	if err := manager.Disconnect(ctx); err != nil {
+		return fmt.Errorf("disconnecting: %w", err)
+	}
 
 	return nil
 }

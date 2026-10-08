@@ -533,7 +533,8 @@ func (e *env) locate(t *testing.T) (types.Service, error) {
 	return e.locateWith(t, types.SenderOptions{HTTPClient: e.client, DialContext: e.dial})
 }
 
-// locateWith builds the service through the router with the given options.
+// locateWith builds the service through the router with the given options. A
+// service that holds a connection is closed when the test ends, as consumers do.
 func (e *env) locateWith(t *testing.T, opts types.SenderOptions) (types.Service, error) {
 	t.Helper()
 
@@ -545,6 +546,10 @@ func (e *env) locateWith(t *testing.T, opts types.SenderOptions) (types.Service,
 	service, err := serviceRouter.Locate(e.fx.url)
 	if err != nil {
 		return nil, fmt.Errorf("locating service: %w", err)
+	}
+
+	if closer, ok := service.(io.Closer); ok {
+		t.Cleanup(func() { _ = closer.Close() })
 	}
 
 	return service, nil
