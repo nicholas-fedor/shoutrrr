@@ -28,9 +28,13 @@ const (
 	defaultHTTPTimeout = 10 * time.Second
 )
 
-// ErrMessageTooLong indicates that the message exceeds the maximum allowed length.
+// Errors returned by the service.
 var (
+	// ErrMessageTooLong indicates that the message exceeds the maximum allowed length.
 	ErrMessageTooLong = errors.New("Message exceeds the max length")
+	// ErrUnexpectedResponse indicates that the Telegram API reported a failure
+	// without an error description.
+	ErrUnexpectedResponse = errors.New("telegram API reported a failure without an error description")
 )
 
 // GetConfig returns the current configuration for the service.
@@ -87,9 +91,10 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 	return &http.Client{Timeout: defaultHTTPTimeout}
 }
 
-// sendMessageForChatIDs sends the message to all configured chat IDs.
+// sendMessageForChatIDs sends the message to every chat in config, which includes
+// any chats set by the send params.
 func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
-	for _, chat := range s.Config.Chats {
+	for _, chat := range config.Chats {
 		if err := s.sendMessageToAPI(message, chat, config); err != nil {
 			return err
 		}

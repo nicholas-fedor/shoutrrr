@@ -112,6 +112,73 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 		gomega.Eventually(resultChannel).
 			Should(gomega.Receive(gomega.Equal(`telegram://0:MockToken@telegram?chats=667&preview=No`)))
 	})
+
+	ginkgo.It("should return an error when polling for updates fails", func() {
+		gen := telegram.Generator{
+			Reader: userOut,
+			Writer: userInMono,
+		}
+
+		httpmock.RegisterResponder(
+			"GET",
+			mockAPI(`getMe`),
+			httpmock.NewJsonResponderOrPanic(200, &struct {
+				OK     bool
+				Result *telegram.User
+			}{
+				true, &telegram.User{ID: 1, IsBot: true, Username: "mockbot"},
+			}),
+		)
+
+		httpmock.RegisterResponder(
+			"POST",
+			mockAPI(`getUpdates`),
+			httpmock.NewStringResponder(502, "<html>Bad Gateway</html>"),
+		)
+
+		errChannel := make(chan error, 1)
+
+		go func() {
+			defer ginkgo.GinkgoRecover()
+
+			_, err := gen.Generate(nil, nil, nil)
+			errChannel <- err
+		}()
+
+		defer dumpBuffers()
+
+		mockTyped(mockToken)
+
+		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting updates"))))
+	})
+
+	ginkgo.It("should return an error when the bot info cannot be fetched", func() {
+		gen := telegram.Generator{
+			Reader: userOut,
+			Writer: userInMono,
+		}
+
+		httpmock.RegisterResponder(
+			"GET",
+			mockAPI(`getMe`),
+			httpmock.NewStringResponder(502, "<html>Bad Gateway</html>"),
+		)
+
+		errChannel := make(chan error, 1)
+
+		go func() {
+			defer ginkgo.GinkgoRecover()
+
+			_, err := gen.Generate(nil, nil, nil)
+			errChannel <- err
+		}()
+
+		defer dumpBuffers()
+
+		mockTyped(mockToken)
+
+		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting bot info"))))
+	})
 })
 
 func mockAPI(endpoint string) string {
