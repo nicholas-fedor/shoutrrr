@@ -227,12 +227,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"matrix": {"F3: Matrix logs in during Initialize", failInit},
 	},
 	checkNilHTTPClient: {
-		"discord":    {"F7: panics after SetHTTPClient(nil)", failPanic},
-		"googlechat": {"F7: panics after SetHTTPClient(nil)", failPanic},
-		"hangouts":   {"F7: panics after SetHTTPClient(nil)", failPanic},
-		"matrix":     {"F3: Matrix logs in during Initialize", failInit},
-		"ntfy":       {"F7: keeps the injected client after SetHTTPClient(nil)", failInjectedAfterNil},
-		"pushbullet": {"F7: panics after SetHTTPClient(nil)", failPanic},
-		"zulip":      {"F7: panics after SetHTTPClient(nil)", failPanic},
+		"matrix": {"F3: Matrix logs in during Initialize", failInit},
 	},
 }

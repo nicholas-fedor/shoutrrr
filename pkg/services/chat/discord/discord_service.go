@@ -110,8 +110,13 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 	return s.sendItems(items, params)
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client restores
+// the default client.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if client == nil {
+		client = NewDefaultHTTPClient()
+	}
+
 	s.HTTPClient = client
 }
 

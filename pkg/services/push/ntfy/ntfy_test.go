@@ -167,12 +167,33 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(service.client).NotTo(gomega.BeNil())
 		})
 
-		ginkgo.It("should not recreate jsonclient when client is nil", func() {
-			existingJSON := newMockJSONClient()
-			service.client = existingJSON
+		ginkgo.It("should restore the default client when client is nil", func() {
+			injected := &http.Client{}
+			service.SetHTTPClient(injected)
+			injectedJSON := service.client
+
+			service.SetHTTPClient(nil)
+			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
+			gomega.Expect(service.httpClient).NotTo(gomega.BeIdenticalTo(injected))
+			gomega.Expect(service.client).NotTo(gomega.BeIdenticalTo(injectedJSON))
+		})
+
+		ginkgo.It("should honor disabled TLS verification in the restored default client", func() {
+			service.Config.DisableTLSVerification = true
+			service.SetHTTPClient(nil)
+
+			client, ok := service.httpClient.(*http.Client)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			transport, ok := client.Transport.(*http.Transport)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
+		})
+
+		ginkgo.It("should leave the client to Initialize when the service is not configured", func() {
+			service.Config = nil
 			service.SetHTTPClient(nil)
 			gomega.Expect(service.httpClient).To(gomega.BeNil())
-			gomega.Expect(service.client).To(gomega.BeIdenticalTo(existingJSON))
+			gomega.Expect(service.client).To(gomega.BeNil())
 		})
 	})
 

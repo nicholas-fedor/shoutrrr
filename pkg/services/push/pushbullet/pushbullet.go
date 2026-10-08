@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -25,6 +26,8 @@ type Service struct {
 // Constants.
 const (
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
+	// defaultHTTPTimeout is the timeout of the HTTP client used when none is injected.
+	defaultHTTPTimeout = 10 * time.Second
 )
 
 // Static errors for push validation.
@@ -53,8 +56,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	s.client = jsonclient.NewWithHTTPClient(s.httpClientOrDefault())
-	s.client.Headers().Set("Access-Token", s.Config.Token)
+	s.client = s.newJSONClient()
 
 	return nil
 }
@@ -75,24 +77,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client restores
+// the default client.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if client == nil {
-		s.httpClient = nil
-		s.client = nil
-
-		return
-	}
-
 	if c, ok := client.(*http.Client); ok && c == nil {
-		s.httpClient = nil
-		s.client = nil
-
-		return
+		client = nil
 	}
 
 	s.httpClient = client
-	s.client = jsonclient.NewWithHTTPClient(client)
+	s.client = s.newJSONClient()
 }
 
 // doSend sends a push notification to a specific target and validates the response.
@@ -140,17 +133,22 @@ func (s *Service) doSend(config *Config, target, message string) error {
 	return nil
 }
 
-// httpClientOrDefault returns the injected client or a default Client.
-func (s *Service) httpClientOrDefault() *http.Client {
-	if s.httpClient != nil {
-		if c, ok := s.httpClient.(*http.Client); ok {
-			return c
-		}
+// newJSONClient builds the API client from the injected or default HTTP client.
+// It sets the access token on every client it builds, so replacing the HTTP client
+// keeps requests authenticated.
+//
+// Returns:
+//   - jsonclient.Client: the API client.
+func (s *Service) newJSONClient() jsonclient.Client {
+	httpClient := s.httpClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 
-	if s.httpClient == nil {
-		return &http.Client{}
+	client := jsonclient.NewWithHTTPClient(httpClient)
+	if s.Config != nil {
+		client.Headers().Set("Access-Token", s.Config.Token)
 	}
 
-	return &http.Client{}
+	return client
 }
