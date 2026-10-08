@@ -86,6 +86,13 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 			}),
 		)
 
+		// Type the input before Generate starts. The dialog treats an empty buffer
+		// as closed input, so typing afterwards races the first read.
+		mockTyped(mockToken)
+		mockTyped(`no`)
+
+		defer dumpBuffers()
+
 		go func() {
 			defer ginkgo.GinkgoRecover()
 
@@ -96,11 +103,6 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 
 			resultChannel <- conf.GetURL().String()
 		}()
-
-		defer dumpBuffers()
-
-		mockTyped(mockToken)
-		mockTyped(`no`)
 
 		gomega.Eventually(userIn).
 			Should(gbytes.Say(`Got a bot chat member update for mockChannel, status was changed from kicked to administrator`))
@@ -138,16 +140,18 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 
 		errChannel := make(chan error, 1)
 
+		// Type the input before Generate starts. The dialog treats an empty buffer
+		// as closed input, so typing afterwards races the first read.
+		mockTyped(mockToken)
+
+		defer dumpBuffers()
+
 		go func() {
 			defer ginkgo.GinkgoRecover()
 
 			_, err := gen.Generate(nil, nil, nil)
 			errChannel <- err
 		}()
-
-		defer dumpBuffers()
-
-		mockTyped(mockToken)
 
 		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting updates"))))
 	})
@@ -166,16 +170,18 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 
 		errChannel := make(chan error, 1)
 
+		// Type the input before Generate starts. The dialog treats an empty buffer
+		// as closed input, so typing afterwards races the first read.
+		mockTyped(mockToken)
+
+		defer dumpBuffers()
+
 		go func() {
 			defer ginkgo.GinkgoRecover()
 
 			_, err := gen.Generate(nil, nil, nil)
 			errChannel <- err
 		}()
-
-		defer dumpBuffers()
-
-		mockTyped(mockToken)
 
 		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting bot info"))))
 	})
