@@ -54,6 +54,32 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 			verifyMessageReceived(service.Config.Topic, message)
 		})
 
+		ginkgo.It("should apply params to one send only", func() {
+			serviceURLStr := buildServiceURL()
+			if serviceURLStr == "" {
+				ginkgo.Skip("ntfy server not configured, skipping per-send params test")
+			}
+
+			service := initializeService(serviceURLStr)
+
+			// A unique suffix keeps cached messages from earlier runs from matching.
+			run := time.Now().UnixNano()
+			withTitle := fmt.Sprintf("E2E Test: message with a title param %d", run)
+			withoutTitle := fmt.Sprintf("E2E Test: message sent after the title param %d", run)
+
+			gomega.Expect(service.Send(withTitle, &types.Params{"title": "Per-send title"})).
+				To(gomega.Succeed())
+			gomega.Expect(service.Send(withoutTitle, nil)).To(gomega.Succeed())
+
+			msg, err := pollForMessage(service.Config.Topic, withTitle)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(msg.Title).To(gomega.Equal("Per-send title"))
+
+			msg, err = pollForMessage(service.Config.Topic, withoutTitle)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(msg.Title).To(gomega.BeEmpty())
+		})
+
 		ginkgo.It("should send an empty message", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {

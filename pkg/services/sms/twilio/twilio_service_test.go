@@ -134,12 +134,23 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 	})
 
 	ginkgo.Describe("Params update", func() {
-		ginkgo.It("should update config from params", func() {
+		ginkgo.It("should apply params to the send without changing the service config", func() {
+			mockClient.captureBody = true
 			params := types.Params{"title": "Updated Title"}
 
 			err := service.Send("Message", &params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Title).To(gomega.Equal("Updated Title"))
+			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("Updated+Title"))
+			gomega.Expect(service.Config.Title).To(gomega.BeEmpty())
+
+			mockClient.response = &http.Response{
+				StatusCode: http.StatusCreated,
+				Body:       io.NopCloser(strings.NewReader(`{"sid": "SM456"}`)),
+			}
+
+			err = service.Send("Message", nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(mockClient.lastBody).NotTo(gomega.ContainSubstring("Updated"))
 		})
 	})
 })

@@ -111,7 +111,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // Returns:
 //   - An error if the notification fails to send.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := s.Config
+	// Params apply to this send only, so they update a copy of the service config.
+	configCopy := *s.Config
+	config := &configCopy
 
 	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
