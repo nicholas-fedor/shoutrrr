@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"testing"
@@ -128,7 +129,7 @@ func TestEmbedStructureCompliance(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		// Verify embed structure
@@ -174,7 +175,7 @@ func TestFileUploadCompliance(t *testing.T) {
 			createTestMessageItemWithFile("File message", "test.txt", []byte("file content")),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		// Verify multipart form data structure

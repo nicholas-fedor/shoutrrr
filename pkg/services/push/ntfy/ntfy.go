@@ -34,6 +34,13 @@ type Service struct {
 // HTTPTimeout defines the HTTP client timeout in seconds.
 const HTTPTimeout = 10
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme

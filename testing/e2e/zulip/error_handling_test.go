@@ -27,7 +27,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			err = service.SendWithContext(sendCtx, "E2E Test: unreachable", nil)
+			err = service.SendContext(sendCtx, "E2E Test: unreachable", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 	})
@@ -44,7 +44,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			err = service.SendWithContext(ctx, "E2E Test: canceled", nil)
+			err = service.SendContext(ctx, "E2E Test: canceled", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 	})

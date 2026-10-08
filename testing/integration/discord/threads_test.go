@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -58,7 +59,7 @@ func TestSendItemsToThread(t *testing.T) {
 			{Text: "Thread message with embed"},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestMade(
@@ -124,7 +125,7 @@ func TestSendFileToThread(t *testing.T) {
 			),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestMade(
@@ -214,7 +215,7 @@ func TestThreadMessageWithEmbed(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestMade(
@@ -260,7 +261,7 @@ func TestThreadMessageWithMultipleFiles(t *testing.T) {
 			),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestMade(

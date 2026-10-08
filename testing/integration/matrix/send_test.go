@@ -26,7 +26,7 @@ func TestServiceSendWithCancelledContext(t *testing.T) {
 
 	// Attempting to send with an uninitialized client should return
 	// ErrClientNotInitialized, regardless of context state
-	err := service.SendWithContext(ctx, "Test message", nil)
+	err := service.SendContext(ctx, "Test message", nil)
 
 	require.Error(t, err, "Expected error when sending with uninitialized client")
 	require.ErrorIs(t, err, matrix.ErrClientNotInitialized,

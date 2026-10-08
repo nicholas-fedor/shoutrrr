@@ -39,6 +39,14 @@ var (
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+	_ types.CustomURLService = (*Service)(nil)
+)
+
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
 	return Scheme

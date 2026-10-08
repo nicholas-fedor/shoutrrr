@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -43,7 +44,7 @@ func TestNilMessageItems(t *testing.T) {
 			mockClient,
 		)
 
-		err := service.SendItems(nil, nil)
+		err := service.SendItemsContext(context.Background(), nil, nil)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "creating payload")
@@ -62,7 +63,7 @@ func TestEmptyMessageItems(t *testing.T) {
 			mockClient,
 		)
 
-		err := service.SendItems([]types.MessageItem{}, nil)
+		err := service.SendItemsContext(context.Background(), []types.MessageItem{}, nil)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "creating payload")
@@ -272,7 +273,7 @@ func TestExtremelyLargeFile(t *testing.T) {
 			createTestMessageItemWithFile("Large file", "large.dat", largeData),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 
@@ -298,7 +299,7 @@ func TestFileWithEmptyName(t *testing.T) {
 			createTestMessageItemWithFile("Test", "", []byte("content")),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 
@@ -353,7 +354,7 @@ func TestFileWithSpecialCharactersInName(t *testing.T) {
 				createTestMessageItemWithFile("Test file", filename, []byte("content")),
 			}
 
-			err := service.SendItems(items, nil)
+			err := service.SendItemsContext(context.Background(), items, nil)
 
 			require.NoError(t, err)
 		}
@@ -419,7 +420,7 @@ func TestMemoryExhaustionSimulation(t *testing.T) {
 			})
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 

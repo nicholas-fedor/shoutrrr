@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"net/url"
 	"os"
 
@@ -34,7 +35,7 @@ var _ = ginkgo.Describe("Discord E2E File Attachment Test", func() {
 					File: &types.File{Name: "e2e_test.txt", Data: testData},
 				},
 			}
-			err = service.SendItems(items, nil)
+			err = service.SendItemsContext(context.Background(), items, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})

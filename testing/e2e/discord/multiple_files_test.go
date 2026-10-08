@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"net/url"
 	"os"
 
@@ -39,7 +40,7 @@ var _ = ginkgo.Describe("Discord E2E Multiple Files Test", func() {
 					File: &types.File{Name: "test2.txt", Data: file2Data},
 				},
 			}
-			err = service.SendItems(items, nil)
+			err = service.SendItemsContext(context.Background(), items, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})

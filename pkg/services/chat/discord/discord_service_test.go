@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -138,6 +139,12 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 		})
 	})
 
+	ginkgo.Describe("Service.ServiceTimeout method", func() {
+		ginkgo.It("should report the sender's retry limit", func() {
+			gomega.Expect((&Service{}).ServiceTimeout(nil)).To(gomega.Equal(maxRetryTimeout))
+		})
+	})
+
 	ginkgo.Describe("Service.SendItems method", func() {
 		ginkgo.It("should delegate to sendItems method", func() {
 			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
@@ -190,7 +197,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			}
 			params := &types.Params{}
 
-			err := service.sendItems(items, params)
+			err := service.sendItems(context.Background(), items, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
@@ -215,7 +222,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			}
 			params := &types.Params{}
 
-			err := service.sendItems(items, params)
+			err := service.sendItems(context.Background(), items, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
@@ -238,7 +245,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 				"username": "CustomBot",
 			}
 
-			err := service.sendItems(items, params)
+			err := service.sendItems(context.Background(), items, params)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// The payload should include the updated username
@@ -248,7 +255,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			items := []types.MessageItem{}
 			params := &types.Params{}
 
-			err := service.sendItems(items, params)
+			err := service.sendItems(context.Background(), items, params)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrEmptyMessage))
@@ -265,7 +272,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 				"invalid_key": "value",
 			}
 
-			err := service.sendItems(items, params)
+			err := service.sendItems(context.Background(), items, params)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("updating config from params"))
@@ -458,7 +465,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := testWebhookURLAlt
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
@@ -468,7 +475,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := ""
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrEmptyURL))
 		})
@@ -477,7 +484,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := "http://" + testWebhookURLAlt[8:] // Change https to http
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidScheme))
 		})
@@ -486,7 +493,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := "https://example.com" + testWebhookURLAlt[20:] // Replace discord.com with example.com
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
 		})
@@ -495,7 +502,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := "https://discord.com/api/invalid" + testWebhookURLAlt[28:] // Replace /webhooks with /invalid
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidURLPrefix))
 		})
@@ -504,7 +511,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := "https://discord.com/api/webhooks//"
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.MatchError(ErrMalformedURL))
 		})
@@ -517,7 +524,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			payload := []byte(`{"content":"test"}`)
 			postURL := testWebhookURLAlt
 
-			err := service.doSend(payload, postURL)
+			err := service.doSend(context.Background(), payload, postURL)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
@@ -546,7 +553,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(&payload, files, postURL)
+			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
@@ -566,7 +573,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			files := []types.File{}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(&payload, files, postURL)
+			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
@@ -583,7 +590,7 @@ var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
 			files := []types.File{}
 			postURL := testWebhookURLAlt
 
-			err := service.doSendMultipart(&payload, files, postURL)
+			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})

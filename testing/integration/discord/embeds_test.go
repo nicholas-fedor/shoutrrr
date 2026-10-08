@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -37,7 +38,7 @@ func TestSendEmbedWithAuthor(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(
@@ -73,7 +74,7 @@ func TestSendEmbedWithImage(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(
@@ -109,7 +110,7 @@ func TestSendEmbedWithThumbnail(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(
@@ -148,7 +149,7 @@ func TestSendEmbedWithFields(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(
@@ -183,7 +184,7 @@ func TestSendEmbedWithTimestamp(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `"timestamp":"2023-12-25T12:00:00Z"`)
@@ -220,7 +221,7 @@ func TestSendEmbedWithColors(t *testing.T) {
 				{Text: "Test embed with color", Level: tt.level},
 			}
 
-			err := service.SendItems(items, nil)
+			err := service.SendItemsContext(context.Background(), items, nil)
 
 			require.NoError(t, err)
 			// Color handling depends on configuration
@@ -250,7 +251,7 @@ func TestSendMultipleEmbeds(t *testing.T) {
 			{Text: "Third embed"},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		// Verify multiple embeds are created

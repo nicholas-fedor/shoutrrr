@@ -31,10 +31,12 @@ type Service struct {
 // defaultTimeout bounds dial, session negotiation, and send.
 const defaultTimeout = 30 * time.Second
 
+// Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service           = (*Service)(nil)
-	_ types.ContextSender     = (*Service)(nil)
 	_ types.DialContextSetter = (*Service)(nil)
+	_ types.ContextSender     = (*Service)(nil)
+	_ types.ServiceTimeout    = (*Service)(nil)
 )
 
 // GetID returns the service identifier.

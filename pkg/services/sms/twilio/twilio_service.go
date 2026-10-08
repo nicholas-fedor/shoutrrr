@@ -19,6 +19,13 @@ type Service struct {
 	HTTPClient HTTPClient
 }
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme

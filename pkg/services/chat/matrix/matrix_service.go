@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -29,6 +30,27 @@ type Service struct {
 
 // Scheme identifies this service in configuration URLs.
 const Scheme = "matrix"
+
+// Request counts used to budget a send.
+const (
+	// loginRequests is the number of requests a password login makes: the login
+	// flows lookup and the login itself.
+	loginRequests = 2
+	// requestsPerRoom is the number of requests a send makes for a configured room:
+	// joining it by alias and sending the message.
+	requestsPerRoom = 2
+	// minRequestsPerSend is the number of requests a send makes without
+	// configured rooms: the joined rooms lookup and one message.
+	minRequestsPerSend = 2
+)
+
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
 
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
@@ -75,13 +97,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	return nil
 }
 
-// Send delivers a notification message to Matrix rooms.
+// Send delivers a notification message to Matrix rooms without a deadline of its own.
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the login or send failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
-	return s.SendWithContext(context.Background(), message, params)
+	return s.SendContext(context.Background(), message, params)
 }
 
-// SendWithContext delivers a notification message to Matrix rooms with the provided context.
-func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+// SendContext delivers a notification message to Matrix rooms. The router calls it
+// with its send deadline. The first send logs in when a user is configured.
+//
+// Parameters:
+//   - ctx: bounds the login and the room requests.
+//   - message: the message to send.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the login or send failure, or nil on success.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}
@@ -114,6 +152,60 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	}
 
 	return nil
+}
+
+// SendWithContext delivers a notification message with the provided context.
+//
+// Parameters:
+//   - ctx: bounds the send.
+//   - message: the message to send.
+//   - params: per-send parameters.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+//
+// Deprecated: Use [Service.SendContext], which the router calls with its send deadline.
+//
+//go:fix inline
+func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+	return s.SendContext(ctx, message, params)
+}
+
+// ServiceTimeout reports the send budget the router gives Matrix. A send makes
+// sequential requests, each bounded by the client's request timeout: two for the
+// password login when a user is configured, then a join and a message for each
+// configured room. Without configured rooms, the send looks up the joined rooms
+// and is budgeted for one message, so sends to many joined rooms need configured
+// rooms or a longer router timeout.
+//
+// Parameters:
+//   - params: per-send parameters, which may set the rooms.
+//
+// Returns:
+//   - time.Duration: the request timeout multiplied by the number of requests.
+func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	if s.Config == nil {
+		return defaultHTTPTimeout * minRequestsPerSend
+	}
+
+	config := *s.Config
+	if params != nil && len(*params) > 0 {
+		if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+			// An invalid param fails the send itself, so the stored config sets the budget.
+			config = *s.Config
+		}
+	}
+
+	requests := minRequestsPerSend
+	if len(config.Rooms) > 0 {
+		requests = requestsPerRoom * len(config.Rooms)
+	}
+
+	if config.User != "" {
+		requests += loginRequests
+	}
+
+	return defaultHTTPTimeout * time.Duration(requests)
 }
 
 // SetHTTPClient sets a custom HTTP client for the service (propagated to internal client).

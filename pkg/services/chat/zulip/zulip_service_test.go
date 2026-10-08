@@ -79,6 +79,12 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 		})
 	})
 
+	ginkgo.Describe("ServiceTimeout", func() {
+		ginkgo.It("should cover the register call and the message request", func() {
+			gomega.Expect((&Service{}).ServiceTimeout(nil)).To(gomega.Equal(registerTimeout + defaultHTTPTimeout))
+		})
+	})
+
 	ginkgo.Describe("GetID", func() {
 		ginkgo.It("should return the zulip scheme identifier", func() {
 			svc := &Service{}
@@ -451,7 +457,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 		})
 	})
 
-	ginkgo.Describe("SendWithContext", func() {
+	ginkgo.Describe("SendContext", func() {
 		ginkgo.It("should send a message with background context", func() {
 			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
 			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
@@ -461,7 +467,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			service := newTestService(mockClient)
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -480,7 +486,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			service := newTestService(mockClient)
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(capturedReq).NotTo(gomega.BeNil())
@@ -492,7 +498,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 
 			service := newTestService(mockClient)
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
@@ -507,7 +513,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			originalTopic := service.Config.Topic
 
-			err := service.SendWithContext(context.Background(), "Test message", &types.Params{"topic": "different-topic"})
+			err := service.SendContext(context.Background(), "Test message", &types.Params{"topic": "different-topic"})
 
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(service.Config.Topic).To(gomega.Equal(originalTopic))
@@ -519,7 +525,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			service.Config.Host = "invalid host with spaces"
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
@@ -535,7 +541,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			service.Config.Host = "zulip.example.com:8443"
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
@@ -546,7 +552,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			service.Config.Host = "zulip.example.com:abc"
 
-			err := service.SendWithContext(context.Background(), "Test message", nil)
+			err := service.SendContext(context.Background(), "Test message", nil)
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
@@ -567,7 +573,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			service.Config.Stream = "" // no stream, use to
 
-			err := service.SendWithContext(context.Background(), "Test direct", &types.Params{
+			err := service.SendContext(context.Background(), "Test direct", &types.Params{
 				"type": "direct",
 				"to":   "user1@example.com,user2@example.com",
 			})
@@ -585,7 +591,7 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 			service := newTestService(mockClient)
 			service.Config.Stream = ""
 
-			err := service.SendWithContext(context.Background(), "Test message", &types.Params{"type": "direct"})
+			err := service.SendContext(context.Background(), "Test message", &types.Params{"type": "direct"})
 
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err).To(gomega.MatchError(ErrMissingRecipient))

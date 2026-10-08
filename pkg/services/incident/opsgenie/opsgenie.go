@@ -37,6 +37,13 @@ const (
 // ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
 var ErrUnexpectedStatus = errors.New("OpsGenie notification returned unexpected HTTP status code")
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme

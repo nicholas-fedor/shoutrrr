@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -312,7 +313,7 @@ func TestHTTPMultipartUpload(t *testing.T) {
 			createTestMessageItemWithFile("Test", "file.txt", []byte("content")),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestMatches(t, mockClient, func(req *http.Request) bool {

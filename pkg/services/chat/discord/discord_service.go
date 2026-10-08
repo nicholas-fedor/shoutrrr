@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -39,6 +40,15 @@ var limits = types.MessageLimit{
 	ChunkCount:     ChunkCount,
 }
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service                 = (*Service)(nil)
+	_ types.HTTPClientSetter        = (*Service)(nil)
+	_ types.ContextSender           = (*Service)(nil)
+	_ types.ContextAttachmentSender = (*Service)(nil)
+	_ types.ServiceTimeout          = (*Service)(nil)
+)
+
 // GetID provides the identifier for this service.
 func (s *Service) GetID() string {
 	return Scheme
@@ -68,8 +78,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	return nil
 }
 
-// Send delivers a notification message to Discord.
+// Send delivers a notification message to Discord without a deadline of its own.
+//
+// Parameters:
+//   - message: the message text, or a raw JSON payload when the json option is set.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the first failure among the message's batches, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Discord. The router calls it
+// with its send deadline.
+//
+// Parameters:
+//   - ctx: bounds each request and its retries.
+//   - message: the message text, or a raw JSON payload when the json option is set.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the first failure among the message's batches, or nil on success.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if message == "" {
 		return ErrEmptyMessage
 	}
@@ -78,7 +109,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	if s.Config.JSON {
 		postURL := CreatePostURLFromConfig(s.Config)
-		if err := s.doSend([]byte(message), postURL); err != nil {
+		if err := s.doSend(ctx, []byte(message), postURL); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 	} else {
@@ -89,7 +120,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 		batches := createItemsFromPlain(message, config.SplitLines, config.Title)
 		for _, batch := range batches {
-			if err := s.sendItems(batch, params); err != nil {
+			if err := s.sendItems(ctx, batch, params); err != nil {
 				s.Log(err)
 
 				if firstErr == nil {
@@ -107,8 +138,48 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendItems delivers message items with enhanced metadata and formatting to Discord.
+//
+// Parameters:
+//   - items: the message items, sent as embeds with their fields and files.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+//
+// Deprecated: Use [Service.SendItemsContext], which the router calls for rich
+// messages. This method's *types.Params parameter does not match
+// [types.RichSender], so the router never calls it.
 func (s *Service) SendItems(items []types.MessageItem, params *types.Params) error {
-	return s.sendItems(items, params)
+	return s.sendItems(context.Background(), items, params)
+}
+
+// SendItemsContext delivers message items with enhanced metadata and formatting to
+// Discord, including embeds, fields, timestamps and file attachments. The router
+// calls it for rich messages, with its send deadline.
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - items: the message items, sent as embeds with their fields and files.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+func (s *Service) SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) error {
+	return s.sendItems(ctx, items, &params)
+}
+
+// ServiceTimeout reports the send budget the router gives Discord: the sender's
+// retry limit. Discord's rate limits tell clients to wait for the Retry-After
+// duration, which can last minutes, and a long message is sent as several
+// batches, each with its own retries. Healthy sends finish well before it.
+//
+// Parameters:
+//   - params: unused. The retry limit does not depend on send parameters.
+//
+// Returns:
+//   - time.Duration: [maxRetryTimeout].
+func (*Service) ServiceTimeout(*types.Params) time.Duration {
+	return maxRetryTimeout
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
@@ -126,20 +197,37 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // doSend executes an HTTP POST request to deliver the payload to Discord.
-func (s *Service) doSend(payload []byte, postURL string) error {
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - payload: the JSON request body.
+//   - postURL: the webhook URL.
+//
+// Returns:
+//   - error: the validation or request failure, or nil on success.
+func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) error {
 	if err := validateDiscordWebhookURL(postURL); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	preparer := &JSONRequestPreparer{payload: payload}
 
 	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
 }
 
-// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver payload and files to Discord.
+// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver
+// payload and files to Discord.
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - payload: the webhook payload sent as the JSON form part.
+//   - files: the files attached to the request.
+//   - postURL: the webhook URL.
+//
+// Returns:
+//   - error: the validation or request failure, or nil on success.
 func (s *Service) doSendMultipart(
+	ctx context.Context,
 	payload *WebhookPayload,
 	files []types.File,
 	postURL string,
@@ -147,8 +235,6 @@ func (s *Service) doSendMultipart(
 	if err := validateDiscordWebhookURL(postURL); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	preparer := &MultipartRequestPreparer{
 		payload: payload,
@@ -158,7 +244,17 @@ func (s *Service) doSendMultipart(
 	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
 }
 
-func (s *Service) sendItems(items []types.MessageItem, params *types.Params) error {
+// sendItems builds the webhook payload for items and sends it, as multipart when
+// any item carries a file.
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - items: the message items to send.
+//   - params: per-send parameters, applied to a copy of the config.
+//
+// Returns:
+//   - error: the payload or send failure, or nil on success.
+func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, params *types.Params) error {
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
@@ -194,7 +290,7 @@ func (s *Service) sendItems(items []types.MessageItem, params *types.Params) err
 	hasFiles := len(files) > 0
 
 	if hasFiles {
-		return s.doSendMultipart(&payload, files, postURL)
+		return s.doSendMultipart(ctx, &payload, files, postURL)
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -202,7 +298,7 @@ func (s *Service) sendItems(items []types.MessageItem, params *types.Params) err
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	return s.doSend(payloadBytes, postURL)
+	return s.doSend(ctx, payloadBytes, postURL)
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.

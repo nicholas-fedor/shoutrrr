@@ -32,9 +32,11 @@ const (
 	defaultTimeout = 10 * time.Second
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
 var (
-	_ types.ContextSender     = (*Service)(nil)
+	_ types.Service           = (*Service)(nil)
 	_ types.DialContextSetter = (*Service)(nil)
+	_ types.ContextSender     = (*Service)(nil)
 	_ types.ServiceTimeout    = (*Service)(nil)
 )
 
