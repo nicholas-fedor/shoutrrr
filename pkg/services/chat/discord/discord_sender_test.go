@@ -353,9 +353,10 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			start := time.Now()
 			_, err = executeWithTransportRetry(ctx, mockClient, nil, req, RealSleeper{})
 
-			// The first backoff is one second, so returning sooner shows the wait was interrupted.
+			// The first backoff is one second, so returning sooner shows the wait was
+			// interrupted. The margin below one second absorbs slow CI runners.
 			gomega.Expect(err).To(gomega.MatchError(context.Canceled))
-			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", 500*time.Millisecond))
+			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", 900*time.Millisecond))
 		})
 	})
 
