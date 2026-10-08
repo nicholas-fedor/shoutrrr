@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep http client injection safe and authenticated by @nicholas-fedor in [#1443](https://github.com/nicholas-fedor/shoutrrr/pull/1443)
 - Redact credentials from service errors and logs by @nicholas-fedor in [#1441](https://github.com/nicholas-fedor/shoutrrr/pull/1441)
 - Redact service urls from errors by @nicholas-fedor in [#1432](https://github.com/nicholas-fedor/shoutrrr/pull/1432)
 - Accept reserved params that a service does not declare by @nicholas-fedor in [#1430](https://github.com/nicholas-fedor/shoutrrr/pull/1430)
