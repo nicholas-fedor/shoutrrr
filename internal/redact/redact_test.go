@@ -236,3 +236,66 @@ func TestURLErrorPreservesTemporary(t *testing.T) {
 	assert.NotContains(t, urlErr.Error(), testSecret)
 	assert.True(t, urlErr.Temporary())
 }
+
+// TestURLErrorRedactsOtherErrors verifies that errors other than *url.Error, such as
+// those from a custom HTTP client, are redacted when they quote a URL.
+func TestURLErrorRedactsOtherErrors(t *testing.T) {
+	t.Parallel()
+
+	blocked := fmt.Errorf("destination https://internal.example.invalid/%s blocked: %w", testSecret, context.Canceled)
+
+	err := URLError(blocked)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), testSecret)
+	assert.Contains(t, err.Error(), "https://internal.example.invalid")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// TestRedactedErrorChainHidesCause verifies that no error reachable through the
+// exposed chain carries the original cause or its message, while sentinel
+// matching, Timeout and Temporary keep working.
+func TestRedactedErrorChainHidesCause(t *testing.T) {
+	t.Parallel()
+
+	cause := fmt.Errorf("redirect to https://hooks.example.invalid/%s refused: %w", testSecret, context.DeadlineExceeded)
+
+	err := URLError(&url.Error{Op: http.MethodGet, URL: "https://api.example.com/", Err: cause})
+
+	for _, chained := range errorChain(err) {
+		assert.NotContains(t, chained.Error(), testSecret)
+		assert.NotEqual(t, cause, chained, "the original cause must not be reachable")
+	}
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	urlErr, ok := errors.AsType[*url.Error](err)
+	require.True(t, ok)
+	assert.True(t, urlErr.Timeout())
+}
+
+// errorChain returns every error reachable from err through Unwrap.
+//
+// Parameters:
+//   - err: the error to walk.
+//
+// Returns:
+//   - []error: err and every error it wraps, depth first.
+func errorChain(err error) []error {
+	if err == nil {
+		return nil
+	}
+
+	chain := []error{err}
+
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() error }:
+		chain = append(chain, errorChain(wrapped.Unwrap())...)
+	case interface{ Unwrap() []error }:
+		for _, inner := range wrapped.Unwrap() {
+			chain = append(chain, errorChain(inner)...)
+		}
+	}
+
+	return chain
+}

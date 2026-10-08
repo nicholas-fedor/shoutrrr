@@ -15,8 +15,11 @@ type client struct {
 	inner types.HTTPClient
 }
 
-// redactedError is an error cause whose message has had its URLs redacted. It
-// unwraps to the original cause, so errors.Is and errors.As still match it.
+// redactedError is an error whose message has had its URLs redacted.
+//
+// It does not unwrap to the original error, whose message still carries the URLs.
+// errors.Is still matches the original's chain, and Timeout and Temporary report
+// the original's classification.
 type redactedError struct {
 	// err is the original cause.
 	err error
@@ -67,20 +70,21 @@ func RequestURL(rawURL string) string {
 // URLError redacts the URL in a *url.Error, such as the errors returned by
 // [http.Client.Do] and [url.Parse].
 //
-// The operation and underlying error are kept, so errors.Is, errors.As, Timeout
-// and Temporary behave as before. Parse errors also replace the underlying error with
-// [ErrInvalidURL], because net/url quotes parts of the URL in them. Only an
-// outermost *url.Error is rebuilt; any other error is returned unchanged.
+// The operation is kept, and the underlying error stays matchable with errors.Is
+// and keeps its Timeout and Temporary classification. Parse errors also replace
+// the underlying error with [ErrInvalidURL], because net/url quotes parts of the
+// URL in them. An outermost *url.Error is rebuilt. Any other error, such as one
+// from a custom HTTP client, has the URLs in its message redacted instead.
 //
 // Parameters:
 //   - err: the error to redact, which may be nil.
 //
 // Returns:
-//   - error: the redacted error, or err when it is not a *url.Error.
+//   - error: the redacted error, or err when it quotes no URL.
 func URLError(err error) error {
 	urlErr, ok := err.(*url.Error) //nolint:errorlint // Only an outermost *url.Error can be rebuilt.
 	if !ok {
-		return err
+		return redactCause(err)
 	}
 
 	if urlErr.Op == "parse" {
@@ -90,15 +94,15 @@ func URLError(err error) error {
 	return &url.Error{Op: urlErr.Op, URL: RequestURL(urlErr.URL), Err: redactCause(urlErr.Err)}
 }
 
-// redactCause redacts the URLs quoted in a *url.Error cause, such as both copies of
+// redactCause redacts the URLs quoted in an error message, such as both copies of
 // the Location header that net/http quotes for a malformed redirect.
 //
 // Parameters:
-//   - cause: the cause to redact, which may be nil.
+//   - cause: the error to redact, which may be nil.
 //
 // Returns:
-//   - error: cause itself when its message quotes no URL, otherwise a wrapper
-//     with a redacted message that unwraps to cause.
+//   - error: cause itself when its message quotes no URL, otherwise a
+//     *redactedError with the redacted message.
 func redactCause(cause error) error {
 	if cause == nil {
 		return nil
@@ -165,6 +169,18 @@ func (e *redactedError) Error() string {
 	return e.msg
 }
 
+// Is reports whether the original error's chain matches target, so sentinel errors
+// such as context.DeadlineExceeded remain matchable without exposing the original.
+//
+// Parameters:
+//   - target: the error to match.
+//
+// Returns:
+//   - bool: true when the original error's chain contains target.
+func (e *redactedError) Is(target error) bool {
+	return errors.Is(e.err, target)
+}
+
 // Temporary reports whether the original cause, or any error it wraps, is
 // temporary, so that url.Error.Temporary keeps working on redacted errors.
 //
@@ -185,12 +201,4 @@ func (e *redactedError) Timeout() bool {
 	var timeout interface{ Timeout() bool }
 
 	return errors.As(e.err, &timeout) && timeout.Timeout()
-}
-
-// Unwrap returns the original cause.
-//
-// Returns:
-//   - error: the original, unredacted cause.
-func (e *redactedError) Unwrap() error {
-	return e.err
 }
