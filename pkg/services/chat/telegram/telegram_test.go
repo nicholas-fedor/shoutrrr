@@ -225,6 +225,25 @@ var _ = ginkgo.Describe("the telegram service", func() {
 			gomega.Expect(err).To(gomega.MatchError(ErrUnexpectedResponse))
 		})
 
+		ginkgo.It("should report a Telegram API error returned with HTTP 200", func() {
+			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
+			err = telegram.Initialize(serviceURL, logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			setupSendMessageResponder(
+				"12345:mock-token",
+				http.StatusOK,
+				`{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`,
+			)
+
+			err = telegram.Send("Message", nil)
+
+			apiErr, ok := errors.AsType[*responseError](err)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(apiErr.ErrorCode).To(gomega.Equal(403))
+			gomega.Expect(apiErr.Description).To(gomega.Equal("Forbidden: bot was blocked by the user"))
+		})
+
 		ginkgo.It("should send to the chats set by the send params", func() {
 			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
 			err = telegram.Initialize(serviceURL, logger)

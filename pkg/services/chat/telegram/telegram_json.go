@@ -32,6 +32,9 @@ type Message struct {
 type messageResponse struct {
 	OK     bool     `json:"ok"`
 	Result *Message `json:"result"`
+	// ErrorCode and Description describe the failure when OK is false.
+	ErrorCode   int    `json:"error_code"`
+	Description string `json:"description"`
 }
 
 type responseError struct {
@@ -43,6 +46,9 @@ type responseError struct {
 type userResponse struct {
 	OK     bool `json:"ok"`
 	Result User `json:"result"`
+	// ErrorCode and Description describe the failure when OK is false.
+	ErrorCode   int    `json:"error_code"`
+	Description string `json:"description"`
 }
 
 // User contains information about a telegram user or bot.
@@ -77,6 +83,9 @@ type updatesRequest struct {
 type updatesResponse struct {
 	OK     bool     `json:"ok"`
 	Result []Update `json:"result"`
+	// ErrorCode and Description describe the failure when OK is false.
+	ErrorCode   int    `json:"error_code"`
+	Description string `json:"description"`
 }
 
 type inlineQuery struct {

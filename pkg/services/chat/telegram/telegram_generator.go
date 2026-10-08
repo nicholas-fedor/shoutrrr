@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/signal"
 	"slices"
 	"strconv"
 	"time"
@@ -102,12 +101,6 @@ func (g *Generator) Generate(
 	g.client.httpClient = &http.Client{Timeout: generatorHTTPTimeout}
 	g.done = false
 	lastUpdate := 0
-
-	signals := make(chan os.Signal, 1)
-
-	// Subscribe to system signals for graceful shutdown
-	signal.Notify(signals, os.Interrupt)
-	defer signal.Stop(signals)
 
 	for !g.done {
 		userDialog.Writelnf("Waiting for messages to arrive...")
