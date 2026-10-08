@@ -30,6 +30,13 @@ const (
 	defaultTimeout = 10 * time.Second
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
 	return Scheme

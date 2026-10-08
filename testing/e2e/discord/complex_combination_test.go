@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"time"
@@ -57,7 +58,7 @@ var _ = ginkgo.Describe("Discord E2E Complex Combination Test", func() {
 					},
 				},
 			}
-			err = service.SendItems(items, nil)
+			err = service.SendItemsContext(context.Background(), items, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 	})

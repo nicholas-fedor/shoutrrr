@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"sync"
@@ -85,7 +86,13 @@ const disconnectTimeout = 5
 // one-shot senders that never call Close.
 const idleTimeout = 60 * time.Second
 
-var _ types.DialContextSetter = (*Service)(nil)
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service           = (*Service)(nil)
+	_ types.DialContextSetter = (*Service)(nil)
+	_ types.ServiceTimeout    = (*Service)(nil)
+	_ io.Closer               = (*Service)(nil)
+)
 
 // Close disconnects from the broker and ends the connection's lifetime. It first
 // waits for sends already using the connection to finish, then waits at most

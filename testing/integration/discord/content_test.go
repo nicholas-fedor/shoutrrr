@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -50,7 +51,7 @@ func TestSendItemsWithPlainText(t *testing.T) {
 			createTestMessageItem("Test plain text message"),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -76,7 +77,7 @@ func TestSendItemsWithEmptyMessage(t *testing.T) {
 			createTestMessageItem(""),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -104,7 +105,7 @@ func TestSendItemsWithMultipleItems(t *testing.T) {
 			createTestMessageItem("Third message"),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -136,7 +137,7 @@ func TestSendItemsWithParams(t *testing.T) {
 			"avatar",
 			"https://example.com/avatar.png",
 		)
-		err := service.SendItems(items, params)
+		err := service.SendItemsContext(context.Background(), items, *params)
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -165,7 +166,7 @@ func TestSendItemsWithTimestamp(t *testing.T) {
 			},
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 		require.NoError(t, err)
 
 		mockClient.AssertExpectations(t)
@@ -204,7 +205,7 @@ func TestSendItemsWithLevel(t *testing.T) {
 				},
 			}
 
-			err := service.SendItems(items, nil)
+			err := service.SendItemsContext(context.Background(), items, nil)
 			require.NoError(t, err)
 		}
 

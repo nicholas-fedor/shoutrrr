@@ -41,16 +41,25 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 		})
 
 		ginkgo.It("should return error with invalid credentials", func() {
-			// Use a clearly invalid URL that will fail authentication
-			invalidURL := "matrix://invaliduser:invalidpassword@localhost:8008?disableTLS=true"
-			parsedURL, err := url.Parse(invalidURL)
+			serviceURL := buildServiceURL()
+			if serviceURL == "" {
+				ginkgo.Skip("Matrix server not configured, skipping invalid credentials test")
+			}
+
+			// Use the configured server with credentials it will reject
+			parsedURL, err := url.Parse(serviceURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
 
 			service := &matrix.Service{}
 			err = service.Initialize(parsedURL, testutils.TestLogger())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			// Should fail because the user doesn't exist or password is wrong
+			// The login runs on the first send, where the server should reject the credentials
+			err = service.Send("E2E Test: invalid credentials", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Invalid username or password"))
 		})
 
 		ginkgo.It("should return error with missing host", func() {

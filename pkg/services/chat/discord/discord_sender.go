@@ -360,7 +360,19 @@ func sendWithRetry(
 	return ErrMaxRetries
 }
 
-// waitWithTimeout waits for the specified duration with timeout and context cancellation checks.
+// waitWithTimeout waits for the specified duration with timeout and context
+// cancellation checks. A wait that would outlast the retry limit or the
+// context's deadline fails at once instead of sleeping.
+//
+// Parameters:
+//   - ctx: the send's context, whose deadline bounds the wait.
+//   - wait: how long to wait before retrying.
+//   - startTime: when the send started, for the retry limit.
+//   - sleeper: performs the wait.
+//
+// Returns:
+//   - error: an [ErrRateLimited] error when the wait cannot finish in time, the
+//     context's error when it is already done, or nil after waiting.
 func waitWithTimeout(
 	ctx context.Context,
 	wait time.Duration,
@@ -373,6 +385,15 @@ func waitWithTimeout(
 			"wait time %v would exceed max retry timeout %v: %w",
 			wait,
 			maxRetryTimeout,
+			ErrRateLimited,
+		)
+	}
+
+	// Don't wait past the send's deadline, since the retry would be canceled anyway
+	if deadline, ok := ctx.Deadline(); ok && wait > time.Until(deadline) {
+		return fmt.Errorf(
+			"wait time %v would exceed the send deadline: %w",
+			wait,
 			ErrRateLimited,
 		)
 	}

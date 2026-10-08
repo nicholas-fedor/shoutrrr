@@ -41,6 +41,13 @@ type Service struct {
 // defaultHTTPTimeout is the default timeout for HTTP requests.
 const defaultHTTPTimeout = 30 * time.Second
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // NewDefaultHTTPClient creates a new HTTP client with default timeout settings.
 //
 // Returns:
@@ -134,12 +141,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Additional parameters for notification customization.
 //
 // Returns:
-//   - An error if the notification fails to send.
+//   - error: the send failure, or nil on success.
+//
+// Deprecated: Use [Service.Send] with [types.ItemsToPlain]. The router already
+// sends rich messages to Bark as plain text.
+//
+//go:fix inline
 func (s *Service) SendItems(items []types.MessageItem, params *types.Params) error {
-	// Convert message items to plain text
-	message := types.ItemsToPlain(items)
-
-	return s.Send(message, params)
+	return s.Send(types.ItemsToPlain(items), params)
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Bark send.

@@ -69,6 +69,14 @@ var (
 // mentionRegex is a compiled regular expression for parsing Discord user/role mentions.
 var mentionRegex = regexp.MustCompile(`<@!?(\d+)>|<@&(\d+)>`)
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+	_ types.CustomURLService = (*Service)(nil)
+)
+
 // HasAny returns true if any of the boolean fields are true, false otherwise.
 func (pf presenceFlags) HasAny() bool {
 	return pf.channel || pf.color || pf.thumbnail || pf.image || pf.title || pf.icon ||

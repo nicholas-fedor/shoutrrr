@@ -251,6 +251,51 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 		})
 	})
 
+	ginkgo.Describe("waitWithTimeout", func() {
+		ginkgo.It("should fail at once when the wait outlasts the context deadline", func() {
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			err := waitWithTimeout(ctx, 65*time.Second, time.Now(), sleeper)
+
+			gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("send deadline"))
+			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
+		})
+
+		ginkgo.It("should wait when the context deadline allows it", func() {
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.EXPECT().Sleep(time.Second).Return().Once()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			gomega.Expect(waitWithTimeout(ctx, time.Second, time.Now(), sleeper)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should stop retrying a rate limit whose Retry-After outlasts the deadline", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			mockClient.On("Do", mock.Anything).Return(&http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Retry-After": []string{"65"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil).Once()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			preparer := &JSONRequestPreparer{payload: []byte(`{"content":"test"}`)}
+			err := sendWithRetry(ctx, preparer, "http://example.com", mockClient, sleeper)
+
+			gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
+			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
+		})
+	})
+
 	ginkgo.Describe("handleRateLimitResponse", func() {
 		ginkgo.It("should handle retry-after header", func() {
 			resp := &http.Response{

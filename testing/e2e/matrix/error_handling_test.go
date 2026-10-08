@@ -40,7 +40,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			err = svc.SendWithContext(ctx, "Test message with canceled context", nil)
+			err = svc.SendContext(ctx, "Test message with canceled context", nil)
 			gomega.Expect(errors.Is(err, context.Canceled)).To(gomega.BeTrue(),
 				"expected context.Canceled error, got: %v", err)
 		})
@@ -71,7 +71,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			// Wait for the context to expire
 			<-ctx.Done()
 
-			err = svc.SendWithContext(ctx, "Test message with expired deadline", nil)
+			err = svc.SendContext(ctx, "Test message with expired deadline", nil)
 			gomega.Expect(errors.Is(err, context.DeadlineExceeded)).To(gomega.BeTrue(),
 				"expected context.DeadlineExceeded error, got: %v", err)
 		})
@@ -230,7 +230,10 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			service := &matrix.Service{}
 			err = service.Initialize(parsedURL, testutils.TestLogger())
-			// Should fail with DNS/network error
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			// The login runs on the first send, which should fail with a DNS/network error
+			err = service.Send("E2E Test: invalid host", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.SatisfyAny(
 				gomega.ContainSubstring("no such host"),
@@ -243,22 +246,22 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			// Use valid host but invalid credentials
 			serviceURL := buildServiceURL()
 			if serviceURL == "" {
-				// Use localhost as fallback
-				serviceURL = "matrix://invaliduser:invalidpassword@localhost:8008?disableTLS=true"
-			} else {
-				// Replace credentials in existing URL
-				parsedURL, _ := url.Parse(serviceURL)
-				parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
-				serviceURL = parsedURL.String()
+				ginkgo.Skip("Matrix server not configured, skipping invalid credentials test")
 			}
 
 			parsedURL, err := url.Parse(serviceURL)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+			parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
+
 			service := &matrix.Service{}
 			err = service.Initialize(parsedURL, testutils.TestLogger())
-			// Authentication should fail
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			// The login runs on the first send, where the server should reject the credentials
+			err = service.Send("E2E Test: invalid credentials", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Invalid username or password"))
 		})
 
 		ginkgo.It("should handle invalid host gracefully", func() {
@@ -268,7 +271,10 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			service := &matrix.Service{}
 			err = service.Initialize(invalidURL, testutils.TestLogger())
-			// Should fail due to invalid host
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			// The login runs on the first send, which should fail due to the invalid host
+			err = service.Send("E2E Test: invalid host", nil)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 	})

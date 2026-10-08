@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -30,7 +31,7 @@ func TestSendSingleFileAttachment(t *testing.T) {
 			createTestMessageItemWithFile("Test message with file", "test.txt", fileData),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		// Verify multipart request was made (contains boundary)
@@ -63,7 +64,7 @@ func TestSendMultipleFileAttachments(t *testing.T) {
 			createTestMessageItemWithFile("File 3", "file3.txt", []byte("content 3")),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="file1.txt"`)
@@ -101,7 +102,7 @@ func TestSendLargeFileAttachment(t *testing.T) {
 			createTestMessageItemWithFile("Large file test", "large.bin", largeData),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="large.bin"`)
@@ -140,7 +141,7 @@ func TestSendFileWithSpecialCharactersInName(t *testing.T) {
 				createTestMessageItemWithFile("Test file", filename, []byte("content")),
 			}
 
-			err := service.SendItems(items, nil)
+			err := service.SendItemsContext(context.Background(), items, nil)
 
 			require.NoError(t, err)
 			assertRequestContains(t, mockClient, `filename="`+filename+`"`)
@@ -183,7 +184,7 @@ func TestSendFileWithDifferentTypes(t *testing.T) {
 				createTestMessageItemWithFile("Test file", tc.filename, tc.content),
 			}
 
-			err := service.SendItems(items, nil)
+			err := service.SendItemsContext(context.Background(), items, nil)
 
 			require.NoError(t, err)
 			assertRequestContains(t, mockClient, `filename="`+tc.filename+`"`)
@@ -212,7 +213,7 @@ func TestSendFileWithEmptyContent(t *testing.T) {
 			createTestMessageItemWithFile("Empty file", "empty.txt", []byte{}),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, `filename="empty.txt"`)
@@ -240,7 +241,7 @@ func TestSendFileWithUnicodeContent(t *testing.T) {
 			createTestMessageItemWithFile("Unicode file", "unicode.txt", unicodeContent),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, string(unicodeContent))
@@ -271,7 +272,7 @@ func TestSendFileWithMessageText(t *testing.T) {
 			),
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "This is a message with a file attachment")

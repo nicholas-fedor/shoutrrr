@@ -28,6 +28,13 @@ const defaultHTTPTimeout = 10 * time.Second
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
 var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
 	return Scheme

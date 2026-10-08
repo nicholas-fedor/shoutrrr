@@ -35,6 +35,14 @@ const (
 	contextTypeImage = "image"
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme
@@ -64,15 +72,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	return nil
 }
 
-// Send a notification message to PagerDuty
-// See: https://developer.pagerduty.com/docs/events-api-v2-overview
+// Send delivers a notification message to PagerDuty without a deadline of its own.
+// See https://developer.pagerduty.com/docs/events-api-v2-overview.
+//
+// Parameters:
+//   - message: the event summary.
+//   - params: per-send parameters for the event.
+//
+// Returns:
+//   - error: the payload or request failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
-	return s.SendWithContext(context.Background(), message, params)
+	return s.SendContext(context.Background(), message, params)
 }
 
-// SendWithContext sends a notification message to PagerDuty with context support
-// See: https://developer.pagerduty.com/docs/events-api-v2-overview
-func (s *Service) SendWithContext(
+// SendContext delivers a notification message to PagerDuty. The router calls it
+// with its send deadline. See https://developer.pagerduty.com/docs/events-api-v2-overview.
+//
+// Parameters:
+//   - ctx: bounds the event request.
+//   - message: the event summary.
+//   - params: per-send parameters for the event.
+//
+// Returns:
+//   - error: the payload or request failure, or nil on success.
+func (s *Service) SendContext(
 	ctx context.Context,
 	message string,
 	params *types.Params,
@@ -86,6 +109,23 @@ func (s *Service) SendWithContext(
 	}
 
 	return s.sendAlert(ctx, endpointURL, &payload)
+}
+
+// SendWithContext delivers a notification message with the provided context.
+//
+// Parameters:
+//   - ctx: bounds the send.
+//   - message: the message to send.
+//   - params: per-send parameters.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+//
+// Deprecated: Use [Service.SendContext], which the router calls with its send deadline.
+//
+//go:fix inline
+func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+	return s.SendContext(ctx, message, params)
 }
 
 // ServiceTimeout returns the HTTP timeout used for a PagerDuty send.

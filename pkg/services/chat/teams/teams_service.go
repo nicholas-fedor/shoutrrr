@@ -39,6 +39,13 @@ const defaultHTTPTimeout = 30 * time.Second
 // adaptiveCardVersion is the Adaptive Card schema version used in payloads.
 const adaptiveCardVersion = "1.2"
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // Do performs the HTTP request.
 func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)

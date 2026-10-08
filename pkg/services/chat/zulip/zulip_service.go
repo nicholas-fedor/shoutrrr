@@ -70,6 +70,14 @@ var hostValidator = regexp.MustCompile(
 	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:[0-9]{1,5})?$`,
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // validateHost checks that the host string is a valid hostname with optional port (1-65535).
 func validateHost(host string) error {
 	if !hostValidator.MatchString(host) {
@@ -133,13 +141,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	return nil
 }
 
-// Send delivers a notification message to Zulip.
+// Send delivers a notification message to Zulip without a deadline of its own.
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
-	return s.SendWithContext(context.Background(), message, params)
+	return s.SendContext(context.Background(), message, params)
 }
 
-// SendWithContext delivers a notification message to Zulip with context support.
-func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+// SendContext delivers a notification message to Zulip. The router calls it with
+// its send deadline.
+//
+// Parameters:
+//   - ctx: bounds the server limits lookup and the message request.
+//   - message: the message to send.
+//   - params: per-send parameters, applied to this send only.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Clone the config to avoid modifying the original for this send operation.
 	config := s.Config.Clone()
 
@@ -206,9 +230,34 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.doSend(ctx, config, message)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Zulip send.
+// SendWithContext delivers a notification message with the provided context.
+//
+// Parameters:
+//   - ctx: bounds the send.
+//   - message: the message to send.
+//   - params: per-send parameters.
+//
+// Returns:
+//   - error: the send failure, or nil on success.
+//
+// Deprecated: Use [Service.SendContext], which the router calls with its send deadline.
+//
+//go:fix inline
+func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
+	return s.SendContext(ctx, message, params)
+}
+
+// ServiceTimeout reports the send budget the router gives Zulip. The first send
+// calls the register endpoint for server limits before the message request, so
+// the budget covers both requests.
+//
+// Parameters:
+//   - params: unused. The request timeouts do not depend on send parameters.
+//
+// Returns:
+//   - time.Duration: the register timeout plus the message request timeout.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
-	return defaultHTTPTimeout
+	return registerTimeout + defaultHTTPTimeout
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores

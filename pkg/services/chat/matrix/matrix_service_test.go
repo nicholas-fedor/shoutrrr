@@ -17,6 +17,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // fakeHomeserver answers Matrix API requests and counts password logins.
@@ -173,7 +174,7 @@ var _ = ginkgo.Describe("Service", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			err := svc.SendWithContext(ctx, "second", nil)
+			err := svc.SendContext(ctx, "second", nil)
 			gomega.Expect(errors.Is(err, context.Canceled)).To(gomega.BeTrue())
 
 			close(server.releaseFlows)
@@ -196,6 +197,45 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(svc.Send("message", nil)).To(gomega.Succeed())
 			gomega.Expect(server.logins.Load()).To(gomega.BeZero())
 			gomega.Expect(server.sentTokens()).To(gomega.Equal([]string{"Bearer token"}))
+		})
+	})
+
+	ginkgo.Describe("ServiceTimeout", func() {
+		var svc *Service
+
+		ginkgo.BeforeEach(func() {
+			svc = &Service{}
+		})
+
+		ginkgo.It("should budget the login and a join and message per configured room", func() {
+			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
+
+			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(4 * defaultHTTPTimeout))
+		})
+
+		ginkgo.It("should budget the rooms set by the send params", func() {
+			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
+
+			params := &types.Params{"rooms": "!a:example.com,!b:example.com,!c:example.com"}
+			gomega.Expect(svc.ServiceTimeout(params)).To(gomega.Equal(8 * defaultHTTPTimeout))
+		})
+
+		ginkgo.It("should budget the stored config when a param is invalid", func() {
+			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
+
+			params := &types.Params{"rooms": "!a:example.com,!b:example.com", "bogus": "value"}
+			gomega.Expect(svc.ServiceTimeout(params)).To(gomega.Equal(4 * defaultHTTPTimeout))
+		})
+
+		ginkgo.It("should budget the joined rooms lookup and one message without configured rooms", func() {
+			tokenURL := "matrix://:token@matrix.example.com/"
+			gomega.Expect(svc.Initialize(testutils.URLMust(tokenURL), nil)).To(gomega.Succeed())
+
+			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(2 * defaultHTTPTimeout))
+		})
+
+		ginkgo.It("should fall back to the minimum budget before initialization", func() {
+			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(2 * defaultHTTPTimeout))
 		})
 	})
 

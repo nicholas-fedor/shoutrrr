@@ -1,6 +1,7 @@
 package discord_test
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -319,7 +320,7 @@ func TestSendItemsWithInvalidPayload(t *testing.T) {
 			Return(createMockResponse(http.StatusBadRequest, `{"message": "Invalid JSON"}`), nil).
 			Once()
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		// Should fail due to invalid JSON payload
 		require.Error(t, err)
@@ -430,7 +431,7 @@ func TestSendWithFileUploadError(t *testing.T) {
 			), // 1KB file
 		}
 
-		err := service.SendItems(items, nil)
+		err := service.SendItemsContext(context.Background(), items, nil)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected response status code")

@@ -127,7 +127,7 @@ func TestServiceSendWithNilParams(t *testing.T) {
 	})
 }
 
-func TestServiceSendWithContext(t *testing.T) {
+func TestServiceSendContext(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := mocks.NewMockHTTPClient(t)
@@ -141,7 +141,7 @@ func TestServiceSendWithContext(t *testing.T) {
 		setupRegisterThenMessage(t, mockClient, msgResp)
 
 		ctx := context.Background()
-		err := service.SendWithContext(ctx, "Context message", nil)
+		err := service.SendContext(ctx, "Context message", nil)
 
 		require.NoError(t, err)
 		assertRequestContains(t, mockClient, "content=Context+message")
@@ -172,7 +172,7 @@ func TestServiceSendWithCancelledContext(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := service.SendWithContext(ctx, "Canceled message", nil)
+		err := service.SendContext(ctx, "Canceled message", nil)
 
 		require.Error(t, err)
 

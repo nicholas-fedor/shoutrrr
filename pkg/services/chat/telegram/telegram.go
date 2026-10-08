@@ -37,6 +37,13 @@ var (
 	ErrUnexpectedResponse = errors.New("telegram API reported a failure without an error description")
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
+var (
+	_ types.Service          = (*Service)(nil)
+	_ types.HTTPClientSetter = (*Service)(nil)
+	_ types.ServiceTimeout   = (*Service)(nil)
+)
+
 // GetConfig returns the current configuration for the service.
 func (s *Service) GetConfig() *Config {
 	return s.Config
