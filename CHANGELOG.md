@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Add go.sum checksums for golang.org/x/net v0.60.0 by @nicholas-fedor in [#1462](https://github.com/nicholas-fedor/shoutrrr/pull/1462)
 - Update module golang.org/x/net to v0.60.0 by @renovate[bot] in [#1460](https://github.com/nicholas-fedor/shoutrrr/pull/1460)
 - Update go toolchain directive to v1.27.2 by @renovate[bot] in [#1453](https://github.com/nicholas-fedor/shoutrrr/pull/1453)
 - Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
