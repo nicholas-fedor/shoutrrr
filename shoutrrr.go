@@ -14,31 +14,67 @@
 //
 //	sender, err := shoutrrr.CreateSender("slack://webhook/...", "discord://webhook/...")
 //
-// The package uses a default router, but you can also create custom routers
-// using router.NewWithOptions for more control over the notification pipeline.
+// Send and SendContext deliver a single message through a one-shot router, so the
+// service's send budget applies. For more control over the notification pipeline,
+// create a router with router.NewWithOptions.
 package shoutrrr
 
 import (
+	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// defaultRouter locates services for [Send].
-// Its timeout is unset, so a send through this router uses each service's own budget.
-var defaultRouter = router.ServiceRouter{}
+// rootLogger holds the logger that [SetLogger] configures for [Send] and
+// [SendContext]. A nil value discards service output.
+var rootLogger atomic.Pointer[types.StdLogger]
 
-// Send delivers a notification message using the specified URL.
+// Send delivers a notification message using the specified URL. It is
+// [SendContext] without a caller context or params.
+//
+// Parameters:
+//   - rawURL: the service URL to send to.
+//   - message: the message to send.
+//
+// Returns:
+//   - error: the locate or send failure, or nil on success.
 func Send(rawURL, message string) error {
-	service, err := defaultRouter.Locate(rawURL)
+	return SendContext(context.Background(), rawURL, message, nil)
+}
+
+// SendContext delivers a notification message using the specified URL. It sends
+// through a one-shot router, so the service's send budget applies and a failure
+// is a *types.TargetError, and then closes the service, releasing resources such
+// as an MQTT connection. A failure to close after the send is not reported.
+//
+// Parameters:
+//   - ctx: cancels the send and bounds how long SendContext waits.
+//   - rawURL: the service URL to send to.
+//   - message: the message to send.
+//   - params: per-send parameters, which may be nil.
+//
+// Returns:
+//   - error: the locate or send failure, or nil on success.
+func SendContext(ctx context.Context, rawURL, message string, params *types.Params) error {
+	serviceRouter, err := router.NewWithOptions(loadRootLogger(), types.SenderOptions{})
 	if err != nil {
+		return fmt.Errorf("creating sender: %w", err)
+	}
+
+	if err := serviceRouter.AddService(rawURL); err != nil {
 		return fmt.Errorf("locating service: %w", err)
 	}
 
-	if err := service.Send(message, &types.Params{}); err != nil {
-		return fmt.Errorf("sending message via %s: %w", service.GetID(), err)
+	// The message has been sent or has failed by the time Close runs, so a close
+	// failure does not change the outcome.
+	defer func() { _ = serviceRouter.Close() }()
+
+	if err := serviceRouter.SendContext(ctx, message, params)[0]; err != nil {
+		return fmt.Errorf("sending message: %w", err)
 	}
 
 	return nil
@@ -92,12 +128,28 @@ func NewSenderWithOptions(logger types.StdLogger, opts types.SenderOptions, serv
 	return serviceRouter, nil
 }
 
-// SetLogger configures the logger for all services in the default router.
+// SetLogger configures the logger that [Send] and [SendContext] give their services.
+// It is safe to call while sends are in progress, and applies to later sends.
+//
+// Parameters:
+//   - logger: the logger for service output, or nil to discard it.
 func SetLogger(logger types.StdLogger) {
-	defaultRouter.SetLogger(logger)
+	rootLogger.Store(&logger)
 }
 
 // Version returns the current Shoutrrr version.
 func Version() string {
 	return meta.Version
+}
+
+// loadRootLogger returns the logger that [SetLogger] configured.
+//
+// Returns:
+//   - types.StdLogger: the configured logger, or nil when none is set.
+func loadRootLogger() types.StdLogger {
+	if logger := rootLogger.Load(); logger != nil {
+		return *logger
+	}
+
+	return nil
 }

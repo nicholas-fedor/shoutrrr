@@ -16,6 +16,7 @@ The end-to-end tests validate the complete MQTT notification functionality by co
 ### Connection Lifecycle
 
 - Messages sent more than 10 seconds apart through one service, confirmed by a subscriber
+- A one-shot `shoutrrr.Send` that delivers its message and then disconnects, confirmed through the EMQX management API
 
 ### QoS (Quality of Service) Levels
 

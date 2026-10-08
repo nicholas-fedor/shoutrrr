@@ -1,13 +1,31 @@
 package shoutrrr
 
 import (
+	"io"
+	"log"
+	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/eclipse/paho.golang/packets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// loopbackBroker is an in-process MQTT broker on a loopback listener. It accepts
+// every connection and records whether a client sent DISCONNECT.
+type loopbackBroker struct {
+	// listener accepts client connections.
+	listener net.Listener
+	// published counts PUBLISH packets.
+	published atomic.Int32
+	// disconnected counts DISCONNECT packets.
+	disconnected atomic.Int32
+}
 
 // rootTestSecret is a credential embedded in test URLs that must never appear in errors.
 const rootTestSecret = "SECRETrootTOKEN"
@@ -77,5 +95,110 @@ func TestSenderConstructorErrorsOmitURLs(t *testing.T) {
 			assert.NotContains(t, err.Error(), rootTestSecret)
 			assert.Contains(t, err.Error(), "URL 1", "the error should identify the failing URL by position")
 		})
+	}
+}
+
+// TestSendClosesOneShotService verifies that Send closes the service it created,
+// so a one-shot MQTT send disconnects from the broker instead of holding the
+// connection until its idle teardown.
+func TestSendClosesOneShotService(t *testing.T) {
+	t.Parallel()
+
+	broker := newLoopbackBroker(t)
+
+	require.NoError(t, Send("mqtt://"+broker.listener.Addr().String()+"/shoutrrr/test", "message"))
+
+	require.Eventually(t, func() bool { return broker.disconnected.Load() == 1 },
+		2*time.Second, 10*time.Millisecond, "Send must disconnect the one-shot MQTT service")
+
+	// The broker reads packets in order, so the publish was recorded before the disconnect.
+	assert.Equal(t, int32(1), broker.published.Load())
+}
+
+// TestSetLoggerDuringSends verifies that SetLogger can run while sends are in
+// progress. Run with -race, it guards against unsynchronized access to the logger.
+func TestSetLoggerDuringSends(t *testing.T) {
+	t.Parallel()
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Go(func() {
+			SetLogger(log.New(io.Discard, "", 0))
+		})
+		wg.Go(func() {
+			assert.NoError(t, Send("logger://", "message"))
+		})
+	}
+
+	wg.Wait()
+}
+
+// newLoopbackBroker starts a broker on a loopback port and stops it when the test
+// ends.
+//
+// Parameters:
+//   - t: the test that owns the broker.
+//
+// Returns:
+//   - *loopbackBroker: the running broker.
+func newLoopbackBroker(t *testing.T) *loopbackBroker {
+	t.Helper()
+
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	broker := &loopbackBroker{listener: listener}
+
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go broker.accept()
+
+	return broker
+}
+
+// accept serves each connection until the listener closes.
+func (b *loopbackBroker) accept() {
+	for {
+		conn, err := b.listener.Accept()
+		if err != nil {
+			return
+		}
+
+		go b.serve(conn)
+	}
+}
+
+// serve answers CONNECT and PINGREQ, and records PUBLISH and DISCONNECT, until
+// the client disconnects or the connection closes.
+//
+// Parameters:
+//   - conn: the client connection.
+func (b *loopbackBroker) serve(conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+
+	for {
+		packet, err := packets.ReadPacket(conn)
+		if err != nil {
+			return
+		}
+
+		switch packet.Content.(type) {
+		case *packets.Connect:
+			if _, err := packets.NewControlPacket(packets.CONNACK).WriteTo(conn); err != nil {
+				return
+			}
+		case *packets.Pingreq:
+			if _, err := packets.NewControlPacket(packets.PINGRESP).WriteTo(conn); err != nil {
+				return
+			}
+		case *packets.Publish:
+			b.published.Add(1)
+		case *packets.Disconnect:
+			b.disconnected.Add(1)
+
+			return
+		default:
+		}
 	}
 }
