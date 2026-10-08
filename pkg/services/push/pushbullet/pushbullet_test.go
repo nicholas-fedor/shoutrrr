@@ -2,6 +2,7 @@ package pushbullet_test
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -11,8 +12,13 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// testToken is the access token in the URL that initService configures.
+const testToken = "tokentokentokentokentokentokentoke"
 
 var (
 	service          *pushbullet.Service
@@ -147,6 +153,47 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
+		ginkgo.When("the HTTP client is replaced after initialization", func() {
+			ginkgo.BeforeEach(func() {
+				httpmock.RegisterResponder("POST", targetURL, requireAccessToken)
+			})
+
+			ginkgo.It("should authenticate with a client injected by the router", func() {
+				serviceRouter, routerErr := router.NewWithOptions(
+					testutils.TestLogger(),
+					types.SenderOptions{HTTPClient: &http.Client{}},
+				)
+				gomega.Expect(routerErr).NotTo(gomega.HaveOccurred())
+
+				located, locateErr := serviceRouter.Locate("pushbullet://" + testToken + "/test")
+				gomega.Expect(locateErr).NotTo(gomega.HaveOccurred())
+
+				err = located.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("should authenticate with a client set directly", func() {
+				err = initService()
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				service.SetHTTPClient(&http.Client{})
+
+				err = service.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("should authenticate with the default client restored by SetHTTPClient(nil)", func() {
+				err = initService()
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				service.SetHTTPClient(&http.Client{})
+				service.SetHTTPClient(nil)
+
+				err = service.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			})
+		})
+
 		ginkgo.It("should not panic if an error occurs when sending the payload", func() {
 			err = initService()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -242,9 +289,24 @@ func TestPushbullet(t *testing.T) {
 	ginkgo.RunSpecs(t, "Shoutrrr Pushbullet Suite")
 }
 
+// requireAccessToken accepts a push only when it carries the configured access
+// token, and answers 401 otherwise, like the Pushbullet API.
+func requireAccessToken(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Access-Token") != testToken {
+		return httpmock.NewStringResponse(http.StatusUnauthorized, `{"error":{"message":"Access token is missing or invalid."}}`), nil
+	}
+
+	return httpmock.NewJsonResponse(http.StatusOK, pushbullet.PushResponse{
+		Type:   "note",
+		Body:   "Message",
+		Title:  "Shoutrrr notification",
+		Active: true,
+	})
+}
+
 // initService initializes the service with a fixed test configuration.
 func initService() error {
-	serviceURL, err := url.Parse("pushbullet://tokentokentokentokentokentokentoke/test")
+	serviceURL, err := url.Parse("pushbullet://" + testToken + "/test")
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	return service.Initialize(serviceURL, testutils.TestLogger())

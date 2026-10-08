@@ -66,7 +66,10 @@ const (
 	checkSendUsesInjection = "send_uses_injection"
 	checkReservedParams    = "reserved_params"
 	checkNilHTTPClient     = "nil_http_client"
-	checkNoSecretLeaks     = "no_secret_leaks"
+	// checkTypedNilHTTPClient repeats the nil client check with a nil *http.Client,
+	// which is a non-nil types.HTTPClient interface value.
+	checkTypedNilHTTPClient = "typed_nil_http_client"
+	checkNoSecretLeaks      = "no_secret_leaks"
 	// checkNoSecretLeaksDefault repeats the leak check with each service's own
 	// default HTTP client, as used by consumers that do not inject one.
 	checkNoSecretLeaksDefault = "no_secret_leaks_default_client"
@@ -146,6 +149,7 @@ func TestContract(t *testing.T) {
 		{checkSendUsesInjection, runSendUsesInjection},
 		{checkReservedParams, runReservedParams},
 		{checkNilHTTPClient, runNilHTTPClient},
+		{checkTypedNilHTTPClient, runTypedNilHTTPClient},
 		{checkNoSecretLeaks, runNoSecretLeaks},
 		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
 	}
@@ -322,6 +326,22 @@ func runReservedParams(t *testing.T, fx *fixture) failure {
 func runNilHTTPClient(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
+	return runResetHTTPClient(t, fx, nil)
+}
+
+// runTypedNilHTTPClient verifies that a nil *http.Client restores the default
+// client the same way an untyped nil does.
+func runTypedNilHTTPClient(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	return runResetHTTPClient(t, fx, (*http.Client)(nil))
+}
+
+// runResetHTTPClient injects a client, resets it with SetHTTPClient(reset), and
+// checks the send as described in [runNilHTTPClient].
+func runResetHTTPClient(t *testing.T, fx *fixture, reset types.HTTPClient) failure {
+	t.Helper()
+
 	var result failure
 
 	synctest.Test(t, func(t *testing.T) {
@@ -339,7 +359,7 @@ func runNilHTTPClient(t *testing.T, fx *fixture) failure {
 			return
 		}
 
-		setter.SetHTTPClient(nil)
+		setter.SetHTTPClient(reset)
 
 		httpBefore := env.httpCalls()
 		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()

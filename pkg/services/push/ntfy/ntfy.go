@@ -24,6 +24,9 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
 	client     jsonclient.Client
+	// defaultClient reports whether httpClient was built by the service rather than
+	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
+	defaultClient bool
 }
 
 // HTTPTimeout defines the HTTP client timeout in seconds.
@@ -54,28 +57,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		s.Config.Scheme = "http"
 	}
 
-	// Configure HTTP transport: skip TLS verification if disabled, enforce TLS 1.2 minimum
-	if s.Config.DisableTLSVerification {
-		if s.httpClient == nil {
-			s.httpClient = &http.Client{
-				Timeout: HTTPTimeout * time.Second,
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
-						MinVersion:         tls.VersionTLS12,
-					},
-				},
-			}
+	if s.httpClient == nil || s.defaultClient {
+		s.httpClient = s.newDefaultHTTPClient()
+		s.defaultClient = true
+
+		if s.Config.DisableTLSVerification {
 			s.Log("Warning: TLS verification is disabled, making connections insecure")
-		}
-	} else {
-		if s.httpClient == nil {
-			s.httpClient = &http.Client{
-				Timeout: HTTPTimeout * time.Second,
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
-				},
-			}
 		}
 	}
 
@@ -101,11 +88,46 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return nil
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client restores
+// the default client, which Initialize builds when the service is not yet configured
+// and rebuilds whenever it applies a new config.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
+	s.defaultClient = client == nil
+
+	if client == nil {
+		if s.Config == nil {
+			s.httpClient = nil
+			s.client = nil
+
+			return
+		}
+
+		client = s.newDefaultHTTPClient()
+	}
+
 	s.httpClient = client
-	if client != nil {
-		s.client = jsonclient.NewWithHTTPClient(client)
+	s.client = jsonclient.NewWithHTTPClient(client)
+}
+
+// newDefaultHTTPClient builds the client used when none is injected. It enforces
+// TLS 1.2 or later and skips certificate verification only when the config
+// disables it.
+//
+// Returns:
+//   - *http.Client: the default client.
+func (s *Service) newDefaultHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: HTTPTimeout * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: s.Config.DisableTLSVerification,
+				MinVersion:         tls.VersionTLS12,
+			},
+		},
 	}
 }
 
