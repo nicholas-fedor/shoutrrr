@@ -72,7 +72,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	token := serviceURL.User.Username() + ":" + password
 	if serviceURL.String() != "telegram://dummy@dummy.com" {
 		if !IsTokenValid(token) {
-			return fmt.Errorf("%w: %s", ErrInvalidToken, token)
+			return ErrInvalidToken
 		}
 	}
 

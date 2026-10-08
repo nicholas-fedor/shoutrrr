@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -71,7 +72,7 @@ func (s *Service) Send(message string, _ *types.Params) error {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending notification to Google Chat: %w", err)
+		return fmt.Errorf("sending notification to Google Chat: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = resp.Body.Close() }()

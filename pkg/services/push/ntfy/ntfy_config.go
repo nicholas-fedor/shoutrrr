@@ -128,7 +128,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q to %q: %w", key, vals[0], err)
+			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}
 	}
 

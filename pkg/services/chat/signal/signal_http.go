@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -176,7 +177,7 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending HTTP request: %w", err)
+		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = resp.Body.Close() }()

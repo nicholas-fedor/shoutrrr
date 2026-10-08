@@ -164,7 +164,8 @@ var _ = ginkgo.Describe("Config", func() {
 
 			err := (&Config{}).setURL(resolver, testutils.URLMust("smtp://dummy@dummy.com?foo=bar"))
 			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring(`setting query parameter "foo" to "bar"`))
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring(`setting query parameter "foo"`))
+			gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring(`"bar"`))
 		})
 
 		ginkgo.It("should allow the dummy URL without from or to addresses", func() {

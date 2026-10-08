@@ -170,6 +170,27 @@ var _ = ginkgo.Describe("Lark Test", func() {
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
 				gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("network error")))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("/hook/token"))
+			})
+
+			ginkgo.It("should not log the webhook token or the request body", func() {
+				httpmock.RegisterResponder(
+					http.MethodPost,
+					"/open-apis/bot/v2/hook/token",
+					httpmock.NewJsonResponderOrPanic(
+						http.StatusOK,
+						map[string]any{"code": 0, "msg": "success"},
+					),
+				)
+
+				logs := &strings.Builder{}
+				err := service.Initialize(testutils.URLMust(fullURL), log.New(logs, "", 0))
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+				err = service.Send("message", nil)
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+				gomega.Expect(logs.String()).To(gomega.ContainSubstring("open.larksuite.com"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("token"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("msg_type"))
 			})
 
 			ginkgo.It("should return error on invalid JSON response", func() {

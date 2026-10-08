@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -228,7 +228,7 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 
 	// Send the notification
 	if err := s.doSend(payload); err != nil {
-		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
+		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
 	return nil
@@ -399,7 +399,7 @@ func (s *Service) doSend(payload []byte) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending HTTP request: %w", err)
+		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
 
 	if res != nil && res.Body != nil {
@@ -407,9 +407,8 @@ func (s *Service) doSend(payload []byte) error {
 			_ = res.Body.Close()
 		}()
 
-		if body, err := io.ReadAll(res.Body); err == nil {
-			s.Log("Server response: ", string(body))
-		}
+		// The body is not logged because it can echo the request, including its credentials.
+		s.Logf("Server responded with status %s", res.Status)
 	}
 
 	// Check for authentication failure (401 Unauthorized)

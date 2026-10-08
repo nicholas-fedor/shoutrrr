@@ -339,7 +339,7 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 
 			err = service.Send("Test message", nil)
 			gomega.Expect(err).To(gomega.MatchError(
-				`failed to send IFTTT event: event "event1": sending HTTP request to IFTTT webhook: Post "https://maker.ifttt.com/trigger/event1/with/key/dummy": network failure`,
+				`failed to send IFTTT event: event "event1": sending HTTP request to IFTTT webhook: Post "https://maker.ifttt.com": network failure`,
 			))
 		})
 	})

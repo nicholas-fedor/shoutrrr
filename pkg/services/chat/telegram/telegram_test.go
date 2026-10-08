@@ -92,6 +92,11 @@ var _ = ginkgo.Describe("the telegram service", func() {
 			ginkgo.It("should return an error if the token has an invalid format", func() {
 				expectErrorAndEmptyObject(telegram, "telegram://invalid-token", logger)
 			})
+			ginkgo.It("should not echo an invalid token in the error", func() {
+				err := telegram.Initialize(testutils.URLMust("telegram://bot:SECRETtoken@telegram/?chats=1"), logger)
+				gomega.Expect(err).To(gomega.MatchError(ErrInvalidToken))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETtoken"))
+			})
 			ginkgo.It("should return an error if only the api token where supplied", func() {
 				expectErrorAndEmptyObject(telegram, "telegram://12345:mock-token@telegram", logger)
 			})

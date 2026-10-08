@@ -217,7 +217,7 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.MatchError(
-					"sending notification to Google Chat: Post \"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz\": network failure",
+					"sending notification to Google Chat: Post \"https://chat.googleapis.com\": network failure",
 				))
 			})
 		})
