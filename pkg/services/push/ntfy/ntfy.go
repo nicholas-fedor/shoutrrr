@@ -24,6 +24,9 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
 	client     jsonclient.Client
+	// defaultClient reports whether httpClient was built by the service rather than
+	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
+	defaultClient bool
 }
 
 // HTTPTimeout defines the HTTP client timeout in seconds.
@@ -54,8 +57,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		s.Config.Scheme = "http"
 	}
 
-	if s.httpClient == nil {
+	if s.httpClient == nil || s.defaultClient {
 		s.httpClient = s.newDefaultHTTPClient()
+		s.defaultClient = true
 
 		if s.Config.DisableTLSVerification {
 			s.Log("Warning: TLS verification is disabled, making connections insecure")
@@ -85,8 +89,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
-// the default client, which Initialize builds when the service is not yet configured.
+// the default client, which Initialize builds when the service is not yet configured
+// and rebuilds whenever it applies a new config.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
+	s.defaultClient = client == nil
+
 	if client == nil {
 		if s.Config == nil {
 			s.httpClient = nil

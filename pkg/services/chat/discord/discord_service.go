@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"unicode/utf8"
@@ -113,6 +114,10 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	if client == nil {
 		client = NewDefaultHTTPClient()
 	}

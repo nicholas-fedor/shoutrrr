@@ -104,6 +104,46 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(existingClient))
 		})
 
+		ginkgo.It("should keep a client from SetHTTPClient when reinitialized", func() {
+			injected := &http.Client{}
+			service.SetHTTPClient(injected)
+
+			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(injected))
+		})
+
+		ginkgo.It("should rebuild a restored default client for the new config", func() {
+			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic?disabletlsverification=yes"), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			service.SetHTTPClient(&http.Client{})
+			service.SetHTTPClient(nil)
+
+			err = service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			client, ok := service.httpClient.(*http.Client)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			transport, ok := client.Transport.(*http.Transport)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
+		})
+
+		ginkgo.It("should rebuild its own default client when reinitialized", func() {
+			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic?disabletlsverification=yes"), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			err = service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			client, ok := service.httpClient.(*http.Client)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			transport, ok := client.Transport.(*http.Transport)
+			gomega.Expect(ok).To(gomega.BeTrue())
+			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
+		})
+
 		ginkgo.It("should create jsonclient from HTTP client", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 

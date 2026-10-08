@@ -214,6 +214,10 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	if client == nil {
 		client = NewDefaultHTTPClient()
 	}
