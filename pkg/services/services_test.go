@@ -58,7 +58,7 @@ var serviceResponses = map[string]string{
 	"slack":         "",
 	"smtp":          "",
 	"teams":         "",
-	"telegram":      "",
+	"telegram":      `{"ok": true, "result": {"message_id": 1}}`,
 	"twilio":        `{"sid": "SM123"}`,
 	"xmpp":          "",
 	"zulip":         "",

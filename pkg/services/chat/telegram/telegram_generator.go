@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -31,6 +33,12 @@ type Generator struct {
 const (
 	UpdatesLimit   = 10  // Number of updates to retrieve per call
 	UpdatesTimeout = 120 // Timeout in seconds for long polling
+	// pollTimeoutMargin is how long the generator's HTTP client waits beyond the
+	// long poll for Telegram to answer.
+	pollTimeoutMargin = 10 * time.Second
+	// generatorHTTPTimeout outlasts the long poll, so an idle poll ends with an
+	// empty response from Telegram instead of a client timeout.
+	generatorHTTPTimeout = UpdatesTimeout*time.Second + pollTimeoutMargin
 )
 
 // ErrNoChatsSelected indicates that no chats were selected during generation.
@@ -71,6 +79,8 @@ func (g *Generator) Generate(
 
 	userDialog.Writelnf("Fetching bot info...")
 
+	// Fetch the bot info with the default timeout, and switch to a client that
+	// outlasts the long poll only once polling starts.
 	g.client = &Client{
 		token:      token,
 		httpClient: nil,
@@ -89,6 +99,7 @@ func (g *Generator) Generate(
 		format.ColorizeString("@", g.botName),
 	)
 
+	g.client.httpClient = &http.Client{Timeout: generatorHTTPTimeout}
 	g.done = false
 	lastUpdate := 0
 
@@ -96,6 +107,7 @@ func (g *Generator) Generate(
 
 	// Subscribe to system signals for graceful shutdown
 	signal.Notify(signals, os.Interrupt)
+	defer signal.Stop(signals)
 
 	for !g.done {
 		userDialog.Writelnf("Waiting for messages to arrive...")
@@ -107,7 +119,7 @@ func (g *Generator) Generate(
 			nil,
 		)
 		if err != nil {
-			panic(err)
+			return &Config{}, err
 		}
 
 		// If no updates were retrieved, prompt user to continue
