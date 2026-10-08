@@ -85,6 +85,7 @@ const (
 	failInjectedAfterNil                     // the injected client was still used after SetHTTPClient(nil)
 	failNoFallbackRequest                    // no request went through the default client after SetHTTPClient(nil)
 	failSecretLeak                           // a secret appeared in errors or logs
+	failNoDefaultRequest                     // no request went through the service's default client
 )
 
 var (
@@ -381,7 +382,9 @@ func runNoSecretLeaks(t *testing.T, fx *fixture) failure {
 // runNoSecretLeaksDefault verifies that secrets never appear in errors or logs when
 // a service uses its own default HTTP client. Requests through that client fail at
 // the blocked http.DefaultTransport or DNS resolver, and net/http reports them
-// with a *url.Error that carries the full request URL.
+// with a *url.Error that carries the full request URL. An HTTP fixture must make
+// that request, observed as in [runNilHTTPClient], so the check cannot pass
+// without exercising the default client.
 func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -391,7 +394,16 @@ func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
 		env := newEnv(t, fx, false)
 
 		service, err := env.locateWithDefaultClient(t)
-		result = env.checkLeaks(service, err)
+		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
+
+		if result = env.checkLeaks(service, err); result.kind != failNone || err != nil {
+			return
+		}
+
+		requested := defaultTransportHits.Load() > defaultBefore || lookupHits.Load() > lookupBefore
+		if fx.kind == netHTTP && !requested {
+			result = fail(failNoDefaultRequest, "Send made no request through the default client")
+		}
 	})
 
 	return result
