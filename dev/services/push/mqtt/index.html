@@ -1802,15 +1802,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#lazy_initialization" class="md-nav__link">
+  <a href="#connection_lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lazy Initialization
+        Connection Lifecycle
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Lazy Initialization">
+    <nav class="md-nav" aria-label="Connection Lifecycle">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1836,10 +1836,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#runtime_configuration" class="md-nav__link">
+  <a href="#send_params" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Runtime Configuration
+        Send Params
       
     </span>
   </a>
@@ -2775,15 +2775,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#lazy_initialization" class="md-nav__link">
+  <a href="#connection_lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lazy Initialization
+        Connection Lifecycle
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Lazy Initialization">
+    <nav class="md-nav" aria-label="Connection Lifecycle">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2809,10 +2809,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#runtime_configuration" class="md-nav__link">
+  <a href="#send_params" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Runtime Configuration
+        Send Params
       
     </span>
   </a>
@@ -2864,7 +2864,7 @@
 <li><strong>TLS/SSL Support</strong>: Secure connections via the <code>mqtts://</code> scheme</li>
 <li><strong>Authentication</strong>: Username/password authentication</li>
 <li><strong>Clean Session</strong>: Control whether the broker maintains session state</li>
-<li><strong>Lazy Initialization</strong>: The MQTT client is initialized on the first send, allowing runtime configuration changes before connection</li>
+<li><strong>Managed Connection</strong>: The first send connects to the broker, later sends reuse the connection, and an idle connection is closed after 60 seconds</li>
 </ul>
 <h2 id="getting_started">Getting Started<a class="headerlink" href="#getting_started" title="Permanent link">&para;</a></h2>
 <p>MQTT is widely used in IoT, home automation, and real-time messaging applications.
@@ -2963,48 +2963,27 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
 <li><strong>Testing environments</strong>: Local development where encryption is not required.</li>
 </ul>
 </div>
-<h2 id="lazy_initialization">Lazy Initialization<a class="headerlink" href="#lazy_initialization" title="Permanent link">&para;</a></h2>
-<p>The MQTT client uses lazy initialization, meaning the connection to the broker is not established until the first message is sent. This design allows runtime configuration changes to take effect before the connection is created.</p>
+<h2 id="connection_lifecycle">Connection Lifecycle<a class="headerlink" href="#connection_lifecycle" title="Permanent link">&para;</a></h2>
+<p>The service connects to the broker lazily and keeps the connection open between sends.</p>
 <h3 id="how_it_works">How It Works<a class="headerlink" href="#how_it_works" title="Permanent link">&para;</a></h3>
 <ol>
-<li>When you call <code>Initialize()</code>, the service parses the URL and stores the configuration, but does not create the MQTT client</li>
-<li>On the first call to <code>Send()</code>, the client is initialized with the current configuration</li>
-<li>Once initialized, the client is reused for all subsequent sends</li>
+<li><code>Initialize()</code> parses the URL and stores the configuration. It does not connect to the broker.</li>
+<li>The first <code>Send()</code> opens the connection, and later sends reuse it.</li>
+<li>A connection that has not been used for 60 seconds is closed. The next <code>Send()</code> opens a new one, so short-lived programs do not leave connections behind.</li>
+<li><code>Close()</code> disconnects from the broker. A later <code>Send()</code> reconnects.</li>
 </ol>
+<p>A connection manager set with <code>SetConnectionManager()</code> belongs to the caller. The service never closes it for being idle, and <code>Close()</code> disconnects it.</p>
 <h3 id="error_behavior">Error Behavior<a class="headerlink" href="#error_behavior" title="Permanent link">&para;</a></h3>
-<p>If the connection attempt during lazy initialization fails, the following behavior applies:</p>
-<ul>
-<li>The error is returned to the caller immediately</li>
-<li>The internal client remains uninitialized after a failed attempt</li>
-<li>Subsequent <code>Send()</code> calls will retry initialization, allowing for transient failure recovery</li>
-</ul>
-<p>This retry behavior means that temporary network issues or broker unavailability can be resolved on the next <code>Send()</code> call without requiring a new call to <code>Initialize()</code>.</p>
-<h3 id="runtime_configuration">Runtime Configuration<a class="headerlink" href="#runtime_configuration" title="Permanent link">&para;</a></h3>
-<p>This lazy approach allows you to override connection settings (Host, Port, Username, Password, TLS settings) via params on the first <code>Send()</code> call:</p>
-<div class="highlight"><span class="filename">Example Lazy Initialization Runtime Configuration</span><pre><span></span><code><span class="c1">// Placeholder MQTT URL (will be overridden on first send)</span>
-<span class="nx">mqttURL</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"mqtt://placeholder:1883/topic"</span>
-
-<span class="c1">// Create a logger for the service</span>
-<span class="nx">logger</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stdout</span><span class="p">,</span><span class="w"> </span><span class="s">"mqtt: "</span><span class="p">,</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">LstdFlags</span><span class="p">)</span>
-
-<span class="c1">// The message to send</span>
-<span class="nx">message</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"Hello from shoutrrr!"</span>
-
-<span class="c1">// Initialize with a placeholder URL</span>
-<span class="nx">service</span><span class="p">.</span><span class="nx">Initialize</span><span class="p">(</span><span class="nx">mqttURL</span><span class="p">,</span><span class="w"> </span><span class="nx">logger</span><span class="p">)</span>
-
-<span class="c1">// Override connection settings on first send</span>
+<p>If opening the connection fails, the error is returned to the caller and the next <code>Send()</code> tries again, so temporary network issues or broker unavailability do not require a new call to <code>Initialize()</code>. If the connection ends, for example because it was disconnected, the next <code>Send()</code> opens a new one.</p>
+<h3 id="send_params">Send Params<a class="headerlink" href="#send_params" title="Permanent link">&para;</a></h3>
+<p>Params apply to a single send and do not change the service configuration. The <code>qos</code> and <code>retained</code> params affect every send that uses them. The connection params (<code>clientid</code>, <code>cleansession</code>, <code>disabletls</code>, and <code>disabletlsverification</code>) apply when that send opens the connection, and are ignored while an existing connection is reused.</p>
+<div class="highlight"><span class="filename">Example Send Params</span><pre><span></span><code><span class="c1">// Publish this message as retained with QoS 1, without changing later sends</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
-<span class="w">    </span><span class="s">"host"</span><span class="p">:</span><span class="w">     </span><span class="s">"actual-broker.example.com"</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"username"</span><span class="p">:</span><span class="w"> </span><span class="s">"actual-user"</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"password"</span><span class="p">:</span><span class="w"> </span><span class="s">"actual-password"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"qos"</span><span class="p">:</span><span class="w">      </span><span class="s">"1"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"retained"</span><span class="p">:</span><span class="w"> </span><span class="s">"yes"</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="nx">service</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">message</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Configuration changes after the first <code>Send()</code> call will only affect message-related settings (Topic, QoS, Retained), not connection settings. The client connection cannot be reconfigured after initialization.</p>
-</div>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="admonition example">
 <p class="admonition-title">Basic Notification</p>
@@ -3068,7 +3047,7 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="February 27, 2026 22:14:54 UTC"><span class="timeago" datetime="2026-02-27T22:14:54+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="February 27, 2026 22:14:54 UTC">2026-02-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 8, 2026 16:21:27 UTC"><span class="timeago" datetime="2026-10-08T16:21:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 8, 2026 16:21:27 UTC">2026-10-08</span>
   </span>
 
     
