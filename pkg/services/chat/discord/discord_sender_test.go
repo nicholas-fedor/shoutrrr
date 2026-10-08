@@ -265,6 +265,31 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
 		})
 
+		ginkgo.It("should report an expired context's own error", func() {
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+			defer cancel()
+
+			err := waitWithTimeout(ctx, time.Second, time.Now(), sleeper)
+
+			gomega.Expect(err).To(gomega.MatchError(context.DeadlineExceeded))
+			gomega.Expect(errors.Is(err, ErrRateLimited)).To(gomega.BeFalse())
+			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
+		})
+
+		ginkgo.It("should report a canceled context's own error", func() {
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			err := waitWithTimeout(ctx, time.Second, time.Now(), sleeper)
+
+			gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
+		})
+
 		ginkgo.It("should wait when the context deadline allows it", func() {
 			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
 			sleeper.EXPECT().Sleep(time.Second).Return().Once()
@@ -293,6 +318,44 @@ var _ = ginkgo.Describe("Discord Sender", func() {
 
 			gomega.Expect(err).To(gomega.MatchError(ErrRateLimited))
 			sleeper.AssertNotCalled(ginkgo.GinkgoT(), "Sleep", mock.Anything)
+		})
+	})
+
+	ginkgo.Describe("sleepContext", func() {
+		ginkgo.It("should stop RealSleeper's wait when the context is canceled", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(10*time.Millisecond, cancel)
+
+			start := time.Now()
+			err := sleepContext(ctx, RealSleeper{}, time.Minute)
+
+			gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", 5*time.Second))
+		})
+
+		ginkgo.It("should call Sleep on a sleeper without SleepContext", func() {
+			sleeper := mocks.NewMockSleeper(ginkgo.GinkgoT())
+			sleeper.EXPECT().Sleep(time.Second).Return().Once()
+
+			gomega.Expect(sleepContext(context.Background(), sleeper, time.Second)).To(gomega.Succeed())
+		})
+
+		ginkgo.It("should stop a transport retry backoff when the context is canceled", func() {
+			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			mockClient.On("Do", mock.Anything).Return(nil, errors.New("connection refused"))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(10*time.Millisecond, cancel)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com", http.NoBody)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			start := time.Now()
+			_, err = executeWithTransportRetry(ctx, mockClient, nil, req, RealSleeper{})
+
+			// The first backoff is one second, so returning sooner shows the wait was interrupted.
+			gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+			gomega.Expect(time.Since(start)).To(gomega.BeNumerically("<", 500*time.Millisecond))
 		})
 	})
 

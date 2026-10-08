@@ -76,6 +76,26 @@ func (RealSleeper) Sleep(d time.Duration) {
 	time.Sleep(d)
 }
 
+// SleepContext waits for d or until ctx is done, whichever comes first.
+//
+// Parameters:
+//   - ctx: ends the wait early when it is done.
+//   - d: how long to wait.
+//
+// Returns:
+//   - error: the context's error when it ends the wait, or nil after waiting d.
+func (RealSleeper) SleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("waiting: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
+}
+
 // NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
@@ -221,11 +241,8 @@ func executeWithTransportRetry(
 					),
 				)
 
-				select {
-				case <-ctx.Done():
-					return nil, fmt.Errorf("making HTTP POST request: %w", ctx.Err())
-				default:
-					sleeper.Sleep(wait)
+				if err := sleepContext(ctx, sleeper, wait); err != nil {
+					return nil, fmt.Errorf("making HTTP POST request: %w", err)
 				}
 
 				continue
@@ -379,6 +396,11 @@ func waitWithTimeout(
 	startTime time.Time,
 	sleeper Sleeper,
 ) error {
+	// A context that is already done reports its own error
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled before wait: %w", err)
+	}
+
 	// Don't wait longer than remaining timeout
 	if wait > maxRetryTimeout-time.Since(startTime) {
 		return fmt.Errorf(
@@ -398,12 +420,37 @@ func waitWithTimeout(
 		)
 	}
 
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context canceled during wait: %w", ctx.Err())
-	default:
-		sleeper.Sleep(wait)
+	return sleepContext(ctx, sleeper, wait)
+}
+
+// sleepContext waits for duration with sleeper. A sleeper that implements
+// SleepContext, such as [RealSleeper], stops waiting when ctx is done. Other
+// sleepers wait the full duration.
+//
+// Parameters:
+//   - ctx: the send's context.
+//   - sleeper: performs the wait.
+//   - duration: how long to wait.
+//
+// Returns:
+//   - error: the context's error when it is done before or during the wait, or nil
+//     after waiting.
+func sleepContext(ctx context.Context, sleeper Sleeper, duration time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled before wait: %w", err)
 	}
+
+	if contextSleeper, ok := sleeper.(interface {
+		SleepContext(ctx context.Context, d time.Duration) error
+	}); ok {
+		if err := contextSleeper.SleepContext(ctx, duration); err != nil {
+			return fmt.Errorf("context canceled during wait: %w", err)
+		}
+
+		return nil
+	}
+
+	sleeper.Sleep(duration)
 
 	return nil
 }
