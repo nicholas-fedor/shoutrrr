@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/net to v0.60.0 by @renovate[bot] in [#1460](https://github.com/nicholas-fedor/shoutrrr/pull/1460)
 - Update go toolchain directive to v1.27.2 by @renovate[bot] in [#1453](https://github.com/nicholas-fedor/shoutrrr/pull/1453)
 - Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
 - Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#1439](https://github.com/nicholas-fedor/shoutrrr/pull/1439)
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Match the capability interfaces the router dispatches on by @nicholas-fedor in [#1459](https://github.com/nicholas-fedor/shoutrrr/pull/1459)
 - Apply send params to a per-send config copy by @nicholas-fedor in [#1455](https://github.com/nicholas-fedor/shoutrrr/pull/1455)
 - Keep connections open between sends and close them when idle by @nicholas-fedor in [#1451](https://github.com/nicholas-fedor/shoutrrr/pull/1451)
 - Log in on first send instead of during initialize by @nicholas-fedor in [#1447](https://github.com/nicholas-fedor/shoutrrr/pull/1447)
