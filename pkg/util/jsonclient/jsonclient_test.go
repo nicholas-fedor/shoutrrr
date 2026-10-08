@@ -8,12 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient/mocks"
 )
 
@@ -556,7 +559,8 @@ func TestGet_Error(t *testing.T) {
 	err := Get(server.URL, &response)
 
 	require.Error(t, err, "Get() should return error")
-	assert.Contains(t, err.Error(), fmt.Sprintf("getting JSON from %q", server.URL), "Error should contain URL")
+	assert.Contains(t, err.Error(), "getting JSON", "Error should describe the operation")
+	assert.NotContains(t, err.Error(), server.URL, "Error should not contain the URL")
 }
 
 // TestPost_Success tests the package-level Post function with a successful response.
@@ -609,7 +613,8 @@ func TestPost_Error(t *testing.T) {
 	err := Post(server.URL, request, &response)
 
 	require.Error(t, err, "Post() should return error")
-	assert.Contains(t, err.Error(), fmt.Sprintf("posting JSON to %q", server.URL), "Error should contain URL")
+	assert.Contains(t, err.Error(), "posting JSON", "Error should describe the operation")
+	assert.NotContains(t, err.Error(), server.URL, "Error should not contain the URL")
 }
 
 // TestParseResponse_Success tests successful response parsing.
@@ -1570,4 +1575,68 @@ func TestError_Unwrap(t *testing.T) {
 
 	assert.Equal(t, "unknown error (HTTP 500)", jsonErrNil.Error(), "Error() should return generic message")
 	assert.Equal(t, "unknown error (HTTP 500)", jsonErrNil.String(), "String() should return generic message")
+
+	// Unwrap exposes the inner error to errors.Is and errors.As
+	require.ErrorIs(t, jsonErr, innerErr)
+	require.NoError(t, jsonErrNil.Unwrap())
+}
+
+// TestParseResponse_UnexpectedStatusIsMatchable verifies that an error status
+// response can be matched with errors.Is against ErrUnexpectedStatus.
+func TestParseResponse_UnexpectedStatusIsMatchable(t *testing.T) {
+	t.Parallel()
+
+	res := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Status:     "502 Bad Gateway",
+		Body:       io.NopCloser(strings.NewReader("<html>bad gateway</html>")),
+	}
+
+	var response any
+
+	err := parseResponse(res, &response)
+
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
+}
+
+// TestClient_TransportErrorsOmitURL verifies that transport failures from the HTTP
+// client are reported without the request URL, which can carry credentials, while
+// the underlying error stays matchable.
+func TestClient_TransportErrorsOmitURL(t *testing.T) {
+	t.Parallel()
+
+	const secretURL = "https://api.example.invalid/botSECRETjsonTOKEN/sendMessage?key=SECRETjsonKEY"
+
+	httpClient := typesmocks.NewMockHTTPClient(t)
+	httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, &url.Error{Op: req.Method, URL: req.URL.String(), Err: context.DeadlineExceeded}
+	}).Twice()
+
+	c := NewWithHTTPClient(httpClient)
+
+	var response any
+
+	for name, err := range map[string]error{
+		"Get":  c.Get(secretURL, &response),
+		"Post": c.Post(secretURL, map[string]string{"a": "b"}, &response),
+	} {
+		require.ErrorIs(t, err, context.DeadlineExceeded, name)
+		assert.NotContains(t, err.Error(), "SECRET", name)
+		assert.Contains(t, err.Error(), "https://api.example.invalid", name)
+	}
+}
+
+// TestClient_InvalidURLErrorsOmitURL verifies that request construction failures do
+// not quote the URL.
+func TestClient_InvalidURLErrorsOmitURL(t *testing.T) {
+	t.Parallel()
+
+	c := NewWithHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+	var response any
+
+	err := c.Post("https://api.example.invalid:SECRETjsonPORT/", nil, &response)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRET")
 }

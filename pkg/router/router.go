@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -74,9 +75,9 @@ func NewWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURL
 		ctx:         context.Background(),
 	}
 
-	for _, serviceURL := range serviceURLs {
+	for i, serviceURL := range serviceURLs {
 		if err := router.AddService(serviceURL); err != nil {
-			return nil, fmt.Errorf("error initializing router services: %w", err)
+			return nil, fmt.Errorf("error initializing router services: URL %d: %w", i, err)
 		}
 	}
 
@@ -379,7 +380,8 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 		if client, ok := r.httpClient.(*http.Client); ok && client == nil {
 			// skip typed-nil
 		} else if setter, ok := service.(types.HTTPClientSetter); ok {
-			setter.SetHTTPClient(r.httpClient)
+			// Redact the URLs in transport errors, which carry service credentials.
+			setter.SetHTTPClient(redact.HTTPClient(r.httpClient))
 		}
 	}
 

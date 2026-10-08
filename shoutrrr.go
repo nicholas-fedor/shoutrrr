@@ -34,11 +34,11 @@ var defaultRouter = router.ServiceRouter{}
 func Send(rawURL, message string) error {
 	service, err := defaultRouter.Locate(rawURL)
 	if err != nil {
-		return fmt.Errorf("locating service for URL %q: %w", rawURL, err)
+		return fmt.Errorf("locating service: %w", err)
 	}
 
 	if err := service.Send(message, &types.Params{}); err != nil {
-		return fmt.Errorf("sending message via service at %q: %w", rawURL, err)
+		return fmt.Errorf("sending message via %s: %w", service.GetID(), err)
 	}
 
 	return nil
@@ -50,7 +50,7 @@ func Send(rawURL, message string) error {
 func CreateSender(rawURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(nil, types.SenderOptions{}, rawURLs...)
 	if err != nil {
-		return nil, fmt.Errorf("creating sender for URLs %v: %w", rawURLs, err)
+		return nil, fmt.Errorf("creating sender: %w", err)
 	}
 
 	return serviceRouter, nil
@@ -61,7 +61,7 @@ func CreateSender(rawURLs ...string) (*router.ServiceRouter, error) {
 func CreateSenderWithOptions(opts types.SenderOptions, rawURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(nil, opts, rawURLs...)
 	if err != nil {
-		return nil, fmt.Errorf("creating sender with options for URLs %v: %w", rawURLs, err)
+		return nil, fmt.Errorf("creating sender: %w", err)
 	}
 
 	return serviceRouter, nil
@@ -73,7 +73,7 @@ func CreateSenderWithOptions(opts types.SenderOptions, rawURLs ...string) (*rout
 func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(logger, types.SenderOptions{}, serviceURLs...)
 	if err != nil {
-		return nil, fmt.Errorf("creating sender with logger for URLs %v: %w", serviceURLs, err)
+		return nil, fmt.Errorf("creating sender: %w", err)
 	}
 
 	return serviceRouter, nil
@@ -86,7 +86,7 @@ func NewSender(logger types.StdLogger, serviceURLs ...string) (*router.ServiceRo
 func NewSenderWithOptions(logger types.StdLogger, opts types.SenderOptions, serviceURLs ...string) (*router.ServiceRouter, error) {
 	serviceRouter, err := router.NewWithOptions(logger, opts, serviceURLs...)
 	if err != nil {
-		return nil, fmt.Errorf("creating sender with options for URLs %v: %w", serviceURLs, err)
+		return nil, fmt.Errorf("creating sender: %w", err)
 	}
 
 	return serviceRouter, nil

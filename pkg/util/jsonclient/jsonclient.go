@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -65,6 +66,15 @@ func (je Error) String() string {
 	return je.err.Error()
 }
 
+// Unwrap returns the underlying error, such as [ErrUnexpectedStatus] or a JSON
+// decoding error, so callers can match it with errors.Is and errors.As.
+//
+// Returns:
+//   - error: the underlying error, or nil when there is none.
+func (je Error) Unwrap() error {
+	return je.err
+}
+
 // ErrorBody extracts the request body from an error if it's a jsonclient.Error.
 func ErrorBody(e error) string {
 	if jsonError, ok := errors.AsType[Error](e); ok {
@@ -97,7 +107,7 @@ func NewWithHTTPClient(httpClient types.HTTPClient) Client {
 // Deprecated: Create a Client with NewWithHTTPClient and call Get on it instead.
 func Get(url string, response any) error {
 	if err := DefaultClient.Get(url, response); err != nil {
-		return fmt.Errorf("getting JSON from %q: %w", url, err)
+		return fmt.Errorf("getting JSON: %w", err)
 	}
 
 	return nil
@@ -108,7 +118,7 @@ func Get(url string, response any) error {
 // Deprecated: Create a Client with NewWithHTTPClient and call Post on it instead.
 func Post(url string, request, response any) error {
 	if err := DefaultClient.Post(url, request, response); err != nil {
-		return fmt.Errorf("posting JSON to %q: %w", url, err)
+		return fmt.Errorf("posting JSON: %w", err)
 	}
 
 	return nil
@@ -127,7 +137,7 @@ func (c *client) ErrorResponse(err error, response any) bool {
 func (c *client) Get(url string, response any) error {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("creating GET request for %q: %w", url, err)
+		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
 	}
 
 	for key, val := range c.headers {
@@ -136,7 +146,7 @@ func (c *client) Get(url string, response any) error {
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing GET request to %q: %w", url, err)
+		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
@@ -172,7 +182,7 @@ func (c *client) Post(url string, request, response any) error {
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("creating POST request for %q: %w", url, err)
+		return fmt.Errorf("creating POST request: %w", redact.URLError(err))
 	}
 
 	for key, val := range c.headers {
@@ -181,7 +191,7 @@ func (c *client) Post(url string, request, response any) error {
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending POST request to %q: %w", url, err)
+		return fmt.Errorf("sending POST request: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
