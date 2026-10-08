@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update go toolchain directive to v1.27.2 by @renovate[bot] in [#1453](https://github.com/nicholas-fedor/shoutrrr/pull/1453)
 - Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
 - Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#1439](https://github.com/nicholas-fedor/shoutrrr/pull/1439)
 - Update github.com/google/pprof digest to 7bae8d8 by @renovate[bot] in [#1438](https://github.com/nicholas-fedor/shoutrrr/pull/1438)
