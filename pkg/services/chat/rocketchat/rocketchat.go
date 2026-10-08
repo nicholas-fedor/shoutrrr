@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -101,7 +102,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	if err != nil {
 		return fmt.Errorf(
 			"posting to URL: %w\nHOST: %s\nPORT: %s",
-			err,
+			redact.URLError(err),
 			config.Host,
 			config.Port,
 		)

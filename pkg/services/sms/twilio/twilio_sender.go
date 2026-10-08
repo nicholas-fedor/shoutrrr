@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 )
 
 // HTTPClient defines the interface for making HTTP requests.
@@ -76,7 +78,7 @@ func (s *Service) sendToRecipient(config *Config, toNumber, message string) erro
 
 	res, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending request to Twilio API: %w", err)
+		return fmt.Errorf("sending request to Twilio API: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

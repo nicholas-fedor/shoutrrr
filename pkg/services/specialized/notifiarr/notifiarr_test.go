@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -172,7 +173,30 @@ var _ = ginkgo.Describe("the notifiarr service", func() {
 				)
 
 				err = service.Send("Test message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
+				gomega.Expect(err).To(gomega.MatchError(notifiarr.ErrSendFailed))
+				gomega.Expect(err).To(gomega.MatchError(http.ErrHandlerTimeout))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("apikey123"))
+			})
+
+			ginkgo.It("does not log a response body that echoes the request", func() {
+				serviceURL := testutils.URLMust("notifiarr://apikey123")
+				logs := &strings.Builder{}
+				err := service.Initialize(serviceURL, log.New(logs, "", 0))
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				httpmock.RegisterResponder(
+					"POST",
+					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
+					func(req *http.Request) (*http.Response, error) {
+						return httpmock.NewStringResponse(http.StatusOK, req.URL.String()+" BODYmarker"), nil
+					},
+				)
+
+				err = service.Send("Test message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(logs.String()).To(gomega.ContainSubstring("200"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("apikey123"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("BODYmarker"))
 			})
 
 			ginkgo.It("includes Discord channel in JSON payload when configured", func() {

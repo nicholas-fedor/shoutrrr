@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -141,7 +142,7 @@ func (s *Service) sendWebhook(config *Config, payload any) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to invoke webhook: %w", err)
+		return fmt.Errorf("failed to invoke webhook: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

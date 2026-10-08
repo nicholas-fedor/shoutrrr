@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -174,8 +175,6 @@ func (s *Service) preparePayload(
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	s.Logf("WeCom Request Body: %s", string(data))
-
 	return data, nil
 }
 
@@ -197,7 +196,7 @@ func (s *Service) sendRequest(postURL string, payload []byte) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, err)
+		return fmt.Errorf("%w: making HTTP request: %w", ErrSendFailed, redact.URLError(err))
 	}
 
 	defer func() { _ = resp.Body.Close() }()

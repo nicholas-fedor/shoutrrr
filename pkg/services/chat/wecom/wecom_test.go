@@ -71,6 +71,7 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 			err := service.Initialize(testutils.URLMust("wecom://invalid.key"), logger)
 			gomega.Expect(err).
 				To(gomega.MatchError(gomega.ContainSubstring("invalid WeCom webhook key format")))
+			gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("invalid.key"))
 		})
 		ginkgo.It("should fail with empty key", func() {
 			err := service.Initialize(testutils.URLMust("wecom://"), logger)
@@ -153,6 +154,26 @@ var _ = ginkgo.Describe("WeCom Test", func() {
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				err = service.Send("message", nil)
 				gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("network error")))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("693axxx6"))
+			})
+
+			ginkgo.It("should not log the webhook key or the request body", func() {
+				httpmock.RegisterResponder(
+					http.MethodPost,
+					"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa",
+					httpmock.NewJsonResponderOrPanic(
+						http.StatusOK,
+						map[string]any{"errcode": 0, "errmsg": "ok"},
+					),
+				)
+
+				logs := &strings.Builder{}
+				err := service.Initialize(testutils.URLMust(fullURL), log.New(logs, "", 0))
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+				err = service.Send("message", nil)
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("693axxx6"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("msgtype"))
 			})
 
 			ginkgo.It("should return error on invalid JSON response", func() {

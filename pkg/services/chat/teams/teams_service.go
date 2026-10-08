@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -42,7 +43,7 @@ const adaptiveCardVersion = "1.2"
 func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("performing HTTP request: %w", err)
+		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
 
 	return resp, nil
@@ -191,7 +192,7 @@ func (s *Service) doSend(config *Config, message string) error {
 
 	res, err := s.postJSON(config.Host, jsonBytes)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
+		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
 	defer func() { _ = res.Body.Close() }()
@@ -225,7 +226,7 @@ func (s *Service) postJSON(serviceURL string, payload []byte) (*http.Response, e
 
 	res, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("making HTTP POST request: %w", err)
+		return nil, fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}
 
 	return res, nil

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -135,7 +136,7 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	sendParams := createSendParams(&config, params, message)
 	if err := s.doSend(&config, sendParams); err != nil {
 		// Execute the HTTP request to send the notification
-		return fmt.Errorf("%w: %s", ErrSendFailed, err.Error())
+		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
 	return nil
@@ -203,18 +204,16 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 	// Send the HTTP request
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending HTTP request: %w", err)
+		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
 
 	if res != nil && res.Body != nil {
-		// Read and log response body if available
 		defer func() {
 			_ = res.Body.Close()
 		}()
 
-		if body, err := io.ReadAll(res.Body); err == nil {
-			s.Log("Server response: ", string(body))
-		}
+		// The body is not logged because it can echo the request, including its credentials.
+		s.Logf("Server responded with status %s", res.Status)
 	}
 
 	if res.StatusCode >= http.StatusBadRequest {

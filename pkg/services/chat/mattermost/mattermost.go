@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -104,7 +105,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing POST request to Mattermost API: %w", err)
+		return fmt.Errorf("executing POST request to Mattermost API: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

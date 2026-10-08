@@ -67,6 +67,9 @@ const (
 	checkReservedParams    = "reserved_params"
 	checkNilHTTPClient     = "nil_http_client"
 	checkNoSecretLeaks     = "no_secret_leaks"
+	// checkNoSecretLeaksDefault repeats the leak check with each service's own
+	// default HTTP client, as used by consumers that do not inject one.
+	checkNoSecretLeaksDefault = "no_secret_leaks_default_client"
 )
 
 // Failure kinds, one per distinct way a check can fail.
@@ -143,6 +146,7 @@ func TestContract(t *testing.T) {
 		{checkReservedParams, runReservedParams},
 		{checkNilHTTPClient, runNilHTTPClient},
 		{checkNoSecretLeaks, runNoSecretLeaks},
+		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
 	}
 
 	for _, check := range checks {
@@ -368,26 +372,26 @@ func runNoSecretLeaks(t *testing.T, fx *fixture) failure {
 		env := newEnv(t, fx, true)
 
 		service, err := env.locate(t)
-		if err == nil {
-			if result = env.send(service, nil); result.kind != failNone {
-				return
-			}
+		result = env.checkLeaks(service, err)
+	})
 
-			err = env.sendErr
-		}
+	return result
+}
 
-		output := env.logs.String()
-		if err != nil {
-			output += "\n" + err.Error()
-		}
+// runNoSecretLeaksDefault verifies that secrets never appear in errors or logs when
+// a service uses its own default HTTP client. Requests through that client fail at
+// the blocked http.DefaultTransport or DNS resolver, and net/http reports them
+// with a *url.Error that carries the full request URL.
+func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
+	t.Helper()
 
-		for _, secret := range fx.secrets {
-			if strings.Contains(output, secret) {
-				result = fail(failSecretLeak, "secret %q leaked into errors or logs", secret)
+	var result failure
 
-				return
-			}
-		}
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locateWithDefaultClient(t)
+		result = env.checkLeaks(service, err)
 	})
 
 	return result
@@ -444,6 +448,39 @@ func respond(fx *fixture, failTransport bool) func(*http.Request) (*http.Respons
 	}
 }
 
+// checkLeaks sends through service, when it initialized, and reports a secret from
+// the fixture that appears in the resulting error or the captured logs.
+//
+// Parameters:
+//   - service: the located service, or nil when initialization failed.
+//   - initErr: the initialization error, if any.
+//
+// Returns:
+//   - failure: a failSecretLeak or failPanic failure, or the zero value.
+func (e *env) checkLeaks(service types.Service, initErr error) failure {
+	err := initErr
+	if err == nil {
+		if result := e.send(service, nil); result.kind != failNone {
+			return result
+		}
+
+		err = e.sendErr
+	}
+
+	output := e.logs.String()
+	if err != nil {
+		output += "\n" + err.Error()
+	}
+
+	for _, secret := range e.fx.secrets {
+		if strings.Contains(output, secret) {
+			return fail(failSecretLeak, "secret %q leaked into errors or logs", secret)
+		}
+	}
+
+	return failure{}
+}
+
 // dial is the injected DialContext; it records and refuses every dial.
 func (e *env) dial(context.Context, string, string) (net.Conn, error) {
 	e.dials.Add(1)
@@ -461,10 +498,14 @@ func (e *env) ioCount() int { return e.httpCalls() + int(e.dials.Load()) }
 func (e *env) locate(t *testing.T) (types.Service, error) {
 	t.Helper()
 
-	serviceRouter, err := router.NewWithOptions(e.logger, types.SenderOptions{
-		HTTPClient:  e.client,
-		DialContext: e.dial,
-	})
+	return e.locateWith(t, types.SenderOptions{HTTPClient: e.client, DialContext: e.dial})
+}
+
+// locateWith builds the service through the router with the given options.
+func (e *env) locateWith(t *testing.T, opts types.SenderOptions) (types.Service, error) {
+	t.Helper()
+
+	serviceRouter, err := router.NewWithOptions(e.logger, opts)
 	if err != nil {
 		t.Fatalf("creating router: %v", err)
 	}
@@ -475,6 +516,14 @@ func (e *env) locate(t *testing.T) (types.Service, error) {
 	}
 
 	return service, nil
+}
+
+// locateWithDefaultClient builds the service through the router without injecting
+// an HTTP client, so the service uses its own default client.
+func (e *env) locateWithDefaultClient(t *testing.T) (types.Service, error) {
+	t.Helper()
+
+	return e.locateWith(t, types.SenderOptions{DialContext: e.dial})
 }
 
 // send sends a message and returns a failPanic failure if Send panicked.

@@ -136,7 +136,7 @@ func (s *Service) buildRequest(
 ) (string, *MessageRequest, http.Header, error) {
 	// Validate token format before constructing URL
 	if !s.validator.ValidateToken(config.Token) {
-		return "", nil, nil, fmt.Errorf("%w: %q", ErrInvalidToken, config.Token)
+		return "", nil, nil, ErrInvalidToken
 	}
 
 	// Construct the complete API endpoint URL
@@ -224,7 +224,7 @@ func (s *Service) sendRequest(
 		request,
 		headers,
 	); err != nil {
-		return fmt.Errorf("%s: %w", ErrSendFailed.Error(), err)
+		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
 	return nil

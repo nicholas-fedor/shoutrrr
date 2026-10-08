@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -63,7 +64,7 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return resp, fmt.Errorf("executing HTTP request: %w", err)
+		return resp, fmt.Errorf("executing HTTP request: %w", redact.URLError(err))
 	}
 
 	return resp, nil
@@ -211,7 +212,7 @@ func (s *Service) sendAPI(config *Config, message string) error {
 			}
 		}
 
-		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, err)
+		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, redact.URLError(err))
 	}
 
 	defer func() { _ = httpResp.Body.Close() }()

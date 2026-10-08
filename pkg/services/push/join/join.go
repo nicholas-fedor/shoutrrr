@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -120,7 +121,7 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending HTTP request to Join: %w", err)
+		return fmt.Errorf("sending HTTP request to Join: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

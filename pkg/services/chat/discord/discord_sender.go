@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -88,7 +89,7 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("performing HTTP request: %w", err)
+		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
 
 	return resp, nil
@@ -230,7 +231,7 @@ func executeWithTransportRetry(
 				continue
 			}
 
-			return nil, fmt.Errorf("making HTTP POST request: %w", err)
+			return nil, fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 		}
 
 		return res, nil

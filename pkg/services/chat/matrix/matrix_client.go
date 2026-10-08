@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
@@ -94,7 +95,7 @@ const (
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("performing HTTP request: %w", err)
+		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
 
 	return resp, nil
@@ -141,7 +142,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing GET request: %w", err)
+		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
@@ -214,7 +215,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing %s request: %w", method, err)
+		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

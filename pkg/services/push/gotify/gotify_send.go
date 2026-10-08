@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
@@ -53,7 +54,7 @@ func (s *DefaultSender) SendRequest(
 				return fmt.Errorf("server error: %w", errorRes)
 			}
 
-			return fmt.Errorf("%s: %w", ErrSendFailed.Error(), err)
+			return fmt.Errorf("%w: %w", ErrSendFailed, err)
 		}
 
 		return nil
@@ -67,7 +68,7 @@ func (s *DefaultSender) SendRequest(
 
 	err = json.Unmarshal(body, response)
 	if err != nil {
-		return fmt.Errorf("%s: %w", ErrParseResponse.Error(), err)
+		return fmt.Errorf("%w: %w", ErrParseResponse, err)
 	}
 
 	return nil
@@ -122,7 +123,7 @@ func (s *DefaultSender) sendRequestWithHeaders(
 ) ([]byte, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ErrMarshalRequest.Error(), err)
+		return nil, fmt.Errorf("%w: %w", ErrMarshalRequest, err)
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -132,21 +133,21 @@ func (s *DefaultSender) sendRequestWithHeaders(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ErrCreateRequest.Error(), err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateRequest, err)
 	}
 
 	s.setRequestHeaders(req, headers)
 
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ErrSendRequest.Error(), err)
+		return nil, fmt.Errorf("%w: %w", ErrSendRequest, redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
 	body, err = io.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ErrReadResponse.Error(), err)
+		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}
 
 	if err := s.handleResponseError(res, body); err != nil {

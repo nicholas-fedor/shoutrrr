@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -334,6 +335,41 @@ var _ = ginkgo.Describe("the generic service", func() {
 
 				err = service.Send("Message", nil)
 				gomega.Expect(err).To(gomega.HaveOccurred())
+			})
+			ginkgo.It("keeps the transport error matchable without echoing the webhook query", func() {
+				dummyErr := errors.New("dummy error")
+				serviceURL := testutils.URLMust("generic://host.tld/webhook?token=SECRETquery")
+				err := service.Initialize(serviceURL, logger)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				httpmock.RegisterResponder(
+					"POST",
+					TestWebhookURL+"?token=SECRETquery",
+					httpmock.NewErrorResponder(dummyErr),
+				)
+
+				err = service.Send("Message", nil)
+				gomega.Expect(err).To(gomega.MatchError(generic.ErrSendFailed))
+				gomega.Expect(err).To(gomega.MatchError(dummyErr))
+				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETquery"))
+			})
+			ginkgo.It("does not log a response body that echoes the request", func() {
+				serviceURL := testutils.URLMust("generic://host.tld/webhook?token=SECRETquery")
+				logs := &strings.Builder{}
+				err := service.Initialize(serviceURL, log.New(logs, "", 0))
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				httpmock.RegisterResponder(
+					"POST",
+					TestWebhookURL+"?token=SECRETquery",
+					func(req *http.Request) (*http.Response, error) {
+						return httpmock.NewStringResponse(http.StatusOK, req.URL.String()+" BODYmarker"), nil
+					},
+				)
+
+				err = service.Send("Message", nil)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(logs.String()).To(gomega.ContainSubstring("200"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("SECRETquery"))
+				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("BODYmarker"))
 			})
 			ginkgo.It("includes custom headers in the request", func() {
 				serviceURL := testutils.URLMust("generic://host.tld/webhook?@authorization=frend")

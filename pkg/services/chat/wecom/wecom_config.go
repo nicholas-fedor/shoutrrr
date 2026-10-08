@@ -72,7 +72,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	if strings.ContainsAny(c.Key, "@!#$%^&*()+=[]{}|\\:;\"'<>?,./") {
-		return fmt.Errorf("%w: %s", ErrInvalidKey, c.Key)
+		return ErrInvalidKey
 	}
 
 	// Handle query parameters

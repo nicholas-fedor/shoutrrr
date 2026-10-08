@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -97,7 +98,7 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("performing HTTP request: %w", err)
+		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
 
 	return resp, nil
@@ -235,7 +236,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 
 	res, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("making HTTP POST request: %w", err)
+		return fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()

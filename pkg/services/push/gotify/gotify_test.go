@@ -141,7 +141,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
 				gomega.Expect(err).
-					To(gomega.MatchError("failed to build request: invalid gotify token: \"short\""))
+					To(gomega.MatchError("failed to build request: invalid gotify token"))
 			})
 		})
 		ginkgo.When("the token has an invalid prefix", func() {
@@ -153,7 +153,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				err = service.Send("Message", nil)
 				gomega.Expect(err).
-					To(gomega.MatchError("failed to build request: invalid gotify token: \"Chwbsdyhwwgarxd\""))
+					To(gomega.MatchError("failed to build request: invalid gotify token"))
 			})
 		})
 		ginkgo.It("is identical after de-/serialization with path", func() {
@@ -353,7 +353,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa.bbb.ccc.dd!\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 	})
 	ginkgo.When("the token has exactly 15 chars but invalid prefix", func() {
@@ -365,7 +365,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"Baa.bbb.ccc.ddd\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 	})
 	ginkgo.When("the token has valid prefix but invalid characters at different positions", func() {
@@ -375,7 +375,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa!bbb.ccc.ddd\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 		ginkgo.It("reports an error for invalid char at position 10", func() {
 			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb!ccc.ddd")
@@ -383,7 +383,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa.bbb!ccc.ddd\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 		ginkgo.It("reports an error for invalid char at position 15", func() {
 			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
@@ -391,7 +391,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"Aaa.bbb.ccc.dd!\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 	})
 
@@ -444,7 +444,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 		ginkgo.It("rejects a new-format token that is too short", func() {
 			serviceURL := testutils.URLMust(
@@ -454,7 +454,7 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			err = service.Send("Message", nil)
 			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token: \"gtfya.123\""))
+				To(gomega.MatchError("failed to build request: invalid gotify token"))
 		})
 	})
 
