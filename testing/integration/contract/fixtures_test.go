@@ -217,25 +217,12 @@ var fixtures = []fixture{
 // its audit finding. Fixing a failure must remove its entry; TestContract fails if
 // an allowlisted case passes.
 var allowlist = map[string]map[string]knownFailure{
-	checkInitializeNoIO: {
-		"matrix": {"F3: Matrix logs in during Initialize", failInitIO},
-	},
-	checkSendUsesInjection: {
-		"matrix": {"F3: Matrix logs in during Initialize", failInit},
-	},
-	checkReservedParams: {
-		"matrix": {"F3: Matrix logs in during Initialize", failInit},
-	},
-	checkNilHTTPClient: {
-		"matrix": {"F3: Matrix logs in during Initialize", failInit},
-	},
 	checkTypedNilHTTPClient: {
 		"bark":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"homeassistant": {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"ifttt":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"join":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"lark":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"matrix":        {"F3: Matrix logs in during Initialize", failInit},
 		"mattermost":    {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"opsgenie":      {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 		"pagerduty":     {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},

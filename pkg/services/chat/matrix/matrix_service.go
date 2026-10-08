@@ -20,6 +20,11 @@ type Service struct {
 	client     *client
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+	// loginGate holds one token while a send runs the password login, so only one
+	// login runs at a time and waiting sends can give up when their context ends.
+	loginGate chan struct{}
+	// loggedIn reports whether the client holds an access token from a password login.
+	loggedIn bool
 }
 
 // Scheme identifies this service in configuration URLs.
@@ -30,7 +35,9 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It performs no network
+// I/O: a password login runs on the first send, through the HTTP client and
+// context in effect at that time.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -48,21 +55,20 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if serviceURL.Hostname() != "dummy.com" && serviceURL.Host != "" {
-		s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
-		if s.httpClient != nil {
-			switch c := s.httpClient.(type) {
-			case *http.Client:
-				s.client.httpClient = &DefaultHTTPClient{client: c}
-			default:
-				s.client.httpClient = s.httpClient
-			}
-		}
+	s.client = nil
+	s.loggedIn = false
+	s.loginGate = make(chan struct{}, 1)
 
-		if s.Config.User != "" {
-			return s.client.login(context.Background(), s.Config.User, s.Config.Password)
-		}
+	// The dummy.com placeholder URL, which config validation also accepts without
+	// credentials, configures the service without a client.
+	if serviceURL.Hostname() == "dummy.com" || serviceURL.Host == "" {
+		return nil
+	}
 
+	s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
+	s.client.httpClient = adaptHTTPClient(s.httpClient)
+
+	if s.Config.User == "" {
 		s.client.useToken(s.Config.Password)
 	}
 
@@ -78,6 +84,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 func (s *Service) SendWithContext(ctx context.Context, message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
+	}
+
+	if err := s.ensureLogin(ctx); err != nil {
+		return err
 	}
 
 	// Make a per-call copy of the config to avoid mutating the shared s.Config
@@ -107,16 +117,52 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 }
 
 // SetHTTPClient sets a custom HTTP client for the service (propagated to internal client).
+// A nil client restores the default client. An access token from an earlier login
+// stays valid.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	s.httpClient = client
 	if s.client != nil {
-		switch c := client.(type) {
-		case *http.Client:
-			s.client.httpClient = &DefaultHTTPClient{client: c}
-		default:
-			s.client.httpClient = client
-		}
+		s.client.httpClient = adaptHTTPClient(client)
 	}
+}
+
+// ensureLogin logs in with the configured user and password once, on the first
+// send. A failed login is retried on the next send. A send that waits for another
+// send's login stops waiting when ctx ends.
+//
+// Parameters:
+//   - ctx: cancellation for waiting on and running the login.
+//
+// Returns:
+//   - error: the login failure or ctx's error, or nil when no login is needed.
+func (s *Service) ensureLogin(ctx context.Context) error {
+	if s.Config.User == "" {
+		return nil
+	}
+
+	select {
+	case s.loginGate <- struct{}{}:
+	case <-ctx.Done():
+		return fmt.Errorf("waiting for Matrix login: %w", ctx.Err())
+	}
+
+	defer func() { <-s.loginGate }()
+
+	if s.loggedIn {
+		return nil
+	}
+
+	if err := s.client.login(ctx, s.Config.User, s.Config.Password); err != nil {
+		return fmt.Errorf("logging in to Matrix: %w", err)
+	}
+
+	s.loggedIn = true
+
+	return nil
 }
 
 // createMessage creates the full message body by prepending the title if provided.

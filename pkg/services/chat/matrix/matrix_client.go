@@ -588,11 +588,7 @@ func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 			Host:   host,
 			Scheme: schemeHTTPS,
 		},
-		httpClient: &DefaultHTTPClient{
-			client: &http.Client{
-				Timeout: defaultHTTPTimeout,
-			},
-		},
+		httpClient: newDefaultHTTPClient(),
 	}
 
 	if client.logger == nil {
@@ -606,4 +602,36 @@ func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 	client.logger.Printf("Using server: %v\n", client.apiURL.String())
 
 	return client
+}
+
+// newDefaultHTTPClient returns the client used when none is injected.
+//
+// Returns:
+//   - *DefaultHTTPClient: a client with the default timeout.
+func newDefaultHTTPClient() *DefaultHTTPClient {
+	return &DefaultHTTPClient{client: &http.Client{Timeout: defaultHTTPTimeout}}
+}
+
+// adaptHTTPClient prepares an injected client for the Matrix client. An
+// *http.Client is wrapped so its transport errors are redacted, and a nil client
+// is replaced with the default client.
+//
+// Parameters:
+//   - httpClient: the injected client, which may be nil.
+//
+// Returns:
+//   - HTTPClient: the client the Matrix client uses.
+func adaptHTTPClient(httpClient types.HTTPClient) HTTPClient {
+	switch c := httpClient.(type) {
+	case nil:
+		return newDefaultHTTPClient()
+	case *http.Client:
+		if c == nil {
+			return newDefaultHTTPClient()
+		}
+
+		return &DefaultHTTPClient{client: c}
+	default:
+		return httpClient
+	}
 }
