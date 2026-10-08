@@ -32,6 +32,8 @@ type fakeConnection struct {
 	disconnects atomic.Int32
 	// lastRetain records the Retain flag of the latest publish.
 	lastRetain atomic.Bool
+	// gate, when set, holds each publish until it is closed.
+	gate chan struct{}
 }
 
 // fakeConnector creates fake connections and records them in order.
@@ -40,6 +42,8 @@ type fakeConnector struct {
 	mu sync.Mutex
 	// connections holds every connection created so far.
 	connections []*fakeConnection
+	// gateFirst, when set, becomes the publish gate of the first connection.
+	gateFirst chan struct{}
 }
 
 // lifecycleURL is a broker URL for the lifecycle tests.
@@ -185,6 +189,46 @@ func TestCloseDisconnectsAndAllowsReconnect(t *testing.T) {
 	})
 }
 
+// TestCloseWaitsForInFlightSend verifies that Close lets a send already using the
+// connection finish before disconnecting it, and that a send started meanwhile
+// opens a new connection.
+func TestCloseWaitsForInFlightSend(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		connector := &fakeConnector{gateFirst: make(chan struct{})}
+		service := newLifecycleService(t, connector)
+
+		sendErr := make(chan error, 1)
+
+		go func() { sendErr <- service.Send("in flight", nil) }()
+
+		synctest.Wait()
+
+		closeErr := make(chan error, 1)
+
+		go func() { closeErr <- service.Close() }()
+
+		synctest.Wait()
+
+		first := connector.created()[0]
+		assert.Zero(t, first.disconnects.Load(), "Close must wait for the in-flight send")
+
+		require.NoError(t, service.Send("during close", nil))
+
+		connections := connector.created()
+		require.Len(t, connections, 2)
+		assert.Equal(t, int32(1), connections[1].publishes.Load())
+
+		close(connector.gateFirst)
+		require.NoError(t, <-sendErr)
+		require.NoError(t, <-closeErr)
+
+		assert.Equal(t, int32(1), first.publishes.Load())
+		assert.Equal(t, int32(1), first.disconnects.Load())
+	})
+}
+
 // TestSendParamsDoNotChangeConfig verifies that params apply to one send without
 // changing the service configuration used by later sends.
 func TestSendParamsDoNotChangeConfig(t *testing.T) {
@@ -266,8 +310,16 @@ func (f *fakeConnection) Done() <-chan struct{} {
 	return f.done
 }
 
-// Publish records a publish on a live connection.
-func (f *fakeConnection) Publish(_ context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
+// Publish records a publish on a live connection, after the gate opens when one is set.
+func (f *fakeConnection) Publish(ctx context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
+	if f.gate != nil {
+		select {
+		case <-f.gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	if f.ended() {
 		return nil, errConnectionEnded
 	}
@@ -298,6 +350,10 @@ func (c *fakeConnector) connect(ctx context.Context, _ *autopaho.ClientConfig) (
 	connection := newFakeConnection(ctx)
 
 	c.mu.Lock()
+	if len(c.connections) == 0 {
+		connection.gate = c.gateFirst
+	}
+
 	c.connections = append(c.connections, connection)
 	c.mu.Unlock()
 

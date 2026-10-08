@@ -46,8 +46,11 @@ type Service struct {
 	ownedConnection bool
 	// cancelConnection ends the lifetime of a connection the service created.
 	cancelConnection context.CancelFunc
-	// activeSends counts the sends using connectionManager.
+	// activeSends counts the sends in progress, which keeps the idle timer stopped.
 	activeSends int
+	// connectionSends tracks the sends using connectionManager, so tearing the
+	// connection down waits for them to finish.
+	connectionSends *sync.WaitGroup
 	// idleTimer tears down a connection the service created once it is idle.
 	idleTimer *time.Timer
 	// idleGeneration identifies the current idle period, so a timer that fires
@@ -84,22 +87,23 @@ const idleTimeout = 60 * time.Second
 
 var _ types.DialContextSetter = (*Service)(nil)
 
-// Close disconnects from the broker, waiting at most [disconnectTimeout] seconds,
-// and ends the connection's lifetime. Calling it again is safe, and a later send
-// opens a new connection.
+// Close disconnects from the broker and ends the connection's lifetime. It first
+// waits for sends already using the connection to finish, then waits at most
+// [disconnectTimeout] seconds for the disconnect. Sends that start meanwhile open
+// a new connection. Calling it again is safe.
 //
 // Returns:
 //   - error: the disconnect failure, or nil when there was no connection.
 func (s *Service) Close() error {
 	s.clientMutex.Lock()
-	manager, cancel := s.detachConnectionLocked()
+	manager, cancel, sends := s.detachConnectionLocked()
 	s.clientMutex.Unlock()
 
 	if manager == nil {
 		return nil
 	}
 
-	if err := disconnect(manager, cancel); err != nil {
+	if err := disconnect(manager, cancel, sends); err != nil {
 		return fmt.Errorf("disconnecting from MQTT broker: %w", err)
 	}
 
@@ -187,11 +191,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 		)
 	}
 
-	manager, err := s.acquireConnection(&config)
+	manager, sends, err := s.acquireConnection(&config)
 	if err != nil {
 		return fmt.Errorf("initializing MQTT client: %w", err)
 	}
-	defer s.releaseConnection()
+	defer s.releaseConnection(sends)
 
 	// Create a context with timeout for the publish operation
 	ctx, cancel := context.WithTimeout(
@@ -264,6 +268,7 @@ func (s *Service) SetConnectionManager(manager ConnectionManager) {
 	s.connectionManager = manager
 	s.ownedConnection = false
 	s.cancelConnection = nil
+	s.connectionSends = &sync.WaitGroup{}
 }
 
 // SetDialContext sets a custom dial function for MQTT TCP connections.
@@ -288,26 +293,28 @@ func (s *Service) SetDialContext(dial types.DialContextFunc) {
 //
 // Returns:
 //   - ConnectionManager: the connection to publish through.
+//   - *sync.WaitGroup: the connection's sends, to pass to [Service.releaseConnection].
 //   - error: the failure to open a connection, which the next send retries.
-func (s *Service) acquireConnection(config *Config) (ConnectionManager, error) {
+func (s *Service) acquireConnection(config *Config) (ConnectionManager, *sync.WaitGroup, error) {
 	s.clientMutex.Lock()
 	defer s.clientMutex.Unlock()
 
 	if s.ownedConnection && connectionEnded(s.connectionManager) {
-		_, cancel := s.detachConnectionLocked()
+		_, cancel, _ := s.detachConnectionLocked()
 		cancel()
 	}
 
 	if s.connectionManager == nil {
 		if err := s.openConnectionLocked(config); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	s.activeSends++
+	s.connectionSends.Add(1)
 	s.stopIdleTimerLocked()
 
-	return s.connectionManager, nil
+	return s.connectionManager, s.connectionSends, nil
 }
 
 // attemptConnection dials the MQTT broker using [Service.dialContext] and
@@ -369,10 +376,10 @@ func (s *Service) closeIdleConnection(generation uint64) {
 		return
 	}
 
-	manager, cancel := s.detachConnectionLocked()
+	manager, cancel, sends := s.detachConnectionLocked()
 	s.clientMutex.Unlock()
 
-	if err := disconnect(manager, cancel); err != nil {
+	if err := disconnect(manager, cancel, sends); err != nil {
 		s.Logf("Disconnecting idle MQTT connection: %v", err)
 	}
 }
@@ -388,10 +395,10 @@ func (s *Service) closeOwnedConnection() {
 		return
 	}
 
-	manager, cancel := s.detachConnectionLocked()
+	manager, cancel, sends := s.detachConnectionLocked()
 	s.clientMutex.Unlock()
 
-	if err := disconnect(manager, cancel); err != nil {
+	if err := disconnect(manager, cancel, sends); err != nil {
 		s.Logf("Disconnecting MQTT connection: %v", err)
 	}
 }
@@ -429,18 +436,20 @@ func (s *Service) createTLSConfig(config *Config) *tls.Config {
 // Returns:
 //   - ConnectionManager: the detached connection, or nil when there was none.
 //   - context.CancelFunc: ends the detached connection's lifetime. It is never nil.
-func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFunc) {
-	manager, cancel := s.connectionManager, s.cancelConnection
+//   - *sync.WaitGroup: the sends still using the detached connection, or nil.
+func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFunc, *sync.WaitGroup) {
+	manager, cancel, sends := s.connectionManager, s.cancelConnection, s.connectionSends
 	if cancel == nil {
 		cancel = func() {}
 	}
 
 	s.connectionManager = nil
 	s.cancelConnection = nil
+	s.connectionSends = nil
 	s.ownedConnection = false
 	s.stopIdleTimerLocked()
 
-	return manager, cancel
+	return manager, cancel, sends
 }
 
 // getDefaultPortForScheme returns the standard port number for a given MQTT scheme.
@@ -584,13 +593,19 @@ func (s *Service) openConnectionLocked(config *Config) error {
 	s.connectionManager = connectionManager
 	s.ownedConnection = true
 	s.cancelConnection = cancel
+	s.connectionSends = &sync.WaitGroup{}
 
 	return nil
 }
 
 // releaseConnection ends a send started with [Service.acquireConnection] and
 // starts the idle timer when no other send uses a connection the service created.
-func (s *Service) releaseConnection() {
+//
+// Parameters:
+//   - sends: the connection's sends, as returned by [Service.acquireConnection].
+func (s *Service) releaseConnection(sends *sync.WaitGroup) {
+	sends.Done()
+
 	s.clientMutex.Lock()
 	defer s.clientMutex.Unlock()
 
@@ -656,17 +671,22 @@ func connectionEnded(manager ConnectionManager) bool {
 	}
 }
 
-// disconnect disconnects manager, waiting at most [disconnectTimeout] seconds, and
-// then calls cancel to end its lifetime.
+// disconnect waits for the sends still using manager, disconnects it, waiting at
+// most [disconnectTimeout] seconds, and then calls cancel to end its lifetime.
 //
 // Parameters:
 //   - manager: the connection to disconnect.
 //   - cancel: ends the connection's lifetime.
+//   - sends: the sends using the connection, or nil.
 //
 // Returns:
 //   - error: the disconnect failure.
-func disconnect(manager ConnectionManager, cancel context.CancelFunc) error {
+func disconnect(manager ConnectionManager, cancel context.CancelFunc, sends *sync.WaitGroup) error {
 	defer cancel()
+
+	if sends != nil {
+		sends.Wait()
+	}
 
 	ctx, stop := context.WithTimeout(context.Background(), disconnectTimeout*time.Second)
 	defer stop()
