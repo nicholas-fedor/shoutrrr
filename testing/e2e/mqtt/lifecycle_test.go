@@ -87,17 +87,20 @@ var _ = ginkgo.Describe("MQTT E2E One-Shot Send Test", func() {
 		query.Set("clientid", clientID)
 		serviceURL.RawQuery = query.Encode()
 
+		// Check the management API before sending, so the test skips without
+		// delivering anything when the API is not reachable.
+		if _, err := clientConnected(serviceURL.Hostname(), clientID); err != nil {
+			ginkgo.Skip("EMQX management API not available: " + err.Error())
+		}
+
 		received := subscribe(serviceURL)
 
 		gomega.Expect(shoutrrr.Send(serviceURL.String(), "E2E Test: one-shot message")).To(gomega.Succeed())
 		gomega.Eventually(received, deliveryTimeout).
 			Should(gomega.Receive(gomega.Equal("E2E Test: one-shot message")))
 
-		if _, err := clientConnected(serviceURL.Hostname(), clientID); err != nil {
-			ginkgo.Skip("EMQX management API not available: " + err.Error())
-		}
-
-		// The broker records the disconnect asynchronously, so poll for it.
+		// The broker records the disconnect asynchronously, so poll for it. A lookup
+		// failure here fails the assertion, since the API was reachable before the send.
 		gomega.Eventually(func() (bool, error) {
 			return clientConnected(serviceURL.Hostname(), clientID)
 		}, deliveryTimeout, 100*time.Millisecond).
