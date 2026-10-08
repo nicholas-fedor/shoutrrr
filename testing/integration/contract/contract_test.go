@@ -3,6 +3,7 @@ package contract_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -65,7 +67,9 @@ const (
 	checkInitializeNoIO    = "initialize_no_io"
 	checkSendUsesInjection = "send_uses_injection"
 	checkReservedParams    = "reserved_params"
-	checkNilHTTPClient     = "nil_http_client"
+	// checkParamsDoNotPersist verifies that params change only the send they are passed to.
+	checkParamsDoNotPersist = "params_do_not_persist"
+	checkNilHTTPClient      = "nil_http_client"
 	// checkTypedNilHTTPClient repeats the nil client check with a nil *http.Client,
 	// which is a non-nil types.HTTPClient interface value.
 	checkTypedNilHTTPClient = "typed_nil_http_client"
@@ -88,6 +92,7 @@ const (
 	failInjectedAfterNil                     // the injected client was still used after SetHTTPClient(nil)
 	failNoFallbackRequest                    // no request went through the default client after SetHTTPClient(nil)
 	failSecretLeak                           // a secret appeared in errors or logs
+	failParamsPersisted                      // Send with params changed the service configuration
 	failNoDefaultRequest                     // no request went through the service's default client
 )
 
@@ -148,6 +153,7 @@ func TestContract(t *testing.T) {
 		{checkInitializeNoIO, runInitializeNoIO},
 		{checkSendUsesInjection, runSendUsesInjection},
 		{checkReservedParams, runReservedParams},
+		{checkParamsDoNotPersist, runParamsDoNotPersist},
 		{checkNilHTTPClient, runNilHTTPClient},
 		{checkTypedNilHTTPClient, runTypedNilHTTPClient},
 		{checkNoSecretLeaks, runNoSecretLeaks},
@@ -317,6 +323,86 @@ func runReservedParams(t *testing.T, fx *fixture) failure {
 	})
 
 	return result
+}
+
+// runParamsDoNotPersist verifies that params passed to Send apply to that send
+// only: the service's exported Config is the same before and after the send.
+// Services without an exported Config field are not checked.
+func runParamsDoNotPersist(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		before, err := configSnapshot(service)
+		if err != nil {
+			t.Fatalf("snapshotting config: %v", err)
+		}
+
+		if before == nil {
+			return
+		}
+
+		params := types.Params{}
+		params.SetTitle("contract title")
+
+		if result = env.send(service, &params); result.kind != failNone {
+			return
+		}
+
+		after, err := configSnapshot(service)
+		if err != nil {
+			t.Fatalf("snapshotting config: %v", err)
+		}
+
+		if !bytes.Equal(before, after) {
+			result = fail(failParamsPersisted, "Send with params changed the service config")
+		}
+	})
+
+	return result
+}
+
+// configSnapshot encodes the configuration a service exposes in its exported Config
+// field. The JSON encoding is a deep copy, so it also captures slices and maps a
+// send might change in place. Params set only exported fields, which it covers.
+//
+// Parameters:
+//   - service: the service to inspect.
+//
+// Returns:
+//   - []byte: the encoded configuration, or nil when there is none to check.
+//   - error: the encoding failure.
+func configSnapshot(service types.Service) ([]byte, error) {
+	value := reflect.ValueOf(service)
+	if value.Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
+
+	if value.Kind() != reflect.Struct {
+		return nil, nil
+	}
+
+	field := value.FieldByName("Config")
+	if !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil() {
+		return nil, nil
+	}
+
+	encoded, err := json.Marshal(field.Interface())
+	if err != nil {
+		return nil, fmt.Errorf("encoding config: %w", err)
+	}
+
+	return encoded, nil
 }
 
 // runNilHTTPClient verifies that SetHTTPClient(nil) restores a usable default

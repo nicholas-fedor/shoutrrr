@@ -41,7 +41,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers an SMS message via Twilio to all configured recipients.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := s.Config
+	// Params apply to this send only, so they update a copy of the service config.
+	configCopy := *s.Config
+	config := &configCopy
 
 	err := s.pkr.UpdateConfigFromParams(config, params)
 	if err != nil {

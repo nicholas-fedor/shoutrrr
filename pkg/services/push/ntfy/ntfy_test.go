@@ -1,8 +1,11 @@
 package ntfy
 
 import (
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -11,9 +14,13 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 	jsonclientmocks "github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient/mocks"
 )
+
+// concurrentSends is the number of simultaneous sends in the concurrency test.
+const concurrentSends = 8
 
 var _ = ginkgo.Describe("Service", func() {
 	var (
@@ -33,7 +40,7 @@ var _ = ginkgo.Describe("Service", func() {
 			},
 		}
 		service.SetLogger(logger)
-		service.client = mockJSON
+		service.apiClient = func() jsonclient.Client { return mockJSON }
 	})
 
 	ginkgo.Describe("GetID", func() {
@@ -149,7 +156,8 @@ var _ = ginkgo.Describe("Service", func() {
 
 			err := service.Initialize(serviceURL, logger)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.client).NotTo(gomega.BeNil())
+			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
+			gomega.Expect(service.newAPIClient()).NotTo(gomega.BeNil())
 		})
 	})
 
@@ -161,7 +169,6 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should send message via sendAPI", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-			service.client = mockJSON
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
@@ -170,10 +177,9 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
-		ginkgo.It("should update config from params before sending", func() {
+		ginkgo.It("should apply params to the send without changing the service config", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-			service.client = mockJSON
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
@@ -181,13 +187,12 @@ var _ = ginkgo.Describe("Service", func() {
 			params := &types.Params{"title": "New Title"}
 			err := service.Send("hello", params)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Title).To(gomega.Equal("New Title"))
+			gomega.Expect(service.Config.Title).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should return error when sendAPI fails", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-			service.client = mockJSON
 
 			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
 				Return(io.ErrClosedPipe)
@@ -200,22 +205,19 @@ var _ = ginkgo.Describe("Service", func() {
 	})
 
 	ginkgo.Describe("SetHTTPClient", func() {
-		ginkgo.It("should set the HTTP client and recreate jsonclient", func() {
+		ginkgo.It("should set the HTTP client", func() {
 			newClient := &http.Client{}
 			service.SetHTTPClient(newClient)
 			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(newClient))
-			gomega.Expect(service.client).NotTo(gomega.BeNil())
 		})
 
 		ginkgo.It("should restore the default client when client is nil", func() {
 			injected := &http.Client{}
 			service.SetHTTPClient(injected)
-			injectedJSON := service.client
 
 			service.SetHTTPClient(nil)
 			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
 			gomega.Expect(service.httpClient).NotTo(gomega.BeIdenticalTo(injected))
-			gomega.Expect(service.client).NotTo(gomega.BeIdenticalTo(injectedJSON))
 		})
 
 		ginkgo.It("should honor disabled TLS verification in the restored default client", func() {
@@ -233,7 +235,77 @@ var _ = ginkgo.Describe("Service", func() {
 			service.Config = nil
 			service.SetHTTPClient(nil)
 			gomega.Expect(service.httpClient).To(gomega.BeNil())
-			gomega.Expect(service.client).To(gomega.BeNil())
+		})
+	})
+
+	ginkgo.Describe("per-send requests", func() {
+		var (
+			httpClient *typesmocks.MockHTTPClient
+			mu         sync.Mutex
+			requests   []*http.Request
+		)
+
+		ginkgo.BeforeEach(func() {
+			requests = nil
+			httpClient = typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				mu.Lock()
+
+				requests = append(requests, req)
+
+				mu.Unlock()
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			}).Maybe()
+
+			service.apiClient = nil
+			gomega.Expect(service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)).
+				To(gomega.Succeed())
+			service.SetHTTPClient(httpClient)
+		})
+
+		ginkgo.It("should not carry params or headers into later sends", func() {
+			params := &types.Params{"title": "First", "tags": "warning", "token": "tk_first"}
+			gomega.Expect(service.Send("first", params)).To(gomega.Succeed())
+			gomega.Expect(service.Send("second", nil)).To(gomega.Succeed())
+
+			gomega.Expect(requests).To(gomega.HaveLen(2))
+			gomega.Expect(requests[0].Header.Values("Title")).To(gomega.Equal([]string{"First"}))
+			gomega.Expect(requests[0].Header.Get("Authorization")).To(gomega.Equal("Bearer tk_first"))
+			gomega.Expect(requests[1].Header.Values("Title")).To(gomega.BeEmpty())
+			gomega.Expect(requests[1].Header.Values("Tags")).To(gomega.BeEmpty())
+			gomega.Expect(requests[1].Header.Get("Authorization")).To(gomega.BeEmpty())
+		})
+
+		ginkgo.It("should send concurrently without sharing request headers", func() {
+			var wg sync.WaitGroup
+			for i := range concurrentSends {
+				wg.Go(func() {
+					defer ginkgo.GinkgoRecover()
+
+					title := fmt.Sprintf("Title %d", i)
+					gomega.Expect(service.Send("concurrent", &types.Params{"title": title})).To(gomega.Succeed())
+				})
+			}
+
+			wg.Wait()
+
+			titles := make([]string, 0, concurrentSends)
+
+			for _, req := range requests {
+				gomega.Expect(req.Header.Values("Title")).To(gomega.HaveLen(1))
+				titles = append(titles, req.Header.Get("Title"))
+			}
+
+			gomega.Expect(titles).To(gomega.HaveLen(concurrentSends))
+
+			for i := range concurrentSends {
+				gomega.Expect(titles).To(gomega.ContainElement(fmt.Sprintf("Title %d", i)))
+			}
 		})
 	})
 
@@ -357,21 +429,6 @@ var _ = ginkgo.Describe("Service", func() {
 			err := service.sendAPI(service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
-		})
-
-		ginkgo.It("should not reuse Authorization header from a previous send", func() {
-			service.Config.Token = "tk_mytoken"
-
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service.Config.Token = ""
-			err = service.sendAPI(service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.BeEmpty())
 		})
 
 		ginkgo.It("should set Cache header to no when Cache is disabled", func() {

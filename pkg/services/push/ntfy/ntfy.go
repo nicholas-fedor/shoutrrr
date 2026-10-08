@@ -23,7 +23,9 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
-	client     jsonclient.Client
+	// apiClient creates the JSON client for one send. Nil builds one over
+	// httpClient, so every send has its own request headers.
+	apiClient func() jsonclient.Client
 	// defaultClient reports whether httpClient was built by the service rather than
 	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
 	defaultClient bool
@@ -66,22 +68,20 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		}
 	}
 
-	s.client = jsonclient.NewWithHTTPClient(s.httpClient)
-
 	return nil
 }
 
-// Send delivers a notification message to ntfy.
+// Send delivers a notification message to ntfy. Params apply to this send only.
 func (s *Service) Send(message string, params *types.Params) error {
-	config := s.Config
+	config := *s.Config
 
-	// Update config with runtime parameters
-	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
+	// Update this send's config with runtime parameters
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	// Execute the API request to send the notification
-	if err := s.sendAPI(config, message); err != nil {
+	if err := s.sendAPI(&config, message); err != nil {
 		return fmt.Errorf("failed to send ntfy notification: %w", err)
 	}
 
@@ -101,7 +101,6 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {
 		if s.Config == nil {
 			s.httpClient = nil
-			s.client = nil
 
 			return
 		}
@@ -110,7 +109,18 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	}
 
 	s.httpClient = client
-	s.client = jsonclient.NewWithHTTPClient(client)
+}
+
+// newAPIClient returns the JSON client for one send.
+//
+// Returns:
+//   - jsonclient.Client: a new client over the service's HTTP client.
+func (s *Service) newAPIClient() jsonclient.Client {
+	if s.apiClient != nil {
+		return s.apiClient()
+	}
+
+	return jsonclient.NewWithHTTPClient(s.httpClient)
 }
 
 // newDefaultHTTPClient builds the client used when none is injected. It enforces
@@ -136,8 +146,10 @@ func (s *Service) sendAPI(config *Config, message string) error {
 	response := apiResponseError{}
 	request := message
 
+	client := s.newAPIClient()
+
 	// Prepare request headers
-	headers := s.client.Headers()
+	headers := client.Headers()
 	if config.Markdown {
 		headers.Set("Content-Type", "text/markdown")
 	} else {
@@ -165,9 +177,6 @@ func (s *Service) sendAPI(config *Config, message string) error {
 	}
 
 	// Access tokens use Bearer auth and take precedence over username and password.
-	// The client reuses its header map, so drop credentials from a previous send first.
-	headers.Del("Authorization")
-
 	if config.Token != "" {
 		headers.Set("Authorization", "Bearer "+config.Token)
 	} else if config.Username != "" || config.Password != "" {
@@ -178,10 +187,10 @@ func (s *Service) sendAPI(config *Config, message string) error {
 	}
 
 	// Send the HTTP request
-	if err := s.client.Post(config.GetAPIURL(), request, &response); err != nil {
+	if err := client.Post(config.GetAPIURL(), request, &response); err != nil {
 		s.Logf("NTFY API request failed with error: %v", err)
 		// Attempt to parse structured error response from API
-		if s.client.ErrorResponse(err, &response) {
+		if client.ErrorResponse(err, &response) {
 			return &response
 		}
 
