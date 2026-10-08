@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep connections open between sends and close them when idle by @nicholas-fedor in [#1451](https://github.com/nicholas-fedor/shoutrrr/pull/1451)
 - Log in on first send instead of during initialize by @nicholas-fedor in [#1447](https://github.com/nicholas-fedor/shoutrrr/pull/1447)
 - Report failed requests instead of success by @nicholas-fedor in [#1445](https://github.com/nicholas-fedor/shoutrrr/pull/1445)
 - Keep http client injection safe and authenticated by @nicholas-fedor in [#1443](https://github.com/nicholas-fedor/shoutrrr/pull/1443)
