@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/actionlint-action action to v1.0.19 by @renovate[bot] in [#1477](https://github.com/nicholas-fedor/shoutrrr/pull/1477)
 - Remove the codacy and circleci integrations by @nicholas-fedor in [#1475](https://github.com/nicholas-fedor/shoutrrr/pull/1475)
 - Update nicholas-fedor/govulncheck-action action to v1.1.0 by @renovate[bot] in [#1472](https://github.com/nicholas-fedor/shoutrrr/pull/1472)
 - Update nicholas-fedor/govulncheck-action action to v1.0.6 by @renovate[bot] in [#1470](https://github.com/nicholas-fedor/shoutrrr/pull/1470)
