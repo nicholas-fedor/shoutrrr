@@ -127,7 +127,8 @@ var _ = ginkgo.Describe("the bark service", func() {
 		ginkgo.It("handles communication errors without panicking", func() {
 			httpmock.DeactivateAndReset() // Ensure no mocks interfere
 
-			serviceURL := testutils.URLMust("bark://:devicekey@nonresolvablehostname")
+			// A refused loopback port fails the request without a DNS lookup.
+			serviceURL := testutils.URLMust("bark://:devicekey@127.0.0.1:1")
 			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
 			gomega.Expect(service.Send("Message", nil)).To(gomega.HaveOccurred())
 		})
