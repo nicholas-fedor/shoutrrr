@@ -62,7 +62,8 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 
 			service := initializeService(serviceURLStr)
 
-			message := "E2E Test: SendContext notification"
+			// A unique suffix keeps cached messages from earlier runs from matching.
+			message := fmt.Sprintf("E2E Test: SendContext notification %d", time.Now().UnixNano())
 
 			ctx, cancel := context.WithTimeout(context.Background(), defaultMessageTimeout)
 			defer cancel()

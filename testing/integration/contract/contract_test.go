@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 
@@ -34,10 +35,16 @@ type env struct {
 	dials  atomic.Int32
 	// markedDials counts dials whose context carries [contextMarker].
 	markedDials atomic.Int32
+	// canceledOps counts marked requests and dials that ended with the caller's cancellation.
+	canceledOps atomic.Int32
 	logs        *syncBuffer
 	logger      *log.Logger
 	sendErr     error
 	panicMsg    string
+	// stop ends when the test ends, which releases held requests and dials.
+	stop <-chan struct{}
+	// holdMarked makes marked requests and dials wait until their context ends.
+	holdMarked bool
 }
 
 // syncBuffer is a goroutine-safe log sink.
@@ -104,13 +111,18 @@ const (
 	failParamsPersisted                      // Send with params changed the service configuration
 	failNoDefaultRequest                     // no request went through the service's default client
 	failContextDropped                       // a request or dial did not carry the caller's context
+	failCancelIgnored                        // a request or dial did not end when the caller canceled
 )
+
+// cancelAfter is when the context check cancels the caller's context.
+const cancelAfter = time.Second
 
 var (
 	errTransport        = errors.New("contract: transport failure")
 	errDial             = errors.New("contract: dial blocked")
 	errDefaultTransport = errors.New("contract: http.DefaultTransport must not be used")
 	errLookupBlocked    = errors.New("contract: DNS lookups are blocked")
+	errHoldReleased     = errors.New("contract: held operation released when the test ended")
 )
 
 var (
@@ -302,15 +314,17 @@ func runSendUsesInjection(t *testing.T, fx *fixture) failure {
 }
 
 // runSendUsesContext verifies that the context passed to the router's SendContext
-// reaches every request and dial the service makes, so caller cancellation and
-// deadlines can stop them.
+// reaches every request and dial the service makes, and that canceling it ends
+// them. Marked requests and dials wait until their context ends, and the caller
+// cancels while they wait.
 //
 // Parameters:
 //   - t: the test for this case.
 //   - fx: the fixture under test.
 //
 // Returns:
-//   - failure: a failContextDropped, failNotInjected, or failInit failure, or the zero value.
+//   - failure: a failContextDropped, failCancelIgnored, failNotInjected, or failInit
+//     failure, or the zero value.
 func runSendUsesContext(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -322,6 +336,7 @@ func runSendUsesContext(t *testing.T, fx *fixture) failure {
 
 	synctest.Test(t, func(t *testing.T) {
 		env := newEnv(t, fx, false)
+		env.holdMarked = true
 
 		serviceRouter, err := router.NewWithOptions(
 			env.logger,
@@ -336,9 +351,15 @@ func runSendUsesContext(t *testing.T, fx *fixture) failure {
 
 		t.Cleanup(func() { _ = serviceRouter.Close() })
 
-		ctx := context.WithValue(t.Context(), contextMarker{}, fx.scheme)
+		ctx, cancel := context.WithCancel(context.WithValue(t.Context(), contextMarker{}, fx.scheme))
+		defer cancel()
+
+		time.AfterFunc(cancelAfter, cancel)
 
 		_ = serviceRouter.SendContext(ctx, "contract message", nil)
+
+		// The router returns when the caller cancels, so wait for the send itself to finish.
+		synctest.Wait()
 
 		requests, marked := 0, 0
 
@@ -356,6 +377,7 @@ func runSendUsesContext(t *testing.T, fx *fixture) failure {
 		}
 
 		dials, markedDials := int(env.dials.Load()), int(env.markedDials.Load())
+		canceled := int(env.canceledOps.Load())
 
 		switch {
 		case requests+dials == 0:
@@ -365,6 +387,12 @@ func runSendUsesContext(t *testing.T, fx *fixture) failure {
 				failContextDropped,
 				"%d of %d request(s) and %d of %d dial(s) carried the caller's context",
 				marked, requests, markedDials, dials,
+			)
+		case canceled < marked+markedDials:
+			result = fail(
+				failCancelIgnored,
+				"%d of %d request(s) and dial(s) ended when the caller canceled",
+				canceled, marked+markedDials,
 			)
 		}
 	})
@@ -603,17 +631,27 @@ func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
 func newEnv(t *testing.T, fx *fixture, failTransport bool) *env {
 	t.Helper()
 
-	client := mocks.NewMockHTTPClient(t)
-	client.EXPECT().Do(mock.Anything).RunAndReturn(respond(fx, failTransport)).Maybe()
-
 	logs := &syncBuffer{}
 
-	return &env{
+	e := &env{
 		fx:     fx,
-		client: client,
+		client: mocks.NewMockHTTPClient(t),
 		logs:   logs,
 		logger: log.New(logs, "", 0),
+		stop:   t.Context().Done(),
 	}
+
+	answer := respond(fx, failTransport)
+
+	e.client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		if err := e.holdIfMarked(req.Context()); err != nil {
+			return nil, err
+		}
+
+		return answer(req)
+	}).Maybe()
+
+	return e
 }
 
 // respond returns the injected client's behavior for a fixture.
@@ -689,7 +727,7 @@ func (e *env) checkLeaks(service types.Service, initErr error) failure {
 //
 // Returns:
 //   - net.Conn: always nil.
-//   - error: always errDial.
+//   - error: errDial, or the error from [env.holdIfMarked] when the dial was held.
 func (e *env) dial(ctx context.Context, _, _ string) (net.Conn, error) {
 	e.dials.Add(1)
 
@@ -697,7 +735,39 @@ func (e *env) dial(ctx context.Context, _, _ string) (net.Conn, error) {
 		e.markedDials.Add(1)
 	}
 
+	if err := e.holdIfMarked(ctx); err != nil {
+		return nil, err
+	}
+
 	return nil, errDial
+}
+
+// holdIfMarked waits until ctx ends when holdMarked is set and ctx carries
+// [contextMarker] for this fixture, and counts the wait in canceledOps when ctx
+// ended by cancellation. A wait that outlasts the test ends with the test and is
+// not counted.
+//
+// Parameters:
+//   - ctx: the request or dial context.
+//
+// Returns:
+//   - error: nil when the operation was not held, ctx's error when ctx ended, or
+//     errHoldReleased when the test ended first.
+func (e *env) holdIfMarked(ctx context.Context) error {
+	if !e.holdMarked || ctx.Value(contextMarker{}) != e.fx.scheme {
+		return nil
+	}
+
+	select {
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.Canceled) {
+			e.canceledOps.Add(1)
+		}
+
+		return ctx.Err()
+	case <-e.stop:
+		return errHoldReleased
+	}
 }
 
 // httpCalls returns how many requests reached the injected client.
