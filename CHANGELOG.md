@@ -11,21 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add context-aware sends and closing to the router and root API by @nicholas-fedor in [#1464](https://github.com/nicholas-fedor/shoutrrr/pull/1464)
-- Add cross-service contract suite by @nicholas-fedor in [#1418](https://github.com/nicholas-fedor/shoutrrr/pull/1418)
-
-### Chores
-
-- Add go.sum checksums for golang.org/x/net v0.60.0 by @nicholas-fedor in [#1462](https://github.com/nicholas-fedor/shoutrrr/pull/1462)
-- Update module golang.org/x/net to v0.60.0 by @renovate[bot] in [#1460](https://github.com/nicholas-fedor/shoutrrr/pull/1460)
-- Update go toolchain directive to v1.27.2 by @renovate[bot] in [#1453](https://github.com/nicholas-fedor/shoutrrr/pull/1453)
-- Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
-- Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#1439](https://github.com/nicholas-fedor/shoutrrr/pull/1439)
-- Update github.com/google/pprof digest to 7bae8d8 by @renovate[bot] in [#1438](https://github.com/nicholas-fedor/shoutrrr/pull/1438)
-- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 1b64d38 by @renovate[bot] in [#1435](https://github.com/nicholas-fedor/shoutrrr/pull/1435)
-- Update actions/upload-artifact action to v7.0.2 by @renovate[bot] in [#1434](https://github.com/nicholas-fedor/shoutrrr/pull/1434)
-- Update binwiederhier/ntfy:latest docker digest to 4c599cf by @renovate[bot] in [#1433](https://github.com/nicholas-fedor/shoutrrr/pull/1433)
-- Update github.com/google/pprof digest to d99a617 by @renovate[bot] in [#1420](https://github.com/nicholas-fedor/shoutrrr/pull/1420)
-- Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
 
 ### Fixed
 
@@ -42,12 +27,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep lines intact when batching messages by @nicholas-fedor in [#1426](https://github.com/nicholas-fedor/shoutrrr/pull/1426)
 - Return send errors in url order by @nicholas-fedor in [#1424](https://github.com/nicholas-fedor/shoutrrr/pull/1424)
 - Stop custom url panic and url leaks by @nicholas-fedor in [#1422](https://github.com/nicholas-fedor/shoutrrr/pull/1422)
-- Fix data races and run tests with the race detector by @nicholas-fedor in [#1416](https://github.com/nicholas-fedor/shoutrrr/pull/1416)
 
 ### Tests
 
 - Stop unit tests from sending dns queries by @nicholas-fedor in [#1466](https://github.com/nicholas-fedor/shoutrrr/pull/1466)
 - Type generator input before starting generate by @nicholas-fedor in [#1457](https://github.com/nicholas-fedor/shoutrrr/pull/1457)
+- Add cross-service contract suite by @nicholas-fedor in [#1418](https://github.com/nicholas-fedor/shoutrrr/pull/1418)
+- Fix data races and run tests with the race detector by @nicholas-fedor in [#1416](https://github.com/nicholas-fedor/shoutrrr/pull/1416)
+
+### Continuous Integration
+
+- Fix bot merges and group entries by commit type by @nicholas-fedor in [#1468](https://github.com/nicholas-fedor/shoutrrr/pull/1468)
+
+### Chores
+
+- Update nicholas-fedor/govulncheck-action action to v1.0.6 by @renovate[bot] in [#1470](https://github.com/nicholas-fedor/shoutrrr/pull/1470)
+- Add go.sum checksums for golang.org/x/net v0.60.0 by @nicholas-fedor in [#1462](https://github.com/nicholas-fedor/shoutrrr/pull/1462)
+- Update module golang.org/x/net to v0.60.0 by @renovate[bot] in [#1460](https://github.com/nicholas-fedor/shoutrrr/pull/1460)
+- Update go toolchain directive to v1.27.2 by @renovate[bot] in [#1453](https://github.com/nicholas-fedor/shoutrrr/pull/1453)
+- Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#1449](https://github.com/nicholas-fedor/shoutrrr/pull/1449)
+- Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#1439](https://github.com/nicholas-fedor/shoutrrr/pull/1439)
+- Update github.com/google/pprof digest to 7bae8d8 by @renovate[bot] in [#1438](https://github.com/nicholas-fedor/shoutrrr/pull/1438)
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 1b64d38 by @renovate[bot] in [#1435](https://github.com/nicholas-fedor/shoutrrr/pull/1435)
+- Update actions/upload-artifact action to v7.0.2 by @renovate[bot] in [#1434](https://github.com/nicholas-fedor/shoutrrr/pull/1434)
+- Update binwiederhier/ntfy:latest docker digest to 4c599cf by @renovate[bot] in [#1433](https://github.com/nicholas-fedor/shoutrrr/pull/1433)
+- Update github.com/google/pprof digest to d99a617 by @renovate[bot] in [#1420](https://github.com/nicholas-fedor/shoutrrr/pull/1420)
+- Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#1414](https://github.com/nicholas-fedor/shoutrrr/pull/1414)
 
 ## [0.21.2] - 2026-10-06
 
@@ -55,7 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add auth token parameter by @acul021 in [#1387](https://github.com/nicholas-fedor/shoutrrr/pull/1387)
 
-### Changed
+### Fixed
+
+- Use each service's send budget when Timeout is unset by @nicholas-fedor in [#1374](https://github.com/nicholas-fedor/shoutrrr/pull/1374)
+
+### Build
 
 - Use the commit date for archive mtime by @nicholas-fedor in [#1378](https://github.com/nicholas-fedor/shoutrrr/pull/1378)
 
@@ -97,10 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/setup-qemu-action action to v4.4.0 by @renovate[bot] in [#1351](https://github.com/nicholas-fedor/shoutrrr/pull/1351)
 - Update docker/setup-buildx-action action to v4.4.0 by @renovate[bot] in [#1350](https://github.com/nicholas-fedor/shoutrrr/pull/1350)
 
-### Fixed
-
-- Use each service's send budget when Timeout is unset by @nicholas-fedor in [#1374](https://github.com/nicholas-fedor/shoutrrr/pull/1374)
-
 ### New Contributors
 
 - @acul021 made their first contribution in [#1387](https://github.com/nicholas-fedor/shoutrrr/pull/1387)
@@ -110,9 +115,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add XMPP notification support by @nicholas-fedor in [#1346](https://github.com/nicholas-fedor/shoutrrr/pull/1346)
-
-### Changed
-
 - Overhaul Signal notification service by @nicholas-fedor in [#1344](https://github.com/nicholas-fedor/shoutrrr/pull/1344)
 
 ### Chores
@@ -148,13 +150,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.19.0] - 2026-09-02
 
-### Added
+### Fixed
 
-- Add JosephKav as a contributor for code, and test by @allcontributors[bot] in [#1294](https://github.com/nicholas-fedor/shoutrrr/pull/1294)
+- Treat successful QUIT as already closed by @nicholas-fedor in [#1301](https://github.com/nicholas-fedor/shoutrrr/pull/1301)
+- Apply send params to connection and headers by @JosephKav in [#1295](https://github.com/nicholas-fedor/shoutrrr/pull/1295)
+- Parse and render time.Duration fields as durations by @JosephKav in [#1292](https://github.com/nicholas-fedor/shoutrrr/pull/1292)
+- Stop wrapping raw html bodies in <pre> tags by @nicholas-fedor in [#1278](https://github.com/nicholas-fedor/shoutrrr/pull/1278)
 
 ### Changed
 
 - Extract session and harden SMTP sends by @nicholas-fedor in [#1296](https://github.com/nicholas-fedor/shoutrrr/pull/1296)
+
+### Documentation
+
+- Add JosephKav as a contributor for code, and test by @allcontributors[bot] in [#1294](https://github.com/nicholas-fedor/shoutrrr/pull/1294)
 - Document configuration options and examples by @nicholas-fedor in [#1282](https://github.com/nicholas-fedor/shoutrrr/pull/1282)
 
 ### Chores
@@ -176,19 +185,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.49 by @renovate[bot] in [#1275](https://github.com/nicholas-fedor/shoutrrr/pull/1275)
 - Update securego/gosec action to v2.29.0 by @renovate[bot] in [#1272](https://github.com/nicholas-fedor/shoutrrr/pull/1272)
 
-### Fixed
-
-- Treat successful QUIT as already closed by @nicholas-fedor in [#1301](https://github.com/nicholas-fedor/shoutrrr/pull/1301)
-- Apply send params to connection and headers by @JosephKav in [#1295](https://github.com/nicholas-fedor/shoutrrr/pull/1295)
-- Parse and render time.Duration fields as durations by @JosephKav in [#1292](https://github.com/nicholas-fedor/shoutrrr/pull/1292)
-- Stop wrapping raw html bodies in <pre> tags by @nicholas-fedor in [#1278](https://github.com/nicholas-fedor/shoutrrr/pull/1278)
-
 ## [0.18.0] - 2026-08-26
 
 ### Added
 
-- Add signalgridco as a contributor for code, and test by @allcontributors[bot] in [#1271](https://github.com/nicholas-fedor/shoutrrr/pull/1271)
 - Add Signalgrid notification service by @signalgridco in [#1266](https://github.com/nicholas-fedor/shoutrrr/pull/1266)
+
+### Documentation
+
+- Add signalgridco as a contributor for code, and test by @allcontributors[bot] in [#1271](https://github.com/nicholas-fedor/shoutrrr/pull/1271)
 - Add schnoellm as a contributor for code by @allcontributors[bot] in [#1265](https://github.com/nicholas-fedor/shoutrrr/pull/1265)
 
 ### Chores
@@ -202,7 +207,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.17.2] - 2026-08-25
 
-### Added
+### Fixed
+
+- Encode non-ASCII Subject and From headers per RFC 2047 by @andig in [#1253](https://github.com/nicholas-fedor/shoutrrr/pull/1253)
+
+### Documentation
 
 - Add andig as a contributor for bug, and code by @allcontributors[bot] in [#1255](https://github.com/nicholas-fedor/shoutrrr/pull/1255)
 
@@ -221,10 +230,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update cimg/go docker tag to v1.26.7 by @renovate[bot] in [#1242](https://github.com/nicholas-fedor/shoutrrr/pull/1242)
 - Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#1240](https://github.com/nicholas-fedor/shoutrrr/pull/1240)
 - Update module github.com/stretchr/testify to v1.12.1 by @renovate[bot] in [#1239](https://github.com/nicholas-fedor/shoutrrr/pull/1239)
-
-### Fixed
-
-- Encode non-ASCII Subject and From headers per RFC 2047 by @andig in [#1253](https://github.com/nicholas-fedor/shoutrrr/pull/1253)
 
 ### New Contributors
 
@@ -278,10 +283,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add markdown support by @nicholas-fedor in [#1172](https://github.com/nicholas-fedor/shoutrrr/pull/1172)
-
-### Changed
-
 - Enhance router dispatch, error handling, and format conversion by @nicholas-fedor in [#1168](https://github.com/nicholas-fedor/shoutrrr/pull/1168)
+
+### Fixed
+
+- Preserve original service initialization error by @nicholas-fedor in [#1166](https://github.com/nicholas-fedor/shoutrrr/pull/1166)
 
 ### Chores
 
@@ -298,19 +304,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update github/codeql-action action to v4.37.4 by @renovate[bot] in [#1162](https://github.com/nicholas-fedor/shoutrrr/pull/1162)
 - Update docker/login-action action to v4.6.0 by @renovate[bot] in [#1160](https://github.com/nicholas-fedor/shoutrrr/pull/1160)
 
-### Fixed
-
-- Preserve original service initialization error by @nicholas-fedor in [#1166](https://github.com/nicholas-fedor/shoutrrr/pull/1166)
-
 ## [0.16.3] - 2026-07-28
 
-### Added
+### Fixed
 
-- Add service deep-linking via query parameters by @nicholas-fedor in [#1142](https://github.com/nicholas-fedor/shoutrrr/pull/1142)
+- Allow optional routing segments in webhook URL validation by @nicholas-fedor in [#1147](https://github.com/nicholas-fedor/shoutrrr/pull/1147)
 
-### Changed
+### Documentation
 
 - Update badges by @nicholas-fedor in [#1144](https://github.com/nicholas-fedor/shoutrrr/pull/1144)
+- Add service deep-linking via query parameters by @nicholas-fedor in [#1142](https://github.com/nicholas-fedor/shoutrrr/pull/1142)
 
 ### Chores
 
@@ -332,21 +335,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update github/codeql-action action to v4.37.3 by @renovate[bot] in [#1125](https://github.com/nicholas-fedor/shoutrrr/pull/1125)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.29 by @renovate[bot] in [#1123](https://github.com/nicholas-fedor/shoutrrr/pull/1123)
 
-### Fixed
-
-- Allow optional routing segments in webhook URL validation by @nicholas-fedor in [#1147](https://github.com/nicholas-fedor/shoutrrr/pull/1147)
-
 ## [0.16.2] - 2026-07-21
 
 ### Added
 
 - Add support for injecting custom HTTP client by @nicholas-fedor in [#1064](https://github.com/nicholas-fedor/shoutrrr/pull/1064)
 
-### Changed
+### Fixed
 
-- Skip bot-generated commits by @nicholas-fedor in [#1121](https://github.com/nicholas-fedor/shoutrrr/pull/1121)
+- Add Gotify v3 token format support by @nicholas-fedor in [#1119](https://github.com/nicholas-fedor/shoutrrr/pull/1119)
+
+### Documentation
+
+- Remove go report card badge by @nicholas-fedor in [#1104](https://github.com/nicholas-fedor/shoutrrr/pull/1104)
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1056](https://github.com/nicholas-fedor/shoutrrr/pull/1056)
 - Correct binary install commands for Linux and macOS by @nicholas-fedor in [#1054](https://github.com/nicholas-fedor/shoutrrr/pull/1054)
+- Fix smtp port field error by @nicholas-fedor in [#1003](https://github.com/nicholas-fedor/shoutrrr/pull/1003)
+
+### Continuous Integration
+
+- Skip bot-generated commits by @nicholas-fedor in [#1121](https://github.com/nicholas-fedor/shoutrrr/pull/1121)
 
 ### Chores
 
@@ -447,25 +455,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update alpine docker tag to v3.24.0 by @renovate[bot] in [#941](https://github.com/nicholas-fedor/shoutrrr/pull/941)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.1 by @renovate[bot] in [#939](https://github.com/nicholas-fedor/shoutrrr/pull/939)
 
-### Fixed
-
-- Add Gotify v3 token format support by @nicholas-fedor in [#1119](https://github.com/nicholas-fedor/shoutrrr/pull/1119)
-- Fix smtp port field error by @nicholas-fedor in [#1003](https://github.com/nicholas-fedor/shoutrrr/pull/1003)
-
-### Removed
-
-- Remove go report card badge by @nicholas-fedor in [#1104](https://github.com/nicholas-fedor/shoutrrr/pull/1104)
-
 ## [0.16.1] - 2026-06-09
 
 ### Added
 
 - Add direct message support, server-side limits fetching, and title handling by @nicholas-fedor in [#927](https://github.com/nicholas-fedor/shoutrrr/pull/927)
-- Add publish-docs to release-stable workflow by @nicholas-fedor in [#907](https://github.com/nicholas-fedor/shoutrrr/pull/907)
 
-### Changed
+### Documentation
 
 - Update contributing documentation by @nicholas-fedor in [#916](https://github.com/nicholas-fedor/shoutrrr/pull/916)
+
+### Continuous Integration
+
+- Add publish-docs to release-stable workflow by @nicholas-fedor in [#907](https://github.com/nicholas-fedor/shoutrrr/pull/907)
 
 ### Chores
 
@@ -491,11 +493,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add sgtM-devs as a contributor for doc by @allcontributors[bot] in [#891](https://github.com/nicholas-fedor/shoutrrr/pull/891)
-
-### Changed
-
 - Migrate from Office 365 Connectors to Power Automate workflow webhooks by @nicholas-fedor in [#887](https://github.com/nicholas-fedor/shoutrrr/pull/887)
+
+### Fixed
+
+- Accept 202 Accepted as valid response status code by @nicholas-fedor in [#900](https://github.com/nicholas-fedor/shoutrrr/pull/900)
+- Expand webhook URL validation to support Power Automate endpoints by @nicholas-fedor in [#893](https://github.com/nicholas-fedor/shoutrrr/pull/893)
+
+### Documentation
+
+- Add sgtM-devs as a contributor for doc by @allcontributors[bot] in [#891](https://github.com/nicholas-fedor/shoutrrr/pull/891)
+- Remove forward slash before parameters to correct URL format by @sgtM-devs in [#889](https://github.com/nicholas-fedor/shoutrrr/pull/889)
 
 ### Chores
 
@@ -507,25 +515,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#885](https://github.com/nicholas-fedor/shoutrrr/pull/885)
 - Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#882](https://github.com/nicholas-fedor/shoutrrr/pull/882)
 
-### Fixed
-
-- Accept 202 Accepted as valid response status code by @nicholas-fedor in [#900](https://github.com/nicholas-fedor/shoutrrr/pull/900)
-- Expand webhook URL validation to support Power Automate endpoints by @nicholas-fedor in [#893](https://github.com/nicholas-fedor/shoutrrr/pull/893)
-
-### Removed
-
-- Remove forward slash before parameters to correct URL format by @sgtM-devs in [#889](https://github.com/nicholas-fedor/shoutrrr/pull/889)
-
 ### New Contributors
 
 - @sgtM-devs made their first contribution in [#889](https://github.com/nicholas-fedor/shoutrrr/pull/889)
 
 ## [0.15.1] - 2026-05-25
 
-### Changed
+### Fixed
+
+- Send valid JSON body in joinRoom and validate room input by @nicholas-fedor in [#878](https://github.com/nicholas-fedor/shoutrrr/pull/878)
+
+### Documentation
+
+- Update badges by @nicholas-fedor in [#820](https://github.com/nicholas-fedor/shoutrrr/pull/820)
+
+### Continuous Integration
 
 - Replace composite actionlint action by @nicholas-fedor in [#833](https://github.com/nicholas-fedor/shoutrrr/pull/833)
-- Update badges by @nicholas-fedor in [#820](https://github.com/nicholas-fedor/shoutrrr/pull/820)
 
 ### Chores
 
@@ -566,24 +572,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#811](https://github.com/nicholas-fedor/shoutrrr/pull/811)
 - Update github.com/google/pprof digest to 92041b7 by @renovate[bot] in [#810](https://github.com/nicholas-fedor/shoutrrr/pull/810)
 
-### Fixed
-
-- Send valid JSON body in joinRoom and validate room input by @nicholas-fedor in [#878](https://github.com/nicholas-fedor/shoutrrr/pull/878)
-
 ## [0.15.0] - 2026-05-06
 
-### Added
+### Fixed
 
-- Add double-quotations to resolve globbing by @nicholas-fedor in [#805](https://github.com/nicholas-fedor/shoutrrr/pull/805)
-- Add FORCE_RELEASE input to bypass change detection by @nicholas-fedor in [#787](https://github.com/nicholas-fedor/shoutrrr/pull/787)
+- Correct doc gen to use key tags for query param names by @nicholas-fedor in [#738](https://github.com/nicholas-fedor/shoutrrr/pull/738)
 
-### Changed
+### Documentation
+
+- Update Docker image tags from latest-dev to nightly by @nicholas-fedor in [#783](https://github.com/nicholas-fedor/shoutrrr/pull/783)
+
+### Continuous Integration
 
 - Resolve package list splitting in test workflow by @nicholas-fedor in [#807](https://github.com/nicholas-fedor/shoutrrr/pull/807)
+- Add double-quotations to resolve globbing by @nicholas-fedor in [#805](https://github.com/nicholas-fedor/shoutrrr/pull/805)
 - Resolve malformed import path in test workflow by @nicholas-fedor in [#803](https://github.com/nicholas-fedor/shoutrrr/pull/803)
+- Remove redundant declaration and correct globbing by @nicholas-fedor in [#798](https://github.com/nicholas-fedor/shoutrrr/pull/798)
+- Update Go version to 1.26.x by @nicholas-fedor in [#794](https://github.com/nicholas-fedor/shoutrrr/pull/794)
 - Centralize FORCE_RELEASE logic in check_changes job by @nicholas-fedor in [#789](https://github.com/nicholas-fedor/shoutrrr/pull/789)
+- Add FORCE_RELEASE input to bypass change detection by @nicholas-fedor in [#787](https://github.com/nicholas-fedor/shoutrrr/pull/787)
 - Simplify package filtering with POSIX-compatible syntax by @nicholas-fedor in [#785](https://github.com/nicholas-fedor/shoutrrr/pull/785)
-- Update Docker image tags from latest-dev to nightly by @nicholas-fedor in [#783](https://github.com/nicholas-fedor/shoutrrr/pull/783)
 - Restructure CI/CD pipelines by @nicholas-fedor in [#779](https://github.com/nicholas-fedor/shoutrrr/pull/779)
 
 ### Chores
@@ -591,7 +599,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lock file maintenance by @renovate[bot] in [#800](https://github.com/nicholas-fedor/shoutrrr/pull/800)
 - Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#801](https://github.com/nicholas-fedor/shoutrrr/pull/801)
 - Update step-security/harden-runner action to v2.19.1 by @renovate[bot] in [#796](https://github.com/nicholas-fedor/shoutrrr/pull/796)
-- Update Go version to 1.26.x by @nicholas-fedor in [#794](https://github.com/nicholas-fedor/shoutrrr/pull/794)
 - Update module github.com/pelletier/go-toml/v2 to v2.3.1 by @renovate[bot] in [#792](https://github.com/nicholas-fedor/shoutrrr/pull/792)
 - Update github/codeql-action action to v4.35.3 by @renovate[bot] in [#791](https://github.com/nicholas-fedor/shoutrrr/pull/791)
 - Pin dependencies by @renovate[bot] in [#781](https://github.com/nicholas-fedor/shoutrrr/pull/781)
@@ -633,19 +640,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/login-action digest to bb555fc by @renovate[bot] in [#739](https://github.com/nicholas-fedor/shoutrrr/pull/739)
 - Update docker/setup-buildx-action digest to 2116288 by @renovate[bot] in [#740](https://github.com/nicholas-fedor/shoutrrr/pull/740)
 
-### Fixed
-
-- Correct doc gen to use key tags for query param names by @nicholas-fedor in [#738](https://github.com/nicholas-fedor/shoutrrr/pull/738)
-
-### Removed
-
-- Remove redundant declaration and correct globbing by @nicholas-fedor in [#798](https://github.com/nicholas-fedor/shoutrrr/pull/798)
-
 ### New Contributors
 
 - @github-actions[bot] made their first contribution in [#809](https://github.com/nicholas-fedor/shoutrrr/pull/809)
 
 ## [0.14.3] - 2026-04-01
+
+### Fixed
+
+- Remove deprecated access_token query parameter by @nicholas-fedor in [#737](https://github.com/nicholas-fedor/shoutrrr/pull/737)
 
 ### Chores
 
@@ -654,13 +657,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/setup-buildx-action digest to e35beed by @renovate[bot] in [#733](https://github.com/nicholas-fedor/shoutrrr/pull/733)
 - Update docker/login-action digest to de05a6d by @renovate[bot] in [#732](https://github.com/nicholas-fedor/shoutrrr/pull/732)
 
-### Fixed
-
-- Remove deprecated access_token query parameter by @nicholas-fedor in [#737](https://github.com/nicholas-fedor/shoutrrr/pull/737)
-
 ## [0.14.2] - 2026-03-31
 
-### Added
+### Fixed
+
+- Prevent device accumulation on Matrix server login by @nicholas-fedor in [#728](https://github.com/nicholas-fedor/shoutrrr/pull/728)
+- Add git authentication for mike deploy push by @nicholas-fedor in [#727](https://github.com/nicholas-fedor/shoutrrr/pull/727)
+
+### Documentation
 
 - Add a browser-based playground for Shoutrrr by @nicholas-fedor in [#724](https://github.com/nicholas-fedor/shoutrrr/pull/724)
 
@@ -677,19 +681,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/setup-buildx-action digest to 172dff0 by @renovate[bot] in [#720](https://github.com/nicholas-fedor/shoutrrr/pull/720)
 - Update docker/login-action digest to a0d57b8 by @renovate[bot] in [#719](https://github.com/nicholas-fedor/shoutrrr/pull/719)
 
+## [0.14.1] - 2026-03-24
+
 ### Fixed
 
-- Prevent device accumulation on Matrix server login by @nicholas-fedor in [#728](https://github.com/nicholas-fedor/shoutrrr/pull/728)
-- Add git authentication for mike deploy push by @nicholas-fedor in [#727](https://github.com/nicholas-fedor/shoutrrr/pull/727)
-
-## [0.14.1] - 2026-03-24
+- Include title in webhook JSON payload by @nicholas-fedor in [#712](https://github.com/nicholas-fedor/shoutrrr/pull/712)
+- Initialize nil Config field in basic generator by @nicholas-fedor in [#687](https://github.com/nicholas-fedor/shoutrrr/pull/687)
 
 ### Changed
 
-- Onboard StepSecurity by @stepsecurity-app[bot] in [#711](https://github.com/nicholas-fedor/shoutrrr/pull/711)
 - Upgrade to Matrix API v3 by @nicholas-fedor in [#709](https://github.com/nicholas-fedor/shoutrrr/pull/709)
-- Enable renovate updates for transitive go dependencies by @nicholas-fedor in [#694](https://github.com/nicholas-fedor/shoutrrr/pull/694)
 - Improve context handling and linting compliance by @nicholas-fedor in [#685](https://github.com/nicholas-fedor/shoutrrr/pull/685)
+
+### Continuous Integration
+
+- Onboard StepSecurity by @stepsecurity-app[bot] in [#711](https://github.com/nicholas-fedor/shoutrrr/pull/711)
+- Enable renovate updates for transitive go dependencies by @nicholas-fedor in [#694](https://github.com/nicholas-fedor/shoutrrr/pull/694)
 
 ### Chores
 
@@ -722,11 +729,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module golang.org/x/term to v0.41.0 by @renovate[bot] in [#684](https://github.com/nicholas-fedor/shoutrrr/pull/684)
 - Update cimg/go:1.26.1 docker digest to ff658f9 by @renovate[bot] in [#683](https://github.com/nicholas-fedor/shoutrrr/pull/683)
 
-### Fixed
-
-- Include title in webhook JSON payload by @nicholas-fedor in [#712](https://github.com/nicholas-fedor/shoutrrr/pull/712)
-- Initialize nil Config field in basic generator by @nicholas-fedor in [#687](https://github.com/nicholas-fedor/shoutrrr/pull/687)
-
 ### New Contributors
 
 - @stepsecurity-app[bot] made their first contribution in [#711](https://github.com/nicholas-fedor/shoutrrr/pull/711)
@@ -735,14 +737,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add ignore rules for unsupported architectures by @nicholas-fedor in [#650](https://github.com/nicholas-fedor/shoutrrr/pull/650)
-- Add circa10a as a contributor for code, and doc by @allcontributors[bot] in [#639](https://github.com/nicholas-fedor/shoutrrr/pull/639)
+- Add MQTT notification service by @nicholas-fedor in [#647](https://github.com/nicholas-fedor/shoutrrr/pull/647)
 - Add support for sending Twilio SMS notifications by @circa10a in [#633](https://github.com/nicholas-fedor/shoutrrr/pull/633)
 
-### Changed
+### Documentation
+
+- Add circa10a as a contributor for code, and doc by @allcontributors[bot] in [#639](https://github.com/nicholas-fedor/shoutrrr/pull/639)
+
+### Build
+
+- Add ignore rules for unsupported architectures by @nicholas-fedor in [#650](https://github.com/nicholas-fedor/shoutrrr/pull/650)
+
+### Continuous Integration
 
 - Refactor and cleanup security workflow by @nicholas-fedor in [#675](https://github.com/nicholas-fedor/shoutrrr/pull/675)
-- Add MQTT notification service by @nicholas-fedor in [#647](https://github.com/nicholas-fedor/shoutrrr/pull/647)
 
 ### Chores
 
@@ -826,6 +834,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add support for attachments, threads, and robust error handling by @nicholas-fedor in [#578](https://github.com/nicholas-fedor/shoutrrr/pull/578)
+
+### Fixed
+
+- Resolve Notifiarr notification issues for Generic and Notifiarr services by @nicholas-fedor in [#535](https://github.com/nicholas-fedor/shoutrrr/pull/535)
+- Differentiate TLS verification from TLS disabling by @JosephKav in [#530](https://github.com/nicholas-fedor/shoutrrr/pull/530)
 
 ### Chores
 
@@ -912,12 +925,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update cimg/go:1.25.5 docker digest to 9a8ad8c by @renovate[bot] in [#520](https://github.com/nicholas-fedor/shoutrrr/pull/520)
 - Update codecov/codecov-action digest to 671740a by @renovate[bot] in [#519](https://github.com/nicholas-fedor/shoutrrr/pull/519)
 
+## [0.13.1] - 2025-12-09
+
 ### Fixed
 
-- Resolve Notifiarr notification issues for Generic and Notifiarr services by @nicholas-fedor in [#535](https://github.com/nicholas-fedor/shoutrrr/pull/535)
-- Differentiate TLS verification from TLS disabling by @JosephKav in [#530](https://github.com/nicholas-fedor/shoutrrr/pull/530)
-
-## [0.13.1] - 2025-12-09
+- Fix SMTP session closure error that causes false notification failures by @nicholas-fedor in [#517](https://github.com/nicholas-fedor/shoutrrr/pull/517)
 
 ### Chores
 
@@ -932,16 +944,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update dependency python to v3.14.2 by @renovate[bot] in [#507](https://github.com/nicholas-fedor/shoutrrr/pull/507)
 - Update github/codeql-action digest to cf1bb45 by @renovate[bot] in [#505](https://github.com/nicholas-fedor/shoutrrr/pull/505)
 
-### Fixed
-
-- Fix SMTP session closure error that causes false notification failures by @nicholas-fedor in [#517](https://github.com/nicholas-fedor/shoutrrr/pull/517)
-
 ## [0.13.0] - 2025-12-05
 
-### Changed
+### Added
 
 - Improve service reliability and add v2.x API support by @nicholas-fedor in [#503](https://github.com/nicholas-fedor/shoutrrr/pull/503)
+
+### Documentation
+
 - Add StackExchange/dnscontrol to list of notable related projects by @nicholas-fedor in [#483](https://github.com/nicholas-fedor/shoutrrr/pull/483)
+
+### Continuous Integration
+
+- Remove rangeStrategy from Go dependency rule by @nicholas-fedor in [#500](https://github.com/nicholas-fedor/shoutrrr/pull/500)
 - Remove unused Go version input by @nicholas-fedor in [#482](https://github.com/nicholas-fedor/shoutrrr/pull/482)
 
 ### Chores
@@ -964,20 +979,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 13fed6f by @renovate[bot] in [#485](https://github.com/nicholas-fedor/shoutrrr/pull/485)
 - Update goreleaser/goreleaser-action digest to f3511a2 by @renovate[bot] in [#484](https://github.com/nicholas-fedor/shoutrrr/pull/484)
 
-### Removed
-
-- Remove rangeStrategy from Go dependency rule by @nicholas-fedor in [#500](https://github.com/nicholas-fedor/shoutrrr/pull/500)
-
 ## [0.12.1] - 2025-11-25
 
-### Added
+### Fixed
+
+- Support base64 characters in group IDs by @nicholas-fedor in [#481](https://github.com/nicholas-fedor/shoutrrr/pull/481)
+
+### Documentation
 
 - Add additional noteworthy projects to documentation by @nicholas-fedor in [#430](https://github.com/nicholas-fedor/shoutrrr/pull/430)
+- Update README with new related projects by @nicholas-fedor in [#429](https://github.com/nicholas-fedor/shoutrrr/pull/429)
 
-### Changed
+### Tests
+
+- Reorder mockTyped call in generator test by @nicholas-fedor in [#445](https://github.com/nicholas-fedor/shoutrrr/pull/445)
+
+### Continuous Integration
 
 - Add Renovate rule for Go toolchain updates by @nicholas-fedor in [#468](https://github.com/nicholas-fedor/shoutrrr/pull/468)
-- Update README with new related projects by @nicholas-fedor in [#429](https://github.com/nicholas-fedor/shoutrrr/pull/429)
 
 ### Chores
 
@@ -1026,14 +1045,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update docker/setup-qemu-action digest to c7c5346 by @renovate[bot] in [#433](https://github.com/nicholas-fedor/shoutrrr/pull/433)
 - Update cimg/go:1.25.3 docker digest to af601f9 by @renovate[bot] in [#432](https://github.com/nicholas-fedor/shoutrrr/pull/432)
 
-### Fixed
-
-- Support base64 characters in group IDs by @nicholas-fedor in [#481](https://github.com/nicholas-fedor/shoutrrr/pull/481)
-
-### Tests
-
-- Reorder mockTyped call in generator test by @nicholas-fedor in [#445](https://github.com/nicholas-fedor/shoutrrr/pull/445)
-
 ### New Contributors
 
 - @das7pad made their first contribution in [#464](https://github.com/nicholas-fedor/shoutrrr/pull/464)
@@ -1042,11 +1053,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add noelob as a contributor for code, and doc by @allcontributors[bot] in [#425](https://github.com/nicholas-fedor/shoutrrr/pull/425)
-
-### Changed
-
 - Add PagerDuty implementation and tests by @noelob in [#424](https://github.com/nicholas-fedor/shoutrrr/pull/424)
+
+### Documentation
+
+- Add noelob as a contributor for code, and doc by @allcontributors[bot] in [#425](https://github.com/nicholas-fedor/shoutrrr/pull/425)
 
 ### Chores
 
@@ -1064,7 +1075,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.1] - 2025-10-27
 
-### Changed
+### Fixed
+
+- Resolve TLS certificate verification failures by @nicholas-fedor in [#415](https://github.com/nicholas-fedor/shoutrrr/pull/415)
+
+### Documentation
 
 - Add Notifiarr to supported services by @nicholas-fedor in [#407](https://github.com/nicholas-fedor/shoutrrr/pull/407)
 
@@ -1079,27 +1094,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/upload-artifact digest to 330a01c by @renovate[bot] in [#411](https://github.com/nicholas-fedor/shoutrrr/pull/411)
 - Update actions/upload-artifact digest to 2d9f9cd by @renovate[bot] in [#409](https://github.com/nicholas-fedor/shoutrrr/pull/409)
 
-### Fixed
-
-- Resolve TLS certificate verification failures by @nicholas-fedor in [#415](https://github.com/nicholas-fedor/shoutrrr/pull/415)
-
 ## [0.11.0] - 2025-10-23
 
 ### Added
 
 - Add Notifiarr service support by @nicholas-fedor in [#404](https://github.com/nicholas-fedor/shoutrrr/pull/404)
 - Add InsecureSkipVerify support for TLS certificate validation by @nicholas-fedor in [#392](https://github.com/nicholas-fedor/shoutrrr/pull/392)
-- Add PR baseline checkout logic for gosec and govulncheck by @nicholas-fedor in [#393](https://github.com/nicholas-fedor/shoutrrr/pull/393)
+
+### Fixed
+
+- Resolve ConfigFromWebhookURL regression causing 400 errors by @nicholas-fedor in [#398](https://github.com/nicholas-fedor/shoutrrr/pull/398)
 
 ### Changed
 
 - Replace github.com/mattn/go-isatty with golang.org/x/term by @nicholas-fedor in [#406](https://github.com/nicholas-fedor/shoutrrr/pull/406)
 - Vendor color package by @nicholas-fedor in [#405](https://github.com/nicholas-fedor/shoutrrr/pull/405)
+
+### Documentation
+
+- Fix relative link paths in service docs by @nicholas-fedor in [#403](https://github.com/nicholas-fedor/shoutrrr/pull/403)
+
+### Continuous Integration
+
 - Pin gosec action to specific version by @nicholas-fedor in [#399](https://github.com/nicholas-fedor/shoutrrr/pull/399)
 - Pin gosec action version in security.yaml by @nicholas-fedor in [#397](https://github.com/nicholas-fedor/shoutrrr/pull/397)
 - Resolve gosec and govulncheck action failures by @nicholas-fedor in [#396](https://github.com/nicholas-fedor/shoutrrr/pull/396)
 - Correct flags in gosec and govulncheck actions by @nicholas-fedor in [#395](https://github.com/nicholas-fedor/shoutrrr/pull/395)
 - Correct flags in gosec and govulncheck actions by @nicholas-fedor in [#394](https://github.com/nicholas-fedor/shoutrrr/pull/394)
+- Add PR baseline checkout logic for gosec and govulncheck by @nicholas-fedor in [#393](https://github.com/nicholas-fedor/shoutrrr/pull/393)
 
 ### Chores
 
@@ -1112,22 +1134,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/attest-build-provenance digest to ba965ac by @renovate[bot] in [#387](https://github.com/nicholas-fedor/shoutrrr/pull/387)
 - Update docker/login-action digest to 28fdb31 by @renovate[bot] in [#386](https://github.com/nicholas-fedor/shoutrrr/pull/386)
 
-### Fixed
-
-- Fix relative link paths in service docs by @nicholas-fedor in [#403](https://github.com/nicholas-fedor/shoutrrr/pull/403)
-- Resolve ConfigFromWebhookURL regression causing 400 errors by @nicholas-fedor in [#398](https://github.com/nicholas-fedor/shoutrrr/pull/398)
-
 ## [0.10.3] - 2025-10-15
 
-### Added
+### Fixed
+
+- Add smtp default timeout by @PythonGermany in [#370](https://github.com/nicholas-fedor/shoutrrr/pull/370)
+
+### Documentation
 
 - Add PythonGermany as a contributor for code by @allcontributors[bot] in [#375](https://github.com/nicholas-fedor/shoutrrr/pull/375)
+- Fix build script path by @PythonGermany in [#372](https://github.com/nicholas-fedor/shoutrrr/pull/372)
 - Add commit signing section by @nicholas-fedor in [#374](https://github.com/nicholas-fedor/shoutrrr/pull/374)
 - Add 404 page by @nicholas-fedor in [#351](https://github.com/nicholas-fedor/shoutrrr/pull/351)
 
-### Changed
+### Continuous Integration
 
-- Fix build script path by @PythonGermany in [#372](https://github.com/nicholas-fedor/shoutrrr/pull/372)
 - Enable check-latest for go setup in workflows by @nicholas-fedor in [#363](https://github.com/nicholas-fedor/shoutrrr/pull/363)
 - Update release docs trigger by @nicholas-fedor in [#350](https://github.com/nicholas-fedor/shoutrrr/pull/350)
 
@@ -1161,20 +1182,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 1d64cc1 by @renovate[bot] in [#353](https://github.com/nicholas-fedor/shoutrrr/pull/353)
 - Update actions/attest-build-provenance digest to bed76f6 by @renovate[bot] in [#352](https://github.com/nicholas-fedor/shoutrrr/pull/352)
 
-### Fixed
-
-- Add smtp default timeout by @PythonGermany in [#370](https://github.com/nicholas-fedor/shoutrrr/pull/370)
-
 ### New Contributors
 
 - @PythonGermany made their first contribution in [#370](https://github.com/nicholas-fedor/shoutrrr/pull/370)
 
 ## [0.10.1] - 2025-10-04
 
-### Changed
+### Documentation
 
 - Update mike config and override by @nicholas-fedor in [#348](https://github.com/nicholas-fedor/shoutrrr/pull/348)
+
+### Continuous Integration
+
 - Implement mike plugin by @nicholas-fedor in [#347](https://github.com/nicholas-fedor/shoutrrr/pull/347)
+- Fix circular dependency by @nicholas-fedor in [#341](https://github.com/nicholas-fedor/shoutrrr/pull/341)
 
 ### Chores
 
@@ -1184,19 +1205,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 7409966 by @renovate[bot] in [#343](https://github.com/nicholas-fedor/shoutrrr/pull/343)
 - Update docker/login-action digest to 5e57cd1 by @renovate[bot] in [#342](https://github.com/nicholas-fedor/shoutrrr/pull/342)
 
-### Fixed
-
-- Fix circular dependency by @nicholas-fedor in [#341](https://github.com/nicholas-fedor/shoutrrr/pull/341)
-
 ## [0.10.0] - 2025-09-27
 
-### Added
+### Fixed
 
-- Add checkout step to clean-cache workflow by @nicholas-fedor in [#333](https://github.com/nicholas-fedor/shoutrrr/pull/333)
+- Secure Teams webhook URL validation against unintended host matches by @nicholas-fedor in [#340](https://github.com/nicholas-fedor/shoutrrr/pull/340)
 
 ### Changed
 
 - Organize services into categories by @nicholas-fedor in [#338](https://github.com/nicholas-fedor/shoutrrr/pull/338)
+
+### Continuous Integration
+
+- Add checkout step to clean-cache workflow by @nicholas-fedor in [#333](https://github.com/nicholas-fedor/shoutrrr/pull/333)
 - Optimize CI/CD pipelines and workflows by @nicholas-fedor in [#324](https://github.com/nicholas-fedor/shoutrrr/pull/324)
 
 ### Chores
@@ -1214,10 +1235,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update securego/gosec digest to f9c52aa by @renovate[bot] in [#327](https://github.com/nicholas-fedor/shoutrrr/pull/327)
 - Update securego/gosec digest to 7b8713e by @renovate[bot] in [#325](https://github.com/nicholas-fedor/shoutrrr/pull/325)
 
-### Fixed
-
-- Secure Teams webhook URL validation against unintended host matches by @nicholas-fedor in [#340](https://github.com/nicholas-fedor/shoutrrr/pull/340)
-
 ## [0.9.1] - 2025-09-20
 
 ### Fixed
@@ -1228,9 +1245,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add Signal and WeCom services to MkDocs navigation by @nicholas-fedor in [#321](https://github.com/nicholas-fedor/shoutrrr/pull/321)
 - Add Signal notification service support by @nicholas-fedor in [#319](https://github.com/nicholas-fedor/shoutrrr/pull/319)
 - Add WeChat Work (WeCom) webhook notification service by @nicholas-fedor in [#318](https://github.com/nicholas-fedor/shoutrrr/pull/318)
+
+### Fixed
+
+- Handle dummy URLs in Signal and WeCom services for docs generation by @nicholas-fedor in [#320](https://github.com/nicholas-fedor/shoutrrr/pull/320)
+
+### Documentation
+
+- Add Signal and WeCom services to MkDocs navigation by @nicholas-fedor in [#321](https://github.com/nicholas-fedor/shoutrrr/pull/321)
 
 ### Chores
 
@@ -1261,16 +1285,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update codecov/codecov-action digest to 206148c by @renovate[bot] in [#292](https://github.com/nicholas-fedor/shoutrrr/pull/292)
 - Update nicholas-fedor/govulncheck-action digest to 6bacd52 by @renovate[bot] in [#291](https://github.com/nicholas-fedor/shoutrrr/pull/291)
 
-### Fixed
-
-- Handle dummy URLs in Signal and WeCom services for docs generation by @nicholas-fedor in [#320](https://github.com/nicholas-fedor/shoutrrr/pull/320)
-
 ## [0.8.18] - 2025-09-04
 
-### Changed
+### Documentation
+
+- Update homepage by @nicholas-fedor in [#260](https://github.com/nicholas-fedor/shoutrrr/pull/260)
+
+### Continuous Integration
 
 - Correct permissions for build by @nicholas-fedor in [#270](https://github.com/nicholas-fedor/shoutrrr/pull/270)
-- Update homepage by @nicholas-fedor in [#260](https://github.com/nicholas-fedor/shoutrrr/pull/260)
 
 ### Chores
 
@@ -1338,7 +1361,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.17] - 2025-08-08
 
-### Changed
+### Fixed
+
+- Correct cache cleanup loop for proper iteration by @nicholas-fedor in [#224](https://github.com/nicholas-fedor/shoutrrr/pull/224)
+- Add tzdata and ARG BASE_IMAGE in scratch stage by @nicholas-fedor in [#221](https://github.com/nicholas-fedor/shoutrrr/pull/221)
+- Correct binary extraction for Linux and macOS by @nicholas-fedor in [#219](https://github.com/nicholas-fedor/shoutrrr/pull/219)
+- Correct python cache requirements filepath by @nicholas-fedor in [#217](https://github.com/nicholas-fedor/shoutrrr/pull/217)
+- Handle invalid service entries, add verbose comments, and fix path resolution in generate-service-config-docs.sh by @nicholas-fedor in [#216](https://github.com/nicholas-fedor/shoutrrr/pull/216)
+- Add executable permissions for generate-service-config-docs.sh by @nicholas-fedor in [#211](https://github.com/nicholas-fedor/shoutrrr/pull/211)
+
+### Documentation
 
 - Correct alert blocks by @nicholas-fedor in [#215](https://github.com/nicholas-fedor/shoutrrr/pull/215)
 - Correct logo path by @nicholas-fedor in [#212](https://github.com/nicholas-fedor/shoutrrr/pull/212)
@@ -1357,24 +1389,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/attest-build-provenance digest to 463e6df by @renovate[bot] in [#209](https://github.com/nicholas-fedor/shoutrrr/pull/209)
 - Refactor project structure, documentation, ci workflows, and update dependencies by @nicholas-fedor in [#208](https://github.com/nicholas-fedor/shoutrrr/pull/208)
 
-### Fixed
-
-- Correct cache cleanup loop for proper iteration by @nicholas-fedor in [#224](https://github.com/nicholas-fedor/shoutrrr/pull/224)
-- Add tzdata and ARG BASE_IMAGE in scratch stage by @nicholas-fedor in [#221](https://github.com/nicholas-fedor/shoutrrr/pull/221)
-- Correct binary extraction for Linux and macOS by @nicholas-fedor in [#219](https://github.com/nicholas-fedor/shoutrrr/pull/219)
-- Correct python cache requirements filepath by @nicholas-fedor in [#217](https://github.com/nicholas-fedor/shoutrrr/pull/217)
-- Handle invalid service entries, add verbose comments, and fix path resolution in generate-service-config-docs.sh by @nicholas-fedor in [#216](https://github.com/nicholas-fedor/shoutrrr/pull/216)
-- Add executable permissions for generate-service-config-docs.sh by @nicholas-fedor in [#211](https://github.com/nicholas-fedor/shoutrrr/pull/211)
-
 ## [0.8.16] - 2025-08-07
 
 ### Added
 
 - Add Timeout and RequireStartTLS, enhance error handling and docs by @nicholas-fedor in [#186](https://github.com/nicholas-fedor/shoutrrr/pull/186)
-
-### Changed
-
 - Enable Go version updates with gomodTidy by @nicholas-fedor in [#184](https://github.com/nicholas-fedor/shoutrrr/pull/184)
+
+### Fixed
+
+- Use chore for go dependency updates by @nicholas-fedor in [#189](https://github.com/nicholas-fedor/shoutrrr/pull/189)
 
 ### Chores
 
@@ -1423,10 +1447,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/setup-python digest to 1264885 by @renovate[bot] in [#159](https://github.com/nicholas-fedor/shoutrrr/pull/159)
 - Update go deps by @nicholas-fedor in [#157](https://github.com/nicholas-fedor/shoutrrr/pull/157)
 
-### Fixed
-
-- Use chore for go dependency updates by @nicholas-fedor in [#189](https://github.com/nicholas-fedor/shoutrrr/pull/189)
-
 ## [0.8.15] - 2025-06-24
 
 ### Chores
@@ -1460,14 +1480,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add manifest generation by @nicholas-fedor in [#132](https://github.com/nicholas-fedor/shoutrrr/pull/132)
 
-### Chores
-
-- Update alpine docker tag to v3.22.0 by @renovate[bot] in [#131](https://github.com/nicholas-fedor/shoutrrr/pull/131)
-
 ### Fixed
 
 - Revert changes by @nicholas-fedor in [#134](https://github.com/nicholas-fedor/shoutrrr/pull/134)
 - Correct variable names by @nicholas-fedor in [#133](https://github.com/nicholas-fedor/shoutrrr/pull/133)
+
+### Chores
+
+- Update alpine docker tag to v3.22.0 by @renovate[bot] in [#131](https://github.com/nicholas-fedor/shoutrrr/pull/131)
 
 ## [0.8.13] - 2025-05-28
 
@@ -1476,6 +1496,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 481777f by @renovate[bot] in [#130](https://github.com/nicholas-fedor/shoutrrr/pull/130)
 
 ## [0.8.11] - 2025-05-27
+
+### Fixed
+
+- Enhance version metadata handling for go install and Goreleaser builds by @nicholas-fedor in [#126](https://github.com/nicholas-fedor/shoutrrr/pull/126)
 
 ### Changed
 
@@ -1486,11 +1510,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refactor update-go-docs workflow by @nicholas-fedor in [#127](https://github.com/nicholas-fedor/shoutrrr/pull/127)
 
+## [0.8.10] - 2025-05-27
+
 ### Fixed
 
-- Enhance version metadata handling for go install and Goreleaser builds by @nicholas-fedor in [#126](https://github.com/nicholas-fedor/shoutrrr/pull/126)
-
-## [0.8.10] - 2025-05-27
+- Improve shoutrrr handling of dynamic metadata by @nicholas-fedor in [#124](https://github.com/nicholas-fedor/shoutrrr/pull/124)
+- Allow dummy URL in setURL for doc generation by @nicholas-fedor in [#113](https://github.com/nicholas-fedor/shoutrrr/pull/113)
 
 ### Changed
 
@@ -1508,11 +1533,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 0b0f1dd by @renovate[bot] in [#116](https://github.com/nicholas-fedor/shoutrrr/pull/116)
 - Update actions/setup-go digest to d35c59a by @renovate[bot] in [#115](https://github.com/nicholas-fedor/shoutrrr/pull/115)
 - Update cimg/go docker tag to v1.24.3 by @renovate[bot] in [#114](https://github.com/nicholas-fedor/shoutrrr/pull/114)
-
-### Fixed
-
-- Improve shoutrrr handling of dynamic metadata by @nicholas-fedor in [#124](https://github.com/nicholas-fedor/shoutrrr/pull/124)
-- Allow dummy URL in setURL for doc generation by @nicholas-fedor in [#113](https://github.com/nicholas-fedor/shoutrrr/pull/113)
 
 ## [0.8.9] - 2025-05-07
 
@@ -1554,6 +1574,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.7] - 2025-04-08
 
+### Fixed
+
+- Update test expected error message by @nicholas-fedor in [#88](https://github.com/nicholas-fedor/shoutrrr/pull/88)
+
 ### Chores
 
 - Update Go version and dependencies by @nicholas-fedor in [#87](https://github.com/nicholas-fedor/shoutrrr/pull/87)
@@ -1569,20 +1593,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/setup-go digest to dca8468 by @renovate[bot] in [#76](https://github.com/nicholas-fedor/shoutrrr/pull/76)
 - Update golangci/golangci-lint-action digest to a5307c8 by @renovate[bot] in [#75](https://github.com/nicholas-fedor/shoutrrr/pull/75)
 
-### Fixed
-
-- Update test expected error message by @nicholas-fedor in [#88](https://github.com/nicholas-fedor/shoutrrr/pull/88)
-
 ## [0.8.6] - 2025-03-31
 
-### Added
+### Fixed
 
-- Add serverleader as a contributor for code, and doc by @allcontributors[bot] in [#69](https://github.com/nicholas-fedor/shoutrrr/pull/69)
+- Secure webhook regex and fix URL encoding by @nicholas-fedor in [#70](https://github.com/nicholas-fedor/shoutrrr/pull/70)
+- Remove version tag by @nicholas-fedor in [#64](https://github.com/nicholas-fedor/shoutrrr/pull/64)
 
 ### Changed
 
 - Apply resolved linter issues after golangci-lint v2 update by @nicholas-fedor in [#72](https://github.com/nicholas-fedor/shoutrrr/pull/72)
 - Teams new webhook URL format (fixes broken teams notifications) by @serverleader in [#66](https://github.com/nicholas-fedor/shoutrrr/pull/66)
+
+### Documentation
+
+- Add serverleader as a contributor for code, and doc by @allcontributors[bot] in [#69](https://github.com/nicholas-fedor/shoutrrr/pull/69)
+
+### Continuous Integration
+
 - Temp disable linting on pr by @nicholas-fedor in [#68](https://github.com/nicholas-fedor/shoutrrr/pull/68)
 
 ### Chores
@@ -1602,11 +1630,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update actions/cache digest to 5a3ec84 by @renovate[bot] in [#55](https://github.com/nicholas-fedor/shoutrrr/pull/55)
 - Update golangci/golangci-lint-action digest to 9938e10 by @renovate[bot] in [#54](https://github.com/nicholas-fedor/shoutrrr/pull/54)
 
-### Fixed
-
-- Secure webhook regex and fix URL encoding by @nicholas-fedor in [#70](https://github.com/nicholas-fedor/shoutrrr/pull/70)
-- Remove version tag by @nicholas-fedor in [#64](https://github.com/nicholas-fedor/shoutrrr/pull/64)
-
 ### New Contributors
 
 - @serverleader made their first contribution in [#66](https://github.com/nicholas-fedor/shoutrrr/pull/66)
@@ -1616,12 +1639,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add DisableTLS and port preservation with fixes and tests by @nicholas-fedor in [#53](https://github.com/nicholas-fedor/shoutrrr/pull/53)
-- Add read-only permissions to Lint and Test workflows by @nicholas-fedor in [#48](https://github.com/nicholas-fedor/shoutrrr/pull/48)
 - Add sensitive data masking with --show-sensitive flag by @nicholas-fedor in [#46](https://github.com/nicholas-fedor/shoutrrr/pull/46)
 
-### Changed
+### Fixed
 
-- Merge pull request #42 from nicholas-fedor/renovate/docker-login-action-digest by @nicholas-fedor in [#42](https://github.com/nicholas-fedor/shoutrrr/pull/42)
+- Sanitize error output to prevent sensitive data exposure by @nicholas-fedor in [#50](https://github.com/nicholas-fedor/shoutrrr/pull/50)
+
+### Continuous Integration
+
+- Add read-only permissions to Lint and Test workflows by @nicholas-fedor in [#48](https://github.com/nicholas-fedor/shoutrrr/pull/48)
 
 ### Chores
 
@@ -1630,11 +1656,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update golangci/golangci-lint-action digest to 55c2c14 by @renovate[bot] in [#44](https://github.com/nicholas-fedor/shoutrrr/pull/44)
 - Merge pull request #43 from nicholas-fedor/renovate/github.com-spf13-viper-1.x by @nicholas-fedor in [#43](https://github.com/nicholas-fedor/shoutrrr/pull/43)
 - Update module github.com/spf13/viper to v1.20.0 by @renovate[bot]
+- Merge pull request #42 from nicholas-fedor/renovate/docker-login-action-digest by @nicholas-fedor in [#42](https://github.com/nicholas-fedor/shoutrrr/pull/42)
 - Update docker/login-action digest to 74a5d14 by @renovate[bot]
-
-### Fixed
-
-- Sanitize error output to prevent sensitive data exposure by @nicholas-fedor in [#50](https://github.com/nicholas-fedor/shoutrrr/pull/50)
 
 ## [0.8.4] - 2025-03-14
 
@@ -1642,39 +1665,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add support for github actions digests by @nicholas-fedor
 
-### Changed
+### Fixed
 
-- Merge pull request #41 from nicholas-fedor/renovate/nicholas-fedor-go-proxy-pull-action-digest by @nicholas-fedor in [#41](https://github.com/nicholas-fedor/shoutrrr/pull/41)
-- Merge pull request #40 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#40](https://github.com/nicholas-fedor/shoutrrr/pull/40)
-- Merge pull request #38 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#38](https://github.com/nicholas-fedor/shoutrrr/pull/38)
-- Merge pull request #39 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#39](https://github.com/nicholas-fedor/shoutrrr/pull/39)
-- Merge pull request #37 from nicholas-fedor/renovate/pin-dependencies by @nicholas-fedor in [#37](https://github.com/nicholas-fedor/shoutrrr/pull/37)
-- Merge pull request #36 from nicholas-fedor/renovate/pin-dependencies by @nicholas-fedor in [#36](https://github.com/nicholas-fedor/shoutrrr/pull/36)
-- Merge pull request #32 from nicholas-fedor/renovate/actions-setup-go-digest by @nicholas-fedor in [#32](https://github.com/nicholas-fedor/shoutrrr/pull/32)
-- Merge pull request #33 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#33](https://github.com/nicholas-fedor/shoutrrr/pull/33)
-- Merge pull request #31 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#31](https://github.com/nicholas-fedor/shoutrrr/pull/31)
-- Merge pull request #30 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#30](https://github.com/nicholas-fedor/shoutrrr/pull/30)
-- Merge pull request #28 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#28](https://github.com/nicholas-fedor/shoutrrr/pull/28)
-- Merge pull request #29 from nicholas-fedor/renovate/cimg-go-1.x by @nicholas-fedor in [#29](https://github.com/nicholas-fedor/shoutrrr/pull/29)
-- Merge pull request #24 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#24](https://github.com/nicholas-fedor/shoutrrr/pull/24)
-- Merge pull request #22 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#22](https://github.com/nicholas-fedor/shoutrrr/pull/22)
+- Correct helper name by @nicholas-fedor
 
 ### Chores
 
+- Merge pull request #41 from nicholas-fedor/renovate/nicholas-fedor-go-proxy-pull-action-digest by @nicholas-fedor in [#41](https://github.com/nicholas-fedor/shoutrrr/pull/41)
 - Update nicholas-fedor/go-proxy-pull-action digest to 96d97dd by @renovate[bot]
+- Merge pull request #40 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#40](https://github.com/nicholas-fedor/shoutrrr/pull/40)
 - Update actions/setup-python digest to 19e4675 by @renovate[bot]
+- Merge pull request #38 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#38](https://github.com/nicholas-fedor/shoutrrr/pull/38)
 - Update golangci/golangci-lint-action digest to 4696ba8 by @renovate[bot]
+- Merge pull request #39 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#39](https://github.com/nicholas-fedor/shoutrrr/pull/39)
 - Update actions/setup-python digest to 6fd11e1 by @renovate[bot]
+- Merge pull request #37 from nicholas-fedor/renovate/pin-dependencies by @nicholas-fedor in [#37](https://github.com/nicholas-fedor/shoutrrr/pull/37)
 - Pin dependencies by @renovate[bot]
 - Update to use config:best-practices by @nicholas-fedor
+- Merge pull request #36 from nicholas-fedor/renovate/pin-dependencies by @nicholas-fedor in [#36](https://github.com/nicholas-fedor/shoutrrr/pull/36)
 - Pin dependencies by @renovate[bot]
 - Merge pull request #34 from nicholas-fedor/renovate/go-1.x by @nicholas-fedor in [#34](https://github.com/nicholas-fedor/shoutrrr/pull/34)
 - Update dependency go to v1.24.1 by @renovate[bot]
+- Merge pull request #32 from nicholas-fedor/renovate/actions-setup-go-digest by @nicholas-fedor in [#32](https://github.com/nicholas-fedor/shoutrrr/pull/32)
 - Update actions/setup-go digest to c4c1141 by @renovate[bot]
+- Merge pull request #33 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#33](https://github.com/nicholas-fedor/shoutrrr/pull/33)
 - Update codecov/codecov-action digest to 3440e5e by @renovate[bot]
+- Merge pull request #31 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#31](https://github.com/nicholas-fedor/shoutrrr/pull/31)
 - Update codecov/codecov-action digest to cd4e7cf by @renovate[bot]
+- Merge pull request #30 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#30](https://github.com/nicholas-fedor/shoutrrr/pull/30)
 - Update golangci/golangci-lint-action digest to b871b4f by @renovate[bot]
+- Merge pull request #28 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#28](https://github.com/nicholas-fedor/shoutrrr/pull/28)
 - Update golangci/golangci-lint-action digest to d8648ac by @renovate[bot]
+- Merge pull request #29 from nicholas-fedor/renovate/cimg-go-1.x by @nicholas-fedor in [#29](https://github.com/nicholas-fedor/shoutrrr/pull/29)
 - Update cimg/go docker tag to v1.24.1 by @renovate[bot]
 - Merge pull request #26 from nicholas-fedor/renovate/golang.org-x-net-0.x by @nicholas-fedor in [#26](https://github.com/nicholas-fedor/shoutrrr/pull/26)
 - Update module golang.org/x/net to v0.37.0 by @renovate[bot]
@@ -1684,34 +1706,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module github.com/onsi/ginkgo/v2 to v2.23.0 by @renovate[bot]
 - Merge pull request #23 from nicholas-fedor/renovate/golang.org-x-net-0.x by @nicholas-fedor in [#23](https://github.com/nicholas-fedor/shoutrrr/pull/23)
 - Update module golang.org/x/net to v0.36.0 by @renovate[bot]
+- Merge pull request #24 from nicholas-fedor/renovate/actions-setup-python-digest by @nicholas-fedor in [#24](https://github.com/nicholas-fedor/shoutrrr/pull/24)
 - Update actions/setup-python digest to 9e62be8 by @renovate[bot]
+- Merge pull request #22 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#22](https://github.com/nicholas-fedor/shoutrrr/pull/22)
 - Update golangci/golangci-lint-action digest to 37d62ae by @renovate[bot]
-
-### Fixed
-
-- Correct helper name by @nicholas-fedor
 
 ## [0.8.3] - 2025-02-28
 
 ### Added
 
-- Add minimum TLS version by @nicholas-fedor
-- Add test coverage for GetID method by @nicholas-fedor
-- Add test coverage for GetID method by @nicholas-fedor
-- Add full test coverage to rocketchat package by @nicholas-fedor
-- Add gochecknoinits to excluded linters by @nicholas-fedor
+- Add failures package with tests and idiomatic refinements by @nicholas-fedor
 - Address linter warnings by introducing constants by @nicholas-fedor
+
+### Fixed
+
+- Replace magic number 9 with MaxEmbeds constant in discord payload creation by @nicholas-fedor
+- Replace magic numbers in telegram package with named constants by @nicholas-fedor
+- Replace magic numbers with named constants in SMTP auth and encryption types by @nicholas-fedor
+- Replace magic number 34 with constant in Pushbullet token validation by @nicholas-fedor
 
 ### Changed
 
 - Merge pull request #21 from nicholas-fedor/fix-linter-issues by @nicholas-fedor in [#21](https://github.com/nicholas-fedor/shoutrrr/pull/21)
+- Add minimum TLS version by @nicholas-fedor
+- Add test coverage for GetID method by @nicholas-fedor
+- Add test coverage for GetID method by @nicholas-fedor
+- Add full test coverage to rocketchat package by @nicholas-fedor
 - (fix) add additional test coverage by @nicholas-fedor
 - (fix) Improve testing structure by @nicholas-fedor
-- Add failures package with tests and idiomatic refinements by @nicholas-fedor
 - Use net.JoinHostPort for host:port construction in rocketchat service by @nicholas-fedor
 - (lint) Add newline between cuddled assignments by @nicholas-fedor
 - (fix) Replace magic number with const MaxMessageLength by @nicholas-fedor
 - (fix) Add const MaximumNArgs to remain constant with maximum flags by @nicholas-fedor
+- Add gochecknoinits to excluded linters by @nicholas-fedor
 - (lint) rename function by @nicholas-fedor
 - Migrate use of ...interface{} to ...any by @nicholas-fedor
 - Remove dot imports and add TestWebhookURL constant by @nicholas-fedor
@@ -1730,28 +1757,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update imports by @nicholas-fedor
 - Replace numbers with defined constants by @nicholas-fedor
 - Update .golangci.yaml by @nicholas-fedor
-- Merge pull request #20 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#20](https://github.com/nicholas-fedor/shoutrrr/pull/20)
 
 ### Chores
 
+- Merge pull request #20 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#20](https://github.com/nicholas-fedor/shoutrrr/pull/20)
 - Update codecov/codecov-action digest to 0565863 by @renovate[bot]
 
-### Fixed
-
-- Replace magic number 9 with MaxEmbeds constant in discord payload creation by @nicholas-fedor
-- Replace magic numbers in telegram package with named constants by @nicholas-fedor
-- Replace magic numbers with named constants in SMTP auth and encryption types by @nicholas-fedor
-- Replace magic number 34 with constant in Pushbullet token validation by @nicholas-fedor
-
 ## [0.8.2] - 2025-02-25
-
-### Added
-
-- Add dummy@dummy.com in the setURL method to bypass validation checks for docs generation by @nicholas-fedor
-- Add missing script to build docs by @nicholas-fedor
-- Add cache keys by @nicholas-fedor
-- Add Docker pulls by @nicholas-fedor
-- Add Docker pulls badge by @nicholas-fedor
 
 ### Changed
 
@@ -1761,126 +1773,171 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix opsgenie SetURL to handle empty path for opsgenie://dummy@dummy.com in docs workflow by @nicholas-fedor
 - Fix matrix Initialize to skip login for matrix://dummy@dummy.com in docs workflow by @nicholas-fedor
 - Fix join SetURL to fully bypass validation for join://dummy@dummy.com in docs workflow by @nicholas-fedor
+- Add dummy@dummy.com in the setURL method to bypass validation checks for docs generation by @nicholas-fedor
 - Export configs to enable docs build by @nicholas-fedor
 - Capitalize Config field in discord service to fix docs generation panic by @nicholas-fedor
 - Initialize services in docs.go with proper logger to fix Config panic by @nicholas-fedor
 - Force clean Go build in Publish Docs workflow by @nicholas-fedor
 - Capitalize Config field in bark service to fix docs generation by @nicholas-fedor
+- Add missing script to build docs by @nicholas-fedor
 - Revert to original formatting by @nicholas-fedor
+- Add cache keys by @nicholas-fedor
+- Add Docker pulls by @nicholas-fedor
 - Correct formatting by @nicholas-fedor
-- Update docs.yaml to run after successful build job in Release (Production) by @nicholas-fedor
-
-### Removed
-
 - Remove automatic deployment by @nicholas-fedor
+- Add Docker pulls badge by @nicholas-fedor
+- Update docs.yaml to run after successful build job in Release (Production) by @nicholas-fedor
 
 ## [0.8.1] - 2025-02-25
 
 ### Added
 
-- Update Build workflow: add QEMU and refine attestation subject-path to archives only by @nicholas-fedor
+- Extra data and custom headers by @piksel
 - Add support for message_thread_id by @yegle
-- Add network-observe interface for snap by @simonaronsson
-- Add network plug to snap by @simonaronsson
-- Add home assistant example by @piksel
 - Add ntfy service by @piksel
+- Wrap errors by @arnested
 - Add support for custom client host by @piksel
-- Add security policy by @piksel
 - Add builtin JSON tpl by @piksel
-- Add basic usage info by @piksel
-- Add JosephKav as a contributor for bug by @allcontributors[bot]
-- Add JosephKav as a contributor for code by @allcontributors[bot]
-- Add justinsteven as a contributor for bug by @allcontributors[bot]
-- Add darktohka as a contributor for code by @allcontributors[bot]
+- Send multiple messages when exceeding limits by @piksel
 - Support reading message from stdin by @piksel
 - Add support for icons by @JosephKav
 - Add bark service by @piksel
 - Add title support by @piksel
-- Add manual dispatch by @piksel
-- Additional format tests/cleanup by @piksel
-- Add general basic tests for services by @piksel
-- Add generator test by @piksel
-- Add basic renderer tests by @piksel
 - Add bot API support by @piksel
 - Add thread/reply support by @parrasajad
-- Add git settings for mkdocs by @piksel
-- Add multi-version support by @piksel
-- Add basic service docs by @piksel
+- Telegram generator/bot by @piksel
 - Add docs command by @piksel
 - Add matrix service by @piksel
 - Add generic webhook service by @piksel
-- Add service compliance test suite by @piksel
-- Add missing pages, reorder and tidy up by @piksel
-- Add related projects
-- Add props usage by @piksel
-- Add claycooper as a contributor by @allcontributors[bot]
-- Add JonasPf as a contributor by @allcontributors[bot]
+- Format engine overhaul by @piksel
 - Add support for opsgenie by @piksel
 - Add support for config struct and map fields by @piksel
+- Format update, preparations for rich message support by @piksel
 - Add support for gotify URL path by @piksel
+- Ground work for rich message support by @piksel
 - Add support for custom service URLs by @piksel
 - Add standard title field by @piksel
 - Add more config options and tests by @piksel
-- Add sentriz as a contributor [skip ci] by @allcontributors[bot]
 - Add tag-based query/params helper by @piksel
 - Add support for implicit TLS by @piksel
-- Add proxy documentation by @piksel
-- Added few testcases for rawURL passed as path/#####channel  and path/#channel (used to segfault)
-- Add ellisab as a contributor by @allcontributors[bot]
-- Added custom port option for rocketchat
-- Add atighineanu as a contributor by @allcontributors[bot]
 - Add support for oauth2 and gmail generators by @piksel
 - Add Rocket.chat support by @dmitry-kovalev
-- Add new vectorized logotype by @piksel
-- Add teams docs by @simonaronsson
-- Add multiple url example by @simonaronsson
-- Add root cmd by @simonaronsson
+- Implement generator API and basic generator by @piksel
 - Add basic join service support by @piksel
-- Add basic documentation by @piksel
-- Add tests for new params by @piksel
 - Add title and priority parameters by @piksel
 - Add zulip chat service by @arnested
-- Add favicon and transparent logotype by @piksel
-- Add some branding to mkdocs by @piksel
-- Add codecov publish to ci by @simonaronsson
-- Add badges required by awesome-go by @simonaronsson
-- Add codehilite markdown extension by @piksel
-- Added mattermost documentation
-- Add hangouts chat to navigation by @arnested
 - Add hangouts chat service by @arnested
+- Feat(services) add mattermost service
 - Add pushbullet service by @MrLuje
-- Add support for Gotify notifications by @lukapeschke
-- Add basic XMPP tests by @piksel
 - Add basic XMPP service by @piksel
-- Add Codacy badge by @codacy-badger
-- Add logo 🙏 by @simonaronsson
-- Add more test coverage and test utils by @piksel
-- Add gitter webhook by @simonaronsson
-- Add additional test coverage by @piksel
 - Add IFTTT webhook service by @piksel
-- Add missing documentation by @piksel
+- Implement templating and multipart messages by @piksel
 - Add queued sender implementation by @piksel
-- Add missing go docs by @piksel
 - Add pushbullet embryo by @simonaronsson
 - Add plugin interfaces by @piksel
+- Extend SMTP plugin support by @piksel
 - Add simple smtp implementation by @piksel
 - Add basic smtp plugin by @piksel
-- Add teams routing by @simonaronsson
-- Add logic for msteams by @simonaronsson
-- Add discord, telegram, slack and pushover by @simonaronsson
-- Additional removal of logrus deps by @simonaronsson
-- Add rudimentary support for telegram by @simonaronsson
-- Add tagline to readme by @simonaronsson
-- Add badges by @simonaronsson
-- Add codacy integration by @simonaronsson
-- Add router and router tests by @simonaronsson
+
+### Fixed
+
+- Fix an incorrect printf and add a missing error check by @favonia
+- Fix param url by @keocheung
+- Fix param icon by @keocheung
+- Treat all 2xx http responses as success by @eoleedi
+- Dont treat plus in addresses as space by @piksel
+- Prevent mutation of params by @piksel
+- Remove duplicates so we don't send twice to the same service by @arnested
+- Update docs and generator for private channels by @piksel
+- Use `usestarttls` (match the docs) by @JosephKav
+- Handle token ending in / by @piksel
+- Text partitioning logic by @piksel
+- Message size fixes by @piksel
+- Limit attachments to 100 by @piksel
+- Update/remove unused dependencies by @piksel
+- Allow negative priority values by @piksel
+- Allow title to be passed as prop by @piksel
+- Remove extra semi in mime header by @piksel
+- Handle nil logger in client by @piksel
+- Replace props desc when empty by @piksel
+- Check for nil logger by @piksel
+- Use correct path in webhook URL by @piksel
+- Avoid mutating passed params by @piksel
+- Discord avatar override by @piksel
+- Rename hangouts to google chat by @arnested
+- Api changes for services in next by @piksel
+- Rename channel into webhook ID by @piksel
+- Allow title to be used as a Message by @piksel
+- Allow title to be used as a value by @piksel
+- Don't error when title prop is set by @piksel
+- Logging via interface and set/update using api by @piksel
+- Don't create meta embed when empty by @piksel
+- Include redirects when tls is disabled by @piksel
+- Skip unexported fields by @piksel
+- Add/update stray linting comments by @piksel
+- Fix generate compat by @piksel
+- Fix generate compat by @piksel
+- Fix payload root fields by @piksel
+- Array, hex and URL escaping by @piksel
+- Remove unsafe config constructor by @piksel
+- Remove unsafe config constructor by @piksel
+- Use better URL format and nicer output by @piksel
+- Use attachments and add title and color fields by @piksel
+- Use StringArray flag for url to not split on commas by @piksel
+- Make xmpp compatible with latest version by @piksel
+- Resolve outstanding golint errors by @piksel
+- Add date header and make enums public by @piksel
+- Send all devices in single request by @piksel
+- Use pkr for fields to make them settable from url by @piksel
+- Dont panic on send http errors by @piksel
+- Fix codacy badge by @simonaronsson
+- Handle errors better by @piksel
+- Correctly handle time outs in send by @piksel
+- Move xmpp service to the correct path by @piksel
+- Use reflect.Indirect on Config for PropKeyResolver.set by @sentriz
+- Config clone toAddresses by @sentriz
+- Display fields in sorted order by @piksel
+- Check for error before checking http.response
+- Fix for https://github.com/containrrr/shoutrrr/issues/70 by @ellisab
+- Use alpine CA certs to avoid dirty git state by @piksel
+- Add CA cert bundle to docker image by @piksel
+- Allow legacy CLI invocation and fix generate by @piksel
+- Check for StartTLS support before requesting it by @piksel
+- Fix typo by @simonaronsson
+- Fix linting issues by @simonaronsson
+- Fix env var resolution for verify and generate by @simonaronsson
+- Fix errors by @simonaronsson
+- Fix viper resolution and send args by @simonaronsson
+- Fix error handling for telegram API by @piksel
+- Fixed tests
+- Fix spelling some more by @simonaronsson
+- Fix spelling by @simonaronsson
+- Fix issues reported by goreportcard by @simonaronsson
+- Fix formatting by @simonaronsson
+- Fix logo link by @simonaronsson
+- Fix referencing issue with the discord config by @simonaronsson
+- Lint error by @MrLuje
+- Update golang.org/x/xerrors by @MrLuje
+- Improve test coverage by @simonaronsson
+- Fix codacy warnings by @simonaronsson
+- Add shebang to build script by @piksel
+- Additional lint fixes by @piksel
+- Additional updates to broken parts of API by @piksel
+- Remade API since the prior one was really broken by @piksel
+- Simplify template API and make it optional by @piksel
+- Using new API changes by @piksel
+- Fix codacy warnings by @simonaronsson
+- Fix codacy issues by @simonaronsson
+- Fix sprintf error by @simonaronsson
+- Fix codacy issues by @simonaronsson
+- Fix readme by @simonaronsson
+- Fix blank line issue by @simonaronsson
 
 ### Changed
 
 - Update docs.yaml to run after successful Release (Production) workflow by @nicholas-fedor
-- Merge pull request #18 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#18](https://github.com/nicholas-fedor/shoutrrr/pull/18)
-- Merge pull request #19 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#19](https://github.com/nicholas-fedor/shoutrrr/pull/19)
 - Revert path by @nicholas-fedor
+- Update Build workflow: add QEMU and refine attestation subject-path to archives only by @nicholas-fedor
 - Update goreleaser.yml by @nicholas-fedor
 - Move Dockerfile to dockerfiles directory by @nicholas-fedor
 - Update LICENSE to markdown by @nicholas-fedor
@@ -1890,53 +1947,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merge branch 'fork-update' by @nicholas-fedor in [#17](https://github.com/nicholas-fedor/shoutrrr/pull/17)
 - Refactor GetServiceConfig to remove unsafe package usage by @nicholas-fedor
 - Update fork by @nicholas-fedor
-- Merge pull request #5 from nicholas-fedor/renovate/alpine-3.x by @nicholas-fedor in [#5](https://github.com/nicholas-fedor/shoutrrr/pull/5)
-- Merge pull request #13 from nicholas-fedor/renovate/azure-docker-login-2.x by @nicholas-fedor in [#13](https://github.com/nicholas-fedor/shoutrrr/pull/13)
-- Merge pull request #14 from nicholas-fedor/renovate/codecov-codecov-action-5.x by @nicholas-fedor in [#14](https://github.com/nicholas-fedor/shoutrrr/pull/14)
-- Merge pull request #15 from nicholas-fedor/renovate/goreleaser-goreleaser-action-6.x by @nicholas-fedor in [#15](https://github.com/nicholas-fedor/shoutrrr/pull/15)
-- Merge pull request #1 from nicholas-fedor/renovate/configure by @nicholas-fedor in [#1](https://github.com/nicholas-fedor/shoutrrr/pull/1)
-- Mention usage in Green Orb by @atgreen
 - Set default client host by @piksel
-- Extra data and custom headers by @piksel
 - Update matrix docs to mention `title` caveat by @simonaronsson
-- Make Zulip documentation examples more consistent by @arnested
+- Add network-observe interface for snap by @simonaronsson
+- Add network plug to snap by @simonaronsson
 - Make the cli available as a snap by @simonaronsson
-- Fetch entire repo before pushing by @piksel
 - Cleanup and improve GitHub Actions by @arnested
-- Wrap errors by @arnested
 - Delete funding.yml by @simonaronsson
-- Send multiple messages when exceeding limits by @piksel
-- Update overview URL example by @piksel
-- Update telegram, matrix and cli output by @piksel
+- Add security policy by @piksel
 - Move CLI command to /shoutrrr by @arnested
-- Update url extraction docs by @piksel
 - Create pull_request_template.md by @simonaronsson
-- Set repo token creds by @piksel
+- Add general basic tests for services by @piksel
 - TLC by @piksel
-- Telegram generator/bot by @piksel
 - Mention the GitHub Action in the docs by @arnested
 - Use absolute path for entrypoint in Dockerfile by @arnested
-- Move non-released services to own section by @piksel
-- Use explicit edit URL pointing to default branch by @zoispag
-- Darken colors for increased contrast by @piksel
-- Update badges and reduce logo size by @piksel
-- Format engine overhaul by @piksel
-- Format update, preparations for rich message support by @piksel
-- Ground work for rich message support by @piksel
 - Create post-release.yml by @simonaronsson
-- Use custom theme colors by @piksel
+- Added few testcases for rawURL passed as path/#####channel  and path/#channel (used to segfault)
 - Do not rewrite channel name without hashes by @ellisab
+- Added custom port option for rocketchat
 - Fix for issue https://github.com/containrrr/shoutrrr/issues/71
 - Correct the ID part of webhook by @alii
-- Implement generator API and basic generator by @piksel
 - Allow sending of json messages to discord by @PssbleTrngle
-- Update paths to logotype by @piksel
+- Add teams docs by @simonaronsson
 - Merge pull request #32 from containrrr/fix/replace-cli by @simonaronsson
 - Merge branch 'master' into fix/replace-cli by @piksel
-- Update site_url to new apex domain by @piksel
+- Add multiple url example by @simonaronsson
 - Update README.md by @simonaronsson
 - Run ci on pull requests by @simonaronsson
 - Isolate the cli into it's own folder by @simonaronsson
+- Add root cmd by @simonaronsson
 - Reduce duplication by @simonaronsson
 - Switch cli to use cobra and viper by @simonaronsson
 - Execute from main file location by @simonaronsson
@@ -1953,57 +1992,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merge pull request #43 from containrrr/feature/join by @simonaronsson
 - Merge pull request #42 from arnested/dont-crash-on-no-senders by @simonaronsson
 - Return error when sending with no senders created by @arnested
-- Update nav menu with new services by @piksel
 - Merge pull request #41 from containrrr/docs/pushover by @simonaronsson
 - Merge pull request #40 from containrrr/feat/pushover-params by @simonaronsson
 - Merge pull request #39 from arnested/zulip by @simonaronsson
-- Update pushover URL format (again) by @piksel
-- Update pushover URL format by @piksel
 - Update main.yml by @simonaronsson
 - Update main.yml by @simonaronsson
+- Add codecov publish to ci by @simonaronsson
+- Add badges required by awesome-go by @simonaronsson
 - Merge pull request #29 from amirschnell/master by @simonaronsson
 - Corrected typos
+- Added mattermost documentation
 - Merge pull request #28 from arnested/fix-create-sernder-doc by @simonaronsson
 - Merge pull request #27 from arnested/hangouts-doc-navigation by @simonaronsson
 - Merge pull request #26 from containrrr/all-contributors/add-arnested by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Merge pull request #13 from arnested/hangouts-chat by @simonaronsson
 - Merge pull request #25 from containrrr/all-contributors/add-arnested by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Merge pull request #23 from mbrandau/patch-1 by @simonaronsson
 - Fix links by @mbrandau
 - Merge pull request #24 from containrrr/all-contributors/add-simskij by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Update README.md by @simonaronsson
 - Update README.md by @simonaronsson
 - Update README.md by @simonaronsson
 - Update README.md by @simonaronsson
 - Merge pull request #22 from containrrr/all-contributors/add-MrLuje by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Merge pull request #21 from containrrr/all-contributors/add-lukapeschke by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Merge pull request #20 from containrrr/all-contributors/add-piksel by @simonaronsson
-- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Merge pull request #19 from containrrr/all-contributors/add-amirschnell by @simonaronsson
-- Create .all-contributorsrc [skip ci] by @allcontributors[bot]
-- Update README.md [skip ci] by @allcontributors[bot]
 - Documentation by @mbrandau
 - Move import by @simonaronsson
-- Feat(services) add mattermost service
 - Shorten readme and point at the docs by @simonaronsson
 - Update README.md by @simonaronsson
 - Update README.md by @simonaronsson
 - Setup python 3
+- Remove godacov again by @simonaronsson
 - Deploy docs using mkocs
 - Merge pull request #10 from MrLuje/pushbullet by @simonaronsson
 - Typo & review by @MrLuje
-- Update readme by @MrLuje
 - Update main.yml by @simonaronsson
 - Update main.yml by @simonaronsson
 - Upgrade xerrors pkg by @simonaronsson
@@ -2014,39 +2038,149 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve test coverage for ifttt by @simonaronsson
 - Improve test coverage of pushover by @simonaronsson
 - Merge pull request #7 from lukapeschke/master by @simonaronsson
+- Add support for Gotify notifications by @lukapeschke
 - Update CONTRIBUTING.md by @simonaronsson
 - Create CONTRIBUTING.md by @simonaronsson
 - Update README.md by @simonaronsson
 - Fix Codacy badge in README.md by @simonaronsson
+- Add Codacy badge by @codacy-badger
 - Use Params type and simplify router API by @piksel
+- Add logo 🙏 by @simonaronsson
+- Fix fmt/lint/vet by @simonaronsson
 - Restructure and tidy up by @simonaronsson
+- Add gitter webhook by @simonaronsson
 - Fix lint/vet/code style and comments by @piksel
 - Reorder and remove unused code by @piksel
-- Implement templating and multipart messages by @piksel
-- Update comments for changed and added properties by @piksel
 - Split queryless and enumless config composites by @piksel
 - Move to new split api by @piksel
 - Move logging, add composites by @piksel
 - Update README.md by @simonaronsson
-- Change test runner to 'go test' by @piksel
 - Rename to service and cleanup interface by @simonaronsson
 - Merge branch 'master' of https://github.com/containrrr/shoutrrr into plugin-smtp by @piksel
 - Update README.md by @simonaronsson
-- Extend SMTP plugin support by @piksel
+- Add teams routing by @simonaronsson
 - Update README.md by @simonaronsson
+- Add logic for msteams by @simonaronsson
+- Remove idea folder by @simonaronsson
 - Cleanup discord as well by @simonaronsson
 - Clean up by @simonaronsson
 - Skip integration tests if env vars are missing by @simonaronsson
 - Make bogus token more obvious to prevent spam from GG by @simonaronsson
+- Remove weird errors import by @simonaronsson
+- Add discord, telegram, slack and pushover by @simonaronsson
+- Additional removal of logrus deps by @simonaronsson
+- Remove logrus from tests by @simonaronsson
+- Add rudimentary support for telegram by @simonaronsson
 - Mid refactoring by @simonaronsson
+- Add tagline to readme by @simonaronsson
 - Center badges by @simonaronsson
+- Add badges by @simonaronsson
 - Update README.md by @simonaronsson
+- Add codacy integration by @simonaronsson
 - Update README.md by @simonaronsson
+- Add router and router tests by @simonaronsson
 - Initial commit by @simonaronsson
+
+### Documentation
+
+- Mention usage in Green Orb by @atgreen
+- Fix outdated documentation by @favonia
+- Fix botched markdown tag by @piksel
+- Add home assistant example by @piksel
+- Make Zulip documentation examples more consistent by @arnested
+- Fetch entire repo before pushing by @piksel
+- Fix overview and add bark by @piksel
+- Add basic usage info by @piksel
+- Add JosephKav as a contributor for bug by @allcontributors[bot]
+- Add JosephKav as a contributor for code by @allcontributors[bot]
+- Add justinsteven as a contributor for bug by @allcontributors[bot]
+- Add darktohka as a contributor for code by @allcontributors[bot]
+- Update overview URL example by @piksel
+- Update telegram, matrix and cli output by @piksel
+- Update url extraction docs by @piksel
+- Fix references to `master` branch by @piksel
+- Add multi-version support by @piksel
+- Add basic service docs by @piksel
+- Move non-released services to own section by @piksel
+- Add missing pages, reorder and tidy up by @piksel
+- Fix broken markdown on index page by @piksel
+- Use explicit edit URL pointing to default branch by @zoispag
+- Darken colors for increased contrast by @piksel
+- Add related projects
+- Update badges and reduce logo size by @piksel
+- Add props usage by @piksel
+- Add claycooper as a contributor by @allcontributors[bot]
+- Fix link to overview by @claycooper
+- Add JonasPf as a contributor by @allcontributors[bot]
+- Fix generate docs and expand on getting started by @piksel
+- Add sentriz as a contributor [skip ci] by @allcontributors[bot]
+- Use custom theme colors by @piksel
+- Add proxy documentation by @piksel
+- Add ellisab as a contributor by @allcontributors[bot]
+- Add atighineanu as a contributor by @allcontributors[bot]
+- Update paths to logotype by @piksel
+- Add new vectorized logotype by @piksel
+- Update site_url to new apex domain by @piksel
+- Fix missing link by @piksel
+- Update nav menu with new services by @piksel
+- Add basic documentation by @piksel
+- Fix logotype url by @piksel
+- Add favicon and transparent logotype by @piksel
+- Fix path to logotype in mkdocs by @piksel
+- Add some branding to mkdocs by @piksel
+- Update pushover URL format (again) by @piksel
+- Update pushover URL format by @piksel
+- Add codehilite markdown extension by @piksel
+- Fix CreateSender() return values by @arnested
+- Add hangouts chat to navigation by @arnested
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Create .all-contributorsrc [skip ci] by @allcontributors[bot]
+- Update README.md [skip ci] by @allcontributors[bot]
+- Update readme by @MrLuje
+- Fix README links by @piksel
+- Fix logotype URL by @piksel
+- Add missing documentation by @piksel
+- Update comments for changed and added properties by @piksel
+- Add missing go docs by @piksel
+
+### Tests
+
+- Additional format tests/cleanup by @piksel
+- Add generator test by @piksel
+- Add basic renderer tests by @piksel
+- Add service compliance test suite by @piksel
+- Add tests for new params by @piksel
+- Add basic XMPP tests by @piksel
+- Add more test coverage and test utils by @piksel
+- Add additional test coverage by @piksel
+
+### Continuous Integration
+
+- Fix path to docs command by @piksel
+- Add manual dispatch by @piksel
+- Fix git cli syntax by @piksel
+- Set repo token creds by @piksel
+- Add git settings for mkdocs by @piksel
+- Fix mkdocs material clone by @piksel
+- Fix goreleaser config for new cli by @piksel
+- Change test runner to 'go test' by @piksel
 
 ### Chores
 
+- Merge pull request #18 from nicholas-fedor/renovate/codecov-codecov-action-digest by @nicholas-fedor in [#18](https://github.com/nicholas-fedor/shoutrrr/pull/18)
 - Update codecov/codecov-action digest to 2488e99 by @renovate[bot]
+- Merge pull request #19 from nicholas-fedor/renovate/golangci-golangci-lint-action-digest by @nicholas-fedor in [#19](https://github.com/nicholas-fedor/shoutrrr/pull/19)
 - Update golangci/golangci-lint-action digest to 7b561e5 by @renovate[bot]
 - Merge pull request #16 from nicholas-fedor/renovate/golang.org-x-oauth2-0.x by @nicholas-fedor in [#16](https://github.com/nicholas-fedor/shoutrrr/pull/16)
 - Update module golang.org/x/oauth2 to v0.27.0 by @renovate[bot]
@@ -2062,9 +2196,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module github.com/spf13/viper to v1.19.0 by @renovate[bot]
 - Merge pull request #8 from nicholas-fedor/renovate/github.com-onsi-gomega-1.x by @nicholas-fedor in [#8](https://github.com/nicholas-fedor/shoutrrr/pull/8)
 - Update module github.com/onsi/gomega to v1.36.2 by @renovate[bot]
+- Merge pull request #5 from nicholas-fedor/renovate/alpine-3.x by @nicholas-fedor in [#5](https://github.com/nicholas-fedor/shoutrrr/pull/5)
 - Update alpine docker tag to v3.21.3 by @renovate[bot]
+- Merge pull request #13 from nicholas-fedor/renovate/azure-docker-login-2.x by @nicholas-fedor in [#13](https://github.com/nicholas-fedor/shoutrrr/pull/13)
 - Update azure/docker-login action to v2 by @renovate[bot]
+- Merge pull request #14 from nicholas-fedor/renovate/codecov-codecov-action-5.x by @nicholas-fedor in [#14](https://github.com/nicholas-fedor/shoutrrr/pull/14)
 - Update codecov/codecov-action action to v5 by @renovate[bot]
+- Merge pull request #15 from nicholas-fedor/renovate/goreleaser-goreleaser-action-6.x by @nicholas-fedor in [#15](https://github.com/nicholas-fedor/shoutrrr/pull/15)
 - Update goreleaser/goreleaser-action action to v6 by @renovate[bot]
 - Merge pull request #12 from nicholas-fedor/renovate/golang.org-x-oauth2-0.x by @nicholas-fedor in [#12](https://github.com/nicholas-fedor/shoutrrr/pull/12)
 - Update module golang.org/x/oauth2 to v0.26.0 by @renovate[bot]
@@ -2072,6 +2210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update module github.com/jarcoal/httpmock to v1.3.1 by @renovate[bot]
 - Merge pull request #3 from nicholas-fedor/renovate/github.com-mattn-go-colorable-0.x by @nicholas-fedor in [#3](https://github.com/nicholas-fedor/shoutrrr/pull/3)
 - Update module github.com/mattn/go-colorable to v0.1.14 by @renovate[bot]
+- Merge pull request #1 from nicholas-fedor/renovate/configure by @nicholas-fedor in [#1](https://github.com/nicholas-fedor/shoutrrr/pull/1)
 - Add renovate.json by @renovate[bot]
 - Bump actions/setup-python from 4 to 5 by @dependabot[bot]
 - Bump actions/setup-go from 4 to 5 by @dependabot[bot]
@@ -2106,125 +2245,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move deploy docs to separate workflow by @piksel
 - Reduce cyclomatic complexity for failures by @simonaronsson
 - Move kind comparisons to util by @simonaronsson
-
-### Fixed
-
-- Fix outdated documentation by @favonia
-- Fix an incorrect printf and add a missing error check by @favonia
-- Fix param url by @keocheung
-- Fix botched markdown tag by @piksel
-- Fix param icon by @keocheung
-- Treat all 2xx http responses as success by @eoleedi
-- Dont treat plus in addresses as space by @piksel
-- Prevent mutation of params by @piksel
-- Remove duplicates so we don't send twice to the same service by @arnested
-- Fix overview and add bark by @piksel
-- Update docs and generator for private channels by @piksel
-- Use `usestarttls` (match the docs) by @JosephKav
-- Handle token ending in / by @piksel
-- Text partitioning logic by @piksel
-- Message size fixes by @piksel
-- Limit attachments to 100 by @piksel
-- Update/remove unused dependencies by @piksel
-- Fix path to docs command by @piksel
-- Allow negative priority values by @piksel
-- Allow title to be passed as prop by @piksel
-- Remove extra semi in mime header by @piksel
-- Handle nil logger in client by @piksel
-- Replace props desc when empty by @piksel
-- Fix references to `master` branch by @piksel
-- Check for nil logger by @piksel
-- Use correct path in webhook URL by @piksel
-- Avoid mutating passed params by @piksel
-- Fix git cli syntax by @piksel
-- Fix mkdocs material clone by @piksel
-- Discord avatar override by @piksel
-- Rename hangouts to google chat by @arnested
-- Api changes for services in next by @piksel
-- Rename channel into webhook ID by @piksel
-- Allow title to be used as a Message by @piksel
-- Allow title to be used as a value by @piksel
-- Don't error when title prop is set by @piksel
-- Logging via interface and set/update using api by @piksel
-- Fix broken markdown on index page by @piksel
-- Don't create meta embed when empty by @piksel
-- Include redirects when tls is disabled by @piksel
-- Fix link to overview by @claycooper
-- Skip unexported fields by @piksel
-- Add/update stray linting comments by @piksel
-- Fix generate compat by @piksel
-- Fix generate compat by @piksel
-- Fix payload root fields by @piksel
-- Array, hex and URL escaping by @piksel
-- Remove unsafe config constructor by @piksel
-- Remove unsafe config constructor by @piksel
-- Use better URL format and nicer output by @piksel
-- Use attachments and add title and color fields by @piksel
-- Use StringArray flag for url to not split on commas by @piksel
-- Make xmpp compatible with latest version by @piksel
-- Resolve outstanding golint errors by @piksel
-- Add date header and make enums public by @piksel
-- Send all devices in single request by @piksel
-- Fix generate docs and expand on getting started by @piksel
-- Use pkr for fields to make them settable from url by @piksel
-- Dont panic on send http errors by @piksel
-- Fix codacy badge by @simonaronsson
-- Handle errors better by @piksel
-- Correctly handle time outs in send by @piksel
-- Move xmpp service to the correct path by @piksel
-- Use reflect.Indirect on Config for PropKeyResolver.set by @sentriz
-- Config clone toAddresses by @sentriz
-- Display fields in sorted order by @piksel
-- Check for error before checking http.response
-- Fix for https://github.com/containrrr/shoutrrr/issues/70 by @ellisab
-- Use alpine CA certs to avoid dirty git state by @piksel
-- Add CA cert bundle to docker image by @piksel
-- Fix goreleaser config for new cli by @piksel
-- Allow legacy CLI invocation and fix generate by @piksel
-- Check for StartTLS support before requesting it by @piksel
-- Fix typo by @simonaronsson
-- Fix linting issues by @simonaronsson
-- Fix env var resolution for verify and generate by @simonaronsson
-- Fix errors by @simonaronsson
-- Fix viper resolution and send args by @simonaronsson
-- Fix error handling for telegram API by @piksel
-- Fixed tests
-- Fix missing link by @piksel
-- Fix logotype url by @piksel
-- Fix path to logotype in mkdocs by @piksel
-- Fix spelling some more by @simonaronsson
-- Fix spelling by @simonaronsson
-- Fix issues reported by goreportcard by @simonaronsson
-- Fix formatting by @simonaronsson
-- Fix CreateSender() return values by @arnested
-- Fix logo link by @simonaronsson
-- Fix referencing issue with the discord config by @simonaronsson
-- Lint error by @MrLuje
-- Update golang.org/x/xerrors by @MrLuje
-- Improve test coverage by @simonaronsson
-- Fix codacy warnings by @simonaronsson
-- Fix README links by @piksel
-- Fix logotype URL by @piksel
-- Add shebang to build script by @piksel
-- Additional lint fixes by @piksel
-- Fix fmt/lint/vet by @simonaronsson
-- Additional updates to broken parts of API by @piksel
-- Remade API since the prior one was really broken by @piksel
-- Simplify template API and make it optional by @piksel
-- Using new API changes by @piksel
-- Fix codacy warnings by @simonaronsson
-- Fix codacy issues by @simonaronsson
-- Fix sprintf error by @simonaronsson
-- Fix codacy issues by @simonaronsson
-- Fix readme by @simonaronsson
-- Fix blank line issue by @simonaronsson
-
-### Removed
-
-- Remove godacov again by @simonaronsson
-- Remove idea folder by @simonaronsson
-- Remove weird errors import by @simonaronsson
-- Remove logrus from tests by @simonaronsson
 
 ### New Contributors
 
