@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Read every flag from the environment and stop prompts at end of input by @nicholas-fedor in [#1481](https://github.com/nicholas-fedor/shoutrrr/pull/1481)
 - Honor proxy environment variables in default http clients by @nicholas-fedor in [#1479](https://github.com/nicholas-fedor/shoutrrr/pull/1479)
 - Match the capability interfaces the router dispatches on by @nicholas-fedor in [#1459](https://github.com/nicholas-fedor/shoutrrr/pull/1459)
 - Apply send params to a per-send config copy by @nicholas-fedor in [#1455](https://github.com/nicholas-fedor/shoutrrr/pull/1455)
