@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Return send errors in url order by @nicholas-fedor in [#1424](https://github.com/nicholas-fedor/shoutrrr/pull/1424)
 - Stop custom url panic and url leaks by @nicholas-fedor in [#1422](https://github.com/nicholas-fedor/shoutrrr/pull/1422)
 
+### Documentation
+
+- Document SendContext for per-send params by @nicholas-fedor in [#1487](https://github.com/nicholas-fedor/shoutrrr/pull/1487)
+
 ### Tests
 
 - Stop unit tests from sending dns queries by @nicholas-fedor in [#1466](https://github.com/nicholas-fedor/shoutrrr/pull/1466)
