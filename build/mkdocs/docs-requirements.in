@@ -1,0 +1,12 @@
+# Documentation tooling for the Publish Documentation workflow.
+#
+# docs-requirements.txt pins these packages and their dependencies to exact
+# versions and hashes. After editing this file, regenerate it with:
+#
+#   uv pip compile build/mkdocs/docs-requirements.in --generate-hashes --universal \
+#     --python-version 3.14 --output-file build/mkdocs/docs-requirements.txt
+mkdocs
+mkdocs-material
+mkdocs-git-revision-date-localized-plugin
+mkdocs-minify-plugin
+mike
