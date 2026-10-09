@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -164,12 +165,10 @@ func (s *Service) newAPIClient() jsonclient.ContextClient {
 func (s *Service) newDefaultHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout: HTTPTimeout * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: s.Config.DisableTLSVerification,
-				MinVersion:         tls.VersionTLS12,
-			},
-		},
+		Transport: transport.New(&tls.Config{
+			InsecureSkipVerify: s.Config.DisableTLSVerification,
+			MinVersion:         tls.VersionTLS12,
+		}),
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -40,6 +41,16 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// It builds the default HTTP client, whose transport honors the proxy
+// environment variables and enforces TLS 1.2 or later unless TLS is disabled.
+//
+// Parameters:
+//   - serviceURL: the Mattermost service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error when the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -50,24 +61,28 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	var transport *http.Transport
-	if s.Config.DisableTLS {
-		transport = &http.Transport{} // Plain HTTP
-	} else {
-		transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,            // Explicitly safe when TLS is enabled
-				MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
-			},
+	var tlsConfig *tls.Config
+	if !s.Config.DisableTLS {
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: false,            // Explicitly safe when TLS is enabled
+			MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
 		}
 	}
 
-	s.httpClient = &http.Client{Transport: transport}
+	s.httpClient = &http.Client{Transport: transport.New(tlsConfig)}
 
 	return nil
 }
 
 // Send delivers a notification message to Mattermost.
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params, payload, or request error, or [ErrSendFailed] for an
+//     error status.
 func (s *Service) Send(message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
@@ -103,13 +118,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	client := s.httpClient
 	if client == nil {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
-				MinVersion:         tls.VersionTLS12,
-			},
-		}
-		client = &http.Client{Transport: transport}
+		client = &http.Client{Transport: transport.New(&tls.Config{
+			InsecureSkipVerify: false,
+			MinVersion:         tls.VersionTLS12,
+		})}
 	}
 
 	res, err := client.Do(req)

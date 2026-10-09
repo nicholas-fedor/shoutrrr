@@ -1628,10 +1628,11 @@ func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
 }
 
 // TestGotify runs the Ginkgo test suite for the Gotify package.
+//
+//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
 func TestGotify(t *testing.T) {
 	// Register gomega handler before any parallel tests run
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	t.Parallel()
 	ginkgo.RunSpecs(t, "Shoutrrr Gotify Suite")
 }
 
@@ -1646,9 +1647,9 @@ func TestMain(m *testing.M) {
 }
 
 // TestSend tests basic message sending functionality.
+//
+//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
 func TestSend(t *testing.T) {
-	t.Parallel()
-
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)
@@ -1688,9 +1689,9 @@ func TestSend(t *testing.T) {
 }
 
 // TestSendWithPriority tests sending a message with a custom priority.
+//
+//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
 func TestSendWithPriority(t *testing.T) {
-	t.Parallel()
-
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)
@@ -1743,9 +1744,9 @@ func TestSendWithPriority(t *testing.T) {
 }
 
 // TestSendWithTitle tests sending a message with a custom title.
+//
+//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
 func TestSendWithTitle(t *testing.T) {
-	t.Parallel()
-
 	service := &Service{}
 	logger := log.New(os.Stderr, "Test", log.LstdFlags)
 	service.SetLogger(logger)

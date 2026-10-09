@@ -30,6 +30,9 @@ type Service struct {
 // JSONTemplate identifies the JSON format for webhook payloads.
 const (
 	JSONTemplate = "JSON"
+	// defaultSendTimeout bounds a direct Send, matching the send budget the router
+	// gives the service by default.
+	defaultSendTimeout = types.DefaultSendTimeout
 )
 
 // ErrSendFailed indicates a failure to send a notification to the generic webhook.
@@ -42,6 +45,7 @@ var (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 	_ types.CustomURLService = (*Service)(nil)
@@ -123,7 +127,36 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to a generic webhook endpoint.
+//
+// It delegates to [Service.SendContext] with a context that ends after
+// [defaultSendTimeout], so a stalled webhook cannot block the send.
+//
+// Parameters:
+//   - message: the message to send.
+//   - paramsPtr: optional send params, which fill the payload template and may
+//     override configuration fields.
+//
+// Returns:
+//   - error: [ErrSendFailed] wrapping the payload or request error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultSendTimeout)
+	defer cancel()
+
+	return s.SendContext(ctx, message, paramsPtr)
+}
+
+// SendContext delivers a notification message to a generic webhook endpoint.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - paramsPtr: optional send params, which fill the payload template and may
+//     override configuration fields.
+//
+// Returns:
+//   - error: [ErrSendFailed] wrapping the payload or request error, which matches
+//     ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
 	// Create a copy of the config to avoid modifying the original
 	config := *s.Config
 
@@ -142,7 +175,7 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 
 	// Prepare parameters for sending
 	sendParams := createSendParams(&config, params, message)
-	if err := s.doSend(&config, sendParams); err != nil {
+	if err := s.doSend(ctx, &config, sendParams); err != nil {
 		// Execute the HTTP request to send the notification
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
@@ -168,7 +201,15 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // doSend executes the HTTP request to send a notification to the webhook.
-func (s *Service) doSend(config *Config, params types.Params) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - config: the configuration for this send.
+//   - params: the send params, which fill the payload template.
+//
+// Returns:
+//   - error: the payload or request error, or [ErrUnexpectedStatus] for an error status.
+func (s *Service) doSend(ctx context.Context, config *Config, params types.Params) error {
 	// Get the webhook URL as string
 	postURL := config.WebhookURL().String()
 
@@ -177,9 +218,6 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 	if err != nil {
 		return err
 	}
-
-	// Create background context for the request
-	ctx := context.Background()
 
 	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, config.RequestMethod, postURL, payload)
@@ -206,7 +244,7 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 
 	client := s.httpClient
 	if client == nil {
-		client = &http.Client{}
+		client = newDefaultHTTPClient()
 	}
 
 	// Send the HTTP request
@@ -250,4 +288,14 @@ func createSendParams(config *Config, params types.Params, message string) types
 	sendParams[config.MessageKey] = message
 
 	return sendParams
+}
+
+// newDefaultHTTPClient returns the client used when none is injected. It uses
+// [http.DefaultTransport], so it honors the proxy environment variables. It has
+// no timeout of its own, because the send context bounds each request.
+//
+// Returns:
+//   - *http.Client: a client without a timeout.
+func newDefaultHTTPClient() *http.Client {
+	return &http.Client{}
 }

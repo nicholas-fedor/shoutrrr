@@ -238,7 +238,6 @@ var allowlist = map[string]map[string]knownFailure{
 	},
 	checkSendUsesContext: {
 		"bark":          {"F12: requests do not carry the caller's context", failContextDropped},
-		"generic":       {"F12: requests do not carry the caller's context", failContextDropped},
 		"googlechat":    {"F12: requests do not carry the caller's context", failContextDropped},
 		"hangouts":      {"F12: requests do not carry the caller's context", failContextDropped},
 		"homeassistant": {"F12: requests do not carry the caller's context", failContextDropped},

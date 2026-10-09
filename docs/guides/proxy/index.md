@@ -12,10 +12,11 @@ Shoutrrr supports proxying HTTP requests for notification services, allowing you
 
 ### Environment Variable
 
-Set the `HTTP_PROXY` environment variable to the proxy URL.
-This applies to all HTTP-based services used by Shoutrrr that rely on the default transport.
+Set the `HTTPS_PROXY` environment variable to the proxy URL for services that use HTTPS, which is most of them, and `HTTP_PROXY` for services configured to use plain HTTP. Hosts listed in `NO_PROXY` are reached directly.
+Every HTTP-based service honors these variables when it uses its own default client.
 
-```bash title="Set HTTP_PROXY Environment Variable"
+```bash title="Set the Proxy Environment Variables"
+export HTTPS_PROXY="socks5://localhost:1337"
 export HTTP_PROXY="socks5://localhost:1337"
 ```
 
@@ -124,7 +125,7 @@ func main() {
 
 !!! Example
     ```bash title="Set Proxy and Send Notification"
-    export HTTP_PROXY="socks5://localhost:1337"
+    export HTTPS_PROXY="socks5://localhost:1337"
     shoutrrr send --url "discord://abc123@123456789" --message "Hello via proxy!"
     ```
 
@@ -203,7 +204,10 @@ func main() {
 
 ## Notes
 
-- **Environment Variable**: `HTTP_PROXY` supports protocols like `http`, `https`, or `socks5`. It affects all HTTP-based services globally.
+- **Environment Variables**: `HTTPS_PROXY` applies to HTTPS requests and `HTTP_PROXY` to plain HTTP requests. Both
+  accept `http`, `https`, or `socks5` proxy URLs, and `NO_PROXY` lists hosts to reach directly. Go reads them once,
+  when the process sends its first HTTP request, so set them before starting the application. They affect every
+  HTTP-based service that uses its own default client.
 - **Custom HTTP Client**: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.
 - **Custom DialContext**: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use `HTTPClient`.
 - **Service Compatibility**: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).

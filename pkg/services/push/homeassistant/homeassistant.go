@@ -13,6 +13,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -124,8 +125,10 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 
 // newHTTPClient returns the default HTTP client for Home Assistant requests.
 //
+// The transport honors the proxy environment variables.
+//
 // Returns:
-//   - An HTTP client with a 10s timeout, TLS 1.2 minimum, and optional skip-verify.
+//   - types.HTTPClient: a client with a 10s timeout, TLS 1.2 minimum, and optional skip-verify.
 func (s *Service) newHTTPClient() types.HTTPClient {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if s.Config != nil && s.Config.SkipTLSVerify {
@@ -135,10 +138,8 @@ func (s *Service) newHTTPClient() types.HTTPClient {
 	}
 
 	return &http.Client{
-		Timeout: defaultHTTPTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
+		Timeout:   defaultHTTPTimeout,
+		Transport: transport.New(tlsConfig),
 	}
 }
 
