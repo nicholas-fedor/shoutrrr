@@ -20,8 +20,15 @@ import "github.com/nicholas-fedor/shoutrrr"
 
 Sends a notification to a single service URL.
 
-- **Function**: `shoutrrr.Send(url string, message string) error`
-- **Behavior**: Initializes a service from the provided URL, sends the message, and returns any error.
+- **Functions**:
+  - `shoutrrr.Send(url string, message string) error`
+  - `shoutrrr.SendContext(ctx context.Context, url string, message string, params *types.Params) error`
+- **Behavior**: Initializes a service from the provided URL, sends the message within the service's send budget, closes
+  the service, and returns any error. A send failure wraps a `*types.TargetError`, which names the service but never
+  includes the URL, so it is safe to log. Use `errors.As` to get it. An invalid or unsupported URL returns an ordinary
+  wrapped error instead.
+- **Parameters**: `Send` takes no parameters. Use `SendContext` to pass parameters such as a title, and to cancel the
+  send or bound it with a deadline. `params` may be `nil`.
 
 !!! Example
     ```go title="Send to a Single Slack URL"
@@ -32,39 +39,78 @@ Sends a notification to a single service URL.
     }
     ```
 
+<!-- markdownlint-disable -->
+!!! Example
+    ```go title="Send with a Title and a Deadline"
+    import (
+        "context"
+        "fmt"
+        "time"
+
+        "github.com/nicholas-fedor/shoutrrr"
+        "github.com/nicholas-fedor/shoutrrr/pkg/types"
+    )
+
+    func notify(url string) error {
+        ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+        defer cancel()
+
+        params := types.Params{}
+        params.SetTitle("Alert")
+
+        if err := shoutrrr.SendContext(ctx, url, "System alert!", &params); err != nil {
+            return fmt.Errorf("sending alert: %w", err)
+        }
+
+        return nil
+    }
+    ```
+<!-- markdownlint-restore -->
+
 ### Sender
 
 Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support message queuing, and allow parameter customization.
 
-- **Function**: `shoutrrr.CreateSender(urls ...string) (*ServiceRouter, error)`
-- **With options**: `shoutrrr.NewSenderWithOptions` / `CreateSenderWithOptions` accept `types.SenderOptions`. `HTTPClient` is injected into HTTP services. `DialContext` is injected into TCP services that implement `types.DialContextSetter`. `shoutrrr.Send` cannot take these options.
+- **Function**: `shoutrrr.CreateSenderWithOptions(opts types.SenderOptions, urls ...string) (*ServiceRouter, error)`.
+  `shoutrrr.NewSenderWithOptions` also takes a logger. `CreateSender` and `NewSender` are deprecated.
+- **Options**: `types.SenderOptions{}` uses the defaults. `HTTPClient` is injected into HTTP services. `DialContext` is injected into TCP services that implement `types.DialContextSetter`. `shoutrrr.Send` and `shoutrrr.SendContext` cannot take these options.
 - **Methods**:
   - `Send(message string, params *types.Params) []error`: Sends a message to all configured services.
+  - `SendContext(ctx context.Context, message string, params *types.Params) []error`: Like `Send`, and returns
+    when `ctx` is canceled or its deadline passes.
   - `SendItems(items []types.MessageItem, params types.Params) []error`: Sends structured message items to services that support rich formatting.
+  - `SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) []error`: Like
+    `SendItems`, bounded by `ctx`.
   - `SendAsync(message string, params *types.Params) chan error`: Sends a message asynchronously and returns a channel of errors.
-  - `Enqueue(message string, v ...interface{})`: Queues a formatted message for later sending.
+  - `Enqueue(message string, v ...any)`: Queues a formatted message for later sending.
   - `Flush(params *types.Params)`: Sends all queued messages and resets the queue.
-- **Behavior**: Deduplicates URLs, initializes services, and sends asynchronously.
+  - `Close() error`: Closes services that hold resources between sends, such as MQTT connections.
+- **Behavior**: Initializes a service for each URL and sends to all of them concurrently. `Send`, `SendContext`,
+  `SendItems`, and `SendItemsContext` return one entry per configured URL, in the same order, and the entry is `nil`
+  when that send succeeded.
 
+<!-- markdownlint-disable -->
 !!! Example
     ```go title="Create Sender with Multiple URLs"
     urls := []string{
         "slack://token-a/token-b/token-c",
         "telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel",
     }
-    sender, err := shoutrrr.CreateSender(urls...)
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
     if err != nil {
         log.Fatal(err)
     }
+    defer sender.Close()
+
     params := types.Params{}
     params.SetTitle("Test Notification")
-    errs := sender.Send("Hello, world!", &params)
-    if len(errs) > 0 {
-        for _, err := range errs {
-            fmt.Println("Error:", err)
+    for i, err := range sender.Send("Hello, world!", &params) {
+        if err != nil {
+            fmt.Printf("Error sending to URL %d: %v\n", i, err)
         }
     }
     ```
+<!-- markdownlint-restore -->
 
 ### Message Queuing
 
@@ -76,7 +122,7 @@ Allows queuing messages for deferred sending, useful for aggregating notificatio
 !!! Example
     ```go title="Queue and Flush Notifications"
     url := "discord://abc123@123456789"
-    sender, err := shoutrrr.CreateSender(url)
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
     if err != nil {
         log.Fatal(err)
     }
@@ -106,7 +152,7 @@ Services that do not implement `RichSender` fall back to plain text automaticall
         {Text: "Deployment complete", Level: types.Info},
         {Text: "Rollback available", Level: types.Warning},
     }
-    sender, err := shoutrrr.CreateSender("discord://webhook")
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://token@webhookid")
     if err != nil {
         log.Fatal(err)
     }
@@ -115,12 +161,19 @@ Services that do not implement `RichSender` fall back to plain text automaticall
 
 ### Context Propagation
 
-Services that implement `types.ContextSender` or `types.ContextAttachmentSender` receive a `context.Context` derived from the router's base context with a per-service timeout.
-This enables cancellation and deadline propagation without changing the existing `Sender` or `RichSender` contracts.
+`shoutrrr.SendContext`, `ServiceRouter.SendContext`, and `ServiceRouter.SendItemsContext` take a caller context.
+Services that implement `types.ContextSender` or `types.ContextAttachmentSender` receive a context derived from it with
+the service's send budget, so cancellation and deadlines stop their requests. For other services, the call returns when
+the context ends, and the service's error reports the context's error. `Send` and `SendItems` use a background context.
 
 ### Per-Target Errors
 
-`*ServiceRouter.Send`, `*ServiceRouter.SendAsync`, `*ServiceRouter.SendItems`, and `*ServiceRouter.Route` return one error per unique configured target, in the deduplicated target order produced by `CreateSender`. Each error is wrapped in `*types.TargetError`, which carries the service URL/ID and supports `errors.Unwrap`, `errors.Is`, and `errors.As`.
+`*ServiceRouter.Send`, `SendContext`, `SendItems`, and `SendItemsContext` return one entry per configured URL, in the
+order the URLs were given, and the entry is `nil` when that send succeeded. `SendAsync` reports the errors in the order
+the sends finish. `Route` and `shoutrrr.SendContext` return a single error. A failed send is a `*types.TargetError`, or wraps
+one, so use `errors.As` to get it. Its `URL` field holds the service ID (such as `discord`) and its `Index` field holds
+the URL's position. It never contains the service URL, so it is safe to log, and it supports `errors.Unwrap` and
+`errors.Is`. Creating a sender and locating a service return ordinary wrapped errors, not a `*types.TargetError`.
 
 !!! Example
     ```go title="Handle Per-Target Errors"
@@ -131,7 +184,7 @@ This enables cancellation and deadline propagation without changing the existing
         }
         var targetErr *types.TargetError
         if errors.As(err, &targetErr) {
-            log.Printf("failed to send to %s: %v", targetErr.URL, targetErr.Err)
+            log.Printf("failed to send to URL %d (%s): %v", i, targetErr.URL, targetErr.Err)
         }
     }
     ```
@@ -147,7 +200,7 @@ The default is `Info`.
     params := types.Params{}
     params.SetLevel(types.Warning)
     params.SetTitle("Disk usage high")
-    sender, err := shoutrrr.CreateSender("discord://webhook")
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://token@webhookid")
     if err != nil {
         log.Fatal(err)
     }
@@ -190,17 +243,10 @@ if services.SupportsSchema("discord") {
 !!! Example
     ```go title="Send with Title and Error Handling"
     url := "discord://abc123@123456789"
-    sender, err := shoutrrr.CreateSender(url)
-    if err != nil {
-        log.Fatal(err)
-    }
     params := types.Params{}
     params.SetTitle("Alert")
-    errs := sender.Send("System alert!", &params)
-    if len(errs) > 0 {
-        for _, err := range errs {
-            fmt.Println("Error:", err)
-        }
+    if err := shoutrrr.SendContext(context.Background(), url, "System alert!", &params); err != nil {
+        fmt.Println("Error:", err)
     }
     ```
 
@@ -220,7 +266,7 @@ if services.SupportsSchema("discord") {
         "slack://token-a/token-b/token-c",
         "discord://abc123@123456789",
     }
-    sender, err := shoutrrr.CreateSender(urls...)
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
     if err != nil {
         log.Fatal(err)
     }
@@ -244,7 +290,12 @@ if services.SupportsSchema("discord") {
 
 ## Notes
 
-- **Error Handling**: `Send` returns a single error. `Sender.Send`, `SendItems`, and `SendAsync` return one error per service. Check `len(errs) > 0` to handle failures. Each error is wrapped in `*types.TargetError` with the service URL.
-- **Parameters**: `params` is a `*types.Params` value for `Send`, `SendAsync`, and `Flush`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
+- **Error Handling**: `shoutrrr.Send` and `shoutrrr.SendContext` return a single error. `Sender.Send`, `SendContext`,
+  `SendItems`, and `SendItemsContext` return one entry per URL, `nil` on success, so check each entry rather than the
+  length of the slice. A failed send is or wraps a `*types.TargetError` naming the service, never its URL, so use
+  `errors.As` to get it. Creating a sender and locating a service return ordinary wrapped errors.
+- **Parameters**: `params` is a `*types.Params` value for `Send`, `SendContext`, `SendAsync`, and `Flush`, including
+  `shoutrrr.SendContext`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
 - **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service.
-- **Deduplication**: Duplicate URLs are automatically removed when creating a `Sender`.
+- **Duplicate URLs**: A `Sender` sends to every URL it is given, including duplicates. The CLI's `send` command removes
+  duplicate URLs before sending.

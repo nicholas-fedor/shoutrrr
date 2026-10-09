@@ -142,9 +142,9 @@ shoutrrr send --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@w
 ```go
 import "github.com/nicholas-fedor/shoutrrr"
 
-errs := shoutrrr.Send("slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook", "Hello, Slack!")
-if len(errs) > 0 {
-    // Handle errors
+err := shoutrrr.Send("slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook", "Hello, Slack!")
+if err != nil {
+    // Handle the error
 }
 ```
 
@@ -167,32 +167,57 @@ url := "slack://token-a/token-b/token-c"
 err := shoutrrr.Send(url, "Hello world (or slack channel) !")
 ```
 
+To pass parameters such as a title, or to cancel the send, use `shoutrrr.SendContext`:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+params := types.Params{}
+params.SetTitle("Alert")
+err := shoutrrr.SendContext(ctx, url, "Hello world (or slack channel) !", &params)
+```
+
 #### Option 2 - Using a sender
 
 ##### Single URL
 
 ```go
 url := "slack://token-a/token-b/token-c"
-sender, err := shoutrrr.CreateSender(url)
+sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
+if err != nil {
+    log.Fatal(err)
+}
 params := types.Params{}
-sender.Send("Hello world (or slack channel) !", &params)
+for i, err := range sender.Send("Hello world (or slack channel) !", &params) { // one entry per URL, nil on success
+    if err != nil {
+        log.Printf("failed to send to URL %d: %v", i, err)
+    }
+}
 ```
 
 ##### Multiple URLs
 
 ```go
-urls := []string {
-  "slack://token-a/token-b/token-c"
-  "discord://token@channel"
+urls := []string{
+    "slack://token-a/token-b/token-c",
+    "discord://token@channel",
 }
-sender, err := shoutrrr.CreateSender(urls...)
+sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
+if err != nil {
+    log.Fatal(err)
+}
 params := types.Params{}
-sender.Send("Hello world (or slack channel) !", &params)
+for i, err := range sender.Send("Hello world (or slack channel) !", &params) { // one entry per URL, nil on success
+    if err != nil {
+        log.Printf("failed to send to URL %d: %v", i, err)
+    }
+}
 ```
 
 ##### Custom HTTP Client and DialContext (SSRF / Egress Control)
 
-`shoutrrr.Send` cannot take these options. Use `NewSenderWithOptions` (or `CreateSenderWithOptions`).
+`shoutrrr.Send` and `shoutrrr.SendContext` cannot take these options. Use `NewSenderWithOptions` (or `CreateSenderWithOptions`).
 
 ```go
 import (
@@ -267,7 +292,7 @@ Services that do not implement `RichSender` fall back to plain text automaticall
 
 ##### Per-Target Errors
 
-`Sender.Send`, `*ServiceRouter.SendAsync`, and `*ServiceRouter.SendItems` return one error per unique configured target, in the deduplicated target order produced by `CreateSender`. Each error is wrapped in `*types.TargetError`, which carries the service URL/ID and supports `errors.Unwrap`, `errors.Is`, and `errors.As`:
+`Sender.Send`, `*ServiceRouter.SendItems`, and their `Context` variants return one result per configured URL, including duplicate URLs, in the order the URLs were given, and the result is `nil` when that send succeeded. `*ServiceRouter.SendAsync` reports one result per configured URL in the order the sends finish. A failed send is a `*types.TargetError`, or wraps one, so use `errors.As` to get it. Its `URL` field holds the service ID (such as `discord`), never the service URL, and its `Index` field holds the URL's position. It supports `errors.Unwrap` and `errors.Is`. Creating a sender and locating a service return ordinary wrapped errors:
 
 ```go
 errs := sender.Send("deploy complete", nil)
@@ -277,16 +302,14 @@ for i, err := range errs {
     }
     var targetErr *types.TargetError
     if errors.As(err, &targetErr) {
-        log.Printf("failed to send to %s: %v", targetErr.URL, targetErr.Err)
+        log.Printf("failed to send to URL %d (%s): %v", i, targetErr.URL, targetErr.Err)
     }
 }
 ```
 
 ##### Context Propagation
 
-Services that implement `types.ContextSender` or `types.ContextAttachmentSender` receive a `context.Context` derived from the router's base context with a per-service timeout.
-
-This enables cancellation and deadline propagation without changing the existing `Sender` or `RichSender` contracts.
+`shoutrrr.SendContext`, `*ServiceRouter.SendContext`, and `*ServiceRouter.SendItemsContext` take a caller context. Services that implement `types.ContextSender` or `types.ContextAttachmentSender` receive a context derived from it with the service's send budget, so cancellation and deadlines stop their requests. For other services, the call returns when the context ends, and the service's error reports the context's error.
 
 ##### Format Conversion
 

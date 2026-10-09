@@ -423,7 +423,7 @@ package main
 
 import (
     "log"
-    "github.com/containrrr/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr"
 )
 
 func main() {
@@ -442,9 +442,10 @@ func main() {
 package main
 
 import (
+    "context"
     "log"
-    "github.com/containrrr/shoutrrr"
-    "github.com/containrrr/shoutrrr/pkg/types"
+    "github.com/nicholas-fedor/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 func main() {
@@ -460,7 +461,7 @@ func main() {
         "client_url": "https://monitoring.example.com/alerts/123",
     }
     
-    err := shoutrrr.Send(url, "Production database is down", params)
+    err := shoutrrr.SendContext(context.Background(), url, "Production database is down", params)
     if err != nil {
         log.Fatal(err)
     }
@@ -473,10 +474,11 @@ func main() {
 package main
 
 import (
+    "context"
     "log"
     "time"
-    "github.com/containrrr/shoutrrr"
-    "github.com/containrrr/shoutrrr/pkg/types"
+    "github.com/nicholas-fedor/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 func handleIncident() {
@@ -489,7 +491,7 @@ func handleIncident() {
         "action":   "trigger",
     }
     
-    err := shoutrrr.Send(baseURL, "Web server unresponsive", triggerParams)
+    err := shoutrrr.SendContext(context.Background(), baseURL, "Web server unresponsive", triggerParams)
     if err != nil {
         log.Printf("Failed to trigger incident: %v", err)
         return
@@ -503,7 +505,7 @@ func handleIncident() {
         "action": "acknowledge",
     }
     
-    err = shoutrrr.Send(baseURL, "Engineer investigating server issue", ackParams)
+    err = shoutrrr.SendContext(context.Background(), baseURL, "Engineer investigating server issue", ackParams)
     if err != nil {
         log.Printf("Failed to acknowledge incident: %v", err)
         return
@@ -517,7 +519,7 @@ func handleIncident() {
         "action": "resolve",
     }
     
-    err = shoutrrr.Send(baseURL, "Web server restarted successfully", resolveParams)
+    err = shoutrrr.SendContext(context.Background(), baseURL, "Web server restarted successfully", resolveParams)
     if err != nil {
         log.Printf("Failed to resolve incident: %v", err)
         return
@@ -531,9 +533,10 @@ func handleIncident() {
 package main
 
 import (
+    "context"
     "log"
-    "github.com/containrrr/shoutrrr"
-    "github.com/containrrr/shoutrrr/pkg/types"
+    "github.com/nicholas-fedor/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 func sendRichIncident() {
@@ -570,7 +573,7 @@ func sendRichIncident() {
         "client_url": "https://github.com/org/repo/actions/runs/456",
     }
     
-    err := shoutrrr.Send(url, "CI/CD pipeline failed in production deployment", params)
+    err := shoutrrr.SendContext(context.Background(), url, "CI/CD pipeline failed in production deployment", params)
     if err != nil {
         log.Fatal(err)
     }
@@ -583,10 +586,10 @@ func sendRichIncident() {
 package main
 
 import (
+    "context"
     "encoding/json"
-    "log"
-    "github.com/containrrr/shoutrrr"
-    "github.com/containrrr/shoutrrr/pkg/types"
+    "github.com/nicholas-fedor/shoutrrr"
+    "github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // AlertData represents alert data from a monitoring system
@@ -617,7 +620,7 @@ func sendMonitoringAlert(data AlertData) error {
         "client_url": data.DashboardURL,
     }
     
-    return shoutrrr.Send(url, data.Title+": "+data.Description, params)
+    return shoutrrr.SendContext(context.Background(), url, data.Title+": "+data.Description, params)
 }
 ```
 
