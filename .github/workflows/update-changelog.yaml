@@ -67,16 +67,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.create_pr.outputs.pull-request-number }}
+          HEAD_SHA: ${{ steps.create_pr.outputs.pull-request-head-sha }}
           EXPECTED_BRANCH: docs/update-changelog
         run: |
           set -eu
           head_ref="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
-          head_sha="$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)"
           if [ "$head_ref" != "$EXPECTED_BRANCH" ]; then
             echo "::error::Refusing to merge a pull request from '$head_ref'."
             exit 1
           fi
-          if ! gh pr merge --auto --squash --match-head-commit "$head_sha" "$PR_NUMBER"; then
+          if ! gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_NUMBER"; then
             echo "Auto-merge is unavailable, so merging the pull request directly"
-            gh pr merge --squash --match-head-commit "$head_sha" "$PR_NUMBER"
+            gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_NUMBER"
           fi
