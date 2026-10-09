@@ -2886,11 +2886,13 @@
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The image includes CA certificates and timezone data. No volumes are required by default, but mount if needed for custom configs or stdin input. Environment variables can override flags (e.g., <code>SHOUTRRR_URL</code> for <code>--url</code>).</p>
+<p>The image includes CA certificates and timezone data. No volumes are required by default, but mount if needed for custom configs or stdin input. Environment variables can stand in for flags (e.g., <code>SHOUTRRR_URL</code> for <code>--url</code>).</p>
 </div>
 <h3 id="environment_variables">Environment Variables<a class="headerlink" href="#environment_variables" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Use uppercase flag names prefixed with <code>SHOUTRRR_</code> (e.g., <code>SHOUTRRR_MESSAGE</code> for <code>--message</code>).</li>
+<li>Use uppercase flag names prefixed with <code>SHOUTRRR_</code>, with dashes replaced by underscores (e.g., <code>SHOUTRRR_MESSAGE</code> for
+  <code>--message</code>). A flag given on the command line takes precedence. See the
+  <a href="../cli/#environment-variables">CLI environment variables</a> for the full list.</li>
 </ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <!-- markdownlint-disable -->
@@ -2974,7 +2976,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 22, 2026 18:38:51 UTC"><span class="timeago" datetime="2026-09-22T18:38:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 18:38:51 UTC">2026-09-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 13:11:01 UTC"><span class="timeago" datetime="2026-10-09T13:11:01+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 13:11:01 UTC">2026-10-09</span>
   </span>
 
     
