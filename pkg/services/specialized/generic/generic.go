@@ -30,6 +30,9 @@ type Service struct {
 // JSONTemplate identifies the JSON format for webhook payloads.
 const (
 	JSONTemplate = "JSON"
+	// defaultHTTPTimeout bounds requests through the default client, matching the
+	// send budget the router gives the service.
+	defaultHTTPTimeout = types.DefaultSendTimeout
 )
 
 // ErrSendFailed indicates a failure to send a notification to the generic webhook.
@@ -168,6 +171,13 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // doSend executes the HTTP request to send a notification to the webhook.
+//
+// Parameters:
+//   - config: the configuration for this send.
+//   - params: the send params, which fill the payload template.
+//
+// Returns:
+//   - error: the payload or request error, or [ErrUnexpectedStatus] for an error status.
 func (s *Service) doSend(config *Config, params types.Params) error {
 	// Get the webhook URL as string
 	postURL := config.WebhookURL().String()
@@ -206,7 +216,7 @@ func (s *Service) doSend(config *Config, params types.Params) error {
 
 	client := s.httpClient
 	if client == nil {
-		client = &http.Client{}
+		client = newDefaultHTTPClient()
 	}
 
 	// Send the HTTP request
@@ -250,4 +260,14 @@ func createSendParams(config *Config, params types.Params, message string) types
 	sendParams[config.MessageKey] = message
 
 	return sendParams
+}
+
+// newDefaultHTTPClient returns the client used when none is injected. It uses
+// [http.DefaultTransport], so it honors the proxy environment variables, and its
+// timeout keeps a stalled webhook from blocking a send.
+//
+// Returns:
+//   - *http.Client: a client with a [defaultHTTPTimeout] timeout.
+func newDefaultHTTPClient() *http.Client {
+	return &http.Client{Timeout: defaultHTTPTimeout}
 }

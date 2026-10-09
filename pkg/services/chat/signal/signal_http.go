@@ -16,6 +16,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -97,7 +98,8 @@ func (s *Service) createRequest(
 //   - skipTLSVerify: when true, skip certificate-chain and hostname verification
 //
 // Returns:
-//   - An HTTP client with a 30s timeout, TLS 1.2 minimum, and optional skip-verify.
+//   - types.HTTPClient: a client with a 30s timeout, TLS 1.2 minimum, and optional
+//     skip-verify, whose transport honors the proxy environment variables.
 func (s *Service) newHTTPClient(skipTLSVerify bool) types.HTTPClient {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if skipTLSVerify {
@@ -106,15 +108,9 @@ func (s *Service) newHTTPClient(skipTLSVerify bool) types.HTTPClient {
 		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	}
 
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
-		transport = defaultTransport.Clone()
-		transport.TLSClientConfig = tlsConfig
-	}
-
 	return &http.Client{
 		Timeout:   defaultHTTPTimeout,
-		Transport: transport,
+		Transport: transport.New(tlsConfig),
 	}
 }
 

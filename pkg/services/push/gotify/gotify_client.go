@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
@@ -23,33 +24,35 @@ const (
 )
 
 // CreateClient creates an HTTP client with timeout and transport.
-// This method assembles an HTTP client with the configured transport and timeout settings
-// to ensure reliable API communication with appropriate performance characteristics.
-// Parameters:
-//   - transport: The HTTP transport with TLS and proxy configuration
 //
-// Returns: *http.Client ready for making API requests with proper timeout and transport settings.
-func (m *DefaultHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
+// Parameters:
+//   - httpTransport: the HTTP transport with TLS and proxy configuration.
+//
+// Returns:
+//   - *http.Client: a client that sends through httpTransport with the [HTTPTimeout] timeout.
+func (m *DefaultHTTPClientManager) CreateClient(httpTransport *http.Transport) *http.Client {
 	return &http.Client{
-		Transport: transport,                 // Use the configured transport for TLS and proxy handling
+		Transport: httpTransport,             // Use the configured transport for TLS and proxy handling
 		Timeout:   HTTPTimeout * time.Second, // Set timeout to prevent hanging requests
 	}
 }
 
 // CreateTransport sets up the HTTP transport with TLS configuration and proxy settings.
-// This method configures the underlying HTTP transport layer with appropriate security settings
-// based on the service configuration, particularly handling TLS verification preferences.
-// Returns: *http.Transport configured with TLS settings for secure or insecure connections.
+// The transport honors the proxy environment variables, enforces TLS 1.2 or later,
+// and skips certificate verification when the config disables TLS or verification.
 //
+// Parameters:
+//   - config: the service configuration with the TLS settings.
+//
+// Returns:
+//   - *http.Transport: the transport for the default HTTP client.
 
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
-	return &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			InsecureSkipVerify: config.DisableTLS ||
-				config.InsecureSkipVerify,
-		},
-	}
+	return transport.New(&tls.Config{
+		MinVersion: tls.VersionTLS12,
+		InsecureSkipVerify: config.DisableTLS ||
+			config.InsecureSkipVerify,
+	})
 }
 
 // initClient initializes the HTTP client and related components.
@@ -61,8 +64,8 @@ func initClient(service *Service, manager HTTPClientManager) {
 	defer service.mu.Unlock()
 
 	if service.httpClient == nil || service.client == nil {
-		transport := manager.CreateTransport(service.Config)
-		service.httpClient = manager.CreateClient(transport)
+		httpTransport := manager.CreateTransport(service.Config)
+		service.httpClient = manager.CreateClient(httpTransport)
 
 		service.client = jsonclient.NewWithHTTPClient(service.httpClient)
 		if service.Config.DisableTLS {

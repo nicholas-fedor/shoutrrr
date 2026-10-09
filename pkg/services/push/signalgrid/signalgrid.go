@@ -12,6 +12,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -61,7 +62,7 @@ func (s *Service) GetID() string {
 //   - logger: Logger used for service output.
 //
 // Returns:
-//   - An error if default properties cannot be applied or the URL is invalid.
+//   - error: the error when default properties cannot be applied or the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -77,10 +78,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	if s.httpClient == nil {
 		s.httpClient = &http.Client{
-			Timeout: defaultHTTPTimeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
-			},
+			Timeout:   defaultHTTPTimeout,
+			Transport: transport.New(&tls.Config{MinVersion: tls.VersionTLS12}),
 		}
 	}
 
