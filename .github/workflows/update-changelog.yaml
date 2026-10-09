@@ -19,6 +19,7 @@ jobs:
   changelog:
     name: Generate Changelog
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write # For committing changelog
       pull-requests: write # For creating and merging the PR

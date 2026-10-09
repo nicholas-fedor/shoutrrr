@@ -12,6 +12,7 @@ jobs:
   cleanup:
     name: Cleanup Cache
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: write
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
