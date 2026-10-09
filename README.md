@@ -142,9 +142,9 @@ shoutrrr send --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@w
 ```go
 import "github.com/nicholas-fedor/shoutrrr"
 
-errs := shoutrrr.Send("slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook", "Hello, Slack!")
-if len(errs) > 0 {
-    // Handle errors
+err := shoutrrr.Send("slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook", "Hello, Slack!")
+if err != nil {
+    // Handle the error
 }
 ```
 
@@ -167,32 +167,40 @@ url := "slack://token-a/token-b/token-c"
 err := shoutrrr.Send(url, "Hello world (or slack channel) !")
 ```
 
+To pass parameters such as a title, or to cancel the send, use `shoutrrr.SendContext`:
+
+```go
+params := types.Params{}
+params.SetTitle("Alert")
+err := shoutrrr.SendContext(context.Background(), url, "Hello world (or slack channel) !", &params)
+```
+
 #### Option 2 - Using a sender
 
 ##### Single URL
 
 ```go
 url := "slack://token-a/token-b/token-c"
-sender, err := shoutrrr.CreateSender(url)
+sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
 params := types.Params{}
-sender.Send("Hello world (or slack channel) !", &params)
+errs := sender.Send("Hello world (or slack channel) !", &params) // one entry per URL, nil on success
 ```
 
 ##### Multiple URLs
 
 ```go
-urls := []string {
-  "slack://token-a/token-b/token-c"
-  "discord://token@channel"
+urls := []string{
+    "slack://token-a/token-b/token-c",
+    "discord://token@channel",
 }
-sender, err := shoutrrr.CreateSender(urls...)
+sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
 params := types.Params{}
-sender.Send("Hello world (or slack channel) !", &params)
+errs := sender.Send("Hello world (or slack channel) !", &params) // one entry per URL, nil on success
 ```
 
 ##### Custom HTTP Client and DialContext (SSRF / Egress Control)
 
-`shoutrrr.Send` cannot take these options. Use `NewSenderWithOptions` (or `CreateSenderWithOptions`).
+`shoutrrr.Send` and `shoutrrr.SendContext` cannot take these options. Use `NewSenderWithOptions` (or `CreateSenderWithOptions`).
 
 ```go
 import (
