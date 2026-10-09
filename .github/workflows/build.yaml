@@ -29,6 +29,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: ${{ inputs.ENVIRONMENT }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -120,8 +121,12 @@ jobs:
         if: ${{ !inputs.DRY_RUN && inputs.BUILD_TYPE == 'stable' }}
         with:
           name: ${{ inputs.BUILD_TYPE }}-binary-sboms
-          path: dist/*.sbom
-          if-no-files-found: ignore
+          # GoReleaser names SBOMs after their artifacts, so this excludes the
+          # source archive's SBOM (shoutrrr.src.tar.gz.sbom.json).
+          path: |
+            dist/*.sbom.json
+            !dist/*.src.*.sbom.json
+          if-no-files-found: error
 
       - name: Generate Artifact Attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

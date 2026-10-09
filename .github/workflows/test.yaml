@@ -17,10 +17,18 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+# Pull request runs share a group per pull request, so a new push cancels the
+# outdated run. Every other run, including calls from the release workflows,
+# gets its own group and is never queued or cancelled.
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: Run Tests and Upload Coverage Report
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

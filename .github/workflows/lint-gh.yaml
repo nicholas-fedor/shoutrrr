@@ -11,9 +11,16 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+# Pull request runs share a group per pull request, so a new push cancels the
+# outdated run. Every other run gets its own group and is never cancelled.
+concurrency:
+  group: lint-gh-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   actionlint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Harden the Runner (Step Security)
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1

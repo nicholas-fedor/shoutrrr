@@ -23,6 +23,7 @@ jobs:
   check_changes:
     name: Check for Code Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: read # For querying previous workflow runs via API
     outputs:

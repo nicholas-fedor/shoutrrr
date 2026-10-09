@@ -19,10 +19,18 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+# Pull request runs share a group per pull request, so a new push cancels the
+# outdated run. Every other run, including calls from the release workflows,
+# gets its own group and is never queued or cancelled.
+concurrency:
+  group: lint-go-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     name: Run Golangci-lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       pull-requests: read
     steps:
@@ -43,6 +51,11 @@ jobs:
           cache: true
           cache-dependency-path: "**/go.sum"
           go-version-file: go.mod
+
+      # Fails when go.mod or go.sum differ from what go mod tidy would write, such
+      # as a dependency update that changed go.mod without go.sum.
+      - name: Check Module Files
+        run: go mod tidy -diff
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0

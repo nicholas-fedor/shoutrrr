@@ -1,0 +1,50 @@
+name: Lint GoReleaser Config
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+    paths:
+      - build/goreleaser/**
+      - .github/workflows/lint-goreleaser.yaml
+
+permissions:
+  contents: read # Set default read-only permissions
+
+# Pull request runs share a group per pull request, so a new push cancels the
+# outdated run. Every other run gets its own group and is never cancelled.
+concurrency:
+  group: lint-goreleaser-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Check GoReleaser Configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the Runner (Step Security)
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A config error otherwise surfaces only when a release runs.
+      - name: Check Stable Config
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check --config build/goreleaser/stable.yaml
+
+      - name: Check Nightly Config
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check --config build/goreleaser/nightly.yaml

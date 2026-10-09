@@ -20,10 +20,17 @@ env:
 permissions:
   contents: read # Set default read-only permissions
 
+# Pull request runs share a group per pull request, so a new push cancels the
+# outdated run. Every other run gets its own group and is never cancelled.
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   gosec:
     name: Run gosec Scanner
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
@@ -52,6 +59,7 @@ jobs:
   govulncheck:
     name: Run govulncheck Scanner
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
