@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Stop unit tests from sending dns queries by @nicholas-fedor in [#1466](https://github.com/nicholas-fedor/shoutrrr/pull/1466)
 - Type generator input before starting generate by @nicholas-fedor in [#1457](https://github.com/nicholas-fedor/shoutrrr/pull/1457)
 
 ## [0.21.2] - 2026-10-06
