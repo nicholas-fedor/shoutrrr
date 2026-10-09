@@ -17,7 +17,7 @@ type Config struct {
 
 	Targets []string `url:"path"`
 	Token   string   `url:"host"`
-	Title   string   `           default:"Shoutrrr notification" key:"title"`
+	Title   string   `default:"Shoutrrr notification" key:"title"`
 }
 
 // Scheme is the scheme part of the service configuration URL.

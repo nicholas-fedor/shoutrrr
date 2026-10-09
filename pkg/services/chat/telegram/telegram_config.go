@@ -13,11 +13,11 @@ import (
 // Config holds settings for the Telegram notification service.
 type Config struct {
 	Token        string    `url:"user"`
-	Preview      bool      `           default:"Yes"  desc:"If disabled, no web page preview will be displayed for URLs" key:"preview"`
-	Notification bool      `           default:"Yes"  desc:"If disabled, sends Message silently"                         key:"notification"`
-	ParseMode    parseMode `           default:"None" desc:"How the text Message should be parsed"                       key:"parsemode"`
-	Chats        []string  `                          desc:"Chat IDs or Channel names (using @channel-name)"             key:"chats,channels"`
-	Title        string    `           default:""     desc:"Notification title, optionally set by the sender"            key:"title"`
+	Preview      bool      `default:"Yes"                                          desc:"If disabled, no web page preview will be displayed for URLs" key:"preview"`
+	Notification bool      `default:"Yes"                                          desc:"If disabled, sends Message silently"                         key:"notification"`
+	ParseMode    parseMode `default:"None"                                         desc:"How the text Message should be parsed"                       key:"parsemode"`
+	Chats        []string  `desc:"Chat IDs or Channel names (using @channel-name)" key:"chats,channels"`
+	Title        string    `default:""                                             desc:"Notification title, optionally set by the sender"            key:"title"`
 }
 
 // Scheme identifies this service in configuration URLs.

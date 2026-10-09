@@ -23,14 +23,14 @@ type subStruct struct {
 }
 
 type testStruct struct {
-	Signed          int `default:"0"        key:"signed"`
+	Signed          int `default:"0" key:"signed"`
 	Unsigned        uint
 	Duration        time.Duration `default:"10s"      key:"duration"`
 	Str             string        `default:"notempty" key:"str"`
 	StrSlice        []string
 	StrArray        [3]string
 	Sub             subStruct
-	TestEnum        int `default:"None"     key:"testenum"`
+	TestEnum        int `default:"None" key:"testenum"`
 	SubProp         subPropStruct
 	SubSlice        []subStruct
 	SubPropSlice    []subPropStruct

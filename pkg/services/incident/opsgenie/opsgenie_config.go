@@ -13,21 +13,21 @@ import (
 // Config holds the configuration for the OpsGenie service.
 type Config struct {
 	APIKey      string            `desc:"The OpsGenie API key"                                                                                   url:"path"`
-	Host        string            `desc:"The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances"                                      url:"host" default:"api.opsgenie.com"`
-	Port        uint16            `desc:"The OpsGenie API port."                                                                                 url:"port" default:"443"`
-	Alias       string            `desc:"Client-defined identifier of the alert"                                                                                                       key:"alias"       optional:"true"`
-	Description string            `desc:"Description field of the alert"                                                                                                               key:"description" optional:"true"`
-	Responders  []Entity          `desc:"Teams, users, escalations and schedules that the alert will be routed to send notifications"                                                  key:"responders"  optional:"true"`
-	VisibleTo   []Entity          `desc:"Teams and users that the alert will become visible to without sending any notification"                                                       key:"visibleTo"   optional:"true"`
-	Actions     []string          `desc:"Custom actions that will be available for the alert"                                                                                          key:"actions"     optional:"true"`
-	Tags        []string          `desc:"Tags of the alert"                                                                                                                            key:"tags"        optional:"true"`
-	Details     map[string]string `desc:"Map of key-value pairs to use as custom properties of the alert"                                                                              key:"details"     optional:"true"`
-	Entity      string            `desc:"Entity field of the alert that is generally used to specify which domain the Source field of the alert"                                       key:"entity"      optional:"true"`
-	Source      string            `desc:"Source field of the alert"                                                                                                                    key:"source"      optional:"true"`
-	Priority    string            `desc:"Priority level of the alert. Possible values are P1, P2, P3, P4 and P5"                                                                       key:"priority"    optional:"true"`
-	Note        string            `desc:"Additional note that will be added while creating the alert"                                                                                  key:"note"        optional:"true"`
-	User        string            `desc:"Display name of the request owner"                                                                                                            key:"user"        optional:"true"`
-	Title       string            `desc:"notification title, optionally set by the sender"                                                                  default:""                 key:"title"`
+	Host        string            `default:"api.opsgenie.com"                                                                                    desc:"The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances" url:"host"`
+	Port        uint16            `default:"443"                                                                                                 desc:"The OpsGenie API port."                                            url:"port"`
+	Alias       string            `desc:"Client-defined identifier of the alert"                                                                 key:"alias"                                                              optional:"true"`
+	Description string            `desc:"Description field of the alert"                                                                         key:"description"                                                        optional:"true"`
+	Responders  []Entity          `desc:"Teams, users, escalations and schedules that the alert will be routed to send notifications"            key:"responders"                                                         optional:"true"`
+	VisibleTo   []Entity          `desc:"Teams and users that the alert will become visible to without sending any notification"                 key:"visibleTo"                                                          optional:"true"`
+	Actions     []string          `desc:"Custom actions that will be available for the alert"                                                    key:"actions"                                                            optional:"true"`
+	Tags        []string          `desc:"Tags of the alert"                                                                                      key:"tags"                                                               optional:"true"`
+	Details     map[string]string `desc:"Map of key-value pairs to use as custom properties of the alert"                                        key:"details"                                                            optional:"true"`
+	Entity      string            `desc:"Entity field of the alert that is generally used to specify which domain the Source field of the alert" key:"entity"                                                             optional:"true"`
+	Source      string            `desc:"Source field of the alert"                                                                              key:"source"                                                             optional:"true"`
+	Priority    string            `desc:"Priority level of the alert. Possible values are P1, P2, P3, P4 and P5"                                 key:"priority"                                                           optional:"true"`
+	Note        string            `desc:"Additional note that will be added while creating the alert"                                            key:"note"                                                               optional:"true"`
+	User        string            `desc:"Display name of the request owner"                                                                      key:"user"                                                               optional:"true"`
+	Title       string            `default:""                                                                                                    desc:"notification title, optionally set by the sender"                  key:"title"`
 }
 
 const (

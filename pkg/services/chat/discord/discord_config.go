@@ -16,17 +16,17 @@ type Config struct {
 
 	WebhookID  string `url:"host"`
 	Token      string `url:"user"`
-	Title      string `           default:""         key:"title"`
-	Username   string `           default:""         key:"username"         desc:"Override the webhook default username"`
-	Avatar     string `           default:""         key:"avatar,avatarurl" desc:"Override the webhook default avatar with specified URL"`
-	Color      uint   `           default:"0x50D9ff" key:"color"            desc:"The color of the left border for plain messages"                                                  base:"16"`
-	ColorError uint   `           default:"0xd60510" key:"colorError"       desc:"The color of the left border for error messages"                                                  base:"16"`
-	ColorWarn  uint   `           default:"0xffc441" key:"colorWarn"        desc:"The color of the left border for warning messages"                                                base:"16"`
-	ColorInfo  uint   `           default:"0x2488ff" key:"colorInfo"        desc:"The color of the left border for info messages"                                                   base:"16"`
-	ColorDebug uint   `           default:"0x7b00ab" key:"colorDebug"       desc:"The color of the left border for debug messages"                                                  base:"16"`
-	SplitLines bool   `           default:"Yes"      key:"splitLines"       desc:"Whether to send each line as a separate embedded item"`
-	JSON       bool   `           default:"No"       key:"json"             desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field"`
-	ThreadID   string `           default:""         key:"thread_id"        desc:"The thread ID to send the message to"`
+	Title      string `default:""    key:"title"`
+	Username   string `default:""    desc:"Override the webhook default username"                                                            key:"username"`
+	Avatar     string `default:""    desc:"Override the webhook default avatar with specified URL"                                           key:"avatar,avatarurl"`
+	Color      uint   `base:"16"     default:"0x50D9ff"                                                                                      desc:"The color of the left border for plain messages"   key:"color"`
+	ColorError uint   `base:"16"     default:"0xd60510"                                                                                      desc:"The color of the left border for error messages"   key:"colorError"`
+	ColorWarn  uint   `base:"16"     default:"0xffc441"                                                                                      desc:"The color of the left border for warning messages" key:"colorWarn"`
+	ColorInfo  uint   `base:"16"     default:"0x2488ff"                                                                                      desc:"The color of the left border for info messages"    key:"colorInfo"`
+	ColorDebug uint   `base:"16"     default:"0x7b00ab"                                                                                      desc:"The color of the left border for debug messages"   key:"colorDebug"`
+	SplitLines bool   `default:"Yes" desc:"Whether to send each line as a separate embedded item"                                            key:"splitLines"`
+	JSON       bool   `default:"No"  desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field" key:"json"`
+	ThreadID   string `default:""    desc:"The thread ID to send the message to"                                                             key:"thread_id"`
 }
 
 // Scheme defines the protocol identifier for this service's configuration URL.

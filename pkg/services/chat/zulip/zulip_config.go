@@ -18,12 +18,12 @@ type Config struct {
 	BotMail      string      `desc:"Bot e-mail address"                         url:"user"`
 	BotKey       string      `desc:"API key"                                    url:"pass"`
 	Host         string      `desc:"API server hostname (with optional port)"   url:"host"`
-	Type         MessageType `desc:"Message type (channel or direct)"                      key:"type"           optional:""`
-	Stream       string      `desc:"Target stream name"                                    key:"stream"         optional:""`
-	Topic        string      `desc:"Stream topic"                                          key:"topic"          optional:""`
-	Title        string      `desc:"Notification title prepended to message"               key:"title"          optional:""`
-	To           string      `desc:"Comma-separated user IDs or emails for DMs"            key:"to"             optional:""`
-	ReadBySender bool        `desc:"Mark the message read by its sender"                   key:"read_by_sender" optional:"" default:"No"`
+	Type         MessageType `desc:"Message type (channel or direct)"           key:"type"                                 optional:""`
+	Stream       string      `desc:"Target stream name"                         key:"stream"                               optional:""`
+	Topic        string      `desc:"Stream topic"                               key:"topic"                                optional:""`
+	Title        string      `desc:"Notification title prepended to message"    key:"title"                                optional:""`
+	To           string      `desc:"Comma-separated user IDs or emails for DMs" key:"to"                                   optional:""`
+	ReadBySender bool        `default:"No"                                      desc:"Mark the message read by its sender" key:"read_by_sender" optional:""`
 }
 
 const (

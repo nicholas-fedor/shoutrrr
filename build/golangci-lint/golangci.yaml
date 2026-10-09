@@ -40,7 +40,6 @@ linters:
     - ginkgolinter # Enforces standards of using ginkgo and gomega.
     - gocritic # Provides diagnostics that check for bugs, performance and style issues.
     - godot # Check if comments end in a period.
-    - goheader # Checks if file header matches to pattern.
     - govet # Vet examines Go source code and reports suspicious constructs. It is roughly the same as 'go vet' and uses its passes.
     - iface # Detect the incorrect use of interfaces, helping developers avoid interface pollution.
     - importas # Enforces consistent import aliases.
@@ -305,7 +304,7 @@ linters:
       # Default: ["^(fmt\\.Print(|f|ln)|print|println)$"]
       forbid:
         # Default
-        - pattern: ^(fmt\\.Print(|f|ln)|print|println)$
+        - pattern: ^(fmt\.Print(|f|ln)|print|println)$
         # Use new https://pkg.go.dev/math/rand/v2
         - pattern: math/rand\.
           msg: Use math/rand/v2 instead
@@ -797,7 +796,9 @@ formatters:
       # Default: false
       shorten-comments: true
       # Default: true
-      reformat-tags: true
+      # tagalign formats struct tags. golines aligns them differently, and with both
+      # enabled each one's fix undoes the other's.
+      reformat-tags: false
       # Split chained methods on the dots as opposed to the arguments.
       # Default: true
       chain-split-dots: true

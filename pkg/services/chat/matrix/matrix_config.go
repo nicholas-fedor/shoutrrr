@@ -16,10 +16,10 @@ type Config struct {
 	User string `desc:"Username or empty when using access token" optional:"" url:"user"`
 
 	Password   string   `desc:"Password or access token"                 url:"password"`
-	DisableTLS bool     `                                                               default:"No" key:"disableTLS"`
-	Host       string   `                                                url:"host"`
-	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs"                             key:"rooms,room" optional:""`
-	Title      string   `                                                               default:""   key:"title"`
+	DisableTLS bool     `default:"No"                                    key:"disableTLS"`
+	Host       string   `url:"host"`
+	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs" key:"rooms,room" optional:""`
+	Title      string   `default:""                                      key:"title"`
 }
 
 // GetURL returns a URL representation of it's current field values.
