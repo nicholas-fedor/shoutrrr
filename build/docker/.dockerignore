@@ -4,8 +4,6 @@
 .gitattributes
 
 # Ignore CI/CD and configuration files
-.circleci/
-.codacy.yml
 .editorconfig
 .all-contributorsrc
 .codecov.yaml
