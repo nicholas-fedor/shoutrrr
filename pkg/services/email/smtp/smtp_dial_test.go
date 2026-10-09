@@ -18,8 +18,10 @@ var _ = ginkgo.Describe("dialClient", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
+		// A literal loopback address keeps the dial from resolving a hostname.
+		// The cgo resolver sends DNS queries even when the context is already canceled.
 		_, err := dialClient(ctx, &Config{
-			Host:        "example.com",
+			Host:        "127.0.0.1",
 			Port:        25,
 			FromAddress: "sender@example.com",
 			ToAddresses: []string{"rec@example.com"},

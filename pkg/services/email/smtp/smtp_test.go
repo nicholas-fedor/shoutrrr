@@ -194,7 +194,9 @@ var _ = ginkgo.Describe("Service", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			svc := Service{Config: &Config{Host: "example.com", Port: 25, Timeout: time.Second}}
+			// A literal loopback address keeps the dial from resolving a hostname.
+			// The cgo resolver sends DNS queries even when the context is already canceled.
+			svc := Service{Config: &Config{Host: "127.0.0.1", Port: 25, Timeout: time.Second}}
 			err := svc.SendContext(ctx, "test message", nil)
 			gomega.Expect(err).To(matchFailure(FailGetSMTPClient))
 			gomega.Expect(err).To(gomega.MatchError(context.Canceled))

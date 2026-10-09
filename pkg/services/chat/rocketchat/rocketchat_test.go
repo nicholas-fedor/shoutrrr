@@ -146,7 +146,9 @@ var _ = ginkgo.Describe("the rocketchat service", func() {
 		ginkgo.When("sending a message to an unreachable server", func() {
 			ginkgo.It("should return a connection error", func() {
 				service.Client = http.DefaultClient // Reset to default client for this test
-				service.Config.Host = "nonexistent.domain"
+				// A refused loopback port fails the request without a DNS lookup.
+				service.Config.Host = "127.0.0.1"
+				service.Config.Port = "1"
 				service.Config.TokenA = testTokenA
 				service.Config.TokenB = testTokenB
 
