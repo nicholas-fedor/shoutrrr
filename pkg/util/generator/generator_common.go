@@ -37,7 +37,11 @@ type UserDialog struct {
 	writer  io.Writer         // destination for writing prompts and messages
 	scanner *bufio.Scanner    // buffered scanner for reading lines of input
 	props   map[string]string // pre-defined properties for non-interactive mode
+	err     error             // why input stopped: ErrInputClosed or a read error
 }
+
+// ErrInputClosed indicates that the input ended before a valid answer was given.
+var ErrInputClosed = errors.New("input closed before a valid answer was given")
 
 // errInvalidFormat indicates that the user input does not match the expected format.
 // This error is returned when input fails to match a regex pattern or validation rule.
@@ -77,7 +81,21 @@ func NewUserDialog(reader io.Reader, writer io.Writer, props map[string]string) 
 		writer:  writer,
 		scanner: bufio.NewScanner(reader),
 		props:   props,
+		err:     nil,
 	}
+}
+
+// Err reports why the dialog stopped reading input.
+//
+// Once the input ends or fails, every query returns without prompting, and the
+// prop values supplied for later queries are still used. Generators check Err
+// after their queries to tell an empty answer from missing input.
+//
+// Returns:
+//   - error: [ErrInputClosed] when the input ended before a valid answer, the
+//     read error when reading failed, or nil while input is still available.
+func (ud *UserDialog) Err() error {
+	return ud.err
 }
 
 // Query prompts the user with the given prompt and returns regex capture groups
@@ -231,8 +249,10 @@ func (ud *UserDialog) QueryInt(prompt, key string, bitSize int) int64 {
 // If the validator parameter is nil, a no-op validator is used that accepts
 // any input.
 //
-// The method loops until valid input is received or the input source is closed.
-// When input is closed (EOF), an empty string is returned.
+// The method loops until valid input is received or the input ends. When the
+// input ends or reading fails, it returns an empty string without validating it,
+// and [UserDialog.Err] reports the reason. Later queries then return an empty
+// string without prompting, unless a valid prop value answers them.
 //
 // Parameters:
 //   - prompt: the message displayed to the user
@@ -240,7 +260,7 @@ func (ud *UserDialog) QueryInt(prompt, key string, bitSize int) int64 {
 //   - key: the property key for looking up pre-defined values
 //
 // Returns:
-//   - string: the validated user input; empty string if input source is closed
+//   - string: the validated user input; empty string if the input ended or failed
 func (ud *UserDialog) QueryString(prompt string, validator func(string) error, key string) string {
 	if validator == nil {
 		validator = func(string) error { return nil }
@@ -262,6 +282,10 @@ func (ud *UserDialog) QueryString(prompt string, validator func(string) error, k
 	}
 
 	for {
+		if ud.err != nil {
+			return ""
+		}
+
 		ud.Write("%v ", prompt)
 
 		cfg := color.DefaultConfig()
@@ -269,14 +293,17 @@ func (ud *UserDialog) QueryString(prompt string, validator func(string) error, k
 		c.Set()
 
 		if !ud.scanner.Scan() {
-			if err := ud.scanner.Err(); err != nil {
-				ud.Writelnf(err.Error())
-				c.Unset()
-
-				continue
-			}
-			// Input closed, return an empty string
 			c.Unset()
+
+			// A scanner stops for good after an error or the end of input, so
+			// prompting again would loop forever.
+			if err := ud.scanner.Err(); err != nil {
+				ud.err = fmt.Errorf("reading input: %w", err)
+			} else {
+				ud.err = ErrInputClosed
+			}
+
+			ud.Writelnf("")
 
 			return ""
 		}

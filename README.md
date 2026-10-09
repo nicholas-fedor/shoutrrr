@@ -301,7 +301,7 @@ Supported conversions: `text` ↔ `markdown` ↔ `html`.
 ### Use Through the CLI
 
 ```bash
-shoutrrr send [OPTIONS] <URL> <Message [...]>
+shoutrrr send [FLAGS] [URL] [MESSAGE]
 ```
 
 ### Use as a GitHub Action

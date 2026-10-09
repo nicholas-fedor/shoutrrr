@@ -15,6 +15,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
 // Generator is the Basic Generator implementation for creating service configurations.
@@ -81,16 +82,35 @@ func (g *Generator) formatPrompt(field *format.FieldInfo) string {
 }
 
 // getInputValue retrieves the value for a field from props or user input.
+//
+// A prop is used once. When its value is rejected, the field is prompted for
+// instead. When the input ends, an optional field takes its default value, while
+// a required field without a default, or a field whose earlier value was
+// rejected, fails with [generator.ErrInputClosed].
+//
+// Parameters:
+//   - field: the field to fill.
+//   - propKey: the prop key for the field.
+//   - props: the props supplied on the command line.
+//   - consumed: the prop keys already used, updated when a prop is used.
+//   - scanner: the reader for user input.
+//   - retry: whether an earlier value for the field was rejected.
+//
+// Returns:
+//   - string: the value for the field.
+//   - error: a validation error, a read error, or [generator.ErrInputClosed].
 func (g *Generator) getInputValue(
 	field *format.FieldInfo,
 	propKey string,
 	props map[string]string,
 	consumed map[string]struct{},
 	scanner *bufio.Scanner,
+	retry bool,
 ) (string, error) {
 	cfg := color.DefaultConfig()
 
-	if propValue, ok := props[propKey]; ok && propValue != "" {
+	_, used := consumed[propKey]
+	if propValue, ok := props[propKey]; ok && propValue != "" && !used {
 		_, _ = fmt.Fprint(
 			cfg.Output,
 			"Using property ",
@@ -144,6 +164,12 @@ func (g *Generator) getInputValue(
 		return "", fmt.Errorf("scanner error: %w", scanErr)
 	}
 
+	_, _ = fmt.Fprint(cfg.Output, "\n")
+
+	if retry || (field.Required && field.DefaultValue == "") {
+		return "", fmt.Errorf("%s: %w", field.Name, generator.ErrInputClosed)
+	}
+
 	return field.DefaultValue, nil
 }
 
@@ -174,6 +200,14 @@ func (g *Generator) printInvalidType(fieldName, typeName string) {
 }
 
 // promptUserForFields iterates over config fields, prompting the user or using props to set values.
+//
+// Parameters:
+//   - configPtr: a pointer to the service config to fill.
+//   - props: the props supplied on the command line.
+//   - scanner: the reader for user input.
+//
+// Returns:
+//   - error: [ErrInvalidConfigType], or the first error from reading a field's value.
 func (g *Generator) promptUserForFields(
 	configPtr reflect.Value,
 	props map[string]string,
@@ -194,8 +228,8 @@ func (g *Generator) promptUserForFields(
 		field := item.Field()
 		propKey := strings.ToLower(field.Name)
 
-		for {
-			inputValue, err := g.getInputValue(field, propKey, props, consumed, scanner)
+		for retry := false; ; retry = true {
+			inputValue, err := g.getInputValue(field, propKey, props, consumed, scanner, retry)
 			if err != nil {
 				return err // Propagate the error immediately
 			}

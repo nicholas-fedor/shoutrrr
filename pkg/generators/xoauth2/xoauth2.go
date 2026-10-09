@@ -37,9 +37,25 @@ var (
 	ErrUnmarshalFailed     = errors.New("failed to unmarshal JSON")
 	ErrScanFailed          = errors.New("failed to scan input")
 	ErrTokenExchangeFailed = errors.New("failed to exchange token")
+	// ErrCredentialsFileRequired indicates that the gmail provider was selected
+	// without a credentials file argument.
+	ErrCredentialsFileRequired = errors.New("the gmail provider needs a credentials file argument")
 )
 
 // Generate generates a service URL from a set of user questions/answers.
+//
+// With the gmail provider, the first argument is the Google credentials file.
+// Otherwise the first argument, when given, is a JSON file with the provider's
+// OAuth2 settings, and without one the settings are asked for interactively.
+//
+// Parameters:
+//   - props: the generator props, which may set the provider.
+//   - args: the generator arguments, which may name a credentials or settings file.
+//
+// Returns:
+//   - types.ServiceConfig: the SMTP configuration.
+//   - error: [ErrCredentialsFileRequired], a file error wrapping [ErrReadFileFailed]
+//     or [ErrUnmarshalFailed], or an input or token exchange error.
 func (g *Generator) Generate(
 	_ types.Service,
 	props map[string]string,
@@ -47,6 +63,10 @@ func (g *Generator) Generate(
 ) (types.ServiceConfig, error) {
 	if provider, found := props["provider"]; found {
 		if provider == "gmail" {
+			if len(args) == 0 {
+				return nil, ErrCredentialsFileRequired
+			}
+
 			return oauth2GeneratorGmail(args[0])
 		}
 	}
@@ -236,10 +256,18 @@ func oauth2Generator() (*smtp.Config, error) {
 }
 
 // oauth2GeneratorFile generates OAuth2 configuration from a JSON file.
+//
+// Parameters:
+//   - file: the path of the JSON file with the provider's OAuth2 settings.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+//   - error: a file error wrapping [ErrReadFileFailed] or [ErrUnmarshalFailed] and
+//     the underlying error, or an input or token exchange error.
 func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 	jsonData, err := os.ReadFile(file)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", file, ErrReadFileFailed)
+		return nil, fmt.Errorf("%s: %w: %w", file, ErrReadFileFailed, err)
 	}
 
 	var providerConfig struct {
@@ -254,7 +282,7 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 	}
 
 	if err := json.Unmarshal(jsonData, &providerConfig); err != nil {
-		return nil, fmt.Errorf("%s: %w", file, ErrUnmarshalFailed)
+		return nil, fmt.Errorf("%s: %w: %w", file, ErrUnmarshalFailed, err)
 	}
 
 	conf := oauth2.Config{
@@ -274,10 +302,18 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 }
 
 // oauth2GeneratorGmail generates OAuth2 configuration for Gmail using credentials file.
+//
+// Parameters:
+//   - credFile: the path of the Google credentials file.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+//   - error: a file error wrapping [ErrReadFileFailed] and the underlying error, a
+//     credentials parsing error, or an input or token exchange error.
 func oauth2GeneratorGmail(credFile string) (*smtp.Config, error) {
 	data, err := os.ReadFile(credFile)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", credFile, ErrReadFileFailed)
+		return nil, fmt.Errorf("%s: %w: %w", credFile, ErrReadFileFailed, err)
 	}
 
 	conf, err := google.ConfigFromJSON(data, "https://mail.google.com/")

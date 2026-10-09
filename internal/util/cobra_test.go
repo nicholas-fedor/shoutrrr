@@ -1,233 +1,54 @@
 package util
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// viperMu protects viper state during parallel test execution.
-var viperMu sync.Mutex
-
-func TestLoadFlagsFromAltSources(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		args           []string
-		envURL         string
-		initialMessage string
-		wantErr        bool
-		wantURL        string
-		wantMessage    string
-		errContains    string
-	}{
-		{
-			name:        "positional_args_url_only",
-			args:        []string{"https://example.com/notify"},
-			wantErr:     false,
-			wantURL:     "https://example.com/notify",
-			wantMessage: "",
-		},
-		{
-			name:        "positional_args_url_and_message",
-			args:        []string{"https://example.com/notify", "test message"},
-			wantErr:     false,
-			wantURL:     "https://example.com/notify",
-			wantMessage: "test message",
-		},
-		{
-			name:        "env_var_set_no_args",
-			args:        []string{},
-			envURL:      "https://env.example.com/notify",
-			wantErr:     false,
-			wantURL:     "https://env.example.com/notify",
-			wantMessage: "-",
-		},
-		{
-			name:           "env_var_set_with_existing_message_flag",
-			args:           []string{},
-			envURL:         "https://env.example.com/notify",
-			initialMessage: "existing message",
-			wantErr:        false,
-			wantURL:        "https://env.example.com/notify",
-			wantMessage:    "existing message",
-		},
-		{
-			name:        "no_args_no_env",
-			args:        []string{},
-			envURL:      "",
-			wantErr:     false,
-			wantURL:     "",
-			wantMessage: "",
-		},
-		{
-			name:        "empty_args_slice",
-			args:        nil,
-			envURL:      "",
-			wantErr:     false,
-			wantURL:     "",
-			wantMessage: "",
-		},
-		{
-			name:    "multiple_positional_args_uses_first_two",
-			args:    []string{"https://example.com/notify", "msg1", "extra"},
-			wantErr: false,
-			wantURL: "https://example.com/notify",
-			// Only first two args are used
-			wantMessage: "msg1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Setup command before acquiring mutex (no viper dependency)
-			cmd := setupTestCommand()
-
-			// Set initial message flag if specified (no viper dependency)
-			if tt.initialMessage != "" {
-				err := cmd.Flags().Set("message", tt.initialMessage)
-				require.NoError(t, err)
-			}
-
-			// Serialize all viper operations to prevent races between
-			// parallel subtests that share viper's global state.
-			viperMu.Lock()
-
-			viper.Reset()
-
-			if tt.envURL != "" {
-				viper.Set("SHOUTRRR_URL", tt.envURL)
-			}
-
-			// Execute the function while holding the lock so viper state
-			// (Reset + Set + read inside LoadFlagsFromAltSources) is atomic
-			err := LoadFlagsFromAltSources(cmd, tt.args)
-
-			viperMu.Unlock()
-
-			// Check error expectation
-			if tt.wantErr {
-				assert.Error(t, err)
-
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Verify flag values (no viper dependency, safe outside lock)
-			urls, err := cmd.Flags().GetStringArray("url")
-			require.NoError(t, err)
-
-			if tt.wantURL == "" {
-				assert.Empty(t, urls, "URL flag mismatch")
-			} else {
-				require.Len(t, urls, 1, "URL flag mismatch")
-				assert.Equal(t, tt.wantURL, urls[0], "URL flag mismatch")
-			}
-
-			message, err := cmd.Flags().GetString("message")
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantMessage, message, "Message flag mismatch")
-		})
-	}
-}
-
-func TestLoadFlagsFromAltSources_URLFlagAlreadySet(t *testing.T) {
-	t.Parallel()
-
-	// When URL flag is already set, positional args should still override
-	cmd := setupTestCommand()
-
-	// Pre-set the URL flag (no viper dependency)
-	err := cmd.Flags().Set("url", "https://preset.example.com")
-	require.NoError(t, err)
-
-	// Serialize viper access
-	viperMu.Lock()
-	viper.Reset()
-
-	err = LoadFlagsFromAltSources(cmd, []string{"https://positional.example.com"})
-	viperMu.Unlock()
-
-	require.NoError(t, err)
-
-	// Positional arg should be appended (StringArray.Set appends)
-	urls, err := cmd.Flags().GetStringArray("url")
-	require.NoError(t, err)
-	assert.Contains(t, urls, "https://positional.example.com")
-}
-
-func TestLoadFlagsFromAltSources_EnvVarOverridesEmptyFlag(t *testing.T) {
-	t.Parallel()
-
-	// When URL flag is empty but env var is set, env var should be used
-	cmd := setupTestCommand()
-
-	// Serialize viper access
-	viperMu.Lock()
-	viper.Reset()
-	viper.Set("SHOUTRRR_URL", "https://env.example.com")
-
-	err := LoadFlagsFromAltSources(cmd, []string{})
-	viperMu.Unlock()
-
-	require.NoError(t, err)
-
-	urls, err := cmd.Flags().GetStringArray("url")
-	require.NoError(t, err)
-	require.Len(t, urls, 1)
-	assert.Equal(t, "https://env.example.com", urls[0])
-}
-
-func TestLoadFlagsFromAltSources_ErrorCases(t *testing.T) {
+// TestLoadFlagsFromAltSourcesPositionalArgs verifies that positional arguments
+// fill the url and then the message flag, skip flags set on the command line, and
+// are rejected when no flag is left to fill.
+func TestLoadFlagsFromAltSourcesPositionalArgs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
-		setupCmd    func() *cobra.Command
+		urlFlag     string
 		args        []string
-		envURL      string
-		wantErr     bool
-		errContains string
+		wantURL     []string
+		wantMessage string
+		wantErr     error
 	}{
 		{
-			name: "error_url_flag_not_exists",
-			setupCmd: func() *cobra.Command {
-				cmd := &cobra.Command{Use: "test"}
-				// Only add message flag, not url flag
-				cmd.Flags().String("message", "", "The notification message")
-
-				return cmd
-			},
-			args:        []string{},
-			envURL:      "https://example.com",
-			wantErr:     true,
-			errContains: "checking url flag and env",
+			name:    "url only",
+			args:    []string{"logger://"},
+			wantURL: []string{"logger://"},
 		},
 		{
-			name: "error_message_flag_not_exists_for_env_path",
-			setupCmd: func() *cobra.Command {
-				cmd := &cobra.Command{Use: "test"}
-				// Only add url flag, not message flag
-				cmd.Flags().StringArray("url", []string{}, "The notification URL")
-
-				return cmd
-			},
-			args:        []string{},
-			envURL:      "https://example.com",
-			wantErr:     true,
-			errContains: "getting message flag value",
+			name:        "url and message",
+			args:        []string{"logger://", "hello"},
+			wantURL:     []string{"logger://"},
+			wantMessage: "hello",
+		},
+		{
+			name:        "an argument after a url flag is the message",
+			urlFlag:     "logger://flag",
+			args:        []string{"hello"},
+			wantURL:     []string{"logger://flag"},
+			wantMessage: "hello",
+		},
+		{
+			name:    "an argument with no flag left to fill",
+			urlFlag: "logger://flag",
+			args:    []string{"hello", "extra"},
+			wantErr: ErrTooManyArgs,
+		},
+		{
+			name:    "no arguments",
+			wantURL: []string{},
 		},
 	}
 
@@ -235,145 +56,183 @@ func TestLoadFlagsFromAltSources_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := tt.setupCmd()
-
-			// Serialize viper access
-			viperMu.Lock()
-			viper.Reset()
-
-			if tt.envURL != "" {
-				viper.Set("SHOUTRRR_URL", tt.envURL)
+			cmd := newSendCommand()
+			if tt.urlFlag != "" {
+				require.NoError(t, cmd.Flags().Set("url", tt.urlFlag))
 			}
 
 			err := LoadFlagsFromAltSources(cmd, tt.args)
-			viperMu.Unlock()
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.errContains)
-		})
-	}
-}
-
-func Test_hasURLInEnvButNotFlag(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		flagURL    string
-		envURL     string
-		want       bool
-		wantErr    bool
-		errContain string
-	}{
-		{
-			name:    "flag_empty_env_set",
-			flagURL: "",
-			envURL:  "https://example.com",
-			want:    true,
-			wantErr: false,
-		},
-		{
-			name:    "flag_set_env_empty",
-			flagURL: "https://example.com",
-			envURL:  "",
-			want:    false,
-			wantErr: false,
-		},
-		{
-			name:    "both_empty",
-			flagURL: "",
-			envURL:  "",
-			want:    false,
-			wantErr: false,
-		},
-		{
-			name:    "both_set",
-			flagURL: "https://flag.example.com",
-			envURL:  "https://env.example.com",
-			want:    false,
-			wantErr: false,
-		},
-		{
-			name:    "flag_set_env_set_different",
-			flagURL: "https://example.com",
-			envURL:  "https://other.example.com",
-			want:    false,
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Setup command with flag value (no viper dependency)
-			cmd := setupTestCommand()
-
-			if tt.flagURL != "" {
-				err := cmd.Flags().Set("url", tt.flagURL)
-				require.NoError(t, err)
-			}
-
-			// Serialize viper access
-			viperMu.Lock()
-			viper.Reset()
-
-			if tt.envURL != "" {
-				viper.Set("SHOUTRRR_URL", tt.envURL)
-			}
-
-			got, err := hasURLInEnvButNotFlag(cmd)
-			viperMu.Unlock()
-
-			if tt.wantErr {
-				assert.Error(t, err)
-
-				if tt.errContain != "" {
-					assert.Contains(t, err.Error(), tt.errContain)
-				}
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assertFlags(t, cmd, tt.wantURL, tt.wantMessage)
 		})
 	}
 }
 
-func Test_hasURLInEnvButNotFlag_MissingFlag(t *testing.T) {
-	t.Parallel()
-
-	// Test when the url flag doesn't exist on the command
-	cmd := &cobra.Command{
-		Use: "test",
+// TestLoadFlagsFromAltSourcesEnvironment verifies how SHOUTRRR_URL and
+// SHOUTRRR_MESSAGE fill the send command's flags, including the stdin default
+// for a message when the URL comes from the environment.
+func TestLoadFlagsFromAltSourcesEnvironment(t *testing.T) {
+	tests := []struct {
+		name        string
+		env         map[string]string
+		urlFlag     string
+		args        []string
+		wantURL     []string
+		wantMessage string
+	}{
+		{
+			name:        "url from the environment reads the message from stdin",
+			env:         map[string]string{"SHOUTRRR_URL": "logger://env"},
+			wantURL:     []string{"logger://env"},
+			wantMessage: "-",
+		},
+		{
+			name:        "message from the environment",
+			env:         map[string]string{"SHOUTRRR_URL": "logger://env", "SHOUTRRR_MESSAGE": "from env"},
+			wantURL:     []string{"logger://env"},
+			wantMessage: "from env",
+		},
+		{
+			name:        "a positional message takes precedence over the environment",
+			env:         map[string]string{"SHOUTRRR_URL": "logger://env", "SHOUTRRR_MESSAGE": "from env"},
+			args:        []string{"logger://arg", "from args"},
+			wantURL:     []string{"logger://arg"},
+			wantMessage: "from args",
+		},
+		{
+			name:    "a url flag takes precedence over the environment",
+			env:     map[string]string{"SHOUTRRR_URL": "logger://env"},
+			urlFlag: "logger://flag",
+			wantURL: []string{"logger://flag"},
+		},
+		{
+			name:    "an empty variable counts as unset",
+			env:     map[string]string{"SHOUTRRR_URL": ""},
+			wantURL: []string{},
+		},
 	}
 
-	// Only add message flag, not url flag
-	cmd.Flags().String("message", "", "The notification message")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
 
-	// Serialize viper access
-	viperMu.Lock()
-	viper.Reset()
-	viper.Set("SHOUTRRR_URL", "https://example.com")
+			cmd := newSendCommand()
+			if tt.urlFlag != "" {
+				require.NoError(t, cmd.Flags().Set("url", tt.urlFlag))
+			}
 
-	got, err := hasURLInEnvButNotFlag(cmd)
-	viperMu.Unlock()
-
-	// This should return an error because the flag doesn't exist
-	require.Error(t, err)
-	assert.False(t, got)
-	assert.Contains(t, err.Error(), "getting url flag value")
+			require.NoError(t, LoadFlagsFromAltSources(cmd, tt.args))
+			assertFlags(t, cmd, tt.wantURL, tt.wantMessage)
+		})
+	}
 }
 
-// setupTestCommand creates a cobra command with url and message flags for testing.
-func setupTestCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use: "test",
-	}
+// TestLoadFlagsFromAltSourcesWithoutMessageFlag verifies that a command without a
+// message flag, such as verify, accepts a URL from the environment.
+func TestLoadFlagsFromAltSourcesWithoutMessageFlag(t *testing.T) {
+	t.Setenv("SHOUTRRR_URL", "logger://env")
 
-	cmd.Flags().StringArray("url", []string{}, "The notification URL")
-	cmd.Flags().String("message", "", "The notification message")
+	cmd := &cobra.Command{Use: "verify"}
+	cmd.Flags().StringArrayP("url", "u", []string{}, "The notification URL(s) to verify")
+
+	require.NoError(t, LoadFlagsFromAltSources(cmd, nil))
+
+	urls, err := cmd.Flags().GetStringArray("url")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"logger://env"}, urls)
+}
+
+// TestApplyEnv verifies that ApplyEnv maps flag names to SHOUTRRR_ variables,
+// parses typed flags, ignores the help flag, and names the variable in errors.
+func TestApplyEnv(t *testing.T) {
+	t.Run("typed and dashed flags", func(t *testing.T) {
+		t.Setenv("SHOUTRRR_VERBOSE", "true")
+		t.Setenv("SHOUTRRR_SHOW_SENSITIVE", "true")
+		t.Setenv("SHOUTRRR_HELP", "true")
+
+		cmd := newSendCommand()
+		cmd.Flags().Bool("show-sensitive", false, "Show sensitive data")
+		cmd.Flags().Bool("help", false, "Help")
+
+		require.NoError(t, ApplyEnv(cmd))
+
+		for name, want := range map[string]bool{"verbose": true, "show-sensitive": true, "help": false} {
+			got, err := cmd.Flags().GetBool(name)
+			require.NoError(t, err)
+			assert.Equal(t, want, got, name)
+		}
+	})
+
+	t.Run("a value the flag rejects", func(t *testing.T) {
+		t.Setenv("SHOUTRRR_VERBOSE", "loud")
+
+		err := ApplyEnv(newSendCommand())
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SHOUTRRR_VERBOSE")
+	})
+}
+
+// TestApplyArgs verifies that ApplyArgs fills the named flags in order, skips set
+// and undefined flags, and returns the arguments left over.
+func TestApplyArgs(t *testing.T) {
+	t.Parallel()
+
+	cmd := newSendCommand()
+	require.NoError(t, cmd.Flags().Set("url", "logger://flag"))
+
+	rest, err := ApplyArgs(cmd, []string{"hello", "extra"}, "missing", "url", "message")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"extra"}, rest)
+	assertFlags(t, cmd, []string{"logger://flag"}, "hello")
+}
+
+// TestEnvName verifies the environment variable name for a flag.
+func TestEnvName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "SHOUTRRR_URL", EnvName("url"))
+	assert.Equal(t, "SHOUTRRR_SHOW_SENSITIVE", EnvName("show-sensitive"))
+}
+
+// newSendCommand returns a command with the send command's url, message and
+// verbose flags, so tests do not share flag state.
+//
+// Returns:
+//   - *cobra.Command: a fresh command.
+func newSendCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "send"}
+	cmd.Flags().StringArrayP("url", "u", []string{}, "The notification URL(s) to send to")
+	cmd.Flags().StringP("message", "m", "", "The message to send")
+	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	return cmd
+}
+
+// assertFlags checks the url and message flags of cmd.
+//
+// Parameters:
+//   - t: the test.
+//   - cmd: the command to check.
+//   - wantURL: the expected url flag values.
+//   - wantMessage: the expected message flag value.
+func assertFlags(t *testing.T, cmd *cobra.Command, wantURL []string, wantMessage string) {
+	t.Helper()
+
+	urls, err := cmd.Flags().GetStringArray("url")
+	require.NoError(t, err)
+	assert.Equal(t, wantURL, urls)
+
+	message, err := cmd.Flags().GetString("message")
+	require.NoError(t, err)
+	assert.Equal(t, wantMessage, message)
 }

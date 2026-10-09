@@ -7,18 +7,18 @@ The `generate` command creates a notification service URL by guiding the user th
 ## Usage
 
 ```bash title="Generate Command Syntax"
-shoutrrr generate [FLAGS] <SERVICE> [GENERATOR]
+shoutrrr generate [FLAGS] [SERVICE] [GENERATOR] [GENERATOR ARGS...]
 ```
 
 | Flag                         | Description                                                                                                                                                                              |
 |------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `-g, --generator string`     | Specifies the generator to use (e.g., `basic`, `oauth2`, `telegram`). Defaults to a service-specific generator if available, or `basic` otherwise.                                       |
 | `-p, --property stringArray` | Provides configuration properties in `key=value` format (e.g., `token=abc123`). Multiple properties can be specified by repeating the flag. Invalid properties are reported but ignored. |
-| `-s, --service string`       | Specifies the notification service to generate a URL for (e.g., `discord`, `smtp`, `telegram`). Can also be provided as the first positional argument.                                   |
+| `-s, --service string`       | Specifies the notification service to generate a URL for (e.g., `discord`, `smtp`, `telegram`). Can also be provided as a positional argument.                                           |
 | `-x, --show-sensitive`       | Displays sensitive data (e.g., tokens, passwords) in the generated URL. By default, sensitive fields are masked with `REDACTED` for security.                                            |
 
 !!! Note
-    The `SERVICE` can be supplied as the first positional argument or using the `-s` flag. The `GENERATOR` can be supplied as the second positional argument or using the `-g` flag. If no generator is specified, a service-specific generator is used if available; otherwise, the `basic` generator is used.
+    Positional arguments fill the `SERVICE` and then the `GENERATOR`, skipping any of them already given with `-s` or `-g`, so `generate smtp oauth2` and `generate -s smtp oauth2` both select the `oauth2` generator. Any remaining arguments are passed to the generator, such as the credentials file for `oauth2`. If no generator is specified, a service-specific generator is used if available; otherwise, the `basic` generator is used. Flags can also be set with `SHOUTRRR_` environment variables, as listed in the [CLI overview](../index.md#environment-variables).
 
 ### Generators
 
@@ -26,9 +26,9 @@ shoutrrr generate [FLAGS] <SERVICE> [GENERATOR]
 
 The default generator that dynamically prompts for service configuration fields.
 
-- Inspects service struct tags (`key`, `desc`, `default`) to generate prompts.
-- Handles required fields by reprompting if values are missing.
-- Integrates with `-p` properties to skip prompts for prefilled fields.
+- Inspects service struct tags (`key`, `desc`, `default`) to generate prompts, in alphabetical order of the field names.
+- Fails when a required field is left blank, or when input ends before a required field has a value.
+- Integrates with `-p` properties to skip prompts for prefilled fields. A property whose value is invalid is reported, and the field is prompted for instead.
 
 !!! Example
     ```bash
@@ -39,7 +39,7 @@ The default generator that dynamically prompts for service configuration fields.
 
 Specialized generator for OAuth2 authentication in SMTP services.
 
-- Supports JSON credential files (specified as a positional argument) or interactive prompts for details like Client ID, Client Secret, and Auth URL.
+- Supports JSON credential files (specified as a positional argument after the service and generator) or interactive prompts for details like Client ID, Client Secret, and Auth URL. The `gmail` provider requires a credentials file.
 - Generates an authentication URL and exchanges verification codes for access tokens.
 - Configures Gmail-specific defaults (port 587, STARTTLS, sender email as `FromAddress` and `ToAddresses`).
 
@@ -118,8 +118,10 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     Selected chats:
       -100123456789 (private) User
 
-    URL: telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?chats=-100123456789
+    URL: telegram://REDACTED@telegram?chats=REDACTED
     ```
+
+    Sensitive values are masked by default. Add `-x` to show the full URL.
 
 ### Generate a Discord URL with the Basic Generator
 
@@ -131,12 +133,23 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     ```text
     Generating URL for discord using basic generator
 
+    Avatar:
+    Color[0x50D9ff]:
+    ColorDebug[0x7b00ab]:
+    ColorError[0xd60510]:
+    ColorInfo[0x2488ff]:
+    ColorWarn[0xffc441]:
+    JSON[No]:
+    SplitLines[Yes]:
+    ThreadID:
+    Title:
     Token: abc123
+    Username:
     WebhookID: 123456789
     ```
 
     ```text
-    URL: discord://abc123@123456789
+    URL: discord://REDACTED@123456789?color=0x50d9ff
     ```
 
 ### Generate an SMTP URL with the OAuth2 Generator for Gmail
@@ -156,6 +169,6 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     ```
 
     ```text
-    URL: smtp://user@example.com:REDACTED@smtp.gmail.com:587/?auth=OAuth2&fromaddress=user@example.com&toaddresses=user@example.com&fromname=Shoutrrr&usehtml=true&usestarttls=true
+    URL: smtp://user%40example.com:REDACTED@smtp.gmail.com:587/?auth=OAuth2&fromaddress=user@example.com&toaddresses=user@example.com&fromname=Shoutrrr&usehtml=true&usestarttls=true
     ```
 <!-- markdownlint-restore -->

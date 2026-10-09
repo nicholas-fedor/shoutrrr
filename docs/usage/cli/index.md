@@ -26,3 +26,24 @@ Flags:
 
 Use "shoutrrr [command] --help" for more information about a command.
 ```
+
+## Environment Variables
+
+The `send`, `verify` and `generate` commands read any flag that is not given on the command line from an environment
+variable. The variable name is `SHOUTRRR_` followed by the flag name in upper case, with dashes replaced by underscores.
+
+| Variable                  | Flag               | Commands                    |
+|---------------------------|--------------------|-----------------------------|
+| `SHOUTRRR_URL`            | `--url`            | `send`, `verify`            |
+| `SHOUTRRR_MESSAGE`        | `--message`        | `send`                      |
+| `SHOUTRRR_TITLE`          | `--title`          | `send`                      |
+| `SHOUTRRR_VERBOSE`        | `--verbose`        | `send`                      |
+| `SHOUTRRR_SERVICE`        | `--service`        | `generate`                  |
+| `SHOUTRRR_GENERATOR`      | `--generator`      | `generate`                  |
+| `SHOUTRRR_PROPERTY`       | `--property`       | `generate`                  |
+| `SHOUTRRR_SHOW_SENSITIVE` | `--show-sensitive` | `generate`                  |
+
+- A flag or positional argument takes precedence over its environment variable, and an empty variable counts as unset.
+- Positional arguments fill only flags that were not given on the command line.
+- A flag that accepts several values, such as `--url` or `--property`, takes a single value from its variable.
+- When the URL comes from `SHOUTRRR_URL` and no message is given, `send` reads the message from stdin.

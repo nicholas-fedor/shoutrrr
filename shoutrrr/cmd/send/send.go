@@ -28,7 +28,7 @@ const (
 // Cmd is the cobra command for sending notifications.
 // It sends messages to one or more notification services using configured URLs.
 var Cmd = &cobra.Command{
-	Use:     "send",
+	Use:     "send [url] [message]",
 	Short:   "Send a notification using a service url",
 	Args:    cobra.MaximumNArgs(MaximumNArgs),
 	PreRunE: internalUtil.LoadFlagsFromAltSources,

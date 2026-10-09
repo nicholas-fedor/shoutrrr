@@ -416,7 +416,7 @@ func TestGenerator_getInputValue(t *testing.T) {
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
 			consumed := make(map[string]struct{})
 
-			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, consumed, scanner)
+			got, err := g.getInputValue(tt.field, tt.propKey, tt.props, consumed, scanner, false)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getInputValue() error = %v, wantErr %v", err, tt.wantErr)
 

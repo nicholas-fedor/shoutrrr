@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	internalUtil "github.com/nicholas-fedor/shoutrrr/internal/util"
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
@@ -17,7 +18,10 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// MaximumNArgs defines the maximum number of positional arguments allowed.
+// MaximumNArgs was the maximum number of positional arguments generate accepted.
+//
+// Deprecated: generate accepts the service, the generator, and any arguments for
+// the generator, so it has no maximum.
 const MaximumNArgs = 2
 
 // redactedStr represents the placeholder string for masked text values.
@@ -33,11 +37,10 @@ var (
 	// Cmd is the cobra command for generating notification service URLs.
 	// It creates a URL from user-provided properties and configuration.
 	Cmd = &cobra.Command{
-		Use:    "generate",
-		Short:  "Generates a notification service URL from user input",
-		Run:    Run,
-		PreRun: loadArgsFromAltSources,
-		Args:   cobra.MaximumNArgs(MaximumNArgs),
+		Use:   "generate [service] [generator] [generator args...]",
+		Short: "Generates a notification service URL from user input",
+		Run:   Run,
+		Args:  cobra.ArbitraryArgs,
 	}
 )
 
@@ -57,13 +60,22 @@ func init() {
 
 // Run executes the generate command, producing a notification service URL.
 //
+// Positional arguments fill the service and then the generator flag, skipping
+// flags set on the command line, and the remaining arguments go to the generator.
+// Environment variables then fill any flag that is still unset.
+//
 // Parameters:
 //   - cmd: The cobra command containing the parsed flags.
-//   - _: Unused positional arguments (handled by PreRun).
-func Run(cmd *cobra.Command, _ []string) {
+//   - args: The positional arguments.
+func Run(cmd *cobra.Command, args []string) {
 	var service types.Service
 
-	var err error
+	generatorArgs, err := applySources(cmd, args)
+	if err != nil {
+		_, _ = fmt.Fprint(os.Stderr, "Error: ", err, "\n")
+
+		os.Exit(1)
+	}
 
 	// Retrieve command flags.
 	serviceSchema, err := cmd.Flags().GetString("service")
@@ -100,8 +112,8 @@ func Run(cmd *cobra.Command, _ []string) {
 	cfg := color.DefaultConfig()
 
 	for _, prop := range propertyFlags {
-		parts := strings.Split(prop, "=")
-		if len(parts) != MaximumNArgs {
+		key, value, found := strings.Cut(prop, "=")
+		if !found || key == "" {
 			_, _ = fmt.Fprint(
 				cfg.Output,
 				"Invalid property key/value pair: ",
@@ -112,7 +124,7 @@ func Run(cmd *cobra.Command, _ []string) {
 			continue
 		}
 
-		props[parts[0]] = parts[1]
+		props[key] = value
 	}
 
 	if len(propertyFlags) > 0 {
@@ -184,7 +196,7 @@ func Run(cmd *cobra.Command, _ []string) {
 	_, _ = fmt.Fprint(cfg.Output, "Generating URL for ", color.HiCyanString(serviceSchema))
 	_, _ = fmt.Fprint(cfg.Output, " using ", color.HiMagentaString(generatorName), " generator\n")
 
-	serviceConfig, err := generator.Generate(service, props, cmd.Flags().Args())
+	serviceConfig, err := generator.Generate(service, props, generatorArgs)
 	if err != nil {
 		_, _ = fmt.Fprint(os.Stdout, "Error: ", err, "\n")
 
@@ -202,24 +214,28 @@ func Run(cmd *cobra.Command, _ []string) {
 	}
 }
 
-// loadArgsFromAltSources populates command flags from positional arguments if provided.
-// This allows users to specify service and generator as positional args instead of flags.
+// applySources fills the service and generator flags from positional arguments
+// and then fills any unset flag from its environment variable.
 //
 // Parameters:
-//   - cmd: The cobra command to populate with flag values.
-//   - args: The positional arguments (args[0] = service, args[1] = generator).
-func loadArgsFromAltSources(cmd *cobra.Command, args []string) {
-	if len(args) > 0 {
-		if err := cmd.Flags().Set("service", args[0]); err != nil {
-			_, _ = fmt.Fprint(os.Stderr, "Error setting service flag: ", err, "\n")
-		}
+//   - cmd: the generate command.
+//   - args: the positional arguments.
+//
+// Returns:
+//   - []string: the arguments for the generator, left over after the service and
+//     generator flags are filled.
+//   - error: an error naming the flag or environment variable that could not be applied.
+func applySources(cmd *cobra.Command, args []string) ([]string, error) {
+	generatorArgs, err := internalUtil.ApplyArgs(cmd, args, "service", "generator")
+	if err != nil {
+		return nil, fmt.Errorf("applying positional arguments: %w", err)
 	}
 
-	if len(args) > 1 {
-		if err := cmd.Flags().Set("generator", args[1]); err != nil {
-			_, _ = fmt.Fprint(os.Stderr, "Error setting generator flag: ", err, "\n")
-		}
+	if err := internalUtil.ApplyEnv(cmd); err != nil {
+		return nil, fmt.Errorf("applying environment variables: %w", err)
 	}
+
+	return generatorArgs, nil
 }
 
 // maskSensitiveURL masks sensitive parts of a Shoutrrr URL based on the service schema.
