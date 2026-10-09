@@ -24,8 +24,9 @@ Sends a notification to a single service URL.
   - `shoutrrr.Send(url string, message string) error`
   - `shoutrrr.SendContext(ctx context.Context, url string, message string, params *types.Params) error`
 - **Behavior**: Initializes a service from the provided URL, sends the message within the service's send budget, closes
-  the service, and returns any error. A send failure is a `*types.TargetError`, which names the service but never
-  includes the URL, so it is safe to log.
+  the service, and returns any error. A send failure wraps a `*types.TargetError`, which names the service but never
+  includes the URL, so it is safe to log. Use `errors.As` to get it. An invalid or unsupported URL returns an ordinary
+  wrapped error instead.
 - **Parameters**: `Send` takes no parameters. Use `SendContext` to pass parameters such as a title, and to cancel the
   send or bound it with a deadline. `params` may be `nil`.
 
@@ -169,9 +170,10 @@ the context ends, and the service's error reports the context's error. `Send` an
 
 `*ServiceRouter.Send`, `SendContext`, `SendItems`, and `SendItemsContext` return one entry per configured URL, in the
 order the URLs were given, and the entry is `nil` when that send succeeded. `SendAsync` reports the errors in the order
-the sends finish. `Route` and `shoutrrr.SendContext` return a single error. Each failure is a `*types.TargetError`, whose
-`URL` field holds the service ID (such as `discord`) and whose `Index` field holds the URL's position. It never contains
-the service URL, so it is safe to log, and it supports `errors.Unwrap`, `errors.Is`, and `errors.As`.
+the sends finish. `Route` and `shoutrrr.SendContext` return a single error. A failed send is a `*types.TargetError`, or wraps
+one, so use `errors.As` to get it. Its `URL` field holds the service ID (such as `discord`) and its `Index` field holds
+the URL's position. It never contains the service URL, so it is safe to log, and it supports `errors.Unwrap` and
+`errors.Is`. Creating a sender and locating a service return ordinary wrapped errors, not a `*types.TargetError`.
 
 !!! Example
     ```go title="Handle Per-Target Errors"
@@ -290,7 +292,8 @@ if services.SupportsSchema("discord") {
 
 - **Error Handling**: `shoutrrr.Send` and `shoutrrr.SendContext` return a single error. `Sender.Send`, `SendContext`,
   `SendItems`, and `SendItemsContext` return one entry per URL, `nil` on success, so check each entry rather than the
-  length of the slice. Each failure is a `*types.TargetError` naming the service, never its URL.
+  length of the slice. A failed send is or wraps a `*types.TargetError` naming the service, never its URL, so use
+  `errors.As` to get it. Creating a sender and locating a service return ordinary wrapped errors.
 - **Parameters**: `params` is a `*types.Params` value for `Send`, `SendContext`, `SendAsync`, and `Flush`, including
   `shoutrrr.SendContext`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
 - **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service.
