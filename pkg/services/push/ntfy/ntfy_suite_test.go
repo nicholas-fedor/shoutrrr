@@ -24,8 +24,12 @@ func TestNtfy(t *testing.T) { //nolint:paralleltest // Ginkgo manages its own pa
 	ginkgo.RunSpecs(t, "Ntfy Suite")
 }
 
-func newMockJSONClient() *jsonclientmocks.MockClient {
-	return jsonclientmocks.NewMockClient(ginkgo.GinkgoT())
+// newMockJSONClient creates a JSON client mock bound to the current spec.
+//
+// Returns:
+//   - *jsonclientmocks.MockContextClient: the mock, which asserts its expectations when the spec ends.
+func newMockJSONClient() *jsonclientmocks.MockContextClient {
+	return jsonclientmocks.NewMockContextClient(ginkgo.GinkgoT())
 }
 
 func mustParseURL(raw string) *url.URL {

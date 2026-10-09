@@ -21,17 +21,53 @@ type Sender interface {
 // DefaultSender provides the default implementation of Sender.
 type DefaultSender struct{}
 
+// contextSender sends a request bounded by a context. [DefaultSender] implements it.
+type contextSender interface {
+	SendRequestContext(
+		ctx context.Context,
+		client types.HTTPClient,
+		url string,
+		request *MessageRequest,
+		headers http.Header,
+	) error
+}
+
 // SendRequest handles the HTTP request.
-// This function executes the actual HTTP POST request to the Gotify API endpoint,
-// handling both successful responses and error conditions with appropriate error wrapping.
-// Parameters:
-//   - client: HTTP client to use for the request
-//   - url: The complete API endpoint URL to send the request to
-//   - request: The JSON payload to send in the request body
-//   - headers: Optional headers to set on the request
 //
-// Returns: error if the request fails or server returns an error, nil on success.
+// It delegates to [DefaultSender.SendRequestContext] with [context.Background].
+//
+// Parameters:
+//   - client: HTTP client to use for the request.
+//   - url: the complete API endpoint URL to send the request to.
+//   - request: the JSON payload to send in the request body.
+//   - headers: optional headers to set on the request.
+//
+// Returns:
+//   - error: the request error or the error the server reported.
 func (s *DefaultSender) SendRequest(
+	client types.HTTPClient,
+	url string,
+	request *MessageRequest,
+	headers http.Header,
+) error {
+	return s.SendRequestContext(context.Background(), client, url, request, headers)
+}
+
+// SendRequestContext executes the HTTP POST request to the Gotify API endpoint,
+// handling both successful responses and error conditions with appropriate error wrapping.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - client: HTTP client to use for the request.
+//   - url: the complete API endpoint URL to send the request to.
+//   - request: the JSON payload to send in the request body.
+//   - headers: optional headers to set on the request.
+//
+// Returns:
+//   - error: the request error or the error the server reported. A request
+//     error matches ctx's error when ctx ends the request.
+func (s *DefaultSender) SendRequestContext(
+	ctx context.Context,
 	client types.HTTPClient,
 	url string,
 	request *MessageRequest,
@@ -44,9 +80,9 @@ func (s *DefaultSender) SendRequest(
 
 	if len(headers) == 0 {
 		// Use JSON client for standard requests - this will handle error extraction
-		jsonClient := jsonclient.NewWithHTTPClient(client)
+		jsonClient := jsonclient.NewContextClient(client)
 
-		err = jsonClient.Post(url, request, response)
+		err = jsonClient.PostContext(ctx, url, request, response)
 		if err != nil {
 			// Try to extract structured error
 			errorRes := &responseError{}
@@ -61,7 +97,7 @@ func (s *DefaultSender) SendRequest(
 	}
 
 	// Use direct HTTP client when custom headers are needed
-	body, err := s.sendRequestWithHeaders(client, url, request, headers)
+	body, err := s.sendRequestWithHeaders(ctx, client, url, request, headers)
 	if err != nil {
 		return err
 	}
@@ -108,14 +144,19 @@ func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) err
 // sendRequestWithHeaders sends a request with custom headers using the underlying HTTP client.
 // This method is used when per-request headers are needed, bypassing the jsonclient
 // to avoid modifying shared header state.
-// Parameters:
-//   - client: HTTP client to use
-//   - url: The complete API endpoint URL to send the request to
-//   - request: The JSON payload to send in the request body
-//   - headers: Custom headers to set on the request
 //
-// Returns: the response body as bytes if successful, or an error.
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - client: HTTP client to use.
+//   - url: the complete API endpoint URL to send the request to.
+//   - request: the JSON payload to send in the request body.
+//   - headers: custom headers to set on the request.
+//
+// Returns:
+//   - []byte: the response body.
+//   - error: the marshaling, request, or response error.
 func (s *DefaultSender) sendRequestWithHeaders(
+	ctx context.Context,
 	client types.HTTPClient,
 	url string,
 	request *MessageRequest,
@@ -127,7 +168,7 @@ func (s *DefaultSender) sendRequestWithHeaders(
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		url,
 		bytes.NewReader(body),

@@ -54,6 +54,25 @@ var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
 			verifyMessageReceived(service.Config.Topic, message)
 		})
 
+		ginkgo.It("should deliver a message sent with a caller's context", func() {
+			serviceURLStr := buildServiceURL()
+			if serviceURLStr == "" {
+				ginkgo.Skip("ntfy server not configured, skipping SendContext test")
+			}
+
+			service := initializeService(serviceURLStr)
+
+			// A unique suffix keeps cached messages from earlier runs from matching.
+			message := fmt.Sprintf("E2E Test: SendContext notification %d", time.Now().UnixNano())
+
+			ctx, cancel := context.WithTimeout(context.Background(), defaultMessageTimeout)
+			defer cancel()
+
+			gomega.Expect(service.SendContext(ctx, message, nil)).NotTo(gomega.HaveOccurred())
+
+			verifyMessageReceived(service.Config.Topic, message)
+		})
+
 		ginkgo.It("should apply params to one send only", func() {
 			serviceURLStr := buildServiceURL()
 			if serviceURLStr == "" {

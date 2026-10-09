@@ -1,6 +1,7 @@
 package ntfy
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +26,7 @@ const concurrentSends = 8
 var _ = ginkgo.Describe("Service", func() {
 	var (
 		service  *Service
-		mockJSON *jsonclientmocks.MockClient
+		mockJSON *jsonclientmocks.MockContextClient
 		logger   types.StdLogger
 	)
 
@@ -40,7 +41,7 @@ var _ = ginkgo.Describe("Service", func() {
 			},
 		}
 		service.SetLogger(logger)
-		service.apiClient = func() jsonclient.Client { return mockJSON }
+		service.apiClient = func() jsonclient.ContextClient { return mockJSON }
 	})
 
 	ginkgo.Describe("GetID", func() {
@@ -170,7 +171,7 @@ var _ = ginkgo.Describe("Service", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
 			err := service.Send("hello", nil)
@@ -181,7 +182,7 @@ var _ = ginkgo.Describe("Service", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
 			params := &types.Params{"title": "New Title"}
@@ -194,7 +195,7 @@ var _ = ginkgo.Describe("Service", func() {
 			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
 			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(io.ErrClosedPipe)
 			mockJSON.EXPECT().ErrorResponse(mock.Anything, mock.Anything).
 				Return(false)
@@ -323,10 +324,10 @@ var _ = ginkgo.Describe("Service", func() {
 		})
 
 		ginkgo.It("should set Content-Type to text/plain by default", func() {
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/plain; charset=utf-8"))
 		})
@@ -334,10 +335,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Content-Type to text/markdown when Markdown is enabled", func() {
 			service.Config.Markdown = true
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "**hello**")
+			err := service.sendAPI(context.Background(), service.Config, "**hello**")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/markdown"))
 		})
@@ -345,19 +346,19 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Content-Type to text/plain when Markdown is disabled", func() {
 			service.Config.Markdown = false
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/plain; charset=utf-8"))
 		})
 
 		ginkgo.It("should set User-Agent header with shoutrrr version", func() {
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("User-Agent")).To(gomega.ContainSubstring("shoutrrr/"))
 		})
@@ -365,10 +366,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Title header when configured", func() {
 			service.Config.Title = "Alert"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Title")).To(gomega.Equal("Alert"))
 		})
@@ -376,10 +377,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Priority header when configured", func() {
 			service.Config.Priority = PriorityHigh
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Priority")).To(gomega.Equal("High"))
 		})
@@ -387,10 +388,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Tags header as comma-separated list", func() {
 			service.Config.Tags = []string{"warning", "skull"}
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Tags")).To(gomega.Equal("warning,skull"))
 		})
@@ -399,10 +400,10 @@ var _ = ginkgo.Describe("Service", func() {
 			service.Config.Username = "user"
 			service.Config.Password = "pass"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
 		})
@@ -410,10 +411,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Bearer Auth header when token is provided", func() {
 			service.Config.Token = "tk_mytoken"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
 		})
@@ -423,10 +424,10 @@ var _ = ginkgo.Describe("Service", func() {
 			service.Config.Password = "pass"
 			service.Config.Token = "tk_mytoken"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
 		})
@@ -434,10 +435,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Cache header to no when Cache is disabled", func() {
 			service.Config.Cache = false
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Cache")).To(gomega.Equal("no"))
 		})
@@ -445,10 +446,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Firebase header to no when Firebase is disabled", func() {
 			service.Config.Firebase = false
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Firebase")).To(gomega.Equal("no"))
 		})
@@ -456,10 +457,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Actions header when configured", func() {
 			service.Config.Actions = []string{"view", "open"}
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Actions")).To(gomega.Equal("view;open"))
 		})
@@ -467,10 +468,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Delay header when configured", func() {
 			service.Config.Delay = "2h"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Delay")).To(gomega.Equal("2h"))
 		})
@@ -478,10 +479,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Click header when configured", func() {
 			service.Config.Click = "https://example.com"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Click")).To(gomega.Equal("https://example.com"))
 		})
@@ -489,10 +490,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Attach header when configured", func() {
 			service.Config.Attach = "https://example.com/image.png"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Attach")).To(gomega.Equal("https://example.com/image.png"))
 		})
@@ -500,10 +501,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set X-Icon header when configured", func() {
 			service.Config.Icon = "https://example.com/icon.png"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("X-Icon")).To(gomega.Equal("https://example.com/icon.png"))
 		})
@@ -511,10 +512,10 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Filename header when configured", func() {
 			service.Config.Filename = "document.pdf"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Filename")).To(gomega.Equal("document.pdf"))
 		})
@@ -522,19 +523,19 @@ var _ = ginkgo.Describe("Service", func() {
 		ginkgo.It("should set Email header when configured", func() {
 			service.Config.Email = "user@example.com"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Email")).To(gomega.Equal("user@example.com"))
 		})
 
 		ginkgo.It("should call Post with the API URL and message body", func() {
-			mockJSON.On("Post", service.Config.GetAPIURL(), "hello", mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, service.Config.GetAPIURL(), "hello", mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
@@ -542,10 +543,10 @@ var _ = ginkgo.Describe("Service", func() {
 			service.Config.Username = "user"
 			service.Config.Password = ""
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
 		})
@@ -554,47 +555,47 @@ var _ = ginkgo.Describe("Service", func() {
 			service.Config.Username = ""
 			service.Config.Password = "pass"
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
 		})
 
 		ginkgo.It("should send empty message without error", func() {
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "")
+			err := service.sendAPI(context.Background(), service.Config, "")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("should set single tag without comma separator", func() {
 			service.Config.Tags = []string{"warning"}
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(nil)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(headers.Get("Tags")).To(gomega.Equal("warning"))
 		})
 
 		ginkgo.It("should return error when Post fails", func() {
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(io.ErrClosedPipe)
 			mockJSON.On("ErrorResponse", mock.Anything, mock.Anything).
 				Return(false)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("should return apiResponseError when API returns structured error", func() {
 			responseBody := `{"code":400,"error":"invalid request","link":"https://docs.ntfy.sh"}`
 
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(jsonclient.Error{
 					StatusCode: 400,
 					Body:       responseBody,
@@ -610,18 +611,18 @@ var _ = ginkgo.Describe("Service", func() {
 					return true
 				})
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid request"))
 		})
 
 		ginkgo.It("should return wrapped error when Post fails and ErrorResponse parsing fails", func() {
-			mockJSON.On("Post", mock.Anything, mock.Anything, mock.Anything).
+			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 				Return(io.ErrClosedPipe)
 			mockJSON.On("ErrorResponse", mock.Anything, mock.Anything).
 				Return(false)
 
-			err := service.sendAPI(service.Config, "hello")
+			err := service.sendAPI(context.Background(), service.Config, "hello")
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("posting to ntfy API"))
 		})
@@ -734,5 +735,24 @@ var _ = ginkgo.Describe("service API compliance", func() {
 		serviceURL := mustParseURL("ntfy://:devicekey@hostname/testtopic")
 		gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
 		testutils.TestServiceSetInvalidParamValue(svc, "foo", "bar")
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), testutils.TestLogger())).
+			To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })

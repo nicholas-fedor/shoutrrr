@@ -25,8 +25,11 @@ type errorTransport struct {
 	err error
 }
 
-// Compile-time interface compliance check.
-var _ Client = (*client)(nil)
+// Compile-time interface compliance checks.
+var (
+	_ Client        = (*client)(nil)
+	_ ContextClient = (*client)(nil)
+)
 
 // RoundTrip implements the http.RoundTripper interface.
 func (e *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -1639,4 +1642,62 @@ func TestClient_InvalidURLErrorsOmitURL(t *testing.T) {
 
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "SECRET")
+}
+
+// TestContextRequestsUseCallerContext verifies that GetContext and PostContext
+// send their requests with the caller's context, so a canceled context stops the
+// request and the returned error matches [context.Canceled].
+func TestContextRequestsUseCallerContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		call func(ctx context.Context, c ContextClient) error
+	}{
+		{
+			name: "GetContext",
+			call: func(ctx context.Context, c ContextClient) error {
+				var response map[string]any
+
+				return c.GetContext(ctx, "https://api.example.invalid/", &response)
+			},
+		},
+		{
+			name: "PostContext",
+			call: func(ctx context.Context, c ContextClient) error {
+				var response map[string]any
+
+				return c.PostContext(ctx, "https://api.example.invalid/", map[string]string{"k": "v"}, &response)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			httpClient := typesmocks.NewMockHTTPClient(t)
+			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				return nil, req.Context().Err()
+			}).Once()
+
+			err := tt.call(ctx, NewContextClient(httpClient))
+
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
+// TestNewWithHTTPClientReturnsContextClient verifies that clients from
+// NewWithHTTPClient also implement [ContextClient], so callers holding a [Client]
+// can reach the context methods.
+func TestNewWithHTTPClientReturnsContextClient(t *testing.T) {
+	t.Parallel()
+
+	_, ok := NewWithHTTPClient(http.DefaultClient).(ContextClient)
+
+	assert.True(t, ok)
 }

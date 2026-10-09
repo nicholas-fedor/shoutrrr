@@ -1,6 +1,7 @@
 package pushbullet_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -10,11 +11,13 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 // testToken is the access token in the URL that initService configures.
@@ -280,6 +283,39 @@ var _ = ginkgo.Describe("the pushbullet service", func() {
 			gomega.Expect(err.Error()).
 				To(gomega.ContainSubstring("push notification is not active"))
 		})
+	})
+})
+
+var _ = ginkgo.Describe("ServiceTimeout", func() {
+	ginkgo.It("should budget one client timeout for each target", func() {
+		service := &pushbullet.Service{}
+		gomega.Expect(service.Initialize(
+			testutils.URLMust("pushbullet://tokentokentokentokentokentokentoke/dev1/dev2/dev3"),
+			testutils.TestLogger(),
+		)).To(gomega.Succeed())
+
+		gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(3 * types.DefaultSendTimeout))
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &pushbullet.Service{}
+		gomega.Expect(service.Initialize(
+			testutils.URLMust("pushbullet://tokentokentokentokentokentokentoke"),
+			testutils.TestLogger(),
+		)).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })
 

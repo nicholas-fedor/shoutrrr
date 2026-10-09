@@ -23,6 +23,19 @@ type Client interface {
 	ErrorResponse(err error, response any) bool
 }
 
+// ContextClient is a [Client] whose requests honor a context.
+//
+// The context bounds the whole request, so a canceled context or an expired
+// deadline stops the request and its error matches the context's error.
+type ContextClient interface {
+	Client
+
+	// GetContext fetches url using GET and unmarshals the response into response.
+	GetContext(ctx context.Context, url string, response any) error
+	// PostContext sends request as JSON to url and unmarshals the response into response.
+	PostContext(ctx context.Context, url string, request, response any) error
+}
+
 // Error contains additional HTTP/JSON details.
 type Error struct {
 	StatusCode int
@@ -92,7 +105,27 @@ func NewClient() Client {
 }
 
 // NewWithHTTPClient creates a new JSON client using the specified HTTP client.
+//
+// The returned client also implements [ContextClient]. Use [NewContextClient]
+// to get that type directly.
+//
+// Parameters:
+//   - httpClient: the HTTP client that sends the requests.
+//
+// Returns:
+//   - Client: a client that sends JSON requests through httpClient.
 func NewWithHTTPClient(httpClient types.HTTPClient) Client {
+	return NewContextClient(httpClient)
+}
+
+// NewContextClient creates a JSON client whose requests honor a context.
+//
+// Parameters:
+//   - httpClient: the HTTP client that sends the requests.
+//
+// Returns:
+//   - ContextClient: a client that sends JSON requests through httpClient.
+func NewContextClient(httpClient types.HTTPClient) ContextClient {
 	return &client{
 		httpClient: httpClient,
 		headers: http.Header{
@@ -134,8 +167,31 @@ func (c *client) ErrorResponse(err error, response any) bool {
 }
 
 // Get fetches a URL using GET and unmarshals the response into the provided object.
+//
+// It delegates to [client.GetContext] with [context.Background].
+//
+// Parameters:
+//   - url: the URL to fetch.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: an [Error] for an error status or invalid JSON, or the request error.
 func (c *client) Get(url string, response any) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
+	return c.GetContext(context.Background(), url, response)
+}
+
+// GetContext fetches a URL using GET and unmarshals the response into the provided object.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - url: the URL to fetch.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: an [Error] for an error status or invalid JSON, or the request error,
+//     which matches ctx's error when ctx ends the request.
+func (c *client) GetContext(ctx context.Context, url string, response any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
 	}
@@ -160,7 +216,32 @@ func (c *client) Headers() http.Header {
 }
 
 // Post sends a request as JSON and unmarshals the response into the provided object.
+//
+// It delegates to [client.PostContext] with [context.Background].
+//
+// Parameters:
+//   - url: the URL to post to.
+//   - request: the request body. A string is sent as is, and any other value is encoded as JSON.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: an [Error] for an error status or invalid JSON, or the request error.
 func (c *client) Post(url string, request, response any) error {
+	return c.PostContext(context.Background(), url, request, response)
+}
+
+// PostContext sends a request as JSON and unmarshals the response into the provided object.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - url: the URL to post to.
+//   - request: the request body. A string is sent as is, and any other value is encoded as JSON.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: an [Error] for an error status or invalid JSON, or the request error,
+//     which matches ctx's error when ctx ends the request.
+func (c *client) PostContext(ctx context.Context, url string, request, response any) error {
 	var err error
 
 	var body []byte
@@ -176,7 +257,7 @@ func (c *client) Post(url string, request, response any) error {
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		url,
 		bytes.NewReader(body),

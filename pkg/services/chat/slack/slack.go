@@ -36,6 +36,7 @@ const (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -61,7 +62,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Slack.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params error or the send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Slack through the API or a webhook.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params error or the send error, which matches ctx's error when
+//     ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -74,9 +98,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	var err error
 	if config.Token.IsAPIToken() {
-		err = s.sendAPI(config, payload)
+		err = s.sendAPI(ctx, config, payload)
 	} else {
-		err = s.sendWebhook(config, payload)
+		err = s.sendWebhook(ctx, config, payload)
 	}
 
 	if err != nil {
@@ -101,12 +125,20 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 }
 
 // sendAPI sends a notification using the Slack API.
-func (s *Service) sendAPI(config *Config, payload any) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - config: the configuration for this send.
+//   - payload: the message payload.
+//
+// Returns:
+//   - error: the request error or the error the API reported.
+func (s *Service) sendAPI(ctx context.Context, config *Config, payload any) error {
 	response := APIResponse{}
-	jsonClient := jsonclient.NewWithHTTPClient(s.httpClientOrDefault())
+	jsonClient := jsonclient.NewContextClient(s.httpClientOrDefault())
 	jsonClient.Headers().Set("Authorization", config.Token.Authorization())
 
-	if err := jsonClient.Post(apiPostMessage, payload, &response); err != nil {
+	if err := jsonClient.PostContext(ctx, apiPostMessage, payload, &response); err != nil {
 		return fmt.Errorf("posting to Slack API: %w", err)
 	}
 
@@ -126,13 +158,21 @@ func (s *Service) sendAPI(config *Config, payload any) error {
 }
 
 // sendWebhook sends a notification using a Slack webhook.
-func (s *Service) sendWebhook(config *Config, payload any) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - config: the configuration for this send.
+//   - payload: the message payload.
+//
+// Returns:
+//   - error: the request error or the error the webhook reported.
+func (s *Service) sendWebhook(ctx context.Context, config *Config, payload any) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(

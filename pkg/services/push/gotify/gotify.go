@@ -1,6 +1,7 @@
 package gotify
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -29,12 +30,13 @@ type Service struct {
 	urlBuilder        URLBuilder
 	payloadBuilder    PayloadBuilder
 	validator         Validator
-	sender            Sender
+	sender            contextSender
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -84,15 +86,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Gotify.
-// This is the main entry point for sending notifications. It handles message validation,
-// parameter processing, configuration updates, URL construction, authentication setup,
-// and HTTP request execution.
-// Parameters:
-//   - message: The notification message content to send (cannot be empty)
-//   - params: Optional parameters that can override configuration settings or provide extras
 //
-// Returns: error if sending fails or validation fails, nil on successful delivery.
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the notification message content to send, which cannot be empty.
+//   - params: optional parameters that override configuration settings or provide extras.
+//
+// Returns:
+//   - error: the validation, config, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Gotify.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the notification message content to send, which cannot be empty.
+//   - params: optional parameters that override configuration settings or provide extras.
+//
+// Returns:
+//   - error: the validation, config, or send error. A request error matches
+//     ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if err := s.validateInputs(message, params); err != nil {
 		return fmt.Errorf("input validation failed: %w", err)
 	}
@@ -109,7 +126,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 
-	return s.sendRequest(postURL, request, headers)
+	return s.sendRequest(ctx, postURL, request, headers)
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
@@ -211,21 +228,24 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 	return config, extras, nil
 }
 
-// sendRequest handles the HTTP request.
-// This function executes the actual HTTP POST request to the Gotify API endpoint,
-// handling both successful responses and error conditions with appropriate error wrapping.
-// Parameters:
-//   - postURL: The complete API endpoint URL to send the request to
-//   - request: The JSON payload to send in the request body
-//   - headers: Optional headers to set on the request
+// sendRequest executes the HTTP POST request to the Gotify API endpoint.
 //
-// Returns: error if the request fails or server returns an error, nil on success.
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - postURL: the complete API endpoint URL to send the request to.
+//   - request: the JSON payload to send in the request body.
+//   - headers: optional headers to set on the request.
+//
+// Returns:
+//   - error: [ErrSendFailed] wrapping the request error or the error the server reported.
 func (s *Service) sendRequest(
+	ctx context.Context,
 	postURL string,
 	request *MessageRequest,
 	headers http.Header,
 ) error {
-	if err := s.sender.SendRequest(
+	if err := s.sender.SendRequestContext(
+		ctx,
 		s.httpClient,
 		postURL,
 		request,
