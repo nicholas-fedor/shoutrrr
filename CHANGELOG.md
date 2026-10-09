@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Continuous Integration
 
+- Add timeouts, PR concurrency, and module and release config checks by @nicholas-fedor in [#1501](https://github.com/nicholas-fedor/shoutrrr/pull/1501)
 - Keep the write token out of the docs build by @nicholas-fedor in [#1489](https://github.com/nicholas-fedor/shoutrrr/pull/1489)
 - Fix bot merges and group entries by commit type by @nicholas-fedor in [#1468](https://github.com/nicholas-fedor/shoutrrr/pull/1468)
 
