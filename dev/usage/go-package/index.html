@@ -2996,8 +2996,15 @@
 <h3 id="direct_send">Direct Send<a class="headerlink" href="#direct_send" title="Permanent link">&para;</a></h3>
 <p>Sends a notification to a single service URL.</p>
 <ul>
-<li><strong>Function</strong>: <code>shoutrrr.Send(url string, message string) error</code></li>
-<li><strong>Behavior</strong>: Initializes a service from the provided URL, sends the message, and returns any error.</li>
+<li><strong>Functions</strong>:</li>
+<li><code>shoutrrr.Send(url string, message string) error</code></li>
+<li><code>shoutrrr.SendContext(ctx context.Context, url string, message string, params *types.Params) error</code></li>
+<li><strong>Behavior</strong>: Initializes a service from the provided URL, sends the message within the service's send budget, closes
+  the service, and returns any error. A send failure wraps a <code>*types.TargetError</code>, which names the service but never
+  includes the URL, so it is safe to log. Use <code>errors.As</code> to get it. An invalid or unsupported URL returns an ordinary
+  wrapped error instead.</li>
+<li><strong>Parameters</strong>: <code>Send</code> takes no parameters. Use <code>SendContext</code> to pass parameters such as a title, and to cancel the
+  send or bound it with a deadline. <code>params</code> may be <code>nil</code>.</li>
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
@@ -3008,39 +3015,80 @@
 <span class="p">}</span>
 </code></pre></div>
 </div>
+<!-- markdownlint-disable -->
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Send with a Title and a Deadline</span><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">"context"</span>
+<span class="w">    </span><span class="s">"fmt"</span>
+<span class="w">    </span><span class="s">"time"</span>
+
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/types"</span>
+<span class="p">)</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">notify</span><span class="p">(</span><span class="nx">url</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">cancel</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">WithTimeout</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="mi">30</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+<span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">cancel</span><span class="p">()</span>
+
+<span class="w">    </span><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Alert"</span><span class="p">)</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"System alert!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">"sending alert: %w"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div>
+</div>
+<!-- markdownlint-restore -->
+
 <h3 id="sender">Sender<a class="headerlink" href="#sender" title="Permanent link">&para;</a></h3>
 <p>Creates a <code>Sender</code> (<code>*ServiceRouter</code>) to manage multiple service URLs, support message queuing, and allow parameter customization.</p>
 <ul>
-<li><strong>Function</strong>: <code>shoutrrr.CreateSender(urls ...string) (*ServiceRouter, error)</code></li>
-<li><strong>With options</strong>: <code>shoutrrr.NewSenderWithOptions</code> / <code>CreateSenderWithOptions</code> accept <code>types.SenderOptions</code>. <code>HTTPClient</code> is injected into HTTP services. <code>DialContext</code> is injected into TCP services that implement <code>types.DialContextSetter</code>. <code>shoutrrr.Send</code> cannot take these options.</li>
+<li><strong>Function</strong>: <code>shoutrrr.CreateSenderWithOptions(opts types.SenderOptions, urls ...string) (*ServiceRouter, error)</code>.
+  <code>shoutrrr.NewSenderWithOptions</code> also takes a logger. <code>CreateSender</code> and <code>NewSender</code> are deprecated.</li>
+<li><strong>Options</strong>: <code>types.SenderOptions{}</code> uses the defaults. <code>HTTPClient</code> is injected into HTTP services. <code>DialContext</code> is injected into TCP services that implement <code>types.DialContextSetter</code>. <code>shoutrrr.Send</code> and <code>shoutrrr.SendContext</code> cannot take these options.</li>
 <li><strong>Methods</strong>:</li>
 <li><code>Send(message string, params *types.Params) []error</code>: Sends a message to all configured services.</li>
+<li><code>SendContext(ctx context.Context, message string, params *types.Params) []error</code>: Like <code>Send</code>, and returns
+    when <code>ctx</code> is canceled or its deadline passes.</li>
 <li><code>SendItems(items []types.MessageItem, params types.Params) []error</code>: Sends structured message items to services that support rich formatting.</li>
+<li><code>SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) []error</code>: Like
+    <code>SendItems</code>, bounded by <code>ctx</code>.</li>
 <li><code>SendAsync(message string, params *types.Params) chan error</code>: Sends a message asynchronously and returns a channel of errors.</li>
-<li><code>Enqueue(message string, v ...interface{})</code>: Queues a formatted message for later sending.</li>
+<li><code>Enqueue(message string, v ...any)</code>: Queues a formatted message for later sending.</li>
 <li><code>Flush(params *types.Params)</code>: Sends all queued messages and resets the queue.</li>
-<li><strong>Behavior</strong>: Deduplicates URLs, initializes services, and sends asynchronously.</li>
+<li><code>Close() error</code>: Closes services that hold resources between sends, such as MQTT connections.</li>
+<li><strong>Behavior</strong>: Initializes a service for each URL and sends to all of them concurrently. <code>Send</code>, <code>SendContext</code>,
+  <code>SendItems</code>, and <code>SendItemsContext</code> return one entry per configured URL, in the same order, and the entry is <code>nil</code>
+  when that send succeeded.</li>
 </ul>
+<!-- markdownlint-disable -->
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Create Sender with Multiple URLs</span><pre><span></span><code><span class="nx">urls</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span>
 <span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel"</span><span class="p">,</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="p">...)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="nx">urls</span><span class="p">...)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
+<span class="k">defer</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
+
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
 <span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Test Notification"</span><span class="p">)</span>
-<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Hello, world!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"Hello, world!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Error sending to URL %d: %v\n"</span><span class="p">,</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
 </div>
+<!-- markdownlint-restore -->
+
 <h3 id="message_queuing">Message Queuing<a class="headerlink" href="#message_queuing" title="Permanent link">&para;</a></h3>
 <p>Allows queuing messages for deferred sending, useful for aggregating notifications during a process.</p>
 <ul>
@@ -3050,7 +3098,7 @@
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Queue and Flush Notifications</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"discord://abc123@123456789"</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="nx">url</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
@@ -3080,7 +3128,7 @@ Services that do not implement <code>RichSender</code> fall back to plain text a
 <span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">"Deployment complete"</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Info</span><span class="p">},</span>
 <span class="w">    </span><span class="p">{</span><span class="nx">Text</span><span class="p">:</span><span class="w"> </span><span class="s">"Rollback available"</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Warning</span><span class="p">},</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">"discord://webhook"</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="s">"discord://token@webhookid"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
@@ -3088,10 +3136,17 @@ Services that do not implement <code>RichSender</code> fall back to plain text a
 </code></pre></div>
 </div>
 <h3 id="context_propagation">Context Propagation<a class="headerlink" href="#context_propagation" title="Permanent link">&para;</a></h3>
-<p>Services that implement <code>types.ContextSender</code> or <code>types.ContextAttachmentSender</code> receive a <code>context.Context</code> derived from the router's base context with a per-service timeout.
-This enables cancellation and deadline propagation without changing the existing <code>Sender</code> or <code>RichSender</code> contracts.</p>
+<p><code>shoutrrr.SendContext</code>, <code>ServiceRouter.SendContext</code>, and <code>ServiceRouter.SendItemsContext</code> take a caller context.
+Services that implement <code>types.ContextSender</code> or <code>types.ContextAttachmentSender</code> receive a context derived from it with
+the service's send budget, so cancellation and deadlines stop their requests. For other services, the call returns when
+the context ends, and the service's error reports the context's error. <code>Send</code> and <code>SendItems</code> use a background context.</p>
 <h3 id="per-target_errors">Per-Target Errors<a class="headerlink" href="#per-target_errors" title="Permanent link">&para;</a></h3>
-<p><code>*ServiceRouter.Send</code>, <code>*ServiceRouter.SendAsync</code>, <code>*ServiceRouter.SendItems</code>, and <code>*ServiceRouter.Route</code> return one error per unique configured target, in the deduplicated target order produced by <code>CreateSender</code>. Each error is wrapped in <code>*types.TargetError</code>, which carries the service URL/ID and supports <code>errors.Unwrap</code>, <code>errors.Is</code>, and <code>errors.As</code>.</p>
+<p><code>*ServiceRouter.Send</code>, <code>SendContext</code>, <code>SendItems</code>, and <code>SendItemsContext</code> return one entry per configured URL, in the
+order the URLs were given, and the entry is <code>nil</code> when that send succeeded. <code>SendAsync</code> reports the errors in the order
+the sends finish. <code>Route</code> and <code>shoutrrr.SendContext</code> return a single error. A failed send is a <code>*types.TargetError</code>, or wraps
+one, so use <code>errors.As</code> to get it. Its <code>URL</code> field holds the service ID (such as <code>discord</code>) and its <code>Index</code> field holds
+the URL's position. It never contains the service URL, so it is safe to log, and it supports <code>errors.Unwrap</code> and
+<code>errors.Is</code>. Creating a sender and locating a service return ordinary wrapped errors, not a <code>*types.TargetError</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Handle Per-Target Errors</span><pre><span></span><code><span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"deploy complete"</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">)</span>
@@ -3101,7 +3156,7 @@ This enables cancellation and deadline propagation without changing the existing
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">targetErr</span><span class="w"> </span><span class="o">*</span><span class="nx">types</span><span class="p">.</span><span class="nx">TargetError</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">errors</span><span class="p">.</span><span class="nx">As</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">targetErr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"failed to send to %s: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">URL</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">Err</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"failed to send to URL %d (%s): %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">URL</span><span class="p">,</span><span class="w"> </span><span class="nx">targetErr</span><span class="p">.</span><span class="nx">Err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -3115,7 +3170,7 @@ The default is <code>Info</code>.</p>
 <div class="highlight"><span class="filename">Set Message Level</span><pre><span></span><code><span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
 <span class="nx">params</span><span class="p">.</span><span class="nx">SetLevel</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">Warning</span><span class="p">)</span>
 <span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Disk usage high"</span><span class="p">)</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="s">"discord://webhook"</span><span class="p">)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="s">"discord://token@webhookid"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
@@ -3147,17 +3202,10 @@ The default is <code>Info</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Send with Title and Error Handling</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"discord://abc123@123456789"</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
-<span class="p">}</span>
 <span class="nx">params</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{}</span>
 <span class="nx">params</span><span class="p">.</span><span class="nx">SetTitle</span><span class="p">(</span><span class="s">"Alert"</span><span class="p">)</span>
-<span class="nx">errs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sender</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"System alert!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">)</span>
-<span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">errs</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">errs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
-<span class="w">    </span><span class="p">}</span>
+<span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"System alert!"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">params</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output (Success)</span><pre><span></span><code>(No output on success)
@@ -3172,7 +3220,7 @@ The default is <code>Info</code>.</p>
 <span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"discord://abc123@123456789"</span><span class="p">,</span>
 <span class="p">}</span>
-<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSender</span><span class="p">(</span><span class="nx">urls</span><span class="p">...)</span>
+<span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="nx">urls</span><span class="p">...)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="p">}</span>
@@ -3193,10 +3241,15 @@ The default is <code>Info</code>.</p>
 
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Error Handling</strong>: <code>Send</code> returns a single error. <code>Sender.Send</code>, <code>SendItems</code>, and <code>SendAsync</code> return one error per service. Check <code>len(errs) &gt; 0</code> to handle failures. Each error is wrapped in <code>*types.TargetError</code> with the service URL.</li>
-<li><strong>Parameters</strong>: <code>params</code> is a <code>*types.Params</code> value for <code>Send</code>, <code>SendAsync</code>, and <code>Flush</code>. <code>SendItems</code> accepts <code>types.Params</code> by value. Use setter methods such as <code>SetTitle</code>, <code>SetMessage</code>, and <code>SetLevel</code> to configure service-specific options. Use <code>shoutrrr docs</code> to view supported parameters for each service.</li>
+<li><strong>Error Handling</strong>: <code>shoutrrr.Send</code> and <code>shoutrrr.SendContext</code> return a single error. <code>Sender.Send</code>, <code>SendContext</code>,
+  <code>SendItems</code>, and <code>SendItemsContext</code> return one entry per URL, <code>nil</code> on success, so check each entry rather than the
+  length of the slice. A failed send is or wraps a <code>*types.TargetError</code> naming the service, never its URL, so use
+  <code>errors.As</code> to get it. Creating a sender and locating a service return ordinary wrapped errors.</li>
+<li><strong>Parameters</strong>: <code>params</code> is a <code>*types.Params</code> value for <code>Send</code>, <code>SendContext</code>, <code>SendAsync</code>, and <code>Flush</code>, including
+  <code>shoutrrr.SendContext</code>. <code>SendItems</code> accepts <code>types.Params</code> by value. Use setter methods such as <code>SetTitle</code>, <code>SetMessage</code>, and <code>SetLevel</code> to configure service-specific options. Use <code>shoutrrr docs</code> to view supported parameters for each service.</li>
 <li><strong>Timeouts</strong>: The default is 10 seconds per service. A longer service timeout extends that service. A positive <code>SenderOptions.Timeout</code> is the exact fixed timeout for every service.</li>
-<li><strong>Deduplication</strong>: Duplicate URLs are automatically removed when creating a <code>Sender</code>.</li>
+<li><strong>Duplicate URLs</strong>: A <code>Sender</code> sends to every URL it is given, including duplicates. The CLI's <code>send</code> command removes
+  duplicate URLs before sending.</li>
 </ul>
 
 
@@ -3220,7 +3273,7 @@ The default is <code>Info</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 22, 2026 18:38:51 UTC"><span class="timeago" datetime="2026-09-22T18:38:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 18:38:51 UTC">2026-09-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 15:53:04 UTC"><span class="timeago" datetime="2026-10-09T15:53:04+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 15:53:04 UTC">2026-10-09</span>
   </span>
 
     

@@ -4738,7 +4738,7 @@ Includes severity and source parameters</p>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="s">"log"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -4754,9 +4754,10 @@ Includes severity and source parameters</p>
 <div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">"context"</span>
 <span class="w">    </span><span class="s">"log"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr/pkg/types"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/types"</span>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -4772,7 +4773,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"client_url"</span><span class="p">:</span><span class="w"> </span><span class="s">"https://monitoring.example.com/alerts/123"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"Production database is down"</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"Production database is down"</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
@@ -4782,10 +4783,11 @@ Includes severity and source parameters</p>
 <div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">"context"</span>
 <span class="w">    </span><span class="s">"log"</span>
 <span class="w">    </span><span class="s">"time"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr/pkg/types"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/types"</span>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">handleIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -4798,7 +4800,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w">   </span><span class="s">"trigger"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server unresponsive"</span><span class="p">,</span><span class="w"> </span><span class="nx">triggerParams</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server unresponsive"</span><span class="p">,</span><span class="w"> </span><span class="nx">triggerParams</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Failed to trigger incident: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span>
@@ -4812,7 +4814,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w"> </span><span class="s">"acknowledge"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Engineer investigating server issue"</span><span class="p">,</span><span class="w"> </span><span class="nx">ackParams</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Engineer investigating server issue"</span><span class="p">,</span><span class="w"> </span><span class="nx">ackParams</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Failed to acknowledge incident: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span>
@@ -4826,7 +4828,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"action"</span><span class="p">:</span><span class="w"> </span><span class="s">"resolve"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server restarted successfully"</span><span class="p">,</span><span class="w"> </span><span class="nx">resolveParams</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">baseURL</span><span class="p">,</span><span class="w"> </span><span class="s">"Web server restarted successfully"</span><span class="p">,</span><span class="w"> </span><span class="nx">resolveParams</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"Failed to resolve incident: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span>
@@ -4837,9 +4839,10 @@ Includes severity and source parameters</p>
 <div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">"context"</span>
 <span class="w">    </span><span class="s">"log"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr/pkg/types"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/types"</span>
 <span class="p">)</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">sendRichIncident</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -4876,7 +4879,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"client_url"</span><span class="p">:</span><span class="w"> </span><span class="s">"https://github.com/org/repo/actions/runs/456"</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"CI/CD pipeline failed in production deployment"</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"CI/CD pipeline failed in production deployment"</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">log</span><span class="p">.</span><span class="nx">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
@@ -4886,10 +4889,10 @@ Includes severity and source parameters</p>
 <div class="highlight"><pre><span></span><code><span class="kn">package</span><span class="w"> </span><span class="nx">main</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="s">"context"</span>
 <span class="w">    </span><span class="s">"encoding/json"</span>
-<span class="w">    </span><span class="s">"log"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr"</span>
-<span class="w">    </span><span class="s">"github.com/containrrr/shoutrrr/pkg/types"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr"</span>
+<span class="w">    </span><span class="s">"github.com/nicholas-fedor/shoutrrr/pkg/types"</span>
 <span class="p">)</span>
 
 <span class="c1">// AlertData represents alert data from a monitoring system</span>
@@ -4920,7 +4923,7 @@ Includes severity and source parameters</p>
 <span class="w">        </span><span class="s">"client_url"</span><span class="p">:</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">DashboardURL</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">Title</span><span class="o">+</span><span class="s">": "</span><span class="o">+</span><span class="nx">data</span><span class="p">.</span><span class="nx">Description</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SendContext</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">.</span><span class="nx">Title</span><span class="o">+</span><span class="s">": "</span><span class="o">+</span><span class="nx">data</span><span class="p">.</span><span class="nx">Description</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <h2 id="cli_examples">CLI Examples<a class="headerlink" href="#cli_examples" title="Permanent link">&para;</a></h2>
@@ -5069,7 +5072,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> <
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 3, 2025 06:45:14 UTC"><span class="timeago" datetime="2025-11-03T06:45:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 3, 2025 06:45:14 UTC">2025-11-03</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 15:53:04 UTC"><span class="timeago" datetime="2026-10-09T15:53:04+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 15:53:04 UTC">2026-10-09</span>
   </span>
 
     
