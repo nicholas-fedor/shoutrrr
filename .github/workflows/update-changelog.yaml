@@ -11,12 +11,17 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changelog:
+    name: Generate Changelog
     runs-on: ubuntu-latest
     permissions:
       contents: write # For committing changelog
-      pull-requests: write # For creating PR
+      pull-requests: write # For creating and merging the PR
     steps:
       - name: Harden the Runner (Step Security)
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -53,9 +58,25 @@ jobs:
           body: "Automated changelog update"
           delete-branch: true
 
-      - name: Enable auto-merge
-        if: "${{ steps.create_pr.outputs.pull-request-number }}"
+      # Requests auto-merge, and merges directly when the repository has
+      # auto-merge disabled, so the changelog stays fully automated. The
+      # branch and head commit checks keep it from merging anything else.
+      - name: Merge the Changelog Pull Request
+        if: ${{ steps.create_pr.outputs.pull-request-number }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PULL_REQUEST_NUMBER: ${{ steps.create_pr.outputs.pull-request-number }}
-        run: gh pr merge --auto --squash "${PULL_REQUEST_NUMBER}"
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.create_pr.outputs.pull-request-number }}
+          HEAD_SHA: ${{ steps.create_pr.outputs.pull-request-head-sha }}
+          EXPECTED_BRANCH: docs/update-changelog
+        run: |
+          set -eu
+          head_ref="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
+          if [ "$head_ref" != "$EXPECTED_BRANCH" ]; then
+            echo "::error::Refusing to merge a pull request from '$head_ref'."
+            exit 1
+          fi
+          if ! gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_NUMBER"; then
+            echo "Auto-merge is unavailable, so merging the pull request directly"
+            gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_NUMBER"
+          fi
