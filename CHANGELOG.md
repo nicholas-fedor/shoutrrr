@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/text to v0.43.0 by @renovate[bot] in [#1490](https://github.com/nicholas-fedor/shoutrrr/pull/1490)
 - Update module golang.org/x/sys to v0.49.0 by @renovate[bot] in [#1483](https://github.com/nicholas-fedor/shoutrrr/pull/1483)
 - Update module golang.org/x/sync to v0.24.0 by @renovate[bot] in [#1482](https://github.com/nicholas-fedor/shoutrrr/pull/1482)
 - Update nicholas-fedor/actionlint-action action to v1.0.19 by @renovate[bot] in [#1477](https://github.com/nicholas-fedor/shoutrrr/pull/1477)
