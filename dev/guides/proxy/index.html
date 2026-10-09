@@ -2800,9 +2800,10 @@
 <p><code>shoutrrr.Send</code> cannot take these options. Use <code>shoutrrr.NewSenderWithOptions</code>, <code>CreateSenderWithOptions</code>, or <code>router.NewWithOptions</code>.</p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <h3 id="environment_variable">Environment Variable<a class="headerlink" href="#environment_variable" title="Permanent link">&para;</a></h3>
-<p>Set the <code>HTTP_PROXY</code> environment variable to the proxy URL.
-This applies to all HTTP-based services used by Shoutrrr that rely on the default transport.</p>
-<div class="highlight"><span class="filename">Set HTTP_PROXY Environment Variable</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span><span class="s2">"socks5://localhost:1337"</span>
+<p>Set the <code>HTTPS_PROXY</code> environment variable to the proxy URL for services that use HTTPS, which is most of them, and <code>HTTP_PROXY</code> for services configured to use plain HTTP. Hosts listed in <code>NO_PROXY</code> are reached directly.
+Every HTTP-based service honors these variables when it uses its own default client.</p>
+<div class="highlight"><span class="filename">Set the Proxy Environment Variables</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span><span class="s2">"socks5://localhost:1337"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span><span class="s2">"socks5://localhost:1337"</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -2903,7 +2904,7 @@ It is not suitable for per-sender SSRF controls.</p>
 <h3 id="using_environment_variable_for_proxy_global">Using Environment Variable for Proxy (Global)<a class="headerlink" href="#using_environment_variable_for_proxy_global" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Set Proxy and Send Notification</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span><span class="s2">"socks5://localhost:1337"</span>
+<div class="highlight"><span class="filename">Set Proxy and Send Notification</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span><span class="s2">"socks5://localhost:1337"</span>
 shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello via proxy!"</span>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Notification sent
@@ -2976,7 +2977,10 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"
 
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Environment Variable</strong>: <code>HTTP_PROXY</code> supports protocols like <code>http</code>, <code>https</code>, or <code>socks5</code>. It affects all HTTP-based services globally.</li>
+<li><strong>Environment Variables</strong>: <code>HTTPS_PROXY</code> applies to HTTPS requests and <code>HTTP_PROXY</code> to plain HTTP requests. Both
+  accept <code>http</code>, <code>https</code>, or <code>socks5</code> proxy URLs, and <code>NO_PROXY</code> lists hosts to reach directly. Go reads them once,
+  when the process sends its first HTTP request, so set them before starting the application. They affect every
+  HTTP-based service that uses its own default client.</li>
 <li><strong>Custom HTTP Client</strong>: Provides fine-grained control over proxy settings, suitable for Go applications requiring specific transport configurations.</li>
 <li><strong>Custom DialContext</strong>: Applies the same destination policy to SMTP and MQTT TCP connections. HTTP services continue to use <code>HTTPClient</code>.</li>
 <li><strong>Service Compatibility</strong>: Ensure the proxy supports the protocol used by the service (e.g., HTTPS for Discord, SMTP).</li>
@@ -3004,7 +3008,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 7, 2026 01:40:17 UTC"><span class="timeago" datetime="2026-09-07T01:40:17+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 01:40:17 UTC">2026-09-07</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 11:37:35 UTC"><span class="timeago" datetime="2026-10-09T11:37:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 11:37:35 UTC">2026-10-09</span>
   </span>
 
     
