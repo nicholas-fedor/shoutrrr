@@ -13,13 +13,13 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	BotName  string `desc:"Bot name"                                                            key:"botname,username"         optional:"uses bot default"`
-	Icon     string `desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)"   key:"icon,icon_emoji,icon_url" optional:""                     default:""`
-	Token    Token  `desc:"API Bot token"                                                                                                                                 url:"user,pass"`
-	Color    string `desc:"Message left-hand border color"                                      key:"color"                    optional:"default border color"`
-	Title    string `desc:"Prepended text above the message"                                    key:"title"                    optional:"omitted"`
-	Channel  string `desc:"Channel to send messages to in Cxxxxxxxxxx format"                                                                                             url:"host"`
-	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                optional:""`
+	BotName  string `desc:"Bot name"                                                            key:"botname,username"                                                   optional:"uses bot default"`
+	Icon     string `default:""                                                                 desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url"  optional:""`
+	Token    Token  `desc:"API Bot token"                                                       url:"user,pass"`
+	Color    string `desc:"Message left-hand border color"                                      key:"color"                                                              optional:"default border color"`
+	Title    string `desc:"Prepended text above the message"                                    key:"title"                                                              optional:"omitted"`
+	Channel  string `desc:"Channel to send messages to in Cxxxxxxxxxx format"                   url:"host"`
+	ThreadTS string `desc:"ts value of the parent message (to send message as reply in thread)" key:"thread_ts"                                                          optional:""`
 }
 
 const (

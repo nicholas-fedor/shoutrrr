@@ -56,7 +56,7 @@ func Test_Matrix_E2E(t *testing.T) {
 		service := &matrix.Service{}
 		if err := service.Initialize(parsedURL, testutils.TestLogger()); err != nil {
 			// Log but continue; individual tests will handle failures
-			fmt.Printf("Warning: shared service init failed: %v\n", err)
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Warning: shared service init failed: %v\n", err)
 
 			return
 		}

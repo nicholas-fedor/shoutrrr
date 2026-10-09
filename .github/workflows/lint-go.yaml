@@ -9,9 +9,12 @@ on:
       - internal/**
       - pkg/**
       - shoutrrr/**
+      - testing/**
       - go.mod
       - go.sum
       - shoutrrr.go
+      - build/golangci-lint/**
+      - .github/workflows/lint-go.yaml
 
 permissions:
   contents: read # Set default read-only permissions
@@ -44,5 +47,5 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          args: --timeout=5m --config=build/golangci-lint/golangci.yaml
+          args: --timeout=5m --config=build/golangci-lint/golangci.yaml --fix=false
           only-new-issues: true

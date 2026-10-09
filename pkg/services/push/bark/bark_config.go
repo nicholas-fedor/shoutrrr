@@ -15,18 +15,18 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	Title     string `default:""      desc:"Notification title, optionally set by the sender"           key:"title"`
-	Host      string `                desc:"Server hostname and port"                                                  url:"host"`
-	Path      string `default:"/"     desc:"Server path"                                                               url:"path"`
-	DeviceKey string `                desc:"The key for each device"                                                   url:"password"`
-	Scheme    string `default:"https" desc:"Server protocol, http or https"                             key:"scheme"`
-	Sound     string `default:""      desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
-	Badge     int64  `default:"0"     desc:"The number displayed next to App icon"                      key:"badge"`
-	Icon      string `default:""      desc:"An url to the icon, available only on iOS 15 or later"      key:"icon"`
-	Group     string `default:""      desc:"The group of the notification"                              key:"group"`
-	URL       string `default:""      desc:"Url that will jump when click notification"                 key:"url"`
-	Category  string `default:""      desc:"Reserved field, no use yet"                                 key:"category"`
-	Copy      string `default:""      desc:"The value to be copied"                                     key:"copy"`
+	Title     string `default:""                      desc:"Notification title, optionally set by the sender"           key:"title"`
+	Host      string `desc:"Server hostname and port" url:"host"`
+	Path      string `default:"/"                     desc:"Server path"                                                url:"path"`
+	DeviceKey string `desc:"The key for each device"  url:"password"`
+	Scheme    string `default:"https"                 desc:"Server protocol, http or https"                             key:"scheme"`
+	Sound     string `default:""                      desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
+	Badge     int64  `default:"0"                     desc:"The number displayed next to App icon"                      key:"badge"`
+	Icon      string `default:""                      desc:"An url to the icon, available only on iOS 15 or later"      key:"icon"`
+	Group     string `default:""                      desc:"The group of the notification"                              key:"group"`
+	URL       string `default:""                      desc:"Url that will jump when click notification"                 key:"url"`
+	Category  string `default:""                      desc:"Reserved field, no use yet"                                 key:"category"`
+	Copy      string `default:""                      desc:"The value to be copied"                                     key:"copy"`
 }
 
 // Scheme is the URL scheme identifier for the Bark service.

@@ -12,17 +12,17 @@ import (
 
 // Config holds the configuration for the PagerDuty service.
 type Config struct {
-	IntegrationKey string `desc:"The PagerDuty API integration key"                                                            url:"path"`
-	Host           string `desc:"The PagerDuty API host."                                                                      url:"host" default:"events.pagerduty.com"`
-	Port           uint16 `desc:"The PagerDuty API port."                                                                      url:"port" default:"443"`
-	Severity       string `desc:"The perceived severity of the status the event (critical, error, warning, or info); required"            default:"error"                key:"severity"`
-	Source         string `desc:"The unique location of the affected system, preferably a hostname or FQDN; required"                     default:"default"              key:"source"`
-	Action         string `desc:"The type of event (trigger, acknowledge, or resolve)"                                                    default:"trigger"              key:"action"`
-	DedupKey       string `desc:"A unique key used for incident deduplication"                                                                                           key:"dedup_key"`
-	Details        string `desc:"Additional details about the incident (JSON string that will be parsed into an object)"                                                 key:"details"`
-	Contexts       string `desc:"Additional context links or images"                                                                                                     key:"contexts"`
-	Client         string `desc:"The name of the monitoring client that is triggering this event"                                                                        key:"client"`
-	ClientURL      string `desc:"The URL of the monitoring client that is triggering this event"                                                                         key:"client_url"`
+	IntegrationKey string `desc:"The PagerDuty API integration key"                                                      url:"path"`
+	Host           string `default:"events.pagerduty.com"                                                                desc:"The PagerDuty API host."                                                                      url:"host"`
+	Port           uint16 `default:"443"                                                                                 desc:"The PagerDuty API port."                                                                      url:"port"`
+	Severity       string `default:"error"                                                                               desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
+	Source         string `default:"default"                                                                             desc:"The unique location of the affected system, preferably a hostname or FQDN; required"          key:"source"`
+	Action         string `default:"trigger"                                                                             desc:"The type of event (trigger, acknowledge, or resolve)"                                         key:"action"`
+	DedupKey       string `desc:"A unique key used for incident deduplication"                                           key:"dedup_key"`
+	Details        string `desc:"Additional details about the incident (JSON string that will be parsed into an object)" key:"details"`
+	Contexts       string `desc:"Additional context links or images"                                                     key:"contexts"`
+	Client         string `desc:"The name of the monitoring client that is triggering this event"                        key:"client"`
+	ClientURL      string `desc:"The URL of the monitoring client that is triggering this event"                         key:"client_url"`
 }
 
 const (

@@ -12,27 +12,27 @@ import (
 
 // Config holds the configuration for the Ntfy service.
 type Config struct {
-	Title                  string   `default:""        desc:"Message title"                                                                                    key:"title"`
-	Host                   string   `default:"ntfy.sh" desc:"Server hostname and port"                                                                                                      url:"host"`
-	Topic                  string   `                  desc:"Target topic name"                                                                                                             url:"path"     required:""`
-	Password               string   `                  desc:"Auth password"                                                                                                                 url:"password"             optional:""`
-	Username               string   `                  desc:"Auth username"                                                                                                                 url:"user"                 optional:""`
-	Token                  string   `                  desc:"Access token for Bearer auth, takes precedence over username and password"                        key:"token"                                             optional:"" sensitive:"true"`
-	Scheme                 string   `default:"https"   desc:"Server protocol, http or https"                                                                   key:"scheme"`
-	Tags                   []string `                  desc:"List of tags that may or not map to emojis"                                                       key:"tags"                                              optional:""`
-	Priority               priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max"                                                 key:"priority"`
-	Actions                []string `                  desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons"   key:"actions"                                           optional:""                  sep:";"`
-	Click                  string   `                  desc:"Website opened when notification is clicked"                                                      key:"click"                                             optional:""`
-	Attach                 string   `                  desc:"URL of an attachment, see attach via URL"                                                         key:"attach"                                            optional:""`
-	Filename               string   `                  desc:"File name of the attachment"                                                                      key:"filename"                                          optional:""`
-	Delay                  string   `                  desc:"Timestamp or duration for delayed delivery, see https://docs.ntfy.sh/publish/#scheduled-delivery" key:"delay,at,in"                                       optional:""`
-	Email                  string   `                  desc:"E-mail address for e-mail notifications"                                                          key:"email"                                             optional:""`
-	Icon                   string   `                  desc:"URL to use as notification icon"                                                                  key:"icon"                                              optional:""`
-	Markdown               bool     `default:"no"      desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting"                key:"markdown"`
-	Cache                  bool     `default:"yes"     desc:"Cache messages"                                                                                   key:"cache"`
-	Firebase               bool     `default:"yes"     desc:"Send to firebase"                                                                                 key:"firebase"`
-	DisableTLSVerification bool     `default:"no"      desc:"Disable TLS certificate verification"                                                             key:"disabletlsverification"`
-	DisableTLS             bool     `default:"no"      desc:"Disable TLS entirely (force HTTP scheme)"                                                         key:"disabletls"`
+	Title                  string   `default:""                                                                                              desc:"Message title"                                                                     key:"title"`
+	Host                   string   `default:"ntfy.sh"                                                                                       desc:"Server hostname and port"                                                          url:"host"`
+	Topic                  string   `desc:"Target topic name"                                                                                required:""                                                                              url:"path"`
+	Password               string   `desc:"Auth password"                                                                                    optional:""                                                                              url:"password"`
+	Username               string   `desc:"Auth username"                                                                                    optional:""                                                                              url:"user"`
+	Token                  string   `desc:"Access token for Bearer auth, takes precedence over username and password"                        key:"token"                                                                              optional:""                  sensitive:"true"`
+	Scheme                 string   `default:"https"                                                                                         desc:"Server protocol, http or https"                                                    key:"scheme"`
+	Tags                   []string `desc:"List of tags that may or not map to emojis"                                                       key:"tags"                                                                               optional:""`
+	Priority               priority `default:"default"                                                                                       desc:"Message priority with 1=min, 3=default and 5=max"                                  key:"priority"`
+	Actions                []string `desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons"   key:"actions"                                                                            optional:""                  sep:";"`
+	Click                  string   `desc:"Website opened when notification is clicked"                                                      key:"click"                                                                              optional:""`
+	Attach                 string   `desc:"URL of an attachment, see attach via URL"                                                         key:"attach"                                                                             optional:""`
+	Filename               string   `desc:"File name of the attachment"                                                                      key:"filename"                                                                           optional:""`
+	Delay                  string   `desc:"Timestamp or duration for delayed delivery, see https://docs.ntfy.sh/publish/#scheduled-delivery" key:"delay,at,in"                                                                        optional:""`
+	Email                  string   `desc:"E-mail address for e-mail notifications"                                                          key:"email"                                                                              optional:""`
+	Icon                   string   `desc:"URL to use as notification icon"                                                                  key:"icon"                                                                               optional:""`
+	Markdown               bool     `default:"no"                                                                                            desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting" key:"markdown"`
+	Cache                  bool     `default:"yes"                                                                                           desc:"Cache messages"                                                                    key:"cache"`
+	Firebase               bool     `default:"yes"                                                                                           desc:"Send to firebase"                                                                  key:"firebase"`
+	DisableTLSVerification bool     `default:"no"                                                                                            desc:"Disable TLS certificate verification"                                              key:"disabletlsverification"`
+	DisableTLS             bool     `default:"no"                                                                                            desc:"Disable TLS entirely (force HTTP scheme)"                                          key:"disabletls"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

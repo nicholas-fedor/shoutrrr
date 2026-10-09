@@ -12,11 +12,11 @@ import (
 
 // Config for the Twilio SMS notification service.
 type Config struct {
-	AccountSID string   `desc:"Twilio Account SID"                           required:"" url:"user"`
-	AuthToken  string   `desc:"Twilio Auth Token"                            required:"" url:"password"`
-	FromNumber string   `desc:"Sender phone number or Messaging Service SID" required:"" url:"host"`
-	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:"" url:"path"`
-	Title      string   `desc:"Notification title"                                                      default:"" key:"title" optional:""`
+	AccountSID string   `desc:"Twilio Account SID"                           required:""               url:"user"`
+	AuthToken  string   `desc:"Twilio Auth Token"                            required:""               url:"password"`
+	FromNumber string   `desc:"Sender phone number or Messaging Service SID" required:""               url:"host"`
+	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:""               url:"path"`
+	Title      string   `default:""                                          desc:"Notification title" key:"title"    optional:""`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
