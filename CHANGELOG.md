@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/net to v0.61.0 by @renovate[bot] in [#1502](https://github.com/nicholas-fedor/shoutrrr/pull/1502)
 - Update module golang.org/x/crypto to v0.58.0 by @renovate[bot] in [#1499](https://github.com/nicholas-fedor/shoutrrr/pull/1499)
 - Fail on fixable issues and resolve the tag formatter conflict by @nicholas-fedor in [#1495](https://github.com/nicholas-fedor/shoutrrr/pull/1495)
 - Update actions/download-artifact action to v8.0.2 by @renovate[bot] in [#1496](https://github.com/nicholas-fedor/shoutrrr/pull/1496)
