@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Fail on fixable issues and resolve the tag formatter conflict by @nicholas-fedor in [#1495](https://github.com/nicholas-fedor/shoutrrr/pull/1495)
 - Update actions/download-artifact action to v8.0.2 by @renovate[bot] in [#1496](https://github.com/nicholas-fedor/shoutrrr/pull/1496)
 - Update module golang.org/x/term to v0.47.0 by @renovate[bot] in [#1491](https://github.com/nicholas-fedor/shoutrrr/pull/1491)
 - Update module golang.org/x/text to v0.43.0 by @renovate[bot] in [#1490](https://github.com/nicholas-fedor/shoutrrr/pull/1490)
