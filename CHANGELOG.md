@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add context-aware sends to json client services by @nicholas-fedor in [#1469](https://github.com/nicholas-fedor/shoutrrr/pull/1469)
 - Add context-aware sends and closing to the router and root API by @nicholas-fedor in [#1464](https://github.com/nicholas-fedor/shoutrrr/pull/1464)
 
 ### Fixed
