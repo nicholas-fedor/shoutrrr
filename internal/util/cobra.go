@@ -2,88 +2,146 @@
 package util
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
-// LoadFlagsFromAltSources is a workaround to make cobra count env vars and
-// positional arguments when checking required flags.
+// EnvPrefix is the prefix of the environment variables that set CLI flags. A flag
+// named show-sensitive is read from SHOUTRRR_SHOW_SENSITIVE.
+const EnvPrefix = "SHOUTRRR"
+
+// stdinMessage is the message flag value that reads the message from stdin.
+const stdinMessage = "-"
+
+// ErrTooManyArgs indicates more positional arguments than flags left to fill.
+var ErrTooManyArgs = errors.New("too many positional arguments")
+
+// LoadFlagsFromAltSources fills the url and message flags of send and verify from
+// positional arguments and environment variables, before cobra checks required
+// flags.
 //
-// It resolves the url and message flags from positional arguments (if provided)
-// or from the SHOUTRRR_URL environment variable. When the URL is sourced from
-// the environment, the message defaults to stdin ("-") unless already set.
+// Positional arguments fill the url and then the message flag, skipping flags set
+// on the command line. Environment variables then fill any flag that is still
+// unset, as described in [ApplyEnv]. When the URL comes from the environment and
+// the command has a message flag that is still empty, the message is read from
+// stdin.
 //
 // Parameters:
-//   - cmd: the cobra.Command whose flags will be populated.
-//   - args: positional arguments passed to the command.
+//   - cmd: the command whose flags are filled.
+//   - args: the positional arguments.
 //
 // Returns:
-//   - error: if any flag operation fails; otherwise nil.
+//   - error: [ErrTooManyArgs] when an argument has no flag left to fill, or an
+//     error naming the flag or environment variable that could not be applied.
 func LoadFlagsFromAltSources(cmd *cobra.Command, args []string) error {
-	flags := cmd.Flags()
-
-	if len(args) > 0 {
-		if err := flags.Set("url", args[0]); err != nil {
-			return fmt.Errorf("setting url flag from positional arg: %w", err)
-		}
-
-		if len(args) > 1 {
-			if err := flags.Set("message", args[1]); err != nil {
-				return fmt.Errorf("setting message flag from positional arg: %w", err)
-			}
-		}
-
-		return nil
-	}
-
-	hasURL, err := hasURLInEnvButNotFlag(cmd)
+	rest, err := ApplyArgs(cmd, args, "url", "message")
 	if err != nil {
-		return fmt.Errorf("checking url flag and env: %w", err)
+		return err
 	}
 
-	if hasURL {
-		if err := flags.Set("url", viper.GetViper().GetString("SHOUTRRR_URL")); err != nil {
-			return fmt.Errorf("setting url flag from env var: %w", err)
-		}
+	if len(rest) > 0 {
+		return fmt.Errorf("%w: %q", ErrTooManyArgs, rest)
+	}
 
-		// Default the message to read from stdin when the URL is sourced from env.
-		msg, err := flags.GetString("message")
-		if err != nil {
-			return fmt.Errorf("getting message flag value: %w", err)
-		}
+	urlFromEnv := !cmd.Flags().Changed("url")
 
-		if msg == "" {
-			if err := flags.Set("message", "-"); err != nil {
-				return fmt.Errorf("setting message flag to default stdin: %w", err)
-			}
+	if err := ApplyEnv(cmd); err != nil {
+		return err
+	}
+
+	urlFromEnv = urlFromEnv && cmd.Flags().Changed("url")
+
+	message := cmd.Flags().Lookup("message")
+	if urlFromEnv && message != nil && !message.Changed {
+		if err := cmd.Flags().Set("message", stdinMessage); err != nil {
+			return fmt.Errorf("setting message flag to read stdin: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// hasURLInEnvButNotFlag checks whether the SHOUTRRR_URL environment variable is
-// set while no url flag has been explicitly provided on the command.
-//
-// Cobra StringArray flags default to [""] rather than a truly empty slice, so
-// both cases are treated as "no URL provided via flag".
+// ApplyArgs fills flags from positional arguments, in the order of names. A flag
+// set on the command line, or one the command does not define, is skipped, so an
+// argument fills the next flag that is still unset.
 //
 // Parameters:
-//   - cmd: the cobra.Command to inspect.
+//   - cmd: the command whose flags are filled.
+//   - args: the positional arguments.
+//   - names: the flags that positional arguments fill, in order.
 //
 // Returns:
-//   - bool: true when the env var is set and the flag is empty.
-//   - error: if the url flag cannot be read.
-func hasURLInEnvButNotFlag(cmd *cobra.Command) (bool, error) {
-	urls, err := cmd.Flags().GetStringArray("url")
-	if err != nil {
-		return false, fmt.Errorf("getting url flag value: %w", err)
+//   - []string: the arguments left over after every named flag is filled.
+//   - error: an error naming the flag that could not be set.
+func ApplyArgs(cmd *cobra.Command, args []string, names ...string) ([]string, error) {
+	flags := cmd.Flags()
+
+	for _, name := range names {
+		if len(args) == 0 {
+			break
+		}
+
+		flag := flags.Lookup(name)
+		if flag == nil || flag.Changed {
+			continue
+		}
+
+		if err := flags.Set(name, args[0]); err != nil {
+			return nil, fmt.Errorf("setting %s flag from positional argument: %w", name, err)
+		}
+
+		args = args[1:]
 	}
 
-	// Treat an empty slice or a single-element slice containing "" as "no URL provided".
-	flagEmpty := len(urls) == 0 || (len(urls) == 1 && urls[0] == "")
+	return args, nil
+}
 
-	return flagEmpty && viper.GetViper().GetString("SHOUTRRR_URL") != "", nil
+// ApplyEnv fills every flag that is still unset from its environment variable.
+//
+// The variable name is [EnvPrefix], an underscore, and the flag name in upper
+// case with dashes replaced by underscores, so --url is read from SHOUTRRR_URL. A
+// flag set on the command line or by a positional argument keeps its value, and
+// an empty variable counts as unset. An array flag takes a single value from its
+// variable. The help flag is never read from the environment.
+//
+// Parameters:
+//   - cmd: the command whose flags are filled.
+//
+// Returns:
+//   - error: an error naming the environment variable whose value the flag rejected.
+func ApplyEnv(cmd *cobra.Command) error {
+	env := viper.New()
+	env.SetEnvPrefix(EnvPrefix)
+	env.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	env.AutomaticEnv()
+
+	var applyErr error
+
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		if applyErr != nil || flag.Changed || flag.Name == "help" || !env.IsSet(flag.Name) {
+			return
+		}
+
+		if err := cmd.Flags().Set(flag.Name, env.GetString(flag.Name)); err != nil {
+			applyErr = fmt.Errorf("applying %s to the %s flag: %w", EnvName(flag.Name), flag.Name, err)
+		}
+	})
+
+	return applyErr
+}
+
+// EnvName returns the environment variable that sets a flag.
+//
+// Parameters:
+//   - flagName: the flag name, such as show-sensitive.
+//
+// Returns:
+//   - string: the variable name, such as SHOUTRRR_SHOW_SENSITIVE.
+func EnvName(flagName string) string {
+	return EnvPrefix + "_" + strings.ToUpper(strings.ReplaceAll(flagName, "-", "_"))
 }

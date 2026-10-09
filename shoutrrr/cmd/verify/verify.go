@@ -18,7 +18,7 @@ var (
 	// Cmd is the cobra command for verifying notification service URLs.
 	// It validates that a URL is properly formatted and the service can be located.
 	Cmd = &cobra.Command{
-		Use:     "verify",
+		Use:     "verify [url]",
 		Short:   "Verify the validity of a notification service URL",
 		PreRunE: internalUtil.LoadFlagsFromAltSources,
 		Run:     Run,

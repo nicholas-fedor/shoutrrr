@@ -12,6 +12,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
 const (
@@ -184,6 +185,27 @@ var _ = ginkgo.Describe("TelegramGenerator", func() {
 		}()
 
 		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting bot info"))))
+	})
+})
+
+var _ = ginkgo.Describe("TelegramGenerator with closed input", func() {
+	ginkgo.BeforeEach(func() {
+		httpmock.Activate()
+	})
+	ginkgo.AfterEach(func() {
+		httpmock.DeactivateAndReset()
+	})
+
+	ginkgo.It("should fail before contacting Telegram when the token cannot be read", func() {
+		gen := telegram.Generator{
+			Reader: strings.NewReader(""),
+			Writer: io.Discard,
+		}
+
+		_, err := gen.Generate(nil, nil, nil)
+
+		gomega.Expect(err).To(gomega.MatchError(generator.ErrInputClosed))
+		gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.BeZero())
 	})
 })
 

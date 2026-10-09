@@ -45,4 +45,4 @@ Official Documentation: [Webhook Bot Guide](https://developer.work.weixin.qq.com
 ### Example with Mentions
 
 ```bash
-shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa" "Alert message" --mentioned_list "@all"
+shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa?mentioned_list=@all" "Alert message"

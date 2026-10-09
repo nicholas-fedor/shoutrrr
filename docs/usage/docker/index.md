@@ -30,11 +30,13 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 | `amd64-latest` | Platform-specific (e.g., amd64, arm64v8). |
 
 !!! Note
-    The image includes CA certificates and timezone data. No volumes are required by default, but mount if needed for custom configs or stdin input. Environment variables can override flags (e.g., `SHOUTRRR_URL` for `--url`).
+    The image includes CA certificates and timezone data. No volumes are required by default, but mount if needed for custom configs or stdin input. Environment variables can stand in for flags (e.g., `SHOUTRRR_URL` for `--url`).
 
 ### Environment Variables
 
-- Use uppercase flag names prefixed with `SHOUTRRR_` (e.g., `SHOUTRRR_MESSAGE` for `--message`).
+- Use uppercase flag names prefixed with `SHOUTRRR_`, with dashes replaced by underscores (e.g., `SHOUTRRR_MESSAGE` for
+  `--message`). A flag given on the command line takes precedence. See the
+  [CLI environment variables](../cli/index.md#environment-variables) for the full list.
 
 ## Examples
 

@@ -465,7 +465,7 @@ func TestCmd_Initialization(t *testing.T) {
 	t.Run("verify command is properly initialized", func(t *testing.T) {
 		t.Parallel()
 		assert.NotNil(t, Cmd, "Cmd should be initialized")
-		assert.Equal(t, "verify", Cmd.Use, "Command use should be 'verify'")
+		assert.Equal(t, "verify", Cmd.Name(), "Command name should be 'verify'")
 		assert.NotEmpty(t, Cmd.Short, "Command should have a short description")
 		assert.NotNil(t, Cmd.Run, "Command should have a Run function")
 		assert.NotNil(t, Cmd.PreRunE, "Command should have a PreRunE function")

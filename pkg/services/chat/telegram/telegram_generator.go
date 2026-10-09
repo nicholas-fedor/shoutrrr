@@ -46,6 +46,18 @@ var (
 )
 
 // Generate creates a Telegram Shoutrrr configuration from user dialog input.
+//
+// It asks for the bot token, then listens for messages to the bot and offers each
+// chat they come from. Generation stops before contacting Telegram when the input
+// ends before a token is given.
+//
+// Parameters:
+//   - props: optional answers, such as the token, used instead of prompting.
+//
+// Returns:
+//   - types.ServiceConfig: the Telegram configuration.
+//   - error: an error wrapping [generator.ErrInputClosed] when no token was read,
+//     a Telegram API error, or [ErrNoChatsSelected].
 func (g *Generator) Generate(
 	_ types.Service,
 	props map[string]string,
@@ -75,6 +87,9 @@ func (g *Generator) Generate(
 		generator.ValidateFormat(IsTokenValid),
 		"token",
 	)
+	if err := userDialog.Err(); err != nil {
+		return &Config{}, fmt.Errorf("reading the bot token: %w", err)
+	}
 
 	userDialog.Writelnf("Fetching bot info...")
 

@@ -14,25 +14,28 @@ func TestGenerator_Generate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		props       map[string]string
-		args        []string
-		wantErr     bool
-		expectPanic bool
-		errMsg      string
+		name      string
+		props     map[string]string
+		args      []string
+		wantErr   bool
+		errMsg    string
+		wantErrIs []error
 	}{
 		{
-			name:    "gmail provider with credentials file",
-			props:   map[string]string{"provider": "gmail"},
-			args:    []string{"/nonexistent/credentials.json"},
-			wantErr: true,
-			errMsg:  "failed to read file",
+			name:      "gmail provider with credentials file",
+			props:     map[string]string{"provider": "gmail"},
+			args:      []string{"/nonexistent/credentials.json"},
+			wantErr:   true,
+			errMsg:    "failed to read file",
+			wantErrIs: []error{ErrReadFileFailed, os.ErrNotExist},
 		},
 		{
-			name:        "gmail provider without args",
-			props:       map[string]string{"provider": "gmail"},
-			args:        []string{},
-			expectPanic: true,
+			name:      "gmail provider without args",
+			props:     map[string]string{"provider": "gmail"},
+			args:      []string{},
+			wantErr:   true,
+			errMsg:    "credentials file",
+			wantErrIs: []error{ErrCredentialsFileRequired},
 		},
 		{
 			name:    "non-gmail provider with file arg",
@@ -63,19 +66,15 @@ func TestGenerator_Generate(t *testing.T) {
 
 			g := &Generator{}
 
-			if tt.expectPanic {
-				assert.Panics(t, func() {
-					_, _ = g.Generate(nil, tt.props, tt.args)
-				})
-
-				return
-			}
-
 			got, err := g.Generate(nil, tt.props, tt.args)
 
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
+
+				for _, target := range tt.wantErrIs {
+					require.ErrorIs(t, err, target)
+				}
 
 				return
 			}

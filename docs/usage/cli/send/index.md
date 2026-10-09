@@ -7,7 +7,7 @@ The `send` command delivers a notification using one or more specified service U
 ## Usage
 
 ```bash title="Send Command Syntax"
-shoutrrr send [FLAGS]
+shoutrrr send [FLAGS] [URL] [MESSAGE]
 ```
 
 | Flag                    | Description                                                               |
@@ -19,7 +19,7 @@ shoutrrr send [FLAGS]
 | `-v, --verbose`         | Enables verbose output, logging URLs, message, and title to stderr.       |
 
 !!! Note
-    The `--url` and `--message` flags are required. Use `--message -` to read the message from stdin. Duplicate URLs are automatically removed.
+    A URL and a message are required. They can be given with `--url` and `--message`, as positional arguments, or with the `SHOUTRRR_URL` and `SHOUTRRR_MESSAGE` environment variables. Positional arguments fill the URL and then the message, skipping any given as flags, so `send --url URL "Hello"` sends `Hello`. An argument with no flag left to fill is an error. Flags and arguments take precedence over environment variables. When the URL comes from `SHOUTRRR_URL` and no message is given, the message is read from stdin. Use `--message -` to read the message from stdin explicitly. Duplicate URLs are automatically removed. See the [CLI overview](../index.md#environment-variables) for all environment variables.
 
 ### URL
 

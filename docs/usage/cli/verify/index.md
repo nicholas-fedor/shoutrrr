@@ -7,16 +7,16 @@ The `verify` command checks the validity of a notification service URL.
 ## Usage
 
 ```bash title="Verify Command Syntax"
-shoutrrr verify [FLAGS]
+shoutrrr verify [FLAGS] [URL]
 ```
 
-| Flag                | Description                                           |
-|---------------------|-------------------------------------------------------|
-| `-h, --help`        | Displays help for the `verify` command.                |
-| `-u, --url string`  | Specifies the notification service URL to verify.      |
+| Flag                     | Description                                           |
+|--------------------------|-------------------------------------------------------|
+| `-h, --help`             | Displays help for the `verify` command.                |
+| `-u, --url stringArray`  | Specifies the notification service URL to verify.      |
 
 !!! Note
-    The `--url` flag is required. The command validates the URL format and service configuration, reporting errors for issues like unknown services or invalid URL formats.
+    Exactly one URL is required. It can be given with `--url`, as a positional argument, or with the `SHOUTRRR_URL` environment variable. Giving it both with `--url` and as an argument is an error, and either takes precedence over the environment variable. The command validates the URL format and service configuration, reporting errors for issues like unknown services or invalid URL formats.
 
 ### URL
 
