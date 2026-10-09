@@ -185,8 +185,15 @@ err := shoutrrr.SendContext(ctx, url, "Hello world (or slack channel) !", &param
 ```go
 url := "slack://token-a/token-b/token-c"
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
+if err != nil {
+    log.Fatal(err)
+}
 params := types.Params{}
-errs := sender.Send("Hello world (or slack channel) !", &params) // one entry per URL, nil on success
+for i, err := range sender.Send("Hello world (or slack channel) !", &params) { // one entry per URL, nil on success
+    if err != nil {
+        log.Printf("failed to send to URL %d: %v", i, err)
+    }
+}
 ```
 
 ##### Multiple URLs
@@ -197,8 +204,15 @@ urls := []string{
     "discord://token@channel",
 }
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
+if err != nil {
+    log.Fatal(err)
+}
 params := types.Params{}
-errs := sender.Send("Hello world (or slack channel) !", &params) // one entry per URL, nil on success
+for i, err := range sender.Send("Hello world (or slack channel) !", &params) { // one entry per URL, nil on success
+    if err != nil {
+        log.Printf("failed to send to URL %d: %v", i, err)
+    }
+}
 ```
 
 ##### Custom HTTP Client and DialContext (SSRF / Egress Control)
