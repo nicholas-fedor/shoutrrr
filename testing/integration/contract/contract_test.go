@@ -29,13 +29,15 @@ import (
 
 // env holds the injected client, dialer and logger for one contract case.
 type env struct {
-	fx       *fixture
-	client   *mocks.MockHTTPClient
-	dials    atomic.Int32
-	logs     *syncBuffer
-	logger   *log.Logger
-	sendErr  error
-	panicMsg string
+	fx     *fixture
+	client *mocks.MockHTTPClient
+	dials  atomic.Int32
+	// markedDials counts dials whose context carries [contextMarker].
+	markedDials atomic.Int32
+	logs        *syncBuffer
+	logger      *log.Logger
+	sendErr     error
+	panicMsg    string
 }
 
 // syncBuffer is a goroutine-safe log sink.
@@ -45,6 +47,10 @@ type syncBuffer struct {
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+// contextMarker keys a value on the caller's context, so a check can tell whether
+// that context reached a request or dial.
+type contextMarker struct{}
 
 // failureKind classifies why a contract check failed.
 type failureKind int
@@ -77,6 +83,9 @@ const (
 	// checkNoSecretLeaksDefault repeats the leak check with each service's own
 	// default HTTP client, as used by consumers that do not inject one.
 	checkNoSecretLeaksDefault = "no_secret_leaks_default_client"
+	// checkSendUsesContext verifies that the context passed to the router's
+	// SendContext reaches every request and dial a service makes.
+	checkSendUsesContext = "send_uses_context"
 )
 
 // Failure kinds, one per distinct way a check can fail.
@@ -94,6 +103,7 @@ const (
 	failSecretLeak                           // a secret appeared in errors or logs
 	failParamsPersisted                      // Send with params changed the service configuration
 	failNoDefaultRequest                     // no request went through the service's default client
+	failContextDropped                       // a request or dial did not carry the caller's context
 )
 
 var (
@@ -158,6 +168,7 @@ func TestContract(t *testing.T) {
 		{checkTypedNilHTTPClient, runTypedNilHTTPClient},
 		{checkNoSecretLeaks, runNoSecretLeaks},
 		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
+		{checkSendUsesContext, runSendUsesContext},
 	}
 
 	for _, check := range checks {
@@ -284,6 +295,77 @@ func runSendUsesInjection(t *testing.T, fx *fixture) failure {
 			result = fail(failDefaultTransport, "Send used http.DefaultTransport instead of the injected client")
 		case fx.kind == netTCP && !dialUsed, fx.kind == netHTTP && !httpUsed:
 			result = fail(failNotInjected, "Send did not use the injected client or dialer")
+		}
+	})
+
+	return result
+}
+
+// runSendUsesContext verifies that the context passed to the router's SendContext
+// reaches every request and dial the service makes, so caller cancellation and
+// deadlines can stop them.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failContextDropped, failNotInjected, or failInit failure, or the zero value.
+func runSendUsesContext(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind == netNone {
+		return failure{}
+	}
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		serviceRouter, err := router.NewWithOptions(
+			env.logger,
+			types.SenderOptions{HTTPClient: env.client, DialContext: env.dial},
+			fx.url,
+		)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		t.Cleanup(func() { _ = serviceRouter.Close() })
+
+		ctx := context.WithValue(t.Context(), contextMarker{}, fx.scheme)
+
+		_ = serviceRouter.SendContext(ctx, "contract message", nil)
+
+		requests, marked := 0, 0
+
+		for i := range env.client.Calls {
+			req, ok := env.client.Calls[i].Arguments.Get(0).(*http.Request)
+			if !ok {
+				continue
+			}
+
+			requests++
+
+			if req.Context().Value(contextMarker{}) == fx.scheme {
+				marked++
+			}
+		}
+
+		dials, markedDials := int(env.dials.Load()), int(env.markedDials.Load())
+
+		switch {
+		case requests+dials == 0:
+			result = fail(failNotInjected, "SendContext did not use the injected client or dialer")
+		case marked < requests || markedDials < dials:
+			result = fail(
+				failContextDropped,
+				"%d of %d request(s) and %d of %d dial(s) carried the caller's context",
+				marked, requests, markedDials, dials,
+			)
 		}
 	})
 
@@ -599,9 +681,21 @@ func (e *env) checkLeaks(service types.Service, initErr error) failure {
 	return failure{}
 }
 
-// dial is the injected DialContext; it records and refuses every dial.
-func (e *env) dial(context.Context, string, string) (net.Conn, error) {
+// dial is the injected DialContext. It records and refuses every dial, and counts
+// the dials whose context carries [contextMarker] for this fixture.
+//
+// Parameters:
+//   - ctx: the dial's context.
+//
+// Returns:
+//   - net.Conn: always nil.
+//   - error: always errDial.
+func (e *env) dial(ctx context.Context, _, _ string) (net.Conn, error) {
 	e.dials.Add(1)
+
+	if ctx.Value(contextMarker{}) == e.fx.scheme {
+		e.markedDials.Add(1)
+	}
 
 	return nil, errDial
 }

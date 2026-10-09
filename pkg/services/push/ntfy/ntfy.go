@@ -1,6 +1,7 @@
 package ntfy
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
@@ -25,7 +26,7 @@ type Service struct {
 	httpClient types.HTTPClient
 	// apiClient creates the JSON client for one send. Nil builds one over
 	// httpClient, so every send has its own request headers.
-	apiClient func() jsonclient.Client
+	apiClient func() jsonclient.ContextClient
 	// defaultClient reports whether httpClient was built by the service rather than
 	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
 	defaultClient bool
@@ -37,6 +38,7 @@ const HTTPTimeout = 10
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -79,7 +81,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to ntfy. Params apply to this send only.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params error, the ntfy API error, or the request error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to ntfy. Params apply to this send only.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params error, the ntfy API error, or the request error, which
+//     matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := *s.Config
 
 	// Update this send's config with runtime parameters
@@ -88,7 +113,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	// Execute the API request to send the notification
-	if err := s.sendAPI(&config, message); err != nil {
+	if err := s.sendAPI(ctx, &config, message); err != nil {
 		return fmt.Errorf("failed to send ntfy notification: %w", err)
 	}
 
@@ -121,13 +146,13 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // newAPIClient returns the JSON client for one send.
 //
 // Returns:
-//   - jsonclient.Client: a new client over the service's HTTP client.
-func (s *Service) newAPIClient() jsonclient.Client {
+//   - jsonclient.ContextClient: a new client over the service's HTTP client.
+func (s *Service) newAPIClient() jsonclient.ContextClient {
 	if s.apiClient != nil {
 		return s.apiClient()
 	}
 
-	return jsonclient.NewWithHTTPClient(s.httpClient)
+	return jsonclient.NewContextClient(s.httpClient)
 }
 
 // newDefaultHTTPClient builds the client used when none is injected. It enforces
@@ -149,7 +174,15 @@ func (s *Service) newDefaultHTTPClient() *http.Client {
 }
 
 // sendAPI sends a notification to the ntfy API.
-func (s *Service) sendAPI(config *Config, message string) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - config: the configuration for this send.
+//   - message: the message to send.
+//
+// Returns:
+//   - error: the ntfy API error or the request error.
+func (s *Service) sendAPI(ctx context.Context, config *Config, message string) error {
 	response := apiResponseError{}
 	request := message
 
@@ -194,7 +227,7 @@ func (s *Service) sendAPI(config *Config, message string) error {
 	}
 
 	// Send the HTTP request
-	if err := client.Post(config.GetAPIURL(), request, &response); err != nil {
+	if err := client.PostContext(ctx, config.GetAPIURL(), request, &response); err != nil {
 		s.Logf("NTFY API request failed with error: %v", err)
 		// Attempt to parse structured error response from API
 		if client.ErrorResponse(err, &response) {

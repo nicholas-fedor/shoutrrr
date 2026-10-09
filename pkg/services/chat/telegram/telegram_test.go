@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,13 +12,16 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
@@ -291,6 +295,44 @@ var _ = ginkgo.Describe("the telegram service", func() {
 	ginkgo.It("should return the correct service ID", func() {
 		service := &Service{}
 		gomega.Expect(service.GetID()).To(gomega.Equal("telegram"))
+	})
+})
+
+var _ = ginkgo.Describe("ServiceTimeout", func() {
+	ginkgo.DescribeTable("should budget one client timeout for each chat",
+		func(params *types.Params, want time.Duration) {
+			service := &Service{}
+			gomega.Expect(service.Initialize(
+				testutils.URLMust("telegram://12345:mock-token@telegram/?chats=a,b,c"),
+				testutils.TestLogger(),
+			)).To(gomega.Succeed())
+
+			gomega.Expect(service.ServiceTimeout(params)).To(gomega.Equal(want))
+		},
+		ginkgo.Entry("for the configured chats", nil, 3*defaultHTTPTimeout),
+		ginkgo.Entry("for chats set by params", &types.Params{"chats": "a,b"}, 2*defaultHTTPTimeout),
+		ginkgo.Entry("for the configured chats when a param is invalid", &types.Params{"preview": "maybe"}, 3*defaultHTTPTimeout),
+	)
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(
+			testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1"),
+			testutils.TestLogger(),
+		)).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })
 

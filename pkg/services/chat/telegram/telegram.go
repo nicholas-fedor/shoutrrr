@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,6 +41,7 @@ var (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -71,7 +73,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Telegram.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the validation, params, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to every configured Telegram chat.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: [ErrMessageTooLong], a params error, or the first send error,
+//     which matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if len(message) > maxlength {
 		return ErrMessageTooLong
 	}
@@ -81,7 +106,30 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return s.sendMessageForChatIDs(message, &config)
+	return s.sendMessageForChatIDs(ctx, message, &config)
+}
+
+// ServiceTimeout reports the send budget the router gives Telegram. A send makes
+// one request per chat, one after another, each bounded by the client timeout.
+//
+// Parameters:
+//   - params: optional overrides for configuration fields, which may set the chats.
+//     An invalid param fails the send itself, so the stored chats set the budget.
+//
+// Returns:
+//   - time.Duration: the client timeout multiplied by the number of chats, and at
+//     least one client timeout.
+func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	if s.Config == nil {
+		return defaultHTTPTimeout
+	}
+
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		config = *s.Config
+	}
+
+	return defaultHTTPTimeout * time.Duration(max(1, len(config.Chats)))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
@@ -100,9 +148,17 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 
 // sendMessageForChatIDs sends the message to every chat in config, which includes
 // any chats set by the send params.
-func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests.
+//   - message: the message to send.
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - error: the first send error.
+func (s *Service) sendMessageForChatIDs(ctx context.Context, message string, config *Config) error {
 	for _, chat := range config.Chats {
-		if err := s.sendMessageToAPI(message, chat, config); err != nil {
+		if err := s.sendMessageToAPI(ctx, message, chat, config); err != nil {
 			return err
 		}
 	}
@@ -111,10 +167,19 @@ func (s *Service) sendMessageForChatIDs(message string, config *Config) error {
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.
-func (s *Service) sendMessageToAPI(message, chat string, config *Config) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - chat: the chat to send the message to.
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - error: the Telegram API error or the request error.
+func (s *Service) sendMessageToAPI(ctx context.Context, message, chat string, config *Config) error {
 	client := &Client{token: config.Token, httpClient: s.httpClientOrDefault()}
 	payload := createSendMessagePayload(message, chat, config)
-	_, err := client.SendMessage(&payload)
+	_, err := client.SendMessageContext(ctx, &payload)
 
 	return err
 }

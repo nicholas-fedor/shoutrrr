@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,11 +52,34 @@ func (c *Client) GetUpdates(
 }
 
 // SendMessage sends the specified Message.
+//
+// It delegates to [Client.SendMessageContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//
+// Returns:
+//   - *Message: the message Telegram created.
+//   - error: the Telegram API error or the request error.
 func (c *Client) SendMessage(message *SendMessagePayload) (*Message, error) {
-	response := &messageResponse{}
-	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
+	return c.SendMessageContext(context.Background(), message)
+}
 
-	if err := jc.Post(c.apiURL("sendMessage"), message, response); err != nil || !response.OK {
+// SendMessageContext sends the specified Message.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//
+// Returns:
+//   - *Message: the message Telegram created.
+//   - error: the Telegram API error or the request error, which matches ctx's
+//     error when ctx ends the request.
+func (c *Client) SendMessageContext(ctx context.Context, message *SendMessagePayload) (*Message, error) {
+	response := &messageResponse{}
+	jc := jsonclient.NewContextClient(c.httpClientOrDefault())
+
+	if err := jc.PostContext(ctx, c.apiURL("sendMessage"), message, response); err != nil || !response.OK {
 		return nil, fmt.Errorf("sending message: %w", responseErr(err, response.ErrorCode, response.Description))
 	}
 

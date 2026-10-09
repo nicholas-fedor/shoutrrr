@@ -23,9 +23,11 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 // MockHTTPClientManager provides a mock implementation of HTTPClientManager for testing.
@@ -1579,6 +1581,28 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 })
 
 // CreateClient creates a client with the given transport.
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.DescribeTable("should stop the request when the caller's context is canceled",
+		func(rawURL string) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				return nil, req.Context().Err()
+			}).Once()
+
+			service := &Service{}
+			gomega.Expect(service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())).To(gomega.Succeed())
+			service.SetHTTPClient(client)
+
+			gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		},
+		ginkgo.Entry("with the token in the query", "gotify://my.gotify.tld/Aaa.bbb.ccc.ddd"),
+		ginkgo.Entry("with the token in a header", "gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes"),
+	)
+})
+
 func (m *MockHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
 	if transport == nil {
 		return &http.Client{

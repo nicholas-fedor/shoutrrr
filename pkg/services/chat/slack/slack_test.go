@@ -1,9 +1,11 @@
 package slack_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -13,9 +15,11 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/slack"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 const (
@@ -314,6 +318,28 @@ var _ = ginkgo.Describe("the slack service", func() {
 			})
 		})
 	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.DescribeTable("should stop the request when the caller's context is canceled",
+		func(rawURL string) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				return nil, req.Context().Err()
+			}).Once()
+
+			service := &slack.Service{}
+			gomega.Expect(service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())).To(gomega.Succeed())
+			service.SetHTTPClient(client)
+
+			gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		},
+		ginkgo.Entry("through the API", "slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789"),
+		ginkgo.Entry("through a webhook", "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook"),
+	)
 })
 
 func TestSlack(t *testing.T) {
