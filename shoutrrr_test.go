@@ -3,29 +3,16 @@ package shoutrrr
 import (
 	"io"
 	"log"
-	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/eclipse/paho.golang/packets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/mqtttest"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
-
-// loopbackBroker is an in-process MQTT broker on a loopback listener. It accepts
-// every connection and records whether a client sent DISCONNECT.
-type loopbackBroker struct {
-	// listener accepts client connections.
-	listener net.Listener
-	// published counts PUBLISH packets.
-	published atomic.Int32
-	// disconnected counts DISCONNECT packets.
-	disconnected atomic.Int32
-}
 
 // rootTestSecret is a credential embedded in test URLs that must never appear in errors.
 const rootTestSecret = "SECRETrootTOKEN"
@@ -104,15 +91,15 @@ func TestSenderConstructorErrorsOmitURLs(t *testing.T) {
 func TestSendClosesOneShotService(t *testing.T) {
 	t.Parallel()
 
-	broker := newLoopbackBroker(t)
+	broker := mqtttest.NewBroker(t)
 
-	require.NoError(t, Send("mqtt://"+broker.listener.Addr().String()+"/shoutrrr/test", "message"))
+	require.NoError(t, Send("mqtt://"+broker.Addr()+"/shoutrrr/test", "message"))
 
-	require.Eventually(t, func() bool { return broker.disconnected.Load() == 1 },
+	require.Eventually(t, func() bool { return broker.Disconnected() == 1 },
 		2*time.Second, 10*time.Millisecond, "Send must disconnect the one-shot MQTT service")
 
 	// The broker reads packets in order, so the publish was recorded before the disconnect.
-	assert.Equal(t, int32(1), broker.published.Load())
+	assert.Equal(t, int32(1), broker.Published())
 }
 
 // TestSetLoggerDuringSends verifies that SetLogger can run while sends are in
@@ -132,76 +119,4 @@ func TestSetLoggerDuringSends(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-// newLoopbackBroker starts a broker on a loopback port and stops it when the test
-// ends.
-//
-// Parameters:
-//   - t: the test that owns the broker.
-//
-// Returns:
-//   - *loopbackBroker: the running broker.
-func newLoopbackBroker(t *testing.T) *loopbackBroker {
-	t.Helper()
-
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	broker := &loopbackBroker{listener: listener}
-
-	t.Cleanup(func() { _ = listener.Close() })
-
-	go broker.accept()
-
-	return broker
-}
-
-// accept serves each connection until the listener closes.
-func (b *loopbackBroker) accept() {
-	for {
-		conn, err := b.listener.Accept()
-		if err != nil {
-			return
-		}
-
-		go b.serve(conn)
-	}
-}
-
-// serve answers CONNECT and records PUBLISH and DISCONNECT until the client
-// disconnects or the connection closes.
-//
-// It reads PINGREQ without answering. The client pings as soon as it connects,
-// and a one-shot send can close before reading a PINGRESP. On Windows, closing a
-// socket with unread data resets the connection, and the reset discards the
-// PUBLISH and DISCONNECT the broker has not read yet. The 20 second keepalive
-// never expires during the test, so the unanswered ping is harmless.
-//
-// Parameters:
-//   - conn: the client connection.
-func (b *loopbackBroker) serve(conn net.Conn) {
-	defer func() { _ = conn.Close() }()
-
-	for {
-		packet, err := packets.ReadPacket(conn)
-		if err != nil {
-			return
-		}
-
-		switch packet.Content.(type) {
-		case *packets.Connect:
-			if _, err := packets.NewControlPacket(packets.CONNACK).WriteTo(conn); err != nil {
-				return
-			}
-		case *packets.Pingreq:
-		case *packets.Publish:
-			b.published.Add(1)
-		case *packets.Disconnect:
-			b.disconnected.Add(1)
-
-			return
-		default:
-		}
-	}
 }
