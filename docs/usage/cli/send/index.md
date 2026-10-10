@@ -103,12 +103,12 @@ shoutrrr send [FLAGS] [URL] [MESSAGE]
 
 !!! Example
     ```bash title="Send Command with Verbose and Multiple URLs"
-    shoutrrr send --url "discord://abc123@123456789" --url "slack://token@team/channel" --message "Hello!" --verbose
+    shoutrrr send --url "discord://abc123@123456789" --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" --message "Hello!" --verbose
     ```
 
     ```text title="Expected Output"
     URLs: discord://abc123@123456789
-          slack://token@team/channel
+          slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook
     Message: Hello!
     Notification sent
     Notification sent

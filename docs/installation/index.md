@@ -41,7 +41,7 @@ The following scripts install the latest release binary to the user's `$HOME/go/
 
 ## Container Images
 
-Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting multiple architectures (amd64, arm64, arm/v6, i386, riscv64). Images are available on Docker Hub and GitHub Container Registry (GHCR).
+Shoutrrr provides lightweight Docker images built from `scratch`, containing only the static binary, CA certificates, and timezone data. They support multiple architectures (amd64, arm64, arm/v6, i386, riscv64). Images are available on Docker Hub and GitHub Container Registry (GHCR).
 <!-- markdownlint-disable -->
 === "Docker Hub"
 
@@ -51,7 +51,7 @@ Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting mu
 
     - **Repository**: <https://hub.docker.com/r/nickfedor/shoutrrr>
     - **Image Reference**: `nickfedor/shoutrrr`
-    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `nightly`, platform-specific (e.g., `amd64-nightly`)
+    - **Tags**: `latest`, `X.Y.Z` (e.g., `0.21.2`), `X.Y`, `X`, `nightly`, platform-specific (e.g., `amd64-latest`, `amd64-nightly`)
 
 === "GitHub Container Registry"
 
@@ -61,10 +61,10 @@ Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting mu
 
     - **Repository**: <https://github.com/nicholas-fedor/shoutrrr/pkgs/container/shoutrrr>
     - **Image Reference**: `ghcr.io/nicholas-fedor/shoutrrr`
-    - **Tags**: `latest`, `vX.Y.Z` (e.g., `v0.8.0`), `nightly`, platform-specific (e.g., `arm64v8-nightly`)
+    - **Tags**: `latest`, `X.Y.Z` (e.g., `0.21.2`), `X.Y`, `X`, `nightly`, platform-specific (e.g., `arm64v8-latest`, `arm64v8-nightly`)
 <!-- markdownlint-restore -->
 !!! Note
-    Use `latest` for the latest stable release, versioned tags (e.g., `v0.8.0`) for specific releases, or `nightly` for  a rolling release image. Platform-specific tags are available for targeted deployments.
+    Use `latest` for the latest stable release, versioned tags (e.g., `0.21.2`, or `0.21` for the latest patch of a minor) for specific releases, or `nightly` for a rolling release image. Platform-specific tags are available for targeted deployments.
 
 ## Go Package
 

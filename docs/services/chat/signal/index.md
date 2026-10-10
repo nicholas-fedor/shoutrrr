@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! Info ""
-    signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]
+    signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]
 
 --8<-- "docs/services/chat/signal/config.md"
 

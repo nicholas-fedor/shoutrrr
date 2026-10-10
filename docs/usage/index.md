@@ -8,7 +8,7 @@ Run commands like `send`, `generate`, `verify`, `docs`, `completion`, or `help` 
 
 ## Docker Container
 
-Use the lightweight Alpine-based Docker image (`nickfedor/shoutrrr` or `ghcr.io/nicholas-fedor/shoutrrr`) to run CLI commands in containerized environments.
+Use the lightweight Docker image (`nickfedor/shoutrrr` or `ghcr.io/nicholas-fedor/shoutrrr`) to run CLI commands in containerized environments.
 
 ## GitHub Action
 

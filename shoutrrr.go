@@ -10,10 +10,19 @@
 //		// handle error
 //	}
 //
-// For more complex scenarios, create a sender with multiple service URLs:
+// For more complex scenarios, create a sender with multiple service URLs. Its
+// Send returns one error entry per URL, in the order the URLs were given:
 //
-//	sender, err := shoutrrr.CreateSender("slack://webhook/...", "discord://webhook/...")
+//	sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "slack://webhook/...", "discord://webhook/...")
+//	if err != nil {
+//		// handle error
+//	}
+//	defer sender.Close()
 //
+//	errs := sender.Send("Hello, World!", nil)
+//
+// Use SendContext, or the sender's SendContext, to cancel a send or bound it with
+// a deadline.
 // Send and SendContext deliver a single message through a one-shot router, so the
 // service's send budget applies. For more control over the notification pipeline,
 // create a router with router.NewWithOptions.
