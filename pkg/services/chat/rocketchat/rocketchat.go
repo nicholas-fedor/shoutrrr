@@ -32,6 +32,7 @@ const defaultHTTPTimeout = 10 * time.Second
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -68,13 +69,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Rocket.Chat.
 //
-// Params:
-//   - message: The message text to send
-//   - params: Optional parameters that can override configuration (username, channel)
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional username and channel overrides.
 //
 // Returns:
-//   - error: An error if sending fails, nil on success
+//   - error: the payload or request error, or an error for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Rocket.Chat.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - message: the message to send.
+//   - params: optional username and channel overrides.
+//
+// Returns:
+//   - error: the payload or request error, or an error for a non-success status.
+//     A request error matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	var res *http.Response
 
 	var err error
@@ -88,7 +105,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		defaultHTTPTimeout,
 	)
 	defer cancel()

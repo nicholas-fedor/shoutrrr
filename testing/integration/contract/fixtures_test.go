@@ -237,20 +237,13 @@ var allowlist = map[string]map[string]knownFailure{
 		"wecom":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
 	},
 	checkSendUsesContext: {
-		"googlechat": {"F12: requests do not carry the caller's context", failContextDropped},
-		"hangouts":   {"F12: requests do not carry the caller's context", failContextDropped},
-		"lark":       {"F12: requests do not carry the caller's context", failContextDropped},
-		"mattermost": {"F12: requests do not carry the caller's context", failContextDropped},
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design. These rows stay, unlike the F12 rows.
-		"mqtt":       {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
-		"mqtts":      {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
-		"notifiarr":  {"F12: requests do not carry the caller's context", failContextDropped},
-		"opsgenie":   {"F12: requests do not carry the caller's context", failContextDropped},
-		"rocketchat": {"F12: requests do not carry the caller's context", failContextDropped},
-		"signal":     {"F12: requests do not carry the caller's context", failContextDropped},
-		"teams":      {"F12: requests do not carry the caller's context", failContextDropped},
-		"twilio":     {"F12: requests do not carry the caller's context", failContextDropped},
-		"wecom":      {"F12: requests do not carry the caller's context", failContextDropped},
+		"mqtt":      {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
+		"mqtts":     {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
+		"notifiarr": {"F12: requests do not carry the caller's context", failContextDropped},
+		"opsgenie":  {"F12: requests do not carry the caller's context", failContextDropped},
+		"signal":    {"F12: requests do not carry the caller's context", failContextDropped},
+		"twilio":    {"F12: requests do not carry the caller's context", failContextDropped},
 	},
 }

@@ -1,6 +1,7 @@
 package googlechat_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -12,10 +13,12 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/googlechat"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var (
@@ -221,6 +224,24 @@ var _ = ginkgo.Describe("Google Chat Service", func() {
 				))
 			})
 		})
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := mockTypes.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &googlechat.Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=KEY&token=TOKEN"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })
 

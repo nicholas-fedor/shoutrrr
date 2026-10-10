@@ -31,6 +31,7 @@ const defaultHTTPTimeout = 10 * time.Second
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -76,6 +77,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Mattermost.
 //
+// It delegates to [Service.SendContext] with [context.Background].
+//
 // Parameters:
 //   - message: the message to send.
 //   - params: optional overrides for configuration fields.
@@ -84,6 +87,20 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - error: the params, payload, or request error, or [ErrSendFailed] for an
 //     error status.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Mattermost.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params, payload, or request error, or [ErrSendFailed] for an
+//     error status. A request error matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -99,7 +116,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		defaultHTTPTimeout,
 	)
 	defer cancel()
