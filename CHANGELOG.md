@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 130241f by @renovate[bot] in [#1529](https://github.com/nicholas-fedor/shoutrrr/pull/1529)
 - Let go fix migrate the remaining deprecated constructors by @nicholas-fedor in [#1527](https://github.com/nicholas-fedor/shoutrrr/pull/1527)
 - Update dependency pymdown-extensions to v12.2 by @renovate[bot] in [#1523](https://github.com/nicholas-fedor/shoutrrr/pull/1523)
 - Update dependency backrefs to v8.1 by @renovate[bot] in [#1522](https://github.com/nicholas-fedor/shoutrrr/pull/1522)
