@@ -63,7 +63,7 @@ var ErrUnexpectedStatus = errors.New("got unexpected HTTP status")
 //
 // Deprecated: Use NewWithHTTPClient with an explicit client instead.
 // This will continue to use http.DefaultClient.
-var DefaultClient = NewClient()
+var DefaultClient = NewWithHTTPClient(http.DefaultClient)
 
 // Error returns the string representation of the error.
 func (je Error) Error() string {
@@ -100,6 +100,8 @@ func ErrorBody(e error) string {
 // NewClient creates a new JSON client using the default http.Client.
 //
 // Deprecated: Use NewWithHTTPClient with an explicit client instead.
+//
+//go:fix inline
 func NewClient() Client {
 	return NewWithHTTPClient(http.DefaultClient)
 }

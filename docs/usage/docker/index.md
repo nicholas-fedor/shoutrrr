@@ -106,7 +106,7 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
     ```
 
     ```text title="Expected Output"
-    shoutrrr version 0.21.2 (Built on 2026-09-30 from Git SHA 1a2b3c4)
+    shoutrrr version v0.21.2 (Built on 2026-09-30 from Git SHA 1a2b3c4)
     ```
 <!-- markdownlint-restore -->
 
