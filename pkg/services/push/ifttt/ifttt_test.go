@@ -352,7 +352,6 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 	})
 })
 
-// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
 var _ = ginkgo.Describe("ServiceTimeout", func() {
 	ginkgo.DescribeTable("should budget one request timeout for each event",
 		func(params *types.Params, want time.Duration) {
@@ -388,6 +387,7 @@ var _ = ginkgo.Describe("SendContext", func() {
 	})
 })
 
+// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
 func TestIFTTT(t *testing.T) {
 	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)

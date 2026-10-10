@@ -1580,7 +1580,6 @@ var _ = ginkgo.Describe("the Gotify service", func() {
 	})
 })
 
-// CreateClient creates a client with the given transport.
 var _ = ginkgo.Describe("SendContext", func() {
 	ginkgo.DescribeTable("should stop the request when the caller's context is canceled",
 		func(rawURL string) {
@@ -1603,6 +1602,7 @@ var _ = ginkgo.Describe("SendContext", func() {
 	)
 })
 
+// CreateClient creates a client with the given transport.
 func (m *MockHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
 	if transport == nil {
 		return &http.Client{

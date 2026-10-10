@@ -8,13 +8,17 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var _ = ginkgo.Describe("service", func() {
@@ -315,5 +319,76 @@ var _ = ginkgo.Describe("service", func() {
 			err := signal.Send("Test message", nil)
 			gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
 		})
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should not send when the caller's context is already canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// The mock fails the spec if the service sends a request.
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("signal://signal.example.invalid:8080/+15550000000/+15551234567/group.testgroup?token=TOKEN"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+
+	ginkgo.It("should skip the remaining batches when the context ends during a request", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			cancel()
+
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("signal://signal.example.invalid:8080/+15550000000/+15551234567/group.testgroup?token=TOKEN"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(ctx, "message", nil)
+		gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+		gomega.Expect(strings.Count(err.Error(), context.Canceled.Error())).To(gomega.Equal(1))
+	})
+})
+
+var _ = ginkgo.Describe("ServiceTimeout", func() {
+	newService := func(rawURL string) *Service {
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())).To(gomega.Succeed())
+
+		return service
+	}
+
+	ginkgo.It("should give one request budget when every recipient shares a batch", func() {
+		service := newService("signal://signal.example.invalid:8080/+15551234567/+15559876543?token=TOKEN")
+
+		gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(defaultHTTPTimeout))
+	})
+
+	ginkgo.It("should give one request budget per recipient batch", func() {
+		service := newService("signal://signal.example.invalid:8080/+15550000000/+15551234567/group.testgroup/u:alice.01?token=TOKEN")
+
+		gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(3 * defaultHTTPTimeout))
+	})
+
+	ginkgo.It("should count the recipients set by params", func() {
+		service := newService("signal://signal.example.invalid:8080/+15550000000/+15551234567?token=TOKEN")
+
+		params := types.Params{"recipients": "+15551234567,group.testgroup"}
+		gomega.Expect(service.ServiceTimeout(&params)).To(gomega.Equal(2 * defaultHTTPTimeout))
+	})
+
+	ginkgo.It("should fall back to the stored recipients when a param is invalid", func() {
+		service := newService("signal://signal.example.invalid:8080/+15550000000/+15551234567/group.testgroup?token=TOKEN")
+
+		params := types.Params{"recipients": "+15551234567", "unknown": "value"}
+		gomega.Expect(service.ServiceTimeout(&params)).To(gomega.Equal(2 * defaultHTTPTimeout))
 	})
 })

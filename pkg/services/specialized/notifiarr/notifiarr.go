@@ -72,6 +72,7 @@ var mentionRegex = regexp.MustCompile(`<@!?(\d+)>|<@&(\d+)>`)
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 	_ types.CustomURLService = (*Service)(nil)
@@ -190,7 +191,33 @@ func (s *Service) ParseMentions(message string) []string {
 }
 
 // Send delivers a notification message to Notifiarr.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - paramsPtr: optional send params, which may override configuration fields
+//     and set the Discord payload.
+//
+// Returns:
+//   - error: [ErrEmptyMessage], a payload error, or [ErrSendFailed] wrapping the
+//     send error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
+	return s.SendContext(context.Background(), message, paramsPtr)
+}
+
+// SendContext delivers a notification message to Notifiarr.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [requestTimeout].
+//   - message: the message to send.
+//   - paramsPtr: optional send params, which may override configuration fields
+//     and set the Discord payload.
+//
+// Returns:
+//   - error: [ErrEmptyMessage], a payload error, or [ErrSendFailed] wrapping the
+//     send error. A request error matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
 	// Check for empty message
 	if message == "" {
 		return ErrEmptyMessage
@@ -235,7 +262,7 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	}
 
 	// Send the notification
-	if err := s.doSend(payload); err != nil {
+	if err := s.doSend(ctx, payload); err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
@@ -379,13 +406,21 @@ func (s *Service) createPayload(
 
 // doSend executes the HTTP request to send a notification to Notifiarr.
 // It includes a timeout to prevent hangs and differentiates between authentication failures and other errors.
-func (s *Service) doSend(payload []byte) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [requestTimeout].
+//   - payload: the JSON payload.
+//
+// Returns:
+//   - error: the request error, [ErrAuthenticationFailed] for a 401 status, or
+//     [ErrUnexpectedStatus] for another non-success status.
+func (s *Service) doSend(ctx context.Context, payload []byte) error {
 	// Build the API URL with API key
 	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, s.Config.APIKey)
 
 	// Create context with timeout to prevent request hangs
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		requestTimeout,
 	)
 	defer cancel()

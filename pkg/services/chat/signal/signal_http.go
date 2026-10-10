@@ -50,14 +50,16 @@ func (s *Service) buildAPIURL(config *Config) string {
 // createRequest builds the HTTP request for the Signal API.
 //
 // Parameters:
-//   - config: the service configuration
-//   - payload: the payload to send (passed as pointer for efficiency)
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - config: the service configuration.
+//   - payload: the payload to send (passed as pointer for efficiency).
 //
 // Returns:
-//   - *http.Request: the constructed HTTP request
-//   - context.CancelFunc: a function to cancel the request context
-//   - error: if request creation fails, nil otherwise
+//   - *http.Request: the constructed HTTP request.
+//   - context.CancelFunc: a function to cancel the request context.
+//   - error: a marshaling or request creation error.
 func (s *Service) createRequest(
+	ctx context.Context,
 	config *Config,
 	payload *sendMessagePayload,
 ) (*http.Request, context.CancelFunc, error) {
@@ -69,7 +71,7 @@ func (s *Service) createRequest(
 	}
 
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		defaultHTTPTimeout,
 	)
 

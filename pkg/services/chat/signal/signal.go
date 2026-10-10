@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -25,6 +26,7 @@ type Service struct {
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -67,30 +69,63 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Signal recipients.
 //
+// It delegates to [Service.SendContext] with [context.Background].
+//
 // Parameters:
-//   - message: the text message to send
-//   - params: optional configuration overrides including title and attachments
+//   - message: the text message to send.
+//   - params: optional configuration overrides including title and attachments.
 //
 // Returns:
-//   - error: if the send operation fails, nil otherwise
+//   - error: a params error, [ErrNoRecipients], or the joined errors of the
+//     failed requests.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Signal recipients.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests, each further bounded by
+//     [defaultHTTPTimeout].
+//   - message: the text message to send.
+//   - params: optional configuration overrides including title and attachments.
+//
+// Returns:
+//   - error: a params error, [ErrNoRecipients], or the joined errors of the
+//     failed requests. A request error matches ctx's error when ctx ends the
+//     request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return s.sendMessage(message, &config)
+	return s.sendMessage(ctx, message, &config)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Signal send.
+// ServiceTimeout reports the send budget the router gives Signal. A send makes
+// one request per recipient batch, one after another, each bounded by
+// [defaultHTTPTimeout].
 //
 // Parameters:
-//   - params: Unused. The budget does not depend on send parameters.
+//   - params: optional overrides for configuration fields, which may set the
+//     recipients. An invalid param fails the send itself, so the stored
+//     recipients set the budget.
 //
 // Returns:
-//   - [defaultHTTPTimeout].
-func (*Service) ServiceTimeout(*types.Params) time.Duration {
-	return defaultHTTPTimeout
+//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of recipient
+//     batches, and at least [defaultHTTPTimeout].
+func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	if s.Config == nil {
+		return defaultHTTPTimeout
+	}
+
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		config = *s.Config
+	}
+
+	return defaultHTTPTimeout * time.Duration(max(1, len(batchRecipients(config.Recipients))))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
@@ -107,12 +142,15 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // rejects phones, groups, and usernames in the same request.
 //
 // Parameters:
-//   - message: the message text to send
-//   - config: the service configuration
+//   - ctx: cancellation and deadline for the requests.
+//   - message: the message text to send.
+//   - config: the service configuration.
 //
 // Returns:
-//   - error: if sending fails, nil otherwise
-func (s *Service) sendMessage(message string, config *Config) error {
+//   - error: [ErrNoRecipients], or the joined errors of the failed requests.
+//     When ctx ends, the remaining batches are skipped and ctx's error is
+//     included.
+func (s *Service) sendMessage(ctx context.Context, message string, config *Config) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
 	}
@@ -120,12 +158,22 @@ func (s *Service) sendMessage(message string, config *Config) error {
 	var errs []error
 
 	for _, batch := range batchRecipients(config.Recipients) {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		batchConfig := *config
 		batchConfig.Recipients = batch
 
 		payload := createPayload(message, &batchConfig)
 
-		req, cancel, err := s.createRequest(&batchConfig, &payload)
+		req, cancel, err := s.createRequest(ctx, &batchConfig, &payload)
 		if err != nil {
 			if cancel != nil {
 				cancel()
