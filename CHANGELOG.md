@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency pymdown-extensions to v12.2 by @renovate[bot] in [#1523](https://github.com/nicholas-fedor/shoutrrr/pull/1523)
+- Update dependency backrefs to v8.1 by @renovate[bot] in [#1522](https://github.com/nicholas-fedor/shoutrrr/pull/1522)
 - Update module github.com/onsi/ginkgo/v2 to v2.33.1 by @renovate[bot] in [#1505](https://github.com/nicholas-fedor/shoutrrr/pull/1505)
 - Update module golang.org/x/mod to v0.42.0 by @renovate[bot] in [#1506](https://github.com/nicholas-fedor/shoutrrr/pull/1506)
 - Update module golang.org/x/net to v0.61.0 by @renovate[bot] in [#1502](https://github.com/nicholas-fedor/shoutrrr/pull/1502)
