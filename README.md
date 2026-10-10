@@ -106,7 +106,7 @@ Install the latest release binary to `$HOME/go/bin` (ensure it's in your `PATH`)
   ```
 
 > [!Note]
-> Tags: `latest` (stable), `vX.Y.Z` (specific version), `nightly` (development), platform-specific (e.g., `amd64-nightly`).
+> Tags: `latest` (stable), `X.Y.Z` (specific version, e.g., `0.21.2`), `X.Y` and `X` (latest release of a minor or major), `nightly` (development), platform-specific (e.g., `amd64-latest`, `amd64-nightly`).
 
 ### Go Package
 
@@ -163,7 +163,7 @@ See installation example [above](#github-action).
 #### Option 1 - Using the direct send command
 
 ```go
-url := "slack://token-a/token-b/token-c"
+url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
 err := shoutrrr.Send(url, "Hello world (or slack channel) !")
 ```
 
@@ -183,7 +183,7 @@ err := shoutrrr.SendContext(ctx, url, "Hello world (or slack channel) !", &param
 ##### Single URL
 
 ```go
-url := "slack://token-a/token-b/token-c"
+url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, url)
 if err != nil {
     log.Fatal(err)
@@ -200,7 +200,7 @@ for i, err := range sender.Send("Hello world (or slack channel) !", &params) { /
 
 ```go
 urls := []string{
-    "slack://token-a/token-b/token-c",
+    "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
     "discord://token@channel",
 }
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
@@ -354,36 +354,38 @@ jobs:
 
 ## Supported Services
 
-| Service      | Description                          |
-|--------------|--------------------------------------|
-| Bark         | iOS push notifications               |
-| Discord      | Discord webhooks                     |
-| Generic      | Custom HTTP webhooks                 |
-| Google Chat  | Google Chat webhooks                 |
-| Gotify         | Gotify push notifications            |
-| Home Assistant | Home Assistant REST notifications    |
-| IFTTT          | IFTTT webhooks                       |
-| Join         | Join push notifications              |
-| Lark         | Lark (Feishu) webhooks               |
-| Logger       | Local logging (for testing)          |
-| Matrix       | Matrix rooms                         |
-| Mattermost   | Mattermost webhooks                  |
-| MQTT         | MQTT message broker                  |
-| Notifiarr    | Notifiarr message forwarding         |
-| Ntfy         | Ntfy push notifications              |
-| Opsgenie     | Opsgenie alerts                      |
-| PagerDuty    | PagerDuty incident notifications     |
-| Pushbullet   | Pushbullet push notifications        |
-| Pushover     | Pushover push notifications          |
-| Rocket.Chat  | Rocket.Chat webhooks                 |
-| Signalgrid   | Signalgrid push notifications        |
-| Slack        | Slack webhooks or Bot API            |
-| SMTP         | Email notifications                  |
-| Teams        | Microsoft Teams webhooks             |
-| Telegram     | Telegram bots                        |
-| Twilio       | Twilio SMS notifications             |
-| Zulip        | Zulip chat                           |
-| XMPP         | XMPP chat and MUC notifications      |
+| Service        | Description                             |
+|----------------|-----------------------------------------|
+| Bark           | iOS push notifications                  |
+| Discord        | Discord webhooks                        |
+| Generic        | Custom HTTP webhooks                    |
+| Google Chat    | Google Chat webhooks                    |
+| Gotify         | Gotify push notifications               |
+| Home Assistant | Home Assistant REST notifications       |
+| IFTTT          | IFTTT webhooks                          |
+| Join           | Join push notifications                 |
+| Lark           | Lark (Feishu) webhooks                  |
+| Logger         | Local logging (for testing)             |
+| Matrix         | Matrix rooms                            |
+| Mattermost     | Mattermost webhooks                     |
+| MQTT           | MQTT message broker                     |
+| Notifiarr      | Notifiarr message forwarding            |
+| Ntfy           | Ntfy push notifications                 |
+| Opsgenie       | Opsgenie alerts                         |
+| PagerDuty      | PagerDuty incident notifications        |
+| Pushbullet     | Pushbullet push notifications           |
+| Pushover       | Pushover push notifications             |
+| Rocket.Chat    | Rocket.Chat webhooks                    |
+| Signal         | Signal messages via signal-cli-rest-api |
+| Signalgrid     | Signalgrid push notifications           |
+| Slack          | Slack webhooks or Bot API               |
+| SMTP           | Email notifications                     |
+| Teams          | Microsoft Teams webhooks                |
+| Telegram       | Telegram bots                           |
+| Twilio         | Twilio SMS notifications                |
+| WeCom          | WeCom (WeChat Work) webhook bots        |
+| XMPP           | XMPP chat and MUC notifications         |
+| Zulip          | Zulip chat                              |
 
 ### Service Discovery
 

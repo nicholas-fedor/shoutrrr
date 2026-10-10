@@ -32,7 +32,7 @@ Sends a notification to a single service URL.
 
 !!! Example
     ```go title="Send to a Single Slack URL"
-    url := "slack://token-a/token-b/token-c"
+    url := "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
     err := shoutrrr.Send(url, "Hello, Slack!")
     if err != nil {
         fmt.Println("Error:", err)
@@ -93,7 +93,7 @@ Creates a `Sender` (`*ServiceRouter`) to manage multiple service URLs, support m
 !!! Example
     ```go title="Create Sender with Multiple URLs"
     urls := []string{
-        "slack://token-a/token-b/token-c",
+        "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
         "telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel",
     }
     sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
@@ -169,8 +169,8 @@ the context ends, and the service's error reports the context's error. `Send` an
 ### Per-Target Errors
 
 `*ServiceRouter.Send`, `SendContext`, `SendItems`, and `SendItemsContext` return one entry per configured URL, in the
-order the URLs were given, and the entry is `nil` when that send succeeded. `SendAsync` reports the errors in the order
-the sends finish. `Route` and `shoutrrr.SendContext` return a single error. A failed send is a `*types.TargetError`, or wraps
+order the URLs were given, and the entry is `nil` when that send succeeded. `SendAsync`'s channel receives one result per
+service, `nil` for a successful send, in the order the sends finish, and then closes. `Route` and `shoutrrr.SendContext` return a single error. A failed send is a `*types.TargetError`, or wraps
 one, so use `errors.As` to get it. Its `URL` field holds the service ID (such as `discord`) and its `Index` field holds
 the URL's position. It never contains the service URL, so it is safe to log, and it supports `errors.Unwrap` and
 `errors.Is`. Creating a sender and locating a service return ordinary wrapped errors, not a `*types.TargetError`.
@@ -255,7 +255,7 @@ if services.SupportsSchema("discord") {
     ```
 
     ```text title="Expected Output (Error)"
-    Error: failed to send message: unexpected response status code
+    Error: sending message: discord: <the service's error>
     ```
 
 ### Send to Multiple Services with Queuing
@@ -263,7 +263,7 @@ if services.SupportsSchema("discord") {
 !!! Example
     ```go title="Queue Messages for Multiple Services"
     urls := []string{
-        "slack://token-a/token-b/token-c",
+        "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
         "discord://abc123@123456789",
     }
     sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
@@ -283,8 +283,8 @@ if services.SupportsSchema("discord") {
     (No output on success)
     ```
 
-    ```text title="Expected Output (Error)"
-    Error: failed to initialize service: invalid URL format
+    ```text title="Expected Output (Invalid URL)"
+    2026/10/10 12:00:00 creating sender: error initializing router services: URL 0: slack: invalid slack token format
     ```
 <!-- markdownlint-restore -->
 

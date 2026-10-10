@@ -3,7 +3,7 @@
 ## URL Format
 
 !!! Info ""
-    signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[,__`recipient2`__,...]
+    signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]
 
 --8<-- "docs/services/chat/signal/config.md"
 
@@ -37,7 +37,7 @@ The server must be able to receive SMS verification codes during initial setup a
 Recipients can be:
 
 - __Phone numbers__: With country code (e.g., +0987654321)
-- __Group IDs__: In the format `group.groupId`
+- __Group IDs__: In the format `group.groupId`. A group ID can contain `/`, so it may span several path segments. It ends at the next phone number (`+...`), username (`u:...`), or group ID (`group....`).
 - __Usernames__: In the format `u:nickname.123`
 
 !!! Important
@@ -73,6 +73,14 @@ The two phone numbers are sent together. The group is a second `/v2/send` call.
 ```
 signal://localhost:8080/+1234567890/group.abcdefghijklmnop=
 ```
+
+### Send to a group ID that contains a slash
+
+```
+signal://localhost:8080/+1234567890/group.ABCD/EFGH=/+0987654321
+```
+
+The recipients are the group `group.ABCD/EFGH=` and the phone number `+0987654321`.
 
 ### With authentication
 

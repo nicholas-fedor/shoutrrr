@@ -112,6 +112,36 @@ func TestSendAsyncErrorsCarryIndex(t *testing.T) {
 	})
 }
 
+// TestSendAsyncReportsEverySendInCompletionOrder verifies that SendAsync delivers
+// one result per service in the order the sends finish, including nil for a
+// successful send.
+//
+//nolint:paralleltest // Modifies shared serviceMap and cannot run in parallel.
+func TestSendAsyncReportsEverySendInCompletionOrder(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		newSendMock(t, "slowsvc", func(string, *types.Params) error {
+			time.Sleep(2 * time.Second)
+
+			return nil
+		})
+		newSendMock(t, "fastsvc", func(string, *types.Params) error {
+			return errFastService
+		})
+
+		r, err := NewWithOptions(nil, types.SenderOptions{}, "slowsvc://", "fastsvc://")
+		require.NoError(t, err)
+
+		var results []error
+		for sendErr := range r.SendAsync("message", nil) {
+			results = append(results, sendErr)
+		}
+
+		require.Len(t, results, 2)
+		require.ErrorIs(t, results[0], errFastService)
+		assert.NoError(t, results[1])
+	})
+}
+
 // TestSendIsolatesParams verifies that each service receives its own copy of the
 // params, so one service changing them cannot affect another.
 //

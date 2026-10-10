@@ -16,11 +16,16 @@
 //   - Managing service lifecycles
 //   - Queueing and flushing batched messages
 //   - Dispatching structured MessageItems to services that implement RichSender
-//   - Propagating context.Context to services that implement ContextSender
+//   - Propagating context.Context to services that implement ContextSender, through
+//     SendContext and SendItemsContext
+//   - Closing services that hold connections between sends, through Close
 //
-// Errors returned from Send/SendAsync/SendItems are wrapped in *types.TargetError
-// so callers can identify which service failed and use errors.Is/errors.As against
-// the underlying error.
+// Send, SendContext, SendItems, and SendItemsContext return one entry per
+// configured URL, in the order the URLs were given, and the entry is nil when
+// that send succeeded. SendAsync's channel receives one result per service, nil
+// for a successful send, in the order the sends finish, and then closes. A failed
+// send is, or wraps, a *types.TargetError, so callers can identify which service
+// failed and use errors.Is/errors.As against the underlying error.
 //
 // Service Factory (servicemap.go)
 //
@@ -39,16 +44,17 @@
 //
 // Basic usage:
 //
-//	router, err := router.New(logger, "slack://webhook/...", "discord://webhook/...")
+//	r, err := router.NewWithOptions(logger, types.SenderOptions{}, "slack://webhook/...", "discord://webhook/...")
 //	if err != nil {
 //	    // handle error
 //	}
+//	defer r.Close()
 //
-//	errors := router.Send("Hello, World!", nil)
+//	errs := r.Send("Hello, World!", nil)
 //
 // For more control, use individual methods:
 //
-//	service, err := router.Locate("slack://webhook/...")
+//	service, err := r.Locate("slack://webhook/...")
 //	if err != nil {
 //	    // handle error
 //	}
@@ -57,16 +63,17 @@
 //
 // For SSRF protection or custom egress control, set HTTPClient for HTTP
 // services such as this slack:// URL. DialContext applies only to non-HTTP
-// TCP services (SMTP and MQTT).
+// TCP services (SMTP, XMPP, and MQTT).
 //
 //	opts := types.SenderOptions{
 //	    HTTPClient:  myClient,
 //	    DialContext: myDial,
 //	}
-//	router, err := router.NewWithOptions(logger, opts, "slack://webhook/...")
+//	r, err := router.NewWithOptions(logger, opts, "slack://webhook/...")
 //	if err != nil {
 //	    // handle error
 //	}
+//	defer r.Close()
 //
-//	errors := router.Send("Hello, World!", nil)
+//	errs := r.Send("Hello, World!", nil)
 package router

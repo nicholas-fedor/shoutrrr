@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (`nickfedor/shoutrrr`) and GHCR (`ghcr.io/nicholas-fedor/shoutrrr`). Tags include `latest` (stable production), versioned tags (e.g., `v0.8.0`), and `nightly` (rolling release).
+The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (`nickfedor/shoutrrr`) and GHCR (`ghcr.io/nicholas-fedor/shoutrrr`). The image is built from `scratch` and contains only the static binary, CA certificates, and timezone data. Tags include `latest` (stable production), versioned tags (e.g., `0.21.2`), and `nightly` (rolling release).
 
 ## Usage
 
@@ -25,7 +25,8 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 | Tag Examples   | Description                               |
 |----------------|-------------------------------------------|
 | `latest`       | Latest stable release.                    |
-| `vX.Y.Z`       | Specific version (e.g., `v0.8.0`).        |
+| `X.Y.Z`        | Specific version (e.g., `0.21.2`).        |
+| `X.Y`, `X`     | Latest release of a minor or major.       |
 | `nightly`      | Latest rolling release.                   |
 | `amd64-latest` | Platform-specific (e.g., amd64, arm64v8). |
 
@@ -70,22 +71,24 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
     URL: discord://abc123@123456789
     ```
 
-### Verify a URL with Verbose Output
+### Verify a URL
 
 !!! Example
     ```bash title="Verify Slack URL"
-    docker run --rm nickfedor/shoutrrr:latest verify --url "slack://token-a/token-b/token-c"
+    docker run --rm nickfedor/shoutrrr:latest verify --url "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"
     ```
 
-    ```text title="Expected Output"
-    URL valid
+    ```text title="Expected Output (abridged)"
+    BotName                                Bot name                                                     <Aliases: username>
+    Channel  webhook                       Channel to send messages to in Cxxxxxxxxxx format            <URL: Host> <Required>
+    ...
     ```
 
 ### Send from Stdin with Environment Variables
 
 !!! Example
     ```bash title="Send with Env Vars and Stdin"
-    echo "Message from stdin" | docker run --rm -i -e SHOUTRRR_URL="slack://token-a/token-b/token-c" -e SHOUTRRR_MESSAGE="-" nickfedor/shoutrrr:latest send
+    echo "Message from stdin" | docker run --rm -i -e SHOUTRRR_URL="slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook" -e SHOUTRRR_MESSAGE="-" nickfedor/shoutrrr:latest send
     ```
 
     ```text title="Expected Output"
@@ -103,7 +106,7 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
     ```
 
     ```text title="Expected Output"
-    shoutrrr version latest
+    shoutrrr version 0.21.2 (Built on 2026-09-30 from Git SHA 1a2b3c4)
     ```
 <!-- markdownlint-restore -->
 
@@ -111,6 +114,6 @@ The entrypoint is `/shoutrrr`, so commands like `send`, `generate`, `verify` wor
 
 - **Multi-Architecture**: Use platform-specific tags (e.g., `arm64v8-latest`) or let Docker select automatically with `latest`.
 - **Timeouts**: The default is 10 seconds per service. A longer service timeout, such as SMTP `timeout`, extends that service. The CLI does not set a fixed sender timeout.
-- **Volumes**: Mount `/etc/ssl/certs` if custom CA certs are needed, or `/input` for file-based messages.
+- **Volumes**: Mount `/etc/ssl/certs` if custom CA certs are needed. Pass message text through stdin with `-i` and `--message -`.
 - **Updates**: Pull latest images regularly. For production, pin to versioned tags.
 - **Debugging**: Add `-v` for verbose output in commands.
