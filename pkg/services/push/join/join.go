@@ -121,7 +121,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - devices: the comma-separated device IDs.
 //   - message: the message to send.
 //   - title: the notification title, or empty for none.
-//   - icon: the notification icon URL.
+//   - icon: the notification icon URL, or empty for none.
 //
 // Returns:
 //   - error: the request error, or [ErrSendFailed] for a non-success status.
@@ -142,7 +142,7 @@ func (s *Service) sendToDevices(ctx context.Context, devices, message, title, ic
 		data.Set("title", title)
 	}
 
-	if title != "" {
+	if icon != "" {
 		data.Set("icon", icon)
 	}
 

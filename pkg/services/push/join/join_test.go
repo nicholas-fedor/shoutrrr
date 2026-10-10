@@ -15,6 +15,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
@@ -175,6 +176,35 @@ var _ = ginkgo.Describe("SendContext", func() {
 
 		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
+})
+
+var _ = ginkgo.Describe("the request fields", func() {
+	ginkgo.DescribeTable("should send the title and icon independently of each other",
+		func(params types.Params, wantTitle, wantIcon string) {
+			var query url.Values
+
+			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+				query = req.URL.Query()
+
+				return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+			}).Once()
+
+			service := &join.Service{}
+			gomega.Expect(service.Initialize(testutils.URLMust("join://:apikey@join/?devices=device"), testutils.TestLogger())).To(gomega.Succeed())
+			service.SetHTTPClient(client)
+
+			gomega.Expect(service.Send("message", &params)).To(gomega.Succeed())
+			gomega.Expect(query.Has("title")).To(gomega.Equal(wantTitle != ""))
+			gomega.Expect(query.Get("title")).To(gomega.Equal(wantTitle))
+			gomega.Expect(query.Has("icon")).To(gomega.Equal(wantIcon != ""))
+			gomega.Expect(query.Get("icon")).To(gomega.Equal(wantIcon))
+		},
+		ginkgo.Entry("with an icon and no title", types.Params{"icon": "https://example.com/icon.png"}, "", "https://example.com/icon.png"),
+		ginkgo.Entry("with a title and no icon", types.Params{"title": "Alert"}, "Alert", ""),
+		ginkgo.Entry("with a title and an icon", types.Params{"title": "Alert", "icon": "https://example.com/icon.png"}, "Alert", "https://example.com/icon.png"),
+		ginkgo.Entry("with neither", types.Params{}, "", ""),
+	)
 })
 
 func TestJoin(t *testing.T) {
