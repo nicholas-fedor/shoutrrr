@@ -171,7 +171,6 @@ var _ = ginkgo.Describe("the bark service", func() {
 	})
 })
 
-// TestBark runs the Ginkgo test suite for the bark package.
 var _ = ginkgo.Describe("SendContext", func() {
 	ginkgo.It("should stop the request when the caller's context is canceled", func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -190,6 +189,7 @@ var _ = ginkgo.Describe("SendContext", func() {
 	})
 })
 
+// TestBark runs the Ginkgo test suite for the bark package.
 func TestBark(t *testing.T) {
 	t.Parallel()
 

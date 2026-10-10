@@ -1,6 +1,7 @@
 package twilio
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -39,7 +40,7 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 			service.Config.FromNumber = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 			mockClient.captureBody = true
 
-			err := service.sendToRecipient(service.Config, "+15559876543", "Test")
+			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("MessagingServiceSid"))
 			gomega.Expect(mockClient.lastBody).NotTo(gomega.ContainSubstring("From="))
@@ -48,7 +49,7 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 		ginkgo.It("should use From for regular phone numbers", func() {
 			mockClient.captureBody = true
 
-			err := service.sendToRecipient(service.Config, "+15559876543", "Test")
+			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("From="))
 		})
@@ -56,7 +57,7 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 		ginkgo.It("should set Basic Auth header", func() {
 			mockClient.captureHeaders = true
 
-			err := service.sendToRecipient(service.Config, "+15559876543", "Test")
+			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			username, password, ok := mockClient.lastRequest.BasicAuth()
@@ -68,7 +69,7 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 		ginkgo.It("should set the correct Content-Type header", func() {
 			mockClient.captureHeaders = true
 
-			err := service.sendToRecipient(service.Config, "+15559876543", "Test")
+			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(mockClient.lastRequest.Header.Get("Content-Type")).
 				To(gomega.Equal(contentType))

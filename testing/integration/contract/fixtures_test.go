@@ -238,12 +238,8 @@ var allowlist = map[string]map[string]knownFailure{
 	},
 	checkSendUsesContext: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
-		// lifetime context by design. These rows stay, unlike the F12 rows.
-		"mqtt":      {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
-		"mqtts":     {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
-		"notifiarr": {"F12: requests do not carry the caller's context", failContextDropped},
-		"opsgenie":  {"F12: requests do not carry the caller's context", failContextDropped},
-		"signal":    {"F12: requests do not carry the caller's context", failContextDropped},
-		"twilio":    {"F12: requests do not carry the caller's context", failContextDropped},
+		// lifetime context by design.
+		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
+		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	},
 }

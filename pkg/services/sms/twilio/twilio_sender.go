@@ -40,7 +40,16 @@ func DefaultHTTPClient() HTTPClient {
 }
 
 // sendToRecipient sends an SMS message to a single recipient via the Twilio API.
-func (s *Service) sendToRecipient(config *Config, toNumber, message string) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - config: the configuration for this send.
+//   - toNumber: the recipient phone number.
+//   - message: the message to send.
+//
+// Returns:
+//   - error: the request error, or [ErrSendFailed] for a non-success status.
+func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber, message string) error {
 	body := message
 	if config.Title != "" {
 		body = config.Title + "\n" + message
@@ -60,7 +69,7 @@ func (s *Service) sendToRecipient(config *Config, toNumber, message string) erro
 		data.Set("From", config.FromNumber)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
