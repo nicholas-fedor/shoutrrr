@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 const (
@@ -203,7 +208,7 @@ var _ = ginkgo.Describe("the teams service", func() {
 			service.Config = &Config{}
 			service.SetLogger(logger)
 
-			err := service.doSend(&Config{}, "test message")
+			err := service.doSend(context.Background(), &Config{}, "test message")
 			gomega.Expect(err).To(gomega.Equal(ErrMissingHost))
 		})
 
@@ -213,9 +218,27 @@ var _ = ginkgo.Describe("the teams service", func() {
 			service.SetLogger(logger)
 
 			// No httpmock activated — this must fail at validation, not at the network layer.
-			err := service.doSend(&Config{Host: "https://example.com"}, "test message")
+			err := service.doSend(context.Background(), &Config{Host: "https://example.com"}, "test message")
 			gomega.Expect(err).To(gomega.MatchError(ErrInvalidWebhookURL))
 		})
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := mockTypes.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust(serviceURLBase), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })
 

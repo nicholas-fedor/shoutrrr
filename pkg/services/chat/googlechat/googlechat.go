@@ -31,6 +31,7 @@ var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http s
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -54,7 +55,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Google Chat.
-func (s *Service) Send(message string, _ *types.Params) error {
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: unused, because Google Chat takes no send parameters.
+//
+// Returns:
+//   - error: the request error, or [ErrUnexpectedStatus] for a non-success status.
+func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Google Chat.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - _: unused, because Google Chat takes no send parameters.
+//
+// Returns:
+//   - error: the request error, which matches ctx's error when ctx ends the
+//     request, or [ErrUnexpectedStatus] for a non-success status.
+func (s *Service) SendContext(ctx context.Context, message string, _ *types.Params) error {
 	config := s.Config
 
 	jsonBody, err := json.Marshal(JSON{Text: message})
@@ -66,7 +90,7 @@ func (s *Service) Send(message string, _ *types.Params) error {
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		postURL.String(),
 		jsonBuffer,

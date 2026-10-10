@@ -60,6 +60,7 @@ var httpClient = &http.Client{Timeout: defaultTime}
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -79,7 +80,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Lark.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: a validation, params, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Lark.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: a validation, params, or send error. A request error matches ctx's
+//     error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if len(message) > maxLength {
 		return ErrLargeMessage
 	}
@@ -97,7 +121,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return ErrNoPath
 	}
 
-	return s.doSend(&config, message, params)
+	return s.doSend(ctx, &config, message, params)
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Lark send.
@@ -111,7 +135,16 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // doSend sends the notification to Lark using the configured API URL.
-func (s *Service) doSend(config *Config, message string, params *types.Params) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - config: the configuration for this send.
+//   - message: the message to send.
+//   - params: the send params, which may set the title and link.
+//
+// Returns:
+//   - error: [ErrMissingHost], a payload error, or the send error.
+func (s *Service) doSend(ctx context.Context, config *Config, message string, params *types.Params) error {
 	if config.Host == "" {
 		return ErrMissingHost
 	}
@@ -123,7 +156,7 @@ func (s *Service) doSend(config *Config, message string, params *types.Params) e
 		return err
 	}
 
-	return s.sendRequest(postURL, payload)
+	return s.sendRequest(ctx, postURL, payload)
 }
 
 // genSign generates a signature for the request using the secret and timestamp.
@@ -243,9 +276,17 @@ func (s *Service) preparePayload(
 }
 
 // sendRequest performs the HTTP POST request to the Lark API and handles the response.
-func (s *Service) sendRequest(postURL string, payload []byte) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - postURL: the webhook URL.
+//   - payload: the JSON payload.
+//
+// Returns:
+//   - error: the request error, or the error the Lark API reported.
+func (s *Service) sendRequest(ctx context.Context, postURL string, payload []byte) error {
 	req, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		postURL,
 		bytes.NewReader(payload),

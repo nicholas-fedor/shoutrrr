@@ -42,6 +42,7 @@ const adaptiveCardVersion = "1.2"
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -79,7 +80,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Microsoft Teams.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: [ErrMissingHost], a params or validation error, or the send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Microsoft Teams as an Adaptive Card.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: [ErrMissingHost], a params or validation error, or the send error,
+//     which matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return ErrMissingHost
 	}
@@ -89,7 +113,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return s.doSend(&config, message)
+	return s.doSend(ctx, &config, message)
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Teams send.
@@ -138,7 +162,16 @@ func colorToEnum(color string) string {
 }
 
 // doSend sends the notification to Teams as an Adaptive Card payload.
-func (s *Service) doSend(config *Config, message string) error {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - config: the configuration for this send.
+//   - message: the message to send.
+//
+// Returns:
+//   - error: [ErrMissingHost], a validation error, [ErrSendFailed] wrapping the
+//     request error, or [ErrSendFailedStatus] for a non-success status.
+func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	if config.Host == "" {
 		return ErrMissingHost
 	}
@@ -197,7 +230,7 @@ func (s *Service) doSend(config *Config, message string) error {
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
 
-	res, err := s.postJSON(config.Host, jsonBytes)
+	res, err := s.postJSON(ctx, config.Host, jsonBytes)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
@@ -212,9 +245,18 @@ func (s *Service) doSend(config *Config, message string) error {
 }
 
 // postJSON performs an HTTP POST with a JSON payload.
-func (s *Service) postJSON(serviceURL string, payload []byte) (*http.Response, error) {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - serviceURL: the webhook URL.
+//   - payload: the JSON payload.
+//
+// Returns:
+//   - *http.Response: the response, whose body the caller closes.
+//   - error: the request error.
+func (s *Service) postJSON(ctx context.Context, serviceURL string, payload []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(
-		context.Background(),
+		ctx,
 		defaultHTTPTimeout,
 	)
 	defer cancel()
