@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Fix drift in the readme, docker, service, and package docs by @nicholas-fedor in [#1520](https://github.com/nicholas-fedor/shoutrrr/pull/1520)
 - Document SendContext for per-send params by @nicholas-fedor in [#1487](https://github.com/nicholas-fedor/shoutrrr/pull/1487)
 
 ### Tests
