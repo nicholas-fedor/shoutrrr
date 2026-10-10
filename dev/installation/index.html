@@ -2793,7 +2793,7 @@
 <p>Review the <a href="https://github.com/nicholas-fedor/shoutrrr/releases">release page</a> for additional architectures (e.g., arm, arm64, i386, riscv64).</p>
 </div>
 <h2 id="container_images">Container Images<a class="headerlink" href="#container_images" title="Permanent link">&para;</a></h2>
-<p>Shoutrrr provides lightweight Docker images based on Alpine Linux, supporting multiple architectures (amd64, arm64, arm/v6, i386, riscv64). Images are available on Docker Hub and GitHub Container Registry (GHCR).</p>
+<p>Shoutrrr provides lightweight Docker images built from <code>scratch</code>, containing only the static binary, CA certificates, and timezone data. They support multiple architectures (amd64, arm64, arm/v6, i386, riscv64). Images are available on Docker Hub and GitHub Container Registry (GHCR).</p>
 <!-- markdownlint-disable -->
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Docker Hub</label><label for="__tabbed_2_2">GitHub Container Registry</label></div>
 <div class="tabbed-content">
@@ -2803,7 +2803,7 @@
 <ul>
 <li><strong>Repository</strong>: <a href="https://hub.docker.com/r/nickfedor/shoutrrr">https://hub.docker.com/r/nickfedor/shoutrrr</a></li>
 <li><strong>Image Reference</strong>: <code>nickfedor/shoutrrr</code></li>
-<li><strong>Tags</strong>: <code>latest</code>, <code>vX.Y.Z</code> (e.g., <code>v0.8.0</code>), <code>nightly</code>, platform-specific (e.g., <code>amd64-nightly</code>)</li>
+<li><strong>Tags</strong>: <code>latest</code>, <code>X.Y.Z</code> (e.g., <code>0.21.2</code>), <code>X.Y</code>, <code>X</code>, <code>nightly</code>, platform-specific (e.g., <code>amd64-latest</code>, <code>amd64-nightly</code>)</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2812,7 +2812,7 @@
 <ul>
 <li><strong>Repository</strong>: <a href="https://github.com/nicholas-fedor/shoutrrr/pkgs/container/shoutrrr">https://github.com/nicholas-fedor/shoutrrr/pkgs/container/shoutrrr</a></li>
 <li><strong>Image Reference</strong>: <code>ghcr.io/nicholas-fedor/shoutrrr</code></li>
-<li><strong>Tags</strong>: <code>latest</code>, <code>vX.Y.Z</code> (e.g., <code>v0.8.0</code>), <code>nightly</code>, platform-specific (e.g., <code>arm64v8-nightly</code>)</li>
+<li><strong>Tags</strong>: <code>latest</code>, <code>X.Y.Z</code> (e.g., <code>0.21.2</code>), <code>X.Y</code>, <code>X</code>, <code>nightly</code>, platform-specific (e.g., <code>arm64v8-latest</code>, <code>arm64v8-nightly</code>)</li>
 </ul>
 </div>
 </div>
@@ -2820,7 +2820,7 @@
 <!-- markdownlint-restore -->
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Use <code>latest</code> for the latest stable release, versioned tags (e.g., <code>v0.8.0</code>) for specific releases, or <code>nightly</code> for  a rolling release image. Platform-specific tags are available for targeted deployments.</p>
+<p>Use <code>latest</code> for the latest stable release, versioned tags (e.g., <code>0.21.2</code>, or <code>0.21</code> for the latest patch of a minor) for specific releases, or <code>nightly</code> for a rolling release image. Platform-specific tags are available for targeted deployments.</p>
 </div>
 <h2 id="go_package">Go Package<a class="headerlink" href="#go_package" title="Permanent link">&para;</a></h2>
 <p>Add Shoutrrr to your Go project using:</p>
@@ -2875,7 +2875,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 2, 2026 01:30:13 UTC"><span class="timeago" datetime="2026-09-02T01:30:13+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 2, 2026 01:30:13 UTC">2026-09-02</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 15:54:51 UTC"><span class="timeago" datetime="2026-10-10T15:54:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 15:54:51 UTC">2026-10-10</span>
   </span>
 
     

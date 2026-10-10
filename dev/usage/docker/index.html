@@ -990,10 +990,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#verify_a_url_with_verbose_output" class="md-nav__link">
+  <a href="#verify_a_url" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verify a URL with Verbose Output
+        Verify a URL
       
     </span>
   </a>
@@ -2772,10 +2772,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#verify_a_url_with_verbose_output" class="md-nav__link">
+  <a href="#verify_a_url" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verify a URL with Verbose Output
+        Verify a URL
       
     </span>
   </a>
@@ -2842,7 +2842,7 @@
 
 <h1 id="using_shoutrrr_as_a_docker_container">Using Shoutrrr as a Docker Container<a class="headerlink" href="#using_shoutrrr_as_a_docker_container" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (<code>nickfedor/shoutrrr</code>) and GHCR (<code>ghcr.io/nicholas-fedor/shoutrrr</code>). Tags include <code>latest</code> (stable production), versioned tags (e.g., <code>v0.8.0</code>), and <code>nightly</code> (rolling release).</p>
+<p>The Shoutrrr Docker image provides a lightweight containerized version of the Shoutrrr CLI. It supports all architectures (amd64, arm64, arm/v6, i386, riscv64) and is available on Docker Hub (<code>nickfedor/shoutrrr</code>) and GHCR (<code>ghcr.io/nicholas-fedor/shoutrrr</code>). The image is built from <code>scratch</code> and contains only the static binary, CA certificates, and timezone data. Tags include <code>latest</code> (stable production), versioned tags (e.g., <code>0.21.2</code>), and <code>nightly</code> (rolling release).</p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Docker Hub</label><label for="__tabbed_1_2">GHCR</label></div>
 <div class="tabbed-content">
@@ -2871,8 +2871,12 @@
 <td>Latest stable release.</td>
 </tr>
 <tr>
-<td><code>vX.Y.Z</code></td>
-<td>Specific version (e.g., <code>v0.8.0</code>).</td>
+<td><code>X.Y.Z</code></td>
+<td>Specific version (e.g., <code>0.21.2</code>).</td>
+</tr>
+<tr>
+<td><code>X.Y</code>, <code>X</code></td>
+<td>Latest release of a minor or major.</td>
 </tr>
 <tr>
 <td><code>nightly</code></td>
@@ -2917,18 +2921,20 @@ WebhookID: 123456789
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URL: discord://abc123@123456789
 </code></pre></div>
 </div>
-<h3 id="verify_a_url_with_verbose_output">Verify a URL with Verbose Output<a class="headerlink" href="#verify_a_url_with_verbose_output" title="Permanent link">&para;</a></h3>
+<h3 id="verify_a_url">Verify a URL<a class="headerlink" href="#verify_a_url" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://token-a/token-b/token-c"</span>
+<div class="highlight"><span class="filename">Verify Slack URL</span><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>verify<span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span>
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URL valid
+<div class="highlight"><span class="filename">Expected Output (abridged)</span><pre><span></span><code>BotName                                Bot name                                                     &lt;Aliases: username&gt;
+Channel  webhook                       Channel to send messages to in Cxxxxxxxxxx format            &lt;URL: Host&gt; &lt;Required&gt;
+...
 </code></pre></div>
 </div>
 <h3 id="send_from_stdin_with_environment_variables">Send from Stdin with Environment Variables<a class="headerlink" href="#send_from_stdin_with_environment_variables" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">"Message from stdin"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">"slack://token-a/token-b/token-c"</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">"-"</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
+<div class="highlight"><span class="filename">Send with Env Vars and Stdin</span><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">"Message from stdin"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_URL</span><span class="o">=</span><span class="s2">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">SHOUTRRR_MESSAGE</span><span class="o">=</span><span class="s2">"-"</span><span class="w"> </span>nickfedor/shoutrrr:latest<span class="w"> </span>send
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>Reading from STDIN...
 Read 20 byte(s)
@@ -2941,7 +2947,7 @@ Notification sent
 <div class="highlight"><span class="filename">Pull and Run on ARM64</span><pre><span></span><code>docker<span class="w"> </span>pull<span class="w"> </span>nickfedor/shoutrrr:arm64v8-latest
 docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>nickfedor/shoutrrr:arm64v8-latest<span class="w"> </span>--version
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>shoutrrr version latest
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>shoutrrr version 0.21.2 (Built on 2026-09-30 from Git SHA 1a2b3c4)
 </code></pre></div>
 </div>
 <!-- markdownlint-restore -->
@@ -2950,7 +2956,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
 <ul>
 <li><strong>Multi-Architecture</strong>: Use platform-specific tags (e.g., <code>arm64v8-latest</code>) or let Docker select automatically with <code>latest</code>.</li>
 <li><strong>Timeouts</strong>: The default is 10 seconds per service. A longer service timeout, such as SMTP <code>timeout</code>, extends that service. The CLI does not set a fixed sender timeout.</li>
-<li><strong>Volumes</strong>: Mount <code>/etc/ssl/certs</code> if custom CA certs are needed, or <code>/input</code> for file-based messages.</li>
+<li><strong>Volumes</strong>: Mount <code>/etc/ssl/certs</code> if custom CA certs are needed. Pass message text through stdin with <code>-i</code> and <code>--message -</code>.</li>
 <li><strong>Updates</strong>: Pull latest images regularly. For production, pin to versioned tags.</li>
 <li><strong>Debugging</strong>: Add <code>-v</code> for verbose output in commands.</li>
 </ul>
@@ -2976,7 +2982,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 13:11:01 UTC"><span class="timeago" datetime="2026-10-09T13:11:01+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 13:11:01 UTC">2026-10-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 15:54:51 UTC"><span class="timeago" datetime="2026-10-10T15:54:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 15:54:51 UTC">2026-10-10</span>
   </span>
 
     

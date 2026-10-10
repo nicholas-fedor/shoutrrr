@@ -3008,7 +3008,7 @@
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><span class="filename">Send to a Single Slack URL</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"slack://token-a/token-b/token-c"</span>
+<div class="highlight"><span class="filename">Send to a Single Slack URL</span><pre><span></span><code><span class="nx">url</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="s">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span>
 <span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span><span class="w"> </span><span class="s">"Hello, Slack!"</span><span class="p">)</span>
 <span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="s">"Error:"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
@@ -3069,7 +3069,7 @@
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Create Sender with Multiple URLs</span><pre><span></span><code><span class="nx">urls</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span>
-<span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"telegram://110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw@telegram?channels=@mychannel"</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="nx">urls</span><span class="p">...)</span>
@@ -3142,8 +3142,8 @@ the service's send budget, so cancellation and deadlines stop their requests. Fo
 the context ends, and the service's error reports the context's error. <code>Send</code> and <code>SendItems</code> use a background context.</p>
 <h3 id="per-target_errors">Per-Target Errors<a class="headerlink" href="#per-target_errors" title="Permanent link">&para;</a></h3>
 <p><code>*ServiceRouter.Send</code>, <code>SendContext</code>, <code>SendItems</code>, and <code>SendItemsContext</code> return one entry per configured URL, in the
-order the URLs were given, and the entry is <code>nil</code> when that send succeeded. <code>SendAsync</code> reports the errors in the order
-the sends finish. <code>Route</code> and <code>shoutrrr.SendContext</code> return a single error. A failed send is a <code>*types.TargetError</code>, or wraps
+order the URLs were given, and the entry is <code>nil</code> when that send succeeded. <code>SendAsync</code>'s channel receives one result per
+service, <code>nil</code> for a successful send, in the order the sends finish, and then closes. <code>Route</code> and <code>shoutrrr.SendContext</code> return a single error. A failed send is a <code>*types.TargetError</code>, or wraps
 one, so use <code>errors.As</code> to get it. Its <code>URL</code> field holds the service ID (such as <code>discord</code>) and its <code>Index</code> field holds
 the URL's position. It never contains the service URL, so it is safe to log, and it supports <code>errors.Unwrap</code> and
 <code>errors.Is</code>. Creating a sender and locating a service return ordinary wrapped errors, not a <code>*types.TargetError</code>.</p>
@@ -3210,14 +3210,14 @@ The default is <code>Info</code>.</p>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output (Success)</span><pre><span></span><code>(No output on success)
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output (Error)</span><pre><span></span><code>Error: failed to send message: unexpected response status code
+<div class="highlight"><span class="filename">Expected Output (Error)</span><pre><span></span><code>Error: sending message: discord: &lt;the service's error&gt;
 </code></pre></div>
 </div>
 <h3 id="send_to_multiple_services_with_queuing">Send to Multiple Services with Queuing<a class="headerlink" href="#send_to_multiple_services_with_queuing" title="Permanent link">&para;</a></h3>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Queue Messages for Multiple Services</span><pre><span></span><code><span class="nx">urls</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="p">{</span>
-<span class="w">    </span><span class="s">"slack://token-a/token-b/token-c"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"discord://abc123@123456789"</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="nx">sender</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">CreateSenderWithOptions</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">SenderOptions</span><span class="p">{},</span><span class="w"> </span><span class="nx">urls</span><span class="p">...)</span>
@@ -3234,7 +3234,7 @@ The default is <code>Info</code>.</p>
 </code></pre></div>
 <div class="highlight"><span class="filename">Expected Output (Success)</span><pre><span></span><code>(No output on success)
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output (Error)</span><pre><span></span><code>Error: failed to initialize service: invalid URL format
+<div class="highlight"><span class="filename">Expected Output (Invalid URL)</span><pre><span></span><code>2026/10/10 12:00:00 creating sender: error initializing router services: URL 0: slack: invalid slack token format
 </code></pre></div>
 </div>
 <!-- markdownlint-restore -->
@@ -3273,7 +3273,7 @@ The default is <code>Info</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 15:53:04 UTC"><span class="timeago" datetime="2026-10-09T15:53:04+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 15:53:04 UTC">2026-10-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 15:54:51 UTC"><span class="timeago" datetime="2026-10-10T15:54:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 15:54:51 UTC">2026-10-10</span>
   </span>
 
     
