@@ -1,6 +1,8 @@
 name: Lint Commit Message
 on:
   pull_request:
+    paths-ignore:
+      - CHANGELOG.md
 
 permissions:
   contents: read # Set default read-only permissions
