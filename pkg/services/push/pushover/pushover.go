@@ -35,6 +35,7 @@ const (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -64,7 +65,31 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Pushover.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params, encryption key, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to the configured Pushover devices
+// in one request.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields.
+//
+// Returns:
+//   - error: the params, encryption key, or send error. A request error matches
+//     ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -78,7 +103,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 	}
 
 	device := strings.Join(config.Devices, ",")
-	if err := s.sendToDevice(device, message, config); err != nil {
+	if err := s.sendToDevice(ctx, device, message, config); err != nil {
 		return fmt.Errorf("failed to send notifications to pushover devices: %w", err)
 	}
 
@@ -99,8 +124,18 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 	return s.Client
 }
 
-// sendToDevice sends a notification to a specific Pushover device.
-func (s *Service) sendToDevice(device, message string, config *Config) error {
+// sendToDevice sends a notification to the given Pushover devices.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - device: the comma-separated device names, or empty for all devices.
+//   - message: the message to send.
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - error: an encryption error, the request error, or [ErrSendFailed] for a
+//     non-success status.
+func (s *Service) sendToDevice(ctx context.Context, device, message string, config *Config) error {
 	key, err := parseEncryptionKey(config.EncryptionKey)
 	if err != nil {
 		return err
@@ -139,7 +174,7 @@ func (s *Service) sendToDevice(device, message string, config *Config) error {
 		data.Set("priority", strconv.FormatInt(int64(config.Priority), 10))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(

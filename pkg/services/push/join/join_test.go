@@ -1,6 +1,8 @@
 package join_test
 
 import (
+	"context"
+	"net/http"
 	"net/url"
 	"os"
 	"testing"
@@ -8,10 +10,12 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var (
@@ -152,6 +156,24 @@ var _ = ginkgo.Describe("the join config", func() {
 			err = service.Send("Message", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &join.Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("join://:apikey@join/?devices=device"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })
 

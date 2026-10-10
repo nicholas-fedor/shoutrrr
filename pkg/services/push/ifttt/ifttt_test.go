@@ -1,6 +1,7 @@
 package ifttt_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,14 +10,17 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ifttt"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 type jsonPayload struct {
@@ -24,6 +28,9 @@ type jsonPayload struct {
 	Value2 string `json:"value2"`
 	Value3 string `json:"value3"`
 }
+
+// perEvent is the timeout of each IFTTT event request.
+const perEvent = 10 * time.Second
 
 var (
 	service    *ifttt.Service
@@ -346,6 +353,41 @@ var _ = ginkgo.Describe("the IFTTT service", func() {
 })
 
 // TestIFTTT runs the Ginkgo test suite for the IFTTT package.
+var _ = ginkgo.Describe("ServiceTimeout", func() {
+	ginkgo.DescribeTable("should budget one request timeout for each event",
+		func(params *types.Params, want time.Duration) {
+			service := &ifttt.Service{}
+			gomega.Expect(service.Initialize(
+				testutils.URLMust("ifttt://webhookid/?events=a,b,c"),
+				testutils.TestLogger(),
+			)).To(gomega.Succeed())
+
+			gomega.Expect(service.ServiceTimeout(params)).To(gomega.Equal(want))
+		},
+		ginkgo.Entry("for the configured events", nil, 3*perEvent),
+		ginkgo.Entry("for events set by params", &types.Params{"events": "a,b"}, 2*perEvent),
+		ginkgo.Entry("for the configured events when a param is invalid", &types.Params{"messagevalue": "abc"}, 3*perEvent),
+	)
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &ifttt.Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("ifttt://webhookid/?events=event"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+})
+
 func TestIFTTT(t *testing.T) {
 	t.Parallel()
 	gomega.RegisterFailHandler(ginkgo.Fail)

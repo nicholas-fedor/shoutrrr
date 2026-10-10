@@ -39,6 +39,7 @@ var (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -64,7 +65,31 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to an IFTTT webhook.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields and payload values.
+//
+// Returns:
+//   - error: the params, payload, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to the IFTTT webhook of every
+// configured event, one after another.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests.
+//   - message: the message to send.
+//   - params: optional overrides for configuration fields and payload values.
+//
+// Returns:
+//   - error: the params or payload error, or [ErrSendFailed] wrapping the first
+//     event's send error, which matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -80,12 +105,36 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	for _, event := range config.Events {
 		apiURL := s.createAPIURLForEvent(event)
-		if err := s.doSend(payload, apiURL); err != nil {
+		if err := s.doSend(ctx, payload, apiURL); err != nil {
 			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
 		}
 	}
 
 	return nil
+}
+
+// ServiceTimeout reports the send budget the router gives IFTTT. A send makes
+// one request per event, one after another, each bounded by [defaultTimeout].
+//
+// Parameters:
+//   - params: optional overrides for configuration fields, which may set the
+//     events. An invalid param fails the send itself, so the stored events set
+//     the budget.
+//
+// Returns:
+//   - time.Duration: [defaultTimeout] multiplied by the number of events, and at
+//     least [defaultTimeout].
+func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	if s.Config == nil {
+		return defaultTimeout
+	}
+
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		config = *s.Config
+	}
+
+	return defaultTimeout * time.Duration(max(1, len(config.Events)))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
@@ -99,8 +148,16 @@ func (s *Service) createAPIURLForEvent(event string) string {
 }
 
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.
-func (s *Service) doSend(payload []byte, postURL string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultTimeout].
+//   - payload: the JSON payload.
+//   - postURL: the webhook URL for the event.
+//
+// Returns:
+//   - error: the request error, or [ErrUnexpectedStatus] for a non-success status.
+func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(

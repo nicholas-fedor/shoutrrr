@@ -50,6 +50,7 @@ const (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -92,13 +93,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Home Assistant.
 //
+// It delegates to [Service.SendContext] with [context.Background].
+//
 // Parameters:
 //   - message: The notification body.
 //   - params: Optional runtime overrides for title, service, targets, and nid.
 //
 // Returns:
-//   - An error if the message is empty, configuration updates fail, or delivery fails.
+//   - error: [ErrMessageEmpty], a params error, or the send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Home Assistant.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: The notification body.
+//   - params: Optional runtime overrides for title, service, targets, and nid.
+//
+// Returns:
+//   - error: [ErrMessageEmpty], a params error, or the send error, which matches
+//     ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if message == "" {
 		return ErrMessageEmpty
 	}
@@ -108,7 +125,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := s.send(message, &config); err != nil {
+	if err := s.send(ctx, message, &config); err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
@@ -146,12 +163,13 @@ func (s *Service) newHTTPClient() types.HTTPClient {
 // send posts a notification to the Home Assistant REST API.
 //
 // Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
 //   - message: The notification body sent as the JSON field message.
 //   - config: The resolved configuration used to build the URL and payload.
 //
 // Returns:
-//   - An error if the request cannot be created, sent, or the API returns a non-success status.
-func (s *Service) send(message string, config *Config) error {
+//   - error: the request error, or an error for a non-success status.
+func (s *Service) send(ctx context.Context, message string, config *Config) error {
 	payload, postURL, err := buildRequest(message, config)
 	if err != nil {
 		return err
@@ -162,7 +180,7 @@ func (s *Service) send(message string, config *Config) error {
 		return fmt.Errorf("marshaling payload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(

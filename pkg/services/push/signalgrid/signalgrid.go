@@ -43,6 +43,7 @@ const (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -88,19 +89,35 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to Signalgrid.
 //
+// It delegates to [Service.SendContext] with [context.Background].
+//
 // Parameters:
 //   - message: The notification body.
 //   - params: Optional runtime overrides for title, type, and critical.
 //
 // Returns:
-//   - An error if configuration updates or delivery fail.
+//   - error: the params or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Signalgrid.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: The notification body.
+//   - params: Optional runtime overrides for title, type, and critical.
+//
+// Returns:
+//   - error: the params or send error. A request error matches ctx's error when
+//     ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := s.send(message, &config); err != nil {
+	if err := s.send(ctx, message, &config); err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
@@ -118,12 +135,13 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // send posts a notification to the Signalgrid Push API.
 //
 // Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
 //   - message: The notification body sent as the form field body.
 //   - config: The resolved configuration used to populate remaining form fields.
 //
 // Returns:
-//   - An error if the request cannot be created, sent, or the API returns a non-success status.
-func (s *Service) send(message string, config *Config) error {
+//   - error: the request error, or an error for a non-success status.
+func (s *Service) send(ctx context.Context, message string, config *Config) error {
 	data := url.Values{}
 	data.Set("client_key", config.ClientKey)
 	data.Set("channel", config.Channel)
@@ -138,7 +156,7 @@ func (s *Service) send(message string, config *Config) error {
 		data.Set("critical", "true")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHTTPTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
