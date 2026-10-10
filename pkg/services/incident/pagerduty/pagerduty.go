@@ -133,9 +133,17 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
 
-// SetHTTPClient allows users to provide a custom HTTP client for enterprise environments
-// requiring proxies, custom TLS configurations, etc.
+// SetHTTPClient sets a custom HTTP client for the service, such as one for an
+// enterprise environment that needs a proxy or a custom TLS configuration. A nil
+// client, including a nil *http.Client, selects the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	if client == nil {
 		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 

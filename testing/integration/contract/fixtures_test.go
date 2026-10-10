@@ -217,25 +217,6 @@ var fixtures = []fixture{
 // its audit finding. Fixing a failure must remove its entry; TestContract fails if
 // an allowlisted case passes.
 var allowlist = map[string]map[string]knownFailure{
-	checkTypedNilHTTPClient: {
-		"bark":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"homeassistant": {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"ifttt":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"join":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"lark":          {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"mattermost":    {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"opsgenie":      {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"pagerduty":     {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"pushover":      {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"rocketchat":    {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"signal":        {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"signalgrid":    {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"slack":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"teams":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"telegram":      {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"twilio":        {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-		"wecom":         {"F26: panics after SetHTTPClient with a nil *http.Client", failPanic},
-	},
 	checkSendUsesContext: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -128,11 +129,16 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	return defaultHTTPTimeout * time.Duration(max(1, len(batchRecipients(config.Recipients))))
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client,
+// including a nil *http.Client, selects the default client.
 //
 // Parameters:
-//   - client: the HTTP client to use for API requests
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	s.httpClient = client
 	s.injectedHTTPClient = client != nil
 }
