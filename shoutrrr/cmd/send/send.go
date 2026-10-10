@@ -171,18 +171,40 @@ func run(cmd *cobra.Command) error {
 		return cli.ConfigurationError(fmt.Sprintf("error invoking send: %s", err))
 	}
 
+	// Services such as MQTT keep a connection open between sends. Closing them
+	// disconnects cleanly instead of leaving the connection to end with the
+	// process. Every send has finished by then, so a close failure does not change
+	// the result and is only reported in verbose mode.
+	defer func() {
+		if err := serviceRouter.Close(); err != nil && verbose {
+			logf("Closing services: %v", err)
+		}
+	}()
+
 	params := make(types.Params)
 	if title != "" {
 		params["title"] = title
 	}
 
-	errs := serviceRouter.SendAsync(message, &params)
-	for err := range errs {
+	// The channel closes once every send has finished. Draining it keeps a send
+	// that fails quickly from ending the command, and the process with it, while
+	// other sends are still in progress.
+	var firstErr error
+
+	for err := range serviceRouter.SendAsync(message, &params) {
 		if err != nil {
-			return cli.TaskUnavailable(err.Error())
+			if firstErr == nil {
+				firstErr = err
+			}
+
+			continue
 		}
 
 		logf("Notification sent")
+	}
+
+	if firstErr != nil {
+		return cli.TaskUnavailable(firstErr.Error())
 	}
 
 	return nil
