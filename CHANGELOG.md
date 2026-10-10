@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/onsi/ginkgo/v2 to v2.33.1 by @renovate[bot] in [#1505](https://github.com/nicholas-fedor/shoutrrr/pull/1505)
+- Update module golang.org/x/mod to v0.42.0 by @renovate[bot] in [#1506](https://github.com/nicholas-fedor/shoutrrr/pull/1506)
 - Update module golang.org/x/net to v0.61.0 by @renovate[bot] in [#1502](https://github.com/nicholas-fedor/shoutrrr/pull/1502)
 - Update module golang.org/x/crypto to v0.58.0 by @renovate[bot] in [#1499](https://github.com/nicholas-fedor/shoutrrr/pull/1499)
 - Fail on fixable issues and resolve the tag formatter conflict by @nicholas-fedor in [#1495](https://github.com/nicholas-fedor/shoutrrr/pull/1495)
