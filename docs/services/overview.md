@@ -13,7 +13,7 @@ Click on the service for a more thorough explanation.
 | [Matrix](./chat/matrix/index.md)          | *matrix://__`username`__:__`password`__@__`host`__:__`port`__/[?rooms=__`!roomID1`__[,__`roomAlias2`__]]*                   |
 | [Mattermost](./chat/mattermost/index.md)  | *mattermost://[__`username`__@]__`mattermost-host`__/__`token`__[/__`channel`__]*                                           |
 | [Rocketchat](./chat/rocketchat/index.md)  | *rocketchat://[__`username`__@]__`rocketchat-host`__/__`token`__[/__`channel`&#124;`@recipient`__]*                         |
-| [Signal](./chat/signal/index.md)          | *signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]* |
+| [Signal](./chat/signal/index.md)†         | *signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]* |
 | [Slack](./chat/slack/index.md)            | *slack://__`hook`__&#124;__`xoxb`__:__`token`__@__`channel`__[?botname=__`botname`__]*                                      |
 | [Teams](./chat/teams/index.md)            | *teams://?host=__`Power Automate workflow URL`__*                                                                           |
 | [Telegram](./chat/telegram/index.md)      | *telegram://__`token`__@telegram?chats=__`@channel-1`__[,__`chat-id-1`__,...]*                                              |
@@ -22,6 +22,8 @@ Click on the service for a more thorough explanation.
 | [Zulip Chat](./chat/zulip/index.md)       | *zulip://__`bot-mail`__:__`bot-key`__@__`zulip-domain`__/?stream=__`name-or-id`__&topic=__`name`__*                         |
 
 \* Deprecated
+
+† A group ID can contain `/` and span several path segments, ending at the next phone number, username, or group ID. For example, `signal://localhost:8080/+1234567890/group.ABCD/EFGH=/+0987654321` sends to the group `group.ABCD/EFGH=` and the phone number `+0987654321`.
 
 ## Push Services
 
