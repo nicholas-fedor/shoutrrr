@@ -132,11 +132,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return nil
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client,
+// including a nil *http.Client, selects the default client.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests.
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		client = nil
+	}
+
 	s.httpClient = client
 }
 
