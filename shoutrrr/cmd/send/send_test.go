@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +19,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/mqtttest"
 	cli "github.com/nicholas-fedor/shoutrrr/shoutrrr/cmd"
 )
+
+// slowResponse is how long the webhook in TestRunWaitsForEverySend takes to answer.
+const slowResponse = 300 * time.Millisecond
 
 // TestRun tests the Run function with successful scenarios only.
 // Note: Error cases that trigger os.Exit are tested via the internal run() function.
@@ -572,4 +579,39 @@ func TestRunClosesServices(t *testing.T) {
 
 	// The broker reads packets in order, so the publish was recorded before the disconnect.
 	assert.Equal(t, int32(1), broker.Published())
+}
+
+// TestRunWaitsForEverySend verifies that a send that fails quickly does not end
+// the command while another send is still in progress. The command exits as soon
+// as run returns, so returning early would drop the slower notification.
+func TestRunWaitsForEverySend(t *testing.T) {
+	t.Parallel()
+
+	var answered atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(slowResponse)
+		answered.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	webhook := "generic://" + strings.TrimPrefix(server.URL, "http://") + "/hook?disabletls=yes"
+	refused := "smtp://user:secret@127.0.0.1:1/?fromaddress=from@example.invalid&toaddresses=to@example.invalid"
+
+	cmd := &cobra.Command{Use: "send"}
+	cmd.Flags().BoolP("verbose", "v", false, "")
+	cmd.Flags().StringArrayP("url", "u", []string{}, "")
+	cmd.Flags().StringP("message", "m", "", "")
+	cmd.Flags().StringP("title", "t", "", "")
+	require.NoError(t, cmd.Flags().Set("url", refused))
+	require.NoError(t, cmd.Flags().Set("url", webhook))
+	require.NoError(t, cmd.Flags().Set("message", "message"))
+
+	err := run(cmd)
+
+	var exitErr cli.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, cli.ExUnavailable, exitErr.ExitCode, "the failed send must still fail the command")
+	assert.True(t, answered.Load(), "run must wait for the slower send before returning")
 }
