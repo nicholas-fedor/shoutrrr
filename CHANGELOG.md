@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Close services after sending so MQTT disconnects cleanly by @nicholas-fedor in [#1508](https://github.com/nicholas-fedor/shoutrrr/pull/1508)
 - Read every flag from the environment and stop prompts at end of input by @nicholas-fedor in [#1481](https://github.com/nicholas-fedor/shoutrrr/pull/1481)
 - Honor proxy environment variables in default http clients by @nicholas-fedor in [#1479](https://github.com/nicholas-fedor/shoutrrr/pull/1479)
 - Match the capability interfaces the router dispatches on by @nicholas-fedor in [#1459](https://github.com/nicholas-fedor/shoutrrr/pull/1459)
