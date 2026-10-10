@@ -44,6 +44,7 @@ const defaultHTTPTimeout = 30 * time.Second
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -111,13 +112,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send transmits a notification message to the Bark server.
 //
+// It delegates to [Service.SendContext] with [context.Background].
+//
 // Parameters:
 //   - message: The notification body text to send.
 //   - params: Additional parameters for notification customization.
 //
 // Returns:
-//   - An error if the notification fails to send.
+//   - error: the params or send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext transmits a notification message to the Bark server.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: The notification body text to send.
+//   - params: Additional parameters for notification customization.
+//
+// Returns:
+//   - error: the params or send error. A request error matches ctx's error when
+//     ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -126,7 +143,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 		return fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
 	}
 
-	if err := s.sendAPI(config, message); err != nil {
+	if err := s.sendAPI(ctx, config, message); err != nil {
 		return fmt.Errorf("failed to send bark notification: %w", err)
 	}
 
@@ -177,16 +194,13 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // This method handles JSON serialization, HTTP request creation, and response parsing.
 //
 // Parameters:
+//   - ctx: cancellation and deadline for the request.
 //   - config: The Bark service configuration containing API settings.
 //   - message: The notification body text to send.
 //
 // Returns:
-//   - An error if the API request fails.
-func (s *Service) sendAPI(config *Config, message string) error {
-	// Use background context for the request - services can add context support
-	// by wrapping this method or using a custom HTTP client
-	ctx := context.Background()
-
+//   - error: the request error, or the error the Bark server reported.
+func (s *Service) sendAPI(ctx context.Context, config *Config, message string) error {
 	response := APIResponse{}
 	request := PushPayload{
 		Body:      message,

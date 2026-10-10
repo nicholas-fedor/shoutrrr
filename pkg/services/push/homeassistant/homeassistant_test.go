@@ -2,6 +2,7 @@ package homeassistant
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json/v2"
 	"errors"
@@ -10,9 +11,12 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var _ = ginkgo.Describe("Service", func() {
@@ -245,5 +249,23 @@ var _ = ginkgo.Describe("Service", func() {
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(errors.Is(err, ErrSendFailed)).To(gomega.BeTrue())
 		})
+	})
+})
+
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("homeassistant://token@ha.example.invalid"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
 	})
 })

@@ -1,6 +1,7 @@
 package bark_test
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,9 +12,11 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark"
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var (
@@ -169,6 +172,24 @@ var _ = ginkgo.Describe("the bark service", func() {
 })
 
 // TestBark runs the Ginkgo test suite for the bark package.
+var _ = ginkgo.Describe("SendContext", func() {
+	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := &bark.Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("bark://:devicekey@bark.example.invalid"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+})
+
 func TestBark(t *testing.T) {
 	t.Parallel()
 

@@ -33,6 +33,7 @@ const (
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
+	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
@@ -56,7 +57,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a notification message to Join devices.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: the message to send.
+//   - params: optional title and icon overrides.
+//
+// Returns:
+//   - error: the send error.
 func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a notification message to Join devices in one request.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - message: the message to send.
+//   - params: optional title and icon overrides.
+//
+// Returns:
+//   - error: the send error, which matches ctx's error when ctx ends the request.
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := s.Config
 
 	if params == nil {
@@ -75,7 +98,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 	devices := strings.Join(config.Devices, ",")
 
-	return s.sendToDevices(devices, message, title, icon)
+	return s.sendToDevices(ctx, devices, message, title, icon)
 }
 
 // SetHTTPClient sets a custom HTTP client for the service.
@@ -83,7 +106,18 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
 }
 
-func (s *Service) sendToDevices(devices, message, title, icon string) error {
+// sendToDevices sends the message to the given devices through the Join API.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request, further bounded by [defaultTimeout].
+//   - devices: the comma-separated device IDs.
+//   - message: the message to send.
+//   - title: the notification title, or empty for none.
+//   - icon: the notification icon URL.
+//
+// Returns:
+//   - error: the request error, or [ErrSendFailed] for a non-success status.
+func (s *Service) sendToDevices(ctx context.Context, devices, message, title, icon string) error {
 	config := s.Config
 
 	apiURL, err := url.Parse(hookURL)
@@ -106,7 +140,7 @@ func (s *Service) sendToDevices(devices, message, title, icon string) error {
 
 	apiURL.RawQuery = data.Encode()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
