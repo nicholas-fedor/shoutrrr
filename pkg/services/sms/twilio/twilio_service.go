@@ -73,7 +73,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: a params error, or the joined errors of the failed recipients. A
-//     request error matches ctx's error when ctx ends the request.
+//     request error matches ctx's error when ctx ends the request. When ctx
+//     ends, the remaining recipients are skipped and ctx's error is included.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
@@ -87,6 +88,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	var errs []error
 
 	for _, toNumber := range config.ToNumbers {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		err := s.sendToRecipient(ctx, config, toNumber, message)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("sending to %s: %w", toNumber, err))

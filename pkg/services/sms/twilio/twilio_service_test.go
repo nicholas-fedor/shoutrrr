@@ -159,20 +159,38 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 })
 
 var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+	ginkgo.It("should not send when the caller's context is already canceled", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
+		// The mock fails the spec if the service sends a request.
+		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+
+		service := &Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543/+15559876544"), testutils.TestLogger())).To(gomega.Succeed())
+		service.SetHTTPClient(client)
+
+		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+
+	ginkgo.It("should skip the remaining recipients when the context ends during a request", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			cancel()
+
 			return nil, req.Context().Err()
 		}).Once()
 
 		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543"), testutils.TestLogger())).To(gomega.Succeed())
+		gomega.Expect(service.Initialize(testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543/+15559876544"), testutils.TestLogger())).To(gomega.Succeed())
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		err := service.SendContext(ctx, "message", nil)
+		gomega.Expect(err).To(gomega.MatchError(context.Canceled))
+		gomega.Expect(strings.Count(err.Error(), context.Canceled.Error())).To(gomega.Equal(1))
 	})
 })
 

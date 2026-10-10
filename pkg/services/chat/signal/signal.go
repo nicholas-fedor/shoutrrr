@@ -148,6 +148,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Returns:
 //   - error: [ErrNoRecipients], or the joined errors of the failed requests.
+//     When ctx ends, the remaining batches are skipped and ctx's error is
+//     included.
 func (s *Service) sendMessage(ctx context.Context, message string, config *Config) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
@@ -156,6 +158,16 @@ func (s *Service) sendMessage(ctx context.Context, message string, config *Confi
 	var errs []error
 
 	for _, batch := range batchRecipients(config.Recipients) {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		batchConfig := *config
 		batchConfig.Recipients = batch
 
