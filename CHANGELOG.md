@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/tools to v0.52.0 by @renovate[bot] in [#1534](https://github.com/nicholas-fedor/shoutrrr/pull/1534)
 - Update dependency python to v3.15.0 by @renovate[bot] in [#1532](https://github.com/nicholas-fedor/shoutrrr/pull/1532)
 - Update dependency platformdirs to v4.13.0 by @renovate[bot] in [#1531](https://github.com/nicholas-fedor/shoutrrr/pull/1531)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 130241f by @renovate[bot] in [#1529](https://github.com/nicholas-fedor/shoutrrr/pull/1529)
