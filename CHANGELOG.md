@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the mqtt tests from ginkgo to testify by @nicholas-fedor in [#1558](https://github.com/nicholas-fedor/shoutrrr/pull/1558)
 - Migrate the telegram tests from ginkgo to testify by @nicholas-fedor in [#1556](https://github.com/nicholas-fedor/shoutrrr/pull/1556)
 - Migrate the failure tests from ginkgo to testify by @nicholas-fedor in [#1554](https://github.com/nicholas-fedor/shoutrrr/pull/1554)
 - Migrate the router suite from ginkgo to testify by @nicholas-fedor in [#1552](https://github.com/nicholas-fedor/shoutrrr/pull/1552)
