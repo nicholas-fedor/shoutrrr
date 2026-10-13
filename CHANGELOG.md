@@ -58,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency verspec to v0.2.0 by @renovate[bot] in [#1545](https://github.com/nicholas-fedor/shoutrrr/pull/1545)
+- Update nicholas-fedor/govulncheck-action action to v1.1.1 by @renovate[bot] in [#1544](https://github.com/nicholas-fedor/shoutrrr/pull/1544)
+- Update github.com/google/pprof digest to 2af12c3 by @renovate[bot] in [#1541](https://github.com/nicholas-fedor/shoutrrr/pull/1541)
 - Update binwiederhier/ntfy:latest docker digest to 8563a39 by @renovate[bot] in [#1540](https://github.com/nicholas-fedor/shoutrrr/pull/1540)
 - Lock file maintenance by @renovate[bot] in [#1536](https://github.com/nicholas-fedor/shoutrrr/pull/1536)
 - Update ossf/scorecard-action action to v2.5.0 by @renovate[bot] in [#1537](https://github.com/nicholas-fedor/shoutrrr/pull/1537)
