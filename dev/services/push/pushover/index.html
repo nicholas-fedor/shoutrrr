@@ -2800,7 +2800,7 @@
 <img alt="Screenshot 3" src="po-3.png" /></p>
 <h2 id="optional_parameters">Optional parameters<a class="headerlink" href="#optional_parameters" title="Permanent link">&para;</a></h2>
 <p>You can optionally specify the <strong><code>title</code></strong> and <strong><code>priority</code></strong> parameters in the URL:
-<em>pushover://shoutrrr:__<code>token</code><strong>@</strong><code>userKey</code><strong>/?devices=</strong><code>device</code>__&amp;title=Custom+Title&amp;priority=1</em></p>
+<em>pushover://shoutrrr:<strong><code>token</code></strong>@<strong><code>userKey</code></strong>/?devices=<strong><code>device</code></strong>&amp;title=Custom+Title&amp;priority=1</em></p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.</p>
@@ -2811,7 +2811,7 @@ Generate a 256-bit key and configure the same value in the Pushover iOS or Andro
 <div class="highlight"><pre><span></span><code>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span>
 </code></pre></div>
 <p>Then include it in the service URL:</p>
-<p>_pushover://shoutrrr:<strong><code>token</code></strong>@<strong><code>userKey</code></strong>/?encryptionkey=__<code>64-char-hex</code>___</p>
+<p><em>pushover://shoutrrr:<strong><code>token</code></strong>@<strong><code>userKey</code></strong>/?encryptionkey=<strong><code>64-char-hex</code></strong></em></p>
 <p><code>key</code> is accepted as an alias for <code>encryptionkey</code>.
 A valid key enables encryption automatically.
 An invalid key fails during URL verification, and encryption errors refuse to send rather than falling back to plaintext.</p>
