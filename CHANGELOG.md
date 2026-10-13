@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 8563a39 by @renovate[bot] in [#1540](https://github.com/nicholas-fedor/shoutrrr/pull/1540)
 - Lock file maintenance by @renovate[bot] in [#1536](https://github.com/nicholas-fedor/shoutrrr/pull/1536)
 - Update ossf/scorecard-action action to v2.5.0 by @renovate[bot] in [#1537](https://github.com/nicholas-fedor/shoutrrr/pull/1537)
 - Update module golang.org/x/tools to v0.52.0 by @renovate[bot] in [#1534](https://github.com/nicholas-fedor/shoutrrr/pull/1534)
