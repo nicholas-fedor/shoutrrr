@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+
+- Migrate the router suite from ginkgo to testify by @nicholas-fedor in [#1552](https://github.com/nicholas-fedor/shoutrrr/pull/1552)
+
 ### Build
 
 - Pin verspec's inversion dependency in the docs lock file by @nicholas-fedor in [#1550](https://github.com/nicholas-fedor/shoutrrr/pull/1550)
