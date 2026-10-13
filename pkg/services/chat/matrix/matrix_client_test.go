@@ -354,6 +354,7 @@ func TestAPIPut(t *testing.T) {
 
 		c, httpClient := newScriptedClient(t, ok(`{"event_id":"$eventid"}`))
 		require.NoError(t, c.apiPut(t.Context(), path, request, &apiResEvent{}))
+		require.Len(t, httpClient.requests, 1)
 		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
 	})
 
