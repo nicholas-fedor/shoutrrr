@@ -73,15 +73,24 @@ func TestExtractServiceName(t *testing.T) {
 }
 
 // TestInitServiceCustomURL verifies that initService accepts a custom URL only
-// for a service that supports custom URLs, with or without a logger.
+// for a service that supports custom URLs, with or without a logger, and rejects
+// a custom URL for an unknown service.
 func TestInitServiceCustomURL(t *testing.T) {
 	t.Parallel()
+
+	t.Run("unknown service", func(t *testing.T) {
+		t.Parallel()
+
+		service, err := newTestRouter(t).initService("log+https://hybr.is")
+		require.ErrorIs(t, err, ErrUnknownService)
+		assert.Nil(t, service)
+	})
 
 	t.Run("unsupported service", func(t *testing.T) {
 		t.Parallel()
 
-		service, err := newTestRouter(t).initService("log+https://hybr.is")
-		require.Error(t, err)
+		service, err := newTestRouter(t).initService("logger+https://hybr.is")
+		require.ErrorIs(t, err, ErrCustomURLsNotSupported)
 		assert.Nil(t, service)
 	})
 
