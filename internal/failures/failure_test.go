@@ -1,176 +1,107 @@
-package failures_test
+package failures
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/failures"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("the failure package", func() {
-	// Common test fixtures
-	var (
-		testID      failures.FailureID = 42                             // Consistent ID for testing
-		testMessage                    = "test failure occurred"        // Sample error message
-		wrappedErr                     = errors.New("underlying error") // Sample wrapped error
-	)
+// testID is the failure ID shared by the tests.
+const testID FailureID = 42
 
-	ginkgo.Describe("Wrap function", func() {
-		ginkgo.When("creating a basic failure", func() {
-			ginkgo.It("returns a failure with the provided message and ID", func() {
-				failure := failures.Wrap(testMessage, testID, nil)
-				gomega.Expect(failure.Error()).To(gomega.Equal(testMessage))
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.Succeed())
-			})
-		})
+// errUnderlying is the error the tests wrap in a failure.
+var errUnderlying = errors.New("underlying error")
 
-		ginkgo.When("wrapping an existing error", func() {
-			ginkgo.It("combines the message and wrapped error", func() {
-				failure := failures.Wrap(testMessage, testID, wrappedErr)
-				expectedError := fmt.Sprintf("%s: %v", testMessage, wrappedErr)
-				gomega.Expect(failure.Error()).To(gomega.Equal(expectedError))
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.Equal(wrappedErr))
-			})
-		})
-
-		ginkgo.When("using formatted message with arguments", func() {
-			ginkgo.It("formats the message correctly", func() {
-				formatMessage := "test failure %d"
-				failure := failures.Wrap(formatMessage, testID, nil, 123)
-				gomega.Expect(failure.Error()).To(gomega.Equal("test failure 123"))
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-			})
-		})
-	})
-
-	ginkgo.Describe("Failure interface methods", func() {
-		var failure failures.Failure
-
-		// Setup a failure with a wrapped error before each test
-		ginkgo.BeforeEach(func() {
-			failure = failures.Wrap(testMessage, testID, wrappedErr)
-		})
-
-		ginkgo.Describe("Error method", func() {
-			ginkgo.It("returns only the message when no wrapped error exists", func() {
-				failureNoWrap := failures.Wrap(testMessage, testID, nil)
-				gomega.Expect(failureNoWrap.Error()).To(gomega.Equal(testMessage))
-			})
-			ginkgo.It("combines message with wrapped error", func() {
-				expected := fmt.Sprintf("%s: %v", testMessage, wrappedErr)
-				gomega.Expect(failure.Error()).To(gomega.Equal(expected))
-			})
-		})
-
-		ginkgo.Describe("ID method", func() {
-			ginkgo.It("returns the assigned ID", func() {
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-			})
-		})
-
-		ginkgo.Describe("Unwrap method", func() {
-			ginkgo.It("returns the wrapped error", func() {
-				gomega.Expect(failure.Unwrap()).To(gomega.Equal(wrappedErr))
-			})
-			ginkgo.It("returns nil when no wrapped error exists", func() {
-				failureNoWrap := failures.Wrap(testMessage, testID, nil)
-				gomega.Expect(failureNoWrap.Unwrap()).To(gomega.Succeed())
-			})
-		})
-
-		ginkgo.Describe("Is method", func() {
-			ginkgo.It("returns true for failures with the same ID", func() {
-				f1 := failures.Wrap("first", testID, nil)
-				f2 := failures.Wrap("second", testID, nil)
-				gomega.Expect(f1.Is(f2)).To(gomega.BeTrue())
-				gomega.Expect(f2.Is(f1)).To(gomega.BeTrue())
-			})
-			ginkgo.It("returns false for failures with different IDs", func() {
-				f1 := failures.Wrap("first", testID, nil)
-				f2 := failures.Wrap("second", testID+1, nil)
-				gomega.Expect(f1.Is(f2)).To(gomega.BeFalse())
-				gomega.Expect(f2.Is(f1)).To(gomega.BeFalse())
-			})
-			ginkgo.It("returns false when comparing with a non-failure error", func() {
-				f1 := failures.Wrap("first", testID, nil)
-				gomega.Expect(f1.Is(wrappedErr)).To(gomega.BeFalse())
-			})
-		})
-	})
-
-	ginkgo.Describe("edge cases", func() {
-		ginkgo.When("wrapping with an empty message", func() {
-			ginkgo.It("handles an empty message gracefully", func() {
-				failure := failures.Wrap("", testID, wrappedErr)
-				gomega.Expect(failure.Error()).To(gomega.Equal(": " + wrappedErr.Error()))
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.Equal(wrappedErr))
-			})
-		})
-
-		ginkgo.When("wrapping with nil error and no args", func() {
-			ginkgo.It("returns a valid failure with just message and ID", func() {
-				failure := failures.Wrap(testMessage, testID, nil)
-				gomega.Expect(failure.Error()).To(gomega.Equal(testMessage))
-				gomega.Expect(failure.ID()).To(gomega.Equal(testID))
-				gomega.Expect(failure.Unwrap()).To(gomega.Succeed())
-			})
-		})
-
-		ginkgo.When("using multiple wrapped failures", func() {
-			ginkgo.It("correctly chains and unwraps multiple errors", func() {
-				innerErr := errors.New("inner error")
-				middleErr := failures.Wrap("middle", testID+1, innerErr)
-				outerErr := failures.Wrap("outer", testID, middleErr)
-				gomega.Expect(outerErr.Error()).To(gomega.Equal("outer: middle: inner error"))
-				gomega.Expect(outerErr.ID()).To(gomega.Equal(testID))
-				gomega.Expect(outerErr.Unwrap()).To(gomega.Equal(middleErr))
-				gomega.Expect(middleErr.Unwrap()).To(gomega.Equal(innerErr))
-			})
-		})
-	})
-
-	ginkgo.Describe("integration-like scenarios", func() {
-		ginkgo.It("works with standard error wrapping utilities", func() {
-			innerErr := errors.New("inner error")
-			failure := failures.Wrap("wrapped failure", testID, innerErr)
-			gomega.Expect(errors.Is(failure, innerErr)).To(gomega.BeTrue()) // Matches wrapped error
-			gomega.Expect(errors.Unwrap(failure)).To(gomega.Equal(innerErr))
-		})
-
-		ginkgo.It("handles fmt.Errorf wrapping", func() {
-			failure := failures.Wrap("failure", testID, nil)
-			wrapped := fmt.Errorf("additional context: %w", failure)
-			gomega.Expect(wrapped.Error()).To(gomega.Equal("additional context: failure"))
-			gomega.Expect(errors.Unwrap(wrapped)).To(gomega.Equal(failure))
-		})
-	})
-
-	ginkgo.Describe("testutils integration", func() {
-		ginkgo.It("can use TestLogger for logging failures", func() {
-			// Demonstrate compatibility with testutils logger
-			failure := failures.Wrap("logged failure", testID, nil)
-			logger := testutils.TestLogger()
-			logger.Printf("Error occurred: %v", failure)
-			// No assertion needed; ensures no panic during logging
-		})
-	})
-})
-
-// TestFailures runs the Ginkgo test suite for the failures package.
-func TestFailures(t *testing.T) {
+// TestWrap verifies that Wrap builds a failure with the given ID, formats the
+// message when arguments are given, and joins the message with the wrapped
+// error's message.
+func TestWrap(t *testing.T) {
 	t.Parallel()
 
-	format.CharactersAroundMismatchToInclude = 20 // Show more context in failure output
+	// tests lists Wrap inputs with the error text and wrapped error the failure
+	// should report.
+	tests := []struct {
+		name        string
+		message     string
+		wrapped     error
+		args        []any
+		wantMessage string
+	}{
+		{name: "message only", message: "test failure occurred", wantMessage: "test failure occurred"},
+		{name: "wrapped error", message: "test failure occurred", wrapped: errUnderlying, wantMessage: "test failure occurred: underlying error"},
+		{name: "format arguments", message: "test failure %d", args: []any{123}, wantMessage: "test failure 123"},
+		{name: "empty message", wrapped: errUnderlying, wantMessage: ": underlying error"},
+	}
 
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Failure Suite")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			failure := Wrap(tt.message, testID, tt.wrapped, tt.args...)
+
+			require.EqualError(t, failure, tt.wantMessage)
+			assert.Equal(t, testID, failure.ID())
+			assert.Equal(t, tt.wrapped, failure.Unwrap())
+		})
+	}
+}
+
+// TestFailureIs verifies that a failure matches another failure only when their
+// IDs are equal, and never matches an error that is not a failure.
+func TestFailureIs(t *testing.T) {
+	t.Parallel()
+
+	// tests lists targets compared against a failure with testID.
+	tests := []struct {
+		name   string
+		target error
+		want   bool
+	}{
+		{name: "same ID", target: Wrap("second", testID, nil), want: true},
+		{name: "different ID", target: Wrap("second", testID+1, nil), want: false},
+		{name: "not a failure", target: errUnderlying, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, Wrap("first", testID, nil).Is(tt.target))
+		})
+	}
+}
+
+// TestFailureChain verifies that nested failures join their messages and that
+// the standard errors functions walk the chain by wrapped error and by ID.
+func TestFailureChain(t *testing.T) {
+	t.Parallel()
+
+	middle := Wrap("middle", testID+1, errUnderlying)
+	outer := Wrap("outer", testID, middle)
+
+	require.EqualError(t, outer, "outer: middle: underlying error")
+	assert.Equal(t, middle, outer.Unwrap())
+	require.ErrorIs(t, outer, errUnderlying)
+	require.ErrorIs(t, outer, Wrap("any message", testID+1, nil), "a failure in the chain matches by ID")
+	assert.NotErrorIs(t, outer, Wrap("any message", testID+2, nil))
+}
+
+// TestFailureInStandardWrapping verifies that a failure wrapped with fmt.Errorf
+// keeps its message, can be unwrapped, and still matches by ID and as a Failure.
+func TestFailureInStandardWrapping(t *testing.T) {
+	t.Parallel()
+
+	failure := Wrap("failure", testID, nil)
+	wrapped := fmt.Errorf("additional context: %w", failure)
+
+	require.EqualError(t, wrapped, "additional context: failure")
+	assert.Equal(t, failure, errors.Unwrap(wrapped))
+	require.ErrorIs(t, wrapped, Wrap("other message", testID, nil))
+
+	found, ok := errors.AsType[Failure](wrapped)
+	require.True(t, ok)
+	assert.Equal(t, testID, found.ID())
 }
