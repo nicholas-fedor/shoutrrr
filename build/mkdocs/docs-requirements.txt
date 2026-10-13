@@ -225,6 +225,10 @@ idna==3.20 \
     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
     --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
     # via requests
+inversion==1.0.0 \
+    --hash=sha256:25c45999ce09aff55effbfa43e83e20b25ef97c99e881925f4eb8d7f7836a179 \
+    --hash=sha256:a7c9e912d18d68927453b0d654e2ef6f2b9a523818b033383cec9d93e1042edf
+    # via verspec
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
