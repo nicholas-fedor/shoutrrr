@@ -2,20 +2,18 @@ package matrix
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
+	"time"
 
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -36,243 +34,24 @@ type fakeHomeserver struct {
 	tokens []string
 }
 
-// passwordURL is a Matrix URL that authenticates with a user and password.
-const passwordURL = "matrix://user:SECRETpassword@matrix.example.com/?rooms=!room:example.com"
+// Service test URLs.
+const (
+	// passwordURL is a Matrix URL that authenticates with a user and password.
+	passwordURL = "matrix://user:SECRETpassword@matrix.example.com/?rooms=!room:example.com"
+	// tokenURL is a Matrix URL that authenticates with an access token.
+	tokenURL = "matrix://:token@matrix.example.com/?rooms=!room:example.com"
+)
 
-var _ = ginkgo.Describe("Service", func() {
-	ginkgo.Describe("GetID", func() {
-		ginkgo.It("should return the matrix scheme identifier", func() {
-			svc := &Service{}
-			gomega.Expect(svc.GetID()).To(gomega.Equal(Scheme))
-		})
-
-		ginkgo.It("should always return 'matrix' regardless of service state", func() {
-			svc := &Service{
-				Config: &Config{
-					Host: "matrix.example.com",
-				},
-			}
-			gomega.Expect(svc.GetID()).To(gomega.Equal("matrix"))
-		})
-	})
-
-	ginkgo.Describe("Initialize", func() {
-		var svc *Service
-
-		ginkgo.BeforeEach(func() {
-			svc = &Service{}
-		})
-
-		ginkgo.Context("with invalid URL", func() {
-			ginkgo.It("should return error when host is missing", func() {
-				invalidURL := &url.URL{
-					Scheme: "matrix",
-					User:   url.UserPassword("user", "password"),
-				}
-				err := svc.Initialize(invalidURL, nil)
-				gomega.Expect(err).To(gomega.MatchError(ErrMissingHost))
-			})
-
-			ginkgo.It("should return error when password is missing", func() {
-				invalidURL := &url.URL{
-					Scheme: "matrix",
-					Host:   "matrix.example.com",
-					User:   url.User("user"),
-				}
-				err := svc.Initialize(invalidURL, nil)
-				gomega.Expect(err).To(gomega.MatchError(ErrMissingCredentials))
-			})
-		})
-
-		ginkgo.Context("with valid URL but no client creation", func() {
-			// Test that we can set config without triggering client initialization
-			// The dummy URL check happens after config parsing, so we test config validation separately
-			ginkgo.It("should reject URL without user info when credentials required", func() {
-				// URL with host but no user - should fail at config validation
-				invalidURL := &url.URL{
-					Scheme: "matrix",
-					Host:   "matrix.example.com",
-				}
-				err := svc.Initialize(invalidURL, nil)
-				gomega.Expect(err).To(gomega.MatchError(ErrMissingCredentials))
-			})
-		})
-	})
-
-	ginkgo.Describe("lazy login", func() {
-		var (
-			server     *fakeHomeserver
-			httpClient *mocks.MockHTTPClient
-			svc        *Service
-		)
-
-		ginkgo.BeforeEach(func() {
-			server = &fakeHomeserver{}
-			httpClient = mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(server.Do).Maybe()
-
-			svc = &Service{}
-			svc.SetHTTPClient(httpClient)
-		})
-
-		ginkgo.It("should not contact the homeserver during Initialize", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-			httpClient.AssertNotCalled(ginkgo.GinkgoT(), "Do", mock.Anything)
-		})
-
-		ginkgo.It("should log in on the first send through the injected client", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			gomega.Expect(svc.Send("first", nil)).To(gomega.Succeed())
-			gomega.Expect(svc.Send("second", nil)).To(gomega.Succeed())
-
-			gomega.Expect(server.logins.Load()).To(gomega.Equal(int32(1)))
-			gomega.Expect(server.sentTokens()).To(gomega.Equal([]string{"Bearer access", "Bearer access"}))
-		})
-
-		ginkgo.It("should log in once across concurrent sends", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			var wg sync.WaitGroup
-			for range 8 {
-				wg.Go(func() {
-					defer ginkgo.GinkgoRecover()
-
-					gomega.Expect(svc.Send("concurrent", nil)).To(gomega.Succeed())
-				})
-			}
-
-			wg.Wait()
-			gomega.Expect(server.logins.Load()).To(gomega.Equal(int32(1)))
-		})
-
-		ginkgo.It("should retry a failed login on the next send", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			server.failFlows.Store(true)
-
-			err := svc.Send("first", nil)
-			gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("logging in to Matrix")))
-			gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETpassword"))
-
-			gomega.Expect(svc.Send("second", nil)).To(gomega.Succeed())
-			gomega.Expect(server.logins.Load()).To(gomega.Equal(int32(1)))
-		})
-
-		ginkgo.It("should stop waiting for another send's login when its context ends", func() {
-			server.flowsStarted = make(chan struct{}, 1)
-			server.releaseFlows = make(chan struct{})
-
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			firstDone := make(chan error, 1)
-
-			go func() { firstDone <- svc.Send("first", nil) }()
-
-			gomega.Eventually(server.flowsStarted).Should(gomega.Receive())
-
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-
-			err := svc.SendContext(ctx, "second", nil)
-			gomega.Expect(errors.Is(err, context.Canceled)).To(gomega.BeTrue())
-
-			close(server.releaseFlows)
-			gomega.Eventually(firstDone).Should(gomega.Receive(gomega.Succeed()))
-			gomega.Expect(server.logins.Load()).To(gomega.Equal(int32(1)))
-		})
-
-		ginkgo.It("should drop the previous client when reinitialized with the placeholder URL", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-			gomega.Expect(svc.Initialize(testutils.URLMust("matrix://dummy@dummy.com"), nil)).To(gomega.Succeed())
-
-			gomega.Expect(svc.Send("message", nil)).To(gomega.MatchError(ErrClientNotInitialized))
-			httpClient.AssertNotCalled(ginkgo.GinkgoT(), "Do", mock.Anything)
-		})
-
-		ginkgo.It("should use an access token without logging in", func() {
-			tokenURL := "matrix://:token@matrix.example.com/?rooms=!room:example.com"
-			gomega.Expect(svc.Initialize(testutils.URLMust(tokenURL), nil)).To(gomega.Succeed())
-
-			gomega.Expect(svc.Send("message", nil)).To(gomega.Succeed())
-			gomega.Expect(server.logins.Load()).To(gomega.BeZero())
-			gomega.Expect(server.sentTokens()).To(gomega.Equal([]string{"Bearer token"}))
-		})
-	})
-
-	ginkgo.Describe("ServiceTimeout", func() {
-		var svc *Service
-
-		ginkgo.BeforeEach(func() {
-			svc = &Service{}
-		})
-
-		ginkgo.It("should budget the login and a join and message per configured room", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(4 * defaultHTTPTimeout))
-		})
-
-		ginkgo.It("should budget the rooms set by the send params", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			params := &types.Params{"rooms": "!a:example.com,!b:example.com,!c:example.com"}
-			gomega.Expect(svc.ServiceTimeout(params)).To(gomega.Equal(8 * defaultHTTPTimeout))
-		})
-
-		ginkgo.It("should budget the stored config when a param is invalid", func() {
-			gomega.Expect(svc.Initialize(testutils.URLMust(passwordURL), nil)).To(gomega.Succeed())
-
-			params := &types.Params{"rooms": "!a:example.com,!b:example.com", "bogus": "value"}
-			gomega.Expect(svc.ServiceTimeout(params)).To(gomega.Equal(4 * defaultHTTPTimeout))
-		})
-
-		ginkgo.It("should budget the joined rooms lookup and one message without configured rooms", func() {
-			tokenURL := "matrix://:token@matrix.example.com/"
-			gomega.Expect(svc.Initialize(testutils.URLMust(tokenURL), nil)).To(gomega.Succeed())
-
-			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(2 * defaultHTTPTimeout))
-		})
-
-		ginkgo.It("should fall back to the minimum budget before initialization", func() {
-			gomega.Expect(svc.ServiceTimeout(nil)).To(gomega.Equal(2 * defaultHTTPTimeout))
-		})
-	})
-
-	ginkgo.Describe("Send", func() {
-		var svc *Service
-
-		ginkgo.BeforeEach(func() {
-			svc = &Service{}
-		})
-
-		ginkgo.Context("when client is not initialized", func() {
-			ginkgo.It("should return ErrClientNotInitialized", func() {
-				svc.Config = &Config{}
-				err := svc.Send("test message", nil)
-				gomega.Expect(err).To(gomega.MatchError(ErrClientNotInitialized))
-			})
-		})
-
-		ginkgo.Context("with initialized service but no client", func() {
-			ginkgo.BeforeEach(func() {
-				// Set config directly without initializing client
-				svc.Config = &Config{
-					Host: "matrix.example.com",
-				}
-				// Forcefully set client to nil to test the error path
-				svc.client = nil
-			})
-
-			ginkgo.It("should return error when client is nil", func() {
-				err := svc.Send("test message", nil)
-				gomega.Expect(err).To(gomega.MatchError(ErrClientNotInitialized))
-			})
-		})
-	})
-})
-
-// Do answers a Matrix API request: login flows, password login, and message sends.
+// Do answers a Matrix API request: login flows, password login, and message
+// sends.
+//
+// Parameters:
+//   - req: the request.
+//
+// Returns:
+//   - *http.Response: the homeserver's response.
+//   - error: the request context's error when it ends while a login flows
+//     request is held, and nil otherwise.
 func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		_, _ = io.Copy(io.Discard, req.Body)
@@ -280,32 +59,44 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if req.Method == http.MethodGet && req.URL.Path == apiLogin && f.releaseFlows != nil {
-		f.flowsStarted <- struct{}{}
+		// The notification is best effort, so a repeated request cannot block on a
+		// full channel, and the hold ends early if the request is canceled.
+		select {
+		case f.flowsStarted <- struct{}{}:
+		default:
+		}
 
-		<-f.releaseFlows
+		select {
+		case <-f.releaseFlows:
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
+		}
 	}
 
 	switch {
 	case req.Method == http.MethodGet && req.URL.Path == apiLogin && f.failFlows.CompareAndSwap(true, false):
-		return fakeResponse(http.StatusInternalServerError, `{"errcode":"M_UNKNOWN","error":"unavailable"}`), nil
+		return homeserverResponse(http.StatusInternalServerError, `{"errcode":"M_UNKNOWN","error":"unavailable"}`), nil
 	case req.Method == http.MethodGet && req.URL.Path == apiLogin:
-		return fakeResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
+		return homeserverResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
 	case req.Method == http.MethodPost && req.URL.Path == apiLogin:
 		f.logins.Add(1)
 
-		return fakeResponse(http.StatusOK, `{"access_token":"access"}`), nil
+		return homeserverResponse(http.StatusOK, `{"access_token":"access"}`), nil
 	case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/send/"):
 		f.mu.Lock()
 		f.tokens = append(f.tokens, req.Header.Get("Authorization"))
 		f.mu.Unlock()
 
-		return fakeResponse(http.StatusOK, `{"event_id":"$event"}`), nil
+		return homeserverResponse(http.StatusOK, `{"event_id":"$event"}`), nil
 	default:
-		return fakeResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
+		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
 	}
 }
 
 // sentTokens returns the Authorization header of each message sent so far.
+//
+// Returns:
+//   - []string: the headers, in order.
 func (f *fakeHomeserver) sentTokens() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -313,12 +104,236 @@ func (f *fakeHomeserver) sentTokens() []string {
 	return append([]string(nil), f.tokens...)
 }
 
-// fakeResponse builds a JSON response with the given status and body.
-func fakeResponse(status int, body string) *http.Response {
+// homeserverResponse builds a JSON response with the given status and body.
+//
+// Parameters:
+//   - status: the HTTP status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *http.Response: the response.
+func homeserverResponse(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
 		Status:     http.StatusText(status),
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+// newHomeserverService returns a service, not yet initialized, whose requests
+// go to server through a mock HTTP client.
+//
+// Parameters:
+//   - t: the test.
+//   - server: the fake homeserver.
+//
+// Returns:
+//   - *Service: the service.
+//   - *mocks.MockHTTPClient: the HTTP client, for checking calls.
+func newHomeserverService(t *testing.T, server *fakeHomeserver) (*Service, *mocks.MockHTTPClient) {
+	t.Helper()
+
+	httpClient := mocks.NewMockHTTPClient(t)
+	httpClient.EXPECT().Do(mock.Anything).RunAndReturn(server.Do).Maybe()
+
+	service := &Service{}
+	service.SetHTTPClient(httpClient)
+
+	return service, httpClient
+}
+
+// TestGetID verifies the service identifier, with and without a config.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, Scheme, (&Service{}).GetID())
+	assert.Equal(t, "matrix", (&Service{Config: &Config{Host: "matrix.example.com"}}).GetID())
+}
+
+// TestInitializeRejectsIncompleteURLs verifies that Initialize requires a host
+// and credentials.
+func TestInitializeRejectsIncompleteURLs(t *testing.T) {
+	t.Parallel()
+
+	// tests lists incomplete URLs with the error each should produce.
+	tests := []struct {
+		name    string
+		rawURL  string
+		wantErr error
+	}{
+		{name: "no host", rawURL: "matrix://user:password@", wantErr: ErrMissingHost},
+		{name: "no password", rawURL: "matrix://user@matrix.example.com", wantErr: ErrMissingCredentials},
+		{name: "no user info", rawURL: "matrix://matrix.example.com", wantErr: ErrMissingCredentials},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Service{}).Initialize(parseTestURL(t, tt.rawURL), nil), tt.wantErr)
+		})
+	}
+}
+
+// TestInitializeDoesNotLogIn verifies that Initialize makes no requests.
+func TestInitializeDoesNotLogIn(t *testing.T) {
+	t.Parallel()
+
+	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+	httpClient.AssertNotCalled(t, "Do", mock.Anything)
+}
+
+// TestFirstSendLogsIn verifies that the first send logs in through the injected
+// client and later sends reuse the access token.
+func TestFirstSendLogsIn(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	require.NoError(t, service.Send("first", nil))
+	require.NoError(t, service.Send("second", nil))
+
+	assert.Equal(t, int32(1), server.logins.Load())
+	assert.Equal(t, []string{"Bearer access", "Bearer access"}, server.sentTokens())
+}
+
+// TestConcurrentSendsLogInOnce verifies that concurrent first sends share a
+// single login.
+func TestConcurrentSendsLogInOnce(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			assert.NoError(t, service.Send("concurrent", nil))
+		})
+	}
+
+	wg.Wait()
+	assert.Equal(t, int32(1), server.logins.Load())
+}
+
+// TestFailedLoginIsRetried verifies that a failed login is reported without the
+// password and retried on the next send.
+func TestFailedLoginIsRetried(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	server.failFlows.Store(true)
+
+	err := service.Send("first", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "logging in to Matrix")
+	assert.NotContains(t, err.Error(), "SECRETpassword")
+
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, int32(1), server.logins.Load())
+}
+
+// TestLoginWaitEndsWithContext verifies that a send waiting for another send's
+// login stops when its own context ends, while the login continues.
+func TestLoginWaitEndsWithContext(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{flowsStarted: make(chan struct{}, 1), releaseFlows: make(chan struct{})}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	firstDone := make(chan error, 1)
+
+	go func() { firstDone <- service.Send("first", nil) }()
+
+	<-server.flowsStarted
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	require.ErrorIs(t, service.SendContext(ctx, "second", nil), context.Canceled)
+
+	close(server.releaseFlows)
+	require.NoError(t, <-firstDone)
+	assert.Equal(t, int32(1), server.logins.Load())
+}
+
+// TestPlaceholderURLDropsClient verifies that reinitializing with the
+// documentation placeholder URL drops the previous client.
+func TestPlaceholderURLDropsClient(t *testing.T) {
+	t.Parallel()
+
+	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+	require.NoError(t, service.Initialize(parseTestURL(t, "matrix://dummy@dummy.com"), nil))
+
+	require.ErrorIs(t, service.Send("message", nil), ErrClientNotInitialized)
+	httpClient.AssertNotCalled(t, "Do", mock.Anything)
+}
+
+// TestAccessTokenSkipsLogin verifies that an access token is used without a
+// login.
+func TestAccessTokenSkipsLogin(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL), nil))
+
+	require.NoError(t, service.Send("message", nil))
+	assert.Zero(t, server.logins.Load())
+	assert.Equal(t, []string{"Bearer token"}, server.sentTokens())
+}
+
+// TestSendWithoutClient verifies that a service without a client reports
+// ErrClientNotInitialized.
+func TestSendWithoutClient(t *testing.T) {
+	t.Parallel()
+
+	for _, config := range []*Config{{}, {Host: "matrix.example.com"}} {
+		require.ErrorIs(t, (&Service{Config: config}).Send("test message", nil), ErrClientNotInitialized)
+	}
+}
+
+// TestServiceTimeout verifies that the budget covers the login and a join and
+// message per room, uses rooms from valid params, and has a two-request floor.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the budget to expect. An empty
+	// URL leaves the service uninitialized.
+	tests := []struct {
+		name   string
+		rawURL string
+		params *types.Params
+		want   int
+	}{
+		{name: "configured room", rawURL: passwordURL, want: 4},
+		{name: "rooms from params", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com,!c:example.com"}, want: 8},
+		{name: "configured room when a param is invalid", rawURL: passwordURL, params: &types.Params{"rooms": "!a:example.com,!b:example.com", "bogus": "value"}, want: 4},
+		{name: "joined rooms without configured rooms", rawURL: "matrix://:token@matrix.example.com/", want: 2},
+		{name: "before initialization", want: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{}
+			if tt.rawURL != "" {
+				require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), nil))
+			}
+
+			assert.Equal(t, defaultHTTPTimeout*time.Duration(tt.want), service.ServiceTimeout(tt.params))
+		})
 	}
 }
