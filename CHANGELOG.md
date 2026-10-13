@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Pin verspec's inversion dependency in the docs lock file by @nicholas-fedor in [#1550](https://github.com/nicholas-fedor/shoutrrr/pull/1550)
 
+### Chores
+
+- Update dependency markdown to v3.11.1 by @renovate[bot] in [#1560](https://github.com/nicholas-fedor/shoutrrr/pull/1560)
+
 ## [0.22.0] - 2026-10-13
 
 ### Added
