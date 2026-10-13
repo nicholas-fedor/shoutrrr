@@ -576,9 +576,9 @@ urllib3==2.8.0 \
     --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
     --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
     # via requests
-verspec==0.1.0 \
-    --hash=sha256:741877d5633cc9464c45a469ae2a31e801e6dbbaa85b9675d481cda100f11c31 \
-    --hash=sha256:c4504ca697b2056cdb4bfa7121461f5a0e81809255b41c03dda4ba823637c01e
+verspec==0.2.0 \
+    --hash=sha256:350c3715601a9cecf78d980c27c87af81124ac74877eba2480dcd7645aaccfe8 \
+    --hash=sha256:962fed8f88fc7abaffb75c591c699435ea428910153f0efbc96efba1ed484615
     # via mike
 watchdog==6.0.0 \
     --hash=sha256:07df1fdd701c5d4c8e55ef6cf55b8f0120fe1aef7ef39a1c6fc6bc2e606d517a \
