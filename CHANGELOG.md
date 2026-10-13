@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Build
+
+- Pin verspec's inversion dependency in the docs lock file by @nicholas-fedor in [#1550](https://github.com/nicholas-fedor/shoutrrr/pull/1550)
+
+## [0.22.0] - 2026-10-13
+
 ### Added
 
 - Add context-aware sends to the remaining services by @nicholas-fedor in [#1516](https://github.com/nicholas-fedor/shoutrrr/pull/1516)
@@ -58,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/stretchr/objx to v0.7.0 by @renovate[bot] in [#1547](https://github.com/nicholas-fedor/shoutrrr/pull/1547)
 - Update goreleaser/goreleaser-action action to v7.3.0 by @renovate[bot] in [#1546](https://github.com/nicholas-fedor/shoutrrr/pull/1546)
 - Update dependency verspec to v0.2.0 by @renovate[bot] in [#1545](https://github.com/nicholas-fedor/shoutrrr/pull/1545)
 - Update nicholas-fedor/govulncheck-action action to v1.1.1 by @renovate[bot] in [#1544](https://github.com/nicholas-fedor/shoutrrr/pull/1544)
@@ -2322,7 +2329,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.2...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.22.0...HEAD)
+- [0.22.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.2...v0.22.0)
 - [0.21.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...v0.21.2)
 - [0.21.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.20.0...v0.21.0)
 - [0.20.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.19.0...v0.20.0)
