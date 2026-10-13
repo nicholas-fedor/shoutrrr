@@ -1,228 +1,171 @@
-package telegram_test
+package telegram
 
 import (
-	"fmt"
+	"bytes"
+	"errors"
 	"io"
+	"net/http"
 	"strings"
+	"testing"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/mattn/go-colorable"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/telegram"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
+// Fixtures for the generator tests.
 const (
-	mockToken   = `0:MockToken`
-	mockAPIBase = "https://api.telegram.org/bot" + mockToken + "/"
+	// generatorToken is the bot token the generator tests type in.
+	generatorToken = `0:MockToken`
+	// generatorAPIBase is the Telegram API base URL for generatorToken.
+	generatorAPIBase = "https://api.telegram.org/bot" + generatorToken + "/"
 )
 
-var (
-	userOut    *gbytes.Buffer
-	userIn     *gbytes.Buffer
-	userInMono io.Writer
-)
+// errUnexpectedRequest answers a request that no test responder matches.
+var errUnexpectedRequest = errors.New("unexpected request to the Telegram API")
 
-var _ = ginkgo.Describe("TelegramGenerator", func() {
-	ginkgo.BeforeEach(func() {
-		userOut = gbytes.NewBuffer()
-		userIn = gbytes.NewBuffer()
-		userInMono = colorable.NewNonColorable(userIn)
-
-		httpmock.Activate()
-	})
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
-	})
-	ginkgo.It("should return the ", func() {
-		gen := telegram.Generator{
-			Reader: userOut,
-			Writer: userInMono,
-		}
-
-		resultChannel := make(chan string, 1)
-
-		httpmock.RegisterResponder(
-			"GET",
-			mockAPI(`getMe`),
-			httpmock.NewJsonResponderOrPanic(200, &struct {
-				OK     bool
-				Result *telegram.User
-			}{
-				true, &telegram.User{
-					ID:       1,
-					IsBot:    true,
-					Username: "mockbot",
-				},
-			}),
-		)
-
-		httpmock.RegisterResponder(
-			"POST",
-			mockAPI(`getUpdates`),
-			httpmock.NewJsonResponderOrPanic(200, &struct {
-				OK     bool
-				Result []telegram.Update
-			}{
-				true,
-				[]telegram.Update{
-					{
-						ChatMemberUpdate: &telegram.ChatMemberUpdate{
-							Chat:          &telegram.Chat{Type: `channel`, Title: `mockChannel`},
-							OldChatMember: &telegram.ChatMember{Status: `kicked`},
-							NewChatMember: &telegram.ChatMember{Status: `administrator`},
-						},
-					},
-					{
-						Message: &telegram.Message{
-							Text: "hi!",
-							From: &telegram.User{Username: `mockUser`},
-							Chat: &telegram.Chat{Type: `private`, ID: 667, Username: `mockUser`},
-						},
-					},
-				},
-			}),
-		)
-
-		// Type the input before Generate starts. The dialog treats an empty buffer
-		// as closed input, so typing afterwards races the first read.
-		mockTyped(mockToken)
-		mockTyped(`no`)
-
-		defer dumpBuffers()
-
-		go func() {
-			defer ginkgo.GinkgoRecover()
-
-			conf, err := gen.Generate(nil, nil, nil)
-
-			gomega.Expect(conf).ToNot(gomega.BeNil())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			resultChannel <- conf.GetURL().String()
-		}()
-
-		gomega.Eventually(userIn).
-			Should(gbytes.Say(`Got a bot chat member update for mockChannel, status was changed from kicked to administrator`))
-		gomega.Eventually(userIn).
-			Should(gbytes.Say(`Got 1 chat ID\(s\) so far\. Want to add some more\?`))
-		gomega.Eventually(userIn).Should(gbytes.Say(`Selected chats:`))
-		gomega.Eventually(userIn).Should(gbytes.Say(`667 \(private\) @mockUser`))
-
-		gomega.Eventually(resultChannel).
-			Should(gomega.Receive(gomega.Equal(`telegram://0:MockToken@telegram?chats=667&preview=No`)))
-	})
-
-	ginkgo.It("should return an error when polling for updates fails", func() {
-		gen := telegram.Generator{
-			Reader: userOut,
-			Writer: userInMono,
-		}
-
-		httpmock.RegisterResponder(
-			"GET",
-			mockAPI(`getMe`),
-			httpmock.NewJsonResponderOrPanic(200, &struct {
-				OK     bool
-				Result *telegram.User
-			}{
-				true, &telegram.User{ID: 1, IsBot: true, Username: "mockbot"},
-			}),
-		)
-
-		httpmock.RegisterResponder(
-			"POST",
-			mockAPI(`getUpdates`),
-			httpmock.NewStringResponder(502, "<html>Bad Gateway</html>"),
-		)
-
-		errChannel := make(chan error, 1)
-
-		// Type the input before Generate starts. The dialog treats an empty buffer
-		// as closed input, so typing afterwards races the first read.
-		mockTyped(mockToken)
-
-		defer dumpBuffers()
-
-		go func() {
-			defer ginkgo.GinkgoRecover()
-
-			_, err := gen.Generate(nil, nil, nil)
-			errChannel <- err
-		}()
-
-		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting updates"))))
-	})
-
-	ginkgo.It("should return an error when the bot info cannot be fetched", func() {
-		gen := telegram.Generator{
-			Reader: userOut,
-			Writer: userInMono,
-		}
-
-		httpmock.RegisterResponder(
-			"GET",
-			mockAPI(`getMe`),
-			httpmock.NewStringResponder(502, "<html>Bad Gateway</html>"),
-		)
-
-		errChannel := make(chan error, 1)
-
-		// Type the input before Generate starts. The dialog treats an empty buffer
-		// as closed input, so typing afterwards races the first read.
-		mockTyped(mockToken)
-
-		defer dumpBuffers()
-
-		go func() {
-			defer ginkgo.GinkgoRecover()
-
-			_, err := gen.Generate(nil, nil, nil)
-			errChannel <- err
-		}()
-
-		gomega.Eventually(errChannel).Should(gomega.Receive(gomega.MatchError(gomega.ContainSubstring("getting bot info"))))
-	})
+// botInfoResponder answers getMe with a bot named mockbot.
+var botInfoResponder = httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
+	OK     bool
+	Result *User
+}{
+	OK:     true,
+	Result: &User{ID: 1, IsBot: true, Username: "mockbot"},
 })
 
-var _ = ginkgo.Describe("TelegramGenerator with closed input", func() {
-	ginkgo.BeforeEach(func() {
-		httpmock.Activate()
-	})
-	ginkgo.AfterEach(func() {
-		httpmock.DeactivateAndReset()
-	})
+// activateTelegramMock routes the default HTTP transport to httpmock for the
+// rest of the test. The generator builds its own clients on
+// http.DefaultTransport, so these tests cannot inject a client and must not run
+// in parallel.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+func activateTelegramMock(t *testing.T) {
+	t.Helper()
 
-	ginkgo.It("should fail before contacting Telegram when the token cannot be read", func() {
-		gen := telegram.Generator{
-			Reader: strings.NewReader(""),
-			Writer: io.Discard,
-		}
-
-		_, err := gen.Generate(nil, nil, nil)
-
-		gomega.Expect(err).To(gomega.MatchError(generator.ErrInputClosed))
-		gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.BeZero())
-	})
-})
-
-func mockAPI(endpoint string) string {
-	return mockAPIBase + endpoint
+	httpmock.Activate(t)
 }
 
-func mockTyped(a ...any) {
-	_, _ = fmt.Fprintf(userOut, "%v\n", fmt.Sprint(a...))
+// newTestGenerator returns a generator that reads the given input lines and
+// writes its output, without color codes, to output.
+//
+// Parameters:
+//   - input: the lines the user types, in order.
+//   - output: receives the generator's output.
+//
+// Returns:
+//   - *Generator: the generator.
+func newTestGenerator(input []string, output *bytes.Buffer) *Generator {
+	var reader strings.Builder
+
+	for _, line := range input {
+		reader.WriteString(line + "\n")
+	}
+
+	return &Generator{
+		Reader: strings.NewReader(reader.String()),
+		Writer: colorable.NewNonColorable(output),
+	}
 }
 
-func dumpBuffers() {
-	for line := range strings.SplitSeq(string(userIn.Contents()), "\n") {
-		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "> %s\n", line)
+// TestGeneratorBuildsURLFromUpdates verifies that the generator reports the
+// updates it receives and builds a URL with the chat a message came from.
+//
+//nolint:paralleltest // httpmock replaces the shared http.DefaultTransport.
+func TestGeneratorBuildsURLFromUpdates(t *testing.T) {
+	activateTelegramMock(t)
+
+	httpmock.RegisterResponder(http.MethodGet, generatorAPIBase+"getMe", botInfoResponder)
+	httpmock.RegisterResponder(http.MethodPost, generatorAPIBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
+		OK     bool
+		Result []Update
+	}{
+		OK: true,
+		Result: []Update{
+			{
+				ChatMemberUpdate: &ChatMemberUpdate{
+					Chat:          &Chat{Type: `channel`, Title: `mockChannel`},
+					OldChatMember: &ChatMember{Status: `kicked`},
+					NewChatMember: &ChatMember{Status: `administrator`},
+				},
+			},
+			{
+				Message: &Message{
+					Text: "hi!",
+					From: &User{Username: `mockUser`},
+					Chat: &Chat{Type: `private`, ID: 667, Username: `mockUser`},
+				},
+			},
+		},
+	}))
+
+	var output bytes.Buffer
+
+	config, err := newTestGenerator([]string{generatorToken, "no"}, &output).Generate(nil, nil, nil)
+
+	require.NoError(t, err, "output:\n%s", output.String())
+	require.NotNil(t, config)
+	assert.Equal(t, `telegram://0:MockToken@telegram?chats=667&preview=No`, config.GetURL().String())
+
+	assert.Contains(t, output.String(), `Got a bot chat member update for mockChannel, status was changed from kicked to administrator`)
+	assert.Contains(t, output.String(), `Got 1 chat ID(s) so far. Want to add some more?`)
+	assert.Contains(t, output.String(), `Selected chats:`)
+	assert.Contains(t, output.String(), `667 (private) @mockUser`)
+}
+
+// TestGeneratorReportsAPIFailures verifies that the generator returns an error
+// naming the failed step when Telegram answers with an error status.
+//
+//nolint:paralleltest // httpmock replaces the shared http.DefaultTransport.
+func TestGeneratorReportsAPIFailures(t *testing.T) {
+	badGateway := httpmock.NewStringResponder(http.StatusBadGateway, "<html>Bad Gateway</html>")
+
+	// tests lists getMe and getUpdates responders with the step the error should
+	// name.
+	tests := []struct {
+		name       string
+		getMe      httpmock.Responder
+		getUpdates httpmock.Responder
+		wantStep   string
+	}{
+		{name: "bot info", getMe: badGateway, getUpdates: badGateway, wantStep: "getting bot info"},
+		{name: "updates", getMe: botInfoResponder, getUpdates: badGateway, wantStep: "getting updates"},
 	}
 
-	for line := range strings.SplitSeq(string(userOut.Contents()), "\n") {
-		_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, "< %s\n", line)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			activateTelegramMock(t)
+
+			httpmock.RegisterResponder(http.MethodGet, generatorAPIBase+"getMe", tt.getMe)
+			httpmock.RegisterResponder(http.MethodPost, generatorAPIBase+"getUpdates", tt.getUpdates)
+
+			var output bytes.Buffer
+
+			_, err := newTestGenerator([]string{generatorToken}, &output).Generate(nil, nil, nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantStep)
+		})
 	}
+}
+
+// TestGeneratorStopsWithoutToken verifies that the generator fails before
+// contacting Telegram when the input ends before a token is given.
+//
+//nolint:paralleltest // httpmock replaces the shared http.DefaultTransport.
+func TestGeneratorStopsWithoutToken(t *testing.T) {
+	activateTelegramMock(t)
+	// httpmock counts only requests that reach a responder, so an unmatched
+	// request needs one for the call count to include it.
+	httpmock.RegisterNoResponder(httpmock.NewErrorResponder(errUnexpectedRequest))
+
+	gen := &Generator{Reader: strings.NewReader(""), Writer: io.Discard}
+
+	_, err := gen.Generate(nil, nil, nil)
+
+	require.ErrorIs(t, err, generator.ErrInputClosed)
+	assert.Zero(t, httpmock.GetTotalCallCount())
 }
