@@ -1,49 +1,45 @@
 package matrix
 
 import (
-	"github.com/onsi/gomega"
+	"testing"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("API", func() {
-	ginkgo.Describe("apiResError", func() {
-		ginkgo.Describe("Error", func() {
-			ginkgo.It("should return error message from Message field", func() {
-				err := &apiResError{
-					Message: "test error message",
-					Code:    "M_UNKNOWN",
-				}
-				gomega.Expect(err.Error()).To(gomega.Equal("test error message"))
-			})
+// TestAPIResErrorMessage verifies that a Matrix API error reports its message,
+// whatever its error code.
+func TestAPIResErrorMessage(t *testing.T) {
+	t.Parallel()
 
-			ginkgo.It("should return empty string when Message is empty", func() {
-				err := &apiResError{
-					Code: "M_NOT_FOUND",
-				}
-				gomega.Expect(err.Error()).To(gomega.Equal(""))
-			})
+	// tests lists API errors with the message each should report.
+	tests := []struct {
+		name string
+		err  *apiResError
+		want string
+	}{
+		{name: "message and code", err: &apiResError{Message: "test error message", Code: "M_UNKNOWN"}, want: "test error message"},
+		{name: "code only", err: &apiResError{Code: "M_NOT_FOUND"}, want: ""},
+		{name: "message only", err: &apiResError{Message: "custom error"}, want: "custom error"},
+	}
 
-			ginkgo.It("should return message when Code is empty but Message is set", func() {
-				err := &apiResError{
-					Message: "custom error",
-				}
-				gomega.Expect(err.Error()).To(gomega.Equal("custom error"))
-			})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.err.Error())
 		})
-	})
+	}
+}
 
-	ginkgo.Describe("newUserIdentifier", func() {
-		ginkgo.It("should create identifier with user field set", func() {
-			id := newUserIdentifier("testuser")
-			gomega.Expect(id.User).To(gomega.Equal("testuser"))
-			gomega.Expect(id.Type).To(gomega.Equal(idTypeUser))
-		})
+// TestNewUserIdentifier verifies that a user identifier carries the user and
+// the user identifier type.
+func TestNewUserIdentifier(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should return empty identifier for empty user string", func() {
-			id := newUserIdentifier("")
-			gomega.Expect(id.User).To(gomega.BeEmpty())
-			gomega.Expect(id.Type).To(gomega.Equal(idTypeUser))
-		})
-	})
-})
+	for _, user := range []string{"testuser", ""} {
+		id := newUserIdentifier(user)
+
+		assert.Equal(t, user, id.User)
+		assert.Equal(t, idTypeUser, id.Type)
+	}
+}

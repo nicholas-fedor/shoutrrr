@@ -2,123 +2,107 @@ package matrix
 
 import (
 	"net/url"
+	"testing"
 
-	"github.com/onsi/gomega"
-
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should generate URL with scheme and host", func() {
-			cfg := &Config{
-				Host:     "matrix.example.com",
-				User:     "testuser",
-				Password: "testpass",
-			}
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-			resultURL := cfg.GetURL()
-			gomega.Expect(resultURL.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(resultURL.Host).To(gomega.Equal("matrix.example.com"))
-		})
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
-		ginkgo.It("should include user in URL", func() {
-			cfg := &Config{
-				Host:     "matrix.example.com",
-				User:     "testuser",
-				Password: "testpass",
-			}
+	return parsed
+}
 
-			resultURL := cfg.GetURL()
-			gomega.Expect(resultURL.User.Username()).To(gomega.Equal("testuser"))
-		})
+// TestConfigGetURL verifies that GetURL encodes the scheme, host, and
+// credentials, and forces a query separator.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should include password in URL", func() {
-			cfg := &Config{
-				Host:     "matrix.example.com",
-				User:     "testuser",
-				Password: "testpass",
-			}
+	result := (&Config{Host: "matrix.example.com", User: "testuser", Password: "testpass"}).GetURL()
 
-			resultURL := cfg.GetURL()
-			password, ok := resultURL.User.Password()
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(password).To(gomega.Equal("testpass"))
-		})
+	assert.Equal(t, Scheme, result.Scheme)
+	assert.Equal(t, "matrix.example.com", result.Host)
+	assert.Equal(t, "testuser", result.User.Username())
 
-		ginkgo.It("should set ForceQuery to true", func() {
-			cfg := &Config{
-				Host:     "matrix.example.com",
-				User:     "testuser",
-				Password: "testpass",
-			}
+	password, hasPassword := result.User.Password()
+	assert.True(t, hasPassword)
+	assert.Equal(t, "testpass", password)
+	assert.True(t, result.ForceQuery)
+}
 
-			resultURL := cfg.GetURL()
-			gomega.Expect(resultURL.ForceQuery).To(gomega.BeTrue())
-		})
+// TestConfigSetURL verifies that SetURL reads the host and credentials and
+// prefixes room aliases with # unless they already start with # or !.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("host and credentials", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t, "matrix://testuser:testpass@matrix.example.com?disableTLS=true")))
+
+		assert.Equal(t, "matrix.example.com", config.Host)
+		assert.Equal(t, "testuser", config.User)
+		assert.Equal(t, "testpass", config.Password)
 	})
 
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should parse valid URL and set fields", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?disableTLS=true")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	// rooms lists room query values with the room each should become.
+	rooms := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{name: "alias without prefix", query: "testroom", want: "#testroom"},
+		{name: "room ID", query: "!testroom:matrix.example.com", want: "!testroom:matrix.example.com"},
+		{name: "alias with prefix", query: "%23myroom:matrix.example.com", want: "#myroom:matrix.example.com"},
+	}
 
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(cfg.Host).To(gomega.Equal("matrix.example.com"))
-			gomega.Expect(cfg.User).To(gomega.Equal("testuser"))
-			gomega.Expect(cfg.Password).To(gomega.Equal("testpass"))
+	for _, tt := range rooms {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, "matrix://testuser:testpass@matrix.example.com?room="+tt.query)))
+
+			require.NotEmpty(t, config.Rooms)
+			assert.Equal(t, tt.want, config.Rooms[0])
 		})
+	}
+}
 
-		ginkgo.It("should return error when host is missing", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser:testpass@")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+// TestConfigSetURLRejectsIncompleteURLs verifies that SetURL requires a host
+// and a password or access token.
+func TestConfigSetURLRejectsIncompleteURLs(t *testing.T) {
+	t.Parallel()
 
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).To(gomega.Equal(ErrMissingHost))
+	// tests lists incomplete URLs with the error each should produce.
+	tests := []struct {
+		name    string
+		rawURL  string
+		wantErr error
+	}{
+		{name: "no host", rawURL: "matrix://testuser:testpass@", wantErr: ErrMissingHost},
+		{name: "no password", rawURL: "matrix://testuser@matrix.example.com", wantErr: ErrMissingCredentials},
+		{name: "no user info", rawURL: "matrix://matrix.example.com", wantErr: ErrMissingCredentials},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
 		})
-
-		ginkgo.It("should return error when password is missing", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser@matrix.example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).To(gomega.Equal(ErrMissingCredentials))
-		})
-
-		ginkgo.It("should prepend # to room aliases that don't have prefix", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?room=testroom")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(cfg.Rooms).ToNot(gomega.BeEmpty())
-			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("#testroom"))
-		})
-
-		ginkgo.It("should not prepend # to room IDs that already have ! prefix", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?room=!testroom:matrix.example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("!testroom:matrix.example.com"))
-		})
-
-		ginkgo.It("should not double-prefix room aliases that already have # prefix", func() {
-			cfg := &Config{}
-			testURL, err := url.Parse("matrix://testuser:testpass@matrix.example.com?room=%23myroom:matrix.example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			err = cfg.SetURL(testURL)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(cfg.Rooms).ToNot(gomega.BeEmpty())
-			gomega.Expect(cfg.Rooms[0]).To(gomega.Equal("#myroom:matrix.example.com"))
-		})
-	})
-})
+	}
+}

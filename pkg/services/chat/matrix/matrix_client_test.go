@@ -5,1323 +5,762 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
+	"sync"
+	"testing"
 
-	"github.com/onsi/gomega"
-	"github.com/stretchr/testify/mock"
-
-	ginkgo "github.com/onsi/ginkgo/v2"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// testLogger is a simple logger for testing purposes.
-type testLogger struct {
-	formatted string
+// reply is one scripted answer of a scriptedHTTPClient.
+type reply struct {
+	// status is the HTTP status code of the response.
+	status int
+	// body is the response body.
+	body string
+	// rawBody, when set, is used as the response body instead of body.
+	rawBody io.ReadCloser
+	// err, when set, is returned as the transport error instead of a response.
+	err error
 }
 
-// errorReadCloser is a ReadCloser that always returns an error on read.
+// scriptedHTTPClient answers requests with scripted replies, in order, and
+// records each request with its body.
+type scriptedHTTPClient struct {
+	// t is the test that owns the client.
+	t *testing.T
+	// mu guards the fields below.
+	mu sync.Mutex
+	// replies holds the replies not yet used.
+	replies []reply
+	// requests records each request received.
+	requests []*http.Request
+	// bodies records the body of each request received.
+	bodies []string
+}
+
+// errorReadCloser is a response body whose reads fail.
 type errorReadCloser struct{}
 
-// errorBodyClose is a ReadCloser that returns error on close.
-type errorBodyClose struct{}
-
-var _ = ginkgo.Describe("client", func() {
-	ginkgo.Describe("newClient", func() {
-		ginkgo.It("should create a client with https scheme by default", func() {
-			c := newClient("matrix.example.com", false, nil)
-			gomega.Expect(c).ToNot(gomega.BeNil())
-			gomega.Expect(c.apiURL.Scheme).To(gomega.Equal("https"))
-			gomega.Expect(c.apiURL.Host).To(gomega.Equal("matrix.example.com"))
-		})
-
-		ginkgo.It("should create a client with http scheme when TLS is disabled", func() {
-			c := newClient("matrix.example.com", true, nil)
-			gomega.Expect(c).ToNot(gomega.BeNil())
-			gomega.Expect(c.apiURL.Scheme).To(gomega.Equal("http"))
-		})
-
-		ginkgo.It("should use discard logger when nil logger is provided", func() {
-			c := newClient("matrix.example.com", false, nil)
-			gomega.Expect(c.logger).ToNot(gomega.BeNil())
-		})
-	})
-
-	ginkgo.Describe("apiGet", func() {
-		ginkgo.It("should handle HTTP errors from the client", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiGet(context.Background(), "/_matrix/client/v3/login", resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle HTTP error status codes", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"invalid request","errcode":"M_INVALID_PARAM"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiGet(context.Background(), "/_matrix/client/v3/login", resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid request"))
-		})
-
-		ginkgo.It("should handle HTTP error status without JSON response", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(bytes.NewReader([]byte("internal server error"))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiGet(context.Background(), "/_matrix/client/v3/login", resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("HTTP"))
-		})
-
-		ginkgo.It("should handle JSON unmarshal error on response", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte("not valid json"))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiGet(context.Background(), "/_matrix/client/v3/login", resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle body read error", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       &errorReadCloser{},
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiGet(context.Background(), "/_matrix/client/v3/login", resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("apiPost", func() {
-		ginkgo.It("should handle HTTP errors from the client", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiPost(context.Background(), "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle HTTP error status codes", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"invalid request","errcode":"M_INVALID_PARAM"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiPost(context.Background(), "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle JSON unmarshal error on response", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte("not valid json"))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiPost(context.Background(), "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("getJoinedRooms", func() {
-		ginkgo.It("should return empty slice on API error", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			rooms, err := c.getJoinedRooms(context.Background())
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(rooms).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return rooms on success", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"joined_rooms":["!room1:matrix.example.com","!room2:matrix.example.com"]}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			rooms, err := c.getJoinedRooms(context.Background())
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(rooms).To(gomega.HaveLen(2))
-		})
-	})
-
-	ginkgo.Describe("joinRoom", func() {
-		ginkgo.It("should return error on API failure", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			roomID, err := c.joinRoom(context.Background(), "#test:matrix.example.com")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(roomID).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return room ID on success", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!joinedroom:matrix.example.com"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			roomID, err := c.joinRoom(context.Background(), "#test:matrix.example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(roomID).To(gomega.Equal("!joinedroom:matrix.example.com"))
-		})
-
-		ginkgo.It("should send a valid JSON object body, not null", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.MatchedBy(func(req *http.Request) bool {
-				body, err := io.ReadAll(req.Body)
-				if err != nil {
-					return false
-				}
-
-				return string(body) == "{}"
-			})).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!joinedroom:matrix.example.com"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			roomID, err := c.joinRoom(context.Background(), "#test:matrix.example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(roomID).To(gomega.Equal("!joinedroom:matrix.example.com"))
-		})
-	})
-
-	ginkgo.Describe("logf", func() {
-		ginkgo.It("should call logger Printf", func() {
-			mockLogger := &testLogger{}
-			c := &client{
-				logger: mockLogger,
-			}
-
-			c.logf("test %s", "message")
-			gomega.Expect(mockLogger.formatted).To(gomega.ContainSubstring("test"))
-		})
-	})
-
-	ginkgo.Describe("login", func() {
-		ginkgo.It("should return error when API call fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.login(context.Background(), "user", "password")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return error when no supported login flows", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"flows":[{"type":"m.login.unknown"}]}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.login(context.Background(), "user", "password")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("login flows"))
-		})
-
-		ginkgo.It("should use token login when user is empty", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"flows":[{"type":"m.login.token"}]}`))),
-			}, nil).Once()
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"access_token":"testtoken123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.login(context.Background(), "", "testtoken123")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(c.accessToken).To(gomega.Equal("testtoken123"))
-		})
-	})
-
-	ginkgo.Describe("loginPassword", func() {
-		ginkgo.It("should return error when API call fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.loginPassword(context.Background(), "user", "password")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should successfully login with password", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"access_token":"mytoken123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com","device_id":"TESTDEVICE"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.loginPassword(context.Background(), "user", "password")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(c.accessToken).To(gomega.Equal("mytoken123"))
-		})
-	})
-
-	ginkgo.Describe("loginToken", func() {
-		ginkgo.It("should return error when API call fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.loginToken(context.Background(), "token")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should successfully login with token", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"access_token":"token123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.loginToken(context.Background(), "token123")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(c.accessToken).To(gomega.Equal("token123"))
-		})
-	})
-
-	ginkgo.Describe("sendMessage", func() {
-		ginkgo.It("should call sendToJoinedRooms when no rooms specified", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendMessage(context.Background(), "test message", nil)
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-
-		ginkgo.It("should call sendToExplicitRooms when rooms are specified", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendMessage(context.Background(), "test message", []string{"#room:matrix.example.com"})
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-	})
-
-	ginkgo.Describe("sendMessageToRoom", func() {
-		ginkgo.It("should return error when API call fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			err := c.sendMessageToRoom(context.Background(), "test message", "!room:matrix.example.com")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("sendToExplicitRooms", func() {
-		ginkgo.It("should return errors when joining rooms fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-
-		ginkgo.It("should send message successfully when joining succeeds", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: joinRoom
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!roomid:matrix.example.com"}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return error when sending message fails after joining", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: joinRoom - success
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!roomid:matrix.example.com"}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom - failure
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("send error")).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-
-		ginkgo.It("should skip joinRoom when room ID starts with !", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// Only one call expected: sendMessageToRoom (no joinRoom)
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"!roomid:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.BeEmpty())
-			mockHTTPClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should handle mixed room IDs and aliases", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: joinRoom for alias
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!roomid:matrix.example.com"}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom for alias-resolved room
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid1"}`))),
-			}, nil).Once()
-			// Third call: sendMessageToRoom for room ID (no joinRoom needed)
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid2"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"#room:matrix.example.com", "!otherroom:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.BeEmpty())
-			mockHTTPClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 3)
-		})
-
-		ginkgo.It("should return error for empty room value", func() {
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				logger: &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{""}, "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-			gomega.Expect(errors.Is(errs[0], ErrEmptyRoom)).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return error for whitespace-only room value", func() {
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				logger: &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"   "}, "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-			gomega.Expect(errors.Is(errs[0], ErrEmptyRoom)).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should trim whitespace from room value before processing", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(), []string{"  !roomid:matrix.example.com  "}, "test message")
-			gomega.Expect(errs).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Describe("sendToJoinedRooms", func() {
-		ginkgo.It("should return error when getJoinedRooms fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("mock error"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToJoinedRooms(context.Background(), "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-
-		ginkgo.It("should send message to all joined rooms", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: getJoinedRooms
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"joined_rooms":["!room1:matrix.example.com"]}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
-			}, nil).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToJoinedRooms(context.Background(), "test message")
-			gomega.Expect(errs).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return errors when sending to joined rooms fails", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: getJoinedRooms - success
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"joined_rooms":["!room1:matrix.example.com"]}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom - failure
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("send error")).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToJoinedRooms(context.Background(), "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-	})
-
-	ginkgo.Describe("useToken", func() {
-		ginkgo.It("should set the access token", func() {
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				logger: &testLogger{},
-			}
-
-			c.useToken("my-token")
-			gomega.Expect(c.accessToken).To(gomega.Equal("my-token"))
-		})
-	})
-
-	ginkgo.Describe("generateTransactionID", func() {
-		ginkgo.It("should generate unique transaction IDs", func() {
-			txn1 := generateTransactionID()
-			txn2 := generateTransactionID()
-			gomega.Expect(txn1).ToNot(gomega.Equal(txn2))
-			gomega.Expect(txn1).To(gomega.MatchRegexp(`^[0-9]+-[a-f0-9]+$`))
-		})
-	})
-
-	ginkgo.Describe("generateDeviceID", func() {
-		ginkgo.It("should generate a deterministic device ID for the same user and host", func() {
-			id1 := generateDeviceID("user", "matrix.example.com")
-			id2 := generateDeviceID("user", "matrix.example.com")
-			gomega.Expect(id1).To(gomega.Equal(id2))
-		})
-
-		ginkgo.It("should generate different device IDs for different users on the same host", func() {
-			id1 := generateDeviceID("user1", "matrix.example.com")
-			id2 := generateDeviceID("user2", "matrix.example.com")
-			gomega.Expect(id1).ToNot(gomega.Equal(id2))
-		})
-
-		ginkgo.It("should generate different device IDs for the same user on different hosts", func() {
-			id1 := generateDeviceID("user", "matrix.example.com")
-			id2 := generateDeviceID("user", "matrix2.example.com")
-			gomega.Expect(id1).ToNot(gomega.Equal(id2))
-		})
-
-		ginkgo.It("should generate a device ID with exactly 10 characters", func() {
-			id := generateDeviceID("user", "matrix.example.com")
-			gomega.Expect(id).To(gomega.HaveLen(10))
-		})
-
-		ginkgo.It("should generate a device ID starting with SH prefix", func() {
-			id := generateDeviceID("user", "matrix.example.com")
-			gomega.Expect(id).To(gomega.MatchRegexp(`^SH.{8}$`))
-		})
-
-		ginkgo.It("should generate a device ID with only valid Opaque Identifier Grammar characters", func() {
-			id := generateDeviceID("user", "matrix.example.com")
-			// Implementation uses alphanumeric characters only (A-Z, a-z, 0-9)
-			gomega.Expect(id).To(gomega.MatchRegexp(`^[A-Za-z0-9]+$`))
-		})
-
-		ginkgo.It("should handle empty user string for token-based login", func() {
-			id := generateDeviceID("", "matrix.example.com")
-			gomega.Expect(id).To(gomega.HaveLen(10))
-			gomega.Expect(id).To(gomega.MatchRegexp(`^SH.{8}$`))
-			// Verify determinism
-			id2 := generateDeviceID("", "matrix.example.com")
-			gomega.Expect(id).To(gomega.Equal(id2))
-		})
-
-		ginkgo.It("should handle special characters in user string", func() {
-			id := generateDeviceID("@user:matrix.example.com", "matrix.example.com")
-			gomega.Expect(id).To(gomega.HaveLen(10))
-			gomega.Expect(id).To(gomega.MatchRegexp(`^[A-Za-z0-9]+$`))
-		})
-
-		ginkgo.It("should normalize host by removing default HTTPS port 443", func() {
-			idWithoutPort := generateDeviceID("user", "matrix.example.com")
-			idWithPort := generateDeviceID("user", "matrix.example.com:443")
-			gomega.Expect(idWithoutPort).To(gomega.Equal(idWithPort))
-		})
-
-		ginkgo.It("should normalize host by removing default HTTP port 80", func() {
-			idWithoutPort := generateDeviceID("user", "matrix.example.com")
-			idWithPort := generateDeviceID("user", "matrix.example.com:80")
-			gomega.Expect(idWithoutPort).To(gomega.Equal(idWithPort))
-		})
-
-		ginkgo.It("should keep non-default ports for uniqueness", func() {
-			idWithoutPort := generateDeviceID("user", "matrix.example.com")
-			idWithPort := generateDeviceID("user", "matrix.example.com:8008")
-			gomega.Expect(idWithoutPort).ToNot(gomega.Equal(idWithPort))
-		})
-	})
-
-	ginkgo.Describe("createMessage", func() {
-		ginkgo.It("should return original message when title is empty", func() {
-			result := createMessage("Hello world", "")
-			gomega.Expect(result).To(gomega.Equal("Hello world"))
-		})
-
-		ginkgo.It("should prepend title to message", func() {
-			result := createMessage("Hello world", "Alert")
-			gomega.Expect(result).To(gomega.Equal("Alert\n\nHello world"))
-		})
-
-		ginkgo.It("should trim title whitespace", func() {
-			result := createMessage("Hello world", "  Alert  ")
-			gomega.Expect(result).To(gomega.Equal("Alert\n\nHello world"))
-		})
-
-		ginkgo.It("should handle empty message with title", func() {
-			result := createMessage("", "Alert")
-			gomega.Expect(result).To(gomega.Equal("Alert\n\n"))
-		})
-
-		ginkgo.It("should handle empty title and empty message", func() {
-			result := createMessage("", "")
-			gomega.Expect(result).To(gomega.Equal(""))
-		})
-
-		ginkgo.It("should handle title with only whitespace", func() {
-			result := createMessage("Hello world", "   ")
-			gomega.Expect(result).To(gomega.Equal("Hello world"))
-		})
-
-		ginkgo.It("should preserve message with existing newlines", func() {
-			result := createMessage("Line1\nLine2\nLine3", "Alert")
-			gomega.Expect(result).To(gomega.Equal("Alert\n\nLine1\nLine2\nLine3"))
-		})
-
-		ginkgo.It("should handle message with special characters", func() {
-			result := createMessage("Message with <html> & \"quotes\"", "Alert")
-			gomega.Expect(result).To(gomega.Equal("Alert\n\nMessage with <html> & \"quotes\""))
-		})
-	})
-
-	// Tests for setAuthorizationHeader
-	ginkgo.Describe("setAuthorizationHeader", func() {
-		ginkgo.It("should set Authorization header when accessToken is non-empty", func() {
-			c := &client{
-				accessToken: "test-token-123",
-			}
-			req, _ := http.NewRequest(http.MethodGet, "https://matrix.example.com/_matrix", http.NoBody)
-			c.setAuthorizationHeader(req)
-			gomega.Expect(req.Header.Get("Authorization")).To(gomega.Equal("Bearer test-token-123"))
-		})
-
-		ginkgo.It("should set header with correct Bearer prefix format", func() {
-			c := &client{
-				accessToken: "mytoken",
-			}
-			req, _ := http.NewRequest(http.MethodGet, "https://matrix.example.com/_matrix", http.NoBody)
-			c.setAuthorizationHeader(req)
-			headerValue := req.Header.Get("Authorization")
-			gomega.Expect(headerValue).To(gomega.MatchRegexp("^Bearer .+$"))
-			gomega.Expect(headerValue).To(gomega.Equal("Bearer mytoken"))
-		})
-
-		ginkgo.It("should NOT set header when accessToken is empty", func() {
-			c := &client{
-				accessToken: "",
-			}
-			req, _ := http.NewRequest(http.MethodGet, "https://matrix.example.com/_matrix", http.NoBody)
-			c.setAuthorizationHeader(req)
-			gomega.Expect(req.Header.Get("Authorization")).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should overwrite existing Authorization header", func() {
-			c := &client{
-				accessToken: "new-token",
-			}
-			req, _ := http.NewRequest(http.MethodGet, "https://matrix.example.com/_matrix", http.NoBody)
-			req.Header.Set("Authorization", "Existing-Token")
-			c.setAuthorizationHeader(req)
-			gomega.Expect(req.Header.Get("Authorization")).To(gomega.Equal("Bearer new-token"))
-		})
-	})
-
-	// Tests for apiDo
-	ginkgo.Describe("apiDo", func() {
-		ginkgo.It("should return error on JSON marshal error with request body", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			// Use a channel that cannot be marshaled to JSON
-			ch := make(chan string)
-			resp := &apiResLogin{}
-			err := c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", ch, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("marshaling"))
-		})
-
-		ginkgo.It("should return error on HTTP request creation failure", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("request failed")).Maybe()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			// Use an invalid URL to trigger request creation failure - empty scheme
-			c.apiURL = url.URL{
-				Scheme: "",
-				Host:   "",
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", nil, resp)
-			// The actual behavior may vary - request creation might succeed with invalid URL
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle response body close error", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       &errorBodyClose{},
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should set Content-Type header to application/json", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{}`))),
-			}, nil).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			})
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			_ = c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", nil, resp)
-
-			gomega.Expect(capturedReq.Header.Get("Content-Type")).To(gomega.Equal("application/json"))
-		})
-
-		ginkgo.It("should use correct HTTP method", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{}`))),
-			}, nil).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			})
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			_ = c.apiDo(context.Background(), "PUT", "/_matrix/client/v3/rooms/!room/send/m.room.message/txn", nil, resp)
-
-			gomega.Expect(capturedReq.Method).To(gomega.Equal("PUT"))
-		})
-	})
-
-	// Tests for apiPut
-	ginkgo.Describe("apiPut", func() {
-		ginkgo.It("should successfully make PUT request", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$eventid"}`))),
-			}, nil).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			})
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResEvent{}
-			err := c.apiPut(context.Background(), "/_matrix/client/v3/rooms/!room/send/m.room.message/txn1",
-				apiReqSend{MsgType: msgTypeText, Body: "test message"}, resp)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(capturedReq.Method).To(gomega.Equal("PUT"))
-		})
-
-		ginkgo.It("should return error on PUT request failure", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("PUT request failed"))
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResEvent{}
-			err := c.apiPut(context.Background(), "/_matrix/client/v3/rooms/!room/send/m.room.message/txn1",
-				apiReqSend{MsgType: msgTypeText, Body: "test message"}, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("executing PUT"))
-		})
-	})
-
-	// Tests for context cancellation handling
-	ginkgo.Describe("Context Cancellation Handling", func() {
-		ginkgo.It("should return error when context is canceled before API call", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// The HTTP client may or may not be called depending on timing
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, context.Canceled).Maybe()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel() // Cancel immediately
-
-			resp := &apiResLogin{}
-			err := c.apiDo(ctx, "POST", "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle context cancellation during API call via HTTP client", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, context.Canceled)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should handle context timeout", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, context.DeadlineExceeded)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			resp := &apiResLogin{}
-			err := c.apiDo(context.Background(), "POST", "/_matrix/client/v3/login", nil, resp)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-
-	// Tests for auth method gaps
-	ginkgo.Describe("Auth Method Testing Gaps", func() {
-		ginkgo.It("should handle user with @domain format in password login", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"access_token":"token123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			// Test with @domain format user
-			err := c.loginPassword(context.Background(), "@user:matrix.example.com", "password")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(c.accessToken).To(gomega.Equal("token123"))
-		})
-	})
-
-	// Tests for room handling edge cases
-	ginkgo.Describe("Room Handling Edge Cases", func() {
-		ginkgo.It("should return empty slice when getJoinedRooms returns empty list", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"joined_rooms":[]}`))),
-			}, nil)
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			rooms, err := c.getJoinedRooms(context.Background())
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(rooms).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should handle multiple rooms with partial failures", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First call: getJoinedRooms - returns multiple rooms
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"joined_rooms":["!room1:matrix.example.com","!room2:matrix.example.com"]}`))),
-			}, nil).Once()
-			// Second call: sendMessageToRoom - success for room1
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$event1"}`))),
-			}, nil).Once()
-			// Third call: sendMessageToRoom - failure for room2
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("send error")).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToJoinedRooms(context.Background(), "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-
-		ginkgo.It("should handle sendToExplicitRooms with multiple rooms and partial failures", func() {
-			mockHTTPClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			// First room: join succeeds, send succeeds
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!room1:matrix.example.com"}`))),
-			}, nil).Once()
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"event_id":"$event1"}`))),
-			}, nil).Once()
-			// Second room: join succeeds, send fails
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"room_id":"!room2:matrix.example.com"}`))),
-			}, nil).Once()
-			mockHTTPClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("send error")).Once()
-
-			c := &client{
-				apiURL: url.URL{
-					Scheme: "https",
-					Host:   "matrix.example.com",
-				},
-				httpClient: mockHTTPClient,
-				logger:     &testLogger{},
-			}
-
-			errs := c.sendToExplicitRooms(context.Background(),
-				[]string{"#room1:matrix.example.com", "#room2:matrix.example.com"}, "test message")
-			gomega.Expect(errs).To(gomega.HaveLen(1))
-		})
-	})
-})
-
-func (m *testLogger) Print(args ...any) {
-	// no-op
+// errUnexpectedRequest answers a request after the scripted replies run out.
+var errUnexpectedRequest = errors.New("unexpected request")
+
+// Do answers req with the next scripted reply. A request whose context has
+// ended uses up its reply and returns the context's error.
+//
+// Parameters:
+//   - req: the request.
+//
+// Returns:
+//   - *http.Response: the scripted response.
+//   - error: the scripted transport error or the context's error.
+func (s *scriptedHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	var body []byte
+	if req.Body != nil {
+		body, _ = io.ReadAll(req.Body)
+		_ = req.Body.Close()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.requests = append(s.requests, req)
+	s.bodies = append(s.bodies, string(body))
+
+	if len(s.replies) == 0 {
+		s.t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
+
+		return nil, errUnexpectedRequest
+	}
+
+	next := s.replies[0]
+	s.replies = s.replies[1:]
+
+	if err := req.Context().Err(); err != nil {
+		return nil, err
+	}
+
+	if next.err != nil {
+		return nil, next.err
+	}
+
+	responseBody := next.rawBody
+	if responseBody == nil {
+		responseBody = io.NopCloser(strings.NewReader(next.body))
+	}
+
+	return &http.Response{
+		StatusCode: next.status,
+		Status:     http.StatusText(next.status),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       responseBody,
+	}, nil
 }
 
-func (m *testLogger) Printf(format string, args ...any) {
-	m.formatted = format
+// requestCount returns the number of requests received.
+//
+// Returns:
+//   - int: the number of requests.
+func (s *scriptedHTTPClient) requestCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.requests)
 }
 
-func (m *testLogger) Println(args ...any) {
-	// no-op
-}
-
-func (e *errorReadCloser) Close() error {
+// Close does nothing.
+//
+// Returns:
+//   - error: nil.
+func (errorReadCloser) Close() error {
 	return nil
 }
 
-func (e *errorReadCloser) Read(p []byte) (int, error) {
+// Read always fails.
+//
+// Parameters:
+//   - []byte: unused.
+//
+// Returns:
+//   - int: zero.
+//   - error: a read error.
+func (errorReadCloser) Read([]byte) (int, error) {
 	return 0, errors.New("read error")
 }
 
-func (e *errorBodyClose) Close() error {
-	return errors.New("close error")
+// ok returns a successful reply with body.
+//
+// Parameters:
+//   - body: the response body.
+//
+// Returns:
+//   - reply: the reply.
+func ok(body string) reply {
+	return reply{status: http.StatusOK, body: body}
 }
 
-func (e *errorBodyClose) Read(p []byte) (int, error) {
-	return 0, io.EOF
+// failed returns a reply whose request fails with a transport error.
+//
+// Parameters:
+//   - message: the transport error message.
+//
+// Returns:
+//   - reply: the reply.
+func failed(message string) reply {
+	return reply{err: errors.New(message)}
+}
+
+// newScriptedClient returns a client for matrix.example.com whose requests get
+// replies in order. The test fails if a request arrives after the replies run
+// out or if any reply is left unused.
+//
+// Parameters:
+//   - t: the test.
+//   - replies: the replies, in the order requests should receive them.
+//
+// Returns:
+//   - *client: the client.
+//   - *scriptedHTTPClient: the HTTP client, for inspecting requests.
+func newScriptedClient(t *testing.T, replies ...reply) (*client, *scriptedHTTPClient) {
+	t.Helper()
+
+	httpClient := &scriptedHTTPClient{t: t, replies: replies}
+
+	t.Cleanup(func() {
+		httpClient.mu.Lock()
+		defer httpClient.mu.Unlock()
+
+		if len(httpClient.replies) > 0 {
+			t.Errorf("%d scripted replies were not used", len(httpClient.replies))
+		}
+	})
+
+	return &client{
+		apiURL:     url.URL{Scheme: "https", Host: "matrix.example.com"},
+		httpClient: httpClient,
+		logger:     log.New(t.Output(), "", 0),
+	}, httpClient
+}
+
+// TestNewClient verifies the API scheme for each TLS setting and that a nil
+// logger is replaced.
+func TestNewClient(t *testing.T) {
+	t.Parallel()
+
+	secure := newClient("matrix.example.com", false, nil)
+	require.NotNil(t, secure)
+	assert.Equal(t, "https", secure.apiURL.Scheme)
+	assert.Equal(t, "matrix.example.com", secure.apiURL.Host)
+	assert.NotNil(t, secure.logger)
+
+	assert.Equal(t, "http", newClient("matrix.example.com", true, nil).apiURL.Scheme)
+}
+
+// TestAPIRequestFailures verifies that GET and POST requests report transport
+// errors, Matrix API errors, error statuses without a Matrix error, invalid
+// JSON, and unreadable bodies.
+func TestAPIRequestFailures(t *testing.T) {
+	t.Parallel()
+
+	// tests lists replies with the error each should produce. wantMessage is
+	// the Matrix API error message when the reply carries one.
+	tests := []struct {
+		name        string
+		reply       reply
+		wantErr     error
+		wantText    string
+		wantMessage string
+	}{
+		{name: "transport error", reply: failed("mock error"), wantText: "executing"},
+		{
+			name:        "Matrix API error",
+			reply:       reply{status: http.StatusBadRequest, body: `{"error":"invalid request","errcode":"M_INVALID_PARAM"}`},
+			wantMessage: "invalid request",
+		},
+		{name: "error status without a Matrix error", reply: reply{status: http.StatusInternalServerError, body: "internal server error"}, wantErr: ErrUnexpectedStatus},
+		{name: "invalid JSON", reply: ok("not valid json"), wantText: "unmarshaling"},
+		{name: "unreadable body", reply: reply{status: http.StatusOK, rawBody: errorReadCloser{}}, wantText: "reading"},
+	}
+
+	// methods lists the request functions under test.
+	methods := map[string]func(*client, context.Context) error{
+		"GET": func(c *client, ctx context.Context) error {
+			return c.apiGet(ctx, apiLogin, &apiResLogin{})
+		},
+		"POST": func(c *client, ctx context.Context) error {
+			return c.apiPost(ctx, apiLogin, nil, &apiResLogin{})
+		},
+	}
+
+	for method, call := range methods {
+		for _, tt := range tests {
+			t.Run(method+" "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				c, _ := newScriptedClient(t, tt.reply)
+				err := call(c, t.Context())
+
+				require.Error(t, err)
+
+				if tt.wantErr != nil {
+					require.ErrorIs(t, err, tt.wantErr)
+				}
+
+				if tt.wantText != "" {
+					assert.Contains(t, err.Error(), tt.wantText)
+				}
+
+				if tt.wantMessage != "" {
+					apiErr, isAPIErr := errors.AsType[*apiResError](err)
+					require.True(t, isAPIErr, "the error should be the Matrix API error")
+					assert.Equal(t, tt.wantMessage, apiErr.Message)
+				}
+			})
+		}
+	}
+}
+
+// TestAPIDo verifies that apiDo reports marshaling and request creation errors
+// without sending, sends JSON with the given method, and reports an empty body
+// as invalid JSON.
+func TestAPIDo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unmarshalable request", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t)
+		err := c.apiDo(t.Context(), http.MethodPost, apiLogin, make(chan string), &apiResLogin{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "marshaling")
+	})
+
+	t.Run("invalid method", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t)
+		err := c.apiDo(t.Context(), "BAD METHOD", apiLogin, nil, &apiResLogin{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "creating")
+	})
+
+	t.Run("method and content type", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{}`))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, "/_matrix/client/v3/rooms/!room/send/m.room.message/txn", nil, &apiResLogin{}))
+
+		require.Len(t, httpClient.requests, 1)
+		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
+		assert.Equal(t, "application/json", httpClient.requests[0].Header.Get("Content-Type"))
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(""))
+		err := c.apiDo(t.Context(), http.MethodPost, apiLogin, nil, &apiResLogin{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unmarshaling")
+	})
+}
+
+// TestAPIDoContextErrors verifies that apiDo returns the context's error when
+// the context ends before or during the request.
+func TestAPIDoContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("canceled before the request", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		c, _ := newScriptedClient(t, ok(`{}`))
+		require.ErrorIs(t, c.apiDo(ctx, http.MethodPost, apiLogin, nil, &apiResLogin{}), context.Canceled)
+	})
+
+	t.Run("canceled during the request", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, reply{err: context.Canceled})
+		require.ErrorIs(t, c.apiDo(t.Context(), http.MethodPost, apiLogin, nil, &apiResLogin{}), context.Canceled)
+	})
+
+	t.Run("deadline exceeded during the request", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, reply{err: context.DeadlineExceeded})
+		require.ErrorIs(t, c.apiDo(t.Context(), http.MethodPost, apiLogin, nil, &apiResLogin{}), context.DeadlineExceeded)
+	})
+}
+
+// TestAPIPut verifies that apiPut sends a PUT request and reports its failure.
+func TestAPIPut(t *testing.T) {
+	t.Parallel()
+
+	request := apiReqSend{MsgType: msgTypeText, Body: "test message"}
+	path := "/_matrix/client/v3/rooms/!room/send/m.room.message/txn1"
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{"event_id":"$eventid"}`))
+		require.NoError(t, c.apiPut(t.Context(), path, request, &apiResEvent{}))
+		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("PUT request failed"))
+		err := c.apiPut(t.Context(), path, request, &apiResEvent{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "executing PUT")
+	})
+}
+
+// TestGetJoinedRooms verifies that the joined rooms lookup returns the rooms,
+// or an error and no rooms when the request fails.
+func TestGetJoinedRooms(t *testing.T) {
+	t.Parallel()
+
+	// tests lists replies with the rooms they should produce.
+	tests := []struct {
+		name    string
+		reply   reply
+		want    []string
+		wantErr bool
+	}{
+		{name: "request fails", reply: failed("mock error"), wantErr: true},
+		{name: "two rooms", reply: ok(`{"joined_rooms":["!room1:matrix.example.com","!room2:matrix.example.com"]}`), want: []string{"!room1:matrix.example.com", "!room2:matrix.example.com"}},
+		{name: "no rooms", reply: ok(`{"joined_rooms":[]}`), want: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, _ := newScriptedClient(t, tt.reply)
+			rooms, err := c.getJoinedRooms(t.Context())
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Empty(t, rooms)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, rooms)
+		})
+	}
+}
+
+// TestJoinRoom verifies that joining a room returns its ID, sends an empty JSON
+// object, and reports a failed request.
+func TestJoinRoom(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{"room_id":"!joinedroom:matrix.example.com"}`))
+		roomID, err := c.joinRoom(t.Context(), "#test:matrix.example.com")
+
+		require.NoError(t, err)
+		assert.Equal(t, "!joinedroom:matrix.example.com", roomID)
+		assert.Equal(t, []string{"{}"}, httpClient.bodies, "the join request body must be an object, not null")
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("mock error"))
+		roomID, err := c.joinRoom(t.Context(), "#test:matrix.example.com")
+
+		require.Error(t, err)
+		assert.Empty(t, roomID)
+	})
+}
+
+// TestLogf verifies that logf writes through the client's logger.
+func TestLogf(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+
+	(&client{logger: log.New(&output, "", 0)}).logf("test %s", "message")
+
+	assert.Contains(t, output.String(), "test message")
+}
+
+// TestLogin verifies that login reports a failed flows request and unsupported
+// flows, and logs in with a token when no user is given.
+func TestLogin(t *testing.T) {
+	t.Parallel()
+
+	t.Run("flows request fails", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("mock error"))
+		err := c.login(t.Context(), "user", "password")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "login flows")
+	})
+
+	t.Run("unsupported flows", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(`{"flows":[{"type":"m.login.unknown"}]}`))
+		require.ErrorIs(t, c.login(t.Context(), "user", "password"), ErrUnsupportedLoginFlows)
+	})
+
+	t.Run("token login without a user", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t,
+			ok(`{"flows":[{"type":"m.login.token"}]}`),
+			ok(`{"access_token":"testtoken123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`),
+		)
+
+		require.NoError(t, c.login(t.Context(), "", "testtoken123"))
+		assert.Equal(t, "testtoken123", c.accessToken)
+	})
+}
+
+// TestLoginPassword verifies that a password login stores the access token,
+// for plain and fully qualified user names, and reports a failed request.
+func TestLoginPassword(t *testing.T) {
+	t.Parallel()
+
+	// tests lists users that log in successfully.
+	tests := []struct {
+		name string
+		user string
+	}{
+		{name: "plain user", user: "user"},
+		{name: "fully qualified user", user: "@user:matrix.example.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, _ := newScriptedClient(t, ok(`{"access_token":"mytoken123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com","device_id":"TESTDEVICE"}`))
+
+			require.NoError(t, c.loginPassword(t.Context(), tt.user, "password"))
+			assert.Equal(t, "mytoken123", c.accessToken)
+		})
+	}
+
+	t.Run("request fails", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("mock error"))
+		require.Error(t, c.loginPassword(t.Context(), "user", "password"))
+		assert.Empty(t, c.accessToken)
+	})
+}
+
+// TestLoginToken verifies that a token login stores the access token and
+// reports a failed request.
+func TestLoginToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(`{"access_token":"token123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`))
+		require.NoError(t, c.loginToken(t.Context(), "token123"))
+		assert.Equal(t, "token123", c.accessToken)
+	})
+
+	t.Run("request fails", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, failed("mock error"))
+		require.Error(t, c.loginToken(t.Context(), "token"))
+	})
+}
+
+// TestSendMessage verifies that a send without rooms looks up the joined rooms,
+// and a send with rooms joins them.
+func TestSendMessage(t *testing.T) {
+	t.Parallel()
+
+	// tests lists rooms with the API path the first request should use.
+	tests := []struct {
+		name     string
+		rooms    []string
+		wantPath string
+	}{
+		{name: "no rooms", rooms: nil, wantPath: apiJoinedRooms},
+		{name: "explicit rooms", rooms: []string{"#room:matrix.example.com"}, wantPath: "/_matrix/client/v3/join/#room:matrix.example.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, httpClient := newScriptedClient(t, failed("mock error"))
+
+			assert.Len(t, c.sendMessage(t.Context(), "test message", tt.rooms), 1)
+			require.Len(t, httpClient.requests, 1)
+			assert.Equal(t, tt.wantPath, httpClient.requests[0].URL.Path)
+		})
+	}
+}
+
+// TestSendMessageToRoom verifies that a failed message request is reported.
+func TestSendMessageToRoom(t *testing.T) {
+	t.Parallel()
+
+	c, _ := newScriptedClient(t, failed("mock error"))
+	require.Error(t, c.sendMessageToRoom(t.Context(), "test message", "!room:matrix.example.com"))
+}
+
+// TestSendToExplicitRooms verifies that aliases are joined before sending, room
+// IDs are sent to directly, blank rooms are rejected without requests, and one
+// error is reported for each failed room.
+func TestSendToExplicitRooms(t *testing.T) {
+	t.Parallel()
+
+	joined := ok(`{"room_id":"!roomid:matrix.example.com"}`)
+	sent := ok(`{"event_id":"$eventid"}`)
+
+	// tests lists rooms and replies with the number of errors and requests the
+	// send should produce.
+	tests := []struct {
+		name         string
+		rooms        []string
+		replies      []reply
+		wantErrs     int
+		wantRequests int
+		wantErr      error
+	}{
+		{name: "join fails", rooms: []string{"#room:matrix.example.com"}, replies: []reply{failed("mock error")}, wantErrs: 1, wantRequests: 1},
+		{name: "join and send", rooms: []string{"#room:matrix.example.com"}, replies: []reply{joined, sent}, wantRequests: 2},
+		{name: "send fails after join", rooms: []string{"#room:matrix.example.com"}, replies: []reply{joined, failed("send error")}, wantErrs: 1, wantRequests: 2},
+		{name: "room ID skips join", rooms: []string{"!roomid:matrix.example.com"}, replies: []reply{sent}, wantRequests: 1},
+		{name: "alias and room ID", rooms: []string{"#room:matrix.example.com", "!otherroom:matrix.example.com"}, replies: []reply{joined, sent, sent}, wantRequests: 3},
+		{name: "empty room", rooms: []string{""}, wantErrs: 1, wantErr: ErrEmptyRoom},
+		{name: "whitespace room", rooms: []string{"   "}, wantErrs: 1, wantErr: ErrEmptyRoom},
+		{name: "room with surrounding spaces", rooms: []string{"  !roomid:matrix.example.com  "}, replies: []reply{sent}, wantRequests: 1},
+		{
+			name:         "one of two rooms fails",
+			rooms:        []string{"#room1:matrix.example.com", "#room2:matrix.example.com"},
+			replies:      []reply{joined, sent, joined, failed("send error")},
+			wantErrs:     1,
+			wantRequests: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, httpClient := newScriptedClient(t, tt.replies...)
+			errs := c.sendToExplicitRooms(t.Context(), tt.rooms, "test message")
+
+			assert.Len(t, errs, tt.wantErrs)
+			assert.Equal(t, tt.wantRequests, httpClient.requestCount())
+
+			if tt.wantErr != nil {
+				require.NotEmpty(t, errs)
+				require.ErrorIs(t, errs[0], tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestSendToJoinedRooms verifies that the message goes to every joined room and
+// that one error is reported for a failed lookup or each failed room.
+func TestSendToJoinedRooms(t *testing.T) {
+	t.Parallel()
+
+	sent := ok(`{"event_id":"$eventid"}`)
+
+	// tests lists replies with the number of errors the send should produce.
+	tests := []struct {
+		name     string
+		replies  []reply
+		wantErrs int
+	}{
+		{name: "lookup fails", replies: []reply{failed("mock error")}, wantErrs: 1},
+		{name: "one room", replies: []reply{ok(`{"joined_rooms":["!room1:matrix.example.com"]}`), sent}},
+		{name: "send fails", replies: []reply{ok(`{"joined_rooms":["!room1:matrix.example.com"]}`), failed("send error")}, wantErrs: 1},
+		{
+			name:     "one of two rooms fails",
+			replies:  []reply{ok(`{"joined_rooms":["!room1:matrix.example.com","!room2:matrix.example.com"]}`), sent, failed("send error")},
+			wantErrs: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, _ := newScriptedClient(t, tt.replies...)
+			assert.Len(t, c.sendToJoinedRooms(t.Context(), "test message"), tt.wantErrs)
+		})
+	}
+}
+
+// TestSetAuthorizationHeader verifies that the access token is sent as a bearer
+// token, replacing any existing header, and that no header is set without one.
+func TestSetAuthorizationHeader(t *testing.T) {
+	t.Parallel()
+
+	// tests lists access tokens and existing headers with the header to expect.
+	tests := []struct {
+		name     string
+		token    string
+		existing string
+		want     string
+	}{
+		{name: "token", token: "test-token-123", want: "Bearer test-token-123"},
+		{name: "no token", token: "", want: ""},
+		{name: "replaces existing header", token: "new-token", existing: "Existing-Token", want: "Bearer new-token"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://matrix.example.com/_matrix", http.NoBody)
+			require.NoError(t, err)
+
+			if tt.existing != "" {
+				req.Header.Set("Authorization", tt.existing)
+			}
+
+			(&client{accessToken: tt.token}).setAuthorizationHeader(req)
+
+			assert.Equal(t, tt.want, req.Header.Get("Authorization"))
+		})
+	}
+}
+
+// TestUseToken verifies that useToken stores the access token.
+func TestUseToken(t *testing.T) {
+	t.Parallel()
+
+	c := &client{}
+	c.useToken("my-token")
+
+	assert.Equal(t, "my-token", c.accessToken)
+}
+
+// TestGenerateTransactionID verifies that transaction IDs are unique and use
+// the timestamp-hex format.
+func TestGenerateTransactionID(t *testing.T) {
+	t.Parallel()
+
+	first, second := generateTransactionID(), generateTransactionID()
+
+	assert.NotEqual(t, first, second)
+	assert.Regexp(t, `^[0-9]+-[a-f0-9]+$`, first)
+}
+
+// TestGenerateDeviceID verifies that device IDs are deterministic per user and
+// host, use the SH-prefixed alphanumeric format, and ignore default ports.
+func TestGenerateDeviceID(t *testing.T) {
+	t.Parallel()
+
+	base := generateDeviceID("user", "matrix.example.com")
+
+	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com"), "the same user and host give the same ID")
+	assert.NotEqual(t, base, generateDeviceID("user1", "matrix.example.com"), "users get different IDs")
+	assert.NotEqual(t, base, generateDeviceID("user", "matrix2.example.com"), "hosts get different IDs")
+
+	for _, user := range []string{"user", "", "@user:matrix.example.com"} {
+		id := generateDeviceID(user, "matrix.example.com")
+		assert.Regexp(t, `^SH[A-Za-z0-9]{8}$`, id, "user %q", user)
+		assert.Equal(t, id, generateDeviceID(user, "matrix.example.com"), "user %q", user)
+	}
+
+	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com:443"), "the default HTTPS port is ignored")
+	assert.Equal(t, base, generateDeviceID("user", "matrix.example.com:80"), "the default HTTP port is ignored")
+	assert.NotEqual(t, base, generateDeviceID("user", "matrix.example.com:8008"), "other ports change the ID")
+}
+
+// TestCreateMessage verifies that a non-blank title is trimmed and prepended to
+// the message.
+func TestCreateMessage(t *testing.T) {
+	t.Parallel()
+
+	// tests lists messages and titles with the text to expect.
+	tests := []struct {
+		name    string
+		message string
+		title   string
+		want    string
+	}{
+		{name: "no title", message: "Hello world", want: "Hello world"},
+		{name: "title", message: "Hello world", title: "Alert", want: "Alert\n\nHello world"},
+		{name: "title with spaces", message: "Hello world", title: "  Alert  ", want: "Alert\n\nHello world"},
+		{name: "empty message", title: "Alert", want: "Alert\n\n"},
+		{name: "nothing", want: ""},
+		{name: "blank title", message: "Hello world", title: "   ", want: "Hello world"},
+		{name: "multiline message", message: "Line1\nLine2\nLine3", title: "Alert", want: "Alert\n\nLine1\nLine2\nLine3"},
+		{name: "special characters", message: `Message with <html> & "quotes"`, title: "Alert", want: "Alert\n\nMessage with <html> & \"quotes\""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, createMessage(tt.message, tt.title))
+		})
+	}
 }
