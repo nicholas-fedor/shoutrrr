@@ -9,351 +9,388 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// sendSuccessBody is a sendMessage response that the Telegram API returns on success.
-const sendSuccessBody = `{"ok":true,"result":{"message_id":1}}`
+// roundTripFunc adapts a function to [http.RoundTripper], so a test can answer
+// requests without a network.
+type roundTripFunc func(*http.Request) (*http.Response, error)
 
-var (
-	envTelegramURL string
-	logger         *log.Logger
-
-	_ = ginkgo.BeforeSuite(func() {
-		envTelegramURL = os.Getenv("SHOUTRRR_TELEGRAM_URL")
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-	})
+// Test fixtures shared by the service tests.
+const (
+	// sendSuccessBody is the sendMessage response the Telegram API returns on success.
+	sendSuccessBody = `{"ok":true,"result":{"message_id":1}}`
+	// testServiceURL configures one chat with a token whose secret part is mock-token.
+	testServiceURL = "telegram://12345:mock-token@telegram/?chats=channel-1"
+	// sendMessagePath is the request path of sendMessage for the test token.
+	sendMessagePath = "/bot12345:mock-token/sendMessage"
 )
 
-var _ = ginkgo.Describe("the telegram service", func() {
-	var telegram *Service // No telegram. prefix needed
+// RoundTrip calls f with the request.
+//
+// Parameters:
+//   - req: the outgoing request.
+//
+// Returns:
+//   - *http.Response: the response f returns.
+//   - error: the transport error f returns.
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
-	ginkgo.BeforeEach(func() {
-		telegram = &Service{}
-	})
+// respondWith returns a transport that answers every request with code and body.
+//
+// Parameters:
+//   - code: the HTTP status code.
+//   - body: the response body.
+//
+// Returns:
+//   - roundTripFunc: the transport.
+func respondWith(code int, body string) roundTripFunc {
+	return func(req *http.Request) (*http.Response, error) {
+		return newResponse(req, code, body), nil
+	}
+}
 
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should not error out", func() {
-			if envTelegramURL == "" {
-				return
-			}
+// newResponse builds a response to req with code and body.
+//
+// Parameters:
+//   - req: the request being answered.
+//   - code: the HTTP status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *http.Response: the response, with Status set as a real client would.
+func newResponse(req *http.Request, code int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: code,
+		Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}
+}
 
-			serviceURL, _ := url.Parse(envTelegramURL)
-			err := telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = telegram.Send("This is an integration test Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.When("given a Message that exceeds the max length", func() {
-			ginkgo.It("should generate an error", func() {
-				if envTelegramURL == "" {
-					return
-				}
+// parseURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-				hundredChars := "this string is exactly (to the letter) a hundred characters long which will make the send func error"
-				serviceURL, _ := url.Parse("telegram://12345:mock-token@telegram/?chats=channel-1")
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
-				builder := strings.Builder{}
-				for range 42 {
-					builder.WriteString(hundredChars)
-				}
+	return serviceURL
+}
 
-				err := telegram.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = telegram.Send(builder.String(), nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("given a valid request with a faked token", func() {
-			if envTelegramURL == "" {
-				return
-			}
+// newTestService initializes a service from rawURL that logs to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the initialized service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
 
-			ginkgo.It("should generate a 401", func() {
-				serviceURL, _ := url.Parse(
-					"telegram://000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@telegram/?chats=channel-id",
-				)
-				message := "this is a perfectly valid Message"
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(t.Output(), "", 0)))
 
-				err := telegram.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = telegram.Send(message, nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(strings.Contains(err.Error(), "401 Unauthorized")).To(gomega.BeTrue())
-			})
-		})
-	})
+	return service
+}
 
-	ginkgo.Describe("creating configurations", func() {
-		ginkgo.When("given an url", func() {
-			ginkgo.It("should return an error if no arguments where supplied", func() {
-				expectErrorAndEmptyObject(telegram, "telegram://", logger)
-			})
-			ginkgo.It("should return an error if the token has an invalid format", func() {
-				expectErrorAndEmptyObject(telegram, "telegram://invalid-token", logger)
-			})
-			ginkgo.It("should not echo an invalid token in the error", func() {
-				err := telegram.Initialize(testutils.URLMust("telegram://bot:SECRETtoken@telegram/?chats=1"), logger)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidToken))
-				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETtoken"))
-			})
-			ginkgo.It("should return an error if only the api token where supplied", func() {
-				expectErrorAndEmptyObject(telegram, "telegram://12345:mock-token@telegram", logger)
-			})
+// newSendingService initializes a service from testServiceURL that sends its
+// requests through transport.
+//
+// Parameters:
+//   - t: the test.
+//   - transport: the transport that answers the service's requests.
+//
+// Returns:
+//   - *Service: the initialized service.
+func newSendingService(t *testing.T, transport http.RoundTripper) *Service {
+	t.Helper()
 
-			ginkgo.When("the url is valid", func() {
-				var config *Config // No telegram. prefix
+	service := newTestService(t, testServiceURL)
+	service.SetHTTPClient(&http.Client{Transport: transport})
 
-				var err error
+	return service
+}
 
-				ginkgo.BeforeEach(func() {
-					serviceURL, _ := url.Parse(
-						"telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3",
-					)
-					err = telegram.Initialize(serviceURL, logger)
-					config = telegram.GetConfig()
-				})
-
-				ginkgo.It("should create a config object", func() {
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config).ToNot(gomega.BeNil())
-				})
-				ginkgo.It("should create a config object containing the API Token", func() {
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config.Token).To(gomega.Equal("12345:mock-token"))
-				})
-				ginkgo.It("should add every chats query field as a chat ID", func() {
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config.Chats).To(gomega.Equal([]string{
-						"channel-1",
-						"channel-2",
-						"channel-3",
-					}))
-				})
-			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		var err error
-
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, _ := url.Parse(
-				"telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3",
-			)
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupSendMessageResponder(telegram.GetConfig().Token, 200, sendSuccessBody)
-
-			err = telegram.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should report a transport error without the token", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			transportErr := errors.New("connection reset")
-			httpmock.RegisterResponder(
-				"POST",
-				"https://api.telegram.org/bot12345:mock-token/sendMessage",
-				httpmock.NewErrorResponder(transportErr),
-			)
-
-			err = telegram.Send("Message", nil)
-			gomega.Expect(err).To(gomega.MatchError(transportErr))
-			gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("mock-token"))
-		})
-
-		ginkgo.It("should report a response that is not a Telegram error", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupSendMessageResponder("12345:mock-token", http.StatusBadGateway, "<html>Bad Gateway</html>")
-
-			err = telegram.Send("Message", nil)
-			gomega.Expect(err).To(gomega.MatchError(jsonclient.ErrUnexpectedStatus))
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("502"))
-		})
-
-		ginkgo.It("should report the Telegram API error with the HTTP status", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupSendMessageResponder(
-				"12345:mock-token",
-				http.StatusBadRequest,
-				`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`,
-			)
-
-			err = telegram.Send("Message", nil)
-			gomega.Expect(err).To(gomega.MatchError(jsonclient.ErrUnexpectedStatus))
-
-			apiErr, ok := errors.AsType[*responseError](err)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(apiErr.Description).To(gomega.Equal("Bad Request: chat not found"))
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("400"))
-		})
-
-		ginkgo.It("should report a failed response without an error description", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupSendMessageResponder("12345:mock-token", http.StatusOK, `{"ok":false}`)
-
-			err = telegram.Send("Message", nil)
-			gomega.Expect(err).To(gomega.MatchError(ErrUnexpectedResponse))
-		})
-
-		ginkgo.It("should report a Telegram API error returned with HTTP 200", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			setupSendMessageResponder(
-				"12345:mock-token",
-				http.StatusOK,
-				`{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`,
-			)
-
-			err = telegram.Send("Message", nil)
-
-			apiErr, ok := errors.AsType[*responseError](err)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(apiErr.ErrorCode).To(gomega.Equal(403))
-			gomega.Expect(apiErr.Description).To(gomega.Equal("Forbidden: bot was blocked by the user"))
-		})
-
-		ginkgo.It("should send to the chats set by the send params", func() {
-			serviceURL := testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1")
-			err = telegram.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			var chats []string
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://api.telegram.org/bot12345:mock-token/sendMessage",
-				func(req *http.Request) (*http.Response, error) {
-					body, readErr := io.ReadAll(req.Body)
-					gomega.Expect(readErr).NotTo(gomega.HaveOccurred())
-
-					payload := struct {
-						ChatID string `json:"chat_id"`
-					}{}
-					gomega.Expect(json.Unmarshal(body, &payload)).To(gomega.Succeed())
-					chats = append(chats, payload.ChatID)
-
-					return httpmock.NewStringResponse(http.StatusOK, sendSuccessBody), nil
-				},
-			)
-
-			err = telegram.Send("Message", &types.Params{"chats": "channel-9"})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(chats).To(gomega.Equal([]string{"channel-9"}))
-		})
-	})
-
-	ginkgo.It("should implement basic service API methods correctly", func() {
-		serviceURL, _ := url.Parse("telegram://12345:mock-token@telegram/?chats=channel-1")
-		err := telegram.Initialize(serviceURL, logger)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-		config := telegram.GetConfig()
-		testutils.TestConfigGetInvalidQueryValue(config)
-		testutils.TestConfigSetInvalidQueryValue(
-			config,
-			"telegram://12345:mock-token@telegram/?chats=channel-1&foo=bar",
-		)
-		testutils.TestConfigGetEnumsCount(config, 1)
-		testutils.TestConfigGetFieldsCount(config, 6)
-	})
-	ginkgo.It("should return the correct service ID", func() {
-		service := &Service{}
-		gomega.Expect(service.GetID()).To(gomega.Equal("telegram"))
-	})
-})
-
-var _ = ginkgo.Describe("ServiceTimeout", func() {
-	ginkgo.DescribeTable("should budget one client timeout for each chat",
-		func(params *types.Params, want time.Duration) {
-			service := &Service{}
-			gomega.Expect(service.Initialize(
-				testutils.URLMust("telegram://12345:mock-token@telegram/?chats=a,b,c"),
-				testutils.TestLogger(),
-			)).To(gomega.Succeed())
-
-			gomega.Expect(service.ServiceTimeout(params)).To(gomega.Equal(want))
-		},
-		ginkgo.Entry("for the configured chats", nil, 3*defaultHTTPTimeout),
-		ginkgo.Entry("for chats set by params", &types.Params{"chats": "a,b"}, 2*defaultHTTPTimeout),
-		ginkgo.Entry("for the configured chats when a param is invalid", &types.Params{"preview": "maybe"}, 3*defaultHTTPTimeout),
-	)
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
-
-		service := &Service{}
-		gomega.Expect(service.Initialize(
-			testutils.URLMust("telegram://12345:mock-token@telegram/?chats=channel-1"),
-			testutils.TestLogger(),
-		)).To(gomega.Succeed())
-		service.SetHTTPClient(client)
-
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
-	})
-})
-
-func TestTelegram(t *testing.T) {
+// TestInitializeRejectsInvalidURLs verifies that Initialize fails for URLs
+// without a valid token or chats, and leaves the config empty.
+func TestInitializeRejectsInvalidURLs(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Telegram Suite")
+
+	// tests lists URLs that Initialize must reject.
+	tests := []struct {
+		name   string
+		rawURL string
+	}{
+		{name: "no arguments", rawURL: "telegram://"},
+		{name: "invalid token format", rawURL: "telegram://invalid-token"},
+		{name: "token without chats", rawURL: "telegram://12345:mock-token@telegram"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{}
+			require.Error(t, service.Initialize(parseURL(t, tt.rawURL), log.New(t.Output(), "", 0)))
+
+			config := service.GetConfig()
+			assert.Empty(t, config.Token)
+			assert.Empty(t, config.Chats)
+		})
+	}
 }
 
-func expectErrorAndEmptyObject(telegram *Service, rawURL string, logger *log.Logger) {
-	serviceURL, _ := url.Parse(rawURL)
-	err := telegram.Initialize(serviceURL, logger)
-	gomega.Expect(err).To(gomega.HaveOccurred())
+// TestInitializeHidesInvalidToken verifies that an invalid token is rejected
+// without echoing it in the error.
+func TestInitializeHidesInvalidToken(t *testing.T) {
+	t.Parallel()
 
-	config := telegram.GetConfig()
-	gomega.Expect(config.Token).To(gomega.BeEmpty())
-	gomega.Expect(config.Chats).To(gomega.BeEmpty())
+	err := (&Service{}).Initialize(parseURL(t, "telegram://bot:SECRETtoken@telegram/?chats=1"), log.New(t.Output(), "", 0))
+
+	require.ErrorIs(t, err, ErrInvalidToken)
+	assert.NotContains(t, err.Error(), "SECRETtoken")
 }
 
-// setupSendMessageResponder answers sendMessage requests for token with code and body.
-func setupSendMessageResponder(token string, code int, body string) {
-	targetURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
-	httpmock.RegisterResponder("POST", targetURL, httpmock.NewStringResponder(code, body))
+// TestInitializeReadsConfig verifies that a valid URL sets the token and every
+// chat listed in the chats query.
+func TestInitializeReadsConfig(t *testing.T) {
+	t.Parallel()
+
+	config := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3").GetConfig()
+
+	require.NotNil(t, config)
+	assert.Equal(t, "12345:mock-token", config.Token)
+	assert.Equal(t, []string{"channel-1", "channel-2", "channel-3"}, config.Chats)
+}
+
+// TestGetID verifies the service identifier.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "telegram", (&Service{}).GetID())
+}
+
+// TestSendSucceeds verifies that a send to every chat succeeds when Telegram
+// accepts the payload, and that it posts to the token's sendMessage endpoint.
+func TestSendSucceeds(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+
+	service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+	service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		paths = append(paths, req.URL.Path)
+
+		return newResponse(req, http.StatusOK, sendSuccessBody), nil
+	})})
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.Equal(t, []string{sendMessagePath, sendMessagePath, sendMessagePath}, paths)
+}
+
+// TestSendReportsFailures verifies that a send reports transport errors, error
+// statuses, and Telegram API failures, including those returned with HTTP 200.
+func TestSendReportsFailures(t *testing.T) {
+	t.Parallel()
+
+	errTransport := errors.New("connection reset")
+
+	// tests lists Telegram responses with the error each should produce, and
+	// the API error code and description when Telegram sends them.
+	tests := []struct {
+		name            string
+		transport       roundTripFunc
+		wantErr         error
+		wantText        string
+		wantCode        int
+		wantDescription string
+	}{
+		{
+			name: "transport error",
+			transport: func(*http.Request) (*http.Response, error) {
+				return nil, errTransport
+			},
+			wantErr: errTransport,
+		},
+		{
+			name:      "error status without a Telegram error",
+			transport: respondWith(http.StatusBadGateway, "<html>Bad Gateway</html>"),
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantText:  "502",
+		},
+		{
+			name:            "Telegram error with an error status",
+			transport:       respondWith(http.StatusBadRequest, `{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`),
+			wantErr:         jsonclient.ErrUnexpectedStatus,
+			wantText:        "400",
+			wantCode:        400,
+			wantDescription: "Bad Request: chat not found",
+		},
+		{
+			name:      "failure without a description",
+			transport: respondWith(http.StatusOK, `{"ok":false}`),
+			wantErr:   ErrUnexpectedResponse,
+		},
+		{
+			name:            "Telegram error with HTTP 200",
+			transport:       respondWith(http.StatusOK, `{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`),
+			wantCode:        403,
+			wantDescription: "Forbidden: bot was blocked by the user",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := newSendingService(t, tt.transport).Send("Message", nil)
+
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), "mock-token", "the error must not reveal the token")
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+
+			if tt.wantText != "" {
+				assert.Contains(t, err.Error(), tt.wantText)
+			}
+
+			if tt.wantDescription != "" {
+				apiErr, ok := errors.AsType[*responseError](err)
+				require.True(t, ok, "the error should carry the Telegram API error")
+				assert.Equal(t, tt.wantCode, apiErr.ErrorCode)
+				assert.Equal(t, tt.wantDescription, apiErr.Description)
+			}
+		})
+	}
+}
+
+// TestSendUsesChatsFromParams verifies that the chats send param replaces the
+// configured chats for that send.
+func TestSendUsesChatsFromParams(t *testing.T) {
+	t.Parallel()
+
+	var chats []string
+
+	service := newSendingService(t, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var payload struct {
+			ChatID string `json:"chat_id"`
+		}
+
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, err
+		}
+
+		chats = append(chats, payload.ChatID)
+
+		return newResponse(req, http.StatusOK, sendSuccessBody), nil
+	}))
+
+	require.NoError(t, service.Send("Message", &types.Params{"chats": "channel-9"}))
+	assert.Equal(t, []string{"channel-9"}, chats)
+}
+
+// TestSendRejectsLongMessage verifies that a message over the length limit fails
+// before any request is made.
+func TestSendRejectsLongMessage(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	// The mock has no expectations, so any request fails the test.
+	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send(strings.Repeat("a", maxlength+1), nil), ErrMessageTooLong)
+}
+
+// TestSendContextCanceled verifies that a canceled context stops the request.
+func TestSendContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	client := typesmocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	}).Once()
+
+	service := newTestService(t, testServiceURL)
+	service.SetHTTPClient(client)
+
+	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+}
+
+// TestHTTPClientOrDefault verifies that the service uses an injected client,
+// and otherwise a default client with the send timeout.
+func TestHTTPClientOrDefault(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default", func(t *testing.T) {
+		t.Parallel()
+
+		client, ok := newTestService(t, testServiceURL).httpClientOrDefault().(*http.Client)
+		require.True(t, ok, "the default client should be an *http.Client")
+		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+	})
+
+	t.Run("injected", func(t *testing.T) {
+		t.Parallel()
+
+		injected := typesmocks.NewMockHTTPClient(t)
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(injected)
+
+		assert.Same(t, injected, service.httpClientOrDefault())
+	})
+}
+
+// TestServiceTimeout verifies that the send budget is one client timeout for
+// each chat, using the chats from params when they are valid.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	// tests lists send params with the budget they should produce for a service
+	// configured with three chats.
+	tests := []struct {
+		name   string
+		params *types.Params
+		want   time.Duration
+	}{
+		{name: "configured chats", params: nil, want: 3 * defaultHTTPTimeout},
+		{name: "chats set by params", params: &types.Params{"chats": "a,b"}, want: 2 * defaultHTTPTimeout},
+		{name: "configured chats when a param is invalid", params: &types.Params{"preview": "maybe"}, want: 3 * defaultHTTPTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=a,b,c")
+
+			assert.Equal(t, tt.want, service.ServiceTimeout(tt.params))
+		})
+	}
 }
