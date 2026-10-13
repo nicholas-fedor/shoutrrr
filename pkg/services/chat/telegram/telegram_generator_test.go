@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -22,6 +23,9 @@ const (
 	// generatorAPIBase is the Telegram API base URL for generatorToken.
 	generatorAPIBase = "https://api.telegram.org/bot" + generatorToken + "/"
 )
+
+// errUnexpectedRequest answers a request that no test responder matches.
+var errUnexpectedRequest = errors.New("unexpected request to the Telegram API")
 
 // botInfoResponder answers getMe with a bot named mockbot.
 var botInfoResponder = httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
@@ -154,6 +158,9 @@ func TestGeneratorReportsAPIFailures(t *testing.T) {
 //nolint:paralleltest // httpmock replaces the shared http.DefaultTransport.
 func TestGeneratorStopsWithoutToken(t *testing.T) {
 	activateTelegramMock(t)
+	// httpmock counts only requests that reach a responder, so an unmatched
+	// request needs one for the call count to include it.
+	httpmock.RegisterNoResponder(httpmock.NewErrorResponder(errUnexpectedRequest))
 
 	gen := &Generator{Reader: strings.NewReader(""), Writer: io.Discard}
 

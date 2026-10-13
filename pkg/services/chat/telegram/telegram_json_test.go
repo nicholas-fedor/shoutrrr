@@ -58,10 +58,13 @@ func TestPayloadParseMode(t *testing.T) {
 			raw, err := json.Marshal(payload)
 			require.NoError(t, err)
 
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(raw, &fields))
+
 			if tt.want == "" {
-				assert.NotContains(t, string(raw), "parse_mode")
+				assert.NotContains(t, fields, "parse_mode")
 			} else {
-				assert.Contains(t, string(raw), "parse_mode")
+				assert.Equal(t, tt.want, fields["parse_mode"])
 			}
 		})
 	}
