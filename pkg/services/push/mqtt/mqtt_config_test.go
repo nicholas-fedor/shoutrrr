@@ -2,530 +2,300 @@ package mqtt
 
 import (
 	"net/url"
+	"testing"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	ginkgo.Context("GetURL", func() {
-		ginkgo.It("should build URL with all fields populated", func() {
-			config := &Config{
-				Host:                   "broker.example.com",
-				Port:                   1883,
-				Topic:                  "notifications/alerts",
-				Username:               "testuser",
-				Password:               "testpass",
-				ClientID:               "shoutrrr-client",
-				QoS:                    QoSAtLeastOnce,
-				Retained:               true,
-				CleanSession:           false,
-				DisableTLS:             true,
-				DisableTLSVerification: true,
-			}
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-			result := config.GetURL()
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
-			gomega.Expect(result.Scheme).To(gomega.Equal("mqtt"))
-			gomega.Expect(result.Hostname()).To(gomega.Equal("broker.example.com"))
-			gomega.Expect(result.Port()).To(gomega.Equal("1883"))
-			gomega.Expect(result.Path).To(gomega.Equal("notifications/alerts"))
-			gomega.Expect(result.User.Username()).To(gomega.Equal("testuser"))
-			pass, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeTrue())
-			gomega.Expect(pass).To(gomega.Equal("testpass"))
-			gomega.Expect(result.Query().Get("clientid")).To(gomega.Equal("shoutrrr-client"))
-			gomega.Expect(result.Query().Get("qos")).To(gomega.Equal("AtLeastOnce"))
-			gomega.Expect(result.Query().Get("retained")).To(gomega.Equal("Yes"))
-			gomega.Expect(result.Query().Get("cleansession")).To(gomega.Equal("No"))
-			gomega.Expect(result.Query().Get("disabletls")).To(gomega.Equal("Yes"))
-			gomega.Expect(result.Query().Get("disabletlsverification")).To(gomega.Equal("Yes"))
-		})
+	return parsed
+}
 
-		ginkgo.It("should build URL without credentials", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "notifications/alerts",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
+// TestConfigGetURL verifies that GetURL encodes every field in the URL, omits
+// absent credentials, and refuses a password without a username.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
 
-			result := config.GetURL()
+	t.Run("all fields", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(result.User).To(gomega.BeNil())
-			gomega.Expect(result.Hostname()).To(gomega.Equal("broker.example.com"))
-			gomega.Expect(result.Path).To(gomega.Equal("notifications/alerts"))
-		})
+		config := &Config{
+			Host:                   "broker.example.com",
+			Port:                   1883,
+			Topic:                  "notifications/alerts",
+			Username:               "testuser",
+			Password:               "testpass",
+			ClientID:               "shoutrrr-client",
+			QoS:                    QoSAtLeastOnce,
+			Retained:               true,
+			CleanSession:           false,
+			DisableTLS:             true,
+			DisableTLSVerification: true,
+		}
 
-		ginkgo.It("should build URL with username only", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "notifications/alerts",
-				Username: "testuser",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
+		result := config.GetURL()
+		require.NotNil(t, result)
 
-			result := config.GetURL()
+		assert.Equal(t, "mqtt", result.Scheme)
+		assert.Equal(t, "broker.example.com", result.Hostname())
+		assert.Equal(t, "1883", result.Port())
+		assert.Equal(t, "notifications/alerts", result.Path)
+		assert.Equal(t, "testuser", result.User.Username())
 
-			gomega.Expect(result.User.Username()).To(gomega.Equal("testuser"))
-			_, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeFalse())
-		})
+		password, hasPassword := result.User.Password()
+		assert.True(t, hasPassword)
+		assert.Equal(t, "testpass", password)
 
-		ginkgo.It("should build URL with default ports", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "test/topic",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
-
-			result := config.GetURL()
-
-			gomega.Expect(result.Port()).To(gomega.Equal("1883"))
-		})
-
-		ginkgo.It("should handle special characters in topic", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "notifications/alerts/critical",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
-
-			result := config.GetURL()
-
-			gomega.Expect(result.Path).To(gomega.Equal("notifications/alerts/critical"))
-		})
-
-		ginkgo.It("should build URL with QoS exactly once", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "test/topic",
-				ClientID: "shoutrrr",
-				QoS:      QoSExactlyOnce,
-			}
-
-			result := config.GetURL()
-
-			gomega.Expect(result.Query().Get("qos")).To(gomega.Equal("ExactlyOnce"))
-		})
-
-		ginkgo.It("should return nil when password is provided without username", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "notifications/alerts",
-				Password: "secretpassword",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
-
-			result := config.GetURL()
-
-			gomega.Expect(result).To(gomega.BeNil())
-		})
-
-		ginkgo.It("should return valid URL when both username and password are provided", func() {
-			config := &Config{
-				Host:     "broker.example.com",
-				Port:     1883,
-				Topic:    "notifications/alerts",
-				Username: "testuser",
-				Password: "secretpassword",
-				ClientID: "shoutrrr",
-				QoS:      QoSAtMostOnce,
-			}
-
-			result := config.GetURL()
-
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.User.Username()).To(gomega.Equal("testuser"))
-			pass, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeTrue())
-			gomega.Expect(pass).To(gomega.Equal("secretpassword"))
-		})
+		assert.Equal(t, url.Values{
+			"clientid":               {"shoutrrr-client"},
+			"qos":                    {"AtLeastOnce"},
+			"retained":               {"Yes"},
+			"cleansession":           {"No"},
+			"disabletls":             {"Yes"},
+			"disabletlsverification": {"Yes"},
+		}, result.Query())
 	})
 
-	ginkgo.Context("ValidateCredentials", func() {
-		ginkgo.It("should return error when password is provided without username", func() {
-			config := &Config{
-				Password: "secretpassword",
+	t.Run("no credentials", func(t *testing.T) {
+		t.Parallel()
+
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts", ClientID: "shoutrrr"}).GetURL()
+		require.NotNil(t, result)
+		assert.Nil(t, result.User)
+	})
+
+	t.Run("username only", func(t *testing.T) {
+		t.Parallel()
+
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", Username: "testuser", ClientID: "shoutrrr"}).GetURL()
+		require.NotNil(t, result)
+		assert.Equal(t, "testuser", result.User.Username())
+
+		_, hasPassword := result.User.Password()
+		assert.False(t, hasPassword)
+	})
+
+	t.Run("password without username", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Nil(t, (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", Password: "secret", ClientID: "shoutrrr"}).GetURL())
+	})
+
+	t.Run("exactly once QoS", func(t *testing.T) {
+		t.Parallel()
+
+		result := (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", ClientID: "shoutrrr", QoS: QoSExactlyOnce}).GetURL()
+		require.NotNil(t, result)
+		assert.Equal(t, "ExactlyOnce", result.Query().Get("qos"))
+	})
+}
+
+// TestConfigValidateCredentials verifies that only a password without a
+// username is rejected.
+func TestConfigValidateCredentials(t *testing.T) {
+	t.Parallel()
+
+	// tests lists credential combinations with the error they should produce.
+	tests := []struct {
+		name     string
+		username string
+		password string
+		wantErr  error
+	}{
+		{name: "password without username", password: "secret", wantErr: ErrPasswordWithoutUsername},
+		{name: "username and password", username: "testuser", password: "secret"},
+		{name: "username only", username: "testuser"},
+		{name: "no credentials"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&Config{Username: tt.username, Password: tt.password}).ValidateCredentials()
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
 			}
 
-			err := config.ValidateCredentials()
-
-			gomega.Expect(err).To(gomega.Equal(ErrPasswordWithoutUsername))
+			require.NoError(t, err)
 		})
+	}
+}
 
-		ginkgo.It("should return nil when both username and password are provided", func() {
-			config := &Config{
-				Username: "testuser",
-				Password: "secretpassword",
+// TestConfigSetURL verifies that SetURL reads the host, port, topic,
+// credentials, and query flags, applies the scheme's default port, and accepts
+// QoS as a number or a name.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with the config SetURL should produce. The unexported
+	// scheme is checked separately through GetURL.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "every component",
+			rawURL: "mqtt://testuser:testpass@broker.example.com:1883/notifications/alerts?clientid=myclient&qos=1&retained=yes&cleansession=no&disabletls=yes&disabletlsverification=yes",
+			want: Config{
+				Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts",
+				Username: "testuser", Password: "testpass", ClientID: "myclient", QoS: QoSAtLeastOnce,
+				Retained: true, CleanSession: false, DisableTLS: true, DisableTLSVerification: true,
+			},
+		},
+		{
+			name:   "no credentials",
+			rawURL: "mqtt://broker.example.com:1883/notifications/alerts",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts"},
+		},
+		{
+			name:   "username only",
+			rawURL: "mqtt://testuser@broker.example.com:1883/test/topic",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", Username: "testuser"},
+		},
+		{
+			name:   "nested topic",
+			rawURL: "mqtt://broker.example.com:1883/level1/level2/level3",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "level1/level2/level3"},
+		},
+		{
+			name:   "default mqtts port",
+			rawURL: "mqtts://broker.example.com/test/topic",
+			want:   Config{Host: "broker.example.com", Port: 8883, Topic: "test/topic"},
+		},
+		{
+			name:   "QoS by number",
+			rawURL: "mqtt://broker.example.com:1883/test/topic?qos=2",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSExactlyOnce},
+		},
+		{
+			name:   "QoS by name",
+			rawURL: "mqtt://broker.example.com:1883/test/topic?qos=AtLeastOnce",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "test/topic", QoS: QoSAtLeastOnce},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			got := *config
+			got.scheme = ""
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic
+// and rejects QoS values outside the enum.
+func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty topic", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883/")), ErrTopicRequired)
+	})
+
+	t.Run("invalid QoS", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883/test/topic?qos=5"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a valid enum value")
+	})
+}
+
+// TestConfigSetURLAcceptsDummyURL verifies that the URL used to build an empty
+// config for documentation skips the topic check.
+func TestConfigSetURLAcceptsDummyURL(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://dummy@dummy.com")))
+}
+
+// TestConfigKeepsTLSScheme verifies that a config parsed from an mqtts URL
+// builds an mqtts URL again.
+func TestConfigKeepsTLSScheme(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "mqtts://broker.example.com/test/topic")))
+
+	assert.Equal(t, SchemeTLS, config.GetURL().Scheme)
+}
+
+// TestConfigQueryFieldsAndEnums verifies the query parameters the config
+// exposes and its single QoS enum.
+func TestConfigQueryFieldsAndEnums(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+
+	assert.Subset(t, config.QueryFields(), []string{"clientid", "qos", "retained", "cleansession", "disabletls", "disabletlsverification"})
+
+	enums := config.Enums()
+	assert.Len(t, enums, 1)
+	assert.Contains(t, enums, "QoS")
+}
+
+// TestQoS verifies the QoS names, which values are valid, and the enum
+// formatter's values.
+func TestQoS(t *testing.T) {
+	t.Parallel()
+
+	// tests lists QoS values with their name and validity. An empty name means
+	// only a non-empty string is expected.
+	tests := []struct {
+		qos       QoS
+		wantName  string
+		wantValid bool
+	}{
+		{qos: QoSAtMostOnce, wantName: "AtMostOnce", wantValid: true},
+		{qos: QoSAtLeastOnce, wantName: "AtLeastOnce", wantValid: true},
+		{qos: QoSExactlyOnce, wantName: "ExactlyOnce", wantValid: true},
+		{qos: QoS(3)},
+		{qos: QoS(100)},
+		{qos: QoS(255)},
+		{qos: QoS(-1)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.qos.String(), func(t *testing.T) {
+			t.Parallel()
+
+			if tt.wantName != "" {
+				assert.Equal(t, tt.wantName, tt.qos.String())
+			} else {
+				assert.NotEmpty(t, tt.qos.String())
 			}
 
-			err := config.ValidateCredentials()
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			assert.Equal(t, tt.wantValid, tt.qos.IsValid())
 		})
-
-		ginkgo.It("should return nil when only username is provided", func() {
-			config := &Config{
-				Username: "testuser",
-			}
-
-			err := config.ValidateCredentials()
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return nil when no credentials are provided", func() {
-			config := &Config{}
-
-			err := config.ValidateCredentials()
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Context("SetURL", func() {
-		ginkgo.It("should parse complete URL with all components", func() {
-			config := &Config{}
-			testURL, err := url.Parse(
-				"mqtt://testuser:testpass@broker.example.com:1883/notifications/alerts?clientid=myclient&qos=1&retained=yes&cleansession=no&disabletls=yes&disabletlsverification=yes",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Host).To(gomega.Equal("broker.example.com"))
-			gomega.Expect(config.Port).To(gomega.Equal(1883))
-			gomega.Expect(config.Topic).To(gomega.Equal("notifications/alerts"))
-			gomega.Expect(config.Username).To(gomega.Equal("testuser"))
-			gomega.Expect(config.Password).To(gomega.Equal("testpass"))
-			gomega.Expect(config.ClientID).To(gomega.Equal("myclient"))
-			gomega.Expect(config.QoS).To(gomega.Equal(QoSAtLeastOnce))
-			gomega.Expect(config.Retained).To(gomega.BeTrue())
-			gomega.Expect(config.CleanSession).To(gomega.BeFalse())
-			gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
-			gomega.Expect(config.DisableTLSVerification).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should parse URL without credentials", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/notifications/alerts")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Username).To(gomega.BeEmpty())
-			gomega.Expect(config.Password).To(gomega.BeEmpty())
-			gomega.Expect(config.Host).To(gomega.Equal("broker.example.com"))
-			gomega.Expect(config.Topic).To(gomega.Equal("notifications/alerts"))
-		})
-
-		ginkgo.It("should parse URL with query parameters for QoS and flags", func() {
-			config := &Config{}
-			testURL, err := url.Parse(
-				"mqtt://broker.example.com:1883/test/topic?qos=2&retained=yes&cleansession=no",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.QoS).To(gomega.Equal(QoSExactlyOnce))
-			gomega.Expect(config.Retained).To(gomega.BeTrue())
-			gomega.Expect(config.CleanSession).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return error for empty topic", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.Equal(ErrTopicRequired))
-		})
-
-		ginkgo.It("should handle default port for mqtt scheme", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Port).To(gomega.Equal(1883))
-		})
-
-		ginkgo.It("should handle default port for mqtts scheme", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtts://broker.example.com/test/topic")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Port).To(gomega.Equal(8883))
-		})
-
-		ginkgo.It("should keep the mqtts scheme in GetURL", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtts://broker.example.com/test/topic")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.GetURL().Scheme).To(gomega.Equal(SchemeTLS))
-		})
-
-		ginkgo.It("should parse client_id from query", func() {
-			config := &Config{}
-			testURL, err := url.Parse(
-				"mqtt://broker.example.com:1883/test/topic?clientid=custom-client-id",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.ClientID).To(gomega.Equal("custom-client-id"))
-		})
-
-		ginkgo.It("should parse retained flag from query", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?retained=yes")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Retained).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should parse clean_session flag from query", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?cleansession=no")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.CleanSession).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should parse disable_tls flag from query", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?disabletls=yes")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should parse disable_tls_verification flag from query", func() {
-			config := &Config{}
-			testURL, err := url.Parse(
-				"mqtt://broker.example.com:1883/test/topic?disabletlsverification=yes",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.DisableTLSVerification).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return error for invalid QoS value", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?qos=5")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("not a valid enum value"))
-		})
-
-		ginkgo.It("should parse URL with username only", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://testuser@broker.example.com:1883/test/topic")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Username).To(gomega.Equal("testuser"))
-			gomega.Expect(config.Password).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should handle nested topic paths", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/level1/level2/level3")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.Topic).To(gomega.Equal("level1/level2/level3"))
-		})
-
-		ginkgo.It("should skip topic validation for dummy URL", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://dummy@dummy.com")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should parse QoS using numeric string", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?qos=0")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.QoS).To(gomega.Equal(QoSAtMostOnce))
-		})
-
-		ginkgo.It("should parse QoS using string name", func() {
-			config := &Config{}
-			testURL, err := url.Parse("mqtt://broker.example.com:1883/test/topic?qos=AtLeastOnce")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(config.QoS).To(gomega.Equal(QoSAtLeastOnce))
-		})
-	})
-
-	ginkgo.Context("QueryFields", func() {
-		ginkgo.It("should return all configurable field names", func() {
-			config := &Config{}
-			fields := config.QueryFields()
-
-			gomega.Expect(fields).To(gomega.ContainElements(
-				"clientid",
-				"qos",
-				"retained",
-				"cleansession",
-				"disabletls",
-				"disabletlsverification",
-			))
-		})
-
-		ginkgo.It("should return non-empty slice", func() {
-			config := &Config{}
-			fields := config.QueryFields()
-
-			gomega.Expect(fields).NotTo(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Context("Enums", func() {
-		ginkgo.It("should return QoS enum formatter", func() {
-			config := &Config{}
-			enums := config.Enums()
-
-			gomega.Expect(enums).To(gomega.HaveKey("QoS"))
-		})
-
-		ginkgo.It("should return map with exactly one entry", func() {
-			config := &Config{}
-			enums := config.Enums()
-
-			gomega.Expect(enums).To(gomega.HaveLen(1))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("QoS", func() {
-	ginkgo.Context("String", func() {
-		ginkgo.It("should return 'AtMostOnce' for QoSAtMostOnce (0)", func() {
-			qos := QoSAtMostOnce
-			gomega.Expect(qos.String()).To(gomega.Equal("AtMostOnce"))
-		})
-
-		ginkgo.It("should return 'AtLeastOnce' for QoSAtLeastOnce (1)", func() {
-			qos := QoSAtLeastOnce
-			gomega.Expect(qos.String()).To(gomega.Equal("AtLeastOnce"))
-		})
-
-		ginkgo.It("should return 'ExactlyOnce' for QoSExactlyOnce (2)", func() {
-			qos := QoSExactlyOnce
-			gomega.Expect(qos.String()).To(gomega.Equal("ExactlyOnce"))
-		})
-
-		ginkgo.It("should return formatted string for invalid values", func() {
-			qos := QoS(100)
-			result := qos.String()
-			gomega.Expect(result).NotTo(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Context("IsValid", func() {
-		ginkgo.It("should return true for QoSAtMostOnce (0)", func() {
-			qos := QoSAtMostOnce
-			gomega.Expect(qos.IsValid()).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return true for QoSAtLeastOnce (1)", func() {
-			qos := QoSAtLeastOnce
-			gomega.Expect(qos.IsValid()).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return true for QoSExactlyOnce (2)", func() {
-			qos := QoSExactlyOnce
-			gomega.Expect(qos.IsValid()).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return false for invalid value 3", func() {
-			qos := QoS(3)
-			gomega.Expect(qos.IsValid()).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return false for invalid value 255", func() {
-			qos := QoS(255)
-			gomega.Expect(qos.IsValid()).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return false for negative value", func() {
-			qos := QoS(-1)
-			gomega.Expect(qos.IsValid()).To(gomega.BeFalse())
-		})
-	})
-})
-
-var _ = ginkgo.Describe("QoSValues", func() {
-	ginkgo.Context("Enum formatter", func() {
-		ginkgo.It("should have correct AtMostOnce value", func() {
-			gomega.Expect(QoSValues.AtMostOnce).To(gomega.Equal(QoSAtMostOnce))
-		})
-
-		ginkgo.It("should have correct AtLeastOnce value", func() {
-			gomega.Expect(QoSValues.AtLeastOnce).To(gomega.Equal(QoSAtLeastOnce))
-		})
-
-		ginkgo.It("should have correct ExactlyOnce value", func() {
-			gomega.Expect(QoSValues.ExactlyOnce).To(gomega.Equal(QoSExactlyOnce))
-		})
-
-		ginkgo.It("should have non-nil Enum formatter", func() {
-			gomega.Expect(QoSValues.Enum).NotTo(gomega.BeNil())
-		})
-	})
-})
+	}
+
+	assert.Equal(t, QoSAtMostOnce, QoSValues.AtMostOnce)
+	assert.Equal(t, QoSAtLeastOnce, QoSValues.AtLeastOnce)
+	assert.Equal(t, QoSExactlyOnce, QoSValues.ExactlyOnce)
+	assert.NotNil(t, QoSValues.Enum)
+}
