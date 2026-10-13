@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the failure tests from ginkgo to testify by @nicholas-fedor in [#1554](https://github.com/nicholas-fedor/shoutrrr/pull/1554)
 - Migrate the router suite from ginkgo to testify by @nicholas-fedor in [#1552](https://github.com/nicholas-fedor/shoutrrr/pull/1552)
 
 ### Build
