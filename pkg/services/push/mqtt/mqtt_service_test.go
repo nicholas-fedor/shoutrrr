@@ -104,7 +104,7 @@ func TestInitialize(t *testing.T) {
 	}
 
 	// tests lists service URLs with the config Initialize should produce. The
-	// unexported scheme is left out of the comparison.
+	// unexported scheme is checked against the URL's scheme on its own.
 	tests := []struct {
 		name   string
 		rawURL string
@@ -145,9 +145,12 @@ func TestInitialize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			serviceURL := parseTestURL(t, tt.rawURL)
+
 			service := &Service{}
-			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(t.Output(), "", 0)))
+			require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 			require.NotNil(t, service.Config)
+			assert.Equal(t, serviceURL.Scheme, service.Config.scheme, "Initialize must keep the URL scheme")
 
 			got := *service.Config
 			got.scheme = ""
