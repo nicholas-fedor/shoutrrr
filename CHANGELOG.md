@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update goreleaser/goreleaser-action action to v7.3.0 by @renovate[bot] in [#1546](https://github.com/nicholas-fedor/shoutrrr/pull/1546)
 - Update dependency verspec to v0.2.0 by @renovate[bot] in [#1545](https://github.com/nicholas-fedor/shoutrrr/pull/1545)
 - Update nicholas-fedor/govulncheck-action action to v1.1.1 by @renovate[bot] in [#1544](https://github.com/nicholas-fedor/shoutrrr/pull/1544)
 - Update github.com/google/pprof digest to 2af12c3 by @renovate[bot] in [#1541](https://github.com/nicholas-fedor/shoutrrr/pull/1541)
