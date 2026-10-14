@@ -128,7 +128,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		bytes.NewReader(json),
 	)
 	if err != nil {
-		return fmt.Errorf("creating POST request: %w", err)
+		return fmt.Errorf("creating POST request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

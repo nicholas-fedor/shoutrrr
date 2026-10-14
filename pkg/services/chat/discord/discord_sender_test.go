@@ -702,3 +702,29 @@ func TestHandleServerError(t *testing.T) {
 		})
 	}
 }
+
+// TestPrepareRequestRedactsUnparsableURL verifies that both request preparers
+// report an unparsable webhook URL without the token in the error.
+func TestPrepareRequestRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	const postURL = "https://discord.com/api/webhooks/123/SECRETtoken%zz"
+
+	// preparers lists the request preparers under test.
+	preparers := map[string]RequestPreparer{
+		"JSON":      newJSONPreparer(),
+		"multipart": &MultipartRequestPreparer{payload: &WebhookPayload{Content: "message"}, files: nil},
+	}
+
+	for name, preparer := range preparers {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := preparer.PrepareRequest(t.Context(), postURL)
+
+			_, isURLErr := errors.AsType[*url.Error](err)
+			require.True(t, isURLErr, "error %v is not a *url.Error", err)
+			assert.NotContains(t, err.Error(), "SECRETtoken")
+		})
+	}
+}

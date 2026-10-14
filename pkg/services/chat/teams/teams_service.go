@@ -276,7 +276,7 @@ func (s *Service) postJSON(ctx context.Context, serviceURL string, payload []byt
 		bytes.NewBuffer(payload),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
+		return nil, fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

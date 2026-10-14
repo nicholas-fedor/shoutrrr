@@ -174,7 +174,7 @@ func (s *DefaultSender) sendRequestWithHeaders(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrCreateRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateRequest, redact.URLError(err))
 	}
 
 	s.setRequestHeaders(req, headers)

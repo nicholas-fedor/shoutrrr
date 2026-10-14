@@ -884,6 +884,22 @@ var _ = ginkgo.Describe("Service Unit Tests", func() {
 	})
 })
 
+var _ = ginkgo.Describe("request building", func() {
+	ginkgo.It("should not leak the bot credentials when the request URL cannot be parsed", func() {
+		service := &Service{
+			// The mock has no expectations, so a request fails the spec.
+			HTTPClient: mocks.NewMockHTTPClient(ginkgo.GinkgoT()),
+		}
+		config := &Config{BotMail: "SECRETbot@example.com", BotKey: "SECRETbotKey", Host: "bad host", Stream: "stream", Topic: "topic"}
+
+		err := service.doSend(context.Background(), config, "message")
+
+		var urlErr *url.Error
+		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
+		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETbot"))
+	})
+})
+
 func (m *mockLogger) Print(_ ...any)            {}
 func (m *mockLogger) Printf(_ string, _ ...any) {}
 func (m *mockLogger) Println(_ ...any)          {}

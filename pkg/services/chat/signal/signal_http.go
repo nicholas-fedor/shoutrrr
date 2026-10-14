@@ -84,7 +84,7 @@ func (s *Service) createRequest(
 	if err != nil {
 		cancel()
 
-		return nil, nil, fmt.Errorf("creating HTTP request: %w", err)
+		return nil, nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)

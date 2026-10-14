@@ -175,7 +175,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) er
 		bytes.NewBuffer(payload),
 	)
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

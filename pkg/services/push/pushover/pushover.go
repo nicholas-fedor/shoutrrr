@@ -192,7 +192,7 @@ func (s *Service) sendToDevice(ctx context.Context, device, message string, conf
 		strings.NewReader(data.Encode()),
 	)
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)

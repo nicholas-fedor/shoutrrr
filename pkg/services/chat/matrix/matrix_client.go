@@ -135,7 +135,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 		http.NoBody,
 	)
 	if err != nil {
-		return fmt.Errorf("creating GET request: %w", err)
+		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
 	}
 
 	c.setAuthorizationHeader(req)
@@ -207,7 +207,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("creating %s request: %w", method, err)
+		return fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)

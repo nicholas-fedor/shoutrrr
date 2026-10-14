@@ -613,3 +613,19 @@ func TestServiceSendRequestInvalidURL(t *testing.T) {
 	require.ErrorAs(t, err, &urlErr)
 	assert.ErrorContains(t, err, "creating HTTP request")
 }
+
+// TestServiceSendRedactsUnparsableURL verifies that a token that makes the
+// webhook URL unparsable fails the send without the token in the error.
+func TestServiceSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "lark://open.larksuite.com/SECRETtoken%25zz")
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETtoken")
+}

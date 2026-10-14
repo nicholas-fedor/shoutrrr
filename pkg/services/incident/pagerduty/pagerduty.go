@@ -251,7 +251,7 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 		jsonBuffer,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create HTTP request: %w", err)
+		return fmt.Errorf("failed to create HTTP request: %w", redact.URLError(err))
 	}
 
 	// Set the Content-Type header to application/json

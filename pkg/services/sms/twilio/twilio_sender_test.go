@@ -2,12 +2,16 @@ package twilio
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 var _ = ginkgo.Describe("Sender Unit Tests", func() {
@@ -117,5 +121,21 @@ var _ = ginkgo.Describe("Sender Unit Tests", func() {
 			err := parseAPIError(res)
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
+	})
+})
+
+var _ = ginkgo.Describe("request building", func() {
+	ginkgo.It("should not leak the account SID when the request URL cannot be parsed", func() {
+		service := &Service{
+			// The mock has no expectations, so a request fails the spec.
+			HTTPClient: typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()),
+		}
+		config := &Config{AccountSID: "ACSECRETsid%zz", AuthToken: "token", FromNumber: "+15551234567", ToNumbers: []string{"+15559876543"}}
+
+		err := service.sendToRecipient(context.Background(), config, "+15559876543", "message")
+
+		var urlErr *url.Error
+		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
+		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("ACSECRETsid"))
 	})
 })

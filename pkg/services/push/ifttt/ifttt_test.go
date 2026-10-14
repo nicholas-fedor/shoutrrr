@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -384,6 +385,21 @@ var _ = ginkgo.Describe("SendContext", func() {
 		service.SetHTTPClient(client)
 
 		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+})
+
+var _ = ginkgo.Describe("request building", func() {
+	ginkgo.It("should not leak the webhook ID when the request URL cannot be parsed", func() {
+		service := &ifttt.Service{}
+		gomega.Expect(service.Initialize(testutils.URLMust("ifttt://SECRETwebhookID/?events=%25zz"), testutils.TestLogger())).To(gomega.Succeed())
+		// The mock has no expectations, so a request fails the spec.
+		service.SetHTTPClient(typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()))
+
+		err := service.Send("message", nil)
+
+		var urlErr *url.Error
+		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
+		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETwebhookID"))
 	})
 })
 

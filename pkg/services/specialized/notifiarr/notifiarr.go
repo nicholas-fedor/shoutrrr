@@ -428,7 +428,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte) error {
 	// Create HTTP request with context and timeout
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	// Set headers

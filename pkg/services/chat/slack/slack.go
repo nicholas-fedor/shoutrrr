@@ -190,7 +190,7 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload any) 
 		bytes.NewBuffer(payloadBytes),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create webhook request: %w", err)
+		return fmt.Errorf("failed to create webhook request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", jsonclient.ContentType)

@@ -195,7 +195,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)

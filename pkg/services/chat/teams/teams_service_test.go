@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -545,4 +546,22 @@ func TestColorToEnum(t *testing.T) {
 			assert.Equal(t, tt.want, colorToEnum(tt.color))
 		})
 	}
+}
+
+// TestServiceSendRedactsUnparsableWebhookURL verifies that a webhook URL that
+// passes validation but cannot form a request fails the send without its
+// signature in the error.
+func TestServiceSendRedactsUnparsableWebhookURL(t *testing.T) {
+	t.Parallel()
+
+	// The mock has no expectations, so a request fails the test.
+	service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
+	params := &types.Params{"host": "https://prod-00.westus.logic.azure.com/workflows/%zz?sig=SECRETsig"}
+
+	err := service.Send("Message", params)
+
+	require.ErrorIs(t, err, ErrSendFailed)
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v does not wrap a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETsig")
 }

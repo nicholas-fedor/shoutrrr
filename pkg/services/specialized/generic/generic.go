@@ -222,7 +222,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, config.RequestMethod, postURL, payload)
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	// Determine content type based on payload format

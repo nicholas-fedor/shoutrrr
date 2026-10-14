@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -482,4 +483,21 @@ func TestDoSendMultipart(t *testing.T) {
 
 		require.Error(t, (&Service{HTTPClient: client}).doSendMultipart(t.Context(), &payload, []types.File{}, testWebhookURLAlt))
 	})
+}
+
+// TestSendRedactsUnparsableWebhookURL verifies that a token that makes the
+// webhook API URL unparsable fails the send without the token in the error.
+func TestSendRedactsUnparsableWebhookURL(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, "discord://SECRETtoken%25zz@123456789012345678"), log.New(t.Output(), "", 0)))
+	// The mock has no expectations, so a request fails the test.
+	service.HTTPClient = mocks.NewMockHTTPClient(t)
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETtoken")
 }
