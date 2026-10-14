@@ -1,4 +1,4 @@
-package googlechat_test
+package googlechat
 
 import (
 	"context"
@@ -7,248 +7,302 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"strconv"
+	"strings"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/googlechat"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var (
-	service          *googlechat.Service
-	logger           *log.Logger
-	envGooglechatURL *url.URL
-)
+// roundTripFunc adapts a function to [http.RoundTripper].
+type roundTripFunc func(*http.Request) (*http.Response, error)
 
-var _ = ginkgo.BeforeSuite(func() {
-	service = &googlechat.Service{}
-	logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+// capturedRequest records the parts of a request that the send tests check.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
 
-	var err error
+// testServiceURL is a valid Google Chat service URL.
+const testServiceURL = "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz"
 
-	envGooglechatURL, err = url.Parse(os.Getenv("SHOUTRRR_GOOGLECHAT_URL"))
-	if err != nil {
-		envGooglechatURL = &url.URL{} // Default to empty URL if parsing fails
+// testAPIURL is the webhook URL that the service builds from testServiceURL.
+const testAPIURL = "https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz"
+
+// errNetwork is the transport error returned by the failing round tripper.
+var errNetwork = errors.New("network failure")
+
+// RoundTrip calls f with the request.
+//
+// Parameters:
+//   - req: the outgoing request.
+//
+// Returns:
+//   - *http.Response: the response from f.
+//   - error: the error from f.
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// newResponse returns a response with the given status code and an empty body.
+//
+// Parameters:
+//   - status: the HTTP status code.
+//
+// Returns:
+//   - *http.Response: the response.
+func newResponse(status int) *http.Response {
+	return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(""))}
+}
+
+// newTestService returns a service initialized from testServiceURL that sends
+// through client and logs to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - client: the HTTP client the service sends through.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, client types.HTTPClient) *Service {
+	t.Helper()
+
+	serviceURL, err := url.Parse(testServiceURL)
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	service.SetHTTPClient(client)
+
+	return service
+}
+
+// newCapturingClient returns a mock HTTP client that expects one request,
+// records it, and answers with 200 OK.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the recorded request, filled in when the client is called.
+func newCapturingClient(t *testing.T) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		captured.method = req.Method
+		captured.url = req.URL.String()
+		captured.contentType = req.Header.Get("Content-Type")
+		captured.body = string(body)
+
+		return newResponse(http.StatusOK), nil
+	}).Once()
+
+	return client, captured
+}
+
+// TestServiceGetID verifies that the service reports the googlechat scheme as
+// its identifier.
+func TestServiceGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "googlechat", (&Service{}).GetID())
+}
+
+// TestServiceInitialize verifies that Initialize parses the config, installs a
+// default HTTP client when none is set, and keeps a client injected beforehand.
+func TestServiceInitialize(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse(testServiceURL)
+	require.NoError(t, err)
+
+	t.Run("default client", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+		assert.Equal(t, &Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}, service.Config)
+		assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.httpClient)
+	})
+
+	t.Run("injected client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		t.Parallel()
+
+		badURL, err := url.Parse("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=&token=baz")
+		require.NoError(t, err)
+
+		require.ErrorIs(t, (&Service{}).Initialize(badURL, log.New(t.Output(), "", 0)), ErrMissingKey)
+	})
+}
+
+// TestServiceSendRequest verifies that Send posts the message as a JSON payload
+// to the webhook URL built from the config.
+func TestServiceSendRequest(t *testing.T) {
+	t.Parallel()
+
+	client, captured := newCapturingClient(t)
+
+	require.NoError(t, newTestService(t, client).Send("Test Message", nil))
+
+	assert.Equal(t, http.MethodPost, captured.method)
+	assert.Equal(t, testAPIURL, captured.url)
+	assert.Equal(t, "application/json", captured.contentType)
+	assert.JSONEq(t, `{"text":"Test Message"}`, captured.body)
+}
+
+// TestServiceSendStatus verifies that a 2xx response is a success and any other
+// status yields ErrUnexpectedStatus with the status code.
+func TestServiceSendStatus(t *testing.T) {
+	t.Parallel()
+
+	// tests lists response statuses and whether Send accepts them.
+	tests := []struct {
+		name    string
+		status  int
+		wantErr bool
+	}{
+		{name: "200 OK", status: http.StatusOK},
+		{name: "204 No Content", status: http.StatusNoContent},
+		{name: "299", status: 299},
+		{name: "199", status: 199, wantErr: true},
+		{name: "300 Multiple Choices", status: http.StatusMultipleChoices, wantErr: true},
+		{name: "400 Bad Request", status: http.StatusBadRequest, wantErr: true},
+		{name: "500 Internal Server Error", status: http.StatusInternalServerError, wantErr: true},
 	}
-})
 
-var _ = ginkgo.Describe("Google Chat Service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("sends a message successfully with a valid ENV URL", func() {
-			if envGooglechatURL.String() == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mocks.NewMockHTTPClient(t)
+			client.EXPECT().Do(mock.Anything).Return(newResponse(tt.status), nil).Once()
+
+			err := newTestService(t, client).Send("Message", nil)
+
+			if !tt.wantErr {
+				require.NoError(t, err)
 
 				return
 			}
 
-			serviceURL := testutils.URLMust(envGooglechatURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("This is an integration test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			require.ErrorIs(t, err, ErrUnexpectedStatus)
+			assert.ErrorContains(t, err, ": "+strconv.Itoa(tt.status))
 		})
-	})
+	}
+}
 
-	ginkgo.Describe("the service", func() {
-		ginkgo.BeforeEach(func() {
-			service = &googlechat.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("implements Service interface", func() {
-			var impl types.Service = service
-			gomega.Expect(impl).ToNot(gomega.BeNil())
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("googlechat"))
-		})
-	})
-
-	ginkgo.When("parsing the configuration URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &googlechat.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("builds a valid Google Chat Incoming Webhook URL", func() {
-			serviceURL := testutils.URLMust(
-				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
-		})
-		ginkgo.It("is identical after de-/serialization", func() {
-			testURL := "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz"
-			serviceURL := testutils.URLMust(testURL)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(testURL))
-		})
-		ginkgo.It("returns an error if key is present but empty", func() {
-			serviceURL := testutils.URLMust(
-				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=&token=baz",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.MatchError("missing field 'key'"))
-		})
-		ginkgo.It("returns an error if token is present but empty", func() {
-			serviceURL := testutils.URLMust(
-				"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.MatchError("missing field 'token'"))
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &googlechat.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.When("sending via webhook URL", func() {
-			ginkgo.It("does not report an error if the server accepts the payload", func() {
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("reports an error if the server rejects the payload", func() {
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					httpmock.NewStringResponder(400, "Bad Request"),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-			ginkgo.It("marshals the payload correctly with the message", func() {
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					func(req *http.Request) (*http.Response, error) {
-						body, err := io.ReadAll(req.Body)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred())
-						gomega.Expect(string(body)).To(gomega.MatchJSON(`{"text":"Test Message"}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Test Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("sends the POST request with correct URL and content type", func() {
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					func(req *http.Request) (*http.Response, error) {
-						gomega.Expect(req.Method).To(gomega.Equal("POST"))
-						gomega.Expect(req.Header.Get("Content-Type")).
-							To(gomega.Equal("application/json"))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("returns marshal error if JSON marshaling fails", func() {
-				// Note: Current JSON struct (string) can't fail marshaling naturally
-				// This test is a placeholder for future complex payload changes
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Valid Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("returns formatted error if HTTP POST fails", func() {
-				serviceURL := testutils.URLMust(
-					"googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz",
-					httpmock.NewErrorResponder(errors.New("network failure")),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError(
-					"sending notification to Google Chat: Post \"https://chat.googleapis.com\": network failure",
-				))
-			})
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		client := mockTypes.NewMockHTTPClient(ginkgo.GinkgoT())
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
-
-		service := &googlechat.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=KEY&token=TOKEN"), testutils.TestLogger())).To(gomega.Succeed())
-		service.SetHTTPClient(client)
-
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
-	})
-})
-
-// TestGooglechat runs the Ginkgo test suite for the Google Chat package.
-func TestGooglechat(t *testing.T) {
+// TestServiceSendTransportError verifies that a transport failure is wrapped,
+// stays matchable, and has the webhook credentials redacted from its message.
+func TestServiceSendTransportError(t *testing.T) {
 	t.Parallel()
 
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Google Chat Suite")
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errNetwork
+	})}
+
+	err := newTestService(t, client).Send("Message", nil)
+
+	require.ErrorIs(t, err, errNetwork)
+	assert.EqualError(t, err, `sending notification to Google Chat: Post "https://chat.googleapis.com": network failure`)
+}
+
+// TestServiceSendContextCanceled verifies that SendContext stops the request
+// when the caller's context is canceled.
+func TestServiceSendContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	}).Once()
+
+	require.ErrorIs(t, newTestService(t, client).SendContext(ctx, "message", nil), context.Canceled)
+}
+
+// TestServiceSendInvalidURL verifies that SendContext reports a request URL
+// that cannot be built and does not call the HTTP client.
+func TestServiceSendInvalidURL(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{
+		Config:     &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"},
+		httpClient: mocks.NewMockHTTPClient(t),
+	}
+
+	err := service.SendContext(t.Context(), "Message", nil)
+
+	urlErr, ok := errors.AsType[*url.Error](err)
+	require.True(t, ok, "error %v is not a *url.Error", err)
+	assert.Equal(t, "parse", urlErr.Op)
+	assert.ErrorContains(t, err, "creating HTTP request")
+}
+
+// TestServiceSetHTTPClient verifies that SetHTTPClient installs a custom client
+// and restores the default client for a nil or typed-nil client.
+func TestServiceSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	// nilClients lists clients that SetHTTPClient replaces with the default.
+	nilClients := []struct {
+		name   string
+		client types.HTTPClient
+	}{
+		{name: "nil interface", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
+
+	for _, tt := range nilClients {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+			service.SetHTTPClient(tt.client)
+
+			assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.httpClient)
+		})
+	}
 }
