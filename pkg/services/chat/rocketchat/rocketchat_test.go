@@ -2,276 +2,464 @@ package rocketchat
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
+	"strings"
 	"testing"
+	"testing/iotest"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-// Constants for repeated test values.
+// roundTripFunc adapts a function to http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+// capturedRequest records the parts of a request the send tests check.
+type capturedRequest struct {
+	// method is the HTTP method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
+
+// Test token values shared by the service and config tests.
 const (
+	// testTokenA is the first webhook token.
 	testTokenA = "tokenA"
+	// testTokenB is the second webhook token.
 	testTokenB = "tokenB"
 )
 
+// Errors the fake HTTP clients and response bodies return.
 var (
-	service          *Service
-	envRocketchatURL *url.URL
-	_                = ginkgo.BeforeSuite(func() {
-		service = &Service{}
-		envRocketchatURL, _ = url.Parse(os.Getenv("SHOUTRRR_ROCKETCHAT_URL"))
-	})
+	// errTransport is the transport failure the fake HTTP clients return.
+	errTransport = errors.New("transport failed")
+	// errBodyRead is the failure the fake response bodies return when read.
+	errBodyRead = errors.New("body read failed")
 )
 
-var _ = ginkgo.Describe("the rocketchat service", func() {
-	// Add tests for Initialize()
-	ginkgo.Describe("Initialize method", func() {
-		ginkgo.When("initializing with a valid URL", func() {
-			ginkgo.It("should set logger and config without error", func() {
-				service := &Service{}
-				testURL, _ := url.Parse(
-					"rocketchat://testUser@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/#testChannel",
-				)
-				err := service.Initialize(testURL, testutils.TestLogger())
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config).NotTo(gomega.BeNil())
-				gomega.Expect(service.Config.Host).To(gomega.Equal("rocketchat.my-domain.com"))
-				gomega.Expect(service.Config.Port).To(gomega.Equal("5055"))
-				gomega.Expect(service.Config.UserName).To(gomega.Equal("testUser"))
-				gomega.Expect(service.Config.TokenA).To(gomega.Equal(testTokenA))
-				gomega.Expect(service.Config.TokenB).To(gomega.Equal(testTokenB))
-				gomega.Expect(service.Config.Channel).To(gomega.Equal("#testChannel"))
-			})
-		})
-		ginkgo.When("initializing with an invalid URL", func() {
-			ginkgo.It("should return an error", func() {
-				service := &Service{}
-				testURL, _ := url.Parse("rocketchat://rocketchat.my-domain.com") // Missing tokens
-				err := service.Initialize(testURL, testutils.TestLogger())
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).
-					To(gomega.Equal(ErrNotEnoughArguments))
-				// Updated to use the error variable
-			})
-		})
-	})
+// RoundTrip calls f with the request.
+//
+// Parameters:
+//   - req: the outgoing request.
+//
+// Returns:
+//   - *http.Response: the response f returns.
+//   - error: the error f returns.
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
-	// Add tests for Send()
-	ginkgo.Describe("Send method", func() {
-		var (
-			mockServer *httptest.Server
-			service    *Service
-			client     *http.Client
+// newCapturingClient returns an HTTP client that records each request into
+// captured and answers it with status and body.
+//
+// Parameters:
+//   - t: the test.
+//   - status: the response status code.
+//   - body: the response body.
+//   - captured: where the request is recorded.
+//
+// Returns:
+//   - *http.Client: the client.
+func newCapturingClient(t *testing.T, status int, body string, captured *capturedRequest) *http.Client {
+	t.Helper()
+
+	return &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		reqBody, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		*captured = capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			body:        string(reqBody),
+		}
+
+		return &http.Response{
+			StatusCode: status,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+}
+
+// newTestService returns a service for host rocketchat.example.com:5055 with
+// the test tokens, sending through client and logging to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - client: the internal HTTP client.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, client *http.Client) *Service {
+	t.Helper()
+
+	service := &Service{
+		Config: &Config{
+			Host:   "rocketchat.example.com",
+			Port:   "5055",
+			TokenA: testTokenA,
+			TokenB: testTokenB,
+		},
+		Client: client,
+	}
+	service.SetLogger(log.New(t.Output(), "", 0))
+
+	return service
+}
+
+// TestGetID verifies that the service reports its scheme as its ID.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, Scheme, (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses a full URL into the config
+// and rejects a URL without tokens.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL, err := url.Parse(
+			"rocketchat://testUser@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/#testChannel",
 		)
-
-		ginkgo.BeforeEach(func() {
-			// Create TLS server
-			mockServer = httptest.NewTLSServer(nil) // Handler set in each test
-
-			// Configure client to trust the mock server's certificate
-			certPool := x509.NewCertPool()
-			for _, cert := range mockServer.TLS.Certificates {
-				certPool.AddCert(cert.Leaf)
-			}
-
-			client = &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						RootCAs:    certPool,
-						MinVersion: tls.VersionTLS12, // Explicitly set minimum TLS version to 1.2
-					},
-				},
-			}
-
-			service = &Service{
-				Config: &Config{},
-				Client: client, // Assign the custom client here
-			}
-			service.SetLogger(testutils.TestLogger())
-		})
-
-		ginkgo.AfterEach(func() {
-			if mockServer != nil {
-				mockServer.Close()
-			}
-		})
-
-		ginkgo.When("sending a message to a mock server with success", func() {
-			ginkgo.It("should return no error", func() {
-				mockServer.Config.Handler = http.HandlerFunc(
-					func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-					},
-				)
-				mockURL, _ := url.Parse(mockServer.URL)
-				service.Config.Host = mockURL.Hostname()
-				service.Config.Port = mockURL.Port()
-				service.Config.TokenA = testTokenA
-				service.Config.TokenB = testTokenB
-
-				err := service.Send("test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("sending a message to a mock server with failure", func() {
-			ginkgo.It("should return an error with status code and body", func() {
-				mockServer.Config.Handler = http.HandlerFunc(
-					func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte("bad request"))
-					},
-				)
-				mockURL, _ := url.Parse(mockServer.URL)
-				service.Config.Host = mockURL.Hostname()
-				service.Config.Port = mockURL.Port()
-				service.Config.TokenA = testTokenA
-				service.Config.TokenB = testTokenB
-
-				err := service.Send("test message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("notification failed: 400 bad request"))
-			})
-		})
-
-		ginkgo.When("sending a message to an unreachable server", func() {
-			ginkgo.It("should return a connection error", func() {
-				service.Client = http.DefaultClient // Reset to default client for this test
-				// A refused loopback port fails the request without a DNS lookup.
-				service.Config.Host = "127.0.0.1"
-				service.Config.Port = "1"
-				service.Config.TokenA = testTokenA
-				service.Config.TokenB = testTokenB
-
-				err := service.Send("test message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("posting to URL"))
-			})
-		})
-
-		ginkgo.When("sending a message with params overriding username and channel", func() {
-			ginkgo.It("should use params values in the payload", func() {
-				mockServer.Config.Handler = http.HandlerFunc(
-					func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-					},
-				)
-				mockURL, _ := url.Parse(mockServer.URL)
-				service.Config.Host = mockURL.Hostname()
-				service.Config.Port = mockURL.Port()
-				service.Config.TokenA = testTokenA
-				service.Config.TokenB = testTokenB
-				service.Config.UserName = "defaultUser"
-				service.Config.Channel = "#defaultChannel"
-
-				params := types.Params{
-					"username": "overrideUser",
-					"channel":  "#overrideChannel",
-				}
-				err := service.Send("test message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// Note: We can't directly inspect the payload here without mocking CreateJSONPayload,
-				// but this ensures the params path is exercised.
-			})
-		})
-	})
-
-	// Add tests for GetURL() and SetURL()
-	ginkgo.Describe("the rocketchat config", func() {
-		ginkgo.When("generating a URL from a config with all fields", func() {
-			ginkgo.It("should construct a correct URL", func() {
-				config := &Config{
-					Host:   "rocketchat.my-domain.com",
-					Port:   "5055",
-					TokenA: testTokenA,
-					TokenB: testTokenB,
-				}
-				url := config.GetURL()
-				gomega.Expect(url.String()).
-					To(gomega.Equal("rocketchat://rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB))
-			})
-		})
-
-		ginkgo.When("generating a URL from a config without port", func() {
-			ginkgo.It("should construct a correct URL without port", func() {
-				config := &Config{
-					Host:   "rocketchat.my-domain.com",
-					TokenA: testTokenA,
-					TokenB: testTokenB,
-				}
-				url := config.GetURL()
-				gomega.Expect(url.String()).
-					To(gomega.Equal("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB))
-			})
-		})
-
-		ginkgo.When("setting URL with a channel starting with @", func() {
-			ginkgo.It("should set channel without adding #", func() {
-				config := &Config{}
-				testURL, _ := url.Parse(
-					"rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/@user",
-				)
-				err := config.SetURL(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.Channel).To(gomega.Equal("@user"))
-			})
-		})
-
-		ginkgo.When("setting URL with a regular channel without fragment", func() {
-			ginkgo.It("should prepend # to the channel", func() {
-				config := &Config{}
-				testURL, _ := url.Parse(
-					"rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/general",
-				)
-				err := config.SetURL(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.Channel).To(gomega.Equal("#general"))
-			})
-		})
-	})
-
-	// Add test for GetID()
-	ginkgo.Describe("GetID method", func() {
-		ginkgo.It("should return the correct scheme", func() {
-			service := &Service{}
-			id := service.GetID()
-			gomega.Expect(id).To(gomega.Equal(Scheme))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		client := mockTypes.NewMockHTTPClient(ginkgo.GinkgoT())
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
+		require.NoError(t, err)
 
 		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("rocketchat://rocketchat.example.invalid/token/channel"), testutils.TestLogger())).To(gomega.Succeed())
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+		require.NotNil(t, service.Config)
+		assert.NotNil(t, service.Client)
+		assert.Equal(t, &Config{
+			Host:     "rocketchat.my-domain.com",
+			Port:     "5055",
+			UserName: "testUser",
+			TokenA:   testTokenA,
+			TokenB:   testTokenB,
+			Channel:  "#testChannel",
+		}, service.Config)
+	})
+
+	t.Run("missing tokens", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL, err := url.Parse("rocketchat://rocketchat.my-domain.com")
+		require.NoError(t, err)
+
+		service := &Service{}
+		err = service.Initialize(serviceURL, log.New(t.Output(), "", 0))
+		require.ErrorIs(t, err, ErrNotEnoughArguments)
+	})
+
+	t.Run("keeps a preset client", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL, err := url.Parse("rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB)
+		require.NoError(t, err)
+
+		client := &http.Client{}
+		service := &Service{Client: client}
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.Client)
+	})
+}
+
+// TestSendRequest verifies the method, URL, headers, and payload a send posts,
+// with and without params overriding the configured username and channel.
+func TestSendRequest(t *testing.T) {
+	t.Parallel()
+
+	// tests lists params with the payload the send should post.
+	tests := []struct {
+		name     string
+		params   *types.Params
+		wantBody JSON
+	}{
+		{
+			name:     "config values",
+			wantBody: JSON{Text: "test message", UserName: "defaultUser", Channel: "#defaultChannel"},
+		},
+		{
+			name: "params override username and channel",
+			params: &types.Params{
+				"username": "overrideUser",
+				"channel":  "#overrideChannel",
+			},
+			wantBody: JSON{Text: "test message", UserName: "overrideUser", Channel: "#overrideChannel"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var captured capturedRequest
+
+			service := newTestService(t, newCapturingClient(t, http.StatusOK, "", &captured))
+			service.Config.UserName = "defaultUser"
+			service.Config.Channel = "#defaultChannel"
+
+			require.NoError(t, service.Send("test message", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, "https://rocketchat.example.com:5055/hooks/tokenA/tokenB", captured.url)
+			assert.Equal(t, "application/json", captured.contentType)
+
+			var got JSON
+			require.NoError(t, json.Unmarshal([]byte(captured.body), &got))
+			assert.Equal(t, tt.wantBody, got)
+		})
+	}
+}
+
+// TestSendErrors verifies the errors a send returns for a rejected request, an
+// unreadable error response, a transport failure, and an invalid host.
+func TestSendErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-OK status includes code and body", func(t *testing.T) {
+		t.Parallel()
+
+		var captured capturedRequest
+
+		service := newTestService(t, newCapturingClient(t, http.StatusBadRequest, "bad request", &captured))
+
+		err := service.Send("test message", nil)
+		require.ErrorIs(t, err, ErrNotificationFailed)
+		assert.EqualError(t, err, "notification failed: 400 bad request")
+	})
+
+	t.Run("unreadable error body reports the status code", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       io.NopCloser(iotest.ErrReader(errBodyRead)),
+				Request:    req,
+			}, nil
+		})})
+
+		err := service.Send("test message", nil)
+		require.ErrorIs(t, err, ErrNotificationFailed)
+		assert.EqualError(t, err, "notification failed: 500")
+	})
+
+	t.Run("transport failure", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+
+		service := newTestService(t, &http.Client{})
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		err := service.Send("test message", nil)
+		require.ErrorIs(t, err, errTransport)
+		assert.Contains(t, err.Error(), "posting to URL")
+		assert.Contains(t, err.Error(), "HOST: rocketchat.example.com")
+		assert.Contains(t, err.Error(), "PORT: 5055")
 	})
-})
 
-func TestRocketchat(t *testing.T) {
+	t.Run("invalid host fails before sending", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+
+		service := newTestService(t, &http.Client{})
+		service.Config.Host = "bad host"
+		service.SetHTTPClient(client)
+
+		err := service.Send("test message", nil)
+		_, ok := errors.AsType[*url.Error](err)
+		require.True(t, ok, "expected a *url.Error, got %v", err)
+		assert.True(t, strings.HasPrefix(err.Error(), "creating request: "), err.Error())
+	})
+}
+
+// TestSendContextCanceled verifies that a canceled caller context stops the
+// request and its error matches context.Canceled.
+func TestSendContextCanceled(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Rocketchat Suite")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	}).Once()
+
+	serviceURL, err := url.Parse("rocketchat://rocketchat.example.invalid/token/channel")
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	service.SetHTTPClient(client)
+
+	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+}
+
+// TestSendTLSServer verifies a send end to end against an in-process TLS
+// server on loopback, for an accepted and a rejected request.
+func TestSendTLSServer(t *testing.T) {
+	t.Parallel()
+
+	// tests lists server responses with the error the send should return.
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr string
+	}{
+		{name: "accepted", status: http.StatusOK},
+		{name: "rejected", status: http.StatusBadRequest, body: "bad request", wantErr: "notification failed: 400 bad request"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotPath string
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(server.Close)
+
+			serverURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+
+			service := newTestService(t, server.Client())
+			service.Config.Host = serverURL.Hostname()
+			service.Config.Port = serverURL.Port()
+
+			err = service.Send("test message", nil)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, ErrNotificationFailed)
+				require.EqualError(t, err, tt.wantErr)
+			}
+
+			assert.Equal(t, "/hooks/tokenA/tokenB", gotPath)
+		})
+	}
+}
+
+// TestSetHTTPClient verifies which client a service uses after SetHTTPClient
+// receives a typed nil, a nil interface, an *http.Client, or another client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("typed nil selects the internal client", func(t *testing.T) {
+		t.Parallel()
+
+		internal := &http.Client{}
+		service := &Service{Client: internal}
+
+		var nilClient *http.Client
+		service.SetHTTPClient(nilClient)
+
+		assert.Nil(t, service.httpClient)
+		assert.Same(t, internal, service.httpClientOrDefault())
+	})
+
+	t.Run("nil interface selects the internal client", func(t *testing.T) {
+		t.Parallel()
+
+		internal := &http.Client{}
+		service := &Service{Client: internal, httpClient: mocks.NewMockHTTPClient(t)}
+
+		service.SetHTTPClient(nil)
+
+		assert.Nil(t, service.httpClient)
+		assert.Same(t, internal, service.httpClientOrDefault())
+	})
+
+	t.Run("http client replaces the internal client", func(t *testing.T) {
+		t.Parallel()
+
+		custom := &http.Client{}
+		service := &Service{Client: &http.Client{}}
+
+		service.SetHTTPClient(custom)
+
+		assert.Same(t, custom, service.Client)
+		assert.Same(t, custom, service.httpClientOrDefault())
+	})
+
+	t.Run("other client keeps the internal client", func(t *testing.T) {
+		t.Parallel()
+
+		internal := &http.Client{}
+		custom := mocks.NewMockHTTPClient(t)
+		service := &Service{Client: internal}
+
+		service.SetHTTPClient(custom)
+
+		assert.Same(t, internal, service.Client)
+		assert.Same(t, custom, service.httpClientOrDefault())
+	})
+}
+
+// TestBuildURL verifies the webhook URL built from the host, optional port,
+// and tokens.
+func TestBuildURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs with the webhook URL they should produce.
+	tests := []struct {
+		name   string
+		config *Config
+		want   string
+	}{
+		{
+			name:   "without port",
+			config: &Config{Host: "rocketchat.example.com", TokenA: "a", TokenB: "b"},
+			want:   "https://rocketchat.example.com/hooks/a/b",
+		},
+		{
+			name:   "with port",
+			config: &Config{Host: "rocketchat.example.com", Port: "5055", TokenA: "a", TokenB: "b"},
+			want:   "https://rocketchat.example.com:5055/hooks/a/b",
+		},
+		{
+			name:   "IPv6 host with port",
+			config: &Config{Host: "::1", Port: "8443", TokenA: "a", TokenB: "b"},
+			want:   "https://[::1]:8443/hooks/a/b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, buildURL(tt.config))
+		})
+	}
 }

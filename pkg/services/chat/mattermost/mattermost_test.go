@@ -2,538 +2,387 @@ package mattermost
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"io"
+	"log"
 	"net/http"
-	"net/url"
-	"os"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var (
-	service          *Service
-	envMattermostURL *url.URL
-	_                = ginkgo.BeforeSuite(func() {
-		service = &Service{}
-		envMattermostURL, _ = url.Parse(os.Getenv("SHOUTRRR_MATTERMOST_URL"))
-	})
-)
+// capturedRequest records the parts of a request that an HTTP client or
+// test server received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
 
-var _ = ginkgo.Describe("the mattermost service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should work without errors", func() {
-			if envMattermostURL.String() == "" {
-				return
-			}
+// requestRecorder collects the requests a test server receives.
+type requestRecorder struct {
+	// mu guards requests.
+	mu sync.Mutex
+	// requests holds the requests in the order received.
+	requests []capturedRequest
+}
 
-			serviceURL, _ := url.Parse(envMattermostURL.String())
-			gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).
-				To(gomega.Succeed())
-			err := service.Send(
-				"this is an integration test",
-				nil,
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
+
+// sent returns the requests received so far.
+//
+// Returns:
+//   - []capturedRequest: the requests, in order.
+func (r *requestRecorder) sent() []capturedRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]capturedRequest(nil), r.requests...)
+}
+
+// captureRequest reads the method, URL, Content-Type header, and body of req.
+//
+// Parameters:
+//   - t: the test.
+//   - req: the request to read.
+//
+// Returns:
+//   - capturedRequest: the recorded request.
+func captureRequest(t *testing.T, req *http.Request) capturedRequest {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+
+	return capturedRequest{
+		method:      req.Method,
+		url:         req.URL.String(),
+		contentType: req.Header.Get("Content-Type"),
+		body:        string(body),
+	}
+}
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		*captured = captureRequest(t, req)
+
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newRecordingServer returns a loopback test server that answers every
+// request with 200 OK and records it.
+//
+// Parameters:
+//   - t: the test that owns the server.
+//
+// Returns:
+//   - *httptest.Server: the server, closed when the test ends.
+//   - *requestRecorder: the recorded requests.
+func newRecordingServer(t *testing.T) (*httptest.Server, *requestRecorder) {
+	t.Helper()
+
+	recorder := &requestRecorder{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		body, _ := io.ReadAll(req.Body)
+
+		recorder.mu.Lock()
+		recorder.requests = append(recorder.requests, capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			body:        string(body),
 		})
-	})
-	ginkgo.Describe("the mattermost config", func() {
-		ginkgo.When("generating a config object", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			err := config.SetURL(mattermostURL)
+		recorder.mu.Unlock()
 
-			ginkgo.It("should not have caused an error", func() {
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should set host", func() {
-				gomega.Expect(config.Host).To(gomega.Equal("mattermost.my-domain.com"))
-			})
-			ginkgo.It("should set token", func() {
-				gomega.Expect(config.Token).To(gomega.Equal("thisshouldbeanapitoken"))
-			})
-			ginkgo.It("should not set channel or username", func() {
-				gomega.Expect(config.Channel).To(gomega.BeEmpty())
-				gomega.Expect(config.UserName).To(gomega.BeEmpty())
-			})
-		})
-		ginkgo.When("generating a new config with url, that has no token", func() {
-			ginkgo.It("should return an error", func() {
-				mattermostURL, _ := url.Parse("mattermost://mattermost.my-domain.com")
-				config := &Config{}
-				err := config.SetURL(mattermostURL)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("generating a config object with username only", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			err := config.SetURL(mattermostURL)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
 
-			ginkgo.It("should not have caused an error", func() {
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should set username", func() {
-				gomega.Expect(config.UserName).To(gomega.Equal("testUserName"))
-			})
-			ginkgo.It("should not set channel", func() {
-				gomega.Expect(config.Channel).To(gomega.BeEmpty())
-			})
-		})
-		ginkgo.When("generating a config object with channel only", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
-			)
-			config := &Config{}
-			err := config.SetURL(mattermostURL)
+	return server, recorder
+}
 
-			ginkgo.It("should not hav caused an error", func() {
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should set channel", func() {
-				gomega.Expect(config.Channel).To(gomega.Equal("testChannel"))
-			})
-			ginkgo.It("should not set username", func() {
-				gomega.Expect(config.UserName).To(gomega.BeEmpty())
-			})
-		})
-		ginkgo.When("generating a config object with channel an userName", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
-			)
-			config := &Config{}
-			err := config.SetURL(mattermostURL)
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
 
-			ginkgo.It("should not hav caused an error", func() {
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should set channel", func() {
-				gomega.Expect(config.Channel).To(gomega.Equal("testChannel"))
-			})
-			ginkgo.It("should set username", func() {
-				gomega.Expect(config.UserName).To(gomega.Equal("testUserName"))
-			})
-		})
-		ginkgo.When("using DisableTLS and port", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://watchtower@home.lan:8065/token/channel?disabletls=yes",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should preserve host with port", func() {
-				gomega.Expect(config.Host).To(gomega.Equal("home.lan:8065"))
-			})
-			ginkgo.It("should set DisableTLS", func() {
-				gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
-			})
-			ginkgo.It("should generate http URL", func() {
-				gomega.Expect(buildURL(config).String()).To(gomega.Equal("http://home.lan:8065/hooks/token"))
-			})
-			ginkgo.It("should serialize back correctly", func() {
-				gomega.Expect(config.GetURL().String()).
-					To(gomega.Equal("mattermost://watchtower@home.lan:8065/token/channel?disabletls=Yes"))
-			})
-		})
-		ginkgo.Describe("initializing with DisableTLS", func() {
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-			ginkgo.It("should use plain HTTP transport when DisableTLS is true", func() {
-				mattermostURL, _ := url.Parse("mattermost://user@host:8080/token?disabletls=yes")
-				service := &Service{}
-				err := service.Initialize(mattermostURL, testutils.TestLogger())
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
 
-				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
-				httpmock.RegisterResponder(
-					"POST",
-					"http://host:8080/hooks/token",
-					httpmock.NewStringResponder(200, ""),
-				)
+	return service
+}
 
-				err = service.Send("Test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(buildURL(service.Config).String()).
-					To(gomega.Equal("http://host:8080/hooks/token"))
-			})
-		})
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.Describe("sending the payload", func() {
-			var err error
+	assert.Equal(t, "mattermost", (&Service{}).GetID())
+}
 
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-			ginkgo.It("should not report an error if the server accepts the payload", func() {
-				config := Config{
-					Host:  "mattermost.host",
-					Token: "token",
-				}
-				serviceURL := config.GetURL()
-				service := Service{}
-				err = service.Initialize(serviceURL, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
-				httpmock.RegisterResponder(
-					"POST",
-					"https://mattermost.host/hooks/token",
-					httpmock.NewStringResponder(200, ""),
-				)
+// TestInitialize verifies that Initialize parses the service URL and builds
+// an HTTP client, and that it rejects a URL without a token.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
 
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should return an error if the server rejects the payload", func() {
-				config := Config{
-					Host:  "mattermost.host",
-					Token: "token",
-				}
-				serviceURL := config.GetURL()
-				service := Service{}
-				err = service.Initialize(serviceURL, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
-				httpmock.RegisterResponder(
-					"POST",
-					"https://mattermost.host/hooks/token",
-					httpmock.NewStringResponder(403, "Forbidden"),
-				)
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
 
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("failed to send notification to service"))
+		service := newTestService(t, "mattermost://user@host:8080/token/channel?disabletls=yes&icon=tanabata_tree")
 
-				resp := httpmock.NewStringResponse(403, "Forbidden")
-				resp.Status = "403 Forbidden"
-				httpmock.RegisterResponder(
-					"POST",
-					"https://mattermost.host/hooks/token",
-					httpmock.ResponderFromResponse(resp),
-				)
-			})
-		})
+		assert.Equal(t, &Config{
+			UserName:   "user",
+			Icon:       "tanabata_tree",
+			Channel:    "channel",
+			Host:       "host:8080",
+			Token:      "token",
+			DisableTLS: true,
+		}, service.Config)
+		assert.IsType(t, &http.Client{}, service.httpClient)
 	})
 
-	ginkgo.When("generating a config object", func() {
-		ginkgo.It("should not set icon", func() {
-			slackURL, _ := url.Parse("mattermost://AAAAAAAAA/BBBBBBBBB")
-			config, configError := CreateConfigFromURL(slackURL)
+	t.Run("missing token", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(configError).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Icon).To(gomega.BeEmpty())
-		})
-		ginkgo.It("should set icon", func() {
-			slackURL, _ := url.Parse("mattermost://AAAAAAAAA/BBBBBBBBB?icon=test")
-			config, configError := CreateConfigFromURL(slackURL)
-
-			gomega.Expect(configError).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Icon).To(gomega.BeIdenticalTo("test"))
-		})
-	})
-	ginkgo.Describe("creating the payload", func() {
-		ginkgo.Describe("the icon fields", func() {
-			payload := JSON{}
-
-			ginkgo.It("should set IconURL when the configured icon looks like an URL", func() {
-				payload.SetIcon("https://example.com/logo.png")
-				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
-				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
-			})
-			ginkgo.It(
-				"should set IconEmoji when the configured icon does not look like an URL",
-				func() {
-					payload.SetIcon("tanabata_tree")
-					gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
-					gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-				},
-			)
-			ginkgo.It("should clear both fields when icon is empty", func() {
-				payload.SetIcon("")
-				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
-				gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-			})
-		})
-	})
-	ginkgo.Describe("Sending messages", func() {
-		ginkgo.When("sending a message completely without parameters", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should generate the correct url to call", func() {
-				generatedURL := buildURL(config)
-				gomega.Expect(generatedURL.String()).
-					To(gomega.Equal("https://mattermost.my-domain.com/hooks/thisshouldbeanapitoken"))
-			})
-			ginkgo.It("should generate the correct JSON body", func() {
-				json, err := CreateJSONPayload(config, "this is a message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\"}"))
-			})
-		})
-		ginkgo.When("sending a message with pre set username and channel", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should generate the correct JSON body", func() {
-				json, err := CreateJSONPayload(config, "this is a message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).
-					To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"testUserName\",\"channel\":\"testChannel\"}"))
-			})
-		})
-		ginkgo.When(
-			"sending a message with pre set username and channel but overwriting them with parameters",
-			func() {
-				mattermostURL, _ := url.Parse(
-					"mattermost://testUserName@mattermost.my-domain.com/thisshouldbeanapitoken/testChannel",
-				)
-				config := &Config{}
-				gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-				ginkgo.It("should generate the correct JSON body", func() {
-					params := (*types.Params)(
-						&map[string]string{
-							"username": "overwriteUserName",
-							"channel":  "overwriteChannel",
-						},
-					)
-					json, err := CreateJSONPayload(config, "this is a message", params)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(string(json)).
-						To(gomega.Equal("{\"text\":\"this is a message\",\"username\":\"overwriteUserName\",\"channel\":\"overwriteChannel\"}"))
-				})
-			},
-		)
-		ginkgo.When("sending a message with a title set in config", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			config.Title = "watchtower TEST"
-
-			ginkgo.It("should prepend the title to the message text", func() {
-				json, err := CreateJSONPayload(config, "this is a message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).
-					To(gomega.Equal("{\"text\":\"watchtower TEST\\nthis is a message\"}"))
-			})
-		})
-		ginkgo.When("sending a message with a title set via params", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should prepend the title to the message text", func() {
-				params := (*types.Params)(
-					&map[string]string{
-						"title": "watchtower PROD",
-					},
-				)
-				json, err := CreateJSONPayload(config, "this is a message", params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).
-					To(gomega.Equal("{\"text\":\"watchtower PROD\\nthis is a message\"}"))
-			})
-		})
-		ginkgo.When("sending a message without a title", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			ginkgo.It("should not prepend anything to the message text", func() {
-				json, err := CreateJSONPayload(config, "this is a message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).To(gomega.Equal("{\"text\":\"this is a message\"}"))
-			})
-		})
-		ginkgo.When("sending a message with title set in both config and params", func() {
-			mattermostURL, _ := url.Parse(
-				"mattermost://mattermost.my-domain.com/thisshouldbeanapitoken",
-			)
-			config := &Config{}
-			gomega.Expect(config.SetURL(mattermostURL)).To(gomega.Succeed())
-			config.Title = "Config Title"
-
-			ginkgo.It("should use the title from params", func() {
-				params := (*types.Params)(
-					&map[string]string{
-						"title": "Params Title",
-					},
-				)
-				json, err := CreateJSONPayload(config, "this is a message", params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(json)).
-					To(gomega.Equal("{\"text\":\"Params Title\\nthis is a message\"}"))
-			})
-		})
-	})
-
-	ginkgo.When("parsing the configuration URL", func() {
-		ginkgo.It("should be identical after de-/serialization", func() {
-			input := "mattermost://bot@mattermost.host/token/channel"
-
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(input))).To(gomega.Succeed())
-			gomega.Expect(config.GetURL().String()).To(gomega.Equal(input))
-		})
-	})
-
-	ginkgo.Describe("creating configurations", func() {
-		ginkgo.When("given a url with channel field", func() {
-			ginkgo.It("should not throw an error", func() {
-				serviceURL := testutils.URLMust(`mattermost://user@mockserver/atoken/achannel`)
-				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
-			})
-		})
-		ginkgo.When("given a url with title prop", func() {
-			ginkgo.It("should not throw an error", func() {
-				serviceURL := testutils.URLMust(
-					`mattermost://user@mockserver/atoken?icon=https%3A%2F%2Fexample%2Fsomething.png`,
-				)
-				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
-			})
-		})
-		ginkgo.When("given a url with all fields and props", func() {
-			ginkgo.It("should not throw an error", func() {
-				serviceURL := testutils.URLMust(
-					`mattermost://user@mockserver/atoken/achannel?icon=https%3A%2F%2Fexample%2Fsomething.png`,
-				)
-				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.Succeed())
-			})
-		})
-		ginkgo.When("given a url with invalid props", func() {
-			ginkgo.It("should return an error", func() {
-				serviceURL := testutils.URLMust(`matrix://user@mockserver/atoken?foo=bar`)
-				gomega.Expect((&Config{}).SetURL(serviceURL)).To(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := "mattermost://user@mockserver/atoken/achannel?icon=something"
-
-				url, err := url.Parse(testURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "parsing")
-
-				config := &Config{}
-				err = config.SetURL(url)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
-
-				outputURL := config.GetURL()
-				_, _ = fmt.Fprint(ginkgo.GinkgoWriter, outputURL.String(), " ", testURL, "\n")
-
-				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
-			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		var err error
-
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			config := Config{
-				Host:  "mattermost.host",
-				Token: "token",
-			}
-			serviceURL := config.GetURL()
-			service := Service{}
-			err = service.Initialize(serviceURL, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.ActivateNonDefault(service.httpClient.(*http.Client))
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://mattermost.host/hooks/token",
-				httpmock.NewStringResponder(200, ``),
-			)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("the basic service API", func() {
-		ginkgo.Describe("the service config", func() {
-			ginkgo.It("should implement basic service config API methods correctly", func() {
-				testutils.TestConfigGetInvalidQueryValue(&Config{})
-
-				testutils.TestConfigSetDefaultValues(&Config{})
-
-				testutils.TestConfigGetEnumsCount(&Config{}, 0)
-				testutils.TestConfigGetFieldsCount(&Config{}, 5)
-			})
-		})
-		ginkgo.Describe("the service instance", func() {
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-			ginkgo.It("should implement basic service API methods correctly", func() {
-				serviceURL := testutils.URLMust("mattermost://mockhost/mocktoken")
-				gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).
-					To(gomega.Succeed())
-				testutils.TestServiceSetInvalidParamValue(service, "foo", "bar")
-			})
-		})
-	})
-
-	ginkgo.It("should return the correct service ID", func() {
 		service := &Service{}
-		gomega.Expect(service.GetID()).To(gomega.Equal("mattermost"))
-	})
-})
+		err := service.Initialize(parseTestURL(t, "mattermost://mattermost.my-domain.com"), log.New(t.Output(), "", 0))
 
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
+		require.ErrorIs(t, err, ErrNotEnoughArguments)
+	})
+}
+
+// TestSend verifies the request a send makes: a JSON POST to the hooks
+// endpoint over https, or http when TLS is disabled, carrying the payload
+// built from the config and params.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the request URL and JSON body
+	// the send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantURL  string
+		wantBody string
+	}{
+		{
+			name:     "no params",
+			rawURL:   "mattermost://mattermost.host/token",
+			wantURL:  "https://mattermost.host/hooks/token",
+			wantBody: `{"text":"Message"}`,
+		},
+		{
+			name:     "configured user name and channel",
+			rawURL:   "mattermost://bot@mattermost.host/token/channel",
+			wantURL:  "https://mattermost.host/hooks/token",
+			wantBody: `{"text":"Message","username":"bot","channel":"channel"}`,
+		},
+		{
+			name:     "disabletls and port",
+			rawURL:   "mattermost://user@host:8080/token?disabletls=yes",
+			wantURL:  "http://host:8080/hooks/token",
+			wantBody: `{"text":"Message","username":"user"}`,
+		},
+		{
+			name:     "title and icon params",
+			rawURL:   "mattermost://mattermost.host/token?icon=tanabata_tree",
+			params:   &types.Params{"title": "Title", "icon_url": "https://example.com/logo.png"},
+			wantURL:  "https://mattermost.host/hooks/token",
+			wantBody: `{"text":"Title\nMessage","icon_url":"https://example.com/logo.png"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, tt.wantURL, captured.url)
+			assert.Equal(t, "application/json", captured.contentType)
+			assert.JSONEq(t, tt.wantBody, captured.body)
+		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured values.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "mattermost://mattermost.host/token?icon=tanabata_tree&title=Configured")
+	want := *service.Config
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	params := &types.Params{"title": "Override", "icon": "https://example.com/logo.png"}
+	require.NoError(t, service.Send("Message", params))
+	assert.JSONEq(t, `{"text":"Override\nMessage","icon_url":"https://example.com/logo.png"}`, captured.body)
+	assert.Equal(t, want, *service.Config)
+
+	client, captured = newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.JSONEq(t, `{"text":"Configured\nMessage","icon_emoji":"tanabata_tree"}`, captured.body)
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed for an
+// error status, wraps a transport error, rejects an unknown param before any
+// request, and stops when the caller's context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "mattermost://mattermost.host/token")
+		client, _ := newRespondingClient(t, "403 Forbidden", http.StatusForbidden)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(context.Background(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		assert.Contains(t, err.Error(), "403 Forbidden")
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "mattermost://mattermost.host/token")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
+
+		require.ErrorIs(t, service.SendContext(context.Background(), "Message", nil), errTransport)
+	})
+
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "mattermost://mockhost/mocktoken")
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(context.Background(), "Message", &types.Params{"foo": "bar"})
+
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		client := mockTypes.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("mattermost://user@mattermost.example.invalid/token"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "mattermost://user@mattermost.example.invalid/token")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
+}
 
-func TestMattermost(t *testing.T) {
+// TestSendDefaultClient verifies that a send reaches a plain HTTP server
+// through the client Initialize builds, and through the default client that a
+// nil *http.Client selects.
+func TestSendDefaultClient(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Mattermost Suite")
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "client built by Initialize"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, recorder := newRecordingServer(t)
+			service := newTestService(t, "mattermost://"+server.Listener.Addr().String()+"/token?disabletls=yes")
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			require.NoError(t, service.Send("Message", nil))
+
+			assert.Equal(t, []capturedRequest{{
+				method:      http.MethodPost,
+				url:         "/hooks/token",
+				contentType: "application/json",
+				body:        `{"text":"Message"}`,
+			}}, recorder.sent())
+		})
+	}
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client for
+// later sends.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	client := mocks.NewMockHTTPClient(t)
+	service := &Service{}
+	service.SetHTTPClient(client)
+
+	assert.Same(t, client, service.httpClient)
 }
