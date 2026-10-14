@@ -1,207 +1,512 @@
-package bark_test
+package bark
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"os"
+	"strings"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-var (
-	service    *bark.Service = &bark.Service{}        // Bark service instance for testing
-	envBarkURL *url.URL                               // Environment-provided URL for integration tests
-	logger     *log.Logger   = testutils.TestLogger() // Shared logger for tests
-	_                        = ginkgo.BeforeSuite(func() {
-		// Load the integration test URL from environment, if available
-		var err error
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
 
-		envBarkURL, err = url.Parse(os.Getenv("SHOUTRRR_BARK_URL"))
-		if err != nil {
-			envBarkURL = &url.URL{} // Default to empty URL if parsing fails
-		}
-	})
+// Response bodies in the format the Bark server returns.
+const (
+	// successBody is the body of an accepted push.
+	successBody = `{"code":200,"message":"success","timestamp":1760000000}`
+	// deviceErrorBody is the body of a push to an unknown device key.
+	deviceErrorBody = `{"code":400,"message":"failed to get device token: failed to get [devicekey] device token from database","timestamp":1760000000}`
 )
 
-var _ = ginkgo.Describe("the bark service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("sends a message successfully with a valid ENV URL", func() {
-			if envBarkURL.String() == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-				return
-			}
+// captureRequest reads the method, URL, Content-Type header, and body of req.
+//
+// Parameters:
+//   - t: the test.
+//   - req: the request to read.
+//
+// Returns:
+//   - capturedRequest: the recorded request.
+func captureRequest(t *testing.T, req *http.Request) capturedRequest {
+	t.Helper()
 
-			serviceURL := testutils.URLMust(envBarkURL.String())
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			gomega.Expect(service.Send("This is an integration test message", nil)).
-				To(gomega.Succeed())
-		})
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+
+	return capturedRequest{
+		method:      req.Method,
+		url:         req.URL.String(),
+		contentType: req.Header.Get("Content-Type"),
+		body:        string(body),
+	}
+}
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status code and body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, statusCode int, body string) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		*captured = captureRequest(t, req)
+
+		return &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "bark", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize applies the default props, keeps an
+// HTTP client set before it runs, and rejects an invalid URL.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults and default client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+
+		assert.Equal(t, Config{Host: "hostname", DeviceKey: "devicekey", Scheme: "https"}, *service.Config)
+		assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
 	})
 
-	ginkgo.Describe("the config", func() {
-		ginkgo.When("getting an API URL", func() {
-			ginkgo.It("constructs the expected URL for various path formats", func() {
-				gomega.Expect(getAPIForPath("path")).To(gomega.Equal("https://host/path/endpoint"))
-				gomega.Expect(getAPIForPath("/path")).To(gomega.Equal("https://host/path/endpoint"))
-				gomega.Expect(getAPIForPath("/path/")).
-					To(gomega.Equal("https://host/path/endpoint"))
-				gomega.Expect(getAPIForPath("path/")).To(gomega.Equal("https://host/path/endpoint"))
-				gomega.Expect(getAPIForPath("/")).To(gomega.Equal("https://host/endpoint"))
-				gomega.Expect(getAPIForPath("")).To(gomega.Equal("https://host/endpoint"))
-			})
-		})
+	t.Run("keeps an injected client", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.When("only required fields are set", func() {
-			ginkgo.It("applies default values to optional fields", func() {
-				serviceURL := testutils.URLMust("bark://:devicekey@hostname")
-				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-				gomega.Expect(*service.Config).To(gomega.Equal(bark.Config{
-					Host:      "hostname",
-					DeviceKey: "devicekey",
-					Scheme:    "https",
-				}))
-			})
-		})
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{HTTPClient: client}
+		require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname"), log.New(t.Output(), "", 0)))
 
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("preserves all fields after de-/serialization", func() {
-				testURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&group=GROUP&scheme=http&title=TITLE&url=URL"
-				config := &bark.Config{}
-				gomega.Expect(config.SetURL(testutils.URLMust(testURL))).
-					To(gomega.Succeed(), "verifying")
-				gomega.Expect(config.GetURL().String()).To(gomega.Equal(testURL))
-			})
-		})
+		assert.Same(t, client, service.HTTPClient)
 	})
 
-	ginkgo.When("sending the push payload", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
+	t.Run("missing device key", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("sends successfully when the server accepts the payload", func() {
-			serviceURL := testutils.URLMust("bark://:devicekey@hostname")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			httpmock.RegisterResponder("POST", service.Config.GetAPIURL("push"),
-				testutils.JSONRespondMust(200, bark.APIResponse{
-					Code:    http.StatusOK,
-					Message: "OK",
-				}))
-			gomega.Expect(service.Send("Message", nil)).To(gomega.Succeed())
-		})
+		err := (&Service{}).Initialize(parseTestURL(t, "bark://hostname"), log.New(t.Output(), "", 0))
 
-		ginkgo.It("reports an error for a server error response", func() {
-			serviceURL := testutils.URLMust("bark://:devicekey@hostname")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			httpmock.RegisterResponder("POST", service.Config.GetAPIURL("push"),
-				testutils.JSONRespondMust(500, bark.APIResponse{
-					Code:    500,
-					Message: "someone turned off the internet",
-				}))
-			gomega.Expect(service.Send("Message", nil)).To(gomega.HaveOccurred())
-		})
+		require.ErrorIs(t, err, ErrMissingDeviceKey)
+	})
+}
 
-		ginkgo.It("handles an unexpected server response gracefully", func() {
-			serviceURL := testutils.URLMust("bark://:devicekey@hostname")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			httpmock.RegisterResponder("POST", service.Config.GetAPIURL("push"),
-				testutils.JSONRespondMust(200, bark.APIResponse{
-					Code:    500,
-					Message: "For some reason, the response code and HTTP code is different?",
-				}))
-			gomega.Expect(service.Send("Message", nil)).To(gomega.HaveOccurred())
-		})
+// TestSend verifies the request a send makes: a JSON POST to the push
+// endpoint carrying the payload built from the config and params.
+func TestSend(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("handles communication errors without panicking", func() {
-			httpmock.DeactivateAndReset() // Ensure no mocks interfere
+	// tests lists service URLs and params with the request URL and JSON body
+	// the send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantURL  string
+		wantBody string
+	}{
+		{
+			name:     "required fields only",
+			rawURL:   "bark://:devicekey@hostname",
+			wantURL:  "https://hostname/push",
+			wantBody: `{"body":"Message","device_key":"devicekey","title":"","badge":0}`,
+		},
+		{
+			name: "configured props and path",
+			rawURL: "bark://:devicekey@hostname:8080/bark?scheme=http&title=Title&sound=bell&badge=3" +
+				"&icon=https%3A%2F%2Fexample.com%2Ficon.png&group=Group&url=https%3A%2F%2Fexample.com&category=Cat&copy=Copied",
+			wantURL: "http://hostname:8080/bark/push",
+			wantBody: `{"body":"Message","device_key":"devicekey","title":"Title","sound":"bell","badge":3,` +
+				`"icon":"https://example.com/icon.png","group":"Group","url":"https://example.com","category":"Cat","copy":"Copied"}`,
+		},
+		{
+			name:     "params",
+			rawURL:   "bark://:devicekey@hostname?title=Configured",
+			params:   &types.Params{"title": "Override", "sound": "alarm", "badge": "7"},
+			wantURL:  "https://hostname/push",
+			wantBody: `{"body":"Message","device_key":"devicekey","title":"Override","sound":"alarm","badge":7}`,
+		},
+	}
 
-			// A refused loopback port fails the request without a DNS lookup.
-			serviceURL := testutils.URLMust("bark://:devicekey@127.0.0.1:1")
-			gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-			gomega.Expect(service.Send("Message", nil)).To(gomega.HaveOccurred())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, tt.wantURL, captured.url)
+			assert.Equal(t, "application/json", captured.contentType)
+			assert.JSONEq(t, tt.wantBody, captured.body)
 		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured values.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "bark://:devicekey@hostname?title=Configured")
+	want := *service.Config
+
+	client, captured := newRespondingClient(t, http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Override", "scheme": "http"}))
+	assert.Equal(t, "http://hostname/push", captured.url)
+	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Override","badge":0}`, captured.body)
+	assert.Equal(t, want, *service.Config)
+
+	client, captured = newRespondingClient(t, http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.Equal(t, "https://hostname/push", captured.url)
+	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Configured","badge":0}`, captured.body)
+}
+
+// TestSendItems verifies that the deprecated SendItems sends the items as one
+// plain text message.
+func TestSendItems(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "bark://:devicekey@hostname")
+	client, captured := newRespondingClient(t, http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	items := []types.MessageItem{{Text: "first"}, {Text: "second"}}
+	require.NoError(t, service.SendItems(items, nil))
+
+	assert.JSONEq(t, `{"body":"first\nsecond\n","device_key":"devicekey","title":"","badge":0}`, captured.body)
+}
+
+// TestSendServerErrors verifies how a send reports a response the Bark server
+// rejects: the server's message as an *APIResponse, ErrUnexpectedStatus when
+// the response has no message, and a decoding error for a body that is not
+// JSON.
+func TestSendServerErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("server message", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusBadRequest, deviceErrorBody)
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		apiErr, ok := errors.AsType[*APIResponse](err)
+		require.True(t, ok, "error %v is not an *APIResponse", err)
+		assert.Equal(t, int64(http.StatusBadRequest), apiErr.Code)
+		assert.Contains(t, err.Error(), "failed to get device token")
 	})
 
-	ginkgo.Describe("the basic service API", func() {
-		ginkgo.Describe("the service config", func() {
-			ginkgo.It("implements basic service config API methods correctly", func() {
-				testutils.TestConfigGetInvalidQueryValue(&bark.Config{})
-				testutils.TestConfigSetInvalidQueryValue(
-					&bark.Config{},
-					"bark://:mock-device@host/?foo=bar",
-				)
-				testutils.TestConfigSetDefaultValues(&bark.Config{})
-				testutils.TestConfigGetEnumsCount(&bark.Config{}, 0)
-				testutils.TestConfigGetFieldsCount(&bark.Config{}, 9)
-			})
-		})
+	t.Run("code without a message", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.Describe("the service instance", func() {
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-			ginkgo.It("implements basic service API methods correctly", func() {
-				serviceURL := testutils.URLMust("bark://:devicekey@hostname")
-				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-				testutils.TestServiceSetInvalidParamValue(service, "foo", "bar")
-			})
-			ginkgo.It("returns the correct service identifier", func() {
-				// No initialization needed since GetID is static
-				gomega.Expect(service.GetID()).To(gomega.Equal("bark"))
-			})
-		})
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusOK, `{"code":500}`)
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "500")
 	})
-})
 
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	t.Run("body is not JSON", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusBadGateway, "<html>Bad Gateway</html>")
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "decoding response")
+	})
+}
+
+// TestSendContextErrors verifies that a send wraps a transport error, reports
+// the server message carried by a jsonclient.Error, rejects an unknown param
+// before any request, and stops when the caller's context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrFailedAPIRequest)
+		require.ErrorIs(t, err, errTransport)
+	})
+
+	t.Run("jsonclient error with a server message", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).
+			Return(nil, jsonclient.Error{StatusCode: http.StatusBadRequest, Body: deviceErrorBody}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		_, ok := errors.AsType[*APIResponse](err)
+		require.True(t, ok, "error %v is not an *APIResponse", err)
+		assert.Contains(t, err.Error(), "failed to get device token")
+	})
+
+	t.Run("jsonclient error without a JSON body", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).
+			Return(nil, jsonclient.Error{StatusCode: http.StatusBadGateway, Body: "Bad Gateway"}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrFailedAPIRequest)
+	})
+
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", &types.Params{"foo": "bar"})
+
+		require.ErrorIs(t, err, ErrUpdateParamsFailed)
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &bark.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("bark://:devicekey@bark.example.invalid"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "bark://:devicekey@bark.example.invalid")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
-
-// TestBark runs the Ginkgo test suite for the bark package.
-func TestBark(t *testing.T) {
-	t.Parallel()
-
-	format.CharactersAroundMismatchToInclude = 20 // Show more context in failure output
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Bark Suite")
 }
 
-// getAPIForPath is a helper to construct an API URL for testing.
-func getAPIForPath(path string) string {
-	c := bark.Config{Host: "host", Path: path, Scheme: "https"}
+// TestSendRedactsUnparsableURL verifies that a host that makes the API URL
+// unparsable fails the send before any request, without the URL in the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
 
-	return c.GetAPIURL("endpoint")
+	service := newTestService(t, "bark://:devicekey@bark.example.com/SECRETpath")
+	service.Config.Host = "bad host"
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETpath")
+}
+
+// TestSendDefaultClient verifies that a send reaches a plain HTTP server
+// through the default client that Initialize sets and that a nil
+// *http.Client selects.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "client set by Initialize"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			requests := make(chan capturedRequest, 1)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				body, _ := io.ReadAll(req.Body)
+
+				// A non-blocking send keeps an extra request from stalling
+				// server.Close, which waits for running handlers.
+				select {
+				case requests <- capturedRequest{method: req.Method, url: req.URL.String(), body: string(body)}:
+				default:
+					t.Errorf("unexpected extra request: %s %s", req.Method, req.URL)
+				}
+
+				_, _ = io.WriteString(w, successBody)
+			}))
+			t.Cleanup(server.Close)
+
+			service := newTestService(t, "bark://:devicekey@"+server.Listener.Addr().String()+"?scheme=http")
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			require.NoError(t, service.Send("Message", nil))
+
+			received := <-requests
+			assert.Equal(t, http.MethodPost, received.method)
+			assert.Equal(t, "/push", received.url)
+			assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"","badge":0}`, received.body)
+		})
+	}
+}
+
+// TestDefaultHTTPClientDo verifies that the default client redacts the request
+// URL from a transport error and keeps the error matchable as a *url.Error.
+func TestDefaultHTTPClientDo(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	serverURL := server.URL
+	server.Close()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, serverURL+"/SECRETpath/push", http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := NewDefaultHTTPClient().Do(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETpath")
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// selects the default client for nil.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the clients to set and whether the default client should
+	// replace them.
+	tests := []struct {
+		client      types.HTTPClient
+		name        string
+		wantDefault bool
+	}{
+		{name: "custom client", client: mocks.NewMockHTTPClient(t)},
+		{name: "nil", client: nil, wantDefault: true},
+		{name: "nil *http.Client", client: (*http.Client)(nil), wantDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{}
+			service.SetHTTPClient(tt.client)
+
+			if tt.wantDefault {
+				assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
+
+				return
+			}
+
+			assert.Same(t, tt.client, service.HTTPClient)
+		})
+	}
+}
+
+// TestServiceTimeout verifies that the router budget for a send is the HTTP
+// timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, defaultHTTPTimeout, (&Service{}).ServiceTimeout(nil))
 }
