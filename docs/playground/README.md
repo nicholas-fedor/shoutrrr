@@ -66,7 +66,7 @@ docs/playground/
 ## Build
 
 ```bash
-make wasm
+task wasm
 ```
 
 This compiles the Go source to WASM and copies `wasm_exec.js` from the Go toolchain:

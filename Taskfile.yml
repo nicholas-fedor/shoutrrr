@@ -1,0 +1,232 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+silent: true
+
+# LDFLAGS is shared by the build and install tasks so both stamp the same
+# version metadata as GoReleaser: the tag without its "v" prefix, the short
+# commit SHA, and the commit date in UTC. Each invocation reads fresh values.
+vars:
+  VERSION:
+    sh: (git describe --tags --always --dirty 2>/dev/null || echo dev) | sed 's/^v//'
+  COMMIT_SHA:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  COMMIT_DATE:
+    sh: TZ=UTC git log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd 2>/dev/null || echo unknown
+  LDFLAGS: >-
+    -s -w
+    -X 'github.com/nicholas-fedor/shoutrrr/internal/meta.Version={{.VERSION}}'
+    -X 'github.com/nicholas-fedor/shoutrrr/internal/meta.Commit={{.COMMIT_SHA}}'
+    -X 'github.com/nicholas-fedor/shoutrrr/internal/meta.Date={{.COMMIT_DATE}}'
+  GOLANGCI_CONFIG: build/golangci-lint/golangci.yaml
+  GORELEASER_CONFIG: build/goreleaser/stable.yaml
+  MKDOCS_CONFIG: build/mkdocs/mkdocs.yaml
+  DOCS_VENV: shoutrrr-docs
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list-all
+
+  build:
+    desc: "Build a static CLI binary to ./bin/shoutrrr with version info injected"
+    # Go settings that a build needs are set on the command, where an exported
+    # variable cannot override them as it would a task env entry.
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/shoutrrr ./shoutrrr
+
+  install:
+    desc: "Install the CLI to $GOBIN (or $GOPATH/bin)"
+    cmds:
+      - CGO_ENABLED=0 go install -trimpath -ldflags "{{.LDFLAGS}}" ./shoutrrr
+
+  uninstall:
+    desc: "Remove the CLI from $GOBIN (or $GOPATH/bin)"
+    # Without GOBIN, go install uses the first GOPATH entry, so the list is cut
+    # at the OS path list separator.
+    cmds:
+      - |
+        bin="$(go env GOBIN)"
+        if [ -z "$bin" ]; then
+          gopath="$(go env GOPATH)"
+          bin="${gopath%%{{if eq OS "windows"}};{{else}}:{{end}}*}/bin"
+        fi
+        rm -f "$bin/shoutrrr"
+
+  run:
+    desc: "Run the CLI, passing arguments after --, such as: task run -- verify --url logger://"
+    cmds:
+      - go run ./shoutrrr {{.CLI_ARGS}}
+
+  fmt:
+    desc: "Format code with golangci-lint fmt"
+    cmds:
+      - golangci-lint fmt --config {{.GOLANGCI_CONFIG}} ./...
+
+  vet:
+    desc: "Run go vet"
+    cmds:
+      - go vet ./...
+
+  modernize:
+    desc: "Fail when go fix reports changes, or apply them with FIX=true"
+    # The inline fixer is off because tests call the deprecated wrappers on
+    # purpose to cover them, and inlining would remove those calls.
+    # FIX has no vars entry: a declared var would shadow the command line.
+    cmds:
+      - |
+        if [ "{{.FIX}}" = "true" ]; then
+          go fix -inline=false ./...
+        elif ! go fix -inline=false -diff ./...; then
+          echo "go fix reports changes. run FIX=true task modernize to apply them"
+          exit 1
+        fi
+
+  lint:
+    desc: "Run golangci-lint, which applies its fixes to the tree"
+    cmds:
+      - golangci-lint run --config {{.GOLANGCI_CONFIG}} ./...
+
+  test:
+    desc: "Run the unit and integration tests with race detection and coverage"
+    vars:
+      # PKGS leaves out the e2e suites, which need live services.
+      PKGS:
+        sh: go list ./... | grep -vE '/testing/e2e(/|$)' | tr '\n' ' '
+    cmds:
+      - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic {{.PKGS}}
+
+  test:unit:
+    desc: "Run the unit tests of one service, such as: task test:unit -- ntfy"
+    vars:
+      SERVICE: "{{.CLI_ARGS}}"
+    preconditions:
+      - sh: test -n "{{.SERVICE}}"
+        msg: "usage: task test:unit -- <service>"
+      - sh: test -n "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
+        msg: "no service named {{.SERVICE}} under pkg/services"
+    cmds:
+      - go test -race -count=1 -v "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
+
+  test:integration:
+    desc: "Run the integration tests of one service, such as: task test:integration -- ntfy"
+    vars:
+      SERVICE: "{{.CLI_ARGS}}"
+    preconditions:
+      - sh: test -n "{{.SERVICE}}"
+        msg: "usage: task test:integration -- <service>"
+      - sh: test -d "./testing/integration/{{.SERVICE}}"
+        msg: "no integration tests under testing/integration/{{.SERVICE}}"
+    cmds:
+      - go test -race -count=1 -v ./testing/integration/{{.SERVICE}}
+
+  test:e2e:
+    desc: "Run the e2e tests of one service against a live server, such as: task test:e2e -- mqtt"
+    vars:
+      SERVICE: "{{.CLI_ARGS}}"
+    preconditions:
+      - sh: test -n "{{.SERVICE}}"
+        msg: "usage: task test:e2e -- <service>"
+      - sh: test -d "./testing/e2e/{{.SERVICE}}"
+        msg: "no e2e tests under testing/e2e/{{.SERVICE}}"
+    cmds:
+      - go test -count=1 -timeout 2m -v ./testing/e2e/{{.SERVICE}}
+
+  test:wasm:
+    desc: "Compile the playground tests for js/wasm"
+    cmds:
+      - GOOS=js GOARCH=wasm go test -c -o /dev/null ./docs/playground/wasm/
+
+  test:playground:
+    desc: "Run the native playground tests with coverage"
+    cmds:
+      - go test -count=1 -coverprofile=coverage-playground.out -covermode=atomic ./docs/playground/wasm/
+
+  mocks:
+    desc: "Generate mocks with mockery"
+    cmds:
+      - mockery --config build/mockery/mockery.yaml
+
+  vuln:
+    desc: "Report known vulnerabilities in the dependency graph"
+    cmds:
+      - govulncheck ./...
+
+  mod:tidy:
+    desc: "Tidy the Go module files"
+    cmds:
+      - go mod tidy
+
+  mod:download:
+    desc: "Download the Go module dependencies"
+    cmds:
+      - go mod download
+
+  wasm:
+    desc: "Build the playground WASM module and copy wasm_exec.js next to it"
+    cmds:
+      - mkdir -p docs/playground/assets
+      - GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/playground/assets/shoutrrr.wasm ./docs/playground/wasm/
+      - cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/playground/assets/
+
+  docs:
+    desc: "Set up the docs environment, then build and serve the docs site locally"
+    cmds:
+      - task: docs:setup
+      - task: docs:serve
+
+  docs:setup:
+    desc: "Create the docs virtual environment and install the MkDocs requirements"
+    cmds:
+      - python3 -m venv {{.DOCS_VENV}}
+      - "{{.DOCS_VENV}}/bin/pip install -r build/mkdocs/docs-requirements.txt"
+
+  docs:gen:
+    desc: "Generate the service config docs, or one service's with: task docs:gen -- <service>"
+    cmds:
+      - bash ./scripts/generate-service-config-docs.sh {{.CLI_ARGS}}
+
+  docs:build:
+    desc: "Build the docs site into ./site"
+    deps: [docs:gen, wasm]
+    preconditions:
+      - sh: test -x "{{.DOCS_VENV}}/bin/mkdocs"
+        msg: "the docs environment is missing. run task docs:setup first"
+    cmds:
+      - "{{.DOCS_VENV}}/bin/mkdocs build --config-file {{.MKDOCS_CONFIG}}"
+
+  docs:serve:
+    desc: "Serve the docs site locally with live reload"
+    deps: [docs:gen, wasm]
+    preconditions:
+      - sh: test -x "{{.DOCS_VENV}}/bin/mkdocs"
+        msg: "the docs environment is missing. run task docs:setup first"
+    cmds:
+      - "{{.DOCS_VENV}}/bin/mkdocs serve --config-file {{.MKDOCS_CONFIG}} --livereload"
+
+  release:
+    desc: "Publish a release from the current tag with GoReleaser"
+    cmds:
+      - goreleaser release --clean --config {{.GORELEASER_CONFIG}}
+
+  release:snapshot:
+    desc: "Build every release artifact locally without signing or publishing"
+    cmds:
+      - goreleaser release --snapshot --clean --skip=sign --config {{.GORELEASER_CONFIG}}
+
+  check:
+    desc: "Run fmt, vet, modernize, test, lint, then vuln"
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: modernize
+      - task: test
+      - task: lint
+      - task: vuln
+
+  clean:
+    desc: "Remove build artifacts"
+    cmds:
+      - rm -rf bin/ dist/ site/
