@@ -53,7 +53,7 @@ tasks:
           gopath="$(go env GOPATH)"
           bin="${gopath%%{{if eq OS "windows"}};{{else}}:{{end}}*}/bin"
         fi
-        rm -f "$bin/shoutrrr"
+        rm -f "$bin/shoutrrr$(go env GOEXE)"
 
   run:
     desc: "Run the CLI, passing arguments after --, such as: task run -- verify --url logger://"
