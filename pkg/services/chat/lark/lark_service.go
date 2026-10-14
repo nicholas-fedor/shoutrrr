@@ -300,7 +300,7 @@ func (s *Service) sendRequest(ctx context.Context, postURL string, payload []byt
 		bytes.NewReader(payload),
 	)
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

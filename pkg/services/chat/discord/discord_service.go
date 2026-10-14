@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -352,7 +353,7 @@ func validateDiscordWebhookURL(postURL string) error {
 
 	parsedURL, err := url.ParseRequestURI(postURL)
 	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
+		return fmt.Errorf("invalid URL: %w", redact.URLError(err))
 	}
 
 	if parsedURL.Scheme != "https" {

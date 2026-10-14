@@ -456,3 +456,18 @@ func TestSendContextCanceled(t *testing.T) {
 
 	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 }
+
+// TestSendRedactsUnparsableURL verifies that a key that makes the webhook URL
+// unparsable fails the send without the key in the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	// The mock has no expectations, so a request fails the test.
+	service := newTestService(t, mocks.NewMockHTTPClient(t), log.New(t.Output(), "", 0))
+
+	err := service.Send("message", &types.Params{"key": "SECRETkey\x7f"})
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETkey")
+}

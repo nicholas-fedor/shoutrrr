@@ -96,7 +96,7 @@ func (s *Service) SendContext(ctx context.Context, message string, _ *types.Para
 		jsonBuffer,
 	)
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")

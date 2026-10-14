@@ -463,3 +463,24 @@ func TestBuildURL(t *testing.T) {
 		})
 	}
 }
+
+// TestSendRedactsUnparsableURL verifies that tokens that make the webhook URL
+// unparsable fail the send without either token in the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse("rocketchat://rocketchat.example.com/SECRETtokenA%25zz/SECRETtokenB")
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err = service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETtokenA")
+	assert.NotContains(t, err.Error(), "SECRETtokenB")
+}

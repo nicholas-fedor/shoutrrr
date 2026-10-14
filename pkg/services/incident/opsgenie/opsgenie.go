@@ -200,7 +200,7 @@ func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payl
 		jsonBuffer,
 	)
 	if err != nil {
-		return fmt.Errorf("creating HTTP request: %w", err)
+		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Add("Authorization", "GenieKey "+apiKey)

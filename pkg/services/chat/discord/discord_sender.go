@@ -122,7 +122,7 @@ func (p *JSONRequestPreparer) PrepareRequest(
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(p.payload))
 	if err != nil {
-		return nil, fmt.Errorf("creating HTTP request: %w", err)
+		return nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -170,7 +170,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, &body)
 	if err != nil {
-		return nil, fmt.Errorf("creating HTTP request: %w", err)
+		return nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -226,7 +226,7 @@ func executeWithTransportRetry(
 			bytes.NewReader(bodyBytes),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("creating retry request: %w", err)
+			return nil, fmt.Errorf("creating retry request: %w", redact.URLError(err))
 		}
 
 		maps.Copy(newReq.Header, req.Header)

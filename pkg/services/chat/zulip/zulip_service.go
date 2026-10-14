@@ -287,7 +287,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 		strings.NewReader(payload.Encode()),
 	)
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

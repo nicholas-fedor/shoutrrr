@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -385,4 +386,21 @@ func TestSetHTTPClient(t *testing.T) {
 	service.SetHTTPClient(client)
 
 	assert.Same(t, client, service.httpClient)
+}
+
+// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
+// unparsable fails the send without the token in the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "mattermost://mattermost.example.com/SECRETtoken")
+	service.Config.Host = "bad host"
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETtoken")
 }

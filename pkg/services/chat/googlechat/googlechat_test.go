@@ -306,3 +306,22 @@ func TestServiceSetHTTPClient(t *testing.T) {
 		})
 	}
 }
+
+// TestServiceSendRedactsUnparsableURL verifies that a host that makes the
+// webhook URL unparsable fails the send without the key or token in the error.
+func TestServiceSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{
+		Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "SECRETkey", Token: "SECRETtoken"},
+		// The mock has no expectations, so a request fails the test.
+		httpClient: mocks.NewMockHTTPClient(t),
+	}
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETkey")
+	assert.NotContains(t, err.Error(), "SECRETtoken")
+}

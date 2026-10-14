@@ -232,7 +232,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(requestBody))
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return fmt.Errorf("creating request: %w", redact.URLError(err))
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")

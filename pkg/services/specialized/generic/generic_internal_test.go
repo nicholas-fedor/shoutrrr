@@ -2,8 +2,10 @@ package generic
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -67,5 +69,21 @@ var _ = ginkgo.Describe("send contexts", func() {
 		}).Once()
 
 		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+	})
+})
+
+var _ = ginkgo.Describe("request building", func() {
+	ginkgo.It("should not leak the webhook credentials when the request URL cannot be parsed", func() {
+		service := &Service{}
+		serviceURL := &url.URL{Scheme: "generic", Host: "bad host", Path: "/hook", User: url.UserPassword("user", "SECRETpassword")}
+		gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).To(gomega.Succeed())
+		// The mock has no expectations, so a request fails the spec.
+		service.SetHTTPClient(typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()))
+
+		err := service.Send("message", nil)
+
+		var urlErr *url.Error
+		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
+		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETpassword"))
 	})
 })
