@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the chat webhook service tests from ginkgo to testify by @nicholas-fedor in [#1566](https://github.com/nicholas-fedor/shoutrrr/pull/1566)
 - Migrate the discord tests from ginkgo to testify by @nicholas-fedor in [#1564](https://github.com/nicholas-fedor/shoutrrr/pull/1564)
 - Migrate the matrix tests from ginkgo to testify by @nicholas-fedor in [#1562](https://github.com/nicholas-fedor/shoutrrr/pull/1562)
 - Migrate the mqtt tests from ginkgo to testify by @nicholas-fedor in [#1558](https://github.com/nicholas-fedor/shoutrrr/pull/1558)
