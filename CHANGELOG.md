@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 97665cd by @renovate[bot] in [#1569](https://github.com/nicholas-fedor/shoutrrr/pull/1569)
+- Update github.com/google/pprof digest to c3b4e57 by @renovate[bot] in [#1568](https://github.com/nicholas-fedor/shoutrrr/pull/1568)
 - Update dependency markdown to v3.11.1 by @renovate[bot] in [#1560](https://github.com/nicholas-fedor/shoutrrr/pull/1560)
 
 ## [0.22.0] - 2026-10-13
