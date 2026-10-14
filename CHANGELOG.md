@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Accept username and channel send params by @nicholas-fedor in [#1577](https://github.com/nicholas-fedor/shoutrrr/pull/1577)
 - Redact service urls from request building errors by @nicholas-fedor in [#1571](https://github.com/nicholas-fedor/shoutrrr/pull/1571)
 
 ### Tests
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/stretchr/objx to v0.8.0 by @renovate[bot] in [#1574](https://github.com/nicholas-fedor/shoutrrr/pull/1574)
 - Update dependency gitpython to v3.2.1 by @renovate[bot] in [#1573](https://github.com/nicholas-fedor/shoutrrr/pull/1573)
 - Update matrixdotorg/synapse:latest docker digest to 97665cd by @renovate[bot] in [#1569](https://github.com/nicholas-fedor/shoutrrr/pull/1569)
 - Update github.com/google/pprof digest to c3b4e57 by @renovate[bot] in [#1568](https://github.com/nicholas-fedor/shoutrrr/pull/1568)
