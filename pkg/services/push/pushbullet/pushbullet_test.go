@@ -1,349 +1,475 @@
-package pushbullet_test
+package pushbullet
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
-	"net/url"
-	"os"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/router"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushbullet"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// testToken is the access token in the URL that initService configures.
-const testToken = "tokentokentokentokentokentokentoke"
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// accessToken is the request's Access-Token header.
+	accessToken string
+	// body is the request body.
+	body string
+}
 
-var (
-	service          *pushbullet.Service
-	envPushbulletURL *url.URL
-	_                = ginkgo.BeforeSuite(func() {
-		service = &pushbullet.Service{}
-		envPushbulletURL, _ = url.Parse(os.Getenv("SHOUTRRR_PUSHBULLET_URL"))
+// cannedResponse is a response the fake Pushbullet API returns.
+type cannedResponse struct {
+	// body is the response body.
+	body string
+	// statusCode is the response status code.
+	statusCode int
+}
+
+// invalidTokenBody is the body the Pushbullet API returns for a missing or
+// invalid access token.
+const invalidTokenBody = `{"error":{"cat":"~(=^‥^)","message":"Access token is missing or invalid.","type":"invalid_request"}}`
+
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
+
+// noteResponse returns the JSON body of a created note push.
+//
+// Parameters:
+//   - t: the test.
+//   - body: the push body.
+//   - title: the push title.
+//   - active: whether the push is active.
+//
+// Returns:
+//   - string: the JSON body.
+func noteResponse(t *testing.T, body, title string, active bool) string {
+	t.Helper()
+
+	encoded, err := json.Marshal(PushResponse{Type: "note", Body: body, Title: title, Active: active})
+	require.NoError(t, err)
+
+	return string(encoded)
+}
+
+// newRespondingClient returns a mock HTTP client that expects one request for
+// each response, records the requests, and answers them in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - responses: the responses, one for each expected request.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *[]capturedRequest: the requests, appended as the client receives them.
+func newRespondingClient(t *testing.T, responses ...cannedResponse) (*mocks.MockHTTPClient, *[]capturedRequest) {
+	t.Helper()
+
+	captured := &[]capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		response := responses[len(*captured)]
+		*captured = append(*captured, capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			accessToken: req.Header.Get("Access-Token"),
+			body:        string(body),
+		})
+
+		return &http.Response{
+			Status:     http.StatusText(response.statusCode),
+			StatusCode: response.statusCode,
+			Body:       io.NopCloser(strings.NewReader(response.body)),
+		}, nil
+	}).Times(len(responses))
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// newServiceWithConfig returns a service that uses config without parsing a
+// URL, for configs a URL cannot produce.
+//
+// Parameters:
+//   - config: the service config.
+//
+// Returns:
+//   - *Service: the service.
+func newServiceWithConfig(config *Config) *Service {
+	return &Service{Config: config, pkr: format.NewPropKeyResolver(config)}
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "pushbullet", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize applies the default title, parses
+// the service URL, and rejects a token of the wrong length.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+
+		assert.Equal(t, &Config{Token: testToken, Targets: []string{"device"}, Title: "Shoutrrr notification"}, service.Config)
+		assert.Equal(t, testToken, service.client.Headers().Get("Access-Token"))
 	})
-)
 
-var _ = ginkgo.Describe("the pushbullet service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should not error out", func() {
-			if envPushbulletURL.String() == "" {
-				return
+	t.Run("short token", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "pushbullet://shorttoken/device"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrTokenIncorrectSize)
+	})
+}
+
+// TestSend verifies the requests a send makes: one authenticated JSON POST to
+// the pushes endpoint for each target, in order, with the target in the field
+// that matches its kind.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the request bodies the send
+	// should produce.
+	tests := []struct {
+		params     *types.Params
+		name       string
+		rawURL     string
+		title      string
+		wantBodies []string
+	}{
+		{
+			name:   "no target",
+			rawURL: "pushbullet://" + testToken,
+			title:  "Shoutrrr notification",
+			wantBodies: []string{
+				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":""}`,
+			},
+		},
+		{
+			name:   "device, email, and channel targets",
+			rawURL: "pushbullet://" + testToken + "/device/iam@email.com#channel",
+			title:  "Shoutrrr notification",
+			wantBodies: []string{
+				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":"device"}`,
+				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"iam@email.com","channel_tag":"","device_iden":""}`,
+				`{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"channel","device_iden":""}`,
+			},
+		},
+		{
+			name:   "title param",
+			rawURL: "pushbullet://" + testToken + "/device?title=Configured",
+			params: &types.Params{"title": "Override"},
+			title:  "Override",
+			wantBodies: []string{
+				`{"type":"note","title":"Override","body":"Message","email":"","channel_tag":"","device_iden":"device"}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			responses := make([]cannedResponse, len(tt.wantBodies))
+			for i := range responses {
+				responses[i] = cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", tt.title, true)}
 			}
 
-			serviceURL, _ := url.Parse(envPushbulletURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("This is an integration test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, responses...)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			require.Len(t, *captured, len(tt.wantBodies))
+
+			for i, request := range *captured {
+				assert.Equal(t, http.MethodPost, request.method)
+				assert.Equal(t, pushesEndpoint, request.url)
+				assert.Equal(t, "application/json", request.contentType)
+				assert.Equal(t, testToken, request.accessToken)
+				assert.JSONEq(t, tt.wantBodies[i], request.body)
+			}
 		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("pushbullet"))
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured title.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "pushbullet://"+testToken+"/device?title=Configured")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Override", true)})
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Override"}))
+	assert.Equal(t, want, *service.Config)
+
+	client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Configured", true)})
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+	require.Len(t, *captured, 1)
+	assert.JSONEq(t, `{"type":"note","title":"Configured","body":"Message","email":"","channel_tag":"","device_iden":"device"}`,
+		(*captured)[0].body)
+}
+
+// TestSendResponseValidation verifies that a send rejects a created push that
+// does not match the request: another type, body, or title, or an inactive
+// push.
+func TestSendResponseValidation(t *testing.T) {
+	t.Parallel()
+
+	// tests lists created pushes with the error each should produce.
+	tests := []struct {
+		response PushResponse
+		wantErr  error
+		name     string
+	}{
+		{
+			name:     "another type",
+			response: PushResponse{Type: "link", Body: "Message", Title: "Shoutrrr notification", Active: true},
+			wantErr:  ErrUnexpectedResponseType,
+		},
+		{
+			name:     "another body",
+			response: PushResponse{Type: "note", Body: "Wrong message", Title: "Shoutrrr notification", Active: true},
+			wantErr:  ErrResponseBodyMismatch,
+		},
+		{
+			name:     "another title",
+			response: PushResponse{Type: "note", Body: "Message", Title: "Wrong Title", Active: true},
+			wantErr:  ErrResponseTitleMismatch,
+		},
+		{
+			name:     "inactive",
+			response: PushResponse{Type: "note", Body: "Message", Title: "Shoutrrr notification", Active: false},
+			wantErr:  ErrPushNotActive,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, err := json.Marshal(tt.response)
+			require.NoError(t, err)
+
+			service := newTestService(t, "pushbullet://"+testToken+"/device")
+			client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: string(body)})
+			service.SetHTTPClient(client)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
 		})
+	}
+}
+
+// TestSendContextErrors verifies that a send reports the API's error message,
+// wraps other request errors, stops at the first failing target, rejects an
+// unknown param before any request, and stops when the caller's context is
+// canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("API error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		responseErr, ok := errors.AsType[*ResponseError](err)
+		require.True(t, ok, "error %v is not a *ResponseError", err)
+		assert.Equal(t, "invalid_request", responseErr.ErrorData.Type)
+		assert.EqualError(t, err, "API error: Access token is missing or invalid.")
 	})
 
-	ginkgo.Describe("the pushbullet config", func() {
-		ginkgo.When("generating a config object", func() {
-			ginkgo.It("should set token", func() {
-				pushbulletURL, _ := url.Parse("pushbullet://tokentokentokentokentokentokentoke")
-				config := pushbullet.Config{}
-				err := config.SetURL(pushbulletURL)
+	t.Run("error status without a JSON body", func(t *testing.T) {
+		t.Parallel()
 
-				gomega.Expect(config.Token).To(gomega.Equal("tokentokentokentokentokentokentoke"))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"})
+		service.SetHTTPClient(client)
 
-			ginkgo.It("should set the device from path", func() {
-				pushbulletURL, _ := url.Parse(
-					"pushbullet://tokentokentokentokentokentokentoke/test",
-				)
-				config := pushbullet.Config{}
-				err := config.SetURL(pushbulletURL)
+		err := service.SendContext(t.Context(), "Message", nil)
 
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.Targets).To(gomega.HaveLen(1))
-				gomega.Expect(config.Targets).To(gomega.ContainElements("test"))
-			})
-
-			ginkgo.It("should set the channel from path", func() {
-				pushbulletURL, _ := url.Parse(
-					"pushbullet://tokentokentokentokentokentokentoke/foo#bar",
-				)
-				config := pushbullet.Config{}
-				err := config.SetURL(pushbulletURL)
-
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.Targets).To(gomega.HaveLen(2))
-				gomega.Expect(config.Targets).To(gomega.ContainElements("foo", "#bar"))
-			})
-		})
-
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := "pushbullet://tokentokentokentokentokentokentoke/device?title=Great+News"
-
-				config := &pushbullet.Config{}
-				err := config.SetURL(testutils.URLMust(testURL))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
-
-				outputURL := config.GetURL()
-				gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
-			})
-		})
+		require.ErrorIs(t, err, jsonclient.ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "failed to push")
 	})
 
-	ginkgo.Describe("building the payload", func() {
-		ginkgo.It("Email target should only populate one the correct field", func() {
-			push := pushbullet.PushRequest{}
-			push.SetTarget("iam@email.com")
-			gomega.Expect(push.Email).To(gomega.Equal("iam@email.com"))
-			gomega.Expect(push.DeviceIden).To(gomega.BeEmpty())
-			gomega.Expect(push.ChannelTag).To(gomega.BeEmpty())
-		})
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("Device target should only populate one the correct field", func() {
-			push := pushbullet.PushRequest{}
-			push.SetTarget("device")
-			gomega.Expect(push.Email).To(gomega.BeEmpty())
-			gomega.Expect(push.DeviceIden).To(gomega.Equal("device"))
-			gomega.Expect(push.ChannelTag).To(gomega.BeEmpty())
-		})
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
 
-		ginkgo.It("Channel target should only populate one the correct field", func() {
-			push := pushbullet.PushRequest{}
-			push.SetTarget("#channel")
-			gomega.Expect(push.Email).To(gomega.BeEmpty())
-			gomega.Expect(push.DeviceIden).To(gomega.BeEmpty())
-			gomega.Expect(push.ChannelTag).To(gomega.Equal("channel"))
-		})
+		require.ErrorIs(t, service.SendContext(t.Context(), "Message", nil), errTransport)
 	})
 
-	ginkgo.Describe("sending the payload", func() {
-		var err error
+	t.Run("stops at the first failing target", func(t *testing.T) {
+		t.Parallel()
 
-		targetURL := "https://api.pushbullet.com/v2/pushes"
+		service := newTestService(t, "pushbullet://"+testToken+"/first/second")
+		client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody})
+		service.SetHTTPClient(client)
 
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			response := pushbullet.PushResponse{
-				Type:   "note",
-				Body:   "Message",
-				Title:  "Shoutrrr notification", // Matches default
-				Active: true,
-			}
-			responder, _ := httpmock.NewJsonResponder(200, &response)
-			httpmock.RegisterResponder("POST", targetURL, responder)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.When("the HTTP client is replaced after initialization", func() {
-			ginkgo.BeforeEach(func() {
-				httpmock.RegisterResponder("POST", targetURL, requireAccessToken)
-			})
-
-			ginkgo.It("should authenticate with a client injected by the router", func() {
-				serviceRouter, routerErr := router.NewWithOptions(
-					testutils.TestLogger(),
-					types.SenderOptions{HTTPClient: &http.Client{}},
-				)
-				gomega.Expect(routerErr).NotTo(gomega.HaveOccurred())
-
-				located, locateErr := serviceRouter.Locate("pushbullet://" + testToken + "/test")
-				gomega.Expect(locateErr).NotTo(gomega.HaveOccurred())
-
-				err = located.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("should authenticate with a client set directly", func() {
-				err = initService()
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				service.SetHTTPClient(&http.Client{})
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("should authenticate with the default client restored by SetHTTPClient(nil)", func() {
-				err = initService()
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				service.SetHTTPClient(&http.Client{})
-				service.SetHTTPClient(nil)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				targetURL,
-				httpmock.NewErrorResponder(errors.New("")),
-			)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return an error if the response type is incorrect", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			response := pushbullet.PushResponse{
-				Type:   "link", // Incorrect type
-				Body:   "Message",
-				Title:  "Shoutrrr notification",
-				Active: true,
-			}
-			responder, _ := httpmock.NewJsonResponder(200, &response)
-			httpmock.RegisterResponder("POST", targetURL, responder)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("unexpected response type"))
-		})
-
-		ginkgo.It("should return an error if the response body does not match", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			response := pushbullet.PushResponse{
-				Type:   "note",
-				Body:   "Wrong message",
-				Title:  "Shoutrrr notification",
-				Active: true,
-			}
-			responder, _ := httpmock.NewJsonResponder(200, &response)
-			httpmock.RegisterResponder("POST", targetURL, responder)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("response body mismatch"))
-		})
-
-		ginkgo.It("should return an error if the response title does not match", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			response := pushbullet.PushResponse{
-				Type:   "note",
-				Body:   "Message",
-				Title:  "Wrong Title",
-				Active: true,
-			}
-			responder, _ := httpmock.NewJsonResponder(200, &response)
-			httpmock.RegisterResponder("POST", targetURL, responder)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("response title mismatch"))
-		})
-
-		ginkgo.It("should return an error if the push is not active", func() {
-			err = initService()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			response := pushbullet.PushResponse{
-				Type:   "note",
-				Body:   "Message",
-				Title:  "Shoutrrr notification", // Matches default
-				Active: false,
-			}
-			responder, _ := httpmock.NewJsonResponder(200, &response)
-			httpmock.RegisterResponder("POST", targetURL, responder)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).
-				To(gomega.ContainSubstring("push notification is not active"))
-		})
+		require.Error(t, service.SendContext(t.Context(), "Message", nil))
+		require.Len(t, *captured, 1)
+		assert.JSONEq(t, `{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":"first"}`,
+			(*captured)[0].body)
 	})
-})
 
-var _ = ginkgo.Describe("ServiceTimeout", func() {
-	ginkgo.It("should budget one client timeout for each target", func() {
-		service := &pushbullet.Service{}
-		gomega.Expect(service.Initialize(
-			testutils.URLMust("pushbullet://tokentokentokentokentokentokentoke/dev1/dev2/dev3"),
-			testutils.TestLogger(),
-		)).To(gomega.Succeed())
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
 
-		gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(3 * types.DefaultSendTimeout))
+		service := newTestService(t, "pushbullet://"+testToken+"/device")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", &types.Params{"foo": "bar"})
+
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 	})
-})
 
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &pushbullet.Service{}
-		gomega.Expect(service.Initialize(
-			testutils.URLMust("pushbullet://tokentokentokentokentokentokentoke"),
-			testutils.TestLogger(),
-		)).To(gomega.Succeed())
+		service := newTestService(t, "pushbullet://"+testToken)
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
-
-func TestPushbullet(t *testing.T) {
-	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Pushbullet Suite")
 }
 
-// requireAccessToken accepts a push only when it carries the configured access
-// token, and answers 401 otherwise, like the Pushbullet API.
-func requireAccessToken(req *http.Request) (*http.Response, error) {
-	if req.Header.Get("Access-Token") != testToken {
-		return httpmock.NewStringResponse(http.StatusUnauthorized, `{"error":{"message":"Access token is missing or invalid."}}`), nil
+// TestServiceTimeout verifies that the router budget is one client timeout for
+// each target, and at least one client timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	// tests lists services and params with the budget each should get.
+	tests := []struct {
+		service *Service
+		params  *types.Params
+		name    string
+		want    time.Duration
+	}{
+		{name: "uninitialized service", service: &Service{}, want: defaultHTTPTimeout},
+		{name: "no targets", service: newServiceWithConfig(&Config{}), want: defaultHTTPTimeout},
+		{name: "one target", service: newTestService(t, "pushbullet://"+testToken+"/dev1"), want: defaultHTTPTimeout},
+		{
+			name:    "three targets",
+			service: newTestService(t, "pushbullet://"+testToken+"/dev1/dev2/dev3"),
+			want:    3 * defaultHTTPTimeout,
+		},
+		{
+			name:    "invalid param keeps the stored targets",
+			service: newTestService(t, "pushbullet://"+testToken+"/dev1/dev2"),
+			params:  &types.Params{"foo": "bar"},
+			want:    2 * defaultHTTPTimeout,
+		},
 	}
 
-	return httpmock.NewJsonResponse(http.StatusOK, pushbullet.PushResponse{
-		Type:   "note",
-		Body:   "Message",
-		Title:  "Shoutrrr notification",
-		Active: true,
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.service.ServiceTimeout(tt.params))
+		})
+	}
 }
 
-// initService initializes the service with a fixed test configuration.
-func initService() error {
-	serviceURL, err := url.Parse("pushbullet://" + testToken + "/test")
-	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
+// TestSetHTTPClient verifies that every client SetHTTPClient installs carries
+// the access token, including the default client that nil restores.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
 
-	return service.Initialize(serviceURL, testutils.TestLogger())
+	// tests lists the clients to set and the HTTP client each should leave.
+	tests := []struct {
+		client     types.HTTPClient
+		name       string
+		wantCustom bool
+	}{
+		{name: "custom client", client: mocks.NewMockHTTPClient(t), wantCustom: true},
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "pushbullet://"+testToken+"/device")
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(tt.client)
+
+			if tt.wantCustom {
+				assert.Same(t, tt.client, service.httpClient)
+			} else {
+				assert.Nil(t, service.httpClient)
+			}
+
+			assert.Equal(t, testToken, service.client.Headers().Get("Access-Token"))
+		})
+	}
 }

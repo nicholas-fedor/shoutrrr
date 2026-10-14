@@ -1,227 +1,355 @@
 package signalgrid
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var _ = ginkgo.Describe("Service", func() {
-	var (
-		service *Service
-		logger  types.StdLogger
-		client  *stubHTTPClient
-	)
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// form is the parsed form body.
+	form url.Values
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// userAgent is the request's User-Agent header.
+	userAgent string
+}
 
-	ginkgo.BeforeEach(func() {
-		logger = &noOpLogger{}
-		client = &stubHTTPClient{}
-		service = &Service{}
+// successBody is the body the Push API returns for an accepted notification.
+const successBody = `{"ruuid":"bc0e212110067ff2995abff087a4a58c8d843ae9","text":"OK","code":"200","node":"dp03","time":"440ms"}`
+
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status and body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int, body string) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		requestBody, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		form, err := url.ParseQuery(string(requestBody))
+		require.NoError(t, err)
+
+		*captured = capturedRequest{
+			form:        form,
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			userAgent:   req.Header.Get("User-Agent"),
+		}
+
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "signalgrid", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize applies the default props, builds an
+// HTTP client unless one is set, accepts the docs dummy URL, and rejects a URL
+// without a client key.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "signalgrid://abc123@channel")
+
+		assert.Equal(t, &Config{ClientKey: "abc123", Channel: "channel", Type: TypeINFO}, service.Config)
+		assert.IsType(t, &http.Client{}, service.httpClient)
+	})
+
+	t.Run("keeps an injected client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
 		service.SetHTTPClient(client)
+		require.NoError(t, service.Initialize(parseTestURL(t, "signalgrid://key@channel"), log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.httpClient)
 	})
 
-	ginkgo.Describe("GetID", func() {
-		ginkgo.It("should return the scheme name", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal(Scheme))
-		})
+	t.Run("docs dummy URL", func(t *testing.T) {
+		t.Parallel()
+
+		require.NoError(t, (&Service{}).Initialize(parseTestURL(t, dummyServiceURL), log.New(t.Output(), "", 0)))
 	})
 
-	ginkgo.Describe("Initialize", func() {
-		ginkgo.It("should parse a valid URL and apply defaults", func() {
-			err := service.Initialize(
-				mustParseURL("signalgrid://abc123@channel"),
-				logger,
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.ClientKey).To(gomega.Equal("abc123"))
-			gomega.Expect(service.Config.Channel).To(gomega.Equal("channel"))
-			gomega.Expect(service.Config.Type).To(gomega.Equal(TypeINFO))
-			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(client))
-		})
+	t.Run("missing client key", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should accept the docs dummy URL", func() {
-			err := service.Initialize(mustParseURL(dummyServiceURL), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		err := (&Service{}).Initialize(parseTestURL(t, "signalgrid://channel"), log.New(t.Output(), "", 0))
 
-		ginkgo.It("should return an error when the client key is missing", func() {
-			err := service.Initialize(mustParseURL("signalgrid://channel"), logger)
-			gomega.Expect(err).To(gomega.MatchError(ErrClientKeyMissing))
-		})
+		require.ErrorIs(t, err, ErrClientKeyMissing)
+	})
+}
 
-		ginkgo.It("should create a default HTTP client when none is set", func() {
-			service.httpClient = nil
-			err := service.Initialize(
-				mustParseURL("signalgrid://key@channel"),
-				logger,
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
+// TestSend verifies the request a send makes: a form POST to the Push API with
+// the client key, channel, body, and type, and the title and critical fields
+// only when set.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the form the send should
+	// produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantForm url.Values
+	}{
+		{
+			name:   "defaults",
+			rawURL: "signalgrid://clientkey@channeltoken",
+			wantForm: url.Values{
+				"client_key": {"clientkey"}, "channel": {"channeltoken"}, "body": {"Host unreachable"}, "type": {"INFO"},
+			},
+		},
+		{
+			name:   "configured title, type, and critical",
+			rawURL: "signalgrid://clientkey@channeltoken?title=Server%20Down&type=CRIT&critical=true",
+			wantForm: url.Values{
+				"client_key": {"clientkey"}, "channel": {"channeltoken"}, "body": {"Host unreachable"}, "type": {"CRIT"},
+				"title": {"Server Down"}, "critical": {"true"},
+			},
+		},
+		{
+			name:   "params",
+			rawURL: "signalgrid://clientkey@channeltoken",
+			params: &types.Params{"title": "Override", "type": "WARN", "critical": "Yes"},
+			wantForm: url.Values{
+				"client_key": {"clientkey"}, "channel": {"channeltoken"}, "body": {"Host unreachable"}, "type": {"WARN"},
+				"title": {"Override"}, "critical": {"true"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Host unreachable", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, apiURL, captured.url)
+			assert.Equal(t, contentType, captured.contentType)
+			assert.Equal(t, meta.UserAgent(), captured.userAgent)
+			assert.Equal(t, tt.wantForm, captured.form)
 		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured values.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "signalgrid://clientkey@channeltoken")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("first", &types.Params{"title": "Override", "critical": "Yes"}))
+	assert.Equal(t, want, *service.Config)
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, url.Values{
+		"client_key": {"clientkey"}, "channel": {"channeltoken"}, "body": {"second"}, "type": {"INFO"},
+	}, captured.form)
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed and
+// ErrUnexpectedStatus for an error status, wraps a transport error, rejects an
+// unknown param before any request, and stops when the caller's context is
+// canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	// statusTests lists error responses with the status they report.
+	statusTests := []struct {
+		name       string
+		status     string
+		body       string
+		statusCode int
+	}{
+		{name: "server error", status: "500 Internal Server Error", statusCode: http.StatusInternalServerError, body: "boom"},
+		{name: "unauthorized", status: "401 Unauthorized", statusCode: http.StatusUnauthorized, body: "denied"},
+		{name: "redirect", status: "302 Found", statusCode: http.StatusFound, body: ""},
+	}
+
+	for _, tt := range statusTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "signalgrid://clientkey@channeltoken")
+			client, _ := newRespondingClient(t, tt.status, tt.statusCode, tt.body)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "fail", nil)
+
+			require.ErrorIs(t, err, ErrSendFailed)
+			require.ErrorIs(t, err, ErrUnexpectedStatus)
+			assert.Contains(t, err.Error(), tt.status)
+			assert.Contains(t, err.Error(), tt.body)
+		})
+	}
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "signalgrid://clientkey@channeltoken")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "fail", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, errTransport)
 	})
 
-	ginkgo.Describe("SetHTTPClient", func() {
-		ginkgo.It("should replace the HTTP client", func() {
-			replacement := &stubHTTPClient{}
-			service.SetHTTPClient(replacement)
-			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(replacement))
-		})
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "signalgrid://clientkey@channeltoken")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", &types.Params{"foo": "bar"})
+
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 	})
 
-	ginkgo.Describe("Send", func() {
-		ginkgo.BeforeEach(func() {
-			gomega.Expect(service.Initialize(
-				mustParseURL("signalgrid://clientkey@channeltoken"),
-				logger,
-			)).To(gomega.Succeed())
-		})
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should POST the Push API form fields", func() {
-			err := service.Send("Host unreachable", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(client.req).NotTo(gomega.BeNil())
-			gomega.Expect(client.req.Method).To(gomega.Equal(http.MethodPost))
-			gomega.Expect(client.req.URL.String()).To(gomega.Equal(apiURL))
-			gomega.Expect(client.req.Header.Get("Content-Type")).To(gomega.Equal(contentType))
-			gomega.Expect(client.req.Header.Get("User-Agent")).To(
-				gomega.Equal(meta.UserAgent()),
-			)
-
-			form, err := url.ParseQuery(string(client.body))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(form.Get("client_key")).To(gomega.Equal("clientkey"))
-			gomega.Expect(form.Get("channel")).To(gomega.Equal("channeltoken"))
-			gomega.Expect(form.Get("body")).To(gomega.Equal("Host unreachable"))
-			gomega.Expect(form.Get("type")).To(gomega.Equal("INFO"))
-			gomega.Expect(form.Has("title")).To(gomega.BeFalse())
-			gomega.Expect(form.Has("critical")).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should omit title when empty and omit critical when false", func() {
-			err := service.Send("body only", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			form, err := url.ParseQuery(string(client.body))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(form.Has("title")).To(gomega.BeFalse())
-			gomega.Expect(form.Has("critical")).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should include title and critical when set", func() {
-			gomega.Expect(service.Initialize(
-				mustParseURL(
-					"signalgrid://clientkey@channeltoken?title=Server%20Down&type=CRIT&critical=true",
-				),
-				logger,
-			)).To(gomega.Succeed())
-
-			err := service.Send("Host unreachable", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			form, err := url.ParseQuery(string(client.body))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(form.Get("title")).To(gomega.Equal("Server Down"))
-			gomega.Expect(form.Get("type")).To(gomega.Equal("CRIT"))
-			gomega.Expect(form.Get("critical")).To(gomega.Equal("true"))
-		})
-
-		ginkgo.It("should apply runtime params", func() {
-			params := &types.Params{
-				"title":    "Override",
-				"type":     "WARN",
-				"critical": "Yes",
-			}
-			err := service.Send("updated", params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			form, err := url.ParseQuery(string(client.body))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(form.Get("title")).To(gomega.Equal("Override"))
-			gomega.Expect(form.Get("type")).To(gomega.Equal("WARN"))
-			gomega.Expect(form.Get("critical")).To(gomega.Equal("true"))
-		})
-
-		ginkgo.It("should not leak runtime params into a subsequent send", func() {
-			params := &types.Params{
-				"title":    "Override",
-				"critical": "Yes",
-			}
-			err := service.Send("first", params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("second", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			form, err := url.ParseQuery(string(client.body))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(form.Get("body")).To(gomega.Equal("second"))
-			gomega.Expect(form.Has("title")).To(gomega.BeFalse())
-			gomega.Expect(form.Has("critical")).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return an error for a non-success status", func() {
-			client.resp = &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     "500 Internal Server Error",
-				Body:       io.NopCloser(bytes.NewReader([]byte("boom"))),
-				Header:     make(http.Header),
-			}
-
-			err := service.Send("fail", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(errors.Is(err, ErrSendFailed)).To(gomega.BeTrue())
-			gomega.Expect(errors.Is(err, ErrUnexpectedStatus)).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return an error for a 4xx status", func() {
-			client.resp = &http.Response{
-				StatusCode: http.StatusUnauthorized,
-				Status:     "401 Unauthorized",
-				Body:       io.NopCloser(bytes.NewReader([]byte("denied"))),
-				Header:     make(http.Header),
-			}
-
-			err := service.Send("fail", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(errors.Is(err, ErrUnexpectedStatus)).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return an error on transport failure", func() {
-			client.err = errors.New("connection refused")
-
-			err := service.Send("fail", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(errors.Is(err, ErrSendFailed)).To(gomega.BeTrue())
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("signalgrid://clientkey@channel"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "signalgrid://clientkey@channel")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
+}
+
+// TestSendDefaultClient verifies that a send with a nil *http.Client uses a
+// default client that honors the caller's context. The context is canceled
+// before the send, so the transport returns before it dials the Push API.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "signalgrid://SECRETkey@channel")
+	service.SetHTTPClient((*http.Client)(nil))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := service.SendContext(ctx, "Message", nil)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotContains(t, err.Error(), "SECRETkey")
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("nil *http.Client", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service.SetHTTPClient((*http.Client)(nil))
+
+		assert.Nil(t, service.httpClient)
+	})
+}

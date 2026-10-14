@@ -1,228 +1,314 @@
-package join_test
+package join
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"strings"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/format"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/join"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var (
-	service    *join.Service
-	config     *join.Config
-	pkr        format.PropKeyResolver
-	envJoinURL *url.URL
-	_          = ginkgo.BeforeSuite(func() {
-		service = &join.Service{}
-		envJoinURL, _ = url.Parse(os.Getenv("SHOUTRRR_JOIN_URL"))
-	})
-)
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// query is the parsed request query.
+	query url.Values
+	// method is the request method.
+	method string
+	// endpoint is the request URL without its query.
+	endpoint string
+	// contentType is the request's Content-Type header.
+	contentType string
+}
 
-var _ = ginkgo.Describe("the join service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should work", func() {
-			if envJoinURL.String() == "" {
-				return
-			}
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-			serviceURL, _ := url.Parse(envJoinURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("this is an integration test", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("join"))
-		})
-	})
-})
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
 
-var _ = ginkgo.Describe("the join config", func() {
-	ginkgo.BeforeEach(func() {
-		config = &join.Config{}
-		pkr = format.NewPropKeyResolver(config)
-	})
-	ginkgo.When("updating it using an url", func() {
-		ginkgo.It("should update the API key using the password part of the url", func() {
-			url := createURL("dummy", "TestToken", "testDevice")
-			err := config.SetURL(url)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.APIKey).To(gomega.Equal("TestToken"))
-		})
-		ginkgo.It("should error if supplied with an empty token", func() {
-			url := createURL("user", "", "testDevice")
-			expectErrorGivenURL(join.ErrAPIKeyMissing, url)
-		})
-	})
-	ginkgo.When("getting the current config", func() {
-		ginkgo.It("should return the config that is currently set as an url", func() {
-			config.APIKey = "test-token"
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		endpoint := *req.URL
+		endpoint.RawQuery = ""
 
-			url := config.GetURL()
-			password, _ := url.User.Password()
-			gomega.Expect(password).To(gomega.Equal(config.APIKey))
-			gomega.Expect(url.Scheme).To(gomega.Equal("join"))
-		})
-	})
-	ginkgo.When("setting a config key", func() {
-		ginkgo.It("should split it by commas if the key is devices", func() {
-			err := pkr.Set("devices", "a,b,c,d")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Devices).To(gomega.Equal([]string{"a", "b", "c", "d"}))
-		})
-		ginkgo.It("should update icon when an icon is supplied", func() {
-			err := pkr.Set("icon", "https://example.com/icon.png")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Icon).To(gomega.Equal("https://example.com/icon.png"))
-		})
-		ginkgo.It("should update the title when it is supplied", func() {
-			err := pkr.Set("title", "new title")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Title).To(gomega.Equal("new title"))
-		})
-		ginkgo.It("should return an error if the key is not recognized", func() {
-			err := pkr.Set("devicey", "a,b,c,d")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-	ginkgo.When("getting a config key", func() {
-		ginkgo.It("should join it with commas if the key is devices", func() {
-			config.Devices = []string{"a", "b", "c"}
-			value, err := pkr.Get("devices")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(value).To(gomega.Equal("a,b,c"))
-		})
-		ginkgo.It("should return an error if the key is not recognized", func() {
-			_, err := pkr.Get("devicey")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		*captured = capturedRequest{
+			query:       req.URL.Query(),
+			method:      req.Method,
+			endpoint:    endpoint.String(),
+			contentType: req.Header.Get("Content-Type"),
+		}
+
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "join", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the service URL and rejects a
+// URL without devices.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "join://Token:apikey@join?devices=dev1,dev2&title=Title")
+
+		assert.Equal(t, &Config{APIKey: "apikey", Devices: []string{"dev1", "dev2"}, Title: "Title"}, service.Config)
 	})
 
-	ginkgo.When("listing the query fields", func() {
-		ginkgo.It(
-			"should return the keys \"devices\", \"icon\", \"title\" in alphabetical order",
-			func() {
-				fields := pkr.QueryFields()
-				gomega.Expect(fields).To(gomega.Equal([]string{"devices", "icon", "title"}))
+	t.Run("missing devices", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "join://Token:apikey@join"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrDevicesMissing)
+	})
+}
+
+// TestSend verifies the request a send makes: a POST to the Join push endpoint
+// with the API key, devices, and text in the query, and the title and icon
+// only when set, independently of each other.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the query the send should
+	// produce.
+	tests := []struct {
+		params    *types.Params
+		name      string
+		rawURL    string
+		wantQuery url.Values
+	}{
+		{
+			name:      "neither title nor icon",
+			rawURL:    "join://Token:apikey@join?devices=dev1",
+			wantQuery: url.Values{"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"}},
+		},
+		{
+			name:   "devices joined by commas",
+			rawURL: "join://Token:apikey@join?devices=dev1,dev2",
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1,dev2"}, "text": {"Message"},
 			},
-		)
+		},
+		{
+			name:   "configured title and icon",
+			rawURL: "join://Token:apikey@join?devices=dev1&title=Configured&icon=https%3A%2F%2Fexample.com%2Fconfigured.png",
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"},
+				"title": {"Configured"}, "icon": {"https://example.com/configured.png"},
+			},
+		},
+		{
+			name:   "icon param without a title",
+			rawURL: "join://Token:apikey@join?devices=dev1",
+			params: &types.Params{"icon": "https://example.com/icon.png"},
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"},
+				"icon": {"https://example.com/icon.png"},
+			},
+		},
+		{
+			name:   "title param without an icon",
+			rawURL: "join://Token:apikey@join?devices=dev1",
+			params: &types.Params{"title": "Alert"},
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"}, "title": {"Alert"},
+			},
+		},
+		{
+			name:   "params override the configured title and icon",
+			rawURL: "join://Token:apikey@join?devices=dev1&title=Configured&icon=configured",
+			params: &types.Params{"title": "Alert", "icon": "https://example.com/icon.png"},
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"},
+				"title": {"Alert"}, "icon": {"https://example.com/icon.png"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, hookURL, captured.endpoint)
+			assert.Equal(t, contentType, captured.contentType)
+			assert.Equal(t, tt.wantQuery, captured.query)
+		})
+	}
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed for an
+// error status, wraps a transport error without the API key, and stops when
+// the caller's context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+		client, _ := newRespondingClient(t, "401 Unauthorized", http.StatusUnauthorized)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		assert.Contains(t, err.Error(), "401 Unauthorized")
+		assert.Contains(t, err.Error(), "dev1")
 	})
 
-	ginkgo.When("parsing the configuration URL", func() {
-		ginkgo.It("should be identical after de-/serialization", func() {
-			input := "join://Token:apikey@join?devices=dev1%2Cdev2&icon=warning&title=hey"
-			config := &join.Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(input))).To(gomega.Succeed())
-			gomega.Expect(config.GetURL().String()).To(gomega.Equal(input))
-		})
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "join://Token:SECRETkey@join?devices=dev1")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "SECRETkey")
 	})
 
-	ginkgo.Describe("sending the payload", func() {
-		var err error
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			config := join.Config{
-				APIKey:  "apikey",
-				Devices: []string{"dev1"},
-			}
-			serviceURL := config.GetURL()
-			service := join.Service{}
-			err = service.Initialize(serviceURL, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush",
-				httpmock.NewStringResponder(200, ``),
-			)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &join.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("join://:apikey@join/?devices=device"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "join://Token:apikey@join?devices=dev1")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
-
-var _ = ginkgo.Describe("the request fields", func() {
-	ginkgo.DescribeTable("should send the title and icon independently of each other",
-		func(params types.Params, wantTitle, wantIcon string) {
-			var query url.Values
-
-			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-				query = req.URL.Query()
-
-				return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
-			}).Once()
-
-			service := &join.Service{}
-			gomega.Expect(service.Initialize(testutils.URLMust("join://:apikey@join/?devices=device"), testutils.TestLogger())).To(gomega.Succeed())
-			service.SetHTTPClient(client)
-
-			gomega.Expect(service.Send("message", &params)).To(gomega.Succeed())
-			gomega.Expect(query.Has("title")).To(gomega.Equal(wantTitle != ""))
-			gomega.Expect(query.Get("title")).To(gomega.Equal(wantTitle))
-			gomega.Expect(query.Has("icon")).To(gomega.Equal(wantIcon != ""))
-			gomega.Expect(query.Get("icon")).To(gomega.Equal(wantIcon))
-		},
-		ginkgo.Entry("with an icon and no title", types.Params{"icon": "https://example.com/icon.png"}, "", "https://example.com/icon.png"),
-		ginkgo.Entry("with a title and no icon", types.Params{"title": "Alert"}, "Alert", ""),
-		ginkgo.Entry("with a title and an icon", types.Params{"title": "Alert", "icon": "https://example.com/icon.png"}, "Alert", "https://example.com/icon.png"),
-		ginkgo.Entry("with neither", types.Params{}, "", ""),
-	)
-})
-
-func TestJoin(t *testing.T) {
-	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Join Suite")
 }
 
-func createURL(username, token, devices string) *url.URL {
-	return &url.URL{
-		User:     url.UserPassword("Token", token),
-		Host:     username,
-		RawQuery: "devices=" + devices,
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, uses a default client that honors the caller's context.
+// The context is canceled before the send, so the transport returns before it
+// dials the Join API.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "join://Token:SECRETkey@join?devices=dev1")
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := service.SendContext(ctx, "Message", nil)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.NotContains(t, err.Error(), "SECRETkey")
+		})
 	}
 }
 
-func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
-	err := config.SetURL(serviceURL)
-	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("nil *http.Client", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service.SetHTTPClient((*http.Client)(nil))
+
+		assert.Nil(t, service.httpClient)
+	})
 }

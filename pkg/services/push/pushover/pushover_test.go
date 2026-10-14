@@ -1,464 +1,449 @@
-package pushover_test
+package pushover
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"strings"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// form is the parsed form body.
+	form url.Values
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+}
+
+// roundTripFunc adapts a function to an [http.RoundTripper].
+type roundTripFunc func(req *http.Request) (*http.Response, error)
+
+// Response bodies in the format the Pushover API returns.
 const (
-	hookURL                = "https://api.pushover.net/1/messages.json"
-	testEncryptionKey      = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	testEncryptionKeyMixed = "0123456789ABCDEF0123456789abcdef0123456789ABCDEF0123456789abcdef"
+	// successBody is the body of an accepted message.
+	successBody = `{"status":1,"request":"647d2300-702c-4b38-8b2f-d56326ae460b"}`
+	// invalidUserBody is the body of a message to an invalid user key.
+	invalidUserBody = `{"user":"invalid","errors":["user identifier is invalid"],"status":0,"request":"5042853c-402d-4a18-abcb-168734a801de"}`
 )
 
-var (
-	service        *pushover.Service
-	config         *pushover.Config
-	keyResolver    format.PropKeyResolver
-	envPushoverURL *url.URL
-	logger         *log.Logger
-	_              = ginkgo.BeforeSuite(func() {
-		service = &pushover.Service{}
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-		envPushoverURL, _ = url.Parse(os.Getenv("SHOUTRRR_PUSHOVER_URL"))
-	})
-)
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-var _ = ginkgo.Describe("the pushover service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should work", func() {
-			if envPushoverURL.String() == "" {
-				return
-			}
+// RoundTrip calls f with the request.
+//
+// Parameters:
+//   - req: the request to send.
+//
+// Returns:
+//   - *http.Response: the response from f.
+//   - error: the error from f.
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
-			serviceURL, _ := url.Parse(envPushoverURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("this is an integration test", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("pushover"))
-		})
-	})
-})
+// captureRequest reads the method, URL, Content-Type header, and form body of
+// req.
+//
+// Parameters:
+//   - t: the test.
+//   - req: the request to read.
+//
+// Returns:
+//   - capturedRequest: the recorded request.
+func captureRequest(t *testing.T, req *http.Request) capturedRequest {
+	t.Helper()
 
-var _ = ginkgo.Describe("the pushover config", func() {
-	ginkgo.BeforeEach(func() {
-		config = &pushover.Config{}
-		keyResolver = format.NewPropKeyResolver(config)
-	})
-	ginkgo.When("updating it using an url", func() {
-		ginkgo.It("should update the username using the host part of the url", func() {
-			url := createURL("simme", "dummy")
-			err := config.SetURL(url)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.User).To(gomega.Equal("simme"))
-		})
-		ginkgo.It("should update the token using the password part of the url", func() {
-			url := createURL("dummy", "TestToken")
-			err := config.SetURL(url)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Token).To(gomega.Equal("TestToken"))
-		})
-		ginkgo.It("should error if supplied with an empty username", func() {
-			url := createURL("", "token")
-			expectErrorGivenURL(pushover.ErrUserMissing, url)
-		})
-		ginkgo.It("should error if supplied with an empty token", func() {
-			url := createURL("user", "")
-			expectErrorGivenURL(pushover.ErrTokenMissing, url)
-		})
-	})
-	ginkgo.When("getting the current config", func() {
-		ginkgo.It("should return the config that is currently set as an url", func() {
-			config.User = "simme"
-			config.Token = "test-token"
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
 
-			url := config.GetURL()
-			password, _ := url.User.Password()
-			gomega.Expect(url.Host).To(gomega.Equal(config.User))
-			gomega.Expect(password).To(gomega.Equal(config.Token))
-			gomega.Expect(url.Scheme).To(gomega.Equal("pushover"))
-		})
-	})
-	ginkgo.When("setting a config key", func() {
-		ginkgo.It("should split it by commas if the key is devices", func() {
-			err := keyResolver.Set("devices", "a,b,c,d")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Devices).To(gomega.Equal([]string{"a", "b", "c", "d"}))
-		})
-		ginkgo.It("should update priority when a valid number is supplied", func() {
-			err := keyResolver.Set("priority", "1")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Priority).To(gomega.Equal(int8(1)))
-		})
-		ginkgo.It("should update priority when a negative number is supplied", func() {
-			gomega.Expect(keyResolver.Set("priority", "-1")).To(gomega.Succeed())
-			gomega.Expect(config.Priority).To(gomega.BeEquivalentTo(-1))
+	form, err := url.ParseQuery(string(body))
+	require.NoError(t, err)
 
-			gomega.Expect(keyResolver.Set("priority", "-2")).To(gomega.Succeed())
-			gomega.Expect(config.Priority).To(gomega.BeEquivalentTo(-2))
-		})
-		ginkgo.It("should update the title when it is supplied", func() {
-			err := keyResolver.Set("title", "new title")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Title).To(gomega.Equal("new title"))
-		})
-		ginkgo.It("should return an error if priority is not a number", func() {
-			err := keyResolver.Set("priority", "super-duper")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("should return an error if the key is not recognized", func() {
-			err := keyResolver.Set("devicey", "a,b,c,d")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("should accept the encryption key alias", func() {
-			err := keyResolver.Set("key", testEncryptionKey)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.EncryptionKey).To(gomega.Equal(testEncryptionKey))
-		})
-	})
-	ginkgo.When("getting a config key", func() {
-		ginkgo.It("should join it with commas if the key is devices", func() {
-			config.Devices = []string{"a", "b", "c"}
-			value, err := keyResolver.Get("devices")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(value).To(gomega.Equal("a,b,c"))
-		})
-		ginkgo.It("should return an error if the key is not recognized", func() {
-			_, err := keyResolver.Get("devicey")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+	return capturedRequest{
+		form:        form,
+		method:      req.Method,
+		url:         req.URL.String(),
+		contentType: req.Header.Get("Content-Type"),
+	}
+}
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status and body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int, body string) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		*captured = captureRequest(t, req)
+
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "pushover", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the service URL, builds the
+// default client unless one is set, and rejects an invalid encryption key.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushover://:apptoken@usertoken?devices=phone")
+
+		assert.Equal(t, &Config{User: "usertoken", Token: "apptoken", Devices: []string{"phone"}}, service.Config)
+		require.NotNil(t, service.Client)
+		assert.Equal(t, defaultHTTPTimeout, service.Client.Timeout)
 	})
 
-	ginkgo.When("listing the query fields", func() {
-		ginkgo.It("should return the keys \"devices\",\"encryptionkey\",\"key\",\"priority\",\"title\"", func() {
-			fields := keyResolver.QueryFields()
-			gomega.Expect(fields).To(gomega.Equal([]string{
-				"devices",
-				"encryptionkey",
-				"key",
-				"priority",
-				"title",
-			}))
-		})
+	t.Run("keeps a client set before it runs", func(t *testing.T) {
+		t.Parallel()
+
+		client := &http.Client{}
+		service := &Service{Client: client}
+		require.NoError(t, service.Initialize(parseTestURL(t, "pushover://:apptoken@usertoken"), log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.Client)
 	})
 
-	ginkgo.When("configuring end-to-end encryption", func() {
-		ginkgo.It("should accept a mixed-case 64-character hex key", func() {
-			serviceURL, err := url.Parse(
-				"pushover://:apptoken@usertoken?encryptionkey=" + testEncryptionKeyMixed,
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.EncryptionKey).To(gomega.Equal(testEncryptionKeyMixed))
-		})
-		ginkgo.It("should reject a short encryption key", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?encryptionkey=0123456789abcdef")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(serviceURL)
-			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
-		})
-		ginkgo.It("should reject a long encryption key", func() {
-			serviceURL, err := url.Parse(
-				"pushover://:apptoken@usertoken?encryptionkey=" + testEncryptionKey + "ab",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(serviceURL)
-			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
-		})
-		ginkgo.It("should reject a non-hex encryption key", func() {
-			serviceURL, err := url.Parse(
-				"pushover://:apptoken@usertoken?encryptionkey=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(serviceURL)
-			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
-		})
-		ginkgo.It("should round-trip the encryption key through GetURL", func() {
-			config.User = "simme"
-			config.Token = "test-token"
-			config.EncryptionKey = testEncryptionKey
+	t.Run("invalid encryption key", func(t *testing.T) {
+		t.Parallel()
 
-			serviceURL := config.GetURL()
-			gomega.Expect(serviceURL.Query().Get("encryptionkey")).To(gomega.Equal(testEncryptionKey))
-			gomega.Expect(serviceURL.Query().Get("key")).To(gomega.BeEmpty())
+		err := (&Service{}).Initialize(parseTestURL(t, "pushover://:apptoken@usertoken?encryptionkey=short"), log.New(t.Output(), "", 0))
 
-			roundTrip := &pushover.Config{}
-			err := roundTrip.SetURL(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(roundTrip.EncryptionKey).To(gomega.Equal(testEncryptionKey))
+		require.ErrorIs(t, err, ErrInvalidEncryptionKey)
+	})
+}
+
+// TestSend verifies the request a send makes: a form POST to the messages
+// endpoint with the devices, user, token, message, and priority, and the title
+// only when set.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the form the send should
+	// produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantForm url.Values
+	}{
+		{
+			name:   "all devices",
+			rawURL: "pushover://:apptoken@usertoken",
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"}, "priority": {"0"},
+			},
+		},
+		{
+			name:   "devices, priority, and title",
+			rawURL: "pushover://:apptoken@usertoken?devices=phone,tablet&priority=1&title=Plain+Title",
+			wantForm: url.Values{
+				"device": {"phone,tablet"}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"1"}, "title": {"Plain Title"},
+			},
+		},
+		{
+			name:   "lowest priority",
+			rawURL: "pushover://:apptoken@usertoken?priority=-2",
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"}, "priority": {"-2"},
+			},
+		},
+		{
+			// Emergency priority needs the retry and expire parameters, which
+			// the service does not send, so the priority is left out.
+			name:   "emergency priority is left out",
+			rawURL: "pushover://:apptoken@usertoken?priority=2",
+			wantForm: url.Values{
+				"device": {""}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+			},
+		},
+		{
+			name:   "params",
+			rawURL: "pushover://:apptoken@usertoken?devices=phone&title=Configured",
+			params: &types.Params{"devices": "tablet", "priority": "-1", "title": "Override"},
+			wantForm: url.Values{
+				"device": {"tablet"}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+				"priority": {"-1"}, "title": {"Override"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, hookURL, captured.url)
+			assert.Equal(t, contentType, captured.contentType)
+			assert.Equal(t, tt.wantForm, captured.form)
 		})
+	}
+}
+
+// TestSendEncrypted verifies that with an encryption key the message and
+// title are sent encrypted with the documented scheme and marked with
+// encrypted=1, and that an encryption key param applies to one send.
+func TestSendEncrypted(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case supplies the encryption key.
+	tests := []struct {
+		params *types.Params
+		name   string
+		rawURL string
+	}{
+		{name: "configured key", rawURL: "pushover://:apptoken@usertoken?encryptionkey=" + testEncryptionKey + "&title=Secret+Title"},
+		{
+			name:   "key param",
+			rawURL: "pushover://:apptoken@usertoken?title=Secret+Title",
+			params: &types.Params{"key": testEncryptionKey},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Secret message", tt.params))
+
+			assert.Equal(t, "1", captured.form.Get("encrypted"))
+
+			message, err := decryptField(t, captured.form.Get("message"), testKey(t))
+			require.NoError(t, err)
+			assert.Equal(t, "Secret message", message)
+
+			title, err := decryptField(t, captured.form.Get("title"), testKey(t))
+			require.NoError(t, err)
+			assert.Equal(t, "Secret Title", title)
+		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured values.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "pushover://:apptoken@usertoken?devices=phone&title=Configured")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	params := &types.Params{"devices": "tablet", "title": "Override", "encryptionkey": testEncryptionKey}
+	require.NoError(t, service.Send("Message", params))
+	assert.Equal(t, want, *service.Config)
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.Equal(t, url.Values{
+		"device": {"phone"}, "user": {"usertoken"}, "token": {"apptoken"}, "message": {"Message"},
+		"priority": {"0"}, "title": {"Configured"},
+	}, captured.form)
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed for an
+// error status, wraps a transport error, rejects an invalid param or
+// encryption key before any request, and stops when the caller's context is
+// canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pushover://:apptoken@usertoken?devices=phone")
+		client, _ := newRespondingClient(t, "400 Bad Request", http.StatusBadRequest, invalidUserBody)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		assert.Contains(t, err.Error(), `"phone"`)
+		assert.Contains(t, err.Error(), "400 Bad Request")
 	})
 
-	ginkgo.Describe("sending the payload", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.It("should not report an error if the server accepts the payload", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
 
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		service := newTestService(t, "pushover://:apptoken@usertoken")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
 
-			httpmock.RegisterResponder("POST", hookURL, httpmock.NewStringResponder(200, ""))
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				hookURL,
-				httpmock.NewErrorResponder(errors.New("dummy error")),
-			)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("should send plaintext without an encrypted flag when no key is set", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?title=Plain+Title")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				hookURL,
-				func(req *http.Request) (*http.Response, error) {
-					gomega.Expect(req.ParseForm()).To(gomega.Succeed())
-					gomega.Expect(req.Form.Get("encrypted")).To(gomega.BeEmpty())
-					gomega.Expect(req.Form.Get("message")).To(gomega.Equal("Message"))
-					gomega.Expect(req.Form.Get("title")).To(gomega.Equal("Plain Title"))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("should encrypt message and title when an encryption key is set", func() {
-			serviceURL, err := url.Parse(
-				"pushover://:apptoken@usertoken?encryptionkey=" +
-					testEncryptionKey +
-					"&title=Secret+Title",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			keyBytes, err := hex.DecodeString(testEncryptionKey)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				hookURL,
-				func(req *http.Request) (*http.Response, error) {
-					gomega.Expect(req.ParseForm()).To(gomega.Succeed())
-					gomega.Expect(req.Form.Get("encrypted")).To(gomega.Equal("1"))
-					gomega.Expect(req.Form.Get("message")).NotTo(gomega.Equal("Secret message"))
-					gomega.Expect(req.Form.Get("title")).NotTo(gomega.Equal("Secret Title"))
-
-					message, decErr := decryptPushoverField(req.Form.Get("message"), keyBytes)
-					gomega.Expect(decErr).NotTo(gomega.HaveOccurred())
-					gomega.Expect(message).To(gomega.Equal("Secret message"))
-
-					title, decErr := decryptPushoverField(req.Form.Get("title"), keyBytes)
-					gomega.Expect(decErr).NotTo(gomega.HaveOccurred())
-					gomega.Expect(title).To(gomega.Equal("Secret Title"))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Secret message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("should fail to initialize when the encryption key is invalid", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken?encryptionkey=short")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
-		})
-		ginkgo.It("should not send when params supply an invalid encryption key", func() {
-			serviceURL, err := url.Parse("pushover://:apptoken@usertoken")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				hookURL,
-				func(*http.Request) (*http.Response, error) {
-					ginkgo.Fail("HTTP request should not be sent")
-
-					return nil, errors.New("unexpected HTTP request")
-				},
-			)
-
-			err = service.Send("Message", &types.Params{"encryptionkey": "short"})
-			gomega.Expect(err).To(gomega.MatchError(pushover.ErrInvalidEncryptionKey))
-			gomega.Expect(httpmock.GetTotalCallCount()).To(gomega.Equal(0))
-		})
+		require.ErrorIs(t, service.SendContext(t.Context(), "Message", nil), errTransport)
 	})
-})
 
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	// rejectedParams lists params that fail the send before any request.
+	rejectedParams := []struct {
+		params  *types.Params
+		wantErr error
+		name    string
+	}{
+		{name: "invalid encryption key", params: &types.Params{"encryptionkey": "short"}, wantErr: ErrInvalidEncryptionKey},
+		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
+	}
+
+	for _, tt := range rejectedParams {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "pushover://:apptoken@usertoken")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			require.ErrorIs(t, service.SendContext(t.Context(), "Message", tt.params), tt.wantErr)
+		})
+	}
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &pushover.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("pushover://:token@user/?devices=device"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "pushover://:token@user/?devices=device")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
+}
 
-func TestPushover(t *testing.T) {
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, goes through the service's Client.
+func TestSendDefaultClient(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Pushover Suite")
-}
 
-func createURL(username, token string) *url.URL {
-	return &url.URL{
-		User: url.UserPassword("Token", token),
-		Host: username,
+	// tests lists how each case sets up the service's custom client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no custom client", configure: func(*Service) {}},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var captured capturedRequest
+
+			service := newTestService(t, "pushover://:apptoken@usertoken")
+			service.Client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				captured = captureRequest(t, req)
+
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(successBody))}, nil
+			})}
+			tt.configure(service)
+
+			require.NoError(t, service.Send("Message", nil))
+
+			assert.Equal(t, hookURL, captured.url)
+			assert.Equal(t, "Message", captured.form.Get("message"))
+		})
 	}
 }
 
-func expectErrorGivenURL(expectedErr error, serviceURL *url.URL) {
-	err := config.SetURL(serviceURL)
-	gomega.Expect(err).To(gomega.HaveOccurred())
-	gomega.Expect(err.Error()).To(gomega.Equal(expectedErr.Error()))
-}
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
 
-func decryptPushoverField(encoded string, key []byte) (string, error) {
-	payload, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", err
-	}
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
 
-	const hmacSize = sha256.Size
-	if len(payload) < aes.BlockSize+hmacSize {
-		return "", errors.New("ciphertext too short")
-	}
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
 
-	iv := payload[:aes.BlockSize]
-	mac := payload[len(payload)-hmacSize:]
-	ciphertext := payload[aes.BlockSize : len(payload)-hmacSize]
+		assert.Same(t, client, service.httpClient)
+	})
 
-	expected := hmac.New(sha256.New, key)
-	if _, err := expected.Write(iv); err != nil {
-		return "", err
-	}
+	t.Run("nil *http.Client", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := expected.Write(ciphertext); err != nil {
-		return "", err
-	}
+		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service.SetHTTPClient((*http.Client)(nil))
 
-	if !hmac.Equal(mac, expected.Sum(nil)) {
-		return "", errors.New("hmac mismatch")
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	if len(ciphertext)%aes.BlockSize != 0 {
-		return "", errors.New("ciphertext not a multiple of block size")
-	}
-
-	plain := make([]byte, len(ciphertext))
-	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plain, ciphertext)
-
-	unpadded, err := pkcs7Unpad(plain, aes.BlockSize)
-	if err != nil {
-		return "", err
-	}
-
-	reader, err := gzip.NewReader(bytes.NewReader(unpadded))
-	if err != nil {
-		return "", err
-	}
-
-	decompressed, err := io.ReadAll(reader)
-	if err != nil {
-		return "", err
-	}
-
-	if err := reader.Close(); err != nil {
-		return "", err
-	}
-
-	return string(decompressed), nil
-}
-
-func pkcs7Unpad(data []byte, blockSize int) ([]byte, error) {
-	if len(data) == 0 || len(data)%blockSize != 0 {
-		return nil, errors.New("invalid padding")
-	}
-
-	padLen := int(data[len(data)-1])
-	if padLen == 0 || padLen > blockSize || padLen > len(data) {
-		return nil, errors.New("invalid padding")
-	}
-
-	for _, b := range data[len(data)-padLen:] {
-		if b != byte(padLen) {
-			return nil, errors.New("invalid padding")
-		}
-	}
-
-	return data[:len(data)-padLen], nil
+		assert.Nil(t, service.httpClient)
+	})
 }

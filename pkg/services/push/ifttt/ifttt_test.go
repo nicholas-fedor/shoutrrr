@@ -1,411 +1,415 @@
-package ifttt_test
+package ifttt
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ifttt"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-type jsonPayload struct {
-	Value1 string `json:"value1"`
-	Value2 string `json:"value2"`
-	Value3 string `json:"value3"`
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
 }
 
-// perEvent is the timeout of each IFTTT event request.
-const perEvent = 10 * time.Second
+// cannedResponse is a response the fake webhook returns.
+type cannedResponse struct {
+	// status is the response status line.
+	status string
+	// statusCode is the response status code.
+	statusCode int
+}
 
-var (
-	service    *ifttt.Service
-	logger     *log.Logger
-	envTestURL string
-	_          = ginkgo.BeforeSuite(func() {
-		service = &ifttt.Service{}
-		logger = testutils.TestLogger()
-		envTestURL = os.Getenv("SHOUTRRR_IFTTT_URL")
-	})
-)
+// okResponse is the response the webhook returns for a fired event.
+var okResponse = cannedResponse{status: "200 OK", statusCode: http.StatusOK}
 
-var _ = ginkgo.Describe("the IFTTT service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("sends a message successfully with a valid ENV URL", func() {
-			if envTestURL == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-				return
-			}
+// newRespondingClient returns a mock HTTP client that expects one request for
+// each response, records the requests, and answers them in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - responses: the responses, one for each expected request.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *[]capturedRequest: the requests, appended as the client receives them.
+func newRespondingClient(t *testing.T, responses ...cannedResponse) (*mocks.MockHTTPClient, *[]capturedRequest) {
+	t.Helper()
 
-			serviceURL := testutils.URLMust(envTestURL)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("This is an integration test", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
+	captured := &[]capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
 
-	ginkgo.Describe("the service", func() {
-		ginkgo.BeforeEach(func() {
-			service = &ifttt.Service{}
-			service.SetLogger(logger)
+		response := responses[len(*captured)]
+		*captured = append(*captured, capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			body:        string(body),
 		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("ifttt"))
-		})
-	})
 
-	ginkgo.When("parsing the configuration URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &ifttt.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("returns an error if no arguments are supplied", func() {
-			serviceURL := testutils.URLMust("ifttt://")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error if no webhook ID is given", func() {
-			serviceURL := testutils.URLMust("ifttt:///?events=event1")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error if no events are given", func() {
-			serviceURL := testutils.URLMust("ifttt://dummyID")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error when an invalid query key is given", func() { // Line 54
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&badquery=foo")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error if message value is above 3", func() {
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&messagevalue=8")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error if message value is below 1", func() { // Line 60
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&messagevalue=0")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It(
-			"does not return an error if webhook ID and at least one event are given",
-			func() {
-				serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			},
-		)
-		ginkgo.It("returns an error if titlevalue is invalid", func() { // Line 78
-			serviceURL := testutils.URLMust("ifttt://dummyID/?events=event1&titlevalue=4")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).
-				To(gomega.MatchError("invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported"))
-		})
-		ginkgo.It("returns an error if titlevalue equals messagevalue", func() { // Line 82
-			serviceURL := testutils.URLMust(
-				"ifttt://dummyID/?events=event1&messagevalue=2&titlevalue=2",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).
-				To(gomega.MatchError("titlevalue cannot use the same number as messagevalue"))
-		})
+		return &http.Response{
+			Status:     response.status,
+			StatusCode: response.statusCode,
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	}).Times(len(responses))
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "ifttt", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the service URL with the
+// message in the second value by default, and rejects an invalid URL.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://dummyID/?events=event1")
+
+		assert.Equal(t, &Config{WebHookID: "dummyID", Events: []string{"event1"}, UseMessageAsValue: DefaultMessageValue}, service.Config)
 	})
 
-	ginkgo.When("serializing a config to URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &ifttt.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.When("given multiple events", func() {
-			ginkgo.It("returns an URL with all events comma-separated", func() {
-				serviceURL := testutils.URLMust("ifttt://dummyID/?events=foo%2Cbar%2Cbaz")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("missing events", func(t *testing.T) {
+		t.Parallel()
 
-				resultURL := service.Config.GetURL().String()
-				gomega.Expect(resultURL).To(gomega.Equal(serviceURL.String()))
-			})
-		})
-		ginkgo.When("given values", func() {
-			ginkgo.It("returns an URL with all values", func() {
-				serviceURL := testutils.URLMust(
-					"ifttt://dummyID/?events=event1&value1=v1&value2=v2&value3=v3",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		err := (&Service{}).Initialize(parseTestURL(t, "ifttt://dummyID"), log.New(t.Output(), "", 0))
 
-				resultURL := service.Config.GetURL().String()
-				gomega.Expect(resultURL).To(gomega.Equal(serviceURL.String()))
-			})
-		})
+		require.ErrorIs(t, err, ErrMissingEvents)
 	})
+}
 
-	ginkgo.Describe("sending a message", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
+// TestSend verifies the requests a send makes: one JSON POST to the event's
+// webhook URL for each event, in order, carrying the same payload.
+func TestSend(t *testing.T) {
+	t.Parallel()
 
-			service = &ifttt.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.It("errors if the response code is not 200-299", func() {
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=foo")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/foo/with/key/dummy",
-				httpmock.NewStringResponder(404, ""),
-			)
-
-			err = service.Send("hello", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("does not error if the response code is 200", func() {
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=foo")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/foo/with/key/dummy",
-				httpmock.NewStringResponder(200, ""),
-			)
-
-			err = service.Send("hello", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns an error if params update fails", func() { // Line 55
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			params := types.Params{"messagevalue": "invalid"}
-			err = service.Send("hello", &params)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.DescribeTable("sets message to correct value field based on messagevalue",
-			func(messageValue int, expectedField string) { // Lines 30, 32, 34
-				serviceURL := testutils.URLMust(
-					fmt.Sprintf("ifttt://dummy/?events=event1&messagevalue=%d", messageValue),
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-					func(req *http.Request) (*http.Response, error) {
-						body, err := io.ReadAll(req.Body)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-						var payload jsonPayload
-
-						err = json.Unmarshal(body, &payload)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-						switch expectedField {
-						case "Value1":
-							gomega.Expect(payload.Value1).To(gomega.Equal("hello"))
-							gomega.Expect(payload.Value2).To(gomega.Equal(""))
-							gomega.Expect(payload.Value3).To(gomega.Equal(""))
-						case "Value2":
-							gomega.Expect(payload.Value1).To(gomega.Equal(""))
-							gomega.Expect(payload.Value2).To(gomega.Equal("hello"))
-							gomega.Expect(payload.Value3).To(gomega.Equal(""))
-						case "Value3":
-							gomega.Expect(payload.Value1).To(gomega.Equal(""))
-							gomega.Expect(payload.Value2).To(gomega.Equal(""))
-							gomega.Expect(payload.Value3).To(gomega.Equal("hello"))
-						}
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("hello", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			},
-			ginkgo.Entry("messagevalue=1 sets Value1", 1, "Value1"),
-			ginkgo.Entry("messagevalue=2 sets Value2", 2, "Value2"),
-			ginkgo.Entry("messagevalue=3 sets Value3", 3, "Value3"),
-		)
-		ginkgo.It("overrides Value2 with params when messagevalue is 1", func() { // Line 36
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1&messagevalue=1")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-				func(req *http.Request) (*http.Response, error) {
-					body, err := io.ReadAll(req.Body)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-					var payload jsonPayload
-
-					err = json.Unmarshal(body, &payload)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(payload.Value1).To(gomega.Equal("hello"))
-					gomega.Expect(payload.Value2).To(gomega.Equal("y"))
-					gomega.Expect(payload.Value3).To(gomega.Equal(""))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"value2": "y",
-			}
-			err = service.Send("hello", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("overrides payload values with params", func() { // Lines 17, 21, 25
-			serviceURL := testutils.URLMust(
-				"ifttt://dummy/?events=event1&value1=a&value2=b&value3=c&messagevalue=2",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-				func(req *http.Request) (*http.Response, error) {
-					body, err := io.ReadAll(req.Body)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-					var payload jsonPayload
-
-					err = json.Unmarshal(body, &payload)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(payload.Value1).To(gomega.Equal("x"))
-					gomega.Expect(payload.Value2).To(gomega.Equal("hello"))
-					gomega.Expect(payload.Value3).To(gomega.Equal("z"))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"value1": "x",
-				// "value2": "y", // Omitted to let message override
-				"value3": "z",
-			}
-			err = service.Send("hello", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("should fail with multiple events when one errors", func() {
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1,event2")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-				httpmock.NewStringResponder(200, ""),
-			)
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/event2/with/key/dummy",
-				httpmock.NewStringResponder(404, "Not Found"),
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.MatchError(
-				`failed to send IFTTT event: event "event2": got unexpected response status code: 404 Not Found`,
-			))
-		})
-
-		ginkgo.It("should fail with network error", func() {
-			serviceURL := testutils.URLMust("ifttt://dummy/?events=event1")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
-				httpmock.NewErrorResponder(errors.New("network failure")),
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).To(gomega.MatchError(
-				`failed to send IFTTT event: event "event1": sending HTTP request to IFTTT webhook: Post "https://maker.ifttt.com": network failure`,
-			))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("ServiceTimeout", func() {
-	ginkgo.DescribeTable("should budget one request timeout for each event",
-		func(params *types.Params, want time.Duration) {
-			service := &ifttt.Service{}
-			gomega.Expect(service.Initialize(
-				testutils.URLMust("ifttt://webhookid/?events=a,b,c"),
-				testutils.TestLogger(),
-			)).To(gomega.Succeed())
-
-			gomega.Expect(service.ServiceTimeout(params)).To(gomega.Equal(want))
+	// tests lists service URLs and params with the webhook URLs and payload the
+	// send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantURLs []string
+		wantBody string
+	}{
+		{
+			name:     "one event",
+			rawURL:   "ifttt://dummy/?events=foo",
+			wantURLs: []string{"https://maker.ifttt.com/trigger/foo/with/key/dummy"},
+			wantBody: `{"value1":"","value2":"hello","value3":""}`,
 		},
-		ginkgo.Entry("for the configured events", nil, 3*perEvent),
-		ginkgo.Entry("for events set by params", &types.Params{"events": "a,b"}, 2*perEvent),
-		ginkgo.Entry("for the configured events when a param is invalid", &types.Params{"messagevalue": "abc"}, 3*perEvent),
-	)
-})
+		{
+			name:   "two events",
+			rawURL: "ifttt://dummy/?events=event1,event2&messagevalue=1&value3=c",
+			wantURLs: []string{
+				"https://maker.ifttt.com/trigger/event1/with/key/dummy",
+				"https://maker.ifttt.com/trigger/event2/with/key/dummy",
+			},
+			wantBody: `{"value1":"hello","value2":"","value3":"c"}`,
+		},
+		{
+			name:     "params",
+			rawURL:   "ifttt://dummy/?events=event1",
+			params:   &types.Params{"messagevalue": "3", "value1": "x", "events": "other"},
+			wantURLs: []string{"https://maker.ifttt.com/trigger/other/with/key/dummy"},
+			wantBody: `{"value1":"x","value2":"","value3":"hello"}`,
+		},
+	}
 
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			responses := make([]cannedResponse, len(tt.wantURLs))
+			for i := range responses {
+				responses[i] = okResponse
+			}
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, responses...)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("hello", tt.params))
+
+			require.Len(t, *captured, len(tt.wantURLs))
+
+			for i, request := range *captured {
+				assert.Equal(t, http.MethodPost, request.method)
+				assert.Equal(t, tt.wantURLs[i], request.url)
+				assert.Equal(t, "application/json", request.contentType)
+				assert.JSONEq(t, tt.wantBody, request.body)
+			}
+		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config and the next send keep the
+// configured values.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "ifttt://dummy/?events=event1")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, okResponse)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("hello", &types.Params{"messagevalue": "1", "events": "other"}))
+	assert.Equal(t, want, *service.Config)
+
+	client, captured := newRespondingClient(t, okResponse)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("hello", nil))
+	require.Len(t, *captured, 1)
+	assert.Equal(t, "https://maker.ifttt.com/trigger/event1/with/key/dummy", (*captured)[0].url)
+	assert.JSONEq(t, `{"value1":"","value2":"hello","value3":""}`, (*captured)[0].body)
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed naming
+// the event for an error status or a transport error, stops at the first
+// failing event, rejects an invalid param before any request, and stops when
+// the caller's context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://dummy/?events=foo")
+		client, _ := newRespondingClient(t, cannedResponse{status: "401 Unauthorized", statusCode: http.StatusUnauthorized})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "hello", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.EqualError(t, err, `failed to send IFTTT event: event "foo": got unexpected response status code: 401 Unauthorized`)
+	})
+
+	t.Run("second event fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://dummy/?events=event1,event2,event3")
+		client, captured := newRespondingClient(t, okResponse, cannedResponse{status: "404 Not Found", statusCode: http.StatusNotFound})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "hello", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), `event "event2"`)
+		assert.Len(t, *captured, 2)
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://SECRETwebhookID/?events=event1")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "hello", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "SECRETwebhookID")
+	})
+
+	t.Run("invalid param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://dummy/?events=event1")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "hello", &types.Params{"foo": "bar"})
+
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &ifttt.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("ifttt://webhookid/?events=event"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "ifttt://webhookid/?events=event")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
+}
 
-var _ = ginkgo.Describe("request building", func() {
-	ginkgo.It("should not leak the webhook ID when the request URL cannot be parsed", func() {
-		service := &ifttt.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("ifttt://SECRETwebhookID/?events=%25zz"), testutils.TestLogger())).To(gomega.Succeed())
-		// The mock has no expectations, so a request fails the spec.
-		service.SetHTTPClient(typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()))
-
-		err := service.Send("message", nil)
-
-		var urlErr *url.Error
-		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
-		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETwebhookID"))
-	})
-})
-
-// TestIFTTT runs the Ginkgo test suite for the IFTTT package.
-func TestIFTTT(t *testing.T) {
+// TestSendRedactsUnparsableURL verifies that an event that makes the webhook
+// URL unparsable fails the send before any request, without the webhook ID in
+// the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr IFTTT Suite")
+
+	service := newTestService(t, "ifttt://SECRETwebhookID/?events=%25zz")
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETwebhookID")
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, uses a default client that honors the caller's context.
+// The context is canceled before the send, so the transport returns before it
+// dials IFTTT.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ifttt://SECRETwebhookID/?events=event1")
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := service.SendContext(ctx, "hello", nil)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.NotContains(t, err.Error(), "SECRETwebhookID")
+		})
+	}
+}
+
+// TestServiceTimeout verifies that the router budget is one request timeout
+// for each event, counting events set by params, and at least one timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	// tests lists params with the budget each should get for a service with
+	// three configured events.
+	tests := []struct {
+		params *types.Params
+		name   string
+		want   time.Duration
+	}{
+		{name: "configured events", want: 3 * defaultTimeout},
+		{name: "events set by params", params: &types.Params{"events": "a,b"}, want: 2 * defaultTimeout},
+		{name: "invalid param keeps the configured events", params: &types.Params{"messagevalue": "abc"}, want: 3 * defaultTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ifttt://webhookid/?events=a,b,c")
+
+			assert.Equal(t, tt.want, service.ServiceTimeout(tt.params))
+		})
+	}
+
+	t.Run("uninitialized service", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, defaultTimeout, (&Service{}).ServiceTimeout(nil))
+	})
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("nil *http.Client", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service.SetHTTPClient((*http.Client)(nil))
+
+		assert.Nil(t, service.httpClient)
+	})
 }

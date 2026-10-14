@@ -1,105 +1,196 @@
 package signalgrid
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"net/url"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	var (
-		config *Config
-		pkr    format.PropKeyResolver
-	)
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-	ginkgo.BeforeEach(func() {
-		config = &Config{}
-		pkr = format.NewPropKeyResolver(config)
-		gomega.Expect(pkr.SetDefaultProps(config)).To(gomega.Succeed())
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsed
+}
+
+// newDefaultConfig returns a config with the default props applied.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Config: the config.
+func newDefaultConfig(t *testing.T) *Config {
+	t.Helper()
+
+	config := &Config{}
+	resolver := format.NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	return config
+}
+
+// TestConfigSetURL verifies that SetURL reads the client key from the user
+// info, the channel from the host, and the title, type, and critical props
+// from the query.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "client key and channel",
+			rawURL: "signalgrid://abc123@channel",
+			want:   Config{ClientKey: "abc123", Channel: "channel", Type: TypeINFO},
+		},
+		{
+			name:   "title, type, and critical",
+			rawURL: "signalgrid://key@channel?title=Server%20Down&type=CRIT&critical=true",
+			want:   Config{ClientKey: "key", Channel: "channel", Title: "Server Down", Type: TypeCRIT, Critical: true},
+		},
+		{
+			name:   "lowercase type",
+			rawURL: "signalgrid://key@channel?type=warn",
+			want:   Config{ClientKey: "key", Channel: "channel", Type: TypeWARN},
+		},
+		{
+			name:   "port is not part of the channel",
+			rawURL: "signalgrid://key@channel:8080",
+			want:   Config{ClientKey: "key", Channel: "channel", Type: TypeINFO},
+		},
+		{
+			name:   "docs dummy URL",
+			rawURL: dummyServiceURL,
+			want:   Config{ClientKey: "dummy", Channel: "dummy.com", Type: TypeINFO},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newDefaultConfig(t)
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.want, *config)
+		})
+	}
+}
+
+// TestConfigSetURLErrors verifies that SetURL rejects a URL without a client
+// key or channel, and a URL with an unknown or invalid query prop.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "missing client key", rawURL: "signalgrid://channel", wantErr: ErrClientKeyMissing},
+		{name: "empty client key", rawURL: "signalgrid://@channel", wantErr: ErrClientKeyMissing},
+		{name: "missing channel", rawURL: "signalgrid://key@", wantErr: ErrChannelMissing},
+		{name: "unknown prop", rawURL: "signalgrid://key@channel?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid type", rawURL: "signalgrid://key@channel?type=nope", wantErr: format.ErrInvalidEnumValue},
+		{name: "invalid critical", rawURL: "signalgrid://key@channel?critical=maybe", wantErr: format.ErrInvalidBoolValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, newDefaultConfig(t).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+		})
+	}
+}
+
+// TestConfigGetURL verifies that GetURL encodes the client key as the user
+// and the channel as the host, leaves default props out of the query, and
+// round-trips through SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults", func(t *testing.T) {
+		t.Parallel()
+
+		config := newDefaultConfig(t)
+		config.ClientKey = "key"
+		config.Channel = "channel"
+
+		assert.Equal(t, "signalgrid://key@channel", config.GetURL().String())
 	})
 
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should parse client key from userinfo and channel from host", func() {
-			err := config.SetURL(mustParseURL("signalgrid://abc123@channel"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.ClientKey).To(gomega.Equal("abc123"))
-			gomega.Expect(config.Channel).To(gomega.Equal("channel"))
-		})
+	t.Run("round trip", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should parse title, type, and critical query parameters", func() {
-			err := config.SetURL(mustParseURL(
-				"signalgrid://key@channel?title=Server%20Down&type=CRIT&critical=true",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Title).To(gomega.Equal("Server Down"))
-			gomega.Expect(config.Type).To(gomega.Equal(TypeCRIT))
-			gomega.Expect(config.Critical).To(gomega.BeTrue())
-		})
+		config := newDefaultConfig(t)
+		config.ClientKey = "abc123"
+		config.Channel = "channel"
+		config.Title = "Alert"
+		config.Type = TypeCRIT
+		config.Critical = true
 
-		ginkgo.It("should accept lowercase type aliases", func() {
-			err := config.SetURL(mustParseURL("signalgrid://key@channel?type=info"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Type).To(gomega.Equal(TypeINFO))
-		})
+		serviceURL := config.GetURL()
+		assert.Equal(t, "signalgrid://abc123@channel?critical=Yes&title=Alert&type=CRIT", serviceURL.String())
 
-		ginkgo.It("should reject an invalid type", func() {
-			err := config.SetURL(mustParseURL("signalgrid://key@channel?type=nope"))
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		roundTrip := newDefaultConfig(t)
+		require.NoError(t, roundTrip.SetURL(serviceURL))
+		assert.Equal(t, config, roundTrip)
+	})
+}
 
-		ginkgo.It("should reject a missing client key", func() {
-			err := config.SetURL(mustParseURL("signalgrid://channel"))
-			gomega.Expect(err).To(gomega.MatchError(ErrClientKeyMissing))
-		})
+// TestConfigQueryResolver verifies the config's query props: the default type
+// is INFO, the keys are critical, title, and type, and type is an enum.
+func TestConfigQueryResolver(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should reject a missing channel", func() {
-			err := config.SetURL(mustParseURL("signalgrid://key@"))
-			gomega.Expect(err).To(gomega.MatchError(ErrChannelMissing))
-		})
+	t.Run("default values", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should accept the docs dummy URL", func() {
-			err := config.SetURL(mustParseURL(dummyServiceURL))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
+		assert.Equal(t, Config{Type: TypeINFO}, *newDefaultConfig(t))
 	})
 
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should round-trip client key and channel", func() {
-			config.ClientKey = "abc123"
-			config.Channel = "channel"
-			config.Title = "Alert"
-			config.Type = TypeCRIT
-			config.Critical = true
+	t.Run("fields and enums", func(t *testing.T) {
+		t.Parallel()
 
-			got := config.GetURL()
-			gomega.Expect(got.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(got.User.Username()).To(gomega.Equal("abc123"))
-			gomega.Expect(got.Host).To(gomega.Equal("channel"))
+		config := &Config{}
 
-			roundTrip := &Config{}
-			gomega.Expect(roundTrip.SetURL(got)).To(gomega.Succeed())
-			gomega.Expect(roundTrip.ClientKey).To(gomega.Equal("abc123"))
-			gomega.Expect(roundTrip.Channel).To(gomega.Equal("channel"))
-			gomega.Expect(roundTrip.Title).To(gomega.Equal("Alert"))
-			gomega.Expect(roundTrip.Type).To(gomega.Equal(TypeCRIT))
-			gomega.Expect(roundTrip.Critical).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should omit default type from the query", func() {
-			config.ClientKey = "key"
-			config.Channel = "channel"
-
-			got := config.GetURL()
-			gomega.Expect(got.Query().Get("type")).To(gomega.BeEmpty())
-			gomega.Expect(got.Query().Get("critical")).To(gomega.BeEmpty())
-		})
+		assert.Equal(t, []string{"critical", "title", "type"}, format.GetConfigQueryResolver(config).QueryFields())
+		assert.Equal(t, []string{"Type"}, keys(config.Enums()))
 	})
+}
 
-	ginkgo.Describe("SetDefaultProps", func() {
-		ginkgo.It("should default type to INFO", func() {
-			gomega.Expect(config.Type).To(gomega.Equal(TypeINFO))
-			gomega.Expect(config.Type.String()).To(gomega.Equal("INFO"))
-		})
-	})
-})
+// keys returns the keys of m.
+//
+// Parameters:
+//   - m: the map.
+//
+// Returns:
+//   - []string: the keys, in no particular order.
+func keys[V any](m map[string]V) []string {
+	result := make([]string, 0, len(m))
+	for key := range m {
+		result = append(result, key)
+	}
+
+	return result
+}
