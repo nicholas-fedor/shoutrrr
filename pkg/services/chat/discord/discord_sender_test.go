@@ -562,7 +562,9 @@ func TestIsTransientError(t *testing.T) {
 
 // TestExecuteWithTransportRetry verifies that transient transport errors are
 // retried with exponential backoff, that the last error is returned once the
-// retries run out, and that a canceled context stops the backoff.
+// retries run out, and that a context canceled before the first request stops
+// the retry at the pre-wait check. TestExecuteWithTransportRetryStopsOnCancel
+// covers a cancel during the backoff.
 func TestExecuteWithTransportRetry(t *testing.T) {
 	t.Parallel()
 
@@ -583,52 +585,52 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 			wantSleeps: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second},
 			wantErr:    context.DeadlineExceeded,
 		},
-		{name: "canceled context during the backoff", replies: []error{context.DeadlineExceeded}, cancelContext: true, wantErr: context.Canceled},
+		{name: "context canceled before the first request", replies: []error{context.DeadlineExceeded}, cancelContext: true, wantErr: context.Canceled},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := mocks.NewMockHTTPClient(t)
+			synctest.Test(t, func(t *testing.T) {
+				client := mocks.NewMockHTTPClient(t)
 
-			for _, reply := range tt.replies {
-				if reply == nil {
-					client.EXPECT().Do(mock.Anything).Return(statusResponse(http.StatusOK, nil), nil).Once()
-				} else {
-					client.EXPECT().Do(mock.Anything).Return(nil, reply).Once()
+				for _, reply := range tt.replies {
+					if reply == nil {
+						client.EXPECT().Do(mock.Anything).Return(statusResponse(http.StatusOK, nil), nil).Once()
+					} else {
+						client.EXPECT().Do(mock.Anything).Return(nil, reply).Once()
+					}
 				}
-			}
 
-			sleeper := mocks.NewMockSleeper(t)
-			for _, wait := range tt.wantSleeps {
-				sleeper.EXPECT().Sleep(wait).Return().Once()
-			}
+				sleeper := mocks.NewMockSleeper(t)
+				for _, wait := range tt.wantSleeps {
+					sleeper.EXPECT().Sleep(wait).Return().Once()
+				}
 
-			ctx := t.Context()
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
 
-			if tt.cancelContext {
-				var cancel context.CancelFunc
+				if tt.cancelContext {
+					cancel()
+				}
 
-				ctx, cancel = context.WithCancel(ctx)
-				cancel()
-			}
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com", strings.NewReader("test"))
-			require.NoError(t, err)
-
-			resp, err := executeWithTransportRetry(ctx, client, []byte("test"), req, sleeper)
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
-
-			if tt.wantErr == nil {
+				req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com", strings.NewReader("test"))
 				require.NoError(t, err)
 
-				return
-			}
+				resp, err := executeWithTransportRetry(ctx, client, []byte("test"), req, sleeper)
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
 
-			require.ErrorIs(t, err, tt.wantErr)
+				if tt.wantErr == nil {
+					require.NoError(t, err)
+
+					return
+				}
+
+				require.ErrorIs(t, err, tt.wantErr)
+			})
 		})
 	}
 }
