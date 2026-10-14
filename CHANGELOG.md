@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Redact service urls from request building errors by @nicholas-fedor in [#1571](https://github.com/nicholas-fedor/shoutrrr/pull/1571)
+
 ### Tests
 
 - Migrate the chat webhook service tests from ginkgo to testify by @nicholas-fedor in [#1566](https://github.com/nicholas-fedor/shoutrrr/pull/1566)
