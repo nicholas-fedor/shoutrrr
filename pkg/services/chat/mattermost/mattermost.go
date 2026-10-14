@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -24,6 +25,15 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
 }
+
+// Send params that override URL fields. The config resolver does not accept
+// them as keys, so [CreateJSONPayload] reads them from the params.
+const (
+	// userNameParam overrides [Config.UserName] for one send.
+	userNameParam = "username"
+	// channelParam overrides [Config.Channel] for one send.
+	channelParam = "channel"
+)
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
 const defaultHTTPTimeout = 10 * time.Second
@@ -95,7 +105,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Parameters:
 //   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
 //   - message: the message to send.
-//   - params: optional overrides for configuration fields.
+//   - params: optional overrides for configuration fields, including the
+//     username and channel params and disabletls.
 //
 // Returns:
 //   - error: the params, payload, or request error, or [ErrSendFailed] for an
@@ -104,11 +115,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
-	serviceURL := buildURL(config)
 
-	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
+	if err := s.pkr.UpdateConfigFromParams(config, configParams(params)); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	serviceURL := buildURL(config)
 
 	json, err := CreateJSONPayload(config, message, params)
 	if err != nil {
@@ -166,6 +178,30 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	}
 
 	s.httpClient = client
+}
+
+// configParams returns the send params the config resolver accepts as keys.
+//
+// It leaves out the username and channel params, which override URL fields
+// and are read by [CreateJSONPayload]. The resolver still rejects any other
+// unknown key.
+//
+// Parameters:
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - *types.Params: a copy of params without the URL field overrides, or nil
+//     when params is nil.
+func configParams(params *types.Params) *types.Params {
+	if params == nil {
+		return nil
+	}
+
+	keyParams := maps.Clone(*params)
+	delete(keyParams, userNameParam)
+	delete(keyParams, channelParam)
+
+	return &keyParams
 }
 
 // buildURL constructs the API URL for Mattermost based on the Config.
