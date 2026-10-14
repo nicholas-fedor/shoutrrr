@@ -417,7 +417,14 @@ func TestSendDefaultClient(t *testing.T) {
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				body, _ := io.ReadAll(req.Body)
-				requests <- capturedRequest{method: req.Method, url: req.URL.String(), body: string(body)}
+
+				// A non-blocking send keeps an extra request from stalling
+				// server.Close, which waits for running handlers.
+				select {
+				case requests <- capturedRequest{method: req.Method, url: req.URL.String(), body: string(body)}:
+				default:
+					t.Errorf("unexpected extra request: %s %s", req.Method, req.URL)
+				}
 
 				_, _ = io.WriteString(w, successBody)
 			}))
