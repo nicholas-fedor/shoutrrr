@@ -85,3 +85,5 @@ err := service.Send("this is a message", params)
 ```
 
 These override the options passed via the URL for that send only.
+The `icon_emoji` and `icon_url` params are aliases for `icon`.
+Each one sets an image URL when the value starts with `http://` or `https://`, and an emoji name otherwise.
