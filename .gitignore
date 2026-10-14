@@ -31,6 +31,3 @@ docs/playground/assets/wasm_exec.js
 
 # Environment variables
 .env
-
-# Node dependencies
-node_modules/
