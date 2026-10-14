@@ -1,598 +1,485 @@
 package discord
 
 import (
-	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
-	"net/url"
 	"strings"
+	"sync"
+	"testing"
 	"unicode/utf8"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
+// sentRequest records a request the mock HTTP client received.
+type sentRequest struct {
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
+
+// requestRecorder collects the requests a mock HTTP client receives.
+type requestRecorder struct {
+	// mu guards requests.
+	mu sync.Mutex
+	// requests holds the requests in the order received.
+	requests []sentRequest
+}
+
+// testWebhookURLAlt is a valid webhook API URL for the doSend tests.
 const testWebhookURLAlt = "https://discord.com/api/webhooks/123/abc"
 
-var _ = ginkgo.Describe("Discord Service Unit Tests", func() {
-	ginkgo.Describe("Service.Send method", func() {
-		var service *Service
+// sent returns the requests received so far.
+//
+// Returns:
+//   - []sentRequest: the requests, in order.
+func (r *requestRecorder) sent() []sentRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-		ginkgo.BeforeEach(func() {
-			service = &Service{
-				Config: &Config{
-					WebhookID: "123456789",
-					Token:     "test-token",
-				},
+	return append([]sentRequest(nil), r.requests...)
+}
+
+// newAcceptingClient returns a mock HTTP client that expects exactly calls
+// requests, answers each with 204 No Content, and records them.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - calls: the number of requests to expect.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *requestRecorder: the recorded requests.
+func newAcceptingClient(t *testing.T, calls int) (*mocks.MockHTTPClient, *requestRecorder) {
+	t.Helper()
+
+	recorder := &requestRecorder{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		var body []byte
+		if req.Body != nil {
+			body, _ = io.ReadAll(req.Body)
+		}
+
+		recorder.mu.Lock()
+		recorder.requests = append(recorder.requests, sentRequest{contentType: req.Header.Get("Content-Type"), body: string(body)})
+		recorder.mu.Unlock()
+
+		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
+	}).Times(calls)
+
+	return client, recorder
+}
+
+// newFailingClient returns a mock HTTP client whose single expected request
+// fails with err.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - err: the transport error.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+func newFailingClient(t *testing.T, err error) *mocks.MockHTTPClient {
+	t.Helper()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).Return(nil, err).Once()
+
+	return client
+}
+
+// newTestService returns a service for webhook 123456789 that sends through
+// client and logs to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - client: the HTTP client, or nil for a service that must not send.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, client HTTPClient) *Service {
+	t.Helper()
+
+	config := &Config{WebhookID: "123456789", Token: "test-token"}
+	service := &Service{Config: config, HTTPClient: client, pkr: format.NewPropKeyResolver(config)}
+	service.SetLogger(log.New(t.Output(), "", 0))
+
+	return service
+}
+
+// TestSendRequestCount verifies how many requests a send makes for plain,
+// JSON, chunked, and line-split messages.
+func TestSendRequestCount(t *testing.T) {
+	t.Parallel()
+
+	// tests lists messages and config changes with the number of requests the
+	// send should make.
+	tests := []struct {
+		name      string
+		message   string
+		configure func(*Config)
+		wantCalls int
+	}{
+		{name: "plain text", message: "Hello, Discord!", wantCalls: 1},
+		{name: "JSON mode", message: `{"content":"JSON message"}`, configure: func(c *Config) { c.JSON = true }, wantCalls: 1},
+		{name: "longer than one batch", message: strings.Repeat("a", TotalChunkSize+100), wantCalls: 2},
+		{name: "split lines", message: "Line 1\nLine 2\nLine 3", configure: func(c *Config) { c.SplitLines = true }, wantCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newAcceptingClient(t, tt.wantCalls)
+			service := newTestService(t, client)
+
+			if tt.configure != nil {
+				tt.configure(service.Config)
 			}
-			service.SetLogger(&mockTypes.MockStdLogger{})
+
+			require.NoError(t, service.Send(tt.message, &types.Params{}))
 		})
+	}
+}
 
-		ginkgo.It("should send plain text message successfully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
+// TestSendFailures verifies that an empty message is rejected without a
+// request and that a failed first batch fails the send.
+func TestSendFailures(t *testing.T) {
+	t.Parallel()
 
-			message := "Hello, Discord!"
-			params := &types.Params{}
+	t.Run("empty message", func(t *testing.T) {
+		t.Parallel()
 
-			err := service.Send(message, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should send JSON message in JSON mode", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			service.Config.JSON = true
-
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			jsonMessage := `{"content":"JSON message"}`
-			params := &types.Params{}
-
-			err := service.Send(jsonMessage, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should handle empty message", func() {
-			message := ""
-			params := &types.Params{}
-
-			err := service.Send(message, params)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrEmptyMessage))
-		})
-
-		ginkgo.It("should handle large message with chunking", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			// Create a message larger than TotalChunkSize to force multiple batches
-			largeMessage := strings.Repeat("a", TotalChunkSize+100)
-			params := &types.Params{}
-
-			err := service.Send(largeMessage, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			// Should make multiple calls for chunks
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 2)
-		})
-
-		ginkgo.It("should handle split lines option", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			service.Config.SplitLines = true
-
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			message := "Line 1\nLine 2\nLine 3"
-			params := &types.Params{}
-
-			err := service.Send(message, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			// One call for the batch of lines
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should return error when first batch fails", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockLogger := &mockTypes.MockStdLogger{}
-			service.HTTPClient = mockClient
-			service.SetLogger(mockLogger)
-			mockClient.On("Do", mock.Anything).Return(nil, ErrMaxRetries)
-			mockLogger.On("Print", mock.Anything).Return()
-
-			message := "Test message"
-			params := &types.Params{}
-
-			err := service.Send(message, params)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).
-				To(gomega.ContainSubstring("failed to send discord notification"))
-		})
+		require.ErrorIs(t, newTestService(t, mocks.NewMockHTTPClient(t)).Send("", &types.Params{}), ErrEmptyMessage)
 	})
 
-	ginkgo.Describe("Service.ServiceTimeout method", func() {
-		ginkgo.It("should report the sender's retry limit", func() {
-			gomega.Expect((&Service{}).ServiceTimeout(nil)).To(gomega.Equal(maxRetryTimeout))
-		})
+	t.Run("first batch fails", func(t *testing.T) {
+		t.Parallel()
+
+		err := newTestService(t, newFailingClient(t, ErrMaxRetries)).Send("Test message", &types.Params{})
+
+		require.ErrorIs(t, err, ErrMaxRetries)
+		assert.Contains(t, err.Error(), "failed to send discord notification")
+	})
+}
+
+// TestServiceTimeout verifies that the send budget is the sender's retry limit.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, maxRetryTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestSendItems verifies that the deprecated pointer-params SendItems sends the
+// items.
+func TestSendItems(t *testing.T) {
+	t.Parallel()
+
+	client, _ := newAcceptingClient(t, 1)
+
+	require.NoError(t, newTestService(t, client).SendItems([]types.MessageItem{{Text: "Test message"}}, &types.Params{}))
+}
+
+// TestSendItemsContext verifies that items are sent as JSON, or as multipart
+// with a file, and that params set the username for the send.
+func TestSendItemsContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain item", func(t *testing.T) {
+		t.Parallel()
+
+		client, recorder := newAcceptingClient(t, 1)
+		require.NoError(t, newTestService(t, client).sendItems(t.Context(), []types.MessageItem{{Text: "Simple message"}}, &types.Params{}))
+
+		assert.Equal(t, "application/json", recorder.sent()[0].contentType)
 	})
 
-	ginkgo.Describe("Service.SendItems method", func() {
-		ginkgo.It("should delegate to sendItems method", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service := &Service{
-				Config: &Config{
-					WebhookID: "123456789",
-					Token:     "test-token",
-				},
-				HTTPClient: mockClient,
-			}
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
+	t.Run("item with a file", func(t *testing.T) {
+		t.Parallel()
 
-			items := []types.MessageItem{
-				{Text: "Test message"},
-			}
-			params := &types.Params{}
+		client, recorder := newAcceptingClient(t, 1)
+		items := []types.MessageItem{{Text: "Message with file", File: &types.File{Name: "test.txt", Data: []byte("file content")}}}
 
-			err := service.SendItems(items, params)
+		require.NoError(t, newTestService(t, client).sendItems(t.Context(), items, &types.Params{}))
 
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
+		sent := recorder.sent()[0]
+		assert.True(t, strings.HasPrefix(sent.contentType, "multipart/form-data"), "content type %q", sent.contentType)
+		assert.Contains(t, sent.body, "file content")
 	})
 
-	ginkgo.Describe("Service.sendItems method", func() {
-		var service *Service
+	t.Run("username from params", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.BeforeEach(func() {
-			service = &Service{
-				Config: &Config{
-					WebhookID: "123456789",
-					Token:     "test-token",
-				},
-				pkr: format.NewPropKeyResolver(&Config{}),
-			}
-		})
+		client, recorder := newAcceptingClient(t, 1)
+		require.NoError(t, newTestService(t, client).sendItems(t.Context(), []types.MessageItem{{Text: "Test message"}}, &types.Params{"username": "CustomBot"}))
 
-		ginkgo.It("should send simple message item successfully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
+		assert.Contains(t, recorder.sent()[0].body, `"username":"CustomBot"`)
+	})
+}
 
-			items := []types.MessageItem{
-				{Text: "Simple message"},
-			}
-			params := &types.Params{}
+// TestSendItemsContextFailures verifies that empty items and unknown params are
+// rejected without a request.
+func TestSendItemsContextFailures(t *testing.T) {
+	t.Parallel()
 
-			err := service.sendItems(context.Background(), items, params)
+	t.Run("no items", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should handle message with file attachment", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			items := []types.MessageItem{
-				{
-					Text: "Message with file",
-					File: &types.File{
-						Name: "test.txt",
-						Data: []byte("file content"),
-					},
-				},
-			}
-			params := &types.Params{}
-
-			err := service.sendItems(context.Background(), items, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should update config from params", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			service.pkr = format.NewPropKeyResolver(service.Config)
-
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			items := []types.MessageItem{
-				{Text: "Test message"},
-			}
-			params := &types.Params{
-				"username": "CustomBot",
-			}
-
-			err := service.sendItems(context.Background(), items, params)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			// The payload should include the updated username
-		})
-
-		ginkgo.It("should handle empty items", func() {
-			items := []types.MessageItem{}
-			params := &types.Params{}
-
-			err := service.sendItems(context.Background(), items, params)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrEmptyMessage))
-		})
-
-		ginkgo.It("should handle config update error", func() {
-			service.pkr = format.NewPropKeyResolver(service.Config)
-
-			// Use invalid params to trigger an error
-			items := []types.MessageItem{
-				{Text: "Test message"},
-			}
-			params := &types.Params{
-				"invalid_key": "value",
-			}
-
-			err := service.sendItems(context.Background(), items, params)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("updating config from params"))
-		})
+		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItems(t.Context(), []types.MessageItem{}, &types.Params{})
+		require.ErrorIs(t, err, ErrEmptyMessage)
 	})
 
-	ginkgo.Describe("CreateItemsFromPlain function", func() {
-		ginkgo.It("should create single batch for small message without split lines", func() {
-			plain := "Short message"
-			splitLines := false
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
 
-			result := CreateItemsFromPlain(plain, splitLines)
+		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItems(t.Context(), []types.MessageItem{{Text: "Test message"}}, &types.Params{"invalid_key": "value"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "updating config from params")
+	})
+}
 
-			gomega.Expect(result).To(gomega.HaveLen(1))
-			gomega.Expect(result[0]).To(gomega.HaveLen(1))
-			gomega.Expect(result[0][0].Text).To(gomega.Equal(plain))
-		})
+// TestCreateItemsFromPlain verifies that plain text is split into chunks or
+// lines, batched, and kept whole and in order.
+func TestCreateItemsFromPlain(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should split lines when splitLines is true", func() {
-			plain := "Line 1\nLine 2\nLine 3"
-			splitLines := true
+	t.Run("short message", func(t *testing.T) {
+		t.Parallel()
 
-			result := CreateItemsFromPlain(plain, splitLines)
+		assert.Equal(t, [][]types.MessageItem{{{Text: "Short message"}}}, CreateItemsFromPlain("Short message", false))
+	})
 
-			gomega.Expect(result).To(gomega.HaveLen(1)) // All lines fit in one batch
-			gomega.Expect(result[0]).To(gomega.HaveLen(3))
-			gomega.Expect(result[0][0].Text).To(gomega.Equal("Line 1"))
-			gomega.Expect(result[0][1].Text).To(gomega.Equal("Line 2"))
-			gomega.Expect(result[0][2].Text).To(gomega.Equal("Line 3"))
-		})
+	t.Run("split lines", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should chunk large message without split lines", func() {
-			largeMessage := strings.Repeat("a", ChunkSize+100)
-			splitLines := false
-
-			result := CreateItemsFromPlain(largeMessage, splitLines)
-
-			gomega.Expect(result).To(gomega.HaveLen(1))    // All chunks fit in one batch
-			gomega.Expect(result[0]).To(gomega.HaveLen(2)) // 2 chunks: 2000 and 100
-
-			totalLength := 0
-			for _, item := range result[0] {
-				totalLength += len(item.Text)
-			}
-
-			gomega.Expect(totalLength).To(gomega.Equal(len(largeMessage)))
-		})
-
-		ginkgo.DescribeTable("should keep each batch and its title within the embed text limit",
-			func(plain string, splitLines bool) {
-				title := strings.Repeat("t", 100)
-
-				batches := createItemsFromPlain(plain, splitLines, title)
-				gomega.Expect(batches).NotTo(gomega.BeEmpty())
-
-				for _, batch := range batches {
-					total := utf8.RuneCountInString(title)
-					for _, item := range batch {
-						total += utf8.RuneCountInString(item.Text)
-					}
-
-					gomega.Expect(total).To(gomega.BeNumerically("<=", TotalChunkSize))
-				}
-			},
-			ginkgo.Entry("split lines", strings.TrimSuffix(strings.Repeat(strings.Repeat("a", 1000)+"\n", 12), "\n"), true),
-			ginkgo.Entry("chunked", strings.Repeat("a", TotalChunkSize+1000), false),
+		assert.Equal(t,
+			[][]types.MessageItem{{{Text: "Line 1"}, {Text: "Line 2"}, {Text: "Line 3"}}},
+			CreateItemsFromPlain("Line 1\nLine 2\nLine 3", true),
 		)
+	})
 
-		ginkgo.It("should batch untitled messages the same as CreateItemsFromPlain", func() {
-			plain := strings.Repeat("a", TotalChunkSize+1000)
+	t.Run("longer than one chunk", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(createItemsFromPlain(plain, false, "")).To(gomega.Equal(CreateItemsFromPlain(plain, false)))
-		})
+		message := strings.Repeat("a", ChunkSize+100)
+		result := CreateItemsFromPlain(message, false)
 
-		ginkgo.It("should keep every rune of a long multi-byte message in order", func() {
-			runes := make([]rune, TotalChunkSize+1500)
-			for i := range runes {
-				runes[i] = rune(0x4E00 + i%1000)
+		require.Len(t, result, 1)
+		require.Len(t, result[0], 2)
+		assert.Equal(t, message, result[0][0].Text+result[0][1].Text)
+	})
+
+	t.Run("exactly one chunk", func(t *testing.T) {
+		t.Parallel()
+
+		message := strings.Repeat("a", ChunkSize)
+
+		assert.Equal(t, [][]types.MessageItem{{{Text: message}}}, CreateItemsFromPlain(message, false))
+	})
+
+	t.Run("empty message", func(t *testing.T) {
+		t.Parallel()
+
+		result := CreateItemsFromPlain("", false)
+
+		require.Len(t, result, 1)
+		assert.Empty(t, result[0])
+	})
+
+	t.Run("long multi-byte message", func(t *testing.T) {
+		t.Parallel()
+
+		runes := make([]rune, TotalChunkSize+1500)
+		for i := range runes {
+			runes[i] = rune(0x4E00 + i%1000)
+		}
+
+		plain := string(runes)
+
+		var joined strings.Builder
+
+		for _, batch := range CreateItemsFromPlain(plain, false) {
+			for _, item := range batch {
+				joined.WriteString(item.Text)
 			}
+		}
 
-			plain := string(runes)
+		assert.Equal(t, plain, joined.String())
+	})
 
-			result := CreateItemsFromPlain(plain, false)
+	t.Run("untitled batches match CreateItemsFromPlain", func(t *testing.T) {
+		t.Parallel()
 
-			var joined strings.Builder
+		plain := strings.Repeat("a", TotalChunkSize+1000)
 
-			for _, batch := range result {
+		assert.Equal(t, CreateItemsFromPlain(plain, false), createItemsFromPlain(plain, false, ""))
+	})
+}
+
+// TestCreateItemsFromPlainTitleLimit verifies that each batch and its title fit
+// within the embed text limit.
+func TestCreateItemsFromPlainTitleLimit(t *testing.T) {
+	t.Parallel()
+
+	title := strings.Repeat("t", 100)
+
+	// tests lists messages and split modes whose batches must leave room for the
+	// title.
+	tests := []struct {
+		name       string
+		plain      string
+		splitLines bool
+	}{
+		{name: "split lines", plain: strings.TrimSuffix(strings.Repeat(strings.Repeat("a", 1000)+"\n", 12), "\n"), splitLines: true},
+		{name: "chunked", plain: strings.Repeat("a", TotalChunkSize+1000), splitLines: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			batches := createItemsFromPlain(tt.plain, tt.splitLines, title)
+			require.NotEmpty(t, batches)
+
+			for _, batch := range batches {
+				total := utf8.RuneCountInString(title)
 				for _, item := range batch {
-					joined.WriteString(item.Text)
+					total += utf8.RuneCountInString(item.Text)
 				}
+
+				assert.LessOrEqual(t, total, TotalChunkSize)
 			}
-
-			gomega.Expect(joined.String()).To(gomega.Equal(plain))
 		})
+	}
+}
 
-		ginkgo.It("should handle empty string", func() {
-			plain := ""
-			splitLines := false
+// TestInitialize verifies that Initialize reads the URL, applies the defaults,
+// and creates an HTTP client, and that it rejects an incomplete URL.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
 
-			result := CreateItemsFromPlain(plain, splitLines)
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(result).To(gomega.HaveLen(1))
-			gomega.Expect(result[0]).To(gomega.BeEmpty()) // Empty input returns empty items
-		})
+		service := &Service{}
+		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@webhook?username=TestBot"), log.New(t.Output(), "", 0)))
 
-		ginkgo.It("should handle message exactly at chunk size", func() {
-			exactMessage := strings.Repeat("a", ChunkSize)
-			splitLines := false
-
-			result := CreateItemsFromPlain(exactMessage, splitLines)
-
-			gomega.Expect(result).To(gomega.HaveLen(1))
-			gomega.Expect(result[0][0].Text).To(gomega.Equal(exactMessage))
-		})
+		require.NotNil(t, service.Config)
+		assert.Equal(t, "webhook", service.Config.WebhookID)
+		assert.Equal(t, "token", service.Config.Token)
+		assert.Equal(t, "TestBot", service.Config.Username)
+		assert.Equal(t, uint(0x50d9ff), service.Config.Color, "the default color applies")
+		assert.True(t, service.Config.SplitLines, "lines split by default")
+		assert.NotNil(t, service.HTTPClient)
 	})
 
-	ginkgo.Describe("Service.Initialize method", func() {
-		var service *Service
+	t.Run("incomplete URL", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-		})
+		require.Error(t, (&Service{}).Initialize(parseTestURL(t, "discord://@"), log.New(t.Output(), "", 0)))
+	})
+}
 
-		ginkgo.It("should initialize service successfully with valid URL", func() {
-			serviceURL, _ := url.Parse("discord://token@webhook?username=TestBot")
-			logger := &mockTypes.MockStdLogger{}
+// TestGetID verifies the service identifier.
+func TestGetID(t *testing.T) {
+	t.Parallel()
 
-			err := service.Initialize(serviceURL, logger)
+	assert.Equal(t, "discord", (&Service{}).GetID())
+}
 
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(service.Config).NotTo(gomega.BeNil())
-			gomega.Expect(service.Config.WebhookID).To(gomega.Equal("webhook"))
-			gomega.Expect(service.Config.Token).To(gomega.Equal("token"))
-			gomega.Expect(service.Config.Username).To(gomega.Equal("TestBot"))
-			gomega.Expect(service.HTTPClient).NotTo(gomega.BeNil())
-		})
+// TestDoSend verifies that doSend posts a valid webhook URL, rejects other URLs
+// without a request, and reports a failed request.
+func TestDoSend(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should handle URL parsing error", func() {
-			// Simulate config.SetURL error by using invalid URL
-			invalidURL, _ := url.Parse("discord://@") // Missing token
-			logger := &mockTypes.MockStdLogger{}
+	payload := []byte(`{"content":"test"}`)
 
-			err := service.Initialize(invalidURL, logger)
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
 
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		client, recorder := newAcceptingClient(t, 1)
+		require.NoError(t, (&Service{HTTPClient: client}).doSend(t.Context(), payload, testWebhookURLAlt))
 
-		ginkgo.It("should set default properties", func() {
-			serviceURL, _ := url.Parse("discord://token@webhook")
-			logger := &mockTypes.MockStdLogger{}
-
-			err := service.Initialize(serviceURL, logger)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			// Verify default properties are set
-			gomega.Expect(service.pkr).NotTo(gomega.BeNil())
-		})
+		assert.Equal(t, string(payload), recorder.sent()[0].body)
 	})
 
-	ginkgo.Describe("Service.GetID method", func() {
-		var service *Service
+	t.Run("request fails", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-		})
-
-		ginkgo.It("should return discord scheme", func() {
-			id := service.GetID()
-
-			gomega.Expect(id).To(gomega.Equal(Scheme))
-			gomega.Expect(id).To(gomega.Equal("discord"))
-		})
+		client := newFailingClient(t, errors.New("network error"))
+		require.Error(t, (&Service{HTTPClient: client}).doSend(t.Context(), payload, testWebhookURLAlt))
 	})
 
-	ginkgo.Describe("Service.doSend method", func() {
-		var service *Service
+	// invalid lists URLs doSend must reject with the error each should produce.
+	invalid := []struct {
+		name    string
+		postURL string
+		wantErr error
+	}{
+		{name: "empty URL", postURL: "", wantErr: ErrEmptyURL},
+		{name: "http scheme", postURL: "http://discord.com/api/webhooks/123/abc", wantErr: ErrInvalidScheme},
+		{name: "other host", postURL: "https://example.com/api/webhooks/123/abc", wantErr: ErrInvalidHost},
+		{name: "other path", postURL: "https://discord.com/api/invalid/123/abc", wantErr: ErrInvalidURLPrefix},
+		{name: "no webhook ID or token", postURL: "https://discord.com/api/webhooks//", wantErr: ErrMalformedURL},
+	}
 
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
+	for _, tt := range invalid {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
+			require.ErrorIs(t, service.doSend(t.Context(), payload, tt.postURL), tt.wantErr)
 		})
+	}
+}
 
-		ginkgo.It("should send payload successfully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
+// TestDoSendMultipart verifies that doSendMultipart posts multipart form data,
+// with or without files, and reports a failed request.
+func TestDoSendMultipart(t *testing.T) {
+	t.Parallel()
 
-			payload := []byte(`{"content":"test"}`)
-			postURL := testWebhookURLAlt
+	// tests lists files to attach with whether the body should name a file.
+	tests := []struct {
+		name      string
+		files     []types.File
+		wantFiles bool
+	}{
+		{name: "with a file", files: []types.File{{Name: "test.txt", Data: []byte("file content")}}, wantFiles: true},
+		{name: "without files", files: []types.File{}},
+	}
 
-			err := service.doSend(context.Background(), payload, postURL)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
+			client, recorder := newAcceptingClient(t, 1)
+			payload := WebhookPayload{Content: "Message"}
+
+			require.NoError(t, (&Service{HTTPClient: client}).doSendMultipart(t.Context(), &payload, tt.files, testWebhookURLAlt))
+
+			sent := recorder.sent()[0]
+			assert.True(t, strings.HasPrefix(sent.contentType, "multipart/form-data"), "content type %q", sent.contentType)
+			assert.Contains(t, sent.body, "payload_json")
+			assert.Equal(t, tt.wantFiles, strings.Contains(sent.body, "files[0]"))
 		})
+	}
 
-		ginkgo.It("should handle empty URL", func() {
-			payload := []byte(`{"content":"test"}`)
-			postURL := ""
+	t.Run("request fails", func(t *testing.T) {
+		t.Parallel()
 
-			err := service.doSend(context.Background(), payload, postURL)
+		client := newFailingClient(t, errors.New("network error"))
+		payload := WebhookPayload{Content: "Test message"}
 
-			gomega.Expect(err).To(gomega.MatchError(ErrEmptyURL))
-		})
-
-		ginkgo.It("should validate URL scheme", func() {
-			payload := []byte(`{"content":"test"}`)
-			postURL := "http://" + testWebhookURLAlt[8:] // Change https to http
-
-			err := service.doSend(context.Background(), payload, postURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidScheme))
-		})
-
-		ginkgo.It("should validate host", func() {
-			payload := []byte(`{"content":"test"}`)
-			postURL := "https://example.com" + testWebhookURLAlt[20:] // Replace discord.com with example.com
-
-			err := service.doSend(context.Background(), payload, postURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
-		})
-
-		ginkgo.It("should validate URL prefix", func() {
-			payload := []byte(`{"content":"test"}`)
-			postURL := "https://discord.com/api/invalid" + testWebhookURLAlt[28:] // Replace /webhooks with /invalid
-
-			err := service.doSend(context.Background(), payload, postURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidURLPrefix))
-		})
-
-		ginkgo.It("should validate webhook ID and token", func() {
-			payload := []byte(`{"content":"test"}`)
-			postURL := "https://discord.com/api/webhooks//"
-
-			err := service.doSend(context.Background(), payload, postURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMalformedURL))
-		})
-
-		ginkgo.It("should handle HTTP client error", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(nil, errors.New("network error"))
-
-			payload := []byte(`{"content":"test"}`)
-			postURL := testWebhookURLAlt
-
-			err := service.doSend(context.Background(), payload, postURL)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.Error(t, (&Service{HTTPClient: client}).doSendMultipart(t.Context(), &payload, []types.File{}, testWebhookURLAlt))
 	})
-
-	ginkgo.Describe("Service.doSendMultipart method", func() {
-		var service *Service
-
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-		})
-
-		ginkgo.It("should send multipart payload with files successfully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			payload := WebhookPayload{
-				Content: "Message with files",
-			}
-			files := []types.File{
-				{Name: "test.txt", Data: []byte("file content")},
-			}
-			postURL := testWebhookURLAlt
-
-			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should handle empty files array", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(&http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil)
-
-			payload := WebhookPayload{
-				Content: "Message without files",
-			}
-			files := []types.File{}
-			postURL := testWebhookURLAlt
-
-			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
-
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			mockClient.AssertNumberOfCalls(ginkgo.GinkgoT(), "Do", 1)
-		})
-
-		ginkgo.It("should handle HTTP client error", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			service.HTTPClient = mockClient
-			mockClient.On("Do", mock.Anything).Return(nil, errors.New("network error"))
-
-			payload := WebhookPayload{
-				Content: "Test message",
-			}
-			files := []types.File{}
-			postURL := testWebhookURLAlt
-
-			err := service.doSendMultipart(context.Background(), &payload, files, postURL)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-})
+}
