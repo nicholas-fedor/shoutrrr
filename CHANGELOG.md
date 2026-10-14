@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Pin verspec's inversion dependency in the docs lock file by @nicholas-fedor in [#1550](https://github.com/nicholas-fedor/shoutrrr/pull/1550)
 
+### Continuous Integration
+
+- Remove the commit lint workflow by @nicholas-fedor in [#1580](https://github.com/nicholas-fedor/shoutrrr/pull/1580)
+
 ### Chores
 
 - Update module github.com/stretchr/objx to v0.8.0 by @renovate[bot] in [#1574](https://github.com/nicholas-fedor/shoutrrr/pull/1574)
