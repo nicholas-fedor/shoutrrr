@@ -47,6 +47,11 @@ mattermost://shoutrrrUser@your-domain.com/bywsw8zt5jgpte3nm65qjiru6h/shoutrrrCha
                  user                               token                channel
 ```
 
+The channel can also be `@username` to send a direct message to that user.
+
+!!! note
+    Mattermost ignores the user override unless a system admin enables [Enable integrations to override usernames](https://docs.mattermost.com/configure/configuration-settings.html#enable-integrations-to-override-usernames), and ignores the icon unless [Enable integrations to override profile picture icons](https://docs.mattermost.com/configure/configuration-settings.html#enable-integrations-to-override-profile-picture-icons) is enabled. See the [Mattermost incoming webhook documentation](https://docs.mattermost.com/developers/integrate/webhooks/incoming).
+
 ## Using an Icon
 
 You can customize the notification icon using the `icon` query parameter. The icon can be either a Mattermost emoji name or an image URL.
@@ -65,20 +70,18 @@ mattermost://your-domain.com/bywsw8zt5jgpte3nm65qjiru6h?icon=https://example.com
 
 ## Passing parameters via code
 
-If you want to, you also have the possibility to pass parameters to the `send` function.
-<br/>
-The following example contains all parameters that are currently supported.
+You can also pass parameters to the `Send` function. The following example contains all parameters that are currently supported.
 
-```gotemplate
-params := (*types.Params)(
- &map[string]string{
-  "username": "overwriteUserName",
-  "channel": "overwriteChannel",
-        "icon": "overwriteIcon",
- },
-)
+```go
+params := &types.Params{
+    "username":   "overwriteUserName",
+    "channel":    "overwriteChannel",
+    "icon":       "overwriteIcon",
+    "title":      "overwriteTitle",
+    "disabletls": "yes",
+}
 
-service.Send("this is a message", params)
+err := service.Send("this is a message", params)
 ```
 
-This will overwrite any options, that you passed via URL.
+These override the options passed via the URL for that send only.

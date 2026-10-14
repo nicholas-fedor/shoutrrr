@@ -229,6 +229,20 @@ func TestSend(t *testing.T) {
 			wantBody: `{"text":"Message","username":"user"}`,
 		},
 		{
+			name:     "user name and channel params",
+			rawURL:   "mattermost://bot@mattermost.host/token/news",
+			params:   &types.Params{"username": "override", "channel": "@alice"},
+			wantURL:  "https://mattermost.host/hooks/token",
+			wantBody: `{"text":"Message","username":"override","channel":"@alice"}`,
+		},
+		{
+			name:     "disabletls param",
+			rawURL:   "mattermost://host:8080/token",
+			params:   &types.Params{"disabletls": "yes"},
+			wantURL:  "http://host:8080/hooks/token",
+			wantBody: `{"text":"Message"}`,
+		},
+		{
 			name:     "title and icon params",
 			rawURL:   "mattermost://mattermost.host/token?icon=tanabata_tree",
 			params:   &types.Params{"title": "Title", "icon_url": "https://example.com/logo.png"},
@@ -261,22 +275,30 @@ func TestSend(t *testing.T) {
 func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, "mattermost://mattermost.host/token?icon=tanabata_tree&title=Configured")
+	service := newTestService(t, "mattermost://bot@mattermost.host/token/news?icon=tanabata_tree&title=Configured")
 	want := *service.Config
 
 	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
 	service.SetHTTPClient(client)
 
-	params := &types.Params{"title": "Override", "icon": "https://example.com/logo.png"}
+	params := &types.Params{
+		"title":      "Override",
+		"icon":       "https://example.com/logo.png",
+		"username":   "override",
+		"channel":    "@alice",
+		"disabletls": "yes",
+	}
 	require.NoError(t, service.Send("Message", params))
-	assert.JSONEq(t, `{"text":"Override\nMessage","icon_url":"https://example.com/logo.png"}`, captured.body)
+	assert.Equal(t, "http://mattermost.host/hooks/token", captured.url)
+	assert.JSONEq(t, `{"text":"Override\nMessage","username":"override","channel":"@alice","icon_url":"https://example.com/logo.png"}`, captured.body)
 	assert.Equal(t, want, *service.Config)
 
 	client, captured = newRespondingClient(t, "200 OK", http.StatusOK)
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Message", nil))
-	assert.JSONEq(t, `{"text":"Configured\nMessage","icon_emoji":"tanabata_tree"}`, captured.body)
+	assert.Equal(t, "https://mattermost.host/hooks/token", captured.url)
+	assert.JSONEq(t, `{"text":"Configured\nMessage","username":"bot","channel":"news","icon_emoji":"tanabata_tree"}`, captured.body)
 }
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed for an
