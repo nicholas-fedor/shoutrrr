@@ -1,447 +1,456 @@
 package opsgenie
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// authorization is the request's Authorization header.
+	authorization string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
+
+// failingReader is a response body whose reads fail.
+type failingReader struct{}
+
+// Response bodies in the format the OpsGenie API returns.
 const (
-	mockAPIKey = "eb243592-faa2-4ba2-a551q-1afdf565c889"
-	mockHost   = "api.opsgenie.com"
+	// acceptedBody is the body of an accepted create alert request.
+	acceptedBody = `{"result":"Request will be processed","took":0.302,"requestId":"43a29c5c-3dbf-4fa4-9c26-f4f71023e120"}`
+	// unauthorizedBody is the body of a request with an invalid API key.
+	unauthorizedBody = `{"message":"Could not authenticate","took":0.0,"requestId":"5042853c-402d-4a18-abcb-168734a801de"}`
 )
 
-var _ = ginkgo.Describe("the OpsGenie service", func() {
-	var (
-		// a simulated http server to mock out OpsGenie itself
-		mockServer *httptest.Server
-		// the host of our mock server
-		mockHost string
-		// function to check if the http request received by the mock server is as expected
-		checkRequest func(body string, header http.Header)
-		// the shoutrrr OpsGenie service
-		service *Service
-		// just a mock logger
-		mockLogger *log.Logger
-	)
+// Errors returned by the failing test doubles.
+var (
+	// errTransport is the transport failure returned by the failing HTTP client.
+	errTransport = errors.New("transport failure")
+	// errRead is the read failure returned by failingReader.
+	errRead = errors.New("read failure")
+)
 
-	ginkgo.BeforeEach(func() {
-		// Initialize a mock http server
-		httpHandler := func(_ http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+// Read fails with errRead.
+//
+// Parameters:
+//   - p: the buffer, which stays unchanged.
+//
+// Returns:
+//   - int: zero.
+//   - error: errRead.
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errRead
+}
 
-			defer func() { _ = r.Body.Close() }()
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status code and body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, statusCode int, body string) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
 
-			checkRequest(string(body), r.Header)
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		requestBody, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		*captured = capturedRequest{
+			method:        req.Method,
+			url:           req.URL.String(),
+			authorization: req.Header.Get("Authorization"),
+			contentType:   req.Header.Get("Content-Type"),
+			body:          string(requestBody),
 		}
-		mockServer = httptest.NewTLSServer(http.HandlerFunc(httpHandler))
 
-		// Our mock server doesn't have a valid cert
-		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
+		return &http.Response{StatusCode: statusCode, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}).Once()
 
-		// Determine the host of our mock http server
-		mockServerURL, err := url.Parse(mockServer.URL)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	return client, captured
+}
 
-		mockHost = mockServerURL.Host
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
 
-		// Initialize a mock logger
-		var buf bytes.Buffer
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
 
-		mockLogger = log.New(&buf, "", 0)
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "opsgenie", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the service URL and rejects
+// a URL without an API key.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey+"?priority=P2")
+
+		assert.Equal(t, &Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey, Priority: "P2"}, service.Config)
 	})
 
-	ginkgo.AfterEach(func() {
-		mockServer.Close()
+	t.Run("missing API key", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "opsgenie://api.opsgenie.com"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrAPIKeyMissing)
+	})
+}
+
+// TestSend verifies the request a send makes: an authenticated JSON POST to
+// the alerts endpoint, with the title as the alert message and the message
+// as its description, or the message alone when it fits and no title is set.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	longMessage := strings.Repeat("a", MaxMessageLength) + "tail"
+
+	// tests lists service URLs, messages, and params with the request URL and
+	// JSON body the send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		wantURL  string
+		wantBody string
+	}{
+		{
+			name:     "message only",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "EU host and port",
+			rawURL:   "opsgenie://api.eu.opsgenie.com:8443/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://api.eu.opsgenie.com:8443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "long message",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  longMessage,
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"` + longMessage[:MaxMessageLength] + `","description":"` + longMessage + `"}`,
+		},
+		{
+			name:     "title param",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  "Disk usage at 95%",
+			params:   &types.Params{"title": "Disk full"},
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"Disk full","description":"Disk usage at 95%"}`,
+		},
+		{
+			name:     "title and configured description",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey + "?title=Disk+full&description=Host+db1",
+			message:  "Disk usage at 95%",
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"Disk full","description":"Disk usage at 95%\nHost db1"}`,
+		},
+		{
+			name:     "short message and configured description",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey + "?description=Host+db1",
+			message:  "Disk full",
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"Disk full","description":"Host db1"}`,
+		},
+		{
+			name:    "alert props from params",
+			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message: "An example alert message",
+			params: &types.Params{
+				"alias":       "Life is too short for no alias",
+				"description": "Every alert needs a description",
+				"responders":  "team:" + testTeamID + ",team:NOC,user:Donald,user:696f0759-3b0f-4a15-b8c8-19d3dfca33f2",
+				"visibleTo":   "team:rocket",
+				"actions":     "action1,action2",
+				"tags":        "tag1,tag2",
+				"details":     "key1:value1,key2:value2",
+				"entity":      "An example entity",
+				"source":      "The source",
+				"priority":    "P1",
+				"user":        "Dracula",
+				"note":        "Here is a note",
+			},
+			wantURL: "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"An example alert message","alias":"Life is too short for no alias",` +
+				`"description":"Every alert needs a description",` +
+				`"responders":[{"type":"team","id":"` + testTeamID + `"},{"type":"team","name":"NOC"},` +
+				`{"type":"user","username":"Donald"},{"type":"user","id":"696f0759-3b0f-4a15-b8c8-19d3dfca33f2"}],` +
+				`"visibleTo":[{"type":"team","name":"rocket"}],"actions":["action1","action2"],"tags":["tag1","tag2"],` +
+				`"details":{"key1":"value1","key2":"value2"},"entity":"An example entity","source":"The source",` +
+				`"priority":"P1","user":"Dracula","note":"Here is a note"}`,
+		},
+		{
+			name: "alert props from the URL",
+			rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey +
+				"?alias=query-alias&description=query-description&responders=team:query_team&visibleTo=user:query_user" +
+				"&actions=queryAction1,queryAction2&tags=queryTag1,queryTag2&details=queryKey1:queryValue1" +
+				"&entity=query-entity&source=query-source&priority=P2&user=query-user&note=query-note",
+			message: "An example alert message",
+			wantURL: "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"An example alert message","alias":"query-alias","description":"query-description",` +
+				`"responders":[{"type":"team","name":"query_team"}],"visibleTo":[{"type":"user","username":"query_user"}],` +
+				`"actions":["queryAction1","queryAction2"],"tags":["queryTag1","queryTag2"],` +
+				`"details":{"queryKey1":"queryValue1"},"entity":"query-entity","source":"query-source",` +
+				`"priority":"P2","user":"query-user","note":"query-note"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, tt.wantURL, captured.url)
+			assert.Equal(t, "GenieKey "+testAPIKey, captured.authorization)
+			assert.Equal(t, "application/json", captured.contentType)
+			assert.JSONEq(t, tt.wantBody, captured.body)
+		})
+	}
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the next send uses the configured props.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey+"?alias=query-alias&responders=team:query_team&priority=P2")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("1", &types.Params{"alias": "1", "responders": "team:1", "priority": "P1"}))
+	assert.Equal(t, want, *service.Config)
+
+	client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("2", nil))
+	assert.JSONEq(t,
+		`{"message":"2","alias":"query-alias","responders":[{"type":"team","name":"query_team"}],"priority":"P2"}`,
+		captured.body)
+}
+
+// TestSendContextErrors verifies that a send fails with ErrUnexpectedStatus
+// and the response body for an error status, wraps a transport error, rejects
+// an invalid param before any request, and stops when the caller's context is
+// canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		client, _ := newRespondingClient(t, http.StatusUnauthorized, unauthorizedBody)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "message", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "401")
+		assert.Contains(t, err.Error(), "Could not authenticate")
 	})
 
-	ginkgo.Context("without query parameters", func() {
-		ginkgo.BeforeEach(func() {
-			// Initialize service
-			serviceURL, err := url.Parse(fmt.Sprintf("opsgenie://%s/%s", mockHost, mockAPIKey))
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	t.Run("unreadable error body", func(t *testing.T) {
+		t.Parallel()
 
-			service = &Service{}
-			err = service.Initialize(serviceURL, mockLogger)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).
+			Return(&http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(failingReader{})}, nil).Once()
+		service.SetHTTPClient(client)
 
-		ginkgo.When("sending a simple alert", func() {
-			ginkgo.It("should send a request to our mock OpsGenie server", func() {
-				checkRequest = func(body string, header http.Header) {
-					gomega.Expect(header["Authorization"][0]).
-						To(gomega.Equal("GenieKey " + mockAPIKey))
-					gomega.Expect(header["Content-Type"][0]).To(gomega.Equal("application/json"))
-					gomega.Expect(body).To(gomega.Equal(`{"message":"hello world"}`))
-				}
+		err := service.SendContext(t.Context(), "message", nil)
 
-				err := service.Send("hello world", &types.Params{})
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("sending an alert with runtime parameters", func() {
-			ginkgo.It(
-				"should send a request to our mock OpsGenie server with all fields populated from runtime parameters",
-				func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Authorization"][0]).
-							To(gomega.Equal("GenieKey " + mockAPIKey))
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-						gomega.Expect(body).To(gomega.Equal(`{"` +
-							`message":"An example alert message",` +
-							`"alias":"Life is too short for no alias",` +
-							`"description":"Every alert needs a description",` +
-							`"responders":[{"type":"team","id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c"},{"type":"team","name":"NOC"},{"type":"user","username":"Donald"},{"type":"user","id":"696f0759-3b0f-4a15-b8c8-19d3dfca33f2"}],` +
-							`"visibleTo":[{"type":"team","name":"rocket"}],` +
-							`"actions":["action1","action2"],` +
-							`"tags":["tag1","tag2"],` +
-							`"details":{"key1":"value1","key2":"value2"},` +
-							`"entity":"An example entity",` +
-							`"source":"The source",` +
-							`"priority":"P1",` +
-							`"user":"Dracula",` +
-							`"note":"Here is a note"` +
-							`}`))
-					}
-
-					err := service.Send("An example alert message", &types.Params{
-						"alias":       "Life is too short for no alias",
-						"description": "Every alert needs a description",
-						"responders":  "team:4513b7ea-3b91-438f-b7e4-e3e54af9147c,team:NOC,user:Donald,user:696f0759-3b0f-4a15-b8c8-19d3dfca33f2",
-						"visibleTo":   "team:rocket",
-						"actions":     "action1,action2",
-						"tags":        "tag1,tag2",
-						"details":     "key1:value1,key2:value2",
-						"entity":      "An example entity",
-						"source":      "The source",
-						"priority":    "P1",
-						"user":        "Dracula",
-						"note":        "Here is a note",
-					})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				},
-			)
-		})
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		require.ErrorIs(t, err, errRead)
 	})
 
-	ginkgo.Context("with query parameters", func() {
-		ginkgo.BeforeEach(func() {
-			// Initialize service
-			serviceURL, err := url.Parse(
-				fmt.Sprintf(
-					`opsgenie://%s/%s?alias=query-alias&description=query-description&responders=team:query_team&visibleTo=user:query_user&actions=queryAction1,queryAction2&tags=queryTag1,queryTag2&details=queryKey1:queryValue1,queryKey2:queryValue2&entity=query-entity&source=query-source&priority=P2&user=query-user&note=query-note`,
-					mockHost,
-					mockAPIKey,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
 
-			service = &Service{}
-			err = service.Initialize(serviceURL, mockLogger)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+		service.SetHTTPClient(client)
 
-		ginkgo.When("sending a simple alert", func() {
-			ginkgo.It(
-				"should send a request to our mock OpsGenie server with all fields populated from query parameters",
-				func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Authorization"][0]).
-							To(gomega.Equal("GenieKey " + mockAPIKey))
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-						gomega.Expect(body).To(gomega.Equal(`{` +
-							`"message":"An example alert message",` +
-							`"alias":"query-alias",` +
-							`"description":"query-description",` +
-							`"responders":[{"type":"team","name":"query_team"}],` +
-							`"visibleTo":[{"type":"user","username":"query_user"}],` +
-							`"actions":["queryAction1","queryAction2"],` +
-							`"tags":["queryTag1","queryTag2"],` +
-							`"details":{"queryKey1":"queryValue1","queryKey2":"queryValue2"},` +
-							`"entity":"query-entity",` +
-							`"source":"query-source",` +
-							`"priority":"P2",` +
-							`"user":"query-user",` +
-							`"note":"query-note"` +
-							`}`))
-					}
-
-					err := service.Send("An example alert message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				},
-			)
-		})
-
-		ginkgo.When("sending two alerts", func() {
-			ginkgo.It("should not mix-up the runtime parameters and the query parameters", func() {
-				// Internally the opsgenie service copies runtime parameters into the config struct
-				// before generating the alert payload. This test ensures that none of the parameters
-				// from alert 1 remain in the config struct when sending alert 2
-				// In short: This tests if we clone the config struct
-				checkRequest = func(body string, header http.Header) {
-					gomega.Expect(header["Authorization"][0]).
-						To(gomega.Equal("GenieKey " + mockAPIKey))
-					gomega.Expect(header["Content-Type"][0]).To(gomega.Equal("application/json"))
-					gomega.Expect(body).To(gomega.Equal(`{"` +
-						`message":"1",` +
-						`"alias":"1",` +
-						`"description":"1",` +
-						`"responders":[{"type":"team","name":"1"}],` +
-						`"visibleTo":[{"type":"team","name":"1"}],` +
-						`"actions":["action1","action2"],` +
-						`"tags":["tag1","tag2"],` +
-						`"details":{"key1":"value1","key2":"value2"},` +
-						`"entity":"1",` +
-						`"source":"1",` +
-						`"priority":"P1",` +
-						`"user":"1",` +
-						`"note":"1"` +
-						`}`))
-				}
-
-				err := service.Send("1", &types.Params{
-					"alias":       "1",
-					"description": "1",
-					"responders":  "team:1",
-					"visibleTo":   "team:1",
-					"actions":     "action1,action2",
-					"tags":        "tag1,tag2",
-					"details":     "key1:value1,key2:value2",
-					"entity":      "1",
-					"source":      "1",
-					"priority":    "P1",
-					"user":        "1",
-					"note":        "1",
-				})
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				checkRequest = func(body string, header http.Header) {
-					gomega.Expect(header["Authorization"][0]).
-						To(gomega.Equal("GenieKey " + mockAPIKey))
-					gomega.Expect(header["Content-Type"][0]).To(gomega.Equal("application/json"))
-					gomega.Expect(body).To(gomega.Equal(`{` +
-						`"message":"2",` +
-						`"alias":"query-alias",` +
-						`"description":"query-description",` +
-						`"responders":[{"type":"team","name":"query_team"}],` +
-						`"visibleTo":[{"type":"user","username":"query_user"}],` +
-						`"actions":["queryAction1","queryAction2"],` +
-						`"tags":["queryTag1","queryTag2"],` +
-						`"details":{"queryKey1":"queryValue1","queryKey2":"queryValue2"},` +
-						`"entity":"query-entity",` +
-						`"source":"query-source",` +
-						`"priority":"P2",` +
-						`"user":"query-user",` +
-						`"note":"query-note"` +
-						`}`))
-				}
-
-				err = service.Send("2", nil)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			})
-		})
+		require.ErrorIs(t, service.SendContext(t.Context(), "message", nil), errTransport)
 	})
 
-	ginkgo.It("should return the correct service ID", func() {
-		service := &Service{}
-		gomega.Expect(service.GetID()).To(gomega.Equal("opsgenie"))
-	})
-})
+	// rejectedParams lists params that fail the send before any request.
+	rejectedParams := []struct {
+		params  *types.Params
+		wantErr error
+		name    string
+	}{
+		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid responder", params: &types.Params{"responders": "NOC"}, wantErr: ErrInvalidEntityFormat},
+	}
 
-var _ = ginkgo.Describe("the OpsGenie Config struct", func() {
-	ginkgo.When("generating a config from a simple URL", func() {
-		ginkgo.It("should populate the config with host and apikey", func() {
-			url, err := url.Parse(fmt.Sprintf("opsgenie://%s/%s", mockHost, mockAPIKey))
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	for _, tt := range rejectedParams {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
-			gomega.Expect(config.APIKey).To(gomega.Equal(mockAPIKey))
-			gomega.Expect(config.Host).To(gomega.Equal(mockHost))
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(443)))
+			require.ErrorIs(t, service.SendContext(t.Context(), "message", tt.params), tt.wantErr)
 		})
-	})
+	}
 
-	ginkgo.When("generating a config from a url with port", func() {
-		ginkgo.It("should populate the port field", func() {
-			url, err := url.Parse(
-				fmt.Sprintf("opsgenie://%s/%s", net.JoinHostPort(mockHost, "12345"), mockAPIKey),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
 
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(12345)))
-		})
-	})
-
-	ginkgo.When("generating a config from a url with query parameters", func() {
-		ginkgo.It("should populate the config fields with the query parameter values", func() {
-			queryParams := `alias=Life+is+too+short+for+no+alias&description=Every+alert+needs+a+description&actions=An+action&tags=tag1,tag2&details=key:value,key2:value2&entity=An+example+entity&source=The+source&priority=P1&user=Dracula&note=Here+is+a+note&responders=user:Test,team:NOC&visibleTo=user:A+User`
-			url, err := url.Parse(
-				fmt.Sprintf(
-					"opsgenie://%s/%s?%s",
-					net.JoinHostPort(mockHost, "12345"),
-					mockAPIKey,
-					queryParams,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Alias).To(gomega.Equal("Life is too short for no alias"))
-			gomega.Expect(config.Description).To(gomega.Equal("Every alert needs a description"))
-			gomega.Expect(config.Responders).To(gomega.Equal([]Entity{
-				{Type: "user", Username: "Test"},
-				{Type: "team", Name: "NOC"},
-			}))
-			gomega.Expect(config.VisibleTo).To(gomega.Equal([]Entity{
-				{Type: "user", Username: "A User"},
-			}))
-			gomega.Expect(config.Actions).To(gomega.Equal([]string{"An action"}))
-			gomega.Expect(config.Tags).To(gomega.Equal([]string{"tag1", "tag2"}))
-			gomega.Expect(config.Details).
-				To(gomega.Equal(map[string]string{"key": "value", "key2": "value2"}))
-			gomega.Expect(config.Entity).To(gomega.Equal("An example entity"))
-			gomega.Expect(config.Source).To(gomega.Equal("The source"))
-			gomega.Expect(config.Priority).To(gomega.Equal("P1"))
-			gomega.Expect(config.User).To(gomega.Equal("Dracula"))
-			gomega.Expect(config.Note).To(gomega.Equal("Here is a note"))
-		})
-	})
-
-	ginkgo.When("generating a config from a url with differently escaped spaces", func() {
-		ginkgo.It("should parse the escaped spaces correctly", func() {
-			// Use: '%20', '+' and a normal space
-			queryParams := `alias=Life is+too%20short+for+no+alias`
-			url, err := url.Parse(
-				fmt.Sprintf(
-					"opsgenie://%s/%s?%s",
-					net.JoinHostPort(mockHost, "12345"),
-					mockAPIKey,
-					queryParams,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Alias).To(gomega.Equal("Life is too short for no alias"))
-		})
-	})
-
-	ginkgo.When("generating a url from a simple config", func() {
-		ginkgo.It("should generate a url", func() {
-			config := Config{
-				Host:   "api.opsgenie.com",
-				APIKey: "eb243592-faa2-4ba2-a551q-1afdf565c889",
-			}
-
-			url := config.GetURL()
-
-			gomega.Expect(url.String()).
-				To(gomega.Equal("opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889"))
-		})
-	})
-
-	ginkgo.When("generating a url from a config with a port", func() {
-		ginkgo.It("should generate a url with port", func() {
-			config := Config{
-				Host:   "api.opsgenie.com",
-				APIKey: "eb243592-faa2-4ba2-a551q-1afdf565c889",
-				Port:   12345,
-			}
-
-			url := config.GetURL()
-
-			gomega.Expect(url.String()).
-				To(gomega.Equal("opsgenie://api.opsgenie.com:12345/eb243592-faa2-4ba2-a551q-1afdf565c889"))
-		})
-	})
-
-	ginkgo.When("generating a url from a config with all optional config fields", func() {
-		ginkgo.It("should generate a url with query parameters", func() {
-			config := Config{
-				Host:        "api.opsgenie.com",
-				APIKey:      "eb243592-faa2-4ba2-a551q-1afdf565c889",
-				Alias:       "Life is too short for no alias",
-				Description: "Every alert needs a description",
-				Responders: []Entity{
-					{Type: "user", Username: "Test"},
-					{Type: "team", Name: "NOC"},
-					{Type: "team", ID: "4513b7ea-3b91-438f-b7e4-e3e54af9147c"},
-				},
-				VisibleTo: []Entity{
-					{Type: "user", Username: "A User"},
-				},
-				Actions:  []string{"action1", "action2"},
-				Tags:     []string{"tag1", "tag2"},
-				Details:  map[string]string{"key": "value"},
-				Entity:   "An example entity",
-				Source:   "The source",
-				Priority: "P1",
-				User:     "Dracula",
-				Note:     "Here is a note",
-			}
-
-			url := config.GetURL()
-			gomega.Expect(url.String()).
-				To(gomega.Equal(`opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889?actions=action1%2Caction2&alias=Life+is+too+short+for+no+alias&description=Every+alert+needs+a+description&details=key%3Avalue&entity=An+example+entity&note=Here+is+a+note&priority=P1&responders=user%3ATest%2Cteam%3ANOC%2Cteam%3A4513b7ea-3b91-438f-b7e4-e3e54af9147c&source=The+source&tags=tag1%2Ctag2&user=Dracula&visibleto=user%3AA+User`))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("opsgenie://opsgenie.example.invalid/KEY?responders=user:dummy"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, "opsgenie://opsgenie.example.invalid/KEY?responders=user:dummy")
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-})
+}
 
-func TestOpsGenie(t *testing.T) {
+// TestSendRedactsUnparsableURL verifies that a host that makes the alerts URL
+// unparsable fails the send before any request, without the host in the
+// error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr OpsGenie Suite")
+
+	service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+	service.Config.Host = "SECRET host"
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRET")
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, uses a default client that honors the caller's context.
+// The context is canceled before the send, so the transport returns before it
+// dials OpsGenie.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+		})
+	}
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("nil *http.Client", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service.SetHTTPClient((*http.Client)(nil))
+
+		assert.Nil(t, service.httpClient)
+	})
 }
