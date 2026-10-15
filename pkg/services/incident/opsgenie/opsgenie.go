@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -116,6 +117,19 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
+//
+// The title, or the message when there is no title, becomes the alert
+// message, cut to [MaxMessageLength] characters. The message also becomes the
+// description when a title is set or when it is cut.
+//
+// Parameters:
+//   - message: the notification message.
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - AlertPayload: the alert.
+//   - error: a params error, or [ErrUnexpectedEntityType] for a visibleTo entry
+//     that is not a team or user.
 func (s *Service) newAlertPayload(
 	message string,
 	params *types.Params,
@@ -131,18 +145,30 @@ func (s *Service) newAlertPayload(
 		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
 	}
 
+	// The Alert API accepts only teams and users in visibleTo, while responders
+	// may also be escalations and schedules.
+	for _, entity := range payloadFields.VisibleTo {
+		if entity.Type != "team" && entity.Type != "user" {
+			return AlertPayload{}, fmt.Errorf("%w: visibleTo cannot include %q", ErrUnexpectedEntityType, entity.Type)
+		}
+	}
+
 	// Use `Message` for the title if available, or if the message is too long
 	// Use `Description` for the message in these scenarios
 	title := payloadFields.Title
 	description := message
 
 	if title == "" {
-		if len(message) > MaxMessageLength {
-			title = message[:MaxMessageLength]
-		} else {
-			title = message
+		title = message
+		if utf8.RuneCountInString(message) <= MaxMessageLength {
 			description = ""
 		}
+	}
+
+	// The alert message is limited to MaxMessageLength characters, so it is cut
+	// on a character boundary.
+	if utf8.RuneCountInString(title) > MaxMessageLength {
+		title = string([]rune(title)[:MaxMessageLength])
 	}
 
 	if payloadFields.Description != "" && description != "" {

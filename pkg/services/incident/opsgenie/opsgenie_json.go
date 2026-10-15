@@ -4,17 +4,17 @@ package opsgenie
 //
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
 //
-// Some fields contain complex values like arrays and objects.
-// Because `params` are strings only we cannot pass in slices
-// or maps. Instead we "preserve" the JSON in those fields. That
-// way we can pass in complex types as JSON like so:
+// Some fields hold lists and maps. Params are strings, so these fields are
+// set from comma-separated values: responders and visibleTo as type:identifier
+// entries, actions and tags as lists, and details as key:value pairs:
 //
 //	service.Send("An example alert message", &types.Params{
 //		"alias":       "Life is too short for no alias",
 //		"description": "Every alert needs a description",
-//		"responders":  `[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"NOC","type":"team"}]`,
-//		"visibleTo":   `[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"rocket_team","type":"team"}]`,
-//		"details":     `{"key1": "value1", "key2": "value2"}`,
+//		"responders":  "team:4513b7ea-3b91-438f-b7e4-e3e54af9147c,team:NOC,escalation:Nightwatch Escalation",
+//		"visibleTo":   "team:rocket_team,user:trinity@opsgenie.com",
+//		"tags":        "OverwriteQuietHours,Critical",
+//		"details":     "key1:value1,key2:value2",
 //	})
 type AlertPayload struct {
 	Message     string            `json:"message"`

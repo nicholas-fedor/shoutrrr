@@ -185,6 +185,36 @@ func TestSend(t *testing.T) {
 			wantBody: `{"message":"` + longMessage[:MaxMessageLength] + `","description":"` + longMessage + `"}`,
 		},
 		{
+			name:     "multibyte message within the limit",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  strings.Repeat("é", MaxMessageLength),
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"` + strings.Repeat("é", MaxMessageLength) + `"}`,
+		},
+		{
+			name:     "long multibyte message",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  strings.Repeat("é", MaxMessageLength+1),
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"` + strings.Repeat("é", MaxMessageLength) + `","description":"` + strings.Repeat("é", MaxMessageLength+1) + `"}`,
+		},
+		{
+			name:     "long title",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  "Disk usage at 95%",
+			params:   &types.Params{"title": strings.Repeat("t", MaxMessageLength+10)},
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"` + strings.Repeat("t", MaxMessageLength) + `","description":"Disk usage at 95%"}`,
+		},
+		{
+			name:     "escalation and schedule responders by name",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  "hello world",
+			params:   &types.Params{"responders": "escalation:Nightwatch Escalation,schedule:First Responders Schedule"},
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"hello world","responders":[{"type":"escalation","name":"Nightwatch Escalation"},{"type":"schedule","name":"First Responders Schedule"}]}`,
+		},
+		{
 			name:     "title param",
 			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
 			message:  "Disk usage at 95%",
@@ -346,6 +376,12 @@ func TestSendContextErrors(t *testing.T) {
 	}{
 		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid responder", params: &types.Params{"responders": "NOC"}, wantErr: ErrInvalidEntityFormat},
+		{name: "escalation name in visibleTo", params: &types.Params{"visibleTo": "escalation:Nightwatch Escalation"}, wantErr: ErrUnexpectedEntityType},
+		{
+			name:    "schedule ID in visibleTo",
+			params:  &types.Params{"visibleTo": "team:NOC,schedule:80564037-1984-4f38-b98e-8a1f662df552"},
+			wantErr: ErrUnexpectedEntityType,
+		},
 	}
 
 	for _, tt := range rejectedParams {

@@ -8,8 +8,8 @@ import (
 )
 
 // TestEntitySetFromProp verifies that SetFromProp reads an OpsGenie ID into
-// the ID of any entity type, a team identifier into the name, and a user
-// identifier into the username.
+// the ID of any entity type, a team, escalation, or schedule identifier into
+// the name, and a user identifier into the username.
 func TestEntitySetFromProp(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +27,16 @@ func TestEntitySetFromProp(t *testing.T) {
 			name: "escalation ID",
 			prop: "escalation:aee8a0de-c80f-4515-a232-501c0bc9d715",
 			want: Entity{Type: "escalation", ID: "aee8a0de-c80f-4515-a232-501c0bc9d715"},
+		},
+		{
+			name: "escalation name",
+			prop: "escalation:Nightwatch Escalation",
+			want: Entity{Type: "escalation", Name: "Nightwatch Escalation"},
+		},
+		{
+			name: "schedule name",
+			prop: "schedule:First Responders Schedule",
+			want: Entity{Type: "schedule", Name: "First Responders Schedule"},
 		},
 		{
 			name: "schedule ID",
