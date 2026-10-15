@@ -128,7 +128,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Returns:
 //   - AlertPayload: the alert.
-//   - error: a params error.
+//   - error: a params error, or [ErrUnexpectedEntityType] for a visibleTo entry
+//     that is not a team or user.
 func (s *Service) newAlertPayload(
 	message string,
 	params *types.Params,
@@ -142,6 +143,14 @@ func (s *Service) newAlertPayload(
 
 	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
+	}
+
+	// The Alert API accepts only teams and users in visibleTo, while responders
+	// may also be escalations and schedules.
+	for _, entity := range payloadFields.VisibleTo {
+		if entity.Type != "team" && entity.Type != "user" {
+			return AlertPayload{}, fmt.Errorf("%w: visibleTo cannot include %q", ErrUnexpectedEntityType, entity.Type)
+		}
 	}
 
 	// Use `Message` for the title if available, or if the message is too long

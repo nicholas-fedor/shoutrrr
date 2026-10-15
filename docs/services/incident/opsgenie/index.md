@@ -55,7 +55,7 @@ service.Send("An example alert message", &types.Params{
 - `responders` and `visibleTo` are comma-separated `type:identifier` entries.
   An identifier in the OpsGenie ID format, such as `4513b7ea-3b91-438f-b7e4-e3e54af9147c`, is sent as the ID.
   Otherwise it is sent as the username for `user` and as the name for `team`, `escalation`, and `schedule`.
-  OpsGenie accepts only `team` and `user` entries in `visibleTo`.
+  `visibleTo` accepts only `team` and `user` entries, as OpsGenie requires, and any other type fails the send.
 - `actions` and `tags` are comma-separated lists.
 - `details` is a comma-separated list of `key:value` pairs.
 - The alert message is the title when one is set, and the notification message otherwise, cut to 130 characters.

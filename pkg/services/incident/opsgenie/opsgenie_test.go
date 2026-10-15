@@ -376,6 +376,12 @@ func TestSendContextErrors(t *testing.T) {
 	}{
 		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid responder", params: &types.Params{"responders": "NOC"}, wantErr: ErrInvalidEntityFormat},
+		{name: "escalation name in visibleTo", params: &types.Params{"visibleTo": "escalation:Nightwatch Escalation"}, wantErr: ErrUnexpectedEntityType},
+		{
+			name:    "schedule ID in visibleTo",
+			params:  &types.Params{"visibleTo": "team:NOC,schedule:80564037-1984-4f38-b98e-8a1f662df552"},
+			wantErr: ErrUnexpectedEntityType,
+		},
 	}
 
 	for _, tt := range rejectedParams {
