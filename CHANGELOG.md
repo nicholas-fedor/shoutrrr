@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the incident and specialized service tests to testify by @nicholas-fedor in [#1596](https://github.com/nicholas-fedor/shoutrrr/pull/1596)
 - Migrate the push service tests from ginkgo to testify by @nicholas-fedor in [#1578](https://github.com/nicholas-fedor/shoutrrr/pull/1578)
 - Migrate the chat webhook service tests from ginkgo to testify by @nicholas-fedor in [#1566](https://github.com/nicholas-fedor/shoutrrr/pull/1566)
 - Migrate the discord tests from ginkgo to testify by @nicholas-fedor in [#1564](https://github.com/nicholas-fedor/shoutrrr/pull/1564)
@@ -36,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency inversion to v1.0.1 by @renovate[bot] in [#1592](https://github.com/nicholas-fedor/shoutrrr/pull/1592)
 - Update dependency verspec to v0.2.1 by @renovate[bot] in [#1593](https://github.com/nicholas-fedor/shoutrrr/pull/1593)
 - Update github/codeql-action action to v4.39.0 by @renovate[bot] in [#1590](https://github.com/nicholas-fedor/shoutrrr/pull/1590)
 - Migrate from make to task by @nicholas-fedor in [#1582](https://github.com/nicholas-fedor/shoutrrr/pull/1582)
