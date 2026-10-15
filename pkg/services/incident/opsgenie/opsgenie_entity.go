@@ -50,6 +50,17 @@ func (e *Entity) GetPropValue() (string, error) {
 }
 
 // SetFromProp deserializes an entity from a string in the format "type:identifier".
+//
+// An identifier in the OpsGenie ID format is read as the ID for any type.
+// Otherwise it is the username of a user, or the name of a team, escalation,
+// or schedule.
+//
+// Parameters:
+//   - propValue: The entity in the format "type:identifier".
+//
+// Returns:
+//   - error: [ErrInvalidEntityFormat] without exactly one colon, or
+//     [ErrUnexpectedEntityType] for a name with another type.
 func (e *Entity) SetFromProp(propValue string) error {
 	elements := strings.Split(propValue, ":")
 
@@ -68,10 +79,10 @@ func (e *Entity) SetFromProp(propValue string) error {
 	switch {
 	case isID:
 		e.ID = identifier
-	case e.Type == "team":
-		e.Name = identifier
 	case e.Type == "user":
 		e.Username = identifier
+	case e.Type == "team", e.Type == "escalation", e.Type == "schedule":
+		e.Name = identifier
 	default:
 		return fmt.Errorf("%w: %q", ErrUnexpectedEntityType, e.Type)
 	}

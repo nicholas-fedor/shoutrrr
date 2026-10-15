@@ -29,19 +29,19 @@ opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889
 
 ## Passing parameters via code
 
-If you want to, you can pass additional parameters to the `send` function.
-<br/>
+You can pass additional parameters to the `Send` function.
 The following example contains all parameters that are currently supported.
 
 ```go
 service.Send("An example alert message", &types.Params{
+    "title":       "An example title",
     "alias":       "Life is too short for no alias",
     "description": "Every alert needs a description",
-    "responders":  `[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"NOC","type":"team"}]`,
-    "visibleTo":   `[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"rocket_team","type":"team"}]`,
-    "actions":     "An action",
-    "tags":        "tag1 tag2",
-    "details":     `{"key1": "value1", "key2": "value2"}`,
+    "responders":  "team:4513b7ea-3b91-438f-b7e4-e3e54af9147c,team:NOC,user:trinity@opsgenie.com,escalation:Nightwatch Escalation,schedule:First Responders Schedule",
+    "visibleTo":   "team:rocket_team,user:trinity@opsgenie.com",
+    "actions":     "Restart,AnExampleAction",
+    "tags":        "OverwriteQuietHours,Critical",
+    "details":     "key1:value1,key2:value2",
     "entity":      "An example entity",
     "source":      "The source",
     "priority":    "P1",
@@ -50,15 +50,28 @@ service.Send("An example alert message", &types.Params{
 })
 ```
 
+## Parameter formats
+
+- `responders` and `visibleTo` are comma-separated `type:identifier` entries.
+  An identifier in the OpsGenie ID format, such as `4513b7ea-3b91-438f-b7e4-e3e54af9147c`, is sent as the ID.
+  Otherwise it is sent as the username for `user` and as the name for `team`, `escalation`, and `schedule`.
+  OpsGenie accepts only `team` and `user` entries in `visibleTo`.
+- `actions` and `tags` are comma-separated lists.
+- `details` is a comma-separated list of `key:value` pairs.
+- The alert message is the title when one is set, and the notification message otherwise, cut to 130 characters.
+  The notification message is sent as the description when a title is set or when it is cut.
+
+See the [OpsGenie Alert API documentation](https://docs.opsgenie.com/docs/alert-api#create-alert) for the limits of each field.
+
 ## Optional parameters
 
 You can optionally specify the parameters in the URL:
 
 !!! info ""
-    opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889?alias=Life+is+too+short+for+no+alias&description=Every+alert+needs+a+description&actions=An+action&tags=["tag1","tag2"]&entity=An+example+entity&source=The+source&priority=P1&user=Dracula&note=Here+is+a+note
+    opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889?alias=Life+is+too+short+for+no+alias&description=Every+alert+needs+a+description&actions=An+action&tags=tag1,tag2&entity=An+example+entity&source=The+source&priority=P1&user=Dracula&note=Here+is+a+note
 
 Example using the command line:
 
 ```shell
-shoutrrr send -u 'opsgenie://api.eu.opsgenie.com/token?tags=["tag1","tag2"]&description=testing&responders=[{"username":"superuser", "type": "user"}]&entity=Example Entity&source=Example Source&actions=["asdf", "bcde"]' -m "Hello World6"
+shoutrrr send -u 'opsgenie://api.eu.opsgenie.com/token?tags=tag1,tag2&description=testing&responders=user:superuser,team:NOC&entity=Example+Entity&source=Example+Source&actions=asdf,bcde' -m "Hello World6"
 ```

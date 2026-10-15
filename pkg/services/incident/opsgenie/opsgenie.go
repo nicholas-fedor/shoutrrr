@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -116,6 +117,18 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
+//
+// The title, or the message when there is no title, becomes the alert
+// message, cut to [MaxMessageLength] characters. The message also becomes the
+// description when a title is set or when it is cut.
+//
+// Parameters:
+//   - message: the notification message.
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - AlertPayload: the alert.
+//   - error: a params error.
 func (s *Service) newAlertPayload(
 	message string,
 	params *types.Params,
@@ -137,12 +150,16 @@ func (s *Service) newAlertPayload(
 	description := message
 
 	if title == "" {
-		if len(message) > MaxMessageLength {
-			title = message[:MaxMessageLength]
-		} else {
-			title = message
+		title = message
+		if utf8.RuneCountInString(message) <= MaxMessageLength {
 			description = ""
 		}
+	}
+
+	// The alert message is limited to MaxMessageLength characters, so it is cut
+	// on a character boundary.
+	if utf8.RuneCountInString(title) > MaxMessageLength {
+		title = string([]rune(title)[:MaxMessageLength])
 	}
 
 	if payloadFields.Description != "" && description != "" {
