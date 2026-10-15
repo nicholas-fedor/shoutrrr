@@ -30,6 +30,10 @@ const (
 	Scheme = "pagerduty"
 	// integrationKeyRegex validates that integration keys are 32-character hexadecimal strings.
 	integrationKeyRegex = `^[a-fA-F0-9]{32}$`
+	// defaultHost is the Events API v2 host used when the URL has no host.
+	defaultHost = "events.pagerduty.com"
+	// defaultPort is the HTTPS port used when the URL has no port.
+	defaultPort = 443
 )
 
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
@@ -52,9 +56,18 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// The port is left out when it is unset or the default, so a config read from
+// a URL without a port writes that URL back.
+//
+// Parameters:
+//   - resolver: Resolver used to encode the query props.
+//
+// Returns:
+//   - *url.URL: The service URL.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var host string
-	if c.Port > 0 {
+	if c.Port > 0 && c.Port != defaultPort {
 		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
 	} else {
 		host = c.Host
@@ -69,6 +82,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// A URL without a host uses the PagerDuty events host, and a URL without a
+// port uses port 443.
+//
+// Parameters:
+//   - resolver: Resolver used to apply the query props.
+//   - serviceURL: The service URL to parse.
+//
+// Returns:
+//   - error: A missing or invalid integration key, an invalid port, or a query
+//     prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Skip validation for dummy URLs used in docs generation
 	if serviceURL.Hostname() == "dummy.com" {
@@ -92,9 +116,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return errInvalidIntegrationKey
 	}
 
-	if serviceURL.Hostname() != "" {
-		c.Host = serviceURL.Hostname()
+	c.Host = serviceURL.Hostname()
+	if c.Host == "" {
+		c.Host = defaultHost
 	}
+
+	c.Port = defaultPort
 
 	if serviceURL.Port() != "" {
 		port, err := strconv.ParseUint(serviceURL.Port(), 10, 16)

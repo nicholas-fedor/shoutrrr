@@ -137,6 +137,15 @@ func TestInitialize(t *testing.T) {
 		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 	})
 
+	t.Run("default host and port", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "pagerduty:///"+testIntegrationKey)
+
+		assert.Equal(t, "events.pagerduty.com", service.Config.Host)
+		assert.Equal(t, uint16(443), service.Config.Port)
+	})
+
 	t.Run("keeps an injected client", func(t *testing.T) {
 		t.Parallel()
 
@@ -177,6 +186,22 @@ func TestSend(t *testing.T) {
 		{
 			name:    "defaults",
 			rawURL:  testServiceURL,
+			message: "hello world",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "documented URL without a host or port",
+			rawURL:  "pagerduty:///" + testIntegrationKey,
+			message: "hello world",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "documented URL without a port",
+			rawURL:  "pagerduty://events.pagerduty.com/" + testIntegrationKey,
 			message: "hello world",
 			wantURL: testEndpoint,
 			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
