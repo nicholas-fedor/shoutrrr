@@ -160,6 +160,19 @@ func TestSend(t *testing.T) {
 			wantBody: `{"value1":"hello","value2":"","value3":"c"}`,
 		},
 		{
+			name:     "configured title",
+			rawURL:   "ifttt://dummy/?events=event1&titlevalue=1&title=Configured",
+			wantURLs: []string{"https://maker.ifttt.com/trigger/event1/with/key/dummy"},
+			wantBody: `{"value1":"Configured","value2":"hello","value3":""}`,
+		},
+		{
+			name:     "title param",
+			rawURL:   "ifttt://dummy/?events=event1&titlevalue=3&title=Configured",
+			params:   &types.Params{"title": "Override"},
+			wantURLs: []string{"https://maker.ifttt.com/trigger/event1/with/key/dummy"},
+			wantBody: `{"value1":"","value2":"hello","value3":"Override"}`,
+		},
+		{
 			name:     "params",
 			rawURL:   "ifttt://dummy/?events=event1",
 			params:   &types.Params{"messagevalue": "3", "value1": "x", "events": "other"},
@@ -282,6 +295,31 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 	})
+
+	// valueFieldParams lists value field params that the URL would reject, with
+	// the error the send should return before any request.
+	valueFieldParams := []struct {
+		params  *types.Params
+		wantErr error
+		name    string
+	}{
+		{name: "messagevalue above 3", params: &types.Params{"messagevalue": "5"}, wantErr: ErrInvalidMessageValue},
+		{name: "messagevalue zero", params: &types.Params{"messagevalue": "0"}, wantErr: ErrInvalidMessageValue},
+		{name: "titlevalue above 3", params: &types.Params{"titlevalue": "4"}, wantErr: ErrInvalidTitleValue},
+		{name: "titlevalue equals messagevalue", params: &types.Params{"titlevalue": "2"}, wantErr: ErrTitleMessageConflict},
+	}
+
+	for _, tt := range valueFieldParams {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ifttt://dummy/?events=event1")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			require.ErrorIs(t, service.SendContext(t.Context(), "hello", tt.params), tt.wantErr)
+		})
+	}
 
 	t.Run("canceled context", func(t *testing.T) {
 		t.Parallel()
