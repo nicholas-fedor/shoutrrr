@@ -1,534 +1,580 @@
 package pagerduty
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
+	"context"
+	"errors"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// body is the request body.
+	body string
+}
+
+// Values shared by the service tests.
 const (
-	mockIntegrationKey = "a1b2c3d4e5f678901234567890abcdef"
-	mockHost           = "events.pagerduty.com"
+	// testServiceURL is a service URL with the PagerDuty events host and port.
+	testServiceURL = "pagerduty://events.pagerduty.com:443/" + testIntegrationKey
+	// testEndpoint is the events endpoint testServiceURL posts to.
+	testEndpoint = "https://events.pagerduty.com:443/v2/enqueue"
+	// acceptedBody is the body of an accepted event.
+	acceptedBody = `{"status":"success","message":"Event processed","dedup_key":"srv01/HTTP"}`
+	// invalidEventBody is the body of a rejected event.
+	invalidEventBody = `{"status":"invalid event","message":"Event object is invalid","errors":["Length of 'routing_key' is incorrect (should be 32 characters)"]}`
 )
 
-var _ = ginkgo.Describe("the PagerDuty service", func() {
-	var (
-		// a simulated http server to mock out PagerDuty itself
-		mockServer *httptest.Server
-		// the host of our mock server
-		mockHost string
-		// the port of our mock server
-		mockPort string
-		// function to check if the http request received by the mock server is as expected
-		checkRequest func(body string, header http.Header)
-		// the shoutrrr PagerDuty service
-		service *Service
-		// just a mock logger
-		mockLogger *log.Logger
-		// test-scoped HTTP client that trusts the mock server's certificate
-		mockHTTPClient *http.Client
-	)
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-	ginkgo.BeforeEach(func() {
-		// Initialize a mock http server
-		httpHandler := func(_ http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status code and body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, statusCode int, body string) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
 
-			defer func() { _ = r.Body.Close() }()
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		requestBody, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
 
-			checkRequest(string(body), r.Header)
+		*captured = capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			body:        string(requestBody),
 		}
-		mockServer = httptest.NewTLSServer(http.HandlerFunc(httpHandler))
 
-		// Create a test-scoped HTTP client that trusts the mock server's self-signed certificate
-		mockHTTPClient = mockServer.Client()
-
-		// Determine the host and port of our mock http server
-		mockServerURL, err := url.Parse(mockServer.URL)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		mockHost, mockPort, err = net.SplitHostPort(mockServerURL.Host)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-		// Initialize a mock logger
-		var buf bytes.Buffer
-
-		mockLogger = log.New(&buf, "", 0)
-	})
-
-	ginkgo.AfterEach(func() {
-		mockServer.Close()
-	})
-
-	ginkgo.Context("without query parameters", func() {
-		ginkgo.BeforeEach(func() {
-			// Initialize service
-			serviceURL, err := url.Parse(
-				fmt.Sprintf(
-					"pagerduty://%s/%s",
-					net.JoinHostPort(mockHost, mockPort),
-					mockIntegrationKey,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			service = &Service{}
-			err = service.Initialize(serviceURL, mockLogger)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			service.SetHTTPClient(mockHTTPClient)
-		})
-
-		ginkgo.When("sending a simple alert", func() {
-			ginkgo.It(
-				"should send a request to our mock PagerDuty server with default values",
-				func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-						gomega.Expect(body).To(gomega.Equal(`{` +
-							`"payload":{` +
-							`"summary":"hello world",` +
-							`"severity":"error",` +
-							`"source":"default"` +
-							`},` +
-							`"routing_key":"a1b2c3d4e5f678901234567890abcdef",` +
-							`"event_action":"trigger"` +
-							`}`))
-					}
-
-					err := service.Send("hello world", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				},
-			)
-		})
-
-		ginkgo.Context("message truncation", func() {
-			ginkgo.BeforeEach(func() {
-				serviceURL, err := url.Parse(
-					fmt.Sprintf(
-						"pagerduty://%s/%s",
-						net.JoinHostPort(mockHost, mockPort),
-						mockIntegrationKey,
-					),
-				)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				service = &Service{}
-				err = service.Initialize(serviceURL, mockLogger)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				service.SetHTTPClient(mockHTTPClient)
-			})
-
-			ginkgo.When("sending a message longer than 1024 characters", func() {
-				ginkgo.It("should truncate the message to 1024 characters", func() {
-					longMessage := strings.Repeat("a", 1100)
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-
-						var payload EventPayload
-
-						err := json.Unmarshal([]byte(body), &payload)
-						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-						gomega.Expect(payload.Payload.Summary).To(gomega.HaveLen(1024))
-						gomega.Expect(payload.Payload.Summary).
-							To(gomega.Equal(strings.Repeat("a", 1024)))
-					}
-
-					err := service.Send(longMessage, &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				})
-			})
-		})
-
-		ginkgo.Context("integration key validation", func() {
-			ginkgo.When("using an invalid integration key", func() {
-				ginkgo.It("should return an error during initialization", func() {
-					invalidKey := "invalid-key"
-					serviceURL, err := url.Parse(
-						fmt.Sprintf("pagerduty://%s/%s", mockHost, invalidKey),
-					)
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-					service = &Service{}
-					err = service.Initialize(serviceURL, mockLogger)
-					gomega.Expect(err).To(gomega.HaveOccurred())
-					gomega.Expect(err.Error()).
-						To(gomega.ContainSubstring("invalid integration key format"))
-				})
-			})
-		})
-
-		ginkgo.Context("HTTP timeout scenarios", func() {
-			ginkgo.BeforeEach(func() {
-				serviceURL, err := url.Parse(
-					fmt.Sprintf(
-						"pagerduty://%s/%s",
-						net.JoinHostPort(mockHost, mockPort),
-						mockIntegrationKey,
-					),
-				)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				service = &Service{}
-				err = service.Initialize(serviceURL, mockLogger)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				service.SetHTTPClient(mockHTTPClient)
-			})
-
-			ginkgo.When("HTTP client has a timeout", func() {
-				ginkgo.It("should use the configured timeout", func() {
-					// The test setup already uses a timeout, so we just verify the service works
-					checkRequest = func(_ string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-					}
-
-					err := service.Send("test message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				})
-			})
-		})
-
-		ginkgo.Context("optional fields support", func() {
-			ginkgo.BeforeEach(func() {
-				serviceURL, err := url.Parse(
-					fmt.Sprintf(
-						"pagerduty://%s/%s?client=my-monitor&client_url=https://example.com&details=%%7B%%22key%%22%%3A%%22value%%22%%7D",
-						net.JoinHostPort(mockHost, mockPort),
-						mockIntegrationKey,
-					),
-				)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				service = &Service{}
-				err = service.Initialize(serviceURL, mockLogger)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				service.SetHTTPClient(mockHTTPClient)
-			})
-
-			ginkgo.When("sending with optional fields", func() {
-				ginkgo.It("should include optional fields in the payload", func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-
-						var payload EventPayload
-
-						err := json.Unmarshal([]byte(body), &payload)
-						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-						gomega.Expect(payload.Client).To(gomega.Equal("my-monitor"))
-						gomega.Expect(payload.ClientURL).To(gomega.Equal("https://example.com"))
-						gomega.Expect(payload.Details).
-							To(gomega.Equal(map[string]any{"key": "value"}))
-					}
-
-					err := service.Send("test message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				})
-			})
-		})
-
-		ginkgo.Context("contexts support", func() {
-			ginkgo.BeforeEach(func() {
-				serviceURL, err := url.Parse(
-					fmt.Sprintf(
-						"pagerduty://%s/%s?contexts=link:http://example.com,text:Additional+context,image:http://example.com/img.png",
-						net.JoinHostPort(mockHost, mockPort),
-						mockIntegrationKey,
-					),
-				)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				service = &Service{}
-				err = service.Initialize(serviceURL, mockLogger)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				service.SetHTTPClient(mockHTTPClient)
-			})
-
-			ginkgo.When("sending with contexts", func() {
-				ginkgo.It("should include contexts in the payload", func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-
-						var payload EventPayload
-
-						err := json.Unmarshal([]byte(body), &payload)
-						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-						gomega.Expect(payload.Contexts).To(gomega.HaveLen(2))
-						gomega.Expect(
-							payload.Contexts[0],
-						).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
-						gomega.Expect(
-							payload.Contexts[1],
-						).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
-					}
-
-					err := service.Send("test message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				})
-			})
-		})
-
-		ginkgo.Context("custom HTTP client", func() {
-			ginkgo.BeforeEach(func() {
-				serviceURL, err := url.Parse(
-					fmt.Sprintf(
-						"pagerduty://%s/%s",
-						net.JoinHostPort(mockHost, mockPort),
-						mockIntegrationKey,
-					),
-				)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				service = &Service{}
-				err = service.Initialize(serviceURL, mockLogger)
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-				// Set a custom HTTP client with timeout, based on the mock client for TLS trust
-				customClient := mockServer.Client()
-				customClient.Timeout = 10 * time.Second
-				service.SetHTTPClient(customClient)
-			})
-
-			ginkgo.When("using a custom HTTP client", func() {
-				ginkgo.It("should use the custom client for requests", func() {
-					checkRequest = func(_ string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-					}
-
-					err := service.Send("test message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				})
-			})
-		})
-	})
-
-	ginkgo.Context("with query parameters", func() {
-		ginkgo.BeforeEach(func() {
-			// Initialize service
-			serviceURL, err := url.Parse(
-				fmt.Sprintf(
-					`pagerduty://%s/%s?severity=critical&source=beszel&action=resolve`,
-					net.JoinHostPort(mockHost, mockPort),
-					mockIntegrationKey,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			service = &Service{}
-			err = service.Initialize(serviceURL, mockLogger)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			service.SetHTTPClient(mockHTTPClient)
-		})
-
-		ginkgo.When("sending a simple alert", func() {
-			ginkgo.It(
-				"should send a request to our mock PagerDuty server with all fields populated from query parameters",
-				func() {
-					checkRequest = func(body string, header http.Header) {
-						gomega.Expect(header["Content-Type"][0]).
-							To(gomega.Equal("application/json"))
-						gomega.Expect(body).To(gomega.Equal(`{` +
-							`"payload":{` +
-							`"summary":"An example alert message",` +
-							`"severity":"critical",` +
-							`"source":"beszel"` +
-							`},` +
-							`"routing_key":"a1b2c3d4e5f678901234567890abcdef",` +
-							`"event_action":"resolve"` +
-							`}`))
-					}
-
-					err := service.Send("An example alert message", &types.Params{})
-					gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				},
-			)
-		})
-	})
-})
-
-var _ = ginkgo.Describe("parseContexts function", func() {
-	ginkgo.When("parsing valid context strings", func() {
-		ginkgo.It("should parse link contexts correctly", func() {
-			contexts, err := parseContexts("link:http://example.com")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(1))
-			gomega.Expect(
-				contexts[0],
-			).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
-		})
-
-		ginkgo.It("should parse image contexts correctly", func() {
-			contexts, err := parseContexts("image:http://example.com/img.png")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(1))
-			gomega.Expect(
-				contexts[0],
-			).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
-		})
-
-		ginkgo.It("should skip text contexts", func() {
-			contexts, err := parseContexts("text:Some description")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should parse multiple contexts correctly", func() {
-			contexts, err := parseContexts(
-				"link:http://example.com,text:Additional context,image:http://example.com/img.png",
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(2))
-			gomega.Expect(
-				contexts[0],
-			).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
-			gomega.Expect(
-				contexts[1],
-			).To(gomega.Equal(PagerDutyContext{Type: "image", Src: "http://example.com/img.png"}))
-		})
-
-		ginkgo.It("should handle empty string", func() {
-			contexts, err := parseContexts("")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.BeNil())
-		})
-
-		ginkgo.It("should skip empty contexts", func() {
-			contexts, err := parseContexts("link:http://example.com,,text:Some text")
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(contexts).To(gomega.HaveLen(1))
-			gomega.Expect(
-				contexts[0],
-			).To(gomega.Equal(PagerDutyContext{Type: "link", Href: "http://example.com"}))
-		})
-	})
-
-	ginkgo.When("parsing invalid context strings", func() {
-		ginkgo.It("should return error for invalid format", func() {
-			_, err := parseContexts("invalid")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid context format"))
-		})
-
-		ginkgo.It("should return error for empty type", func() {
-			_, err := parseContexts(":value")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("type and value cannot be empty"))
-		})
-
-		ginkgo.It("should return error for empty value", func() {
-			_, err := parseContexts("type:")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("type and value cannot be empty"))
-		})
-
-		ginkgo.It("should return error for missing colon", func() {
-			_, err := parseContexts("typevalue")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid context format"))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("the PagerDuty Config struct", func() {
-	ginkgo.When("generating a Config from a simple URL", func() {
-		ginkgo.It("should populate the Config with host and integration key", func() {
-			url, err := url.Parse(fmt.Sprintf("pagerduty://%s/%s", mockHost, mockIntegrationKey))
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.IntegrationKey).To(gomega.Equal(mockIntegrationKey))
-			gomega.Expect(config.Host).To(gomega.Equal(mockHost))
-		})
-	})
-
-	ginkgo.When("generating a Config from a url with port", func() {
-		ginkgo.It("should populate the port field", func() {
-			url, err := url.Parse(
-				fmt.Sprintf(
-					"pagerduty://%s/%s",
-					net.JoinHostPort(mockHost, "12345"),
-					mockIntegrationKey,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(12345)))
-		})
-	})
-
-	ginkgo.When("generating a Config from a url with query parameters", func() {
-		ginkgo.It("should populate the Config fields with the query parameter values", func() {
-			queryParams := `severity=critical&source=my-app&action=trigger`
-			url, err := url.Parse(
-				fmt.Sprintf(
-					"pagerduty://%s/%s?%s",
-					net.JoinHostPort(mockHost, "12345"),
-					mockIntegrationKey,
-					queryParams,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Severity).To(gomega.Equal("critical"))
-			gomega.Expect(config.Source).To(gomega.Equal("my-app"))
-			gomega.Expect(config.Action).To(gomega.Equal("trigger"))
-		})
-	})
-
-	ginkgo.When("generating a Config from a url with differently escaped spaces", func() {
-		ginkgo.It("should parse the escaped spaces correctly", func() {
-			// Use: '%20', '+' and a normal space
-			queryParams := `source=my app`
-			url, err := url.Parse(
-				fmt.Sprintf(
-					"pagerduty://%s/%s?%s",
-					net.JoinHostPort(mockHost, "12345"),
-					mockIntegrationKey,
-					queryParams,
-				),
-			)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			config := Config{}
-			err = config.SetURL(url)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			gomega.Expect(config.Source).To(gomega.Equal("my app"))
-		})
-	})
-})
-
-func TestPagerDuty(t *testing.T) {
+		return &http.Response{StatusCode: statusCode, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Pagerduty Suite")
+
+	assert.Equal(t, "pagerduty", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the router budget for a send is the HTTP
+// timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, defaultHTTPTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestInitialize verifies that Initialize applies the event defaults before
+// the URL, builds a client with the HTTP timeout unless one is set, and
+// rejects an invalid integration key.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults and default client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL+"?source=db1")
+
+		assert.Equal(t, &Config{
+			IntegrationKey: testIntegrationKey,
+			Host:           "events.pagerduty.com",
+			Port:           443,
+			Severity:       "error",
+			Source:         "db1",
+			Action:         "trigger",
+		}, service.Config)
+
+		client, ok := service.httpClient.(*http.Client)
+		require.True(t, ok, "client is a %T", service.httpClient)
+		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+	})
+
+	t.Run("keeps an injected client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("invalid integration key", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "pagerduty://events.pagerduty.com:443/invalid-key"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, errInvalidIntegrationKey)
+	})
+}
+
+// TestSend verifies the request a send makes: a JSON POST to the events
+// endpoint with the message as the summary, cut to 1024 characters, and the
+// severity, source, action, deduplication key, and client from the config and
+// params.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs, messages, and params with the request URL and
+	// JSON body the send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		wantURL  string
+		wantBody string
+	}{
+		{
+			name:    "defaults",
+			rawURL:  testServiceURL,
+			message: "hello world",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "custom host and port",
+			rawURL:  "pagerduty://events.eu.pagerduty.com:8443/" + testIntegrationKey,
+			message: "hello world",
+			wantURL: "https://events.eu.pagerduty.com:8443/v2/enqueue",
+			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "URL props",
+			rawURL:  testServiceURL + "?severity=critical&source=beszel&action=resolve&dedup_key=srv01/HTTP&client=Beszel&client_url=https://beszel.example.com",
+			message: "An example alert message",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"An example alert message","severity":"critical","source":"beszel"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"resolve","dedup_key":"srv01/HTTP",` +
+				`"client":"Beszel","client_url":"https://beszel.example.com"}`,
+		},
+		{
+			name:    "params",
+			rawURL:  testServiceURL + "?severity=critical",
+			message: "Disk recovered",
+			params:  &types.Params{"severity": "info", "source": "db1", "action": "acknowledge", "dedup_key": "disk-db1"},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"Disk recovered","severity":"info","source":"db1"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"acknowledge","dedup_key":"disk-db1"}`,
+		},
+		{
+			name:    "summary cut to 1024 characters",
+			rawURL:  testServiceURL,
+			message: strings.Repeat("a", 1100),
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("a", 1024) + `","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "summary cut on a character boundary",
+			rawURL:  testServiceURL,
+			message: strings.Repeat("é", 1100),
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, tt.wantURL, captured.url)
+			assert.Equal(t, "application/json", captured.contentType)
+			assert.JSONEq(t, tt.wantBody, captured.body)
+		})
+	}
+}
+
+// TestSendWithContext verifies that the deprecated SendWithContext sends the
+// event like SendContext.
+func TestSendWithContext(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.SendWithContext(t.Context(), "hello world", nil))
+
+	assert.Equal(t, testEndpoint, captured.url)
+}
+
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the stored config is unchanged.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL+"?severity=critical")
+	want := *service.Config
+
+	client, _ := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("message", &types.Params{"severity": "info", "action": "resolve", "dedup_key": "k"}))
+
+	assert.Equal(t, want, *service.Config)
+}
+
+// TestNewEventPayloadOptionalFields verifies that the details prop is parsed
+// as JSON and the contexts prop into link and image contexts.
+func TestNewEventPayloadOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+
+	payload, err := service.newEventPayload("message", &types.Params{
+		"details":  `{"key":"value","count":2}`,
+		"contexts": "link:http://example.com,text:Ignored,image:http://example.com/img.png",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"key": "value", "count": float64(2)}, payload.Details)
+	assert.Equal(t, []PagerDutyContext{
+		{Type: "link", Href: "http://example.com"},
+		{Type: "image", Src: "http://example.com/img.png"},
+	}, payload.Contexts)
+}
+
+// TestSendRejectsInvalidEvents verifies that a send rejects params that make
+// an invalid event before any request.
+func TestSendRejectsInvalidEvents(t *testing.T) {
+	t.Parallel()
+
+	// tests lists params with the error each should produce, or only an error
+	// when wantErr is nil.
+	tests := []struct {
+		params  *types.Params
+		wantErr error
+		name    string
+	}{
+		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid severity", params: &types.Params{"severity": "fatal"}, wantErr: errInvalidSeverity},
+		{name: "invalid action", params: &types.Params{"action": "escalate"}, wantErr: errInvalidEventAction},
+		{name: "details not JSON", params: &types.Params{"details": "key=value"}},
+		{name: "invalid contexts", params: &types.Params{"contexts": "link"}, wantErr: errInvalidContextFormat},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			err := service.Send("message", tt.params)
+
+			require.Error(t, err)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestSendErrorResponses verifies that a send fails with
+// errPagerDutyNotificationFailed for an error status, reporting the message,
+// error, or errors from a JSON body, the raw body otherwise, and the status
+// when there is no body.
+func TestSendErrorResponses(t *testing.T) {
+	t.Parallel()
+
+	// tests lists error responses with the text the error should report.
+	tests := []struct {
+		name       string
+		body       string
+		want       string
+		statusCode int
+	}{
+		{name: "message", statusCode: http.StatusBadRequest, body: invalidEventBody, want: "Event object is invalid"},
+		{name: "error field", statusCode: http.StatusTooManyRequests, body: `{"error":"rate limited"}`, want: "rate limited"},
+		{name: "errors list", statusCode: http.StatusBadRequest, body: `{"errors":["first","second"]}`, want: "first; second"},
+		{name: "JSON without a message", statusCode: http.StatusBadRequest, body: `{"status":"invalid event"}`, want: "HTTP 400"},
+		{name: "not JSON", statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>", want: "<html>Bad Gateway</html>"},
+		{name: "empty body", statusCode: http.StatusInternalServerError, body: "", want: "HTTP 500"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			client, _ := newRespondingClient(t, tt.statusCode, tt.body)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "message", nil)
+
+			require.ErrorIs(t, err, errPagerDutyNotificationFailed)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+// TestSendContextErrors verifies that a send wraps a transport error without
+// the endpoint path, fails without a client, and stops when the caller's
+// context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "/v2/enqueue")
+	})
+
+	t.Run("no client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		service.httpClient = nil
+
+		require.ErrorIs(t, service.SendContext(t.Context(), "message", nil), errServiceNotInitialized)
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := newTestService(t, "pagerduty://events.example.invalid:443/"+testIntegrationKey)
+		service.SetHTTPClient(client)
+
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+}
+
+// TestSendRedactsUnparsableURL verifies that a host that makes the events URL
+// unparsable fails the send before any request, without the host in the
+// error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	service.Config.Host = "SECRET host"
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRET")
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// selects a client with the HTTP timeout for nil.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the default client should replace them.
+	tests := []struct {
+		client      func(t *testing.T) types.HTTPClient
+		name        string
+		wantDefault bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantDefault: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := &Service{}
+			service.SetHTTPClient(client)
+
+			if !tt.wantDefault {
+				assert.Same(t, client, service.httpClient)
+
+				return
+			}
+
+			defaultClient, ok := service.httpClient.(*http.Client)
+			require.True(t, ok, "client is a %T", service.httpClient)
+			assert.Equal(t, defaultHTTPTimeout, defaultClient.Timeout)
+		})
+	}
+}
+
+// TestParseContexts verifies that parseContexts reads a JSON array of link
+// and image contexts, or the comma-separated type:value format, where text
+// contexts and empty entries are skipped.
+func TestParseContexts(t *testing.T) {
+	t.Parallel()
+
+	// tests lists context props with the contexts each should produce.
+	tests := []struct {
+		name  string
+		input string
+		want  []PagerDutyContext
+	}{
+		{name: "empty", input: "", want: nil},
+		{name: "link", input: "link:http://example.com", want: []PagerDutyContext{{Type: "link", Href: "http://example.com"}}},
+		{name: "image", input: "image:http://example.com/img.png", want: []PagerDutyContext{{Type: "image", Src: "http://example.com/img.png"}}},
+		{name: "text only", input: "text:Some text", want: []PagerDutyContext{}},
+		{
+			name:  "several with spaces and empty entries",
+			input: " link:http://example.com , ,image: http://example.com/img.png,",
+			want: []PagerDutyContext{
+				{Type: "link", Href: "http://example.com"},
+				{Type: "image", Src: "http://example.com/img.png"},
+			},
+		},
+		{
+			name:  "JSON array",
+			input: `[{"type":"link","href":"http://example.com","text":"Dashboard"},{"type":"image","src":"http://example.com/img.png"}]`,
+			want: []PagerDutyContext{
+				{Type: "link", Href: "http://example.com", Text: "Dashboard"},
+				{Type: "image", Src: "http://example.com/img.png"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			contexts, err := parseContexts(tt.input)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, contexts)
+		})
+	}
+}
+
+// TestParseContextsErrors verifies that parseContexts rejects malformed and
+// unsupported contexts in both formats.
+func TestParseContextsErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid context props with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		input   string
+	}{
+		{name: "missing colon", input: "link", wantErr: errInvalidContextFormat},
+		{name: "empty type", input: ":http://example.com", wantErr: errEmptyContextTypeOrValue},
+		{name: "empty value", input: "link: ", wantErr: errEmptyContextTypeOrValue},
+		{name: "unsupported type", input: "video:http://example.com", wantErr: errInvalidContextFormat},
+		{name: "JSON with an unsupported type", input: `[{"type":"text","text":"x"}]`, wantErr: errInvalidContextType},
+		{name: "JSON link without href", input: `[{"type":"link"}]`, wantErr: errMissingHrefForLinkContext},
+		{name: "JSON image without src", input: `[{"type":"image"}]`, wantErr: errMissingSrcForImageContext},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			contexts, err := parseContexts(tt.input)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Nil(t, contexts)
+		})
+	}
+}
+
+// TestValidateSeverityAndAction verifies that only the severities and event
+// actions the Events API v2 defines are accepted.
+func TestValidateSeverityAndAction(t *testing.T) {
+	t.Parallel()
+
+	for _, severity := range []string{"critical", "error", "warning", "info"} {
+		require.NoError(t, validateSeverity(severity), severity)
+	}
+
+	for _, severity := range []string{"", "fatal", "Critical"} {
+		require.ErrorIs(t, validateSeverity(severity), errInvalidSeverity, severity)
+	}
+
+	for _, action := range []string{"trigger", "acknowledge", "resolve"} {
+		require.NoError(t, validateEventAction(action), action)
+	}
+
+	for _, action := range []string{"", "escalate", "Trigger"} {
+		require.ErrorIs(t, validateEventAction(action), errInvalidEventAction, action)
+	}
 }

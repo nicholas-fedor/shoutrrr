@@ -1,444 +1,588 @@
-package generic_test
+package generic
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/generic"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-// Test constants.
-const (
-	TestWebhookURL = "https://host.tld/webhook" // Default test webhook URL
-)
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// header is the request header.
+	header http.Header
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// body is the request body.
+	body string
+}
 
-var (
-	service       *generic.Service
-	logger        *log.Logger
-	envGenericURL *url.URL
-	_             = ginkgo.BeforeSuite(func() {
-		service = &generic.Service{}
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
 
-		var err error
+// captureRequest reads the method, URL, header, and body of req.
+//
+// Parameters:
+//   - t: the test.
+//   - req: the request to read.
+//
+// Returns:
+//   - capturedRequest: the recorded request.
+func captureRequest(t *testing.T, req *http.Request) capturedRequest {
+	t.Helper()
 
-		envGenericURL, err = url.Parse(os.Getenv("SHOUTRRR_GENERIC_URL"))
-		if err != nil {
-			envGenericURL = &url.URL{} // Default to empty URL if parsing fails
-		}
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+
+	return capturedRequest{header: req.Header.Clone(), method: req.Method, url: req.URL.String(), body: string(body)}
+}
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status and an empty body.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		*captured = captureRequest(t, req)
+
+		return &http.Response{Status: status, StatusCode: statusCode, Body: io.NopCloser(strings.NewReader(""))}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "generic", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the service reports the router's default
+// send budget.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, types.DefaultSendTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestGetServiceURLFromCustom verifies that a generic+ custom URL becomes a
+// service URL for the same webhook, and that an invalid prop is rejected.
+func TestGetServiceURLFromCustom(t *testing.T) {
+	t.Parallel()
+
+	// tests lists custom URLs with the webhook URL the service should post to.
+	tests := []struct {
+		name        string
+		customURL   string
+		wantWebhook string
+	}{
+		{name: "https", customURL: "generic+https://test.tld", wantWebhook: "https://test.tld"},
+		{name: "http", customURL: "generic+http://test.tld/hook?template=json", wantWebhook: "http://test.tld/hook"},
+		{name: "query kept", customURL: "generic+https://test.tld/hook?token=abc", wantWebhook: "https://test.tld/hook?token=abc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL, err := (&Service{}).GetServiceURLFromCustom(parseTestURL(t, tt.customURL))
+			require.NoError(t, err)
+
+			service := newTestService(t, serviceURL.String())
+			assert.Equal(t, tt.wantWebhook, service.Config.WebhookURL().String())
+		})
+	}
+
+	t.Run("invalid prop", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL, err := (&Service{}).GetServiceURLFromCustom(parseTestURL(t, "generic+https://test.tld?disabletls=maybe"))
+
+		require.Error(t, err)
+		assert.Nil(t, serviceURL)
 	})
-)
+}
 
-var _ = ginkgo.Describe("the generic service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("sends a message successfully with a valid ENV URL", func() {
-			if envGenericURL.String() == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+// TestGetPayload verifies the payload for each template choice: the message
+// alone without a template, the params and extra data as JSON for the JSON
+// template, and a named template rendered with the params.
+func TestGetPayload(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs, templates, and params with the payload each
+	// should produce. wantJSON compares the payload as JSON.
+	tests := []struct {
+		params   types.Params
+		name     string
+		rawURL   string
+		template string
+		want     string
+		wantJSON bool
+	}{
+		{
+			name:   "no template",
+			rawURL: "generic://host.tld/webhook",
+			params: types.Params{"message": "test message", "title": "ignored"},
+			want:   "test message",
+		},
+		{
+			name:     "JSON template",
+			rawURL:   "generic://host.tld/webhook?template=JSON&$context=inside+joke",
+			params:   types.Params{"title": "test title", "message": "test message"},
+			want:     `{"title":"test title","message":"test message","context":"inside joke"}`,
+			wantJSON: true,
+		},
+		{
+			name:     "lowercase json template with custom keys",
+			rawURL:   "generic://host.tld/webhook?template=json&messagekey=body&titlekey=header",
+			params:   types.Params{"header": "test title", "body": "test message"},
+			want:     `{"header":"test title","body":"test message"}`,
+			wantJSON: true,
+		},
+		{
+			name:     "named template",
+			rawURL:   "generic://host.tld/webhook?template=news",
+			template: `{{.title}} ==> {{.message}}`,
+			params:   types.Params{"title": "BREAKING NEWS", "message": "it's today!"},
+			want:     "BREAKING NEWS ==> it's today!",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			if tt.template != "" {
+				require.NoError(t, service.SetTemplateString(service.Config.Template, tt.template))
+			}
+
+			payload, err := service.GetPayload(service.Config, tt.params)
+			require.NoError(t, err)
+
+			contents, err := io.ReadAll(payload)
+			require.NoError(t, err)
+
+			if tt.wantJSON {
+				assert.JSONEq(t, tt.want, string(contents))
+			} else {
+				assert.Equal(t, tt.want, string(contents))
+			}
+		})
+	}
+}
+
+// TestGetPayloadErrors verifies that a template that is not loaded or fails
+// to execute is an error.
+func TestGetPayloadErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("template not loaded", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook?template=missing")
+
+		_, err := service.GetPayload(service.Config, nil)
+
+		require.ErrorIs(t, err, ErrTemplateNotLoaded)
+	})
+
+	t.Run("template execution fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook?template=broken")
+		require.NoError(t, service.SetTemplateString("broken", `{{template "undefined"}}`))
+
+		_, err := service.GetPayload(service.Config, types.Params{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `executing template "broken"`)
+	})
+}
+
+// TestSend verifies the request a send makes: the configured method to the
+// webhook URL, the payload for the template with its content type, the
+// custom headers, and the title param under the title key.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the request each send should
+	// make. wantJSON compares the body as JSON.
+	tests := []struct {
+		params      *types.Params
+		wantHeaders map[string]string
+		name        string
+		rawURL      string
+		wantMethod  string
+		wantURL     string
+		wantBody    string
+		wantJSON    bool
+	}{
+		{
+			name:        "plain text",
+			rawURL:      "generic://host.tld/webhook",
+			wantMethod:  http.MethodPost,
+			wantURL:     "https://host.tld/webhook",
+			wantBody:    "Message",
+			wantHeaders: map[string]string{"Content-Type": "text/plain", "Accept": "text/plain"},
+		},
+		{
+			name:        "JSON with a title param and custom keys",
+			rawURL:      "generic://host.tld/webhook?template=json&titlekey=subject&messagekey=text",
+			params:      &types.Params{"title": "TITLE", "priority": "high"},
+			wantMethod:  http.MethodPost,
+			wantURL:     "https://host.tld/webhook",
+			wantBody:    `{"subject":"TITLE","text":"Message","priority":"high"}`,
+			wantJSON:    true,
+			wantHeaders: map[string]string{"Content-Type": "application/json", "Accept": "application/json"},
+		},
+		{
+			name:        "method, content type, headers, and HTTP",
+			rawURL:      "generic://host.tld/webhook?method=PUT&disabletls=yes&template=json&contenttype=application/vnd.api%2Bjson&@authorization=frend",
+			wantMethod:  http.MethodPut,
+			wantURL:     "http://host.tld/webhook",
+			wantBody:    `{"message":"Message"}`,
+			wantJSON:    true,
+			wantHeaders: map[string]string{"Content-Type": "application/vnd.api+json", "Authorization": "frend"},
+		},
+		{
+			name:       "config props from params",
+			rawURL:     "generic://host.tld/webhook",
+			params:     &types.Params{"method": "GET"},
+			wantMethod: http.MethodGet,
+			wantURL:    "https://host.tld/webhook",
+			wantBody:   "Message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, tt.wantMethod, captured.method)
+			assert.Equal(t, tt.wantURL, captured.url)
+
+			if tt.wantJSON {
+				assert.JSONEq(t, tt.wantBody, captured.body)
+			} else {
+				assert.Equal(t, tt.wantBody, captured.body)
+			}
+
+			for key, value := range tt.wantHeaders {
+				assert.Equal(t, value, captured.header.Get(key), key)
+			}
+		})
+	}
+}
+
+// TestSendLeavesParamsAndConfigUnchanged verifies that a send neither adds the
+// message to the caller's params nor keeps param overrides in the config.
+func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "generic://host.tld/webhook?template=json")
+	want := *service.Config
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	params := types.Params{"title": "TITLE", "method": "PUT"}
+	require.NoError(t, service.Send("Message", &params))
+
+	assert.Equal(t, types.Params{"title": "TITLE", "method": "PUT"}, params)
+	assert.Equal(t, want, *service.Config)
+}
+
+// TestSendLogsStatusWithoutBody verifies that a send logs the response status
+// but not a body that echoes the request URL.
+func TestSendLogsStatusWithoutBody(t *testing.T) {
+	t.Parallel()
+
+	logs := &bytes.Buffer{}
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, "generic://host.tld/webhook?token=SECRETquery"), log.New(logs, "", 0)))
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			Status:     "200 OK",
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(req.URL.String() + " BODYmarker")),
+		}, nil
+	}).Once()
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+
+	assert.Contains(t, logs.String(), "200 OK")
+	assert.NotContains(t, logs.String(), "SECRETquery")
+	assert.NotContains(t, logs.String(), "BODYmarker")
+}
+
+// TestSendBoundsDirectSend verifies that a direct Send bounds the request with
+// the default send timeout.
+func TestSendBoundsDirectSend(t *testing.T) {
+	t.Parallel()
+
+	var deadline time.Time
+
+	service := newTestService(t, "generic://hooks.example.invalid/webhook")
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		var ok bool
+
+		deadline, ok = req.Context().Deadline()
+		assert.True(t, ok, "the request must carry a deadline")
+
+		return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+	}).Once()
+	service.SetHTTPClient(client)
+
+	start := time.Now()
+
+	require.NoError(t, service.Send("message", nil))
+
+	end := time.Now()
+
+	assert.False(t, deadline.Before(start.Add(defaultSendTimeout)), "deadline %v is before %v", deadline, start.Add(defaultSendTimeout))
+	assert.False(t, deadline.After(end.Add(defaultSendTimeout)), "deadline %v is after %v", deadline, end.Add(defaultSendTimeout))
+}
+
+// TestSendContextErrors verifies that a send fails with ErrSendFailed for a
+// payload error, an error status, or a transport error without the webhook
+// query, accepts statuses below 400, and stops when the caller's context is
+// canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook")
+		client, _ := newRespondingClient(t, "404 Not Found", http.StatusNotFound)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "404 Not Found")
+	})
+
+	t.Run("redirect status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook")
+		client, _ := newRespondingClient(t, "304 Not Modified", http.StatusNotModified)
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.SendContext(t.Context(), "Message", nil))
+	})
+
+	t.Run("payload error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook?template=missing")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, ErrTemplateNotLoaded)
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook?token=SECRETquery")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "SECRETquery")
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		service := newTestService(t, "generic://hooks.example.invalid/webhook")
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+		service.SetHTTPClient(client)
+
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+}
+
+// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
+// unparsable fails the send before any request, without the credentials in
+// the error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+	serviceURL := &url.URL{Scheme: "generic", Host: "bad host", Path: "/hook", User: url.UserPassword("user", "SECRETpassword")}
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("message", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETpassword")
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, reaches a plain HTTP server through the default client.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set"},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			requests := make(chan capturedRequest, 1)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				body, _ := io.ReadAll(req.Body)
+
+				// A non-blocking send keeps an extra request from stalling
+				// server.Close, which waits for running handlers.
+				select {
+				case requests <- capturedRequest{method: req.Method, url: req.URL.String(), body: string(body)}:
+				default:
+					t.Errorf("unexpected extra request: %s %s", req.Method, req.URL)
+				}
+
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			t.Cleanup(server.Close)
+
+			service := newTestService(t, "generic://"+server.Listener.Addr().String()+"/hook?disabletls=yes")
+
+			if tt.configure != nil {
+				tt.configure(service)
+			}
+
+			require.NoError(t, service.Send("Message", nil))
+
+			received := <-requests
+			assert.Equal(t, http.MethodPost, received.method)
+			assert.Equal(t, "/hook", received.url)
+			assert.Equal(t, "Message", received.body)
+		})
+	}
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for nil and a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the stored client should be cleared.
+	tests := []struct {
+		client    func(t *testing.T) types.HTTPClient
+		name      string
+		wantClear bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+			service.SetHTTPClient(client)
+
+			if tt.wantClear {
+				assert.Nil(t, service.httpClient)
 
 				return
 			}
 
-			serviceURL := testutils.URLMust(envGenericURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("This is an integration test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			assert.Same(t, client, service.httpClient)
 		})
-	})
-
-	ginkgo.Describe("the service", func() {
-		ginkgo.BeforeEach(func() {
-			service = &generic.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("generic"))
-		})
-	})
-
-	ginkgo.When("parsing a custom URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &generic.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("correctly sets webhook URL from custom URL", func() {
-			customURL := testutils.URLMust("generic+https://test.tld")
-			serviceURL, err := service.GetServiceURLFromCustom(customURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.WebhookURL().String()).To(gomega.Equal("https://test.tld"))
-		})
-
-		ginkgo.When("a HTTP URL is provided via query parameter", func() {
-			ginkgo.It("disables TLS", func() {
-				config := &generic.Config{}
-				err := config.SetURL(testutils.URLMust("generic://example.com?disabletls=yes"))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
-			})
-		})
-		ginkgo.When("a HTTPS URL is provided", func() {
-			ginkgo.It("enables TLS", func() {
-				config := &generic.Config{}
-				err := config.SetURL(testutils.URLMust("generic://example.com"))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.DisableTLS).To(gomega.BeFalse())
-			})
-		})
-		ginkgo.It("escapes conflicting custom query keys", func() {
-			serviceURL := testutils.URLMust("generic://example.com/?__template=passed")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Template).NotTo(gomega.Equal("passed"))
-			whURL := service.Config.WebhookURL().String()
-			gomega.Expect(whURL).To(gomega.Equal("https://example.com/?template=passed"))
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
-		})
-		ginkgo.It("handles both escaped and service prop versions of keys", func() {
-			serviceURL := testutils.URLMust(
-				"generic://example.com/?__template=passed&template=captured",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Template).To(gomega.Equal("captured"))
-			whURL := service.Config.WebhookURL().String()
-			gomega.Expect(whURL).To(gomega.Equal("https://example.com/?template=passed"))
-		})
-	})
-
-	ginkgo.When("retrieving the webhook URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &generic.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("builds a valid webhook URL", func() {
-			serviceURL := testutils.URLMust("generic://example.com/path?foo=bar")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.WebhookURL().String()).
-				To(gomega.Equal("https://example.com/path?foo=bar"))
-		})
-
-		ginkgo.When("TLS is disabled", func() {
-			ginkgo.It("uses http scheme", func() {
-				serviceURL := testutils.URLMust("generic://test.tld?disabletls=yes")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.WebhookURL().Scheme).To(gomega.Equal("http"))
-			})
-		})
-		ginkgo.When("TLS is not disabled", func() {
-			ginkgo.It("uses https scheme", func() {
-				serviceURL := testutils.URLMust("generic://test.tld")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.WebhookURL().Scheme).To(gomega.Equal("https"))
-			})
-		})
-	})
-
-	ginkgo.Describe("the generic config", func() {
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("is identical after de-/serialization", func() {
-				testURL := "generic://user:pass@host.tld/api/v1/webhook?$context=inside-joke&@Authorization=frend&__title=w&contenttype=a%2Fb&template=f&title=t"
-				expectedURL := "generic://user:pass@host.tld/api/v1/webhook?%24context=inside-joke&%40Authorization=frend&__title=w&contenttype=a%2Fb&template=f&title=t"
-				serviceURL := testutils.URLMust(testURL)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(expectedURL))
-			})
-		})
-		ginkgo.When("parsing from webhook URL", func() {
-			ginkgo.It("sets config properties from webhook URL query parameters", func() {
-				webhookURL := testutils.URLMust(
-					"https://example.com/webhook?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
-				)
-
-				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				// Verify config properties are set correctly
-				gomega.Expect(config.Template).To(gomega.Equal("json"))
-				gomega.Expect(config.ContentType).To(gomega.Equal("application/json"))
-				gomega.Expect(config.RequestMethod).To(gomega.Equal("POST"))
-				gomega.Expect(config.TitleKey).To(gomega.Equal("customtitle"))
-				gomega.Expect(config.MessageKey).To(gomega.Equal("custommessage"))
-
-				// Verify webhook URL has remaining query params (extra=param)
-				gomega.Expect(config.WebhookURL().RawQuery).To(gomega.Equal("extra=param"))
-			})
-
-			ginkgo.It("handles custom headers and extra data correctly", func() {
-				webhookURL := testutils.URLMust(
-					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
-				)
-
-				config, _, err := generic.ConfigFromWebhookURL(webhookURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				// Verify template is set
-				gomega.Expect(config.Template).To(gomega.Equal("json"))
-
-				// Verify webhook URL has no query params (all processed)
-				gomega.Expect(config.WebhookURL().RawQuery).To(gomega.Equal(""))
-			})
-		})
-	})
-
-	ginkgo.Describe("building the payload", func() {
-		ginkgo.BeforeEach(func() {
-			service = &generic.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.When("no template is specified", func() {
-			ginkgo.It("uses the message as payload", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				payload, err := service.GetPayload(
-					service.Config,
-					types.Params{"message": "test message"},
-				)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				contents, err := io.ReadAll(payload)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(contents)).To(gomega.Equal("test message"))
-			})
-		})
-		ginkgo.When("template is specified as `JSON`", func() {
-			ginkgo.It("creates a JSON object as the payload", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?template=JSON")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				params := types.Params{"title": "test title", "message": "test message"}
-				payload, err := service.GetPayload(service.Config, params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				contents, err := io.ReadAll(payload)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(contents)).To(gomega.MatchJSON(`{
-					"title": "test title",
-					"message": "test message"
-				}`))
-			})
-			ginkgo.When("alternate keys are specified", func() {
-				ginkgo.It("creates a JSON object using the specified keys", func() {
-					serviceURL := testutils.URLMust(
-						"generic://host.tld/webhook?template=JSON&messagekey=body&titlekey=header",
-					)
-					err := service.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-					params := types.Params{"header": "test title", "body": "test message"}
-					payload, err := service.GetPayload(service.Config, params)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					contents, err := io.ReadAll(payload)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(string(contents)).To(gomega.MatchJSON(`{
-						"header": "test title",
-						"body": "test message"
-					}`))
-				})
-			})
-		})
-		ginkgo.When("a valid template is specified", func() {
-			ginkgo.It("applies the template to the message payload", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?template=news")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.SetTemplateString("news", `{{.title}} ==> {{.message}}`)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				params := types.Params{"title": "BREAKING NEWS", "message": "it's today!"}
-				payload, err := service.GetPayload(service.Config, params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				contents, err := io.ReadAll(payload)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(string(contents)).To(gomega.Equal("BREAKING NEWS ==> it's today!"))
-			})
-			ginkgo.When("given nil params", func() {
-				ginkgo.It("applies template with message data", func() {
-					serviceURL := testutils.URLMust("generic://host.tld/webhook?template=arrows")
-					err := service.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					err = service.SetTemplateString("arrows", `==> {{.message}} <==`)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					payload, err := service.GetPayload(
-						service.Config,
-						types.Params{"message": "LOOK AT ME"},
-					)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					contents, err := io.ReadAll(payload)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(string(contents)).To(gomega.Equal("==> LOOK AT ME <=="))
-				})
-			})
-		})
-		ginkgo.When("an unknown template is specified", func() {
-			ginkgo.It("returns an error", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?template=missing")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				_, err = service.GetPayload(service.Config, nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &generic.Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.When("sending via webhook URL", func() {
-			ginkgo.It("succeeds if the server accepts the payload", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL,
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("reports an error if sending fails", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL,
-					httpmock.NewErrorResponder(errors.New("dummy error")),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-			ginkgo.It("keeps the transport error matchable without echoing the webhook query", func() {
-				dummyErr := errors.New("dummy error")
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?token=SECRETquery")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL+"?token=SECRETquery",
-					httpmock.NewErrorResponder(dummyErr),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.MatchError(generic.ErrSendFailed))
-				gomega.Expect(err).To(gomega.MatchError(dummyErr))
-				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETquery"))
-			})
-			ginkgo.It("does not log a response body that echoes the request", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?token=SECRETquery")
-				logs := &strings.Builder{}
-				err := service.Initialize(serviceURL, log.New(logs, "", 0))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL+"?token=SECRETquery",
-					func(req *http.Request) (*http.Response, error) {
-						return httpmock.NewStringResponse(http.StatusOK, req.URL.String()+" BODYmarker"), nil
-					},
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(logs.String()).To(gomega.ContainSubstring("200"))
-				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("SECRETquery"))
-				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("BODYmarker"))
-			})
-			ginkgo.It("includes custom headers in the request", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?@authorization=frend")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder("POST", TestWebhookURL,
-					func(req *http.Request) (*http.Response, error) {
-						gomega.Expect(req.Header.Get("Authorization")).To(gomega.Equal("frend"))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					})
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("includes extra data in JSON payload", func() {
-				serviceURL := testutils.URLMust(
-					"generic://host.tld/webhook?template=json&$context=inside+joke",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder("POST", TestWebhookURL,
-					func(req *http.Request) (*http.Response, error) {
-						body, err := io.ReadAll(req.Body)
-						gomega.Expect(err).NotTo(gomega.HaveOccurred())
-						gomega.Expect(string(body)).
-							To(gomega.MatchJSON(`{"message":"Message","context":"inside joke"}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					})
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("uses the configured HTTP method", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?method=GET")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"GET",
-					TestWebhookURL,
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("does not mutate the given params", func() {
-				serviceURL := testutils.URLMust("generic://host.tld/webhook?method=GET")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				httpmock.RegisterResponder(
-					"GET",
-					TestWebhookURL,
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				params := types.Params{"title": "TITLE"}
-				err = service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(params).To(gomega.Equal(types.Params{"title": "TITLE"}))
-			})
-		})
-	})
-})
-
-// TestGeneric runs the Ginkgo test suite for the generic package.
-func TestGeneric(t *testing.T) {
-	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Generic Webhook Suite")
+	}
 }
