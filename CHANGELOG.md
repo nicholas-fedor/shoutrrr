@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 803b2aa by @renovate[bot] in [#1597](https://github.com/nicholas-fedor/shoutrrr/pull/1597)
 - Update dependency inversion to v1.0.1 by @renovate[bot] in [#1592](https://github.com/nicholas-fedor/shoutrrr/pull/1592)
 - Update dependency verspec to v0.2.1 by @renovate[bot] in [#1593](https://github.com/nicholas-fedor/shoutrrr/pull/1593)
 - Update github/codeql-action action to v4.39.0 by @renovate[bot] in [#1590](https://github.com/nicholas-fedor/shoutrrr/pull/1590)
