@@ -11,7 +11,7 @@ import (
 
 // TestCreateJSONToSend verifies the webhook payload: the configured values,
 // overridden by value params, with the message in the value field that
-// messagevalue selects.
+// messagevalue selects and a non-empty title in the field titlevalue selects.
 func TestCreateJSONToSend(t *testing.T) {
 	t.Parallel()
 
@@ -53,6 +53,37 @@ func TestCreateJSONToSend(t *testing.T) {
 			config: Config{UseMessageAsValue: 1},
 			params: &types.Params{"value1": "x", "value2": "y"},
 			want:   `{"value1":"hello","value2":"y","value3":""}`,
+		},
+		{
+			name:   "title in value1",
+			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 1, Title: "Title"},
+			want:   `{"value1":"Title","value2":"hello","value3":""}`,
+		},
+		{
+			name:   "title in value3",
+			config: Config{UseMessageAsValue: 1, UseTitleAsValue: 3, Title: "Title"},
+			want:   `{"value1":"hello","value2":"","value3":"Title"}`,
+		},
+		{
+			name:   "title disabled",
+			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 0, Title: "Title"},
+			want:   `{"value1":"","value2":"hello","value3":""}`,
+		},
+		{
+			name:   "title overrides the configured value and value param in its field",
+			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 1, Title: "Title", Value1: "a"},
+			params: &types.Params{"value1": "x"},
+			want:   `{"value1":"Title","value2":"hello","value3":""}`,
+		},
+		{
+			name:   "the message wins over a title in the same field",
+			config: Config{UseMessageAsValue: 1, UseTitleAsValue: 1, Title: "Title"},
+			want:   `{"value1":"hello","value2":"","value3":""}`,
+		},
+		{
+			name:   "empty title keeps the configured value in its field",
+			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 3, Value3: "c"},
+			want:   `{"value1":"","value2":"hello","value3":"c"}`,
 		},
 	}
 

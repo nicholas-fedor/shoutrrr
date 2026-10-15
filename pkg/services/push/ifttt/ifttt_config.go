@@ -68,6 +68,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL updates the config from a service URL and validates it.
+//
+// Parameters:
+//   - resolver: Resolver used to apply query parameters to config fields.
+//   - serviceURL: The service URL to parse.
+//
+// Returns:
+//   - error: A query parameter error, a value field error from
+//     [Config.validateValueFields], [ErrMissingEvents], or [ErrMissingWebhookID].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if c.UseMessageAsValue == DisabledValue {
 		c.UseMessageAsValue = DefaultMessageValue
@@ -81,6 +90,31 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	if err := c.validateValueFields(); err != nil {
+		return err
+	}
+
+	if serviceURL.String() != "ifttt://dummy@dummy.com" {
+		if len(c.Events) < MinLength {
+			return ErrMissingEvents
+		}
+
+		if len(c.WebHookID) < MinLength {
+			return ErrMissingWebhookID
+		}
+	}
+
+	return nil
+}
+
+// validateValueFields checks the value fields that the message and title
+// are written to.
+//
+// Returns:
+//   - error: [ErrInvalidMessageValue] when messagevalue is outside 1 to 3,
+//     [ErrInvalidTitleValue] when titlevalue is above 3, or
+//     [ErrTitleMessageConflict] when both select the same field.
+func (c *Config) validateValueFields() error {
 	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
 		return ErrInvalidMessageValue
 	}
@@ -92,16 +126,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	if c.UseTitleAsValue != DisabledValue &&
 		c.UseTitleAsValue == c.UseMessageAsValue {
 		return ErrTitleMessageConflict
-	}
-
-	if serviceURL.String() != "ifttt://dummy@dummy.com" {
-		if len(c.Events) < MinLength {
-			return ErrMissingEvents
-		}
-
-		if len(c.WebHookID) < MinLength {
-			return ErrMissingWebhookID
-		}
 	}
 
 	return nil

@@ -87,8 +87,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields and payload values.
 //
 // Returns:
-//   - error: the params or payload error, or [ErrSendFailed] wrapping the first
-//     event's send error, which matches ctx's error when ctx ends the request.
+//   - error: the params, value field, or payload error, or [ErrSendFailed]
+//     wrapping the first event's send error, which matches ctx's error when ctx
+//     ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
@@ -96,6 +97,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// Params can change the value fields, so they get the checks the URL gets.
+	if err := config.validateValueFields(); err != nil {
+		return fmt.Errorf("validating params: %w", err)
 	}
 
 	payload, err := createJSONToSend(config, message, params)
