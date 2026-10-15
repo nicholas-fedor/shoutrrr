@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.0 by @renovate[bot] in [#1590](https://github.com/nicholas-fedor/shoutrrr/pull/1590)
 - Migrate from make to task by @nicholas-fedor in [#1582](https://github.com/nicholas-fedor/shoutrrr/pull/1582)
 - Update dependency pymdown-extensions to v12.3 by @renovate[bot] in [#1583](https://github.com/nicholas-fedor/shoutrrr/pull/1583)
 - Update module github.com/stretchr/objx to v0.8.0 by @renovate[bot] in [#1574](https://github.com/nicholas-fedor/shoutrrr/pull/1574)
