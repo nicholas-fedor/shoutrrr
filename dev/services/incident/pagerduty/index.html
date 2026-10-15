@@ -4479,7 +4479,8 @@ Includes severity and source parameters</p>
 <li><strong><code>resolve</code></strong>: Resolves an incident (closes it)</li>
 </ul>
 <h4 id="details_parameter">Details Parameter<a class="headerlink" href="#details_parameter" title="Permanent link">&para;</a></h4>
-<p>The <code>details</code> parameter accepts a JSON object with custom key-value pairs:</p>
+<p>The <code>details</code> parameter accepts a JSON object with custom key-value pairs.
+Shoutrrr sends it as the event's <code>payload.custom_details</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"database"</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2.1.0"</span><span class="p">,</span>
@@ -4488,7 +4489,10 @@ Includes severity and source parameters</p>
 <span class="p">}</span>
 </code></pre></div>
 <h4 id="contexts_parameter">Contexts Parameter<a class="headerlink" href="#contexts_parameter" title="Permanent link">&para;</a></h4>
-<p>The <code>contexts</code> parameter accepts a JSON array of context objects. Each context must have a <code>type</code> field. Only <code>link</code> and <code>image</code> types are supported.</p>
+<p>The <code>contexts</code> parameter accepts a JSON array of context objects. Each context must have a <code>type</code> field. Only <code>link</code> and <code>image</code> types are supported.
+Shoutrrr sends link contexts in the event's <code>links</code> array and image contexts in its <code>images</code> array.
+A context's <code>text</code> becomes the link text or the image's alternative text.
+PagerDuty requires image sources to use HTTPS.</p>
 <p><strong>Link contexts:</strong></p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span><span class="p">,</span>
@@ -5072,7 +5076,7 @@ shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> <
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 9, 2026 15:53:04 UTC"><span class="timeago" datetime="2026-10-09T15:53:04+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 9, 2026 15:53:04 UTC">2026-10-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 15, 2026 21:07:12 UTC"><span class="timeago" datetime="2026-10-15T21:07:12+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 15, 2026 21:07:12 UTC">2026-10-15</span>
   </span>
 
     
