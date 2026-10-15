@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send details and contexts in the events api v2 format by @nicholas-fedor in [#1601](https://github.com/nicholas-fedor/shoutrrr/pull/1601)
 - Apply the default host and port from the url by @nicholas-fedor in [#1599](https://github.com/nicholas-fedor/shoutrrr/pull/1599)
 - Send the title in the titlevalue field by @nicholas-fedor in [#1588](https://github.com/nicholas-fedor/shoutrrr/pull/1588)
 - Omit empty notify targets by @nicholas-fedor in [#1586](https://github.com/nicholas-fedor/shoutrrr/pull/1586)
