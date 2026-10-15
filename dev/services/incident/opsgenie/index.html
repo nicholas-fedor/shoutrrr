@@ -2007,6 +2007,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#parameter_formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#optional_parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2725,6 +2736,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#parameter_formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#optional_parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2852,17 +2874,17 @@ the <a href="https://docs.opsgenie.com/docs/alert-api">OpsGenie documentation</a
                                            token
 </code></pre></div>
 <h2 id="passing_parameters_via_code">Passing parameters via code<a class="headerlink" href="#passing_parameters_via_code" title="Permanent link">&para;</a></h2>
-<p>If you want to, you can pass additional parameters to the <code>send</code> function.
-<br/>
+<p>You can pass additional parameters to the <code>Send</code> function.
 The following example contains all parameters that are currently supported.</p>
 <div class="highlight"><pre><span></span><code><span class="nx">service</span><span class="p">.</span><span class="nx">Send</span><span class="p">(</span><span class="s">"An example alert message"</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">types</span><span class="p">.</span><span class="nx">Params</span><span class="p">{</span>
+<span class="w">    </span><span class="s">"title"</span><span class="p">:</span><span class="w">       </span><span class="s">"An example title"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"alias"</span><span class="p">:</span><span class="w">       </span><span class="s">"Life is too short for no alias"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"description"</span><span class="p">:</span><span class="w"> </span><span class="s">"Every alert needs a description"</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"responders"</span><span class="p">:</span><span class="w">  </span><span class="s">`[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"NOC","type":"team"}]`</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"visibleTo"</span><span class="p">:</span><span class="w">   </span><span class="s">`[{"id":"4513b7ea-3b91-438f-b7e4-e3e54af9147c","type":"team"},{"name":"rocket_team","type":"team"}]`</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"actions"</span><span class="p">:</span><span class="w">     </span><span class="s">"An action"</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"tags"</span><span class="p">:</span><span class="w">        </span><span class="s">"tag1 tag2"</span><span class="p">,</span>
-<span class="w">    </span><span class="s">"details"</span><span class="p">:</span><span class="w">     </span><span class="s">`{"key1": "value1", "key2": "value2"}`</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"responders"</span><span class="p">:</span><span class="w">  </span><span class="s">"team:4513b7ea-3b91-438f-b7e4-e3e54af9147c,team:NOC,user:trinity@opsgenie.com,escalation:Nightwatch Escalation,schedule:First Responders Schedule"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"visibleTo"</span><span class="p">:</span><span class="w">   </span><span class="s">"team:rocket_team,user:trinity@opsgenie.com"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"actions"</span><span class="p">:</span><span class="w">     </span><span class="s">"Restart,AnExampleAction"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"tags"</span><span class="p">:</span><span class="w">        </span><span class="s">"OverwriteQuietHours,Critical"</span><span class="p">,</span>
+<span class="w">    </span><span class="s">"details"</span><span class="p">:</span><span class="w">     </span><span class="s">"key1:value1,key2:value2"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"entity"</span><span class="p">:</span><span class="w">      </span><span class="s">"An example entity"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"source"</span><span class="p">:</span><span class="w">      </span><span class="s">"The source"</span><span class="p">,</span>
 <span class="w">    </span><span class="s">"priority"</span><span class="p">:</span><span class="w">    </span><span class="s">"P1"</span><span class="p">,</span>
@@ -2870,13 +2892,25 @@ The following example contains all parameters that are currently supported.</p>
 <span class="w">    </span><span class="s">"note"</span><span class="p">:</span><span class="w">        </span><span class="s">"Here is a note"</span><span class="p">,</span>
 <span class="p">})</span>
 </code></pre></div>
+<h2 id="parameter_formats">Parameter formats<a class="headerlink" href="#parameter_formats" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>responders</code> and <code>visibleTo</code> are comma-separated <code>type:identifier</code> entries.
+  An identifier in the OpsGenie ID format, such as <code>4513b7ea-3b91-438f-b7e4-e3e54af9147c</code>, is sent as the ID.
+  Otherwise it is sent as the username for <code>user</code> and as the name for <code>team</code>, <code>escalation</code>, and <code>schedule</code>.
+  <code>visibleTo</code> accepts only <code>team</code> and <code>user</code> entries, as OpsGenie requires, and any other type fails the send.</li>
+<li><code>actions</code> and <code>tags</code> are comma-separated lists.</li>
+<li><code>details</code> is a comma-separated list of <code>key:value</code> pairs.</li>
+<li>The alert message is the title when one is set, and the notification message otherwise, cut to 130 characters.
+  The notification message is sent as the description when a title is set or when it is cut.</li>
+</ul>
+<p>See the <a href="https://docs.opsgenie.com/docs/alert-api#create-alert">OpsGenie Alert API documentation</a> for the limits of each field.</p>
 <h2 id="optional_parameters">Optional parameters<a class="headerlink" href="#optional_parameters" title="Permanent link">&para;</a></h2>
 <p>You can optionally specify the parameters in the URL:</p>
 <div class="admonition info">
-<p>opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889?alias=Life+is+too+short+for+no+alias&amp;description=Every+alert+needs+a+description&amp;actions=An+action&amp;tags=["tag1","tag2"]&amp;entity=An+example+entity&amp;source=The+source&amp;priority=P1&amp;user=Dracula&amp;note=Here+is+a+note</p>
+<p>opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889?alias=Life+is+too+short+for+no+alias&amp;description=Every+alert+needs+a+description&amp;actions=An+action&amp;tags=tag1,tag2&amp;entity=An+example+entity&amp;source=The+source&amp;priority=P1&amp;user=Dracula&amp;note=Here+is+a+note</p>
 </div>
 <p>Example using the command line:</p>
-<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'opsgenie://api.eu.opsgenie.com/token?tags=["tag1","tag2"]&amp;description=testing&amp;responders=[{"username":"superuser", "type": "user"}]&amp;entity=Example Entity&amp;source=Example Source&amp;actions=["asdf", "bcde"]'</span><span class="w"> </span>-m<span class="w"> </span><span class="s2">"Hello World6"</span>
+<div class="highlight"><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>-u<span class="w"> </span><span class="s1">'opsgenie://api.eu.opsgenie.com/token?tags=tag1,tag2&amp;description=testing&amp;responders=user:superuser,team:NOC&amp;entity=Example+Entity&amp;source=Example+Source&amp;actions=asdf,bcde'</span><span class="w"> </span>-m<span class="w"> </span><span class="s2">"Hello World6"</span>
 </code></pre></div>
 
 
@@ -2900,7 +2934,7 @@ The following example contains all parameters that are currently supported.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 27, 2025 05:43:38 UTC"><span class="timeago" datetime="2025-09-27T05:43:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 27, 2025 05:43:38 UTC">2025-09-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 15, 2026 23:19:35 UTC"><span class="timeago" datetime="2026-10-15T23:19:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 15, 2026 23:19:35 UTC">2026-10-15</span>
   </span>
 
     
