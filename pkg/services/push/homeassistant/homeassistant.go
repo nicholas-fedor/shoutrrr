@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
@@ -228,6 +229,9 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 
 // buildRequest constructs the JSON payload and API URL for a notification.
 //
+// Notify actions get the non-empty targets only. An empty target list leaves
+// the field out, so the action delivers to its own default recipients.
+//
 // Parameters:
 //   - message: The notification body.
 //   - config: The resolved configuration.
@@ -251,9 +255,23 @@ func buildRequest(message string, config *Config) (requestPayload, string, error
 		if config.Nid != "" {
 			payload.NotificationID = config.Nid
 		}
-	} else if len(config.Targets) > 0 {
-		payload.Targets = config.Targets
+	} else if targets := nonEmptyTargets(config.Targets); len(targets) > 0 {
+		payload.Targets = targets
 	}
 
 	return payload, config.apiURL(domain, service), nil
+}
+
+// nonEmptyTargets returns the targets without empty entries, such as the one
+// an empty targets prop or a trailing comma produces.
+//
+// Parameters:
+//   - targets: The configured targets, which the result does not modify.
+//
+// Returns:
+//   - []string: A new slice with the non-empty targets in order.
+func nonEmptyTargets(targets []string) []string {
+	return slices.DeleteFunc(slices.Clone(targets), func(target string) bool {
+		return target == ""
+	})
 }

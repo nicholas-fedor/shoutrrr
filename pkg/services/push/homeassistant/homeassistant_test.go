@@ -213,6 +213,31 @@ func TestSend(t *testing.T) {
 			wantBody: `{"message":"Host unreachable","target":["device1"]}`,
 		},
 		{
+			name:     "notify action without targets",
+			rawURL:   "homeassistant://s3cret@ha.example.com?service=notify.notify",
+			wantURL:  "https://ha.example.com:443/api/services/notify/notify",
+			wantBody: `{"message":"Host unreachable"}`,
+		},
+		{
+			name:     "bare notify target without targets",
+			rawURL:   "homeassistant://s3cret@ha.example.com?service=mobile_app",
+			wantURL:  "https://ha.example.com:443/api/services/notify/mobile_app",
+			wantBody: `{"message":"Host unreachable"}`,
+		},
+		{
+			name:     "empty targets prop",
+			rawURL:   "homeassistant://s3cret@ha.example.com?service=notify.notify&targets=",
+			wantURL:  "https://ha.example.com:443/api/services/notify/notify",
+			wantBody: `{"message":"Host unreachable"}`,
+		},
+		{
+			name:     "empty entries in a targets param",
+			rawURL:   "homeassistant://s3cret@ha.example.com?service=notify.notify",
+			params:   &types.Params{"targets": "device1,,device2,"},
+			wantURL:  "https://ha.example.com:443/api/services/notify/notify",
+			wantBody: `{"message":"Host unreachable","target":["device1","device2"]}`,
+		},
+		{
 			name:     "params",
 			rawURL:   "homeassistant://s3cret@ha.example.com?title=Configured",
 			params:   &types.Params{"title": "Override", "service": "notify.phone", "targets": "a"},
@@ -273,6 +298,23 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 
 	require.NoError(t, service.Send("second", nil))
 	assert.JSONEq(t, `{"message":"second"}`, captured.body)
+}
+
+// TestSendLeavesConfiguredTargetsUnchanged verifies that dropping empty
+// targets from a payload does not modify the stored targets.
+func TestSendLeavesConfiguredTargetsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "homeassistant://s3cret@ha.example.com?service=notify.notify&targets=,device1,,device2")
+	want := []string{"", "device1", "", "device2"}
+	require.Equal(t, want, service.Config.Targets)
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, "[]")
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.JSONEq(t, `{"message":"Message","target":["device1","device2"]}`, captured.body)
+	assert.Equal(t, want, service.Config.Targets)
 }
 
 // TestSendContextErrors verifies that a send rejects an empty message or an

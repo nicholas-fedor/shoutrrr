@@ -49,7 +49,7 @@ When the port is omitted, HTTPS uses port `443` and HTTP (`disabletls=yes`) uses
 
 - __`title`__: Optional notification title. Omitted from the request when empty.
 - __`service`__: Home Assistant action. Empty defaults to `persistent_notification.create`. A value without a dot is sent as `notify/<value>`. A value with a dot is sent as `<domain>/<action>`.
-- __`targets`__: Comma-separated notify destinations. Sent as the Home Assistant `target` field and omitted for persistent notifications.
+- __`targets`__: Comma-separated notify destinations. Sent as the Home Assistant `target` field and omitted for persistent notifications. Empty entries are dropped, and without any targets the field is omitted, so the selected action delivers to its own default recipients.
 - __`nid`__: Persistent notification ID. When set, Home Assistant overwrites the notification with that ID. Omitted when empty.
 - __`disabletls`__: Use HTTP instead of HTTPS.
 - __`skiptlsverify`__: Skip TLS certificate verification. Use only with self-signed certificates.
