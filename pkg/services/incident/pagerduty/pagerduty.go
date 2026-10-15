@@ -153,6 +153,20 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
 }
 
+// newEventPayload builds an Events API v2 event from the message, the config,
+// and the send params, which apply to this event only.
+//
+// The summary is cut to 1024 characters. The details prop becomes the custom
+// details, and the contexts prop becomes the links and images.
+//
+// Parameters:
+//   - message: the event summary.
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - EventPayload: the event.
+//   - error: a params error, an invalid severity or action, details that are not
+//     a JSON object, or invalid contexts.
 func (s *Service) newEventPayload(
 	message string,
 	params *types.Params,
@@ -199,18 +213,14 @@ func (s *Service) newEventPayload(
 		result.DedupKey = payloadFields.DedupKey
 	}
 
-	// Add optional fields if provided
+	// Custom details must be a JSON object, so arrays, scalars, and null are rejected.
 	if payloadFields.Details != "" {
-		var details any
-		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil {
-			return EventPayload{}, fmt.Errorf(
-				"failed to unmarshal details %q: %w",
-				payloadFields.Details,
-				err,
-			)
+		var details map[string]any
+		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil || details == nil {
+			return EventPayload{}, fmt.Errorf("%w: %q", errInvalidDetails, payloadFields.Details)
 		}
 
-		result.Details = details
+		result.Payload.CustomDetails = details
 	}
 
 	if payloadFields.Client != "" {
@@ -227,7 +237,7 @@ func (s *Service) newEventPayload(
 			return EventPayload{}, fmt.Errorf("failed to parse contexts: %w", err)
 		}
 
-		result.Contexts = contexts
+		result.Links, result.Images = linksAndImages(contexts)
 	}
 
 	return result, nil
@@ -403,6 +413,35 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	}
 
 	return result, nil
+}
+
+// linksAndImages converts parsed contexts into the links and images of an
+// Events API v2 event. A context's text becomes the link text or the image's
+// alternative text.
+//
+// Parameters:
+//   - contexts: The parsed link and image contexts.
+//
+// Returns:
+//   - links: The link contexts as links, or nil when there are none.
+//   - images: The image contexts as images, or nil when there are none.
+func linksAndImages(contexts []PagerDutyContext) ([]Link, []Image) {
+	var (
+		links  []Link
+		images []Image
+	)
+
+	for _, ctx := range contexts {
+		switch ctx.Type {
+		case contextTypeLink:
+			links = append(links, Link{Href: ctx.Href, Text: ctx.Text})
+		case contextTypeImage:
+			images = append(images, Image{Src: ctx.Src, Href: ctx.Href, Alt: ctx.Text})
+		default:
+		}
+	}
+
+	return links, images
 }
 
 // validateSeverity checks if the provided severity is one of the allowed values.

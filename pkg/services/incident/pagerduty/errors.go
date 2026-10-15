@@ -27,6 +27,9 @@ var (
 		"invalid severity: must be one of 'critical', 'error', 'warning', or 'info'",
 	)
 
+	// errInvalidDetails is returned when the details prop is not a JSON object.
+	errInvalidDetails = errors.New("invalid details: must be a JSON object")
+
 	// errInvalidEventAction is returned when the event action is not one of the allowed values.
 	errInvalidEventAction = errors.New(
 		"invalid event action: must be one of 'trigger', 'acknowledge', or 'resolve'",
