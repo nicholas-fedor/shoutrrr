@@ -25,39 +25,15 @@ git clone https://github.com/nicholas-fedor/shoutrrr.git
 
 ### Development Tools
 
-- [Make](https://www.gnu.org/software/make/)
+- [Task](https://taskfile.dev/)
 
-  - Windows
+  Installation Documentation: <https://taskfile.dev/installation/>
 
-    ```powershell
-    winget install --id GnuWin32.Make
-    ```
+  With Go installed, you can also run:
 
-  - Linux
-
-      Ubuntu/Debian:
-
-      ```bash
-      sudo apt install make -y
-      ```
-
-      Fedora/RHEL:
-
-      ```bash
-      sudo dnf install make
-      ```
-
-      Arch:
-
-      ```bash
-      sudo pacman -S make
-      ```
-
-  - macOS
-
-    ```bash
-    brew install make
-    ```
+  ```bash
+  go install github.com/go-task/task/v3/cmd/task@latest
+  ```
 
 - [Go](https://go.dev/)
 
@@ -96,13 +72,16 @@ git clone https://github.com/nicholas-fedor/shoutrrr.git
 
 ## Building and Testing
 
-Shoutrrr is a Go library and is built with Go commands.
+Shoutrrr is a Go library and its development tasks are defined in `Taskfile.yml`.
 The following commands assume that you are at the root level of your repo.
+Run `task` to list every task.
 
 ```bash
-./scripts/build.sh                     # compiles and packages a stand-alone executable
-go test ./... -v                       # runs tests with verbose output
-./shoutrrr/shoutrrr                    # runs the application
+task build              # builds a static CLI binary at ./bin/shoutrrr
+task test               # runs the unit and integration tests with race detection
+task lint               # runs golangci-lint, which applies its fixes to the tree
+task check              # runs fmt, vet, modernize, test, lint, and vuln
+./bin/shoutrrr --help   # runs the built CLI
 ```
 
 ## Documentation
@@ -117,8 +96,11 @@ Ensure that you have first installed the necessary dependencies.
 To run the website locally, run the following from the root directory:
 
 ```bash
-mkdocs serve --config-file build/mkdocs/mkdocs.yaml
+task docs
 ```
+
+This creates the `shoutrrr-docs` virtual environment, generates the service config docs and the Playground WASM module, and serves the site with live reload.
+After the first run, `task docs:serve` skips the environment setup.
 
 Note: Disable the markdown extension pymdownx.snippets > check_paths option if not generating the service config docs via the `scripts\generate-service-config-docs.sh` script.
 
@@ -130,7 +112,7 @@ It consists of Go source compiled to WASM and a JavaScript/CSS frontend.
 To build the WASM module:
 
 ```bash
-make wasm
+task wasm
 ```
 
 To run tests:
