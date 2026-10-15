@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Omit empty notify targets by @nicholas-fedor in [#1586](https://github.com/nicholas-fedor/shoutrrr/pull/1586)
 - Accept username and channel send params by @nicholas-fedor in [#1577](https://github.com/nicholas-fedor/shoutrrr/pull/1577)
 - Redact service urls from request building errors by @nicholas-fedor in [#1571](https://github.com/nicholas-fedor/shoutrrr/pull/1571)
 
