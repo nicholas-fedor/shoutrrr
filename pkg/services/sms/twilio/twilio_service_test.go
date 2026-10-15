@@ -4,248 +4,368 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"testing"
+	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-// mockLogger is a test helper that implements StdLogger interface.
-type mockLogger struct{}
-
-// mockServiceHTTPClient is a test helper that implements HTTPClient interface.
-type mockServiceHTTPClient struct {
-	response       *http.Response
-	err            error
-	callCount      int
-	captureBody    bool
-	captureHeaders bool
-	lastBody       string
-	lastRequest    *http.Request
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// form is the parsed form body.
+	form url.Values
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// username is the basic auth user name.
+	username string
+	// password is the basic auth password.
+	password string
 }
 
-var _ = ginkgo.Describe("Service Unit Tests", func() {
-	var (
-		service    *Service
-		mockClient *mockServiceHTTPClient
-	)
+// cannedResponse is a response the fake Twilio API returns.
+type cannedResponse struct {
+	// err fails the request instead of answering it when set.
+	err error
+	// status is the response status line.
+	status string
+	// body is the response body.
+	body string
+	// statusCode is the response status code.
+	statusCode int
+}
 
-	ginkgo.BeforeEach(func() {
-		service = &Service{
-			Config: &Config{
-				AccountSID: "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				AuthToken:  "authToken",
-				FromNumber: "+15551234567",
-				ToNumbers:  []string{"+15559876543"},
-			},
-			HTTPClient: &mockServiceHTTPClient{},
+// Values shared by the service tests.
+const (
+	// testServiceURL is a service URL with two recipients.
+	testServiceURL = "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/+15559876544"
+	// messageBody is the body of a created message.
+	messageBody = `{"sid":"SMb7c0a2ce80504485a6f653a7110836f5","status":"queued","to":"+15559876543","from":"+15551234567","body":"Message"}`
+	// invalidToBody is the body of a message to an invalid number.
+	invalidToBody = `{"code":21211,"message":"The 'To' number +15559876543 is not a valid phone number.","more_info":"https://www.twilio.com/docs/errors/21211","status":400}`
+)
+
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
+
+// created is the response to an accepted message.
+var created = cannedResponse{status: "201 Created", statusCode: http.StatusCreated, body: messageBody}
+
+// newRespondingClient returns a mock HTTP client that expects one request for
+// each response, records the requests, and answers them in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - responses: the responses, one for each expected request.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *[]capturedRequest: the requests, appended as the client receives them.
+func newRespondingClient(t *testing.T, responses ...cannedResponse) (*mocks.MockHTTPClient, *[]capturedRequest) {
+	t.Helper()
+
+	captured := &[]capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		form, err := url.ParseQuery(string(body))
+		require.NoError(t, err)
+
+		username, password, _ := req.BasicAuth()
+		response := responses[len(*captured)]
+		*captured = append(*captured, capturedRequest{
+			form:        form,
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			username:    username,
+			password:    password,
+		})
+
+		if response.err != nil {
+			return nil, response.err
 		}
-		service.SetLogger(&mockLogger{})
-		service.pkr = *initPKR(service.Config)
-		mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-		mockClient.response = &http.Response{
-			StatusCode: http.StatusCreated,
-			Body:       io.NopCloser(strings.NewReader(`{"sid": "SM123"}`)),
-		}
+
+		return &http.Response{
+			Status:     response.status,
+			StatusCode: response.statusCode,
+			Body:       io.NopCloser(strings.NewReader(response.body)),
+		}, nil
+	}).Times(len(responses))
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "twilio", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the service URL with the
+// default client, and rejects an invalid URL.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+
+		assert.Equal(t, &Config{
+			AccountSID: testAccountSID,
+			AuthToken:  "authToken",
+			FromNumber: testFrom,
+			ToNumbers:  []string{testTo, "+15559876544"},
+		}, service.Config)
+		assert.IsType(t, &http.Client{}, service.HTTPClient)
 	})
 
-	ginkgo.Describe("Initialize", func() {
-		ginkgo.It("should initialize from a valid URL", func() {
-			svc := &Service{}
-			serviceURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("missing account SID", func(t *testing.T) {
+		t.Parallel()
 
-			err = svc.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(svc.Config.AccountSID).
-				To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
-			gomega.Expect(svc.HTTPClient).NotTo(gomega.BeNil())
-		})
+		err := (&Service{}).Initialize(parseTestURL(t, "twilio://:authToken@"+testFrom+"/"+testTo), log.New(t.Output(), "", 0))
 
-		ginkgo.It("should return an error for invalid URL", func() {
-			svc := &Service{}
-			serviceURL, err := url.Parse("twilio://:@/")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = svc.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.ErrorIs(t, err, ErrAccountSIDMissing)
 	})
+}
 
-	ginkgo.Describe("GetID", func() {
-		ginkgo.It("should return 'twilio'", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("twilio"))
-		})
-	})
+// TestSend verifies that a send makes one request for each recipient, in
+// order, and that a title param applies to every request.
+func TestSend(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.Describe("Send", func() {
-		ginkgo.It("should send successfully to a single recipient", func() {
-			err := service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(1))
-		})
+	service := newTestService(t, testServiceURL)
+	client, captured := newRespondingClient(t, created, created)
+	service.SetHTTPClient(client)
 
-		ginkgo.It("should send to multiple recipients", func() {
-			service.Config.ToNumbers = []string{"+15559876543", "+15551111111"}
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusCreated,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert"}))
 
-			err := service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.callCount).To(gomega.Equal(2))
-		})
+	require.Len(t, *captured, 2)
+	assert.Equal(t, url.Values{"To": {testTo}, "Body": {"Alert\nMessage"}, "From": {testFrom}}, (*captured)[0].form)
+	assert.Equal(t, url.Values{"To": {"+15559876544"}, "Body": {"Alert\nMessage"}, "From": {testFrom}}, (*captured)[1].form)
+}
 
-		ginkgo.It("should prepend title to message body when title is set", func() {
-			service.Config.Title = "Alert"
-			mockClient.captureBody = true
+// TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
+// the config for one send, so the next send has no title.
+func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
+	t.Parallel()
 
-			err := service.Send("Something happened", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			// Body is URL-encoded form data
-			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("Alert"))
-			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("Something"))
-		})
+	service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+	want := *service.Config
 
-		ginkgo.It("should return an error on HTTP failure", func() {
-			mockClient.err = errors.New("network error")
+	client, _ := newRespondingClient(t, created)
+	service.SetHTTPClient(client)
 
-			err := service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Updated Title"}))
+	assert.Equal(t, want, *service.Config)
 
-		ginkgo.It("should return an error for non-2xx status codes", func() {
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusUnauthorized,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
+	client, captured := newRespondingClient(t, created)
+	service.SetHTTPClient(client)
 
-			err := service.Send("Message", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
+	require.NoError(t, service.Send("Message", nil))
+	require.Len(t, *captured, 1)
+	assert.Equal(t, []string{"Message"}, (*captured)[0].form["Body"])
+}
 
-	ginkgo.Describe("Params update", func() {
-		ginkgo.It("should apply params to the send without changing the service config", func() {
-			mockClient.captureBody = true
-			params := types.Params{"title": "Updated Title"}
+// TestSendContextErrors verifies that a send reports each failed recipient
+// while still sending to the others, wraps a transport error, rejects an
+// unknown param before any request, and stops when the caller's context ends.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
 
-			err := service.Send("Message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("Updated+Title"))
-			gomega.Expect(service.Config.Title).To(gomega.BeEmpty())
+	t.Run("one recipient fails", func(t *testing.T) {
+		t.Parallel()
 
-			mockClient.response = &http.Response{
-				StatusCode: http.StatusCreated,
-				Body:       io.NopCloser(strings.NewReader(`{"sid": "SM456"}`)),
-			}
-
-			err = service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastBody).NotTo(gomega.ContainSubstring("Updated"))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should not send when the caller's context is already canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		// The mock fails the spec if the service sends a request.
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543/+15559876544"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, testServiceURL)
+		client, captured := newRespondingClient(t,
+			cannedResponse{status: "400 Bad Request", statusCode: http.StatusBadRequest, body: invalidToBody},
+			created)
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		assert.Contains(t, err.Error(), "sending to "+testTo)
+		assert.Contains(t, err.Error(), "code 21211")
+		assert.NotContains(t, err.Error(), "+15559876544")
+		assert.Len(t, *captured, 2)
 	})
 
-	ginkgo.It("should skip the remaining recipients when the context ends during a request", func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	t.Run("every recipient fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, _ := newRespondingClient(t,
+			cannedResponse{err: errTransport},
+			cannedResponse{status: "500 Internal Server Error", statusCode: http.StatusInternalServerError, body: "oops"})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		require.ErrorIs(t, err, ErrSendFailed)
+		assert.Contains(t, err.Error(), "sending to "+testTo)
+		assert.Contains(t, err.Error(), "sending to +15559876544")
+	})
+
+	t.Run("transport error without the account SID", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), testAccountSID)
+	})
+
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.SendContext(t.Context(), "Message", &types.Params{"foo": "bar"}), format.ErrInvalidConfigKey)
+	})
+
+	t.Run("context already canceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+
+	t.Run("context ends during a request", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+		client := mocks.NewMockHTTPClient(t)
 		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 			cancel()
 
 			return nil, req.Context().Err()
 		}).Once()
 
-		service := &Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543/+15559876544"), testutils.TestLogger())).To(gomega.Succeed())
+		service := newTestService(t, testServiceURL)
 		service.SetHTTPClient(client)
 
 		err := service.SendContext(ctx, "message", nil)
-		gomega.Expect(err).To(gomega.MatchError(context.Canceled))
-		gomega.Expect(strings.Count(err.Error(), context.Canceled.Error())).To(gomega.Equal(1))
+
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Equal(t, 1, strings.Count(err.Error(), context.Canceled.Error()))
 	})
-})
-
-var _ = ginkgo.Describe("ServiceTimeout", func() {
-	ginkgo.It("should give one request budget per recipient", func() {
-		service := &Service{}
-		gomega.Expect(service.Initialize(
-			testutils.URLMust("twilio://ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:TOKEN@+15551234567/+15559876543/+15559876544/+15559876545"),
-			testutils.TestLogger(),
-		)).To(gomega.Succeed())
-
-		gomega.Expect(service.ServiceTimeout(nil)).To(gomega.Equal(3 * defaultHTTPTimeout))
-	})
-
-	ginkgo.It("should give one request budget before the service is initialized", func() {
-		gomega.Expect((&Service{}).ServiceTimeout(nil)).To(gomega.Equal(defaultHTTPTimeout))
-	})
-})
-
-// initPKR initializes a PropKeyResolver for testing.
-func initPKR(config *Config) *format.PropKeyResolver {
-	pkr := format.NewPropKeyResolver(config)
-
-	return &pkr
 }
 
-func (m *mockServiceHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	m.callCount++
+// TestServiceTimeout verifies that the router budget is one request timeout
+// for each recipient, and at least one timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
 
-	if m.captureHeaders {
-		m.lastRequest = req
+	// tests lists services with the budget each should get.
+	tests := []struct {
+		service *Service
+		name    string
+		want    int
+	}{
+		{name: "uninitialized service", service: &Service{}, want: 1},
+		{name: "two recipients", service: newTestService(t, testServiceURL), want: 2},
+		{name: "no recipients", service: &Service{Config: &Config{}}, want: 1},
 	}
 
-	if m.captureBody && req.Body != nil {
-		body, err := io.ReadAll(req.Body)
-		if err == nil {
-			m.lastBody = string(body)
-		}
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	if m.err != nil {
-		return nil, m.err
+			assert.Equal(t, defaultHTTPTimeout*time.Duration(tt.want), tt.service.ServiceTimeout(nil))
+		})
 	}
-
-	// Return a fresh response body for each call (io.NopCloser can only be read once)
-	if m.response != nil && m.callCount > 1 {
-		return &http.Response{
-			StatusCode: m.response.StatusCode,
-			Body:       io.NopCloser(strings.NewReader("")),
-		}, nil
-	}
-
-	return m.response, nil
 }
 
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// selects the default client for nil and a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the default client should replace them.
+	tests := []struct {
+		client      func(t *testing.T) types.HTTPClient
+		name        string
+		wantDefault bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantDefault: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := &Service{}
+			service.SetHTTPClient(client)
+
+			if tt.wantDefault {
+				assert.IsType(t, &http.Client{}, service.HTTPClient)
+
+				return
+			}
+
+			assert.Same(t, client, service.HTTPClient)
+		})
+	}
+}

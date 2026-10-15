@@ -1,141 +1,151 @@
 package twilio
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio/mocks"
 )
 
-var _ = ginkgo.Describe("Sender Unit Tests", func() {
-	var (
-		service    *Service
-		mockClient *mockServiceHTTPClient
-	)
+// failingReader is a response body whose reads fail.
+type failingReader struct{}
 
-	ginkgo.BeforeEach(func() {
-		service = &Service{
-			Config: &Config{
-				AccountSID: "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				AuthToken:  "authToken",
-				FromNumber: "+15551234567",
-				ToNumbers:  []string{"+15559876543"},
-			},
-			HTTPClient: &mockServiceHTTPClient{},
-		}
-		service.SetLogger(&mockLogger{})
-		service.pkr = *initPKR(service.Config)
-		mockClient = service.HTTPClient.(*mockServiceHTTPClient)
-		mockClient.response = &http.Response{
-			StatusCode: http.StatusCreated,
-			Body:       io.NopCloser(strings.NewReader(`{"sid": "SM123"}`)),
-		}
-	})
+// errRead is the read failure returned by failingReader.
+var errRead = errors.New("read failure")
 
-	ginkgo.Describe("sendToRecipient", func() {
-		ginkgo.It("should use MessagingServiceSid for MG-prefixed senders", func() {
-			service.Config.FromNumber = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-			mockClient.captureBody = true
+// Read fails with errRead.
+//
+// Parameters:
+//   - p: the buffer, which stays unchanged.
+//
+// Returns:
+//   - int: zero.
+//   - error: errRead.
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errRead
+}
 
-			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("MessagingServiceSid"))
-			gomega.Expect(mockClient.lastBody).NotTo(gomega.ContainSubstring("From="))
+// TestDefaultHTTPClient verifies that the default client has the request
+// timeout.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	client, ok := DefaultHTTPClient().(*http.Client)
+
+	require.True(t, ok)
+	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+}
+
+// TestSendToRecipient verifies the request for one recipient: an
+// authenticated form POST to the account's Messages endpoint with the
+// recipient, the body with the title on its own line, and the sender as From
+// or as MessagingServiceSid for a Messaging Service SID.
+func TestSendToRecipient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs with the form the request should carry.
+	tests := []struct {
+		name     string
+		wantForm url.Values
+		config   Config
+	}{
+		{
+			name:     "phone number sender",
+			config:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom},
+			wantForm: url.Values{"To": {testTo}, "Body": {"Test"}, "From": {testFrom}},
+		},
+		{
+			name:     "Messaging Service sender",
+			config:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testMessagingServiceSID},
+			wantForm: url.Values{"To": {testTo}, "Body": {"Test"}, "MessagingServiceSid": {testMessagingServiceSID}},
+		},
+		{
+			name:     "title",
+			config:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom, Title: "Alert"},
+			wantForm: url.Values{"To": {testTo}, "Body": {"Alert\nTest"}, "From": {testFrom}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusCreated, body: messageBody})
+			service := &Service{HTTPClient: client}
+
+			require.NoError(t, service.sendToRecipient(t.Context(), &tt.config, testTo, "Test"))
+
+			require.Len(t, *captured, 1)
+			request := (*captured)[0]
+			assert.Equal(t, http.MethodPost, request.method)
+			assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/"+testAccountSID+"/Messages.json", request.url)
+			assert.Equal(t, contentType, request.contentType)
+			assert.Equal(t, testAccountSID, request.username)
+			assert.Equal(t, "authToken", request.password)
+			assert.Equal(t, tt.wantForm, request.form)
 		})
+	}
+}
 
-		ginkgo.It("should use From for regular phone numbers", func() {
-			mockClient.captureBody = true
+// TestSendToRecipientRedactsUnparsableURL verifies that an account SID that
+// makes the API URL unparsable fails before any request, without the SID in
+// the error.
+func TestSendToRecipientRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
 
-			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastBody).To(gomega.ContainSubstring("From="))
-		})
+	// The mock has no expectations, so a request fails the test.
+	service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
+	config := &Config{AccountSID: "ACSECRETsid%zz", AuthToken: "token", FromNumber: testFrom, ToNumbers: []string{testTo}}
 
-		ginkgo.It("should set Basic Auth header", func() {
-			mockClient.captureHeaders = true
+	err := service.sendToRecipient(t.Context(), config, testTo, "message")
 
-			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "ACSECRETsid")
+}
 
-			username, password, ok := mockClient.lastRequest.BasicAuth()
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(username).To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
-			gomega.Expect(password).To(gomega.Equal("authToken"))
-		})
+// TestParseAPIError verifies that an error response reports the Twilio error
+// message and code from a JSON body, and the status otherwise.
+func TestParseAPIError(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should set the correct Content-Type header", func() {
-			mockClient.captureHeaders = true
+	// tests lists error responses with the text the error should report.
+	tests := []struct {
+		body   io.Reader
+		name   string
+		status string
+		want   []string
+	}{
+		{
+			name:   "Twilio error",
+			status: "400 Bad Request",
+			body:   strings.NewReader(invalidToBody),
+			want:   []string{"The 'To' number +15559876543 is not a valid phone number.", "code 21211"},
+		},
+		{name: "JSON without a message", status: "400 Bad Request", body: strings.NewReader(`{"code":0}`), want: []string{`"400 Bad Request"`}},
+		{name: "not JSON", status: "500 Internal Server Error", body: strings.NewReader("Internal Server Error"), want: []string{`"500 Internal Server Error"`}},
+		{name: "empty body", status: "400 Bad Request", body: strings.NewReader(""), want: []string{`"400 Bad Request"`}},
+		{name: "unreadable body", status: "502 Bad Gateway", body: failingReader{}, want: []string{`"502 Bad Gateway"`, "failed to read body"}},
+	}
 
-			err := service.sendToRecipient(context.Background(), service.Config, "+15559876543", "Test")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mockClient.lastRequest.Header.Get("Content-Type")).
-				To(gomega.Equal(contentType))
-		})
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ginkgo.Describe("parseAPIError", func() {
-		ginkgo.It("should parse a Twilio API error response", func() {
-			res := &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     "400 Bad Request",
-				Body: io.NopCloser(
-					strings.NewReader(
-						`{"code": 21211, "message": "The 'To' number is not a valid phone number.", "status": 400}`,
-					),
-				),
+			err := parseAPIError(&http.Response{Status: tt.status, Body: io.NopCloser(tt.body)})
+
+			require.ErrorIs(t, err, ErrSendFailed)
+
+			for _, want := range tt.want {
+				assert.Contains(t, err.Error(), want)
 			}
-
-			err := parseAPIError(res)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).
-				To(gomega.ContainSubstring("The 'To' number is not a valid phone number."))
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("21211"))
 		})
-
-		ginkgo.It("should handle non-JSON error response", func() {
-			res := &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     "500 Internal Server Error",
-				Body:       io.NopCloser(strings.NewReader("Internal Server Error")),
-			}
-
-			err := parseAPIError(res)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("500"))
-		})
-
-		ginkgo.It("should handle empty body", func() {
-			res := &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     "400 Bad Request",
-				Body:       io.NopCloser(strings.NewReader("")),
-			}
-
-			err := parseAPIError(res)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-})
-
-var _ = ginkgo.Describe("request building", func() {
-	ginkgo.It("should not leak the account SID when the request URL cannot be parsed", func() {
-		service := &Service{
-			// The mock has no expectations, so a request fails the spec.
-			HTTPClient: typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()),
-		}
-		config := &Config{AccountSID: "ACSECRETsid%zz", AuthToken: "token", FromNumber: "+15551234567", ToNumbers: []string{"+15559876543"}}
-
-		err := service.sendToRecipient(context.Background(), config, "+15559876543", "message")
-
-		var urlErr *url.Error
-		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
-		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("ACSECRETsid"))
-	})
-})
+	}
+}
