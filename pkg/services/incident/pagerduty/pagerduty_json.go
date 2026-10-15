@@ -12,10 +12,20 @@ type EventPayload struct {
 	EventAction string `json:"event_action"`
 	// DedupKey is a unique key used for incident deduplication. If not provided, PagerDuty will auto-generate one.
 	DedupKey string `json:"dedup_key,omitempty"`
-	// Details contains additional custom key-value pairs for the incident.
-	Details any `json:"details,omitempty"`
-	// Contexts provides additional context such as links or images related to the incident.
-	Contexts []PagerDutyContext `json:"contexts,omitempty"`
+	// Details is not sent.
+	//
+	// Deprecated: Use [Payload.CustomDetails]. The Events API v2 has no
+	// top-level details field.
+	Details any `json:"-"`
+	// Contexts is not sent.
+	//
+	// Deprecated: Use [EventPayload.Links] and [EventPayload.Images]. The Events
+	// API v2 has no contexts field.
+	Contexts []PagerDutyContext `json:"-"`
+	// Links are text links attached to the incident.
+	Links []Link `json:"links,omitempty"`
+	// Images are images attached to the incident.
+	Images []Image `json:"images,omitempty"`
 	// Client identifies the monitoring client or integration sending the event.
 	Client string `json:"client,omitempty"`
 	// ClientURL is a link to the monitoring client or integration dashboard.
@@ -25,6 +35,8 @@ type EventPayload struct {
 // Payload contains the core information about the incident or event being reported.
 // It includes a summary description, severity level, and the source of the event.
 type Payload struct {
+	// CustomDetails holds additional details about the event and the affected system.
+	CustomDetails any `json:"custom_details,omitempty"`
 	// Summary is a brief description of the incident or event.
 	Summary string `json:"summary"`
 	// Severity indicates the urgency level of the event (e.g., "info", "warning", "error", "critical").
@@ -43,4 +55,22 @@ type PagerDutyContext struct {
 	Src string `json:"src,omitempty"`
 	// Text is the display text for the context.
 	Text string `json:"text,omitempty"`
+}
+
+// Link is a text link attached to an incident.
+type Link struct {
+	// Href is the URL of the link.
+	Href string `json:"href"`
+	// Text describes the link and can be shown as its text.
+	Text string `json:"text,omitempty"`
+}
+
+// Image is an image attached to an incident.
+type Image struct {
+	// Src is the URL of the image, which PagerDuty requires to use HTTPS.
+	Src string `json:"src"`
+	// Href makes the image a link to this URL.
+	Href string `json:"href,omitempty"`
+	// Alt is the alternative text for the image.
+	Alt string `json:"alt,omitempty"`
 }

@@ -249,6 +249,37 @@ func TestSend(t *testing.T) {
 			wantBody: `{"payload":{"summary":"` + strings.Repeat("é", 1024) + `","severity":"error","source":"default"},` +
 				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
 		},
+		{
+			name:    "details as custom details",
+			rawURL:  testServiceURL,
+			message: "API response time degraded",
+			params:  &types.Params{"details": `{"component":"api","response_time":5.2}`},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"API response time degraded","severity":"error","source":"default",` +
+				`"custom_details":{"component":"api","response_time":5.2}},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
+			name:    "JSON contexts as links and images",
+			rawURL:  testServiceURL,
+			message: "CI/CD pipeline failed",
+			params: &types.Params{"contexts": `[{"type":"link","href":"https://ci.example.com/runs/123","text":"CI run"},` +
+				`{"type":"image","src":"https://example.com/failure.png","href":"https://example.com/dashboard","text":"Build failure"}]`},
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"CI/CD pipeline failed","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger",` +
+				`"links":[{"href":"https://ci.example.com/runs/123","text":"CI run"}],` +
+				`"images":[{"src":"https://example.com/failure.png","href":"https://example.com/dashboard","alt":"Build failure"}]}`,
+		},
+		{
+			name:    "comma-separated contexts",
+			rawURL:  testServiceURL + "?contexts=link:https://example.com/logs,text:Ignored,image:https://example.com/graph.png",
+			message: "High CPU usage",
+			wantURL: testEndpoint,
+			wantBody: `{"payload":{"summary":"High CPU usage","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger",` +
+				`"links":[{"href":"https://example.com/logs"}],"images":[{"src":"https://example.com/graph.png"}]}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -300,7 +331,8 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 }
 
 // TestNewEventPayloadOptionalFields verifies that the details prop is parsed
-// as JSON and the contexts prop into link and image contexts.
+// as JSON into the custom details, and the contexts prop into links and
+// images, leaving the deprecated fields unset.
 func TestNewEventPayloadOptionalFields(t *testing.T) {
 	t.Parallel()
 
@@ -308,15 +340,15 @@ func TestNewEventPayloadOptionalFields(t *testing.T) {
 
 	payload, err := service.newEventPayload("message", &types.Params{
 		"details":  `{"key":"value","count":2}`,
-		"contexts": "link:http://example.com,text:Ignored,image:http://example.com/img.png",
+		"contexts": "link:https://example.com,text:Ignored,image:https://example.com/img.png",
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"key": "value", "count": float64(2)}, payload.Details)
-	assert.Equal(t, []PagerDutyContext{
-		{Type: "link", Href: "http://example.com"},
-		{Type: "image", Src: "http://example.com/img.png"},
-	}, payload.Contexts)
+	assert.Equal(t, map[string]any{"key": "value", "count": float64(2)}, payload.Payload.CustomDetails)
+	assert.Equal(t, []Link{{Href: "https://example.com"}}, payload.Links)
+	assert.Equal(t, []Image{{Src: "https://example.com/img.png"}}, payload.Images)
+	assert.Nil(t, payload.Details)
+	assert.Nil(t, payload.Contexts)
 }
 
 // TestSendRejectsInvalidEvents verifies that a send rejects params that make
@@ -334,7 +366,11 @@ func TestSendRejectsInvalidEvents(t *testing.T) {
 		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid severity", params: &types.Params{"severity": "fatal"}, wantErr: errInvalidSeverity},
 		{name: "invalid action", params: &types.Params{"action": "escalate"}, wantErr: errInvalidEventAction},
-		{name: "details not JSON", params: &types.Params{"details": "key=value"}},
+		{name: "details not JSON", params: &types.Params{"details": "key=value"}, wantErr: errInvalidDetails},
+		{name: "details array", params: &types.Params{"details": `["a","b"]`}, wantErr: errInvalidDetails},
+		{name: "details string", params: &types.Params{"details": `"disk full"`}, wantErr: errInvalidDetails},
+		{name: "details number", params: &types.Params{"details": "42"}, wantErr: errInvalidDetails},
+		{name: "details null", params: &types.Params{"details": "null"}, wantErr: errInvalidDetails},
 		{name: "invalid contexts", params: &types.Params{"contexts": "link"}, wantErr: errInvalidContextFormat},
 	}
 

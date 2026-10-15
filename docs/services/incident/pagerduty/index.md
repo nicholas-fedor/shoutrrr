@@ -125,7 +125,8 @@ The PagerDuty service supports the following parameters to customize incident cr
 
 #### Details Parameter
 
-The `details` parameter accepts a JSON object with custom key-value pairs:
+The `details` parameter accepts a JSON object with custom key-value pairs.
+Shoutrrr sends it as the event's `payload.custom_details`:
 
 ```json
 {
@@ -139,6 +140,9 @@ The `details` parameter accepts a JSON object with custom key-value pairs:
 #### Contexts Parameter
 
 The `contexts` parameter accepts a JSON array of context objects. Each context must have a `type` field. Only `link` and `image` types are supported.
+Shoutrrr sends link contexts in the event's `links` array and image contexts in its `images` array.
+A context's `text` becomes the link text or the image's alternative text.
+PagerDuty requires image sources to use HTTPS.
 
 **Link contexts:**
 
