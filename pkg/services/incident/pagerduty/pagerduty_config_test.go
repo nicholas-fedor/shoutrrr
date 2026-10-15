@@ -31,7 +31,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigSetURL verifies that SetURL reads the integration key from the
-// path, the host and port when present, and the event props from the query.
+// path, the host and port with the PagerDuty events host and port 443 as
+// defaults, and the event props from the query.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -41,6 +42,16 @@ func TestConfigSetURL(t *testing.T) {
 		rawURL string
 		want   Config
 	}{
+		{
+			name:   "default host and port",
+			rawURL: "pagerduty:///" + testIntegrationKey,
+			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey},
+		},
+		{
+			name:   "host without a port",
+			rawURL: "pagerduty://events.eu.pagerduty.com/" + testIntegrationKey,
+			want:   Config{Host: "events.eu.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey},
+		},
 		{
 			name:   "host, port, and integration key",
 			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey,
@@ -136,35 +147,78 @@ func TestConfigSetURLErrors(t *testing.T) {
 }
 
 // TestConfigGetURL verifies that GetURL writes the integration key as the
-// path, the port when set, and the event props that differ from their
-// defaults as the query, and round-trips through SetURL.
+// path, the port unless it is unset or the default 443, and the event props
+// that differ from their defaults as the query, and round-trips through
+// SetURL.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	t.Run("without a port", func(t *testing.T) {
-		t.Parallel()
+	// portTests lists ports with the URL GetURL should write for them.
+	portTests := []struct {
+		name string
+		want string
+		port uint16
+	}{
+		{name: "unset port", port: 0, want: "pagerduty://events.pagerduty.com/" + testIntegrationKey},
+		{name: "default port", port: 443, want: "pagerduty://events.pagerduty.com/" + testIntegrationKey},
+		{name: "custom port", port: 12345, want: "pagerduty://events.pagerduty.com:12345/" + testIntegrationKey},
+	}
 
-		config := &Config{
-			Host:           "events.pagerduty.com",
-			IntegrationKey: testIntegrationKey,
-			Severity:       "error",
-			Source:         "default",
-			Action:         "trigger",
-		}
+	for _, tt := range portTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		assert.Equal(t, "pagerduty://events.pagerduty.com/"+testIntegrationKey, config.GetURL().String())
-	})
+			config := &Config{
+				Host:           "events.pagerduty.com",
+				Port:           tt.port,
+				IntegrationKey: testIntegrationKey,
+				Severity:       "error",
+				Source:         "default",
+				Action:         "trigger",
+			}
 
-	t.Run("round trip", func(t *testing.T) {
-		t.Parallel()
+			assert.Equal(t, tt.want, config.GetURL().String())
+		})
+	}
 
-		rawURL := "pagerduty://events.pagerduty.com:443/" + testIntegrationKey +
-			"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1"
-		config := &Config{}
-		require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
+	// roundTrips lists service URLs with the URL GetURL should write after
+	// SetURL reads them into a config with the default props.
+	roundTrips := []struct {
+		name   string
+		rawURL string
+		want   string
+	}{
+		{
+			name: "event props",
+			rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey +
+				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1",
+			want: "pagerduty://events.pagerduty.com/" + testIntegrationKey +
+				"?action=resolve&client=my-monitor&client_url=https%3A%2F%2Fexample.com&dedup_key=disk-db1&severity=critical&source=db1",
+		},
+		{
+			name:   "default host and port",
+			rawURL: "pagerduty:///" + testIntegrationKey + "?severity=critical",
+			want:   "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?severity=critical",
+		},
+		{
+			name:   "explicit default port",
+			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey + "?severity=critical",
+			want:   "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?severity=critical",
+		},
+	}
 
-		assert.Equal(t, rawURL, config.GetURL().String())
-	})
+	for _, tt := range roundTrips {
+		t.Run("round trip "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			resolver := format.NewPropKeyResolver(config)
+			require.NoError(t, resolver.SetDefaultProps(config))
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.want, config.GetURL().String())
+		})
+	}
 }
 
 // TestConfigQueryResolver verifies the config's query props: an unknown key
