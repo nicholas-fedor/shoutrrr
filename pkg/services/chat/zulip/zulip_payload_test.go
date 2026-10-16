@@ -1,209 +1,115 @@
 package zulip
 
 import (
-	"github.com/onsi/gomega"
+	"net/url"
+	"testing"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("CreatePayload", func() {
-	ginkgo.It("should create payload with type set to channel by default", func() {
-		cfg := &Config{
-			Stream: "general",
-		}
+// TestCreatePayload verifies the form fields for a channel message, with the
+// channel as the recipient and an optional topic, and for a direct message,
+// with a JSON list of recipient e-mail addresses and no topic.
+func TestCreatePayload(t *testing.T) {
+	t.Parallel()
 
-		payload := CreatePayload(cfg, "test message")
+	// tests lists configs with the form each should produce for the message.
+	tests := []struct {
+		name    string
+		message string
+		config  Config
+		want    url.Values
+	}{
+		{
+			name:    "channel by default",
+			config:  Config{Stream: "general"},
+			message: "Hello",
+			want:    url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+		},
+		{
+			name:    "channel with a topic",
+			config:  Config{Type: MessageTypeChannel, Stream: "general", Topic: "alerts"},
+			message: "Hello",
+			want:    url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
+		},
+		{
+			name:    "empty channel and message",
+			config:  Config{},
+			message: "",
+			want:    url.Values{"type": {"channel"}, "to": {""}, "content": {""}},
+		},
+		{
+			name:    "read by sender",
+			config:  Config{Stream: "general", ReadBySender: true},
+			message: "Hello",
+			want:    url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}, "read_by_sender": {"true"}},
+		},
+		{
+			name:    "direct message",
+			config:  Config{Type: MessageTypeDirect, To: " alice@example.com, ,bob@example.com ", Topic: "alerts", Stream: "general"},
+			message: "Hello",
+			want:    url.Values{"type": {"direct"}, "to": {`["alice@example.com","bob@example.com"]`}, "content": {"Hello"}},
+		},
+		{
+			name:    "direct message to the stream recipients",
+			config:  Config{Type: MessageTypeDirect, Stream: "alice@example.com"},
+			message: "Hello",
+			want:    url.Values{"type": {"direct"}, "to": {`["alice@example.com"]`}, "content": {"Hello"}},
+		},
+	}
 
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("channel"))
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ginkgo.It("should set the to field from config stream for channel", func() {
-		cfg := &Config{
-			Stream: "general",
-		}
+			payload := CreatePayload(&tt.config, tt.message)
 
-		payload := CreatePayload(cfg, "test message")
+			assert.Equal(t, tt.want, payload)
 
-		gomega.Expect(payload.Get("to")).To(gomega.Equal("general"))
-	})
+			decoded, err := url.ParseQuery(payload.Encode())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, decoded)
+		})
+	}
+}
 
-	ginkgo.It("should set the content field from the message", func() {
-		cfg := &Config{
-			Stream: "general",
-		}
+// TestParseRecipients verifies that a comma-separated list is split and
+// trimmed, with empty entries dropped.
+func TestParseRecipients(t *testing.T) {
+	t.Parallel()
 
-		payload := CreatePayload(cfg, "Hello, World!")
+	// tests lists recipient lists with the recipients each should produce.
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "empty", raw: "", want: []string{}},
+		{name: "only separators", raw: " , ,", want: []string{}},
+		{name: "one", raw: "alice@example.com", want: []string{"alice@example.com"}},
+		{name: "several", raw: " alice@example.com ,bob@example.com,, ", want: []string{"alice@example.com", "bob@example.com"}},
+	}
 
-		gomega.Expect(payload.Get("content")).To(gomega.Equal("Hello, World!"))
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ginkgo.It("should include topic when config topic is set", func() {
-		cfg := &Config{
-			Stream: "general",
-			Topic:  "announcements",
-		}
+			assert.Equal(t, tt.want, parseRecipients(tt.raw))
+		})
+	}
+}
 
-		payload := CreatePayload(cfg, "test message")
+// TestValidateMessageType verifies that channel, direct, and an empty type
+// are accepted and that any other type is rejected.
+func TestValidateMessageType(t *testing.T) {
+	t.Parallel()
 
-		gomega.Expect(payload.Get("topic")).To(gomega.Equal("announcements"))
-	})
+	for _, valid := range []MessageType{MessageTypeChannel, MessageTypeDirect, ""} {
+		require.NoError(t, ValidateMessageType(valid), valid)
+	}
 
-	ginkgo.It("should omit topic when config topic is empty", func() {
-		cfg := &Config{
-			Stream: "general",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("topic")).To(gomega.BeEmpty())
-	})
-
-	ginkgo.It("should handle empty stream name", func() {
-		cfg := &Config{}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("channel"))
-		gomega.Expect(payload.Get("to")).To(gomega.BeEmpty())
-		gomega.Expect(payload.Get("content")).To(gomega.Equal("test message"))
-	})
-
-	ginkgo.It("should handle empty message", func() {
-		cfg := &Config{
-			Stream: "general",
-		}
-
-		payload := CreatePayload(cfg, "")
-
-		gomega.Expect(payload.Get("content")).To(gomega.BeEmpty())
-	})
-
-	ginkgo.It("should produce url.Values that can be encoded", func() {
-		cfg := &Config{
-			Stream: "general",
-			Topic:  "announcements",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Encode()).To(gomega.ContainSubstring("type=channel"))
-		gomega.Expect(payload.Encode()).To(gomega.ContainSubstring("to=general"))
-		gomega.Expect(payload.Encode()).To(gomega.ContainSubstring("content=test+message"))
-		gomega.Expect(payload.Encode()).To(gomega.ContainSubstring("topic=announcements"))
-	})
-
-	ginkgo.It("should use type=direct and JSON array for to when direct message", func() {
-		cfg := &Config{
-			Type: MessageTypeDirect,
-			To:   "user1@example.com,user2@example.com",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
-		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["user1@example.com","user2@example.com"]`))
-		gomega.Expect(payload.Get("content")).To(gomega.Equal("test message"))
-	})
-
-	ginkgo.It("should fall back to stream for direct message recipients if to is empty", func() {
-		cfg := &Config{
-			Type:   MessageTypeDirect,
-			Stream: "user@example.com",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
-		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["user@example.com"]`))
-	})
-
-	ginkgo.It("should omit topic for direct messages even when set in config", func() {
-		cfg := &Config{
-			Type:  MessageTypeDirect,
-			To:    "user@example.com",
-			Topic: "should be omitted",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("topic")).To(gomega.BeEmpty())
-	})
-
-	ginkgo.It("should include read_by_sender when true", func() {
-		cfg := &Config{
-			Stream:       "general",
-			ReadBySender: true,
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("read_by_sender")).To(gomega.Equal("true"))
-	})
-
-	ginkgo.It("should not include read_by_sender when false", func() {
-		cfg := &Config{
-			Stream:       "general",
-			ReadBySender: false,
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("read_by_sender")).To(gomega.BeEmpty())
-	})
-
-	ginkgo.It("should use explicit channel type", func() {
-		cfg := &Config{
-			Type:   MessageTypeChannel,
-			Stream: "foo",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("channel"))
-		gomega.Expect(payload.Get("to")).To(gomega.Equal("foo"))
-	})
-
-	ginkgo.It("should serialize numeric recipient IDs as JSON strings for direct messages", func() {
-		cfg := &Config{
-			Type: MessageTypeDirect,
-			To:   "123,456",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
-		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["123","456"]`))
-	})
-
-	ginkgo.It("should fall back to stream for numeric recipient IDs when to is empty", func() {
-		cfg := &Config{
-			Type:   MessageTypeDirect,
-			Stream: "789",
-		}
-
-		payload := CreatePayload(cfg, "test message")
-
-		gomega.Expect(payload.Get("type")).To(gomega.Equal("direct"))
-		gomega.Expect(payload.Get("to")).To(gomega.Equal(`["789"]`))
-	})
-})
-
-var _ = ginkgo.Describe("ValidateMessageType", func() {
-	ginkgo.It("should accept channel type", func() {
-		gomega.Expect(ValidateMessageType(MessageTypeChannel)).To(gomega.Succeed())
-	})
-
-	ginkgo.It("should accept direct type", func() {
-		gomega.Expect(ValidateMessageType(MessageTypeDirect)).To(gomega.Succeed())
-	})
-
-	ginkgo.It("should accept empty type", func() {
-		gomega.Expect(ValidateMessageType(MessageType(""))).To(gomega.Succeed())
-	})
-
-	ginkgo.It("should reject invalid type", func() {
-		err := ValidateMessageType(MessageType("invalid"))
-		gomega.Expect(err).To(gomega.HaveOccurred())
-		gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid message type"))
-	})
-})
+	for _, invalid := range []MessageType{"group", "topic"} {
+		require.ErrorIs(t, ValidateMessageType(invalid), ErrInvalidMessageType, invalid)
+	}
+}
