@@ -68,13 +68,29 @@ func parseRecipients(pathParts []string) ([]string, error) {
 		recipients = append(recipients, currentGroupID.String())
 	}
 
-	for _, recipient := range recipients {
-		if !isValidRecipient(recipient) {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidRecipient, recipient)
-		}
+	if err := validateRecipients(recipients); err != nil {
+		return nil, err
 	}
 
 	return recipients, nil
+}
+
+// validateRecipients checks that every recipient is a phone number, group ID,
+// or username.
+//
+// Parameters:
+//   - recipients: the recipients to check.
+//
+// Returns:
+//   - error: [ErrInvalidRecipient] naming the first invalid recipient, or nil.
+func validateRecipients(recipients []string) error {
+	for _, recipient := range recipients {
+		if !isValidRecipient(recipient) {
+			return fmt.Errorf("%w: %s", ErrInvalidRecipient, recipient)
+		}
+	}
+
+	return nil
 }
 
 // batchRecipients splits recipients so each /v2/send payload is a single REST API type.

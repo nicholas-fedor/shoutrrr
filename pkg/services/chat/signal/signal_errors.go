@@ -12,4 +12,6 @@ var (
 	ErrInvalidRecipient = errors.New("invalid recipient: must be phone number, group ID, or username")
 	// ErrSendFailed indicates a failure to send a Signal message.
 	ErrSendFailed = errors.New("failed to send Signal message")
+	// ErrRecipientsFailed indicates that the API accepted a send but could not deliver it to some recipients.
+	ErrRecipientsFailed = errors.New("delivery failed for recipients")
 )

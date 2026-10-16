@@ -23,8 +23,11 @@ import (
 const (
 	contentType        = "application/json"
 	defaultHTTPTimeout = 30 * time.Second
-	// maxResponseBodySize caps how much of a /v2/send body we buffer.
-	maxResponseBodySize = 4 * 1024
+	// maxResponseBodySize caps how much of a /v2/send body is read. It holds
+	// the failed recipients of a send to a full Signal group.
+	maxResponseBodySize = 1 << 20
+	// maxErrorBodySize caps how much of a plain error body goes into an error.
+	maxErrorBodySize = 4 * 1024
 )
 
 // buildAPIURL constructs the Signal API endpoint URL from the configuration.
@@ -116,50 +119,78 @@ func (s *Service) newHTTPClient(skipTLSVerify bool) types.HTTPClient {
 	}
 }
 
-// parseResponse logs the success timestamp from the Signal API body.
+// handleSendResults logs the timestamp of each send result in a successful
+// response and reports the recipients the sends could not reach. A response
+// that cannot be read is logged, because the API accepted the message.
 //
 // Parameters:
-//   - body: the raw response body
-func (s *Service) parseResponse(body []byte) {
-	timestamp, err := parseTimestamp(body)
+//   - body: the raw response body.
+//
+// Returns:
+//   - error: [ErrSendFailed] wrapping [ErrRecipientsFailed] with each failed
+//     recipient and its reason, or nil.
+func (s *Service) handleSendResults(body []byte) error {
+	results, err := parseSendResults(body)
 	if err != nil {
 		s.Logf("Warning: failed to parse response: %v", err)
 
-		return
+		return nil
 	}
 
-	s.Logf("Message sent successfully at timestamp %d", timestamp)
+	var failed []string
+
+	for _, result := range results {
+		if result.Errors != nil && len(result.Errors.Recipients) > 0 {
+			for _, failure := range result.Errors.Recipients {
+				failed = append(failed, failure.describe())
+			}
+
+			continue
+		}
+
+		if result.Timestamp == nil {
+			s.Log("Warning: response has no timestamp")
+
+			continue
+		}
+
+		s.Logf("Message sent successfully at timestamp %d", *result.Timestamp)
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("%w: %w: %s", ErrSendFailed, ErrRecipientsFailed, strings.Join(failed, ", "))
+	}
+
+	return nil
 }
 
-// parseTimestamp reads a numeric or quoted JSON timestamp from a 2xx body.
+// parseSendResults reads the send results from a successful response: an
+// array with one result per signal-cli send, or a single result object.
 //
 // Parameters:
-//   - body: the raw response body
+//   - body: the raw response body.
 //
 // Returns:
-//   - int64: the timestamp value
-//   - error: if neither form can be parsed
-func parseTimestamp(body []byte) (int64, error) {
-	var numeric struct {
-		Timestamp *int64 `json:"timestamp"`
-	}
-	if err := json.Unmarshal(body, &numeric); err == nil && numeric.Timestamp != nil {
-		return *numeric.Timestamp, nil
+//   - []sendResult: the send results.
+//   - error: when the body is neither form.
+func parseSendResults(body []byte) ([]sendResult, error) {
+	body = bytes.TrimSpace(body)
+
+	if len(body) > 0 && body[0] == '{' {
+		var result sendResult
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, fmt.Errorf("decoding send result: %w", err)
+		}
+
+		return []sendResult{result}, nil
 	}
 
-	var quoted struct {
-		Timestamp string `json:"timestamp"`
-	}
-	if err := json.Unmarshal(body, &quoted); err != nil {
-		return 0, fmt.Errorf("decoding timestamp: %w", err)
+	var results []sendResult
+	if err := json.Unmarshal(body, &results); err != nil {
+		return nil, fmt.Errorf("decoding send results: %w", err)
 	}
 
-	n, err := strconv.ParseInt(quoted.Timestamp, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parsing timestamp %q: %w", quoted.Timestamp, err)
-	}
-
-	return n, nil
+	return results, nil
 }
 
 // sendRequest executes the HTTP request and processes the response.
@@ -169,7 +200,9 @@ func parseTimestamp(body []byte) (int64, error) {
 //   - config: the per-send configuration used to select the HTTP client
 //
 // Returns:
-//   - error: if the request fails or returns a non-success status, nil otherwise
+//   - error: if the request fails, returns a non-success status, or reports
+//     recipients it could not reach, nil otherwise. A success response beyond
+//     [maxResponseBodySize] is logged without checking its recipient results.
 func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	client := s.httpClientFor(config)
 
@@ -194,9 +227,15 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 		return formatSendError(resp.StatusCode, body, truncated)
 	}
 
-	s.parseResponse(body)
+	// The API accepted the message, but a cut body cannot be read for the
+	// per-recipient results.
+	if truncated {
+		s.Logf("Warning: response exceeds %d bytes, so the recipient results were not checked", maxResponseBodySize)
 
-	return nil
+		return nil
+	}
+
+	return s.handleSendResults(body)
 }
 
 // httpClientFor returns the client for this send.
@@ -242,10 +281,11 @@ func (s *Service) setAuthentication(req *http.Request, config *Config) {
 // Parameters:
 //   - statusCode: the HTTP status code
 //   - body: the raw response body
-//   - truncated: whether the body was cut at maxResponseBodySize
+//   - truncated: whether the body was cut at [maxResponseBodySize]
 //
 // Returns:
-//   - error: ErrSendFailed wrapped with status and API details
+//   - error: ErrSendFailed wrapped with status and API details, or with the
+//     trimmed body cut at [maxErrorBodySize]
 func formatSendError(statusCode int, body []byte, truncated bool) error {
 	suffix := ""
 	if truncated {
@@ -277,12 +317,18 @@ func formatSendError(statusCode int, body []byte, truncated bool) error {
 		return fmt.Errorf("%w: server returned status %d: %s%s", ErrSendFailed, statusCode, apiErr.Error, suffix)
 	}
 
+	body = bytes.TrimSpace(body)
+	if len(body) > maxErrorBodySize {
+		body = body[:maxErrorBodySize]
+		suffix = " [truncated]"
+	}
+
 	if len(body) > 0 {
 		return fmt.Errorf(
 			"%w: server returned status %d: %s%s",
 			ErrSendFailed,
 			statusCode,
-			bytes.TrimSpace(body),
+			body,
 			suffix,
 		)
 	}

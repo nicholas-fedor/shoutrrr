@@ -176,43 +176,38 @@ func TestConfigSetURLErrors(t *testing.T) {
 }
 
 // TestConfigGetURL verifies that GetURL writes the credentials, host, port,
-// source, and recipients back into the URL, and round-trips through SetURL.
+// source, and recipients into the URL authority and path, and only the other
+// settings that differ from their defaults into the query, and that the URL
+// round-trips through SetURL.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	// tests lists service URLs with the parts GetURL should write for them.
+	// tests lists service URLs with the URL GetURL should write for them.
 	tests := []struct {
-		name     string
-		rawURL   string
-		wantUser string
-		wantHost string
-		wantPath string
+		name   string
+		rawURL string
+		want   string
 	}{
+		{name: "phone number", rawURL: testServiceURL, want: testServiceURL},
 		{
-			name:     "phone number",
-			rawURL:   testServiceURL,
-			wantHost: "localhost:8080",
-			wantPath: "/" + testSource + "/" + testRecipient,
+			name:   "every setting",
+			rawURL: "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?token=tok&title=Alert&textmode=styled&notifyself=no&disabletls=yes&skiptlsverify=yes&attachments=aGVsbG8%3D",
+			want:   "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?attachments=aGVsbG8%3D&disabletls=Yes&notifyself=No&skiptlsverify=Yes&textmode=Styled&title=Alert&token=tok",
 		},
 		{
-			name:     "every setting",
-			rawURL:   "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?token=tok&title=Alert&textmode=styled&notifyself=no&disabletls=yes&skiptlsverify=yes&attachments=aGVsbG8%3D",
-			wantUser: "user:pass",
-			wantHost: "myserver:9999",
-			wantPath: "/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01",
+			name:   "user without a password",
+			rawURL: "signal://user@localhost:8080/" + testSource + "/" + testRecipient,
+			want:   "signal://user@localhost:8080/" + testSource + "/" + testRecipient,
 		},
 		{
-			name:     "user without a password",
-			rawURL:   "signal://user@localhost:8080/" + testSource + "/" + testRecipient,
-			wantUser: "user",
-			wantHost: "localhost:8080",
-			wantPath: "/" + testSource + "/" + testRecipient,
+			name:   "IPv6 host",
+			rawURL: "signal://[::1]:9999/" + testSource + "/" + testRecipient,
+			want:   "signal://[::1]:9999/" + testSource + "/" + testRecipient,
 		},
 		{
-			name:     "IPv6 host",
-			rawURL:   "signal://[::1]:9999/" + testSource + "/" + testRecipient,
-			wantHost: "[::1]:9999",
-			wantPath: "/" + testSource + "/" + testRecipient,
+			name:   "recipients from the query",
+			rawURL: testServiceURL + "?to=%2B15559876543,u:alice.01",
+			want:   "signal://localhost:8080/" + testSource + "/+15559876543/u:alice.01",
 		},
 	}
 
@@ -224,11 +219,7 @@ func TestConfigGetURL(t *testing.T) {
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
 			serviceURL := config.GetURL()
-
-			assert.Equal(t, Scheme, serviceURL.Scheme)
-			assert.Equal(t, tt.wantUser, serviceURL.User.String())
-			assert.Equal(t, tt.wantHost, serviceURL.Host)
-			assert.Equal(t, tt.wantPath, serviceURL.Path)
+			assert.Equal(t, tt.want, serviceURL.String())
 
 			roundTrip := newDefaultConfig(t)
 			require.NoError(t, roundTrip.SetURL(serviceURL))

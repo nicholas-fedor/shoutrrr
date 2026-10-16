@@ -40,6 +40,8 @@ Recipients can be:
 - __Group IDs__: In the format `group.groupId`. A group ID can contain `/`, so it may span several path segments. It ends at the next phone number (`+...`), username (`u:...`), or group ID (`group....`).
 - __Usernames__: In the format `u:nickname.123`
 
+Recipients set with the `recipients` (or `to`) query or send param are comma-separated and must use the same formats.
+
 !!! Important
     The Signal API rejects mixed recipient types in a single `/v2/send` request.
     Shoutrrr splits them: all phone numbers go in one request, all usernames in another, and each group in its own request.
@@ -146,3 +148,5 @@ Shoutrrr's Signal service sends messages using POST requests to the Signal API s
 Requests use HTTPS by default and HTTP only when TLS is disabled.
 The JSON payload contains the message, source number, recipient list, and optional `text_mode`, `notify_self`, and `base64_attachments`.
 The API server handles the actual Signal protocol communication.
+A successful response lists the result of each send.
+If it reports recipients that Signal could not reach, such as unregistered numbers, the send returns an error that names each recipient and the failure reason.
