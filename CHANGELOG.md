@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github.com/google/pprof digest to 1facf8f by @renovate[bot] in [#1624](https://github.com/nicholas-fedor/shoutrrr/pull/1624)
 - Update emqx/emqx:latest docker digest to a2dc773 by @renovate[bot] in [#1621](https://github.com/nicholas-fedor/shoutrrr/pull/1621)
 - Update dependency platformdirs to v4.13.3 by @renovate[bot] in [#1611](https://github.com/nicholas-fedor/shoutrrr/pull/1611)
 - Update dependency platformdirs to v4.13.2 by @renovate[bot] in [#1609](https://github.com/nicholas-fedor/shoutrrr/pull/1609)
