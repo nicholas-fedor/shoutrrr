@@ -201,8 +201,9 @@ func parseSendResults(body []byte) ([]sendResult, error) {
 //
 // Returns:
 //   - error: if the request fails, returns a non-success status, or reports
-//     recipients it could not reach, nil otherwise. A success response beyond
-//     [maxResponseBodySize] is logged without checking its recipient results.
+//     recipients it could not reach, nil otherwise. A success response that
+//     fails to read or exceeds [maxResponseBodySize] is logged without
+//     checking its recipient results.
 func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	client := s.httpClientFor(config)
 
@@ -213,8 +214,16 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
+	accepted := resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
+		if accepted {
+			s.Logf("Warning: failed to read response body, so the recipient results were not checked: %v", err)
+
+			return nil
+		}
+
 		return fmt.Errorf("reading response body: %w", err)
 	}
 
@@ -223,7 +232,7 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 		body = body[:maxResponseBodySize]
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if !accepted {
 		return formatSendError(resp.StatusCode, body, truncated)
 	}
 

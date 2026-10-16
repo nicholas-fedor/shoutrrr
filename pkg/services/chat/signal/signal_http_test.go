@@ -11,9 +11,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
@@ -286,6 +288,60 @@ func TestSendLargeResponse(t *testing.T) {
 		require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
 		assert.Equal(t, "Warning: response exceeds 1048576 bytes, so the recipient results were not checked\n", logs.String())
 	})
+}
+
+// TestSendBodyReadError verifies that a body that fails to read after a
+// success status is logged without failing the send, because the API accepted
+// the message, while after an error status the read error fails the send.
+func TestSendBodyReadError(t *testing.T) {
+	t.Parallel()
+
+	errRead := errors.New("connection reset")
+
+	// tests lists response statuses with whether the send should fail.
+	tests := []struct {
+		name       string
+		wantLog    string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:       "success status",
+			statusCode: http.StatusCreated,
+			wantLog:    "Warning: failed to read response body, so the recipient results were not checked: connection reset\n",
+		},
+		{name: "error status", statusCode: http.StatusBadRequest, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+			client := mocks.NewMockHTTPClient(t)
+			client.EXPECT().Do(mock.Anything).Return(&http.Response{
+				StatusCode: tt.statusCode,
+				Body:       io.NopCloser(iotest.ErrReader(errRead)),
+			}, nil).Once()
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "Hello", nil)
+
+			if tt.wantErr {
+				require.ErrorIs(t, err, errRead)
+				assert.Empty(t, logs.String())
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantLog, logs.String())
+		})
+	}
 }
 
 // TestRecipientFailureDescribe verifies that a failed recipient is named by
