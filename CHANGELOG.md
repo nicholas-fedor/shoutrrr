@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the notifiarr tests from ginkgo to testify by @nicholas-fedor in [#1615](https://github.com/nicholas-fedor/shoutrrr/pull/1615)
 - Migrate the xmpp tests from ginkgo to testify by @nicholas-fedor in [#1613](https://github.com/nicholas-fedor/shoutrrr/pull/1613)
 - Migrate the twilio tests from ginkgo to testify by @nicholas-fedor in [#1607](https://github.com/nicholas-fedor/shoutrrr/pull/1607)
 - Migrate the incident and specialized service tests to testify by @nicholas-fedor in [#1596](https://github.com/nicholas-fedor/shoutrrr/pull/1596)
