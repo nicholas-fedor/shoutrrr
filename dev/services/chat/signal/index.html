@@ -3149,6 +3149,7 @@ This is useful for <a href="https://github.com/codeshelldev/secured-signal-api">
 <li><strong>Group IDs</strong>: In the format <code>group.groupId</code>. A group ID can contain <code>/</code>, so it may span several path segments. It ends at the next phone number (<code>+...</code>), username (<code>u:...</code>), or group ID (<code>group....</code>).</li>
 <li><strong>Usernames</strong>: In the format <code>u:nickname.123</code></li>
 </ul>
+<p>Recipients set with the <code>recipients</code> (or <code>to</code>) query or send param are comma-separated and must use the same formats.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p>The Signal API rejects mixed recipient types in a single <code>/v2/send</code> request.
@@ -3220,7 +3221,9 @@ A <code>data:</code> URI must be sent as a single value.</p>
 <p>Shoutrrr's Signal service sends messages using POST requests to the Signal API server's <code>/v2/send</code> endpoint.
 Requests use HTTPS by default and HTTP only when TLS is disabled.
 The JSON payload contains the message, source number, recipient list, and optional <code>text_mode</code>, <code>notify_self</code>, and <code>base64_attachments</code>.
-The API server handles the actual Signal protocol communication.</p>
+The API server handles the actual Signal protocol communication.
+A successful response lists the result of each send.
+If it reports recipients that Signal could not reach, such as unregistered numbers, the send returns an error that names each recipient and the failure reason.</p>
 
 
 
@@ -3243,7 +3246,7 @@ The API server handles the actual Signal protocol communication.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 15:54:51 UTC"><span class="timeago" datetime="2026-10-10T15:54:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 15:54:51 UTC">2026-10-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 16, 2026 04:29:58 UTC"><span class="timeago" datetime="2026-10-16T04:29:58+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 16, 2026 04:29:58 UTC">2026-10-16</span>
   </span>
 
     
