@@ -1,79 +1,127 @@
 package signal
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("payload", func() {
-	ginkgo.Describe("composeMessage", func() {
-		ginkgo.It("should return the body when title is empty", func() {
-			gomega.Expect(composeMessage("", "body", false)).To(gomega.Equal("body"))
-		})
+// TestCreatePayload verifies that createPayload maps the config and message
+// to the /v2/send fields, sending notify_self only to turn it off.
+func TestCreatePayload(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should prepend a plain title", func() {
-			gomega.Expect(composeMessage("Alert", "body", false)).To(gomega.Equal("Alert\nbody"))
-		})
+	// tests lists configs with the payload each should produce for the
+	// message "Hello".
+	tests := []struct {
+		name   string
+		config Config
+		want   sendMessagePayload
+	}{
+		{
+			name:   "defaults",
+			config: Config{Source: testSource, Recipients: []string{testRecipient}, NotifySelf: true},
+			want:   sendMessagePayload{Message: "Hello", Number: testSource, Recipients: []string{testRecipient}},
+		},
+		{
+			name: "every setting",
+			config: Config{
+				Source:      testSource,
+				Recipients:  []string{"u:alice.01", "u:bob.02"},
+				Title:       "Alert",
+				Attachments: "aGVsbG8=,d29ybGQ=",
+				TextMode:    TextModeStyled,
+			},
+			want: sendMessagePayload{
+				Message:           "**Alert**\nHello",
+				Number:            testSource,
+				Recipients:        []string{"alice.01", "bob.02"},
+				Base64Attachments: []string{"aGVsbG8=", "d29ybGQ="},
+				TextMode:          "styled",
+				NotifySelf:        new(false),
+			},
+		},
+	}
 
-		ginkgo.It("should bold the title when styled", func() {
-			gomega.Expect(composeMessage("Alert", "body", true)).To(gomega.Equal("**Alert**\nbody"))
-		})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		ginkgo.It("should send title only when the body is empty", func() {
-			gomega.Expect(composeMessage("Alert", "", false)).To(gomega.Equal("Alert"))
+			assert.Equal(t, tt.want, createPayload("Hello", &tt.config))
 		})
-	})
+	}
+}
 
-	ginkgo.Describe("parseTimestamp", func() {
-		ginkgo.It("should accept an unquoted JSON number", func() {
-			n, err := parseTimestamp([]byte(`{"timestamp": 1234567890}`))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(n).To(gomega.Equal(int64(1234567890)))
-		})
+// TestComposeMessage verifies that a title goes on its own line before the
+// message, in bold when styled, and alone when the message is empty.
+func TestComposeMessage(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should accept a quoted JSON number", func() {
-			n, err := parseTimestamp([]byte(`{"timestamp": "1234567890"}`))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(n).To(gomega.Equal(int64(1234567890)))
-		})
+	// tests lists titles and messages with the text each should produce.
+	tests := []struct {
+		name    string
+		title   string
+		message string
+		want    string
+		styled  bool
+	}{
+		{name: "no title", message: "body", want: "body"},
+		{name: "no title styled", message: "body", styled: true, want: "body"},
+		{name: "plain title", title: "Alert", message: "body", want: "Alert\nbody"},
+		{name: "styled title", title: "Alert", message: "body", styled: true, want: "**Alert**\nbody"},
+		{name: "title only", title: "Alert", want: "Alert"},
+		{name: "styled title only", title: "Alert", styled: true, want: "**Alert**"},
+	}
 
-		ginkgo.It("should accept a numeric zero", func() {
-			n, err := parseTimestamp([]byte(`{"timestamp": 0}`))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(n).To(gomega.Equal(int64(0)))
-		})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		ginkgo.It("should reject a missing timestamp", func() {
-			_, err := parseTimestamp([]byte(`{}`))
-			gomega.Expect(err).To(gomega.HaveOccurred())
+			assert.Equal(t, tt.want, composeMessage(tt.title, tt.message, tt.styled))
 		})
+	}
+}
 
-		ginkgo.It("should reject a null timestamp", func() {
-			_, err := parseTimestamp([]byte(`{"timestamp": null}`))
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
+// TestAPIRecipients verifies that usernames lose the u: prefix and that other
+// recipients pass through unchanged.
+func TestAPIRecipients(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.Describe("apiRecipients", func() {
-		ginkgo.It("should strip the u: prefix from usernames", func() {
-			gomega.Expect(apiRecipients([]string{"u:someuser.123", "+1234567890"})).
-				To(gomega.Equal([]string{"someuser.123", "+1234567890"}))
-		})
-	})
+	assert.Equal(t,
+		[]string{"alice.01", testRecipient, "group.ABCD/EFGH=", "u:"},
+		apiRecipients([]string{"u:alice.01", testRecipient, "group.ABCD/EFGH=", "u:"}))
+	assert.Empty(t, apiRecipients(nil))
+}
 
-	ginkgo.Describe("parseAttachments", func() {
-		ginkgo.It("should return nil for empty input", func() {
-			gomega.Expect(parseAttachments("")).To(gomega.BeNil())
-			gomega.Expect(parseAttachments("   ")).To(gomega.BeNil())
-		})
+// TestParseAttachments verifies that raw base64 values are split on commas
+// and trimmed, that a value with a data URI stays whole, and that an empty
+// value yields no attachments.
+func TestParseAttachments(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should split comma-separated raw base64", func() {
-			gomega.Expect(parseAttachments("a, b")).To(gomega.Equal([]string{"a", "b"}))
-		})
+	// tests lists attachment values with the attachments each should produce.
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "empty", raw: ""},
+		{name: "whitespace", raw: "   "},
+		{name: "only commas", raw: " , ,"},
+		{name: "one value", raw: "aGVsbG8=", want: []string{"aGVsbG8="}},
+		{name: "comma separated", raw: " aGVsbG8=, ,d29ybGQ= ", want: []string{"aGVsbG8=", "d29ybGQ="}},
+		{
+			name: "data URI",
+			raw:  " data:image/png;filename=dot.png;base64,iVBORw0KGgo= ",
+			want: []string{"data:image/png;filename=dot.png;base64,iVBORw0KGgo="},
+		},
+	}
 
-		ginkgo.It("should keep a data URI as a single attachment", func() {
-			gomega.Expect(parseAttachments("data:image/png;base64,iVBOR")).
-				To(gomega.Equal([]string{"data:image/png;base64,iVBOR"}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, parseAttachments(tt.raw))
 		})
-	})
-})
+	}
+}

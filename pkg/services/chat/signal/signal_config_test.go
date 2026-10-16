@@ -1,252 +1,260 @@
 package signal
 
 import (
-	"crypto/tls"
-	"net/http"
 	"net/url"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("config", func() {
-	var signal *Service
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-	ginkgo.BeforeEach(func() {
-		signal = &Service{}
-	})
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
-	ginkgo.Describe("creating configurations", func() {
-		ginkgo.When("given a url", func() {
-			ginkgo.It("should return an error if no source phone number is supplied", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
-			})
+	return parsed
+}
 
-			ginkgo.It("should return an error if no recipients are supplied", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).To(gomega.MatchError(ErrNoRecipients))
-			})
+// newDefaultConfig returns a config with the default values, as Initialize
+// creates it.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Config: the config.
+func newDefaultConfig(t *testing.T) *Config {
+	t.Helper()
 
-			ginkgo.It("should return an error for invalid phone number format", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/invalid-phone/+1234567890")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("invalid phone number format"))
-			})
+	config := &Config{}
+	resolver := format.NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
 
-			ginkgo.It("should return an error for invalid group ID format", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/invalid.group!")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
-			})
+	return config
+}
 
-			ginkgo.It("should accept group IDs with base64 characters / and =", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/group.ABCD/EFGH=")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
+// TestConfigSetURL verifies that SetURL reads the host, port, and credentials
+// from the URL authority, the source and recipients from the path, and the
+// other settings from the query.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
 
-			ginkgo.It("should accept group IDs with base64 character +", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/group.ABCD+EFGH")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
+	// defaults returns the config a URL with only a host, source, and
+	// recipients produces, with the given overrides applied.
+	defaults := func(override func(*Config)) Config {
+		config := Config{
+			Host:       "localhost",
+			Port:       8080,
+			Source:     testSource,
+			Recipients: []string{testRecipient},
+			NotifySelf: true,
+		}
+		override(&config)
 
-			ginkgo.It("should accept u: username recipients", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/u:someuser.123")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(signal.Config.Recipients).To(gomega.Equal([]string{"u:someuser.123"}))
-			})
+		return config
+	}
 
-			ginkgo.It("should reject an empty u: username", func() {
-				serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/u:")
-				err := signal.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid recipient"))
-			})
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{name: "minimal", rawURL: testServiceURL, want: defaults(func(*Config) {})},
+		{
+			name:   "default port",
+			rawURL: "signal://myserver/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.Host = "myserver" }),
+		},
+		{
+			name:   "custom port",
+			rawURL: "signal://myserver:9999/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.Host, c.Port = "myserver", 9999 }),
+		},
+		{
+			name:   "IPv6 host without brackets",
+			rawURL: "signal://[::1]:9999/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.Host, c.Port = "::1", 9999 }),
+		},
+		{
+			name:   "user and password",
+			rawURL: "signal://user:pass@localhost:8080/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.User, c.Password = "user", "pass" }),
+		},
+		{
+			name:   "user without a password",
+			rawURL: "signal://user@localhost:8080/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.User = "user" }),
+		},
+		{
+			name:   "query settings",
+			rawURL: testServiceURL + "?token=tok&title=Alert&textmode=styled&notifyself=no&disabletls=yes&skiptlsverify=yes&attachments=aGVsbG8%3D",
+			want: defaults(func(c *Config) {
+				c.Token, c.Title, c.TextMode, c.NotifySelf = "tok", "Alert", TextModeStyled, false
+				c.DisableTLS, c.SkipTLSVerify, c.Attachments = true, true, "aGVsbG8="
+			}),
+		},
+		{
+			name:   "query aliases",
+			rawURL: testServiceURL + "?apikey=tok&text_mode=normal",
+			want:   defaults(func(c *Config) { c.Token, c.TextMode = "tok", TextModeNormal }),
+		},
+		{
+			name:   "recipients in the query",
+			rawURL: testServiceURL + "?to=%2B15559876543,u:alice.01",
+			want:   defaults(func(c *Config) { c.Recipients = []string{"+15559876543", "u:alice.01"} }),
+		},
+		{
+			name:   "recipient types",
+			rawURL: testServiceURL + "/group.ABCD/EFGH=/u:alice.01/group.ABCD+EFGH",
+			want: defaults(func(c *Config) {
+				c.Recipients = []string{testRecipient, "group.ABCD/EFGH=", "u:alice.01", "group.ABCD+EFGH"}
+			}),
+		},
+		{
+			name:   "docs command placeholder",
+			rawURL: "signal://dummy@dummy.com",
+			want: defaults(func(c *Config) {
+				c.Source, c.Recipients = "+1234567890", []string{"+0987654321"}
+			}),
+		},
+	}
 
-			ginkgo.When("parsing authentication", func() {
-				ginkgo.It("should parse user without password", func() {
-					serviceURL, _ := url.Parse(
-						"signal://user@localhost:8080/+1234567890/+0987654321",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.User).To(gomega.Equal("user"))
-					gomega.Expect(signal.Config.Password).To(gomega.BeEmpty())
-				})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				ginkgo.It("should parse user with password", func() {
-					serviceURL, _ := url.Parse(
-						"signal://user:pass@localhost:8080/+1234567890/+0987654321",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.User).To(gomega.Equal("user"))
-					gomega.Expect(signal.Config.Password).To(gomega.Equal("pass"))
-				})
-			})
+			config := newDefaultConfig(t)
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			ginkgo.When("parsing host and port", func() {
-				ginkgo.It("should parse custom host and port", func() {
-					serviceURL, _ := url.Parse("signal://myserver:9999/+1234567890/+0987654321")
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.Host).To(gomega.Equal("myserver"))
-					gomega.Expect(signal.Config.Port).To(gomega.Equal(9999))
-				})
-
-				ginkgo.It("should use default port when not specified", func() {
-					serviceURL, _ := url.Parse("signal://myserver/+1234567890/+0987654321")
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.Host).To(gomega.Equal("myserver"))
-					gomega.Expect(signal.Config.Port).To(gomega.Equal(8080))
-				})
-
-				ginkgo.It("should store an IPv6 host without brackets", func() {
-					serviceURL, _ := url.Parse("signal://[::1]:9999/+1234567890/+0987654321")
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.Host).To(gomega.Equal("::1"))
-					gomega.Expect(signal.Config.Port).To(gomega.Equal(9999))
-					gomega.Expect(signal.Config.GetURL().Host).To(gomega.Equal("[::1]:9999"))
-				})
-			})
-
-			ginkgo.When("parsing TLS settings", func() {
-				ginkgo.It("should enable TLS by default", func() {
-					serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.DisableTLS).To(gomega.BeFalse())
-				})
-
-				ginkgo.It("should disable TLS when disabletls=yes", func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321?disabletls=yes",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.DisableTLS).To(gomega.BeTrue())
-				})
-
-				ginkgo.It("should skip TLS verification when skiptlsverify=yes", func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321?skiptlsverify=yes",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.SkipTLSVerify).To(gomega.BeTrue())
-
-					httpClient, ok := signal.httpClient.(*http.Client)
-					gomega.Expect(ok).To(gomega.BeTrue())
-					transport, ok := httpClient.Transport.(*http.Transport)
-					gomega.Expect(ok).To(gomega.BeTrue())
-					gomega.Expect(transport.TLSClientConfig).NotTo(gomega.BeNil())
-					gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-					gomega.Expect(transport.TLSClientConfig.MinVersion).
-						To(gomega.Equal(uint16(tls.VersionTLS12)))
-				})
-			})
-
-			ginkgo.When("parsing text mode", func() {
-				ginkgo.It("should default to None", func() {
-					serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeNone))
-				})
-
-				ginkgo.It("should parse textmode=styled", func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321?textmode=styled",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeStyled))
-				})
-
-				ginkgo.It("should parse text_mode=styled", func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321?text_mode=styled",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(signal.Config.TextMode).To(gomega.Equal(TextModeStyled))
-				})
-
-				ginkgo.It("should reject an invalid text mode", func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321?textmode=markdown",
-					)
-					err := signal.Initialize(serviceURL, logger)
-					gomega.Expect(err).To(gomega.HaveOccurred())
-				})
-			})
-
-			ginkgo.When("the url is valid", func() {
-				var (
-					config *Config
-					err    error
-				)
-
-				ginkgo.BeforeEach(func() {
-					serviceURL, _ := url.Parse(
-						"signal://localhost:8080/+1234567890/+0987654321/group.testgroup",
-					)
-					err = signal.Initialize(serviceURL, logger)
-					config = signal.Config
-				})
-
-				ginkgo.It("should create a config object", func() {
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config).ToNot(gomega.BeNil())
-				})
-
-				ginkgo.It("should parse the source phone number", func() {
-					gomega.Expect(config.Source).To(gomega.Equal("+1234567890"))
-				})
-
-				ginkgo.It("should parse the recipients", func() {
-					gomega.Expect(config.Recipients).
-						To(gomega.Equal([]string{"+0987654321", "group.testgroup"}))
-				})
-
-				ginkgo.It("should set default host and port", func() {
-					gomega.Expect(config.Host).To(gomega.Equal("localhost"))
-					gomega.Expect(config.Port).To(gomega.Equal(8080))
-				})
-
-				ginkgo.It("should default notify_self to yes", func() {
-					gomega.Expect(config.NotifySelf).To(gomega.BeTrue())
-				})
-			})
+			assert.Equal(t, tt.want, *config)
 		})
-	})
+	}
+}
 
-	ginkgo.It("should implement basic service API methods correctly", func() {
-		serviceURL, _ := url.Parse("signal://localhost:8080/+1234567890/+0987654321")
-		err := signal.Initialize(serviceURL, logger)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// TestConfigSetURLErrors verifies that SetURL rejects a URL without a source
+// or recipients, an invalid source or recipient, and invalid query values.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
 
-		config := signal.Config
-		testutils.TestConfigGetInvalidQueryValue(config)
-		testutils.TestConfigSetInvalidQueryValue(
-			config,
-			"signal://localhost:8080/+1234567890/+0987654321?foo=bar",
-		)
-		testutils.TestConfigGetEnumsCount(config, 1)
-		testutils.TestConfigGetFieldsCount(config, 16)
-	})
-})
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "no path", rawURL: "signal://localhost:8080", wantErr: ErrNoRecipients},
+		{name: "no recipients", rawURL: "signal://localhost:8080/" + testSource, wantErr: ErrNoRecipients},
+		{name: "invalid source", rawURL: "signal://localhost:8080/invalid-phone/" + testRecipient, wantErr: ErrInvalidPhoneNumber},
+		{name: "invalid group ID", rawURL: testServiceURL + "/group.invalid!", wantErr: ErrInvalidRecipient},
+		{name: "invalid recipient", rawURL: testServiceURL + "/alice", wantErr: ErrInvalidRecipient},
+		{name: "empty username", rawURL: testServiceURL + "/u:", wantErr: ErrInvalidRecipient},
+		{name: "unknown query key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid text mode", rawURL: testServiceURL + "?textmode=markdown", wantErr: format.ErrInvalidEnumValue},
+		{name: "invalid bool", rawURL: testServiceURL + "?notifyself=maybe", wantErr: format.ErrInvalidBoolValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, newDefaultConfig(t).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+		})
+	}
+}
+
+// TestConfigGetURL verifies that GetURL writes the credentials, host, port,
+// source, and recipients back into the URL, and round-trips through SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the parts GetURL should write for them.
+	tests := []struct {
+		name     string
+		rawURL   string
+		wantUser string
+		wantHost string
+		wantPath string
+	}{
+		{
+			name:     "phone number",
+			rawURL:   testServiceURL,
+			wantHost: "localhost:8080",
+			wantPath: "/" + testSource + "/" + testRecipient,
+		},
+		{
+			name:     "every setting",
+			rawURL:   "signal://user:pass@myserver:9999/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01?token=tok&title=Alert&textmode=styled&notifyself=no&disabletls=yes&skiptlsverify=yes&attachments=aGVsbG8%3D",
+			wantUser: "user:pass",
+			wantHost: "myserver:9999",
+			wantPath: "/" + testSource + "/" + testRecipient + "/group.ABCD/EFGH=/u:alice.01",
+		},
+		{
+			name:     "user without a password",
+			rawURL:   "signal://user@localhost:8080/" + testSource + "/" + testRecipient,
+			wantUser: "user",
+			wantHost: "localhost:8080",
+			wantPath: "/" + testSource + "/" + testRecipient,
+		},
+		{
+			name:     "IPv6 host",
+			rawURL:   "signal://[::1]:9999/" + testSource + "/" + testRecipient,
+			wantHost: "[::1]:9999",
+			wantPath: "/" + testSource + "/" + testRecipient,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newDefaultConfig(t)
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			serviceURL := config.GetURL()
+
+			assert.Equal(t, Scheme, serviceURL.Scheme)
+			assert.Equal(t, tt.wantUser, serviceURL.User.String())
+			assert.Equal(t, tt.wantHost, serviceURL.Host)
+			assert.Equal(t, tt.wantPath, serviceURL.Path)
+
+			roundTrip := newDefaultConfig(t)
+			require.NoError(t, roundTrip.SetURL(serviceURL))
+			assert.Equal(t, config, roundTrip)
+		})
+	}
+}
+
+// TestConfigQueryResolver verifies the config's query keys, that text mode is
+// its only enum, and that unknown keys are rejected.
+func TestConfigQueryResolver(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	resolver := format.GetConfigQueryResolver(config)
+
+	assert.Equal(t, []string{
+		"apikey", "attachments", "disabletls", "host", "notifyself", "password", "port", "recipients",
+		"skiptlsverify", "source", "text_mode", "textmode", "title", "to", "token", "user",
+	}, resolver.QueryFields())
+
+	enums := config.Enums()
+	assert.Len(t, enums, 1)
+	assert.Same(t, TextModes.Enum, enums["TextMode"])
+
+	_, err := resolver.Get("foo")
+	require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	require.ErrorIs(t, resolver.Set("foo", "bar"), format.ErrInvalidConfigKey)
+}
