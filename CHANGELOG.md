@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the zulip tests from ginkgo to testify by @nicholas-fedor in [#1623](https://github.com/nicholas-fedor/shoutrrr/pull/1623)
 - Migrate the signal tests from ginkgo to testify by @nicholas-fedor in [#1617](https://github.com/nicholas-fedor/shoutrrr/pull/1617)
 - Migrate the notifiarr tests from ginkgo to testify by @nicholas-fedor in [#1615](https://github.com/nicholas-fedor/shoutrrr/pull/1615)
 - Migrate the xmpp tests from ginkgo to testify by @nicholas-fedor in [#1613](https://github.com/nicholas-fedor/shoutrrr/pull/1613)
