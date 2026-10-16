@@ -4,1901 +4,789 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"os"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-// MockHTTPClientManager provides a mock implementation of HTTPClientManager for testing.
-// It allows httpmock setup by using custom transports for testing.
-type MockHTTPClientManager struct {
-	Transport *http.Transport
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// gotifyKey is the request's X-Gotify-Key header.
+	gotifyKey string
+	// body is the request body.
+	body string
 }
 
-// Test constants.
-// These constants define test URLs and endpoints used throughout the test suite
-// for mocking Gotify API interactions and verifying URL construction.
+// cannedResponse is what the recording client returns for one request.
+type cannedResponse struct {
+	// err is a transport error returned instead of a response.
+	err error
+	// body is the response body.
+	body string
+	// statusCode is the response status code.
+	statusCode int
+}
+
+// fixedTransportManager creates default clients that send through a fixed
+// transport.
+type fixedTransportManager struct {
+	// transport is the transport every client sends through.
+	transport *http.Transport
+}
+
+// failingURLBuilder fails to build every message endpoint.
+type failingURLBuilder struct {
+	// err is the error BuildURL returns.
+	err error
+}
+
+// Values shared by the service tests.
 const (
-	TargetURL      = "https://my.gotify.tld/message?token=Aaa.bbb.ccc.ddd" // Standard test URL with token in query parameter
-	TestDateRFC    = "2023-12-04T20:00:00Z"                                // Standard test date in RFC3339 format
-	TestDateConfig = "2023-01-01T00:00:00Z"                                // Test date for config
+	// sentBody is Gotify's response to a created message.
+	sentBody = `{"id":25,"appid":5,"message":"Hello","title":"Shoutrrr notification","priority":0,"date":"2023-12-25T10:00:00Z"}`
+	// unauthorizedBody is Gotify's response to an invalid token.
+	unauthorizedBody = `{"error":"Unauthorized","errorCode":401,"errorDescription":"you need to provide a valid access token or user credentials to access this api"}`
+	// testEndpoint is the message endpoint for testServiceURL.
+	testEndpoint = "https://" + testHost + "/message?token=" + testToken
 )
 
-// Test suite global variables and setup.
-// These variables maintain state across test cases and provide shared test infrastructure.
-// The BeforeSuite block initializes common test resources used throughout the test suite.
+// Values shared by the service tests.
 var (
-	service      *Service    // Global service instance for testing
-	logger       *log.Logger // Test logger for capturing service output
-	envGotifyURL *url.URL    // Environment-provided Gotify URL for integration tests
-
-	// httpmockActivateMutex serializes httpmock.Activate() calls to prevent race conditions
-	// when running tests in parallel with t.Parallel().
-	httpmockActivateMutex sync.Mutex
-
-	_ = ginkgo.BeforeSuite(func() {
-		service = &Service{} // Initialize fresh service instance
-		logger = log.New(
-			ginkgo.GinkgoWriter,
-			"Test",
-			log.LstdFlags,
-		) // Create logger that writes to Ginkgo output
-
-		var err error
-
-		envGotifyURL, err = url.Parse(
-			os.Getenv("SHOUTRRR_GOTIFY_URL"),
-		) // Parse integration test URL from environment
-		if err != nil {
-			envGotifyURL = &url.URL{} // Default to empty URL if parsing fails
-		}
-	})
+	// errTransport is the transport failure returned by a failing client.
+	errTransport = errors.New("transport failure")
+	// sent is the response to a created message.
+	sent = cannedResponse{statusCode: http.StatusOK, body: sentBody}
 )
 
-// Main test suite for Gotify service functionality.
-// This comprehensive test suite covers all aspects of the Gotify service including
-// configuration parsing, URL construction, token validation, HTTP communication,
-// error handling, and various authentication methods.
-var _ = ginkgo.Describe("the Gotify service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("sends a message successfully with a valid ENV URL", func() {
-			if envGotifyURL.String() == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+// newRecordingClient returns a mock HTTP client that expects one request per
+// response, records each request, and answers them in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - responses: the responses to return, in request order.
+//
+// Returns:
+//   - *typesmocks.MockHTTPClient: the client.
+//   - func() []capturedRequest: returns the requests received so far.
+func newRecordingClient(t *testing.T, responses ...cannedResponse) (*typesmocks.MockHTTPClient, func() []capturedRequest) {
+	t.Helper()
 
-				return
+	var (
+		mu       sync.Mutex
+		captured []capturedRequest
+	)
+
+	client := typesmocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		captured = append(captured, capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			gotifyKey:   req.Header.Get("X-Gotify-Key"),
+			body:        string(body),
+		})
+
+		response := responses[len(captured)-1]
+		if response.err != nil {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: response.err}
+		}
+
+		return &http.Response{
+			StatusCode: response.statusCode,
+			Status:     fmt.Sprintf("%d %s", response.statusCode, http.StatusText(response.statusCode)),
+			Body:       io.NopCloser(strings.NewReader(response.body)),
+		}, nil
+	}).Times(len(responses))
+
+	return client, func() []capturedRequest {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(captured)
+	}
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// assertPayload asserts that body is the JSON message payload want. The
+// comparison ignores the priority field unless want sets it.
+//
+// Parameters:
+//   - t: the test.
+//   - want: the expected JSON payload.
+//   - body: the request body.
+func assertPayload(t *testing.T, want, body string) {
+	t.Helper()
+
+	var wantFields, gotFields map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(want), &wantFields))
+	require.NoError(t, json.Unmarshal([]byte(body), &gotFields))
+
+	if _, ok := wantFields["priority"]; !ok {
+		delete(gotFields, "priority")
+	}
+
+	assert.Equal(t, wantFields, gotFields)
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "gotify", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the router gives Gotify the default send
+// budget.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, types.DefaultSendTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestInitialize verifies that Initialize parses the service URL over the
+// default title and sets up the default helpers and client.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL+"?priority=3")
+
+	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3}, service.Config)
+	assert.IsType(t, &DefaultHTTPClientManager{}, service.httpClientManager)
+	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
+	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
+	assert.IsType(t, &DefaultValidator{}, service.validator)
+	assert.IsType(t, &DefaultSender{}, service.sender)
+	assert.IsType(t, &http.Client{}, service.httpClient)
+
+	err := (&Service{}).Initialize(parseTestURL(t, testServiceURL+"?extras=%7Binvalid"), log.New(t.Output(), "", 0))
+	require.ErrorIs(t, err, ErrExtrasParseFailed)
+}
+
+// TestSend verifies the request a send makes: a JSON POST to the message
+// endpoint with the token in the query or a header, carrying the message,
+// title, priority, extras, and date from the URL and params.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists sends with the request each should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		wantURL  string
+		wantKey  string
+		wantBody string
+	}{
+		{
+			name:     "message only",
+			rawURL:   testServiceURL,
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+		},
+		{
+			name:     "title and priority params",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"title": "Backup", "priority": "5"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Backup","priority":5,"extras":null}`,
+		},
+		{
+			name:     "priority in the URL",
+			rawURL:   testServiceURL + "?priority=-2",
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":-2,"extras":null}`,
+		},
+		{
+			name:     "extras param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"extras": `{"client::display":{"contentType":"text/markdown"}}`},
+			message:  "**Backup** done",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"**Backup** done","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/markdown"}}}`,
+		},
+		{
+			name:     "extras in the URL",
+			rawURL:   testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/plain"}}`),
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/plain"}}}`,
+		},
+		{
+			name:     "extras param over the URL extras",
+			rawURL:   testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/plain"}}`),
+			params:   &types.Params{"extras": `{"client::display":{"contentType":"text/markdown"}}`},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/markdown"}}}`,
+		},
+		{
+			name:     "invalid extras param",
+			rawURL:   testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/plain"}}`),
+			params:   &types.Params{"extras": "{invalid"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":{"client::display":{"contentType":"text/plain"}}}`,
+		},
+		{
+			name:     "date param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"date": "2023-12-25T10:00:00+02:00"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","date":"2023-12-25T08:00:00Z","extras":null}`,
+		},
+		{
+			name:     "invalid date param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"date": "tomorrow"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+		},
+		{
+			name:     "special characters",
+			rawURL:   testServiceURL,
+			message:  "Disk <90%> & \"temp\" ✓\nline two",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Disk <90%> & \"temp\" ✓\nline two","title":"Shoutrrr notification","extras":null}`,
+		},
+		{
+			name:     "token in a header",
+			rawURL:   testServiceURL + "?useheader=yes",
+			message:  "Hello",
+			wantURL:  "https://" + testHost + "/message",
+			wantKey:  testToken,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+		},
+		{
+			name:     "TLS disabled",
+			rawURL:   testServiceURL + "?disabletls=yes",
+			message:  "Hello",
+			wantURL:  "http://" + testHost + "/message?token=" + testToken,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+		},
+		{
+			name:     "Gotify 3 token",
+			rawURL:   "gotify://" + testHost + "/" + enhancedToken,
+			message:  "Hello",
+			wantURL:  "https://" + testHost + "/message?token=" + enhancedToken,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRecordingClient(t, sent)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, http.MethodPost, requests[0].method)
+			assert.Equal(t, tt.wantURL, requests[0].url)
+			assert.Equal(t, "application/json", requests[0].contentType)
+			assert.Equal(t, tt.wantKey, requests[0].gotifyKey)
+			assertPayload(t, tt.wantBody, requests[0].body)
+		})
+	}
+}
+
+// TestSendLogsDroppedParams verifies that a send logs an invalid date or
+// extras param that it leaves out.
+func TestSendLogsDroppedParams(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	client, _ := newRecordingClient(t, sent)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Hello", &types.Params{"date": "tomorrow", "extras": "{invalid"}))
+	assert.Equal(t,
+		"Invalid date format: invalid date format\nFailed to parse extras from params: failed to unmarshal extras JSON\n",
+		logs.String())
+}
+
+// TestSendValidation verifies that a send rejects an empty message, an
+// invalid token, an out of range priority, and an unknown param before any
+// request.
+func TestSendValidation(t *testing.T) {
+	t.Parallel()
+
+	// tests lists sends with the error each should produce.
+	tests := []struct {
+		wantErr error
+		params  *types.Params
+		name    string
+		rawURL  string
+		message string
+	}{
+		{name: "empty message", rawURL: testServiceURL, wantErr: ErrEmptyMessage},
+		{name: "invalid token", rawURL: "gotify://" + testHost + "/Aaa", message: "Hello", wantErr: ErrInvalidToken},
+		{name: "no token", rawURL: "gotify://" + testHost, message: "Hello", wantErr: ErrInvalidToken},
+		{name: "priority too high", rawURL: testServiceURL, params: &types.Params{"priority": "11"}, message: "Hello", wantErr: ErrInvalidPriority},
+		{name: "priority too low in the URL", rawURL: testServiceURL + "?priority=-3", message: "Hello", wantErr: ErrInvalidPriority},
+		{name: "unknown param", rawURL: testServiceURL, params: &types.Params{"unknown": "value"}, message: "Hello", wantErr: format.ErrInvalidConfigKey},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+			require.ErrorIs(t, service.Send(tt.message, tt.params), tt.wantErr)
+		})
+	}
+}
+
+// TestSendWithoutConfig verifies that a send on a service whose config was
+// cleared fails before any request.
+func TestSendWithoutConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+	service.Config = nil
+
+	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
+}
+
+// TestSendErrors verifies that a failed request fails the send with
+// [ErrSendFailed], keeping the server's error and the token out of the error.
+func TestSendErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs and responses with the error each should match.
+	tests := []struct {
+		wantErr   error
+		name      string
+		rawURL    string
+		response  cannedResponse
+		wantInErr string
+	}{
+		{
+			name:      "error response",
+			rawURL:    testServiceURL,
+			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
+			wantInErr: "server responded with Unauthorized (401)",
+		},
+		{
+			name:      "error response with the token in a header",
+			rawURL:    testServiceURL + "?useheader=yes",
+			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
+			wantInErr: "server responded with Unauthorized (401)",
+		},
+		{name: "transport error", rawURL: testServiceURL, response: cannedResponse{err: errTransport}, wantErr: errTransport},
+		{name: "transport error with the token in a header", rawURL: testServiceURL + "?useheader=yes", response: cannedResponse{err: errTransport}, wantErr: errTransport},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, _ := newRecordingClient(t, tt.response)
+			service.SetHTTPClient(client)
+
+			err := service.Send("Hello", nil)
+
+			require.ErrorIs(t, err, ErrSendFailed)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 			}
 
-			serviceURL := testutils.URLMust(envGotifyURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("This is an integration test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			assert.Contains(t, err.Error(), tt.wantInErr)
+			assert.NotContains(t, err.Error(), testToken)
 		})
-	})
-
-	ginkgo.Describe("the service", func() {
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("gotify"))
-		})
-	})
-
-	ginkgo.When("parsing the configuration URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-			service.SetLogger(logger)
-		})
-		ginkgo.It("builds a valid Gotify URL without path", func() {
-			serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
-		})
-		ginkgo.When("TLS is disabled", func() {
-			ginkgo.It("uses http scheme", func() {
-				serviceURL := testutils.URLMust(
-					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?disabletls=yes",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
-			})
-		})
-		ginkgo.When("a custom path is provided", func() {
-			ginkgo.It("includes the path in the URL", func() {
-				serviceURL := testutils.URLMust("gotify://my.gotify.tld/gotify/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(serviceURL.String()))
-			})
-		})
-		ginkgo.When("the token has an invalid length", func() {
-			ginkgo.It("reports an error during send", func() {
-				serviceURL := testutils.URLMust("gotify://my.gotify.tld/short") // Length < 15
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.Send("Message", nil)
-				gomega.Expect(err).
-					To(gomega.MatchError("failed to build request: invalid gotify token"))
-			})
-		})
-		ginkgo.When("the token has an invalid prefix", func() {
-			ginkgo.It("reports an error during send", func() {
-				serviceURL := testutils.URLMust(
-					"gotify://my.gotify.tld/Chwbsdyhwwgarxd",
-				) // Starts with 'C', not 'A'
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.Send("Message", nil)
-				gomega.Expect(err).
-					To(gomega.MatchError("failed to build request: invalid gotify token"))
-			})
-		})
-		ginkgo.It("is identical after de-/serialization with path", func() {
-			testURL := "gotify://my.gotify.tld/gotify/Aaa.bbb.ccc.ddd?title=Test+title"
-			serviceURL := testutils.URLMust(testURL)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(testURL))
-		})
-		ginkgo.It("is identical after de-/serialization without path", func() {
-			testURL := "gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?disabletls=Yes&priority=1&title=Test+title"
-			serviceURL := testutils.URLMust(testURL)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(testURL))
-		})
-		ginkgo.It("allows slash at the end of the token", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd/")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Token).To(gomega.Equal("Aaa.bbb.ccc.ddd"))
-		})
-		ginkgo.It("allows slash at the end of the token with additional path", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/path/to/gotify/Aaa.bbb.ccc.ddd/")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Token).To(gomega.Equal("Aaa.bbb.ccc.ddd"))
-		})
-		ginkgo.It("does not crash on empty token or path slash", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld//")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Token).To(gomega.Equal(""))
-		})
-		ginkgo.When("handling malformed inputs", func() {
-			ginkgo.BeforeEach(func() {
-				service = &Service{}
-				service.SetLogger(logger)
-				// Set up interface implementations for tests that call Send without Initialize
-				service.httpClientManager = &DefaultHTTPClientManager{}
-				service.urlBuilder = &DefaultURLBuilder{}
-				service.payloadBuilder = &DefaultPayloadBuilder{}
-				service.validator = &DefaultValidator{}
-				service.sender = &DefaultSender{}
-			})
-			ginkgo.It("handles invalid URL schemes gracefully", func() {
-				invalidURL, err := url.Parse("invalid://url")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.Initialize(invalidURL, logger)
-				// Service may accept invalid schemes, but Send should fail
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles URLs with invalid host", func() {
-				invalidURL, err := url.Parse("gotify://[::1]:99999/Aaa.bbb.ccc.ddd")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				err = service.Initialize(invalidURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// Send should fail due to invalid host
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles malformed JSON in extras parameter", func() {
-				serviceURL := testutils.URLMust(
-					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras={invalid}",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("failed to parse extras JSON from URL query"))
-			})
-			ginkgo.It("handles empty host in URL", func() {
-				serviceURL := testutils.URLMust("gotify:///Aaa.bbb.ccc.ddd")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.Host).To(gomega.Equal(""))
-			})
-			ginkgo.It("handles URL with only host and no token", func() {
-				serviceURL := testutils.URLMust("gotify://my.gotify.tld/")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.Token).To(gomega.Equal(""))
-			})
-			ginkgo.It("handles extreme priority values", func() {
-				serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				params := types.Params{"priority": "-100"}
-				err = service.Send("Message", &params)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).
-					To(gomega.MatchError("failed to process config: priority validation failed: priority must be between -2 and 10"))
-			})
-			ginkgo.It("handles nil config gracefully", func() {
-				service.Config = nil
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles empty config extras", func() {
-				activateHTTPMockGinkgo()
-
-				serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				mockManager := &MockHTTPClientManager{}
-				service.httpClientManager = mockManager
-				// Force recreation of client with mock transport
-				service.httpClient = nil
-				service.client = nil
-				service.Config.Extras = map[string]any{}
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.It("parses valid extras JSON from URL parameters", func() {
-			extrasJSON := `{"key1":"value1","key2":42}`
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=" + url.QueryEscape(extrasJSON),
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Extras).To(gomega.Equal(map[string]any{
-				"key1": "value1",
-				"key2": float64(42),
-			}))
-		})
-		ginkgo.It("reports error on invalid extras JSON from URL parameters", func() {
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=invalid-json",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).
-				To(gomega.ContainSubstring("failed to parse extras JSON from URL query"))
-		})
-		ginkgo.It("handles empty extras JSON from URL parameters", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Extras).To(gomega.BeNil())
-		})
-		ginkgo.It("parses useheader parameter from URL", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.UseHeader).To(gomega.BeTrue())
-		})
-		ginkgo.It("handles malformed URLs gracefully", func() {
-			// Test with URL that has invalid extras JSON
-			invalidURL := testutils.URLMust(
-				"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?extras=invalid-json",
-			)
-			err := service.Initialize(invalidURL, logger)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("builds URL without token when useheader is enabled", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			builtURL, err := service.urlBuilder.BuildURL(service.Config)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(builtURL).To(gomega.Equal("https://my.gotify.tld/message"))
-			gomega.Expect(builtURL).NotTo(gomega.ContainSubstring("token="))
-		})
-	})
-
-	ginkgo.When("the token contains invalid characters", func() {
-		ginkgo.It("reports an error during send", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-	})
-	ginkgo.When("the token has exactly 15 chars but invalid prefix", func() {
-		ginkgo.It("reports an error during send", func() {
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/Baa.bbb.ccc.ddd",
-			) // Starts with 'B', not 'A'
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-	})
-	ginkgo.When("the token has valid prefix but invalid characters at different positions", func() {
-		ginkgo.It("reports an error for invalid char at position 5", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa!bbb.ccc.ddd")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-		ginkgo.It("reports an error for invalid char at position 10", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb!ccc.ddd")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-		ginkgo.It("reports an error for invalid char at position 15", func() {
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.dd!")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-	})
-
-	ginkgo.When("using a Gotify 3.0.0+ token format", func() {
-		var mockManager *MockHTTPClientManager
-
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-			service.SetLogger(logger)
-			activateHTTPMockGinkgo()
-
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			mockManager = &MockHTTPClientManager{}
-			service.httpClientManager = mockManager
-			service.httpClient = nil
-			service.client = nil
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("accepts a valid new-format application token", func() {
-			httpmock.RegisterResponder(
-				"POST",
-				"https://my.gotify.tld/message?token=gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
-				testutils.JSONRespondMust(200, map[string]any{
-					"id":       float64(1),
-					"appid":    float64(1),
-					"message":  "Message",
-					"title":    "Shoutrrr notification",
-					"priority": float64(0),
-					"date":     "2023-01-01T00:00:00Z",
-				}),
-			)
-
-			err := service.Send("Message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("rejects a new-format token missing the identifier character", func() {
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-		ginkgo.It("rejects a new-format token that is too short", func() {
-			serviceURL := testutils.URLMust(
-				"gotify://my.gotify.tld/gtfya.123",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Send("Message", nil)
-			gomega.Expect(err).
-				To(gomega.MatchError("failed to build request: invalid gotify token"))
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		var mockManager *MockHTTPClientManager
-
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-			service.SetLogger(logger)
-			activateHTTPMockGinkgo()
-
-			serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			mockManager = &MockHTTPClientManager{}
-			service.httpClientManager = mockManager
-			// Force recreation of client with mock transport
-			service.httpClient = nil
-			service.client = nil
-		})
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-		ginkgo.When("sending via webhook URL", func() {
-			ginkgo.It("does not report an error if the server accepts the payload", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(200, map[string]any{
-						"id":       float64(1),
-						"appid":    float64(1),
-						"message":  "Message",
-						"title":    "Shoutrrr notification",
-						"priority": float64(0),
-						"date":     "2023-01-01T00:00:00Z",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It(
-				"reports an error if the server rejects the payload with an error response",
-				func() {
-					httpmock.RegisterResponder(
-						"POST",
-						TargetURL,
-						testutils.JSONRespondMust(401, map[string]any{
-							"error":            "Unauthorized",
-							"errorCode":        float64(401),
-							"errorDescription": "you need to provide a valid access token or user credentials to access this api",
-						}),
-					)
-
-					err := service.Send("Message", nil)
-					gomega.Expect(err.Error()).
-						To(gomega.ContainSubstring("server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api"))
-				},
-			)
-			ginkgo.It("reports an error for 403 Forbidden response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(403, map[string]any{
-						"error":            "Forbidden",
-						"errorCode":        float64(403),
-						"errorDescription": "access denied",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Forbidden (403)"))
-			})
-			ginkgo.It("reports an error for 404 Not Found response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(404, map[string]any{
-						"error":            "Not Found",
-						"errorCode":        float64(404),
-						"errorDescription": "endpoint not found",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Not Found (404)"))
-			})
-			ginkgo.It("reports an error for 429 Too Many Requests response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(429, map[string]any{
-						"error":            "Too Many Requests",
-						"errorCode":        float64(429),
-						"errorDescription": "rate limit exceeded",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Too Many Requests (429)"))
-			})
-			ginkgo.It("reports an error for 500 Internal Server Error response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(500, map[string]any{
-						"error":            "Internal Server Error",
-						"errorCode":        float64(500),
-						"errorDescription": "internal error",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Internal Server Error (500)"))
-			})
-			ginkgo.It("reports an error for 502 Bad Gateway response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(502, map[string]any{
-						"error":            "Bad Gateway",
-						"errorCode":        float64(502),
-						"errorDescription": "bad gateway",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Bad Gateway (502)"))
-			})
-			ginkgo.It("reports an error for 503 Service Unavailable response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(503, map[string]any{
-						"error":            "Service Unavailable",
-						"errorCode":        float64(503),
-						"errorDescription": "service unavailable",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Service Unavailable (503)"))
-			})
-			ginkgo.It("reports an error for 504 Gateway Timeout response", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(504, map[string]any{
-						"error":            "Gateway Timeout",
-						"errorCode":        float64(504),
-						"errorDescription": "gateway timeout",
-					}),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("server responded with Gateway Timeout (504)"))
-			})
-			ginkgo.It("reports an error if sending fails with a network error", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					httpmock.NewErrorResponder(errors.New("network failure")),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("sending POST request: Post \"https://my.gotify.tld\": network failure"))
-				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("Aaa.bbb.ccc.ddd"))
-			})
-			ginkgo.It("returns an error if params update fails", func() {
-				params := types.Params{"priority": "invalid"}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("failed to update config from params"))
-			})
-			ginkgo.It("returns an error if message is empty", func() {
-				err := service.Send("", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.Equal("input validation failed: message validation failed: message cannot be empty"))
-			})
-			ginkgo.It("returns an error if priority is too low", func() {
-				params := types.Params{"priority": "-3"}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).
-					To(gomega.MatchError("failed to process config: priority validation failed: priority must be between -2 and 10"))
-			})
-			ginkgo.It("returns an error if priority is too high", func() {
-				params := types.Params{"priority": "11"}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).
-					To(gomega.MatchError("failed to process config: priority validation failed: priority must be between -2 and 10"))
-			})
-			ginkgo.It("recreates HTTP client when service.httpClient is nil", func() {
-				// Set httpClient to nil to simulate recreation
-				service.httpClient = nil
-				service.client = nil
-				// Call Send to trigger recreation (it will fail due to no httpmock)
-				_ = service.Send("Message", nil)
-				// Verify client was recreated
-				gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
-				gomega.Expect(service.client).NotTo(gomega.BeNil())
-				// Now activate httpmock and set client to nil to force recreation with mocked transport
-				activateHTTPMockGinkgo()
-
-				service.httpClient = nil
-				service.client = nil
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(200, map[string]any{
-						"id":       float64(1),
-						"appid":    float64(1),
-						"message":  "Message",
-						"title":    "Shoutrrr notification",
-						"priority": float64(0),
-						"date":     "2023-01-01T00:00:00Z",
-					}),
-				)
-				// Now call Send again with httpmock active
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles very long messages", func() {
-				longMessage := strings.Repeat("a", 10000)
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["message"]).To(gomega.Equal(longMessage))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  longMessage,
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err := service.Send(longMessage, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("handles messages with special characters", func() {
-				specialMessage := "Message with special chars: éñüñ 中文 🚀 \n\t\"quotes\" 'single'"
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["message"]).To(gomega.Equal(specialMessage))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  specialMessage,
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err := service.Send(specialMessage, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles non-JSON error responses", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					httpmock.NewStringResponder(500, "Internal Server Error"),
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("failed to send notification to Gotify"))
-			})
-			ginkgo.It("handles concurrent access from multiple goroutines", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					testutils.JSONRespondMust(200, map[string]any{
-						"id":       float64(1),
-						"appid":    float64(1),
-						"message":  "Message",
-						"title":    "Shoutrrr notification",
-						"priority": float64(0),
-						"date":     "2023-01-01T00:00:00Z",
-					}),
-				)
-
-				numGoroutines := 10
-
-				errChan := make(chan error, numGoroutines)
-				for i := range numGoroutines {
-					go func(id int) {
-						err := service.Send("Concurrent message "+strconv.Itoa(id), nil)
-						errChan <- err
-					}(i)
-				}
-
-				for range numGoroutines {
-					err := <-errChan
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				}
-			})
-			ginkgo.It("handles very large extras payload", func() {
-				// Create a large extras payload
-				largeExtras := make(map[string]any)
-				for i := range 1000 {
-					largeExtras[strconv.Itoa(i)] = strings.Repeat(
-						"data",
-						100,
-					) // ~400 bytes per entry
-				}
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(largeExtras))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				service.Config.Extras = largeExtras
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("handles combined large message and extras", func() {
-				largeMessage := strings.Repeat("message", 2000) // ~12KB message
-
-				largeExtras := make(map[string]any)
-				for i := range 500 {
-					largeExtras[strconv.Itoa(i)] = strings.Repeat(
-						"extra",
-						50,
-					) // ~250 bytes per entry
-				}
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["message"]).To(gomega.Equal(largeMessage))
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(largeExtras))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  largeMessage,
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				service.Config.Extras = largeExtras
-				err := service.Send(largeMessage, nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("sending with extras from params", func() {
-			ginkgo.It("includes extras in request payload from params", func() {
-				extrasJSON := `{"paramKey":"paramValue"}`
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
-							"paramKey": "paramValue",
-						}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				params := types.Params{"extras": extrasJSON}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("includes extras in request payload from config", func() {
-				service.Config.Extras = map[string]any{"configKey": "configValue"}
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
-							"configKey": "configValue",
-						}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("prioritizes extras from params over config", func() {
-				service.Config.Extras = map[string]any{"configKey": "configValue"}
-				extrasJSON := `{"paramKey":"paramValue"}`
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
-							"paramKey": "paramValue",
-						}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				params := types.Params{"extras": extrasJSON}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("sending with date parameter", func() {
-			ginkgo.It("includes date in request payload when provided", func() {
-				customDate := TestDateRFC
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     customDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": customDate}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("converts Unix timestamp date parameter to RFC3339", func() {
-				unixDate := "1701720000" // 2023-12-04T20:00:00Z
-				expectedDate := TestDateRFC
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     expectedDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": unixDate}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("converts basic date-time format to RFC3339", func() {
-				basicDate := "2023-12-04 20:00:00"
-				expectedDate := TestDateRFC
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(expectedDate))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     expectedDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": basicDate}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("logs warning for invalid date parameter and sends with empty date", func() {
-				var logBuffer bytes.Buffer
-
-				testLogger := log.New(&logBuffer, "Test", log.LstdFlags)
-				service.SetLogger(testLogger)
-
-				invalidDate := "not-a-date"
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-						// Should send with empty date when invalid date provided
-						gomega.Expect(requestBody["date"]).To(gomega.BeNil())
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": invalidDate}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(logBuffer.String()).To(gomega.ContainSubstring("Invalid date format"))
-			})
-			ginkgo.It("prioritizes date from params over config", func() {
-				// Set date in config
-				service.Config.Date = TestDateConfig
-				paramDate := TestDateRFC
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(paramDate))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     paramDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": paramDate}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("uses config date when no param date provided", func() {
-				configDate := TestDateConfig
-				service.Config.Date = configDate
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(configDate))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     configDate,
-						})(req)
-					},
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("includes date with priority parameter", func() {
-				customDate := TestDateRFC
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
-						gomega.Expect(requestBody["priority"]).To(gomega.Equal(float64(3)))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(3),
-							"date":     customDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": customDate, "priority": "3"}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("includes date with extras parameter", func() {
-				customDate := TestDateRFC
-				extrasJSON := `{"key":"value"}`
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-
-						gomega.Expect(requestBody["date"]).To(gomega.Equal(customDate))
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
-							"key": "value",
-						}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     customDate,
-						})(req)
-					},
-				)
-
-				params := types.Params{"date": customDate, "extras": extrasJSON}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("using header authentication", func() {
-			ginkgo.BeforeEach(func() {
-				service = &Service{}
-				service.SetLogger(logger)
-				activateHTTPMockGinkgo()
-
-				serviceURL := testutils.URLMust(
-					"gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes",
-				)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				mockManager = &MockHTTPClientManager{}
-				service.httpClientManager = mockManager
-				// Force recreation of client with mock transport
-				service.httpClient = nil
-				service.client = nil
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-			ginkgo.It("sends X-Gotify-Key header when useheader is enabled", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					"https://my.gotify.tld/message",
-					func(req *http.Request) (*http.Response, error) {
-						gomega.Expect(req.Header.Get("X-Gotify-Key")).
-							To(gomega.Equal("Aaa.bbb.ccc.ddd"))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("cleans up X-Gotify-Key header after send", func() {
-				httpmock.RegisterResponder(
-					"POST",
-					"https://my.gotify.tld/message",
-					func(req *http.Request) (*http.Response, error) {
-						gomega.Expect(req.Header.Get("X-Gotify-Key")).
-							To(gomega.Equal("Aaa.bbb.ccc.ddd"))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				err := service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// Verify header was cleaned up
-				gomega.Expect(service.client.Headers().Get("X-Gotify-Key")).
-					To(gomega.Equal(""))
-			})
-		})
-		ginkgo.When("parsing extras with invalid JSON", func() {
-			ginkgo.It("logs error and falls back to config extras", func() {
-				service.Config.Extras = map[string]any{"configKey": "configValue"}
-
-				httpmock.RegisterResponder(
-					"POST",
-					TargetURL,
-					func(req *http.Request) (*http.Response, error) {
-						var requestBody map[string]any
-						if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-							return nil, err
-						}
-						// Should fall back to config extras since params extras are invalid
-						gomega.Expect(requestBody["extras"]).To(gomega.Equal(map[string]any{
-							"configKey": "configValue",
-						}))
-
-						return testutils.JSONRespondMust(200, map[string]any{
-							"id":       float64(1),
-							"appid":    float64(1),
-							"message":  "Message",
-							"title":    "Shoutrrr notification",
-							"priority": float64(0),
-							"date":     "2023-01-01T00:00:00Z",
-						})(req)
-					},
-				)
-
-				params := types.Params{"extras": "invalid-json"}
-				err := service.Send("Message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("extras contain non-marshallable data", func() {
-			ginkgo.It("fails with marshaling error", func() {
-				service.Config.Extras = map[string]any{"bad": make(chan int)}
-				err := service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("failed to send notification to Gotify"))
-			})
-		})
-	})
-
-	// Helper functions test suite.
-	// This section tests the internal utility functions that support the main service operations,
-	// including request preparation, configuration validation, URL building, and extras parsing.
-	ginkgo.Describe("helper functions", func() {
-		ginkgo.BeforeEach(func() {
-			service = &Service{}
-			service.SetLogger(logger)
-			// Set up interface implementations directly instead of relying on Initialize
-			service.httpClientManager = &DefaultHTTPClientManager{}
-			service.urlBuilder = &DefaultURLBuilder{}
-			service.payloadBuilder = &DefaultPayloadBuilder{}
-			service.validator = &DefaultValidator{}
-			service.sender = &DefaultSender{}
-		})
-		ginkgo.Describe("prepareRequest", func() {
-			ginkgo.It("constructs payload correctly", func() {
-				config := &Config{
-					Title:    "Test Title",
-					Priority: 5,
-				}
-				extras := map[string]any{"key": "value"}
-				message := "Test message"
-				date := "2023-01-01T00:00:00Z"
-
-				request := service.payloadBuilder.PrepareRequest(message, config, extras, date)
-
-				gomega.Expect(request.Message).To(gomega.Equal(message))
-				gomega.Expect(request.Title).To(gomega.Equal(config.Title))
-				gomega.Expect(request.Priority).To(gomega.Equal(config.Priority))
-				gomega.Expect(request.Date).To(gomega.Equal(&date))
-				gomega.Expect(request.Extras).To(gomega.Equal(extras))
-			})
-		})
-		ginkgo.Describe("createTransport", func() {
-			ginkgo.It("configures TLS correctly when TLS is disabled", func() {
-				service.Config = &Config{}
-				service.Config.DisableTLS = true
-				transport := service.httpClientManager.CreateTransport(service.Config)
-				gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-			})
-			ginkgo.It("configures TLS correctly when TLS is enabled", func() {
-				service.Config = &Config{}
-				service.Config.DisableTLS = false
-				transport := service.httpClientManager.CreateTransport(service.Config)
-				gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
-			})
-		})
-		ginkgo.Describe("createHTTPClient", func() {
-			ginkgo.It("creates transport correctly", func() {
-				service.Config = &Config{}
-				transport := service.httpClientManager.CreateTransport(service.Config)
-				gomega.Expect(transport).NotTo(gomega.BeNil())
-			})
-		})
-		ginkgo.Describe("parseExtras", func() {
-			ginkgo.It("parses valid JSON extras from params", func() {
-				params := &types.Params{"extras": `{"key":"value"}`}
-				config := &Config{}
-				result, err := service.payloadBuilder.ParseExtras(params, config)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal(map[string]any{"key": "value"}))
-			})
-			ginkgo.It("returns config extras when no params extras", func() {
-				params := &types.Params{}
-				config := &Config{Extras: map[string]any{"config": "value"}}
-				result, err := service.payloadBuilder.ParseExtras(params, config)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal(map[string]any{"config": "value"}))
-			})
-		})
-
-		ginkgo.Describe("validateToken", func() {
-			ginkgo.It("accepts valid legacy tokens", func() {
-				gomega.Expect(service.validator.ValidateToken("Aaa.bbb.ccc.ddd")).To(gomega.BeTrue())
-			})
-			ginkgo.It("accepts valid new-format application tokens", func() {
-				gomega.Expect(service.validator.ValidateToken("gtfya.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
-					To(gomega.BeTrue())
-			})
-			ginkgo.It("accepts valid new-format client tokens", func() {
-				gomega.Expect(service.validator.ValidateToken("gtfyc.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
-					To(gomega.BeTrue())
-			})
-			ginkgo.It("rejects empty tokens", func() {
-				gomega.Expect(service.validator.ValidateToken("")).To(gomega.BeFalse())
-			})
-			ginkgo.It("rejects legacy tokens that are too short", func() {
-				gomega.Expect(service.validator.ValidateToken("short")).To(gomega.BeFalse())
-			})
-			ginkgo.It("rejects legacy tokens with invalid prefix", func() {
-				gomega.Expect(service.validator.ValidateToken("Baa.bbb.ccc.ddd")).To(gomega.BeFalse())
-			})
-			ginkgo.It("rejects legacy tokens with invalid characters", func() {
-				gomega.Expect(service.validator.ValidateToken("Aaa!bbb.ccc.ddd")).
-					To(gomega.BeFalse())
-			})
-			ginkgo.It("rejects new-format tokens that are missing the identifier character", func() {
-				gomega.Expect(service.validator.ValidateToken("gtfy.Y-Hy2VGVj6pYb64Wx6xFYHPBwBdbRWQy_XLiH5qMJeU")).
-					To(gomega.BeFalse())
-			})
-			ginkgo.It("rejects new-format tokens that are too short", func() {
-				gomega.Expect(service.validator.ValidateToken("gtfya.123")).To(gomega.BeFalse())
-			})
-		})
-
-		ginkgo.Describe("validateDate", func() {
-			ginkgo.It("returns empty string for empty input", func() {
-				result, err := service.validator.ValidateDate("")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("validates RFC3339 format correctly", func() {
-				input := TestDateRFC
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal(input))
-			})
-			ginkgo.It("validates RFC3339 with timezone offset", func() {
-				input := "2023-12-04T20:00:00+05:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T15:00:00Z"))
-			})
-			ginkgo.It("validates RFC3339 without timezone (assumes UTC)", func() {
-				input := "2023-12-04T20:00:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
-			})
-			ginkgo.It("validates Unix timestamp seconds", func() {
-				input := "1701720000" // 2023-12-04T20:00:00Z
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
-			})
-			ginkgo.It("validates basic date-time format", func() {
-				input := "2023-12-04 20:00:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
-			})
-			ginkgo.It("handles zero Unix timestamp", func() {
-				input := "0"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("1970-01-01T00:00:00Z"))
-			})
-			ginkgo.It("handles negative Unix timestamp", func() {
-				input := "-1"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("1969-12-31T23:59:59Z"))
-			})
-			ginkgo.It("handles large Unix timestamp", func() {
-				input := "2147483647" // Max int32
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2038-01-19T03:14:07Z"))
-			})
-			ginkgo.It("returns error for invalid RFC3339 format", func() {
-				input := "2023-13-04T20:00:00Z" // Invalid month
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for invalid date string", func() {
-				input := "not-a-date"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for malformed RFC3339", func() {
-				input := "2023-13-04T20:00:00Z" // Invalid month
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for invalid Unix timestamp", func() {
-				input := "abc123"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for Unix timestamp with decimal", func() {
-				input := "1701720000.5"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for date with invalid separators", func() {
-				input := "2023/12/04 20:00:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for date with extra characters", func() {
-				input := "2023-12-04T20:00:00Z extra"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("handles RFC3339Nano format", func() {
-				input := "2023-12-04T20:00:00.123456789Z"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).
-					To(gomega.Equal("2023-12-04T20:00:00Z"))
-				// Nanoseconds are truncated to RFC3339
-			})
-			ginkgo.It("validates RFC3339 with +00:00 timezone", func() {
-				input := "2023-12-04T20:00:00+00:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
-			})
-			ginkgo.It("validates RFC3339 with -08:00 timezone", func() {
-				input := "2023-12-04T20:00:00-08:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-05T04:00:00Z"))
-			})
-			ginkgo.It("validates Unix timestamp with leading zeros", func() {
-				input := "0001701720000"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2023-12-04T20:00:00Z"))
-			})
-			ginkgo.It("validates Unix timestamp for 2021-01-01", func() {
-				input := "1609459200"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(result).To(gomega.Equal("2021-01-01T00:00:00Z"))
-			})
-			ginkgo.It("returns error for date-only format", func() {
-				input := "2023-12-04"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-			ginkgo.It("returns error for time-only format", func() {
-				input := "20:00:00"
-				result, err := service.validator.ValidateDate(input)
-				gomega.Expect(err).To(gomega.MatchError(ErrInvalidDate))
-				gomega.Expect(result).To(gomega.Equal(""))
-			})
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.DescribeTable("should stop the request when the caller's context is canceled",
-		func(rawURL string) {
-			ctx, cancel := context.WithCancel(context.Background())
+	}
+}
+
+// TestSendLeavesConfigUnchanged verifies that params apply to one send only
+// and leave the caller's params unchanged.
+func TestSendLeavesConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRecordingClient(t, sent, sent)
+	service.SetHTTPClient(client)
+
+	want := *service.Config
+	params := types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "yes"}
+
+	require.NoError(t, service.Send("Hello", &params))
+	require.NoError(t, service.Send("Hello", nil))
+
+	assert.Equal(t, want, *service.Config)
+	assert.Equal(t, types.Params{"title": "Backup", "priority": "5", "extras": `{"a":1}`, "useheader": "yes"}, params)
+
+	requests := captured()
+	require.Len(t, requests, 2)
+	assert.Equal(t, testEndpoint, requests[1].url)
+	assertPayload(t, `{"message":"Hello","title":"Shoutrrr notification","extras":null}`, requests[1].body)
+}
+
+// TestSendContextCancellation verifies that the caller's context bounds the
+// request, with the token in the query or a header.
+func TestSendContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=yes"} {
+		t.Run(rawURL, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
-			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			client := typesmocks.NewMockHTTPClient(t)
 			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 				return nil, req.Context().Err()
 			}).Once()
 
-			service := &Service{}
-			gomega.Expect(service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())).To(gomega.Succeed())
+			service := newTestService(t, rawURL)
 			service.SetHTTPClient(client)
 
-			gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
-		},
-		ginkgo.Entry("with the token in the query", "gotify://my.gotify.tld/Aaa.bbb.ccc.ddd"),
-		ginkgo.Entry("with the token in a header", "gotify://my.gotify.tld/Aaa.bbb.ccc.ddd?useheader=yes"),
-	)
-})
-
-// CreateClient creates a client with the given transport.
-func (m *MockHTTPClientManager) CreateClient(transport *http.Transport) *http.Client {
-	if transport == nil {
-		return &http.Client{
-			Transport: http.DefaultTransport,
-			Timeout:   10 * time.Second,
-		}
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   10 * time.Second,
+			require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
+		})
 	}
 }
 
-// CreateTransport creates a basic HTTP transport for the mock manager.
-func (m *MockHTTPClientManager) CreateTransport(_ *Config) *http.Transport {
-	if m.Transport != nil {
-		return m.Transport
-	}
-
-	// Return nil to use the default transport, avoiding nil dereferences
-	return nil
-}
-
-// TestGotify runs the Ginkgo test suite for the Gotify package.
-//
-//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
-func TestGotify(t *testing.T) {
-	// Register gomega handler before any parallel tests run
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Gotify Suite")
-}
-
-// TestMain sets up gomega for all tests before running them.
-// This ensures gomega state is initialized once, avoiding race conditions
-// when tests run in parallel.
-func TestMain(m *testing.M) {
-	// Set up gomega with a fail handler for all tests
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	flag.Parse()
-	os.Exit(m.Run())
-}
-
-// TestSend tests basic message sending functionality.
-//
-//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
-func TestSend(t *testing.T) {
-	service := &Service{}
-	logger := log.New(os.Stderr, "Test", log.LstdFlags)
-	service.SetLogger(logger)
-
-	activateHTTPMock(t)
-
-	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-
-	err := service.Initialize(serviceURL, logger)
-	if err != nil {
-		t.Fatalf("failed to initialize service: %v", err)
-	}
-
-	mockManager := &MockHTTPClientManager{}
-	service.httpClientManager = mockManager
-	// Force recreation of client with mock transport
-	service.httpClient = nil
-	service.client = nil
-
-	httpmock.RegisterResponder(
-		"POST",
-		TargetURL,
-		testutils.JSONRespondMust(200, map[string]any{
-			"id":       float64(1),
-			"appid":    float64(1),
-			"message":  "Message",
-			"title":    "Shoutrrr notification",
-			"priority": float64(0),
-			"date":     "2023-01-01T00:00:00Z",
-		}),
-	)
-
-	err = service.Send("Message", nil)
-	if err != nil {
-		t.Fatalf("send failed: %v", err)
-	}
-}
-
-// TestSendWithPriority tests sending a message with a custom priority.
-//
-//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
-func TestSendWithPriority(t *testing.T) {
-	service := &Service{}
-	logger := log.New(os.Stderr, "Test", log.LstdFlags)
-	service.SetLogger(logger)
-
-	activateHTTPMock(t)
-
-	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-
-	err := service.Initialize(serviceURL, logger)
-	if err != nil {
-		t.Fatalf("failed to initialize service: %v", err)
-	}
-
-	mockManager := &MockHTTPClientManager{}
-	service.httpClientManager = mockManager
-	// Force recreation of client with mock transport
-	service.httpClient = nil
-	service.client = nil
-
-	httpmock.RegisterResponder(
-		"POST",
-		TargetURL,
-		func(req *http.Request) (*http.Response, error) {
-			var requestBody map[string]any
-			if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-				return nil, err
-			}
-
-			if requestBody["priority"] != float64(5) {
-				return nil, fmt.Errorf("expected priority 5, got %v", requestBody["priority"])
-			}
-
-			return testutils.JSONRespondMust(200, map[string]any{
-				"id":       float64(1),
-				"appid":    float64(1),
-				"message":  "Message",
-				"title":    "Shoutrrr notification",
-				"priority": float64(5),
-				"date":     "2023-01-01T00:00:00Z",
-			})(req)
-		},
-	)
-
-	params := types.Params{"priority": "5"}
-
-	err = service.Send("Message", &params)
-	if err != nil {
-		t.Fatalf("send failed: %v", err)
-	}
-}
-
-// TestSendWithTitle tests sending a message with a custom title.
-//
-//nolint:paralleltest // Swaps http.DefaultTransport through httpmock, which other tests read.
-func TestSendWithTitle(t *testing.T) {
-	service := &Service{}
-	logger := log.New(os.Stderr, "Test", log.LstdFlags)
-	service.SetLogger(logger)
-
-	activateHTTPMock(t)
-
-	serviceURL := testutils.URLMust("gotify://my.gotify.tld/Aaa.bbb.ccc.ddd")
-
-	err := service.Initialize(serviceURL, logger)
-	if err != nil {
-		t.Fatalf("failed to initialize service: %v", err)
-	}
-
-	mockManager := &MockHTTPClientManager{}
-	service.httpClientManager = mockManager
-	// Force recreation of client with mock transport
-	service.httpClient = nil
-	service.client = nil
-
-	httpmock.RegisterResponder(
-		"POST",
-		TargetURL,
-		func(req *http.Request) (*http.Response, error) {
-			var requestBody map[string]any
-			if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-				return nil, err
-			}
-
-			if requestBody["title"] != "Custom Title" {
-				return nil, fmt.Errorf("expected title 'Custom Title', got %v", requestBody["title"])
-			}
-
-			return testutils.JSONRespondMust(200, map[string]any{
-				"id":       float64(1),
-				"appid":    float64(1),
-				"message":  "Message",
-				"title":    "Custom Title",
-				"priority": float64(0),
-				"date":     "2023-01-01T00:00:00Z",
-			})(req)
-		},
-	)
-
-	params := types.Params{"title": "Custom Title"}
-
-	err = service.Send("Message", &params)
-	if err != nil {
-		t.Fatalf("send failed: %v", err)
-	}
-}
-
-// TestTimeout tests timeout handling using synctest for instant execution.
-func TestTimeout(t *testing.T) {
+// TestSendConcurrently verifies that concurrent sends through one service
+// each make their request.
+func TestSendConcurrently(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		// Create fake network connection
-		srvConn, cliConn := net.Pipe()
 
-		defer func() { _ = srvConn.Close() }()
-		defer func() { _ = cliConn.Close() }()
+	const sends = 8
 
-		errChan := make(chan error, 1)
+	responses := make([]cannedResponse, sends)
+	for i := range responses {
+		responses[i] = sent
+	}
 
-		// Create service with custom HTTP client using fake connection
-		service := &Service{}
-		logger := log.New(os.Stderr, "Test", log.LstdFlags)
-		service.SetLogger(logger)
+	service := newTestService(t, testServiceURL)
+	client, captured := newRecordingClient(t, responses...)
+	service.SetHTTPClient(client)
 
-		serviceURL := testutils.URLMust("gotify://test.tld/Aaa.bbb.ccc.ddd")
-		err := service.Initialize(serviceURL, logger)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	var wg sync.WaitGroup
+	for i := range sends {
+		wg.Go(func() {
+			assert.NoError(t, service.Send(fmt.Sprintf("Hello %d", i), nil))
+		})
+	}
 
-		// Use MockHTTPClientManager with custom transport for fake connection
-		mockManager := &MockHTTPClientManager{
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return cliConn, nil
-				},
-			},
-		}
-		service.httpClientManager = mockManager
-		// Force recreation of client with custom transport
-		service.httpClient = nil
-		service.client = nil
+	wg.Wait()
 
-		// Simulate slow server in goroutine
-		go func() {
-			req, err := http.ReadRequest(bufio.NewReader(srvConn))
-			if err != nil {
-				return
-			}
-			// Simulate slow response
-			time.Sleep(15 * time.Second)
-
-			resp, err := testutils.JSONRespondMust(200, map[string]any{
-				"id":       float64(1),
-				"appid":    float64(1),
-				"message":  "Message",
-				"title":    "Shoutrrr notification",
-				"priority": float64(0),
-				"date":     "2023-01-01T00:00:00Z",
-			})(req)
-			if err != nil {
-				return
-			}
-
-			err = resp.Write(srvConn)
-			if err != nil {
-				errChan <- err
-
-				return
-			}
-
-			if err := resp.Body.Close(); err != nil {
-				errChan <- err
-			}
-		}()
-
-		// Send request and expect timeout
-		err = service.Send("Message", nil)
-		gomega.Expect(err).To(gomega.HaveOccurred())
-		gomega.Expect(err.Error()).To(gomega.ContainSubstring("context deadline exceeded"))
-
-		select {
-		case writeErr := <-errChan:
-			t.Fatalf("failed to write response: %v", writeErr)
-		default:
-		}
-	})
+	assert.Len(t, captured(), sends)
 }
 
-// activateHTTPMock safely activates httpmock with a mutex to prevent race conditions
-// when multiple tests run in parallel. It ensures proper activation/deactivation ordering.
-func activateHTTPMock(t *testing.T) {
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for nil and a nil *http.Client, so the next send creates the
+// default client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the stored client should be cleared.
+	tests := []struct {
+		client    func(t *testing.T) types.HTTPClient
+		name      string
+		wantClear bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return typesmocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := newTestService(t, testServiceURL)
+			service.SetHTTPClient(client)
+
+			if tt.wantClear {
+				assert.Nil(t, service.httpClient)
+				assert.Nil(t, service.client)
+
+				return
+			}
+
+			assert.Same(t, client, service.httpClient)
+			assert.NotNil(t, service.client)
+		})
+	}
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or
+// after a nil client is set, uses a default client that honors the caller's
+// context and keeps the token out of its errors. The context is canceled
+// before the send, so the transport returns before it dials.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set", configure: func(*Service) {}},
+		{name: "nil client", configure: func(s *Service) { s.SetHTTPClient(nil) }},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		for _, rawURL := range []string{testServiceURL, testServiceURL + "?useheader=yes"} {
+			t.Run(tt.name+" "+rawURL, func(t *testing.T) {
+				t.Parallel()
+
+				service := newTestService(t, rawURL)
+				tt.configure(service)
+
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+
+				err := service.SendContext(ctx, "Hello", nil)
+
+				require.ErrorIs(t, err, context.Canceled)
+				assert.NotContains(t, err.Error(), testToken)
+			})
+		}
+	}
+}
+
+// newGotifyServer returns a loopback server that accepts messages with
+// testToken in the query or the X-Gotify-Key header, counting them.
+//
+// Parameters:
+//   - t: the test.
+//   - useTLS: whether the server uses TLS with a self-signed certificate.
+//
+// Returns:
+//   - *httptest.Server: the started server, closed when the test ends.
+//   - *atomic.Int32: the number of accepted messages.
+func newGotifyServer(t *testing.T, useTLS bool) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
-	httpmockActivateMutex.Lock()
-	// Register cleanup to unlock the mutex after httpmock is deactivated
-	t.Cleanup(func() {
-		httpmock.DeactivateAndReset()
-		httpmockActivateMutex.Unlock()
-	})
-	httpmock.Activate()
+
+	var accepted atomic.Int32
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			token = r.Header.Get("X-Gotify-Key")
+		}
+
+		if r.Method != http.MethodPost || r.URL.Path != "/message" || token != testToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, unauthorizedBody)
+
+			return
+		}
+
+		accepted.Add(1)
+
+		_, _ = io.WriteString(w, sentBody)
+	}))
+	// The server logs rejected TLS handshakes to the test output.
+	server.Config.ErrorLog = log.New(t.Output(), "", 0)
+
+	if useTLS {
+		server.StartTLS()
+	} else {
+		server.Start()
+	}
+
+	t.Cleanup(server.Close)
+
+	return server, &accepted
 }
 
-// activateHTTPMockGinkgo safely activates httpmock for Ginkgo tests.
-// Note: Ginkgo specs run serially within the Ginkgo suite, so no mutex is needed.
-// The mutex is only needed to serialize between Ginkgo tests and standalone tests
-// when they both run in parallel (via t.Parallel()). The standalone tests use
-// activateHTTPMock which handles the mutex protection.
-func activateHTTPMockGinkgo() {
-	// No mutex needed for Ginkgo - specs run serially within the suite
-	// The mutex protection is handled by standalone tests via activateHTTPMock(t)
-	// which ensures proper ordering when tests run in parallel
-	httpmock.Activate()
+// TestSendDefaultClientLoopback verifies the default client against loopback
+// servers: plain HTTP with TLS disabled, with the token in the query or a
+// header, and HTTPS with a self-signed certificate, which fails verification
+// unless insecureskipverify is set.
+func TestSendDefaultClientLoopback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newGotifyServer(t, false)
+		rawURL := "gotify://" + server.Listener.Addr().String() + "/" + testToken + "?disabletls=yes"
+
+		require.NoError(t, newTestService(t, rawURL).Send("Hello", nil))
+		require.NoError(t, newTestService(t, rawURL+"&useheader=yes").Send("Hello", nil))
+		assert.Equal(t, int32(2), accepted.Load())
+	})
+
+	t.Run("self-signed HTTPS", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newGotifyServer(t, true)
+		rawURL := "gotify://" + server.Listener.Addr().String() + "/" + testToken
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
+		assert.True(t, isCertErr, "error is not a certificate verification error")
+
+		require.NoError(t, newTestService(t, rawURL+"?insecureskipverify=yes").Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+}
+
+// TestSendTimeout verifies that the default client gives up on a server that
+// does not answer within its 10 second timeout.
+func TestSendTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		serverConn, clientConn := net.Pipe()
+
+		t.Cleanup(func() {
+			_ = serverConn.Close()
+			_ = clientConn.Close()
+		})
+
+		service := newTestService(t, "gotify://"+testHost+"/"+testToken)
+		service.httpClientManager = &fixedTransportManager{transport: &http.Transport{
+			DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
+				return clientConn, nil
+			},
+		}}
+		service.SetHTTPClient(nil)
+
+		// The server reads the request and never answers.
+		go func() { _, _ = http.ReadRequest(bufio.NewReader(serverConn)) }()
+
+		start := time.Now()
+		err := service.Send("Hello", nil)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, 10*time.Second, time.Since(start))
+	})
+}
+
+// TestSendURLBuilderError verifies that a send fails before any request when
+// the message endpoint cannot be built.
+func TestSendURLBuilderError(t *testing.T) {
+	t.Parallel()
+
+	errBuild := errors.New("build failure")
+
+	service := newTestService(t, testServiceURL)
+	service.urlBuilder = failingURLBuilder{err: errBuild}
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send("Hello", nil), errBuild)
+}
+
+// TestFilterParams verifies that filterParams copies every param except
+// extras and handles nil params.
+func TestFilterParams(t *testing.T) {
+	t.Parallel()
+
+	params := types.Params{"title": "Backup", "extras": "{}", "priority": "5"}
+
+	assert.Equal(t, types.Params{"title": "Backup", "priority": "5"}, filterParams(&params))
+	assert.Equal(t, types.Params{"title": "Backup", "extras": "{}", "priority": "5"}, params)
+	assert.Equal(t, types.Params{}, filterParams(nil))
+}
+
+// CreateClient returns a default client that sends through httpTransport.
+//
+// Parameters:
+//   - httpTransport: the transport for the client.
+//
+// Returns:
+//   - *http.Client: the client.
+func (m *fixedTransportManager) CreateClient(httpTransport *http.Transport) *http.Client {
+	return (&DefaultHTTPClientManager{}).CreateClient(httpTransport)
+}
+
+// CreateTransport returns the fixed transport.
+//
+// Returns:
+//   - *http.Transport: the transport.
+func (m *fixedTransportManager) CreateTransport(*Config) *http.Transport {
+	return m.transport
+}
+
+// BuildURL returns the builder's error.
+//
+// Returns:
+//   - string: an empty URL.
+//   - error: the builder's error.
+func (b failingURLBuilder) BuildURL(*Config) (string, error) {
+	return "", b.err
 }
