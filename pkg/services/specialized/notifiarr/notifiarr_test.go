@@ -1,1570 +1,608 @@
-package notifiarr_test
+package notifiarr
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/specialized/notifiarr"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var (
-	service         *notifiarr.Service
-	envNotifiarrURL *url.URL
-	logger          *log.Logger
-	_               = ginkgo.BeforeSuite(func() {
-		service = &notifiarr.Service{}
-		envNotifiarrURL, _ = url.Parse(os.Getenv("SHOUTRRR_NOTIFIARR_URL"))
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+	// accept is the request's Accept header.
+	accept string
+	// body is the request body.
+	body string
+}
+
+// Values shared by the service tests.
+const (
+	// testServiceURL is a service URL with only the API key.
+	testServiceURL = "notifiarr://" + testAPIKey
+	// testEndpoint is the passthrough URL testServiceURL posts to.
+	testEndpoint = APIBaseURL + "/" + testAPIKey
+)
+
+// errTransport is the transport failure returned by the failing HTTP client.
+var errTransport = errors.New("transport failure")
+
+// newRespondingClient returns a mock HTTP client that expects one request,
+// records it, and answers with the given status.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - status: the response status line, such as "200 OK".
+//   - statusCode: the response status code.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *capturedRequest: the request, filled in once the client receives it.
+func newRespondingClient(t *testing.T, status string, statusCode int) (*mocks.MockHTTPClient, *capturedRequest) {
+	t.Helper()
+
+	captured := &capturedRequest{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		*captured = capturedRequest{
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
+			accept:      req.Header.Get("Accept"),
+			body:        string(body),
+		}
+
+		return &http.Response{Status: status, StatusCode: statusCode, Body: io.NopCloser(strings.NewReader(`{"result":"success"}`))}, nil
+	}).Once()
+
+	return client, captured
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "notifiarr", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the router budget for a send is the
+// request timeout.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, requestTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestInitialize verifies that Initialize applies the default name and parses
+// the service URL.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL+"?channel=123456789")
+
+	assert.Equal(t, &Config{APIKey: testAPIKey, Name: "Shoutrrr", Channel: "123456789"}, service.Config)
+}
+
+// TestGetServiceURLFromCustom verifies that a notifiarr+ custom URL and a
+// plain service URL both become service URLs with the API key.
+func TestGetServiceURLFromCustom(t *testing.T) {
+	t.Parallel()
+
+	// tests lists custom URLs with the service URL each should produce.
+	tests := []struct {
+		name      string
+		customURL string
+		want      string
+	}{
+		{
+			name:      "passthrough webhook",
+			customURL: "notifiarr+https://notifiarr.com/api/v1/notification/passthrough/" + testAPIKey + "?channel=123456789",
+			want:      "notifiarr://" + testAPIKey + "?channel=123456789",
+		},
+		{name: "service URL", customURL: testServiceURL, want: testServiceURL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL, err := (&Service{}).GetServiceURLFromCustom(parseTestURL(t, tt.customURL))
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, serviceURL.String())
+		})
+	}
+}
+
+// TestSend verifies the request a send makes: a JSON POST to the passthrough
+// endpoint for the API key, with the notification metadata and the Discord
+// payload built from the config, params, and message mentions.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs, messages, and params with the JSON body the
+	// send should produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		wantBody string
+	}{
+		{
+			name:     "message only",
+			rawURL:   testServiceURL,
+			message:  "Hello",
+			wantBody: `{"notification":{"name":"Shoutrrr"},"discord":{"text":{"description":"Hello"}}}`,
+		},
+		{
+			name: "configured Discord props",
+			rawURL: testServiceURL + "?channel=735481457153277994&color=FF0000" +
+				"&thumbnail=https://example.com/thumb.png&image=https://example.com/img.png&name=Backup",
+			message: "Hello",
+			wantBody: `{"notification":{"name":"Backup"},"discord":{"color":"FF0000",` +
+				`"images":{"thumbnail":"https://example.com/thumb.png","image":"https://example.com/img.png"},` +
+				`"text":{"description":"Hello"},"ids":{"channel":735481457153277994}}}`,
+		},
+		{
+			name:    "params",
+			rawURL:  testServiceURL + "?channel=1",
+			message: "Body of the notification here",
+			params: &types.Params{
+				"id": "12345", "update": "true", "name": "1:1 App", "channel": "2", "color": "FFFFFF",
+				"title": "Notification Title", "icon": "https://example.com/icon.png", "content": "Content here",
+				"footer": "Footer Text", "fields": `[{"title":"Field Title","text":"Inline true","inline":true}]`,
+				"thumbnail": "https://example.com/thumb.png", "image": "https://example.com/img.png",
+			},
+			wantBody: `{"notification":{"update":true,"name":"1:1 App","event":"12345"},"discord":{"color":"FFFFFF",` +
+				`"images":{"thumbnail":"https://example.com/thumb.png","image":"https://example.com/img.png"},` +
+				`"text":{"title":"Notification Title","icon":"https://example.com/icon.png","content":"Content here",` +
+				`"description":"Body of the notification here","fields":[{"title":"Field Title","text":"Inline true","inline":true}],` +
+				`"footer":"Footer Text"},"ids":{"channel":2}}}`,
+		},
+		{
+			name:     "update false",
+			rawURL:   testServiceURL,
+			message:  "Hello",
+			params:   &types.Params{"update": "false"},
+			wantBody: `{"notification":{"update":false,"name":"Shoutrrr"},"discord":{"text":{"description":"Hello"}}}`,
+		},
+		{
+			name:     "mentions ping the first user and role",
+			rawURL:   testServiceURL,
+			message:  "Hi <@!123> <@456> <@&789> <@&999>",
+			wantBody: `{"notification":{"name":"Shoutrrr"},"discord":{"ping":{"pingUser":123,"pingRole":789},"text":{"description":"Hi <@!123> <@456> <@&789> <@&999>"}}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			assert.Equal(t, http.MethodPost, captured.method)
+			assert.Equal(t, testEndpoint, captured.url)
+			assert.Equal(t, "application/json", captured.contentType)
+			assert.Equal(t, "application/json", captured.accept)
+			assert.JSONEq(t, tt.wantBody, captured.body)
+		})
+	}
+}
+
+// TestSendLeavesParamsAndConfigUnchanged verifies that a send keeps param
+// overrides out of the stored config and does not change the caller's
+// params.
+func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL+"?channel=1")
+	want := *service.Config
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	params := types.Params{"channel": "2", "name": "Other", "title": "Title"}
+	require.NoError(t, service.Send("Hello", &params))
+
+	assert.Equal(t, types.Params{"channel": "2", "name": "Other", "title": "Title"}, params)
+	assert.Equal(t, want, *service.Config)
+}
+
+// TestSendLogsStatusWithoutBody verifies that a send logs the response status
+// but not the response body.
+func TestSendLogsStatusWithoutBody(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(req.URL.String() + " BODYmarker"))}, nil
+	}).Once()
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Hello", nil))
+
+	assert.Contains(t, logs.String(), "200 OK")
+	assert.NotContains(t, logs.String(), testAPIKey)
+	assert.NotContains(t, logs.String(), "BODYmarker")
+}
+
+// TestSendContextErrors verifies that a send rejects an empty message or an
+// invalid payload before any request, reports an authentication failure and
+// other error statuses, wraps a transport error without the API key, and
+// stops when the caller's context is canceled.
+func TestSendContextErrors(t *testing.T) {
+	t.Parallel()
+
+	// rejectedSends lists sends that fail before any request.
+	rejectedSends := []struct {
+		params  *types.Params
+		wantErr error
+		name    string
+		rawURL  string
+		message string
+	}{
+		{name: "empty message", rawURL: testServiceURL, message: "", wantErr: ErrEmptyMessage},
+		{name: "channel not a number", rawURL: testServiceURL + "?channel=general", message: "Hello", wantErr: ErrInvalidChannelID},
+		{name: "fields not JSON", rawURL: testServiceURL, message: "Hello", params: &types.Params{"fields": "title=text"}},
+	}
+
+	for _, tt := range rejectedSends {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			err := service.SendContext(t.Context(), tt.message, tt.params)
+
+			require.Error(t, err)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+		})
+	}
+
+	// statusTests lists error responses with the error each should produce.
+	statusTests := []struct {
+		wantErr    error
+		name       string
+		status     string
+		statusCode int
+	}{
+		{name: "unauthorized", status: "401 Unauthorized", statusCode: http.StatusUnauthorized, wantErr: ErrAuthenticationFailed},
+		{name: "server error", status: "500 Internal Server Error", statusCode: http.StatusInternalServerError, wantErr: ErrUnexpectedStatus},
+		{name: "redirect", status: "302 Found", statusCode: http.StatusFound, wantErr: ErrUnexpectedStatus},
+	}
+
+	for _, tt := range statusTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			client, _ := newRespondingClient(t, tt.status, tt.statusCode)
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "Hello", nil)
+
+			require.ErrorIs(t, err, ErrSendFailed)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Hello", nil)
+
+		require.ErrorIs(t, err, ErrSendFailed)
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), testAPIKey)
 	})
-)
 
-var _ = ginkgo.Describe("the notifiarr service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should work without errors", func() {
-			if envNotifiarrURL.String() == "" {
-				ginkgo.Skip("No integration test ENV URL was set")
+	t.Run("canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		service := newTestService(t, testServiceURL)
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, req.Context().Err()
+		}).Once()
+		service.SetHTTPClient(client)
+
+		require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
+	})
+}
+
+// TestSendRedactsUnparsableURL verifies that an API key that makes the
+// request URL unparsable fails before any request, without the key in the
+// error.
+func TestSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "notifiarr://placeholder?apikey=SECRETapikey%25zz")
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	err := service.Send("Hello", nil)
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETapikey")
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or with
+// a nil *http.Client, uses a default client that honors the caller's context.
+// The context is canceled before the send, so the transport returns before it
+// dials Notifiarr.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set", configure: func(*Service) {}},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			tt.configure(service)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := service.SendContext(ctx, "Hello", nil)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.NotContains(t, err.Error(), testAPIKey)
+		})
+	}
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// clears it for nil and a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the stored client should be cleared.
+	tests := []struct {
+		client    func(t *testing.T) types.HTTPClient
+		name      string
+		wantClear bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+			service.SetHTTPClient(client)
+
+			if tt.wantClear {
+				assert.Nil(t, service.httpClient)
 
 				return
 			}
 
-			serviceURL, _ := url.Parse(envNotifiarrURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("this is an integration test", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("the service", func() {
-		ginkgo.BeforeEach(func() {
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("notifiarr"))
-		})
-	})
-
-	ginkgo.When("parsing a custom URL", func() {
-		ginkgo.BeforeEach(func() {
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.It("correctly sets API key from custom URL", func() {
-			customURL := testutils.URLMust("notifiarr://apikey123")
-			serviceURL, err := service.GetServiceURLFromCustom(customURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.APIKey).To(gomega.Equal("apikey123"))
-		})
-	})
-
-	ginkgo.Describe("the notifiarr config", func() {
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.It("should be identical after de-/serialization", func() {
-				testURL := "notifiarr://apikey123?channel=123456789"
-				expectedURL := "notifiarr://apikey123?channel=123456789"
-
-				serviceURL := testutils.URLMust(testURL)
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(service.Config.GetURL().String()).To(gomega.Equal(expectedURL))
-			})
-		})
-
-		ginkgo.When("parsing from webhook URL", func() {
-			ginkgo.It("sets config properties from webhook URL query parameters", func() {
-				webhookURL := testutils.URLMust(
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123?channel=123456789",
-				)
-
-				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				gomega.Expect(config.APIKey).To(gomega.Equal("apikey123"))
-				gomega.Expect(config.Channel).To(gomega.Equal("123456789"))
-			})
-
-			ginkgo.It(
-				"sets config properties correctly from webhook URL with template and other parameters",
-				func() {
-					webhookURL := testutils.URLMust(
-						"https://notifiarr.com/api/v1/notification/watchtower?template=json&contenttype=application/json&method=POST&titlekey=customtitle&messagekey=custommessage&extra=param",
-					)
-
-					config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
-					gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-					gomega.Expect(config.APIKey).To(gomega.Equal(""))
-					gomega.Expect(config.Channel).To(gomega.Equal(""))
-					gomega.Expect(config.GetURL().RawQuery).
-						To(gomega.Equal("contenttype=application%2Fjson&extra=param&messagekey=custommessage&method=POST&template=json&titlekey=customtitle"))
-				},
-			)
-
-			ginkgo.It("handles custom headers and extra data from webhook URL", func() {
-				webhookURL := testutils.URLMust(
-					"https://example.com/webhook?@Authorization=Bearer token&$extraKey=extraValue&template=json",
-				)
-
-				config, _, err := notifiarr.ConfigFromWebhookURL(webhookURL)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				gomega.Expect(config.APIKey).To(gomega.Equal(""))
-				gomega.Expect(config.Channel).To(gomega.Equal(""))
-				gomega.Expect(config.GetURL().RawQuery).
-					To(gomega.Equal("%24extraKey=extraValue&%40Authorization=Bearer+token&template=json"))
-			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.When("sending via API", func() {
-			ginkgo.It("succeeds if the server accepts the payload", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("reports an error if sending fails", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					httpmock.NewErrorResponder(http.ErrHandlerTimeout),
-				)
-
-				err = service.Send("Test message", nil)
-				gomega.Expect(err).To(gomega.MatchError(notifiarr.ErrSendFailed))
-				gomega.Expect(err).To(gomega.MatchError(http.ErrHandlerTimeout))
-				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("apikey123"))
-			})
-
-			ginkgo.It("does not log a response body that echoes the request", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				logs := &strings.Builder{}
-				err := service.Initialize(serviceURL, log.New(logs, "", 0))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						return httpmock.NewStringResponse(http.StatusOK, req.URL.String()+" BODYmarker"), nil
-					},
-				)
-
-				err = service.Send("Test message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(logs.String()).To(gomega.ContainSubstring("200"))
-				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("apikey123"))
-				gomega.Expect(logs.String()).NotTo(gomega.ContainSubstring("BODYmarker"))
-			})
-
-			ginkgo.It("includes Discord channel in JSON payload when configured", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ids":{"channel":123456789}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				params := types.Params{"title": "Test Title"}
-				err = service.Send("Test message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("includes title in notification payload", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"discord":{"text":{"title":"Test Title","description":"Test message"}}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				params := types.Params{"title": "Test Title"}
-				err = service.Send("Test message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("does not mutate the given params", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				params := types.Params{"title": "ORIGINAL TITLE"}
-				err = service.Send("Test message", &params)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(params).To(gomega.Equal(types.Params{"title": "ORIGINAL TITLE"}))
-			})
-
-			ginkgo.It("returns error for empty message", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				err = service.Send("", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err).To(gomega.Equal(notifiarr.ErrEmptyMessage))
-			})
-		})
-	})
-
-	ginkgo.Describe("event ID parameter handling", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes event ID in payload when provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"event":"event-123"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"id": "event-123"}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("omits event ID when not provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"id"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles empty event ID gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"id"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"id": ""}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("Discord mention parsing", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.Describe("parsing user mentions", func() {
-			ginkgo.It("parses single user mention <@123>", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingUser":123}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Hello <@123>!", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("parses user mention with nickname <@!456>", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingUser":456}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Hey <@!456> there", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("parses multiple user mentions", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingUser":123}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("<@123> and <@!456> are here", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.Describe("parsing role mentions", func() {
-			ginkgo.It("parses single role mention <@&789>", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingRole":789}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Role: <@&789>", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("parses multiple role mentions", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingRole":111}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("<@&111> and <@&222> notified", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.Describe("parsing mixed mentions", func() {
-			ginkgo.It("parses user and role mentions together", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingUser":123,"pingRole":456}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("<@123> <@&456> <@!789>", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.Describe("invalid mentions", func() {
-			ginkgo.It("ignores malformed mentions", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							NotTo(gomega.ContainSubstring(`"ping"`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Invalid <@abc> <@&> <@123def>", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("ignores mentions without closing bracket", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							NotTo(gomega.ContainSubstring(`"ping"`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Broken <@123 mention", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("ignores mentions with invalid characters", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							NotTo(gomega.ContainSubstring(`"ping"`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("<@12a3> <@&45b6>", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.Describe("edge cases", func() {
-			ginkgo.It("handles message without mentions", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							NotTo(gomega.ContainSubstring(`"ping"`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("Just a regular message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("handles mentions at message boundaries", func() {
-				serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-				err := service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-					func(req *http.Request) (*http.Response, error) {
-						body, _ := io.ReadAll(req.Body)
-						gomega.Expect(string(body)).
-							To(gomega.ContainSubstring(`"ping":{"pingUser":123}`))
-
-						return httpmock.NewStringResponse(200, ""), nil
-					},
-				)
-
-				err = service.Send("<@123>", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-	})
-
-	ginkgo.Describe("image/thumbnail URL parameters", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes thumbnail URL in payload when configured", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?thumbnail=https://example.com/image.png",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"images":{"thumbnail":"https://example.com/image.png"}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("omits thumbnail when not configured", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"thumbnail"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles empty thumbnail URL gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?thumbnail=")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"thumbnail"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes image URL in payload when configured", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?image=https://example.com/image.png",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"images":{"image":"https://example.com/image.png"}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("omits image when not configured", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"image"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles empty image URL gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?image=")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"image"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes both thumbnail and image in payload when both configured", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?thumbnail=https://example.com/thumb.png&image=https://example.com/img.png",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"images":{"thumbnail":"https://example.com/thumb.png","image":"https://example.com/img.png"}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("color customization parameters", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes color in payload when configured", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?color=16711680")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"color":"16711680"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes hex color in payload", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?color=%23FF0000")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"color":"#FF0000"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("omits color when not configured", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"color"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles empty color value gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?color=")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						NotTo(gomega.ContainSubstring(`"color"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("URL parsing of new parameters", func() {
-		ginkgo.BeforeEach(func() {
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.It("parses all new parameters from URL", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?channel=123456789&thumbnail=https://example.com/img.png&color=blue",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(service.Config.Channel).To(gomega.Equal("123456789"))
-			gomega.Expect(service.Config.Thumbnail).To(gomega.Equal("https://example.com/img.png"))
-			gomega.Expect(service.Config.Color).To(gomega.Equal("blue"))
-		})
-
-		ginkgo.It("handles URL-encoded values", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?thumbnail=https%3A//example.com/image%20with%20spaces.png&color=%23FF0000",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(service.Config.Thumbnail).
-				To(gomega.Equal("https://example.com/image with spaces.png"))
-			gomega.Expect(service.Config.Color).To(gomega.Equal("#FF0000"))
-		})
-
-		ginkgo.It("preserves existing parameters while adding new ones", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?channel=123456789&thumbnail=https://example.com/img.png&color=blue",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Test that existing channel parameter still works
-			gomega.Expect(service.Config.Channel).To(gomega.Equal("123456789"))
-			// Test new parameters
-			gomega.Expect(service.Config.Thumbnail).To(gomega.Equal("https://example.com/img.png"))
-			gomega.Expect(service.Config.Color).To(gomega.Equal("blue"))
-		})
-	})
-
-	ginkgo.Describe("integration tests with all features combined", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes all features in payload when fully configured", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?channel=123456789&thumbnail=https://example.com/img.png&color=16711680",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// Check event ID
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"event":"test-event-123"`))
-					// Check title and description
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"text":{"title":"Test Title","description":"Hello \u003c@123\u003e and \u003c@\u0026456\u003e!"}`))
-					// Check Discord channel
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ids":{"channel":123456789}`))
-					// Check thumbnail
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"images":{"thumbnail":"https://example.com/img.png"}`))
-					// Check color
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"color":"16711680"`))
-					// Check mentions
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ping":{"pingUser":123,"pingRole":456}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"id": "test-event-123", "title": "Test Title"}
-			err = service.Send("Hello <@123> and <@&456>!", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles partial configuration gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?channel=123456789")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// Should have channel
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ids":{"channel":123456789}`))
-					// Should not have thumbnail or color
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"images"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"color"`))
-					// Should have mentions from message
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ping":{"pingUser":123}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"id": "event-456"}
-			err = service.Send("Message with <@123>", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("works with minimal configuration", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// Should have basic fields
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"discord":{"text":{"title":"Test","description":"Simple message"}}`))
-					// Should not have Discord section for channel, images, color, ping
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"ids"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"images"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"color"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"ping"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"title": "Test"}
-			err = service.Send("Simple message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("advanced text fields (icon, content, footer)", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes icon in payload when provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"text":{"icon":"https://example.com/icon.png","description":"Test message"}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"icon": "https://example.com/icon.png"}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes content in payload when provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					gomega.Expect(string(body)).
-						To(gomega.ContainSubstring(`"text":{"content":"Custom content","description":"Test message"}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"content": "Custom content"}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes footer in payload when provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"footer":"Footer text"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"description":"Test message"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{"footer": "Footer text"}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("includes all advanced text fields when provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"icon":"https://example.com/icon.png"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"content":"Custom content"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"footer":"Footer text"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"description":"Test message"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"icon":    "https://example.com/icon.png",
-				"content": "Custom content",
-				"footer":  "Footer text",
-			}
-			err = service.Send("Test message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("omits advanced text fields when not provided", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"text":{"description":"Test message"}`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"icon"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"content"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"footer"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("combined usage of multiple new fields", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("includes all new fields in payload when fully configured", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?channel=123456789&thumbnail=https://example.com/thumb.png&image=https://example.com/img.png&color=16711680",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// Check event ID
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"event":"combined-test"`))
-					// Check Discord channel
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ids":{"channel":123456789}`))
-					// Check images
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"images":{"thumbnail":"https://example.com/thumb.png","image":"https://example.com/img.png"}`))
-					// Check color
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"color":"16711680"`))
-					// Check all text fields
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"title":"Combined Test"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"icon":"https://example.com/icon.png"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"content":"Custom content"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"footer":"Footer info"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"description":"Hello \u003c@123\u003e!"`))
-					// Check mentions
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ping":{"pingUser":123}`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"id":      "combined-test",
-				"title":   "Combined Test",
-				"icon":    "https://example.com/icon.png",
-				"content": "Custom content",
-				"footer":  "Footer info",
-			}
-			err = service.Send("Hello <@123>!", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("handles mixed URL and parameter configuration", func() {
-			serviceURL := testutils.URLMust(
-				"notifiarr://apikey123?channel=123456789&thumbnail=https://example.com/thumb.png",
-			)
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// URL parameters
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"ids":{"channel":123456789}`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"thumbnail":"https://example.com/thumb.png"`))
-					// Parameter overrides
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"color":"blue"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"image":"https://example.com/param-image.png"`))
-					// Text fields from params
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"title":"Param Title"`))
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"icon":"https://example.com/param-icon.png"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"content":"Param content"`))
-					gomega.Expect(bodyStr).To(gomega.ContainSubstring(`"description":"Test"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"color":   "blue",
-				"image":   "https://example.com/param-image.png",
-				"title":   "Param Title",
-				"icon":    "https://example.com/param-icon.png",
-				"content": "Param content",
-			}
-			err = service.Send("Test", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("works with partial new field combinations", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123?color=red")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				func(req *http.Request) (*http.Response, error) {
-					body, _ := io.ReadAll(req.Body)
-					bodyStr := string(body)
-
-					// Color from URL
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"color":"red"`))
-					// Some text fields from params
-					gomega.Expect(bodyStr).
-						To(gomega.ContainSubstring(`"text":{"title":"Partial","content":"Some content","description":"Message"}`))
-					// No images or channel
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"ids"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"images"`))
-					// No footer or icon
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"footer"`))
-					gomega.Expect(bodyStr).NotTo(gomega.ContainSubstring(`"icon"`))
-
-					return httpmock.NewStringResponse(200, ""), nil
-				},
-			)
-
-			params := types.Params{
-				"title":   "Partial",
-				"content": "Some content",
-			}
-			err = service.Send("Message", &params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("parsing functions", func() {
-		ginkgo.Describe("ParseChannelID", func() {
-			ginkgo.It("parses valid numeric channel ID", func() {
-				service := &notifiarr.Service{}
-				channelID, err := service.ParseChannelID("123456789")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(channelID).To(gomega.Equal(123456789))
-			})
-
-			ginkgo.It("returns error for non-numeric channel ID", func() {
-				service := &notifiarr.Service{}
-				_, err := service.ParseChannelID("invalid")
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid channel ID"))
-			})
-
-			ginkgo.It("returns error for empty channel ID", func() {
-				service := &notifiarr.Service{}
-				_, err := service.ParseChannelID("")
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid channel ID"))
-			})
-
-			ginkgo.It("parses large numeric channel ID", func() {
-				service := &notifiarr.Service{}
-				channelID, err := service.ParseChannelID("9223372036854775807")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(channelID).To(gomega.Equal(9223372036854775807))
-			})
-		})
-
-		ginkgo.Describe("ParseFields", func() {
-			ginkgo.It("parses valid JSON fields", func() {
-				service := &notifiarr.Service{}
-				fields, err := service.ParseFields(
-					`[{"title":"Test","text":"Content","inline":true}]`,
-				)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(fields).To(gomega.HaveLen(1))
-				gomega.Expect(fields[0].Title).To(gomega.Equal("Test"))
-				gomega.Expect(fields[0].Text).To(gomega.Equal("Content"))
-				gomega.Expect(fields[0].Inline).To(gomega.BeTrue())
-			})
-
-			ginkgo.It("returns error for invalid JSON", func() {
-				service := &notifiarr.Service{}
-				_, err := service.ParseFields(`invalid json`)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("parses empty JSON array", func() {
-				service := &notifiarr.Service{}
-				fields, err := service.ParseFields(`[]`)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(fields).To(gomega.BeEmpty())
-			})
-
-			ginkgo.It("parses multiple fields", func() {
-				service := &notifiarr.Service{}
-				fields, err := service.ParseFields(
-					`[{"title":"Field1","text":"Text1"},{"title":"Field2","text":"Text2"}]`,
-				)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(fields).To(gomega.HaveLen(2))
-			})
-		})
-
-		ginkgo.Describe("parseMention", func() {
-			ginkgo.It("parses user mention <@123>", func() {
-				mentionType, id := notifiarr.ParseMention("<@123>")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeUser))
-				gomega.Expect(id).To(gomega.Equal(123))
-			})
-
-			ginkgo.It("parses user mention with nickname <@!456>", func() {
-				mentionType, id := notifiarr.ParseMention("<@!456>")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeUser))
-				gomega.Expect(id).To(gomega.Equal(456))
-			})
-
-			ginkgo.It("parses role mention <@&789>", func() {
-				mentionType, id := notifiarr.ParseMention("<@&789>")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeRole))
-				gomega.Expect(id).To(gomega.Equal(789))
-			})
-
-			ginkgo.It("returns none for invalid mention format", func() {
-				mentionType, id := notifiarr.ParseMention("invalid")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
-				gomega.Expect(id).To(gomega.Equal(0))
-			})
-
-			ginkgo.It("returns none for mention without closing bracket", func() {
-				mentionType, id := notifiarr.ParseMention("<@123")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
-				gomega.Expect(id).To(gomega.Equal(0))
-			})
-
-			ginkgo.It("returns none for non-numeric ID", func() {
-				mentionType, id := notifiarr.ParseMention("<@abc>")
-				gomega.Expect(mentionType).To(gomega.Equal(notifiarr.MentionTypeNone))
-				gomega.Expect(id).To(gomega.Equal(0))
-			})
-		})
-
-		ginkgo.Describe("ExtractPingIDs", func() {
-			ginkgo.It("extracts user and role IDs from mentions", func() {
-				service := &notifiarr.Service{}
-				mentions := []string{"<@123>", "<@&456>", "<@!789>"}
-				userIDs, roleIDs := service.ExtractPingIDs(mentions)
-				gomega.Expect(userIDs).To(gomega.Equal([]int{123, 789}))
-				gomega.Expect(roleIDs).To(gomega.Equal([]int{456}))
-			})
-
-			ginkgo.It("handles empty mentions list", func() {
-				service := &notifiarr.Service{}
-				mentions := []string{}
-				userIDs, roleIDs := service.ExtractPingIDs(mentions)
-				gomega.Expect(userIDs).To(gomega.BeEmpty())
-				gomega.Expect(roleIDs).To(gomega.BeEmpty())
-			})
-
-			ginkgo.It("ignores invalid mentions", func() {
-				service := &notifiarr.Service{}
-				mentions := []string{"<@123>", "invalid", "<@&456>"}
-				userIDs, roleIDs := service.ExtractPingIDs(mentions)
-				gomega.Expect(userIDs).To(gomega.Equal([]int{123}))
-				gomega.Expect(roleIDs).To(gomega.Equal([]int{456}))
-			})
-		})
-
-		ginkgo.Describe("parseUpdateFlag", func() {
-			ginkgo.It("parses 'true' string to true", func() {
-				params := types.Params{"update": "true"}
-				result := notifiarr.ParseUpdateFlag(params)
-				gomega.Expect(result).NotTo(gomega.BeNil())
-				gomega.Expect(*result).To(gomega.BeTrue())
-			})
-
-			ginkgo.It("parses 'false' string to false", func() {
-				params := types.Params{"update": "false"}
-				result := notifiarr.ParseUpdateFlag(params)
-				gomega.Expect(result).NotTo(gomega.BeNil())
-				gomega.Expect(*result).To(gomega.BeFalse())
-			})
-
-			ginkgo.It("returns nil for invalid value", func() {
-				params := types.Params{"update": "invalid"}
-				result := notifiarr.ParseUpdateFlag(params)
-				gomega.Expect(result).To(gomega.BeNil())
-			})
-
-			ginkgo.It("returns nil when update key is missing", func() {
-				params := types.Params{}
-				result := notifiarr.ParseUpdateFlag(params)
-				gomega.Expect(result).To(gomega.BeNil())
-			})
-
-			ginkgo.It("returns nil for empty update value", func() {
-				params := types.Params{"update": ""}
-				result := notifiarr.ParseUpdateFlag(params)
-				gomega.Expect(result).To(gomega.BeNil())
-			})
-		})
-	})
-
-	ginkgo.Describe("Send method edge cases", func() {
-		ginkgo.BeforeEach(func() {
-			httpmock.Activate()
-
-			service = &notifiarr.Service{}
-			service.SetLogger(logger)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("handles nil params gracefully", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				httpmock.NewStringResponder(200, ""),
-			)
-
-			err = service.Send("Test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			assert.Same(t, client, service.httpClient)
 		})
-
-		ginkgo.It("handles empty params map", func() {
-			serviceURL := testutils.URLMust("notifiarr://apikey123")
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			httpmock.RegisterResponder(
-				"POST",
-				"https://notifiarr.com/api/v1/notification/passthrough/apikey123",
-				httpmock.NewStringResponder(200, ""),
-			)
-
-			emptyParams := types.Params{}
-			err = service.Send("Test message", &emptyParams)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
-
-		service := &notifiarr.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("notifiarr://APIKEY"), testutils.TestLogger())).To(gomega.Succeed())
-		service.SetHTTPClient(client)
-
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
-	})
-})
-
-var _ = ginkgo.Describe("request building", func() {
-	ginkgo.It("should not leak the API key when the request URL cannot be parsed", func() {
-		service := &notifiarr.Service{}
-		gomega.Expect(service.Initialize(testutils.URLMust("notifiarr://placeholder?apikey=SECRETapikey%25zz"), testutils.TestLogger())).To(gomega.Succeed())
-		// The mock has no expectations, so a request fails the spec.
-		service.SetHTTPClient(typesmocks.NewMockHTTPClient(ginkgo.GinkgoT()))
-
-		err := service.Send("message", nil)
-
-		var urlErr *url.Error
-		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
-		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETapikey"))
-	})
-})
+	}
+}
 
-// TestNotifiarr runs the Notifiarr service test suite using Ginkgo.
-func TestNotifiarr(t *testing.T) {
+// TestParseChannelID verifies that a numeric channel parses, including a
+// 64-bit Discord snowflake, and that other values are rejected.
+func TestParseChannelID(t *testing.T) {
 	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Notifiarr Suite")
+
+	service := &Service{}
+
+	for input, want := range map[string]int{"123456789": 123456789, "735481457153277994": 735481457153277994} {
+		channelID, err := service.ParseChannelID(input)
+
+		require.NoError(t, err, input)
+		assert.Equal(t, want, channelID, input)
+	}
+
+	for _, input := range []string{"", "general"} {
+		_, err := service.ParseChannelID(input)
+
+		require.ErrorIs(t, err, ErrInvalidChannelID, input)
+	}
+}
+
+// TestParseFields verifies that a JSON array becomes fields and that other
+// values are rejected.
+func TestParseFields(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+
+	fields, err := service.ParseFields(`[{"title":"Disk","text":"95%","inline":true},{"title":"Host","text":"db1","inline":false}]`)
+	require.NoError(t, err)
+	assert.Equal(t, []Field{{Title: "Disk", Text: "95%", Inline: true}, {Title: "Host", Text: "db1"}}, fields)
+
+	fields, err = service.ParseFields(`[]`)
+	require.NoError(t, err)
+	assert.Empty(t, fields)
+
+	_, err = service.ParseFields(`{"title":"Disk"}`)
+	require.Error(t, err)
+}
+
+// TestParseMentions verifies that user, nickname, and role mentions are found
+// in a message, with nickname mentions normalized, and that malformed ones
+// are ignored.
+func TestParseMentions(t *testing.T) {
+	t.Parallel()
+
+	// tests lists messages with the mentions each should contain.
+	tests := []struct {
+		name    string
+		message string
+		want    []string
+	}{
+		{name: "user", message: "Hello <@123>", want: []string{"<@123>"}},
+		{name: "nickname", message: "<@!456> at the start", want: []string{"<@456>"}},
+		{name: "roles", message: "<@&789> and <@&790>", want: []string{"<@&789>", "<@&790>"}},
+		{name: "mixed", message: "<@1> <@&2> <@!3>", want: []string{"<@1>", "<@&2>", "<@3>"}},
+		{name: "malformed", message: "<@abc> <@123 <@&> @123", want: nil},
+		{name: "none", message: "no mentions here", want: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, (&Service{}).ParseMentions(tt.message))
+		})
+	}
+}
+
+// TestParseMention verifies the mention type and ID for user, nickname, and
+// role mentions, and that other strings are not mentions.
+func TestParseMention(t *testing.T) {
+	t.Parallel()
+
+	// tests lists mention strings with the type and ID each should produce.
+	tests := []struct {
+		mention  string
+		wantType int
+		wantID   int
+	}{
+		{mention: "<@123>", wantType: MentionTypeUser, wantID: 123},
+		{mention: "<@!456>", wantType: MentionTypeUser, wantID: 456},
+		{mention: "<@&789>", wantType: MentionTypeRole, wantID: 789},
+		{mention: "@123", wantType: MentionTypeNone},
+		{mention: "<@123", wantType: MentionTypeNone},
+		{mention: "<@abc>", wantType: MentionTypeNone},
+		{mention: "<@&abc>", wantType: MentionTypeNone},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mention, func(t *testing.T) {
+			t.Parallel()
+
+			mentionType, id := ParseMention(tt.mention)
+
+			assert.Equal(t, tt.wantType, mentionType)
+			assert.Equal(t, tt.wantID, id)
+		})
+	}
+}
+
+// TestExtractPingIDs verifies that user and role mentions are split into
+// their IDs, skipping invalid ones.
+func TestExtractPingIDs(t *testing.T) {
+	t.Parallel()
+
+	users, roles := (&Service{}).ExtractPingIDs([]string{"<@1>", "<@&2>", "<@3>", "invalid"})
+	assert.Equal(t, []int{1, 3}, users)
+	assert.Equal(t, []int{2}, roles)
+
+	users, roles = (&Service{}).ExtractPingIDs(nil)
+	assert.Empty(t, users)
+	assert.Empty(t, roles)
+}
+
+// TestParseUpdateFlag verifies that only "true" and "false" set the update
+// flag.
+func TestParseUpdateFlag(t *testing.T) {
+	t.Parallel()
+
+	trueFlag := ParseUpdateFlag(types.Params{"update": "true"})
+	require.NotNil(t, trueFlag)
+	assert.True(t, *trueFlag)
+
+	falseFlag := ParseUpdateFlag(types.Params{"update": "false"})
+	require.NotNil(t, falseFlag)
+	assert.False(t, *falseFlag)
+
+	for _, params := range []types.Params{{"update": "yes"}, {"update": ""}, {}} {
+		assert.Nil(t, ParseUpdateFlag(params), params)
+	}
+}
+
+// TestBuildDiscordPayloadWithoutFields verifies that no Discord payload is
+// built when no Discord field is present.
+func TestBuildDiscordPayloadWithoutFields(t *testing.T) {
+	t.Parallel()
+
+	discord, err := (&Service{}).buildDiscordPayload(presenceFlags{}, "", types.Params{}, &Config{})
+
+	require.ErrorIs(t, err, ErrNoDiscordFields)
+	assert.Nil(t, discord)
 }
