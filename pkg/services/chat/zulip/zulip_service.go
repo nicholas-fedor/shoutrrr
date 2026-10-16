@@ -46,8 +46,11 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
 
-	// limitsMu guards limitsFetched and the limits.
+	// limitsMu guards limitsFetched, limitsDone, and the limits.
 	limitsMu sync.Mutex
+	// limitsDone is closed when the limits request in flight ends, and is nil
+	// when no request is in flight.
+	limitsDone chan struct{}
 	// limitsFetched is true once the server answered the limits request.
 	limitsFetched  bool
 	contentMaxSize int
@@ -302,6 +305,18 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.HTTPClient = client
 }
 
+// currentLimits returns the message and topic limits as they stand.
+//
+// Returns:
+//   - contentMax: the maximum message length in characters.
+//   - topicMax: the maximum topic length in characters.
+func (s *Service) currentLimits() (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
+	s.limitsMu.Lock()
+	defer s.limitsMu.Unlock()
+
+	return s.contentMaxSize, s.topicMaxLength
+}
+
 // doSend sends the notification to Zulip using the configured API URL.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	apiURL := s.getAPIURL(config)
@@ -347,16 +362,19 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 }
 
 // fetchLimits calls the Zulip register endpoint to fetch server-side size
-// limits, keeping the current limits for any the server does not report.
+// limits.
 //
 // Parameters:
 //   - ctx: bounds the request, further bounded by [registerTimeout].
 //
 // Returns:
+//   - registerResponse: the limits the server reported, zero for any it did not.
 //   - bool: whether the server answered with a 200 status and a JSON body.
-func (s *Service) fetchLimits(ctx context.Context) bool {
+func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
+	var reg registerResponse
+
 	if err := validateHost(s.Config.Host); err != nil {
-		return false
+		return reg, false
 	}
 
 	registerURL := s.getRegisterURL()
@@ -369,36 +387,27 @@ func (s *Service) fetchLimits(ctx context.Context) bool {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return false
+		return reg, false
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return false
+		return reg, false
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		return false
+		return reg, false
 	}
 
-	var reg registerResponse
 	if err := json.NewDecoder(res.Body).Decode(&reg); err != nil {
-		return false
+		return reg, false
 	}
 
-	if reg.MaxMessageLength > 0 {
-		s.contentMaxSize = reg.MaxMessageLength
-	}
-
-	if reg.MaxTopicLength > 0 {
-		s.topicMaxLength = reg.MaxTopicLength
-	}
-
-	return true
+	return reg, true
 }
 
 // getAPIURL constructs the API URL for Zulip based on the Config.
@@ -422,21 +431,57 @@ func (s *Service) getRegisterURL() string {
 }
 
 // limits returns the message and topic limits, asking the server on the first
-// send and again on later sends until the server answers.
+// send and again on later sends until the server answers. One send makes the
+// request while concurrent sends wait for it, or stop waiting when their own
+// context ends, and then use the current limits.
 //
 // Parameters:
-//   - ctx: bounds the limits request.
+//   - ctx: bounds the limits request, or the wait for one in flight.
 //
 // Returns:
 //   - contentMax: the maximum message length in characters.
 //   - topicMax: the maximum topic length in characters.
 func (s *Service) limits(ctx context.Context) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
 	s.limitsMu.Lock()
+
+	if s.limitsFetched {
+		defer s.limitsMu.Unlock()
+
+		return s.contentMaxSize, s.topicMaxLength
+	}
+
+	if done := s.limitsDone; done != nil {
+		s.limitsMu.Unlock()
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+		}
+
+		return s.currentLimits()
+	}
+
+	done := make(chan struct{})
+	s.limitsDone = done
+	s.limitsMu.Unlock()
+
+	reg, fetched := s.fetchLimits(ctx)
+
+	s.limitsMu.Lock()
 	defer s.limitsMu.Unlock()
 
-	if !s.limitsFetched {
-		s.limitsFetched = s.fetchLimits(ctx)
+	if reg.MaxMessageLength > 0 {
+		s.contentMaxSize = reg.MaxMessageLength
 	}
+
+	if reg.MaxTopicLength > 0 {
+		s.topicMaxLength = reg.MaxTopicLength
+	}
+
+	s.limitsFetched = fetched
+	s.limitsDone = nil
+
+	close(done)
 
 	return s.contentMaxSize, s.topicMaxLength
 }

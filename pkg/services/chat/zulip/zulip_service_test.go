@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -565,6 +566,65 @@ func TestSendConcurrently(t *testing.T) {
 
 	assert.Len(t, fake.registers, 1)
 	assert.Len(t, fake.messages, sends)
+}
+
+// TestSendWaiterCancellation verifies that a send waiting for another send's
+// register request stops waiting when its own context ends, while the first
+// send finishes with one register request.
+func TestSendWaiterCancellation(t *testing.T) {
+	t.Parallel()
+
+	registerStarted := make(chan struct{})
+	releaseRegister := make(chan struct{})
+
+	var registers atomic.Int32
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/api/v1/register" {
+			if registers.Add(1) == 1 {
+				close(registerStarted)
+			}
+
+			<-releaseRegister
+
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(defaultLimitsBody))}, nil
+		}
+
+		if err := req.Context().Err(); err != nil {
+			return nil, err
+		}
+
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(sentBody))}, nil
+	}).Maybe()
+
+	service := newTestService(t, testServiceURL, client)
+
+	firstDone := make(chan error, 1)
+
+	go func() { firstDone <- service.Send("Hello", nil) }()
+
+	<-registerStarted
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	waiterDone := make(chan error, 1)
+
+	go func() { waiterDone <- service.SendContext(ctx, "Hello", nil) }()
+
+	select {
+	case err := <-waiterDone:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		close(releaseRegister)
+		t.Fatal("the canceled send kept waiting for the register request")
+	}
+
+	close(releaseRegister)
+
+	require.NoError(t, <-firstDone)
+	assert.Equal(t, int32(1), registers.Load())
 }
 
 // TestSendValidation verifies that a send rejects an invalid message type,
