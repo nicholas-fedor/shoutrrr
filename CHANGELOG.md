@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send direct message user ids as numbers and count characters by @nicholas-fedor in [#1627](https://github.com/nicholas-fedor/shoutrrr/pull/1627)
 - Read send results and report failed recipients by @nicholas-fedor in [#1619](https://github.com/nicholas-fedor/shoutrrr/pull/1619)
 - Accept named escalation and schedule responders by @nicholas-fedor in [#1603](https://github.com/nicholas-fedor/shoutrrr/pull/1603)
 - Send details and contexts in the events api v2 format by @nicholas-fedor in [#1601](https://github.com/nicholas-fedor/shoutrrr/pull/1601)
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 33afb06 by @renovate[bot] in [#1628](https://github.com/nicholas-fedor/shoutrrr/pull/1628)
 - Update github.com/google/pprof digest to 1facf8f by @renovate[bot] in [#1624](https://github.com/nicholas-fedor/shoutrrr/pull/1624)
 - Update emqx/emqx:latest docker digest to a2dc773 by @renovate[bot] in [#1621](https://github.com/nicholas-fedor/shoutrrr/pull/1621)
 - Update dependency platformdirs to v4.13.3 by @renovate[bot] in [#1611](https://github.com/nicholas-fedor/shoutrrr/pull/1611)
