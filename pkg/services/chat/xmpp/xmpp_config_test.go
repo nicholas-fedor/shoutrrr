@@ -1,310 +1,300 @@
 package xmpp
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"net/url"
+	"testing"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("config", func() {
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should parse a localpart user, host, and to JID", func() {
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsed
+}
+
+// TestConfigSetURL verifies that SetURL reads the credentials, host, port,
+// and targets, defaults the port by scheme, and reads the MUC and TLS props
+// from the query.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "localpart user and chat recipient",
+			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
+			want:   Config{Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
+		},
+		{
+			name:   "full auth JID distinct from the dial host",
+			rawURL: "xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com",
+			want: Config{
+				Host: "xmpp.example.com", Port: DefaultPort, User: "alice@jabber.example.com", Password: "secret",
+				To: []string{"bob@jabber.example.com"}, scheme: Scheme,
+			},
+		},
+		{
+			name:   "xmpps default port",
+			rawURL: "xmpps://alice:secret@xmpp.example.com/?to=bob@example.com",
+			want:   Config{Host: "xmpp.example.com", Port: DefaultTLSPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: SchemeTLS},
+		},
+		{
+			name: "rooms, nick, room password, and custom port",
+			rawURL: "xmpp://alice:secret@xmpp.example.com:5225/" +
+				"?to=bob@example.com,carol@example.com&rooms=a@conf.example.com,b@conf.example.com&nick=bot&roompassword=s3cret",
+			want: Config{
+				Host: "xmpp.example.com", Port: 5225, User: "alice", Password: "secret",
+				To:    []string{"bob@example.com", "carol@example.com"},
+				Rooms: []string{"a@conf.example.com", "b@conf.example.com"},
+				Nick:  "bot", RoomPassword: "s3cret", scheme: Scheme,
+			},
+		},
+		{
+			name:   "disabletls on xmpp, skiptlsverify, and title",
+			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes&skiptlsverify=yes&title=Alert",
+			want: Config{
+				Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret",
+				To: []string{"bob@example.com"}, Title: "Alert", DisableTLS: true, SkipTLSVerify: true, scheme: Scheme,
+			},
+		},
+		{
+			name:   "empty targets dropped",
+			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=,bob@example.com,&rooms=",
+			want:   Config{Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
+		},
+		{
+			name:   "dummy docs URL",
+			rawURL: "xmpp://dummy@dummy.com",
+			want:   Config{Host: "dummy.com", Port: DefaultPort, User: "dummy", scheme: Scheme},
+		},
+		{
+			name:   "dummy xmpps docs URL",
+			rawURL: "xmpps://dummy@dummy.com",
+			want:   Config{Host: "dummy.com", Port: DefaultTLSPort, User: "dummy", scheme: SchemeTLS},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.User).To(gomega.Equal("alice"))
-			gomega.Expect(config.Password).To(gomega.Equal("secret"))
-			gomega.Expect(config.Host).To(gomega.Equal("xmpp.example.com"))
-			gomega.Expect(config.Port).To(gomega.Equal(DefaultPort))
-			gomega.Expect(config.To).To(gomega.Equal([]string{"bob@example.com"}))
-			gomega.Expect(config.scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(config.authJIDString()).To(gomega.Equal("alice@xmpp.example.com"))
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.want, *config)
 		})
+	}
 
-		ginkgo.It("should parse a full auth JID distinct from the dial host", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example.com",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.User).To(gomega.Equal("alice@jabber.example.com"))
-			gomega.Expect(config.Host).To(gomega.Equal("xmpp.example.com"))
-			gomega.Expect(config.authJIDString()).To(gomega.Equal("alice@jabber.example.com"))
+	t.Run("empty scheme defaults to xmpp", func(t *testing.T) {
+		t.Parallel()
+
+		serviceURL := parseTestURL(t, "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com")
+		serviceURL.Scheme = ""
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(serviceURL))
+		assert.Equal(t, Scheme, config.scheme)
+	})
+}
+
+// TestConfigSetURLErrors verifies that SetURL rejects URLs with missing or
+// invalid parts, and leaves the receiver unchanged when it fails.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid service URLs with the error each should match, or
+	// the text it should contain when wantErr is nil.
+	tests := []struct {
+		wantErr  error
+		name     string
+		rawURL   string
+		wantText string
+	}{
+		{name: "missing targets", rawURL: "xmpp://alice:secret@xmpp.example.com/", wantErr: ErrMissingTargets},
+		{name: "missing password", rawURL: "xmpp://alice@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingPassword},
+		{name: "missing user", rawURL: "xmpp://:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingUser},
+		{name: "missing host", rawURL: "xmpp://alice:secret@/?to=bob@example.com", wantErr: ErrMissingHost},
+		{name: "disabletls on xmpps", rawURL: "xmpps://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes", wantErr: ErrDisableTLSOnXMPPS},
+		{name: "invalid recipient JID", rawURL: "xmpp://alice:secret@xmpp.example.com/?to=not-a-jid", wantErr: ErrInvalidRecipientJID},
+		{name: "invalid room JID", rawURL: "xmpp://alice:secret@xmpp.example.com/?rooms=not-a-jid", wantErr: ErrInvalidRoomJID},
+		{name: "invalid auth JID", rawURL: "xmpp://alice%40:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrInvalidUserJID},
+		{name: "unsupported scheme", rawURL: "http://alice:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrUnsupportedScheme},
+		{name: "unknown prop", rawURL: "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&notakey=1", wantErr: format.ErrInvalidConfigKey},
+		{name: "port out of range", rawURL: "xmpp://alice:secret@xmpp.example.com:70000/?to=bob@example.com", wantText: "parsing port"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&Config{}).SetURL(parseTestURL(t, tt.rawURL))
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantText)
+			}
 		})
+	}
 
-		ginkgo.It("should default xmpps to port 5223", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpps://alice:secret@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Port).To(gomega.Equal(DefaultTLSPort))
-			gomega.Expect(config.scheme).To(gomega.Equal(SchemeTLS))
-			gomega.Expect(config.implicitTLS()).To(gomega.BeTrue())
-		})
+	t.Run("receiver unchanged on failure", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should parse rooms, nick, and roompassword", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/" +
-					"?rooms=alerts@conference.example.com&nick=bot&roompassword=s3cret",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Rooms).To(gomega.Equal([]string{"alerts@conference.example.com"}))
-			gomega.Expect(config.Nick).To(gomega.Equal("bot"))
-			gomega.Expect(config.RoomPassword).To(gomega.Equal("s3cret"))
-			gomega.Expect(config.mucNick()).To(gomega.Equal("bot"))
-		})
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t, "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com")))
+		want := config.Clone()
 
-		ginkgo.It("should default nick to the auth JID localpart", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?rooms=alerts@conference.example.com",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.mucNick()).To(gomega.Equal("alice"))
-		})
-
-		ginkgo.It("should reject disabletls on xmpps", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpps://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrDisableTLSOnXMPPS))
-		})
-
-		ginkgo.It("should allow disabletls on xmpp", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.DisableTLS).To(gomega.BeTrue())
-			gomega.Expect(config.useTLS()).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should reject missing targets", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust("xmpp://alice:secret@xmpp.example.com/"))
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingTargets))
-		})
-
-		ginkgo.It("should reject missing password", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingPassword))
-		})
-
-		ginkgo.It("should reject an invalid recipient JID", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=not-a-jid",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidRecipientJID))
-		})
-
-		ginkgo.It("should reject an invalid room JID", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?rooms=not-a-jid",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidRoomJID))
-		})
-
-		ginkgo.It("should reject an invalid auth JID", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice%40:secret@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidUserJID))
-		})
-
-		ginkgo.It("should reject a missing host", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingHost))
-		})
-
-		ginkgo.It("should reject a missing user", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://:secret@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingUser))
-		})
-
-		ginkgo.It("should default an empty scheme to xmpp", func() {
-			config := &Config{}
-			serviceURL := testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
-			)
-			serviceURL.Scheme = ""
-			gomega.Expect(config.SetURL(serviceURL)).To(gomega.Succeed())
-			gomega.Expect(config.scheme).To(gomega.Equal(Scheme))
-		})
-
-		ginkgo.It("should reject an unsupported scheme", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"http://alice:secret@xmpp.example.com/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.MatchError(ErrUnsupportedScheme))
-		})
-
-		ginkgo.It("should reject a port that does not fit in uint16", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com:70000/?to=bob@example.com",
-			))
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("parsing port"))
-		})
-
-		ginkgo.It("should reject an unknown query key", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&notakey=1",
-			))
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("setting query parameter"))
-		})
-
-		ginkgo.It("should parse comma-separated targets and a custom port", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com:5225/" +
-					"?to=bob@example.com,carol@example.com&rooms=a@conf.example.com,b@conf.example.com",
-			))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(5225)))
-			gomega.Expect(config.To).To(gomega.Equal([]string{"bob@example.com", "carol@example.com"}))
-			gomega.Expect(config.Rooms).To(gomega.Equal([]string{"a@conf.example.com", "b@conf.example.com"}))
-		})
-
-		ginkgo.It("should accept the dummy docs URL", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust("xmpp://dummy@dummy.com"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should accept the dummy xmpps docs URL", func() {
-			config := &Config{}
-			err := config.SetURL(testutils.URLMust("xmpps://dummy@dummy.com"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.scheme).To(gomega.Equal(SchemeTLS))
-			gomega.Expect(config.Port).To(gomega.Equal(DefaultTLSPort))
-		})
-
-		ginkgo.It("should not keep omitted fields from a previous SetURL", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/" +
-					"?to=bob@example.com&rooms=alerts@conference.example.com&nick=bot",
-			))).To(gomega.Succeed())
-
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"xmpp://carol:other@xmpp.example.com/?to=dave@example.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.User).To(gomega.Equal("carol"))
-			gomega.Expect(config.Password).To(gomega.Equal("other"))
-			gomega.Expect(config.To).To(gomega.Equal([]string{"dave@example.com"}))
-			gomega.Expect(config.Rooms).To(gomega.BeEmpty())
-			gomega.Expect(config.Nick).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should leave the receiver unchanged when SetURL fails", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com",
-			))).To(gomega.Succeed())
-
-			err := config.SetURL(testutils.URLMust("xmpp://alice:secret@xmpp.example.com/"))
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingTargets))
-			gomega.Expect(config.Password).To(gomega.Equal("secret"))
-			gomega.Expect(config.To).To(gomega.Equal([]string{"bob@example.com"}))
-		})
+		require.ErrorIs(t, config.SetURL(parseTestURL(t, "xmpp://alice:secret@xmpp.example.com/")), ErrMissingTargets)
+		assert.Equal(t, want, *config)
 	})
 
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should round-trip a localpart URL", func() {
-			original := testutils.URLMust(
-				"xmpp://alice:secret@xmpp.example.com:5222/?to=bob@example.com",
-			)
+	t.Run("omitted props reset", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t,
+			"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&rooms=alerts@conference.example.com&nick=bot")))
+		require.NoError(t, config.SetURL(parseTestURL(t, "xmpp://carol:other@xmpp.example.com/?to=dave@example.com")))
+
+		assert.Equal(t, Config{
+			Host: "xmpp.example.com", Port: DefaultPort, User: "carol", Password: "other",
+			To: []string{"dave@example.com"}, scheme: Scheme,
+		}, *config)
+	})
+}
+
+// TestConfigGetURL verifies that GetURL round-trips through SetURL, keeps the
+// xmpps scheme, defaults the scheme and port, and leaves out empty user info.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
+
+	// roundTrips lists service URLs that should round-trip unchanged in
+	// config.
+	roundTrips := []string{
+		"xmpp://alice:secret@xmpp.example.com:5222/?to=bob@example.com",
+		"xmpps://alice:secret@xmpp.example.com/?rooms=alerts@conference.example.com&nick=bot",
+		"xmpp://alice%40jabber.example.com:p%40ss@xmpp.example.com:5225/?to=bob@example.com&disabletls=yes",
+	}
+
+	for _, rawURL := range roundTrips {
+		t.Run(rawURL, func(t *testing.T) {
+			t.Parallel()
+
 			config := &Config{}
-			gomega.Expect(config.SetURL(original)).To(gomega.Succeed())
+			require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
 
-			parsed := &Config{}
-			gomega.Expect(parsed.SetURL(config.GetURL())).To(gomega.Succeed())
-			gomega.Expect(parsed.User).To(gomega.Equal(config.User))
-			gomega.Expect(parsed.Password).To(gomega.Equal(config.Password))
-			gomega.Expect(parsed.Host).To(gomega.Equal(config.Host))
-			gomega.Expect(parsed.Port).To(gomega.Equal(config.Port))
-			gomega.Expect(parsed.To).To(gomega.Equal(config.To))
-			gomega.Expect(parsed.scheme).To(gomega.Equal(Scheme))
+			roundTrip := &Config{}
+			require.NoError(t, roundTrip.SetURL(config.GetURL()))
+			assert.Equal(t, config, roundTrip)
 		})
+	}
 
-		ginkgo.It("should preserve the xmpps scheme", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"xmpps://alice:secret@xmpp.example.com/?to=bob@example.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.GetURL().Scheme).To(gomega.Equal(SchemeTLS))
-		})
+	t.Run("default scheme and port", func(t *testing.T) {
+		t.Parallel()
 
-		ginkgo.It("should default scheme and port when they are unset", func() {
-			config := &Config{Host: "xmpp.example.com", User: "alice", Password: "secret"}
-			parsed := config.GetURL()
-			gomega.Expect(parsed.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(parsed.Port()).To(gomega.Equal("5222"))
-			gomega.Expect(parsed.User.Username()).To(gomega.Equal("alice"))
-		})
+		serviceURL := (&Config{Host: "xmpp.example.com", User: "alice", Password: "secret"}).GetURL()
 
-		ginkgo.It("should omit userinfo when the user is empty", func() {
-			config := &Config{Host: "xmpp.example.com", scheme: Scheme, Port: DefaultPort}
-			gomega.Expect(config.GetURL().User).To(gomega.BeNil())
-		})
+		assert.Equal(t, Scheme, serviceURL.Scheme)
+		assert.Equal(t, "5222", serviceURL.Port())
+		assert.Equal(t, "alice", serviceURL.User.Username())
 	})
 
-	ginkgo.Describe("mucNick", func() {
-		ginkgo.It("should fall back to the resource name when the auth JID is invalid", func() {
-			config := &Config{User: "alice"}
-			gomega.Expect(config.mucNick()).To(gomega.Equal(Resource))
-		})
+	t.Run("default xmpps port", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "5223", (&Config{Host: "xmpp.example.com", scheme: SchemeTLS}).GetURL().Port())
 	})
 
-	ginkgo.Describe("splitJID", func() {
-		ginkgo.It("should strip a resource and reject empty or nested domains", func() {
-			local, domain, err := splitJID("alice@jabber.example.com/phone")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(local).To(gomega.Equal("alice"))
-			gomega.Expect(domain).To(gomega.Equal("jabber.example.com"))
+	t.Run("no user", func(t *testing.T) {
+		t.Parallel()
 
-			_, _, err = splitJID("alice@")
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidUserJID))
-
-			_, _, err = splitJID("alice@jabber@example.com")
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidUserJID))
-		})
+		assert.Nil(t, (&Config{Host: "xmpp.example.com", scheme: Scheme, Port: DefaultPort}).GetURL().User)
 	})
+}
 
-	ginkgo.Describe("composeMessage", func() {
-		ginkgo.It("should return the body when title is empty", func() {
-			gomega.Expect(composeMessage("", "hello")).To(gomega.Equal("hello"))
-		})
+// TestConfigClone verifies that a clone has its own target lists.
+func TestConfigClone(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should prepend the title", func() {
-			gomega.Expect(composeMessage("Alert", "hello")).To(gomega.Equal("Alert\nhello"))
-		})
+	config := &Config{To: []string{"bob@example.com"}, Rooms: []string{"alerts@conference.example.com"}}
+	clone := config.Clone()
 
-		ginkgo.It("should return the title when the body is empty", func() {
-			gomega.Expect(composeMessage("Alert", "")).To(gomega.Equal("Alert"))
-		})
-	})
-})
+	clone.To[0] = "changed@example.com"
+	clone.Rooms[0] = "changed@conference.example.com"
+
+	assert.Equal(t, []string{"bob@example.com"}, config.To)
+	assert.Equal(t, []string{"alerts@conference.example.com"}, config.Rooms)
+}
+
+// TestConfigHelpers verifies the auth JID, MUC nick, and TLS helpers.
+func TestConfigHelpers(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "alice@xmpp.example.com", (&Config{User: "alice", Host: "xmpp.example.com"}).authJIDString())
+	assert.Equal(t, "alice@jabber.example.com", (&Config{User: "alice@jabber.example.com", Host: "xmpp.example.com"}).authJIDString())
+
+	assert.Equal(t, "bot", (&Config{Nick: "bot", User: "alice", Host: "xmpp.example.com"}).mucNick())
+	assert.Equal(t, "alice", (&Config{User: "alice", Host: "xmpp.example.com"}).mucNick())
+	assert.Equal(t, Resource, (&Config{User: "alice"}).mucNick())
+
+	assert.True(t, (&Config{scheme: SchemeTLS}).implicitTLS())
+	assert.False(t, (&Config{scheme: Scheme}).implicitTLS())
+	assert.True(t, (&Config{}).useTLS())
+	assert.False(t, (&Config{DisableTLS: true}).useTLS())
+}
+
+// TestSplitJID verifies that splitJID drops a resource and rejects JIDs
+// without a localpart or domain, or with a second @.
+func TestSplitJID(t *testing.T) {
+	t.Parallel()
+
+	local, domain, err := splitJID("alice@jabber.example.com/phone")
+	require.NoError(t, err)
+	assert.Equal(t, "alice", local)
+	assert.Equal(t, "jabber.example.com", domain)
+
+	for _, value := range []string{"alice", "alice@", "@jabber.example.com", "alice@/phone", "alice@jabber@example.com"} {
+		_, _, err := splitJID(value)
+		require.ErrorIs(t, err, ErrInvalidUserJID, value)
+	}
+}
+
+// TestComposeMessage verifies that the title goes on its own line before the
+// message, and that either part alone is sent as is.
+func TestComposeMessage(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "hello", composeMessage("", "hello"))
+	assert.Equal(t, "Alert\nhello", composeMessage("Alert", "hello"))
+	assert.Equal(t, "Alert", composeMessage("Alert", ""))
+}
+
+// TestCompactStrings verifies that empty entries are dropped and that a list
+// with none left becomes nil.
+func TestCompactStrings(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"a", "b"}, compactStrings([]string{"", "a", "", "b"}))
+	assert.Nil(t, compactStrings([]string{"", ""}))
+	assert.Nil(t, compactStrings(nil))
+}
