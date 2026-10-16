@@ -58,6 +58,17 @@ type fakeZulip struct {
 	mu sync.Mutex
 }
 
+// doneSignalContext is a context that reports the first call to Done, which
+// shows that a send has reached a wait on the context.
+type doneSignalContext struct {
+	context.Context //nolint:containedctx // The wrapper embeds the context to observe calls to Done.
+
+	// called is closed on the first call to Done.
+	called chan struct{}
+	// once guards closing called.
+	once sync.Once
+}
+
 // Responses shared by the service tests.
 const (
 	// sentBody is Zulip's response to a sent message.
@@ -568,14 +579,27 @@ func TestSendConcurrently(t *testing.T) {
 	assert.Len(t, fake.messages, sends)
 }
 
+// Done reports the call and returns the wrapped context's Done channel.
+//
+// Returns:
+//   - <-chan struct{}: the wrapped context's Done channel.
+func (c *doneSignalContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.called) })
+
+	return c.Context.Done()
+}
+
 // TestSendWaiterCancellation verifies that a send waiting for another send's
-// register request stops waiting when its own context ends, while the first
-// send finishes with one register request.
+// register request stays blocked while the request is in flight, stops
+// waiting when its own context ends, and that the first send finishes with
+// one register request.
 func TestSendWaiterCancellation(t *testing.T) {
 	t.Parallel()
 
 	registerStarted := make(chan struct{})
 	releaseRegister := make(chan struct{})
+	release := sync.OnceFunc(func() { close(releaseRegister) })
+	t.Cleanup(release)
 
 	var registers atomic.Int32
 
@@ -606,22 +630,38 @@ func TestSendWaiterCancellation(t *testing.T) {
 
 	<-registerStarted
 
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	cancelCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
 
+	ctx := &doneSignalContext{Context: cancelCtx, called: make(chan struct{})}
 	waiterDone := make(chan error, 1)
 
 	go func() { waiterDone <- service.SendContext(ctx, "Hello", nil) }()
 
 	select {
+	case <-ctx.called:
+	case err := <-waiterDone:
+		t.Fatalf("the send returned %v without waiting for the register request", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the send never waited on its context")
+	}
+
+	select {
+	case err := <-waiterDone:
+		t.Fatalf("the send returned %v while the register request was in flight", err)
+	default:
+	}
+
+	cancel()
+
+	select {
 	case err := <-waiterDone:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(5 * time.Second):
-		close(releaseRegister)
 		t.Fatal("the canceled send kept waiting for the register request")
 	}
 
-	close(releaseRegister)
+	release()
 
 	require.NoError(t, <-firstDone)
 	assert.Equal(t, int32(1), registers.Load())
