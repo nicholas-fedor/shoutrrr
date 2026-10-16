@@ -10,7 +10,7 @@ import (
 
 // TestCreatePayload verifies the form fields for a channel message, with the
 // channel as the recipient and an optional topic, and for a direct message,
-// with a JSON list of recipient e-mail addresses and no topic.
+// with a JSON list of recipient user IDs or e-mail addresses and no topic.
 func TestCreatePayload(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +50,18 @@ func TestCreatePayload(t *testing.T) {
 			config:  Config{Type: MessageTypeDirect, To: " alice@example.com, ,bob@example.com ", Topic: "alerts", Stream: "general"},
 			message: "Hello",
 			want:    url.Values{"type": {"direct"}, "to": {`["alice@example.com","bob@example.com"]`}, "content": {"Hello"}},
+		},
+		{
+			name:    "direct message to user IDs",
+			config:  Config{Type: MessageTypeDirect, To: "12, ,34"},
+			message: "Hello",
+			want:    url.Values{"type": {"direct"}, "to": {"[12,34]"}, "content": {"Hello"}},
+		},
+		{
+			name:    "direct message to user IDs from the stream",
+			config:  Config{Type: MessageTypeDirect, Stream: "789"},
+			message: "Hello",
+			want:    url.Values{"type": {"direct"}, "to": {"[789]"}, "content": {"Hello"}},
 		},
 		{
 			name:    "direct message to the stream recipients",
@@ -98,6 +110,51 @@ func TestParseRecipients(t *testing.T) {
 			assert.Equal(t, tt.want, parseRecipients(tt.raw))
 		})
 	}
+}
+
+// TestUserIDs verifies that a recipient list reads as user IDs only when it
+// is non-empty and every recipient is a positive integer.
+func TestUserIDs(t *testing.T) {
+	t.Parallel()
+
+	// tests lists recipient lists with the user IDs each should produce.
+	tests := []struct {
+		name       string
+		recipients []string
+		want       []int64
+		wantOK     bool
+	}{
+		{name: "user IDs", recipients: []string{"12", "34"}, want: []int64{12, 34}, wantOK: true},
+		{name: "empty", recipients: []string{}},
+		{name: "zero", recipients: []string{"0"}},
+		{name: "negative", recipients: []string{"-12"}},
+		{name: "e-mail address", recipients: []string{"12", "alice@example.com"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ids, ok := userIDs(tt.recipients)
+
+			assert.Equal(t, tt.wantOK, ok)
+
+			if tt.wantOK {
+				assert.Equal(t, tt.want, ids)
+			}
+		})
+	}
+}
+
+// TestValidateDirectRecipients verifies that a direct message needs at least
+// one recipient and cannot mix user IDs with e-mail addresses.
+func TestValidateDirectRecipients(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validateDirectRecipients([]string{"12", "34"}))
+	require.NoError(t, validateDirectRecipients([]string{"alice@example.com", "0"}))
+	require.ErrorIs(t, validateDirectRecipients([]string{}), ErrMissingRecipient)
+	require.ErrorIs(t, validateDirectRecipients([]string{"12", "alice@example.com"}), ErrMixedRecipients)
 }
 
 // TestValidateMessageType verifies that channel, direct, and an empty type

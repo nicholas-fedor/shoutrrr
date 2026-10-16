@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +58,17 @@ type fakeZulip struct {
 	mu sync.Mutex
 }
 
+// doneSignalContext is a context that reports the first call to Done, which
+// shows that a send has reached a wait on the context.
+type doneSignalContext struct {
+	context.Context //nolint:containedctx // The wrapper embeds the context to observe calls to Done.
+
+	// called is closed on the first call to Done.
+	called chan struct{}
+	// once guards closing called.
+	once sync.Once
+}
+
 // Responses shared by the service tests.
 const (
 	// sentBody is Zulip's response to a sent message.
@@ -93,6 +105,24 @@ var (
 func newFakeClient(t *testing.T, register cannedResponse, messages ...cannedResponse) (*mocks.MockHTTPClient, *fakeZulip) {
 	t.Helper()
 
+	return newFakeClientWithRegisters(t, []cannedResponse{register}, messages...)
+}
+
+// newFakeClientWithRegisters returns a fake Zulip client like newFakeClient
+// that answers register requests with registers in order, repeating the last
+// one.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - registers: the responses to the register requests, in order.
+//   - messages: the responses to the message requests, in order.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *fakeZulip: the recorded requests.
+func newFakeClientWithRegisters(t *testing.T, registers []cannedResponse, messages ...cannedResponse) (*mocks.MockHTTPClient, *fakeZulip) {
+	t.Helper()
+
 	fake := &fakeZulip{}
 	client := mocks.NewMockHTTPClient(t)
 	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
@@ -119,7 +149,7 @@ func newFakeClient(t *testing.T, register cannedResponse, messages ...cannedResp
 		switch req.URL.Path {
 		case "/api/v1/register":
 			fake.registers = append(fake.registers, request)
-			response = register
+			response = registers[min(len(fake.registers), len(registers))-1]
 		case "/api/v1/messages":
 			fake.messages = append(fake.messages, request)
 			require.LessOrEqual(t, len(fake.messages), len(messages), "unexpected message request")
@@ -288,6 +318,35 @@ func TestSend(t *testing.T) {
 			wantForm: url.Values{"type": {"direct"}, "to": {`["alice@example.com"]`}, "content": {"Hello"}},
 		},
 		{
+			name:     "IPv4 host",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@192.0.2.10:8443?stream=general",
+			message:  "Hello",
+			wantURL:  "https://bot%40example.com:" + testBotKey + "@192.0.2.10:8443/api/v1/messages",
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+		},
+		{
+			name:     "IPv6 host",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@[2001:db8::1]:8443?stream=general",
+			message:  "Hello",
+			wantURL:  "https://bot%40example.com:" + testBotKey + "@[2001:db8::1]:8443/api/v1/messages",
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+		},
+		{
+			name:     "single-label host",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@zulip?stream=general",
+			message:  "Hello",
+			wantURL:  "https://bot%40example.com:" + testBotKey + "@zulip/api/v1/messages",
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+		},
+		{
+			name:     "direct message to user IDs",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"type": "direct", "to": "12, 34"},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"direct"}, "to": {"[12,34]"}, "content": {"Hello"}},
+		},
+		{
 			name:     "host with a port",
 			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443?stream=general",
 			message:  "Hello",
@@ -339,8 +398,8 @@ func TestSendFetchesLimitsOnce(t *testing.T) {
 }
 
 // TestSendServerLimits verifies that the topic and message limits come from
-// the register response, with the topic counted in characters, and that a
-// send at a limit is accepted.
+// the register response, both counted in characters, and that a send at a
+// limit is accepted.
 func TestSendServerLimits(t *testing.T) {
 	t.Parallel()
 
@@ -367,14 +426,21 @@ func TestSendServerLimits(t *testing.T) {
 			name:      "message over the limit",
 			message:   strings.Repeat("a", 5001),
 			wantErr:   ErrMessageTooLong,
-			wantError: "message exceeds max size: 5000 bytes, got 5001 bytes",
+			wantError: "message exceeds max size: 5000 characters, got 5001",
+		},
+		{name: "non-ASCII message at the limit", message: strings.Repeat("日", 5000)},
+		{
+			name:      "non-ASCII message over the limit",
+			message:   strings.Repeat("日", 5001),
+			wantErr:   ErrMessageTooLong,
+			wantError: "message exceeds max size: 5000 characters, got 5001",
 		},
 		{
 			name:      "title before the message counts",
 			params:    &types.Params{"title": "Disk"},
 			message:   strings.Repeat("a", 4995),
 			wantErr:   ErrMessageTooLong,
-			wantError: "message exceeds max size: 5000 bytes, got 5001 bytes",
+			wantError: "message exceeds max size: 5000 characters, got 5001",
 		},
 	}
 
@@ -409,24 +475,32 @@ func TestSendServerLimits(t *testing.T) {
 }
 
 // TestSendDefaultLimits verifies that the default limits of 60 topic
-// characters and 10000 message bytes apply when the register request fails or
-// its response has no usable limits.
+// characters and 10000 message characters apply when the register request
+// fails or its response has no usable limits, and that each send repeats a
+// failed register request.
 func TestSendDefaultLimits(t *testing.T) {
 	t.Parallel()
 
-	// registers lists register responses that leave the default limits.
+	// registers lists register responses that leave the default limits, with
+	// the register requests four sends should make.
 	registers := []struct {
-		name     string
-		response cannedResponse
+		name          string
+		response      cannedResponse
+		wantRegisters int
 	}{
 		{
-			name:     "error status",
-			response: cannedResponse{statusCode: http.StatusServiceUnavailable, body: `{"result":"error","max_message_length":5,"max_topic_length":5}`},
+			name:          "error status",
+			response:      cannedResponse{statusCode: http.StatusServiceUnavailable, body: `{"result":"error","max_message_length":5,"max_topic_length":5}`},
+			wantRegisters: 4,
 		},
-		{name: "transport error", response: cannedResponse{err: errTransport}},
-		{name: "not JSON", response: cannedResponse{statusCode: http.StatusOK, body: "<html>"}},
-		{name: "no limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":""}`}},
-		{name: "zero limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","max_message_length":0,"max_topic_length":0}`}},
+		{name: "transport error", response: cannedResponse{err: errTransport}, wantRegisters: 4},
+		{name: "not JSON", response: cannedResponse{statusCode: http.StatusOK, body: "<html>"}, wantRegisters: 4},
+		{name: "no limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":""}`}, wantRegisters: 1},
+		{
+			name:          "zero limits",
+			response:      cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","max_message_length":0,"max_topic_length":0}`},
+			wantRegisters: 1,
+		},
 	}
 
 	for _, register := range registers {
@@ -442,20 +516,160 @@ func TestSendDefaultLimits(t *testing.T) {
 
 			err = service.Send(strings.Repeat("a", 10001), nil)
 			require.ErrorIs(t, err, ErrMessageTooLong)
-			require.EqualError(t, err, "message exceeds max size: 10000 bytes, got 10001 bytes")
+			require.EqualError(t, err, "message exceeds max size: 10000 characters, got 10001")
 
-			require.NoError(t, service.Send(strings.Repeat("a", 10000), &types.Params{"topic": strings.Repeat("日", 60)}))
+			require.NoError(t, service.Send(strings.Repeat("é", 10000), &types.Params{"topic": strings.Repeat("日", 60)}))
 			require.NoError(t, service.Send("Hello", &types.Params{"topic": strings.Repeat("a", 60)}))
 
-			assert.Len(t, fake.registers, 1)
+			assert.Len(t, fake.registers, register.wantRegisters)
 			assert.Len(t, fake.messages, 2)
 		})
 	}
 }
 
+// TestSendRetriesLimits verifies that a send after a failed register request
+// asks again and applies the limits it then gets, and that later sends keep
+// them without asking again.
+func TestSendRetriesLimits(t *testing.T) {
+	t.Parallel()
+
+	client, fake := newFakeClientWithRegisters(t,
+		[]cannedResponse{
+			{statusCode: http.StatusServiceUnavailable},
+			{statusCode: http.StatusOK, body: `{"result":"success","msg":"","max_message_length":5000,"max_topic_length":30}`},
+		},
+		sent,
+	)
+	service := newTestService(t, testServiceURL, client)
+	longTopic := &types.Params{"topic": strings.Repeat("a", 31)}
+
+	require.NoError(t, service.Send("Hello", longTopic))
+	require.ErrorIs(t, service.Send("Hello", longTopic), ErrTopicTooLong)
+	require.ErrorIs(t, service.Send(strings.Repeat("a", 5001), nil), ErrMessageTooLong)
+
+	assert.Len(t, fake.registers, 2)
+	assert.Len(t, fake.messages, 1)
+}
+
+// TestSendConcurrently verifies that concurrent first sends share one
+// register request.
+func TestSendConcurrently(t *testing.T) {
+	t.Parallel()
+
+	const sends = 8
+
+	responses := make([]cannedResponse, sends)
+	for i := range responses {
+		responses[i] = sent
+	}
+
+	client, fake := newFakeClient(t, defaultLimits, responses...)
+	service := newTestService(t, testServiceURL, client)
+
+	var wg sync.WaitGroup
+	for range sends {
+		wg.Go(func() {
+			assert.NoError(t, service.Send("Hello", nil))
+		})
+	}
+
+	wg.Wait()
+
+	assert.Len(t, fake.registers, 1)
+	assert.Len(t, fake.messages, sends)
+}
+
+// Done reports the call and returns the wrapped context's Done channel.
+//
+// Returns:
+//   - <-chan struct{}: the wrapped context's Done channel.
+func (c *doneSignalContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.called) })
+
+	return c.Context.Done()
+}
+
+// TestSendWaiterCancellation verifies that a send waiting for another send's
+// register request stays blocked while the request is in flight, stops
+// waiting when its own context ends, and that the first send finishes with
+// one register request.
+func TestSendWaiterCancellation(t *testing.T) {
+	t.Parallel()
+
+	registerStarted := make(chan struct{})
+	releaseRegister := make(chan struct{})
+	release := sync.OnceFunc(func() { close(releaseRegister) })
+	t.Cleanup(release)
+
+	var registers atomic.Int32
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/api/v1/register" {
+			if registers.Add(1) == 1 {
+				close(registerStarted)
+			}
+
+			<-releaseRegister
+
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(defaultLimitsBody))}, nil
+		}
+
+		if err := req.Context().Err(); err != nil {
+			return nil, err
+		}
+
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(sentBody))}, nil
+	}).Maybe()
+
+	service := newTestService(t, testServiceURL, client)
+
+	firstDone := make(chan error, 1)
+
+	go func() { firstDone <- service.Send("Hello", nil) }()
+
+	<-registerStarted
+
+	cancelCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	ctx := &doneSignalContext{Context: cancelCtx, called: make(chan struct{})}
+	waiterDone := make(chan error, 1)
+
+	go func() { waiterDone <- service.SendContext(ctx, "Hello", nil) }()
+
+	select {
+	case <-ctx.called:
+	case err := <-waiterDone:
+		t.Fatalf("the send returned %v without waiting for the register request", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the send never waited on its context")
+	}
+
+	select {
+	case err := <-waiterDone:
+		t.Fatalf("the send returned %v while the register request was in flight", err)
+	default:
+	}
+
+	cancel()
+
+	select {
+	case err := <-waiterDone:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the canceled send kept waiting for the register request")
+	}
+
+	release()
+
+	require.NoError(t, <-firstDone)
+	assert.Equal(t, int32(1), registers.Load())
+}
+
 // TestSendValidation verifies that a send rejects an invalid message type,
-// host, or param before any request, and a missing recipient before the
-// message request.
+// host, or param before any request, and a missing or mixed recipient list
+// before the message request.
 func TestSendValidation(t *testing.T) {
 	t.Parallel()
 
@@ -488,12 +702,26 @@ func TestSendValidation(t *testing.T) {
 		})
 	}
 
-	// unaddressed lists sends without a recipient.
+	// unaddressed lists sends without a usable recipient list, with the error
+	// each should produce.
 	unaddressed := []struct {
-		params *types.Params
-		name   string
-		rawURL string
+		wantErr error
+		params  *types.Params
+		name    string
+		rawURL  string
 	}{
+		{
+			name:    "direct message with only separators",
+			rawURL:  testServiceURL,
+			params:  &types.Params{"type": "direct", "to": " , "},
+			wantErr: ErrMissingRecipient,
+		},
+		{
+			name:    "direct message to user IDs and e-mail addresses",
+			rawURL:  testServiceURL,
+			params:  &types.Params{"type": "direct", "to": "12,alice@example.com"},
+			wantErr: ErrMixedRecipients,
+		},
 		{name: "channel message without a stream", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost},
 		{name: "direct message without recipients", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=direct"},
 		{name: "stream cleared by a param", rawURL: testServiceURL, params: &types.Params{"stream": ""}},
@@ -506,7 +734,12 @@ func TestSendValidation(t *testing.T) {
 			client, fake := newFakeClient(t, defaultLimits)
 			service := newTestService(t, tt.rawURL, client)
 
-			require.ErrorIs(t, service.Send("Hello", tt.params), ErrMissingRecipient)
+			wantErr := tt.wantErr
+			if wantErr == nil {
+				wantErr = ErrMissingRecipient
+			}
+
+			require.ErrorIs(t, service.Send("Hello", tt.params), wantErr)
 			assert.Empty(t, fake.messages)
 		})
 	}
@@ -738,16 +971,23 @@ func TestSetHTTPClient(t *testing.T) {
 	}
 }
 
-// TestValidateHost verifies that a host name with an optional port from 1 to
-// 65535 is accepted and that other values are rejected.
+// TestValidateHost verifies that a host name, IPv4 address, or bracketed IPv6
+// address with an optional port from 1 to 65535 is accepted and that other
+// values are rejected.
 func TestValidateHost(t *testing.T) {
 	t.Parallel()
 
-	for _, valid := range []string{testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co"} {
+	for _, valid := range []string{
+		testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co", "localhost", "localhost:9991", "zulip",
+		"192.0.2.10", "192.0.2.10:8443", "[2001:db8::1]", "[2001:db8::1]:8443",
+	} {
 		require.NoError(t, validateHost(valid), valid)
 	}
 
-	for _, invalid := range []string{"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", "zulip example.com", "-zulip.example.com"} {
+	for _, invalid := range []string{
+		"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", testHost + ":+80", "zulip example.com",
+		"-zulip.example.com", "zulip..example.com", "2001:db8::1", "[2001:db8::1", "[zulip.example.com]:8443", "192.0.2.10:0",
+	} {
 		require.ErrorIs(t, validateHost(invalid), ErrInvalidHost, invalid)
 	}
 }
