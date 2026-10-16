@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -43,7 +46,10 @@ type Service struct {
 	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
 
-	mu             sync.Once
+	// limitsMu guards limitsFetched and the limits.
+	limitsMu sync.Mutex
+	// limitsFetched is true once the server answered the limits request.
+	limitsFetched  bool
 	contentMaxSize int
 	topicMaxLength int
 }
@@ -51,7 +57,7 @@ type Service struct {
 // defaultHTTPTimeout is the default timeout for HTTP requests to Zulip.
 const defaultHTTPTimeout = 30 * time.Second
 
-// contentMaxSize defines the default maximum allowed message size in bytes.
+// contentMaxSize defines the default maximum allowed message length in characters.
 const contentMaxSize = 10000
 
 // topicMaxLength defines the default maximum allowed topic length in characters.
@@ -64,10 +70,9 @@ const registerTimeout = 10 * time.Second
 // memory exhaustion from huge error bodies returned by the server.
 const maxErrorBodySize = 4 * 1024
 
-// hostValidator ensures the host is a valid hostname or domain,
-// optionally followed by a colon and port number (1-65535).
-var hostValidator = regexp.MustCompile(
-	`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:[0-9]{1,5})?$`,
+// hostnameValidator matches a host name of one or more DNS labels.
+var hostnameValidator = regexp.MustCompile(
+	`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`,
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -78,17 +83,45 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
-// validateHost checks that the host string is a valid hostname with optional port (1-65535).
+// validateHost checks that the host is a host name, an IPv4 address, or a
+// bracketed IPv6 address, with an optional port from 1 to 65535.
+//
+// Parameters:
+//   - host: the host, as in a URL authority.
+//
+// Returns:
+//   - error: [ErrInvalidHost] naming the host, or nil.
 func validateHost(host string) error {
-	if !hostValidator.MatchString(host) {
-		return fmt.Errorf("%w: %q", ErrInvalidHost, host)
+	invalid := fmt.Errorf("%w: %q", ErrInvalidHost, host)
+	bracketed := strings.HasPrefix(host, "[")
+
+	name, port, err := net.SplitHostPort(host)
+	if err != nil {
+		name = host
+
+		if bracketed {
+			inner, ok := strings.CutSuffix(strings.TrimPrefix(host, "["), "]")
+			if !ok {
+				return invalid
+			}
+
+			name = inner
+		}
+	} else if number, parseErr := strconv.ParseUint(port, 10, 16); parseErr != nil || number == 0 {
+		return invalid
 	}
 
-	if _, portStr, ok := strings.Cut(host, ":"); ok && portStr != "" {
-		port, parseErr := strconv.Atoi(portStr)
-		if parseErr != nil || port < 1 || port > 65535 {
-			return fmt.Errorf("%w: %q", ErrInvalidHost, host)
+	if addr, parseErr := netip.ParseAddr(name); parseErr == nil {
+		// URLs bracket IPv6 addresses and only IPv6 addresses.
+		if addr.Is6() != bracketed {
+			return invalid
 		}
+
+		return nil
+	}
+
+	if bracketed || !hostnameValidator.MatchString(name) {
+		return invalid
 	}
 
 	return nil
@@ -187,14 +220,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	s.mu.Do(func() { s.fetchLimits(ctx) })
+	contentMax, topicMax := s.limits(ctx)
 
 	topicLength := len([]rune(config.Topic))
-	if topicLength > s.topicMaxLength {
+	if topicLength > topicMax {
 		return fmt.Errorf(
 			"%w: %d characters, got %d",
 			ErrTopicTooLong,
-			s.topicMaxLength,
+			topicMax,
 			topicLength,
 		)
 	}
@@ -204,24 +237,19 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		message = fmt.Sprintf("%s\n\n%s", config.Title, message)
 	}
 
-	messageSize := len(message)
-	if messageSize > s.contentMaxSize {
+	messageLength := utf8.RuneCountInString(message)
+	if messageLength > contentMax {
 		return fmt.Errorf(
-			"%w: %d bytes, got %d bytes",
+			"%w: %d characters, got %d",
 			ErrMessageTooLong,
-			s.contentMaxSize,
-			messageSize,
+			contentMax,
+			messageLength,
 		)
 	}
 
 	if config.Type == MessageTypeDirect {
-		recipients := config.To
-		if recipients == "" && config.Stream != "" {
-			recipients = config.Stream
-		}
-
-		if recipients == "" {
-			return ErrMissingRecipient
+		if err := validateDirectRecipients(parseRecipients(directRecipients(config))); err != nil {
+			return err
 		}
 	} else if config.Stream == "" {
 		return ErrMissingRecipient
@@ -318,11 +346,17 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 	return nil
 }
 
-// fetchLimits calls the Zulip register endpoint to fetch server-side size limits.
-// Uses defaults if the call fails.
-func (s *Service) fetchLimits(ctx context.Context) {
+// fetchLimits calls the Zulip register endpoint to fetch server-side size
+// limits, keeping the current limits for any the server does not report.
+//
+// Parameters:
+//   - ctx: bounds the request, further bounded by [registerTimeout].
+//
+// Returns:
+//   - bool: whether the server answered with a 200 status and a JSON body.
+func (s *Service) fetchLimits(ctx context.Context) bool {
 	if err := validateHost(s.Config.Host); err != nil {
-		return
+		return false
 	}
 
 	registerURL := s.getRegisterURL()
@@ -335,25 +369,25 @@ func (s *Service) fetchLimits(ctx context.Context) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return
+		return false
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return
+		return false
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		return
+		return false
 	}
 
 	var reg registerResponse
 	if err := json.NewDecoder(res.Body).Decode(&reg); err != nil {
-		return
+		return false
 	}
 
 	if reg.MaxMessageLength > 0 {
@@ -363,6 +397,8 @@ func (s *Service) fetchLimits(ctx context.Context) {
 	if reg.MaxTopicLength > 0 {
 		s.topicMaxLength = reg.MaxTopicLength
 	}
+
+	return true
 }
 
 // getAPIURL constructs the API URL for Zulip based on the Config.
@@ -383,4 +419,24 @@ func (s *Service) getRegisterURL() string {
 		Path:   "/api/v1/register",
 		Scheme: "https",
 	}).String()
+}
+
+// limits returns the message and topic limits, asking the server on the first
+// send and again on later sends until the server answers.
+//
+// Parameters:
+//   - ctx: bounds the limits request.
+//
+// Returns:
+//   - contentMax: the maximum message length in characters.
+//   - topicMax: the maximum topic length in characters.
+func (s *Service) limits(ctx context.Context) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
+	s.limitsMu.Lock()
+	defer s.limitsMu.Unlock()
+
+	if !s.limitsFetched {
+		s.limitsFetched = s.fetchLimits(ctx)
+	}
+
+	return s.contentMaxSize, s.topicMaxLength
 }

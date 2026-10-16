@@ -93,6 +93,16 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:   "read_by_sender yes",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=yes",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, ReadBySender: true},
+		},
+		{
+			name:   "read_by_sender 1",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=1",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, ReadBySender: true},
+		},
+		{
 			name:   "read_by_sender false",
 			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=false",
 			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
@@ -129,7 +139,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL requires the bot e-mail address,
-// an API key, and a host, except in the docs command placeholder URL.
+// an API key, and a host, except in the docs command placeholder URL, and
+// rejects a read_by_sender value that is not a boolean.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +154,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "no API key", rawURL: "zulip://" + testBotMail + "@" + testHost, wantErr: ErrMissingAPIKey},
 		{name: "no host", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@", wantErr: ErrMissingHost},
 		{name: "placeholder user on another host", rawURL: "zulip://dummy@" + testHost, wantErr: ErrMissingAPIKey},
+		{
+			name:    "invalid read_by_sender",
+			rawURL:  "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=maybe",
+			wantErr: format.ErrInvalidBoolValue,
+		},
 		{name: "placeholder host with another user", rawURL: "zulip://bot@dummy.com", wantErr: ErrMissingAPIKey},
 	}
 

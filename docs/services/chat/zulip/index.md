@@ -17,6 +17,7 @@ Shoutrrr's Zulip service sends notifications to Zulip streams using bot credenti
 !!! note
     The __`host`__ field may include a non-standard port (e.g., `zulip.example.com:8443`).
     When using the default HTTPS port (443), the port can be omitted.
+    For a self-hosted server, the host can also be a single-label name such as `localhost`, an IPv4 address, or an IPv6 address in brackets (e.g., `[2001:db8::1]:8443`).
 
 ## Bot Setup
 
@@ -97,6 +98,9 @@ If neither is specified, the message is sent to the default stream configured fo
 
 To send a direct message, set the `type` parameter to `direct` and provide recipients via the `to` parameter (comma-separated emails or user IDs). The `stream` value can serve as a fallback recipient list for direct messages. The `topic` parameter is ignored for direct messages (only channels use topics).
 
+List either user IDs or e-mail addresses, not both, because Zulip rejects a recipient list that mixes them.
+User IDs are sent to Zulip as numbers.
+
 !!! example "Direct message via params"
     ```go
     params := make(types.Params)
@@ -113,4 +117,6 @@ To send a direct message, set the `type` parameter to `direct` and provide recip
 
 ## Server-Side Limits
 
-The service fetches `max_message_length` and `max_topic_length` from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 bytes for content and 60 characters for topics. Length checks use rune count for topics (Unicode aware) and byte count for message content.
+The service fetches `max_message_length` and `max_topic_length` from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 characters for content and 60 characters for topics. Like Zulip, the length checks count Unicode characters, not bytes.
+
+When the request fails, the next send asks again. Once the server answers, the service keeps its limits.

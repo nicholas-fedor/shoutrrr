@@ -16,12 +16,12 @@
 //
 //   - BotMail: The bot's email address for authentication (required)
 //   - BotKey: The bot's API key for authentication (required)
-//   - Host: The Zulip server hostname (with optional port) (required)
+//   - Host: The Zulip server host name, IPv4 address, or bracketed IPv6 address, with an optional port (required)
 //   - Type: Message type, "channel" or "direct" (optional, defaults to channel)
 //   - Stream: The target stream (channel) name (optional)
 //   - Topic: The target topic within the stream (optional)
 //   - Title: Notification title prepended to message content (optional)
-//   - To: Comma-separated recipients for direct messages (optional)
+//   - To: Comma-separated user IDs or e-mail addresses for direct messages, not both (optional)
 //   - ReadBySender: Whether to mark sent DM read by the bot (optional, default false)
 //
 // # Direct Messages
@@ -33,8 +33,9 @@
 // # Server-Side Limits
 //
 // On first send, the service fetches max_message_length and max_topic_length from the
-// Zulip /api/v1/register endpoint (realm section). Falls back to built-in defaults (10000 bytes
-// content, 60 chars topic) if the call fails or returns zero/ non-success.
+// Zulip /api/v1/register endpoint (realm section). Falls back to built-in defaults (10000
+// characters content, 60 characters topic) if the call fails or returns zero/ non-success,
+// and asks again on the next send after a failed call. Both limits count Unicode characters.
 //
 // # Usage Example
 //
@@ -49,7 +50,7 @@
 //
 // The package provides CreatePayload for building properly formatted form-encoded requests
 // for the Zulip messages API, supporting channel/direct types, JSON-encoded recipient lists
-// for DMs, topics, and read_by_sender.
+// for DMs (user IDs as numbers), topics, and read_by_sender.
 //
 // # URL Format
 //
@@ -66,11 +67,11 @@
 // The package includes validation for:
 //   - Bot email address presence
 //   - API key presence
-//   - Host configuration (including optional :port)
+//   - Host configuration (host name, IPv4, or bracketed IPv6, with optional :port)
 //   - Message type (channel/direct/empty)
-//   - Recipient presence per message type
+//   - Recipient presence per message type, without mixing user IDs and e-mail addresses
 //   - Topic length (server or default 60 chars)
-//   - Message size (server or default 10000 bytes)
+//   - Message length (server or default 10000 characters)
 //
 // For more information about Zulip bots, visit: https://zulip.com/help/bots-and-integrations
 package zulip

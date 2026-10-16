@@ -1,6 +1,7 @@
 package zulip
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -101,6 +102,13 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrMissingBotMail], [ErrMissingAPIKey], [ErrMissingHost], or a
+//     read_by_sender value that is not a boolean.
 func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var isSet bool
 
@@ -128,7 +136,16 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Title = serviceURL.Query().Get("title")
 	c.Type = MessageType(serviceURL.Query().Get("type"))
 	c.To = serviceURL.Query().Get("to")
-	c.ReadBySender = serviceURL.Query().Get("read_by_sender") == "true"
+	c.ReadBySender = false
+
+	if raw := serviceURL.Query().Get("read_by_sender"); raw != "" {
+		value, ok := format.ParseBool(raw, false)
+		if !ok {
+			return fmt.Errorf("parsing read_by_sender %q: %w", raw, format.ErrInvalidBoolValue)
+		}
+
+		c.ReadBySender = value
+	}
 
 	return nil
 }

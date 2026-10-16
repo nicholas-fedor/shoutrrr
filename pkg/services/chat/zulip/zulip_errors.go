@@ -30,4 +30,7 @@ var (
 
 	// ErrMissingRecipient indicates no recipient was specified for the message.
 	ErrMissingRecipient = errors.New("no recipient specified for the message")
+
+	// ErrMixedRecipients indicates a direct message lists both user IDs and e-mail addresses, which Zulip rejects.
+	ErrMixedRecipients = errors.New("recipients mix user IDs and e-mail addresses")
 )
