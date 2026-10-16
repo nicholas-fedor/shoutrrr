@@ -164,8 +164,9 @@ func TestInitialize(t *testing.T) {
 	})
 }
 
-// TestSend verifies that a send makes one request for each recipient, in
-// order, and that a title param applies to every request.
+// TestSend verifies that a send makes one authenticated form POST to the
+// Messages endpoint for each recipient, in order, and that a title param
+// applies to every request.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -175,9 +176,21 @@ func TestSend(t *testing.T) {
 
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert"}))
 
-	require.Len(t, *captured, 2)
-	assert.Equal(t, url.Values{"To": {testTo}, "Body": {"Alert\nMessage"}, "From": {testFrom}}, (*captured)[0].form)
-	assert.Equal(t, url.Values{"To": {"+15559876544"}, "Body": {"Alert\nMessage"}, "From": {testFrom}}, (*captured)[1].form)
+	wantForms := []url.Values{
+		{"To": {testTo}, "Body": {"Alert\nMessage"}, "From": {testFrom}},
+		{"To": {"+15559876544"}, "Body": {"Alert\nMessage"}, "From": {testFrom}},
+	}
+
+	require.Len(t, *captured, len(wantForms))
+
+	for i, request := range *captured {
+		assert.Equal(t, http.MethodPost, request.method, "request %d", i)
+		assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/"+testAccountSID+"/Messages.json", request.url, "request %d", i)
+		assert.Equal(t, contentType, request.contentType, "request %d", i)
+		assert.Equal(t, testAccountSID, request.username, "request %d", i)
+		assert.Equal(t, "authToken", request.password, "request %d", i)
+		assert.Equal(t, wantForms[i], request.form, "request %d", i)
+	}
 }
 
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
