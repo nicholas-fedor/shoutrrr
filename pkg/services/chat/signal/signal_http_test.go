@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
@@ -91,32 +94,61 @@ func TestSendInvalidHost(t *testing.T) {
 	assert.NotContains(t, err.Error(), "bad host")
 }
 
-// TestParseTimestamp verifies that a timestamp is read as a JSON number or a
-// quoted number, and that a missing or invalid timestamp is an error.
-func TestParseTimestamp(t *testing.T) {
+// TestParseSendResults verifies that a successful response is read as the
+// array of send results signal-cli-rest-api returns, or as a single result
+// object, with timestamps as quoted or plain numbers and any failed
+// recipients.
+func TestParseSendResults(t *testing.T) {
 	t.Parallel()
 
-	// tests lists response bodies with the timestamp each should produce.
+	// stamp returns a pointer to the timestamp n.
+	stamp := func(n int64) *timestamp {
+		ts := timestamp(n)
+
+		return &ts
+	}
+
+	// tests lists response bodies with the results each should produce.
 	tests := []struct {
 		name    string
 		body    string
-		want    int64
+		want    []sendResult
 		wantErr bool
 	}{
-		{name: "number", body: `{"timestamp":1760500000000}`, want: 1760500000000},
-		{name: "quoted number", body: `{"timestamp":"1760500000000"}`, want: 1760500000000},
-		{name: "zero", body: `{"timestamp":0}`},
-		{name: "missing", body: `{}`, wantErr: true},
-		{name: "null", body: `{"timestamp":null}`, wantErr: true},
-		{name: "not a number", body: `{"timestamp":"soon"}`, wantErr: true},
+		{name: "array", body: `[{"timestamp":"1760500000000"}]`, want: []sendResult{{Timestamp: stamp(1760500000000)}}},
+		{
+			name: "array with several results",
+			body: `[{"timestamp":"1760500000000"},{"timestamp":1760500000001}]`,
+			want: []sendResult{{Timestamp: stamp(1760500000000)}, {Timestamp: stamp(1760500000001)}},
+		},
+		{name: "empty array", body: `[]`, want: []sendResult{}},
+		{name: "object", body: ` {"timestamp":1760500000000}`, want: []sendResult{{Timestamp: stamp(1760500000000)}}},
+		{name: "zero", body: `[{"timestamp":"0"}]`, want: []sendResult{{Timestamp: stamp(0)}}},
+		{name: "missing timestamp", body: `[{}]`, want: []sendResult{{}}},
+		{name: "null timestamp", body: `[{"timestamp":null}]`, want: []sendResult{{}}},
+		{
+			name: "failed recipients",
+			body: `[{"timestamp":"1760500000000","errors":{"recipients":[{"number":"+15551234567","uuid":"0b9f9c4e","reason":"UNREGISTERED_FAILURE"},{"username":"alice.01","reason":"RATE_LIMIT_FAILURE"}]}}]`,
+			want: []sendResult{{
+				Timestamp: stamp(1760500000000),
+				Errors: &sendResultErrors{Recipients: []recipientFailure{
+					{Number: "+15551234567", UUID: "0b9f9c4e", Reason: "UNREGISTERED_FAILURE"},
+					{Username: "alice.01", Reason: "RATE_LIMIT_FAILURE"},
+				}},
+			}},
+		},
+		{name: "timestamp not a number", body: `[{"timestamp":"soon"}]`, wantErr: true},
+		{name: "timestamp not a string or number", body: `[{"timestamp":true}]`, wantErr: true},
 		{name: "not JSON", body: `sent`, wantErr: true},
+		{name: "empty body", body: ``, wantErr: true},
+		{name: "truncated object", body: `{"timestamp":`, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			timestamp, err := parseTimestamp([]byte(tt.body))
+			results, err := parseSendResults([]byte(tt.body))
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -125,24 +157,32 @@ func TestParseTimestamp(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, timestamp)
+			assert.Equal(t, tt.want, results)
 		})
 	}
 }
 
-// TestParseResponse verifies that the timestamp of a successful send is
-// logged, or else a warning with the parse error.
-func TestParseResponse(t *testing.T) {
+// TestSendLogsResults verifies that a send logs the timestamp of each send
+// result in the response, and a warning when the response has none or cannot
+// be read, without failing the send.
+func TestSendLogsResults(t *testing.T) {
 	t.Parallel()
 
-	// tests lists response bodies with the log each should produce.
+	// tests lists response bodies with the log each should start with.
 	tests := []struct {
 		name    string
 		body    string
 		wantLog string
 	}{
-		{name: "timestamp", body: `{"timestamp":"1760500000000"}`, wantLog: "Message sent successfully at timestamp 1760500000000\n"},
-		{name: "no timestamp", body: `{}`, wantLog: "Warning: failed to parse response: "},
+		{name: "result array", body: sentBody, wantLog: "Message sent successfully at timestamp 1760500000000\n"},
+		{
+			name:    "several results",
+			body:    `[{"timestamp":"1760500000000"},{"timestamp":"1760500000001"}]`,
+			wantLog: "Message sent successfully at timestamp 1760500000000\nMessage sent successfully at timestamp 1760500000001\n",
+		},
+		{name: "result object", body: `{"timestamp":1760500000000}`, wantLog: "Message sent successfully at timestamp 1760500000000\n"},
+		{name: "no timestamp", body: `[{}]`, wantLog: "Warning: response has no timestamp\n"},
+		{name: "not JSON", body: `sent`, wantLog: "Warning: failed to parse response: "},
 	}
 
 	for _, tt := range tests {
@@ -152,10 +192,187 @@ func TestParseResponse(t *testing.T) {
 			var logs bytes.Buffer
 
 			service := &Service{}
-			service.SetLogger(log.New(&logs, "", 0))
-			service.parseResponse([]byte(tt.body))
+			require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
 
+			client, _ := newRecordingClient(t, cannedResponse{statusCode: http.StatusCreated, body: tt.body})
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Hello", nil))
 			assert.True(t, strings.HasPrefix(logs.String(), tt.wantLog), "log %q does not start with %q", logs.String(), tt.wantLog)
+		})
+	}
+}
+
+// TestSendReportsFailedRecipients verifies that a send fails when a
+// successful response lists recipients that could not be reached, naming
+// each by number, username, or UUID with its reason, without logging the
+// send as successful, and that the requests for the other recipient types are
+// still sent.
+func TestSendReportsFailedRecipients(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"/+15559876543/+15550001111/u:alice.01"), log.New(&logs, "", 0)))
+
+	client, captured := newRecordingClient(t,
+		cannedResponse{
+			statusCode: http.StatusCreated,
+			body: `[{"timestamp":"1760500000000","errors":{"recipients":[` +
+				`{"number":"+15559876543","uuid":"0b9f9c4e","reason":"UNREGISTERED_FAILURE"},` +
+				`{"uuid":"7d1e2a90","reason":"NETWORK_FAILURE"}]}}]`,
+		},
+		cannedResponse{
+			statusCode: http.StatusCreated,
+			body:       `[{"timestamp":"1760500000001","errors":{"recipients":[{"username":"alice.01","reason":"RATE_LIMIT_FAILURE"}]}}]`,
+		},
+	)
+	service.SetHTTPClient(client)
+
+	err := service.SendContext(t.Context(), "Hello", nil)
+
+	require.ErrorIs(t, err, ErrSendFailed)
+	require.ErrorIs(t, err, ErrRecipientsFailed)
+	require.EqualError(t, err,
+		"failed to send Signal message: delivery failed for recipients: +15559876543 (UNREGISTERED_FAILURE), 7d1e2a90 (NETWORK_FAILURE)\n"+
+			"failed to send Signal message: delivery failed for recipients: alice.01 (RATE_LIMIT_FAILURE)")
+	assert.Len(t, *captured, 2)
+	assert.Empty(t, logs.String())
+}
+
+// TestSendLargeResponse verifies that a send reads a successful response
+// large enough to hold the failed recipients of a full Signal group, and that
+// a response beyond the read limit is accepted with a warning that the
+// recipient results were not checked.
+func TestSendLargeResponse(t *testing.T) {
+	t.Parallel()
+
+	// failures returns a result array with n failed recipients.
+	failures := func(n int) string {
+		entries := make([]string, n)
+		for i := range entries {
+			entries[i] = fmt.Sprintf(`{"number":"+1555%07d","uuid":"0b9f9c4e-6a1d-4e8f-9c55-%012d","reason":"UNREGISTERED_FAILURE"}`, i, i)
+		}
+
+		return `[{"timestamp":"1760500000000","errors":{"recipients":[` + strings.Join(entries, ",") + `]}}]`
+	}
+
+	t.Run("failed recipients of a full group", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "signal://localhost:8080/"+testSource+"/group.Z3JvdXAx")
+		client, _ := newRecordingClient(t, cannedResponse{statusCode: http.StatusCreated, body: failures(1000)})
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Hello", nil)
+
+		require.ErrorIs(t, err, ErrRecipientsFailed)
+		assert.Contains(t, err.Error(), "+15550000999 (UNREGISTERED_FAILURE)")
+	})
+
+	t.Run("beyond the read limit", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+		body := failures(12000)
+		require.Greater(t, len(body), maxResponseBodySize)
+
+		client, _ := newRecordingClient(t, cannedResponse{statusCode: http.StatusCreated, body: body})
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
+		assert.Equal(t, "Warning: response exceeds 1048576 bytes, so the recipient results were not checked\n", logs.String())
+	})
+}
+
+// TestSendBodyReadError verifies that a body that fails to read after a
+// success status is logged without failing the send, because the API accepted
+// the message, while after an error status the read error fails the send.
+func TestSendBodyReadError(t *testing.T) {
+	t.Parallel()
+
+	errRead := errors.New("connection reset")
+
+	// tests lists response statuses with whether the send should fail.
+	tests := []struct {
+		name       string
+		wantLog    string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:       "success status",
+			statusCode: http.StatusCreated,
+			wantLog:    "Warning: failed to read response body, so the recipient results were not checked: connection reset\n",
+		},
+		{name: "error status", statusCode: http.StatusBadRequest, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+			client := mocks.NewMockHTTPClient(t)
+			client.EXPECT().Do(mock.Anything).Return(&http.Response{
+				StatusCode: tt.statusCode,
+				Body:       io.NopCloser(iotest.ErrReader(errRead)),
+			}, nil).Once()
+			service.SetHTTPClient(client)
+
+			err := service.SendContext(t.Context(), "Hello", nil)
+
+			if tt.wantErr {
+				require.ErrorIs(t, err, errRead)
+				assert.Empty(t, logs.String())
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantLog, logs.String())
+		})
+	}
+}
+
+// TestRecipientFailureDescribe verifies that a failed recipient is named by
+// number, then username, then UUID, with the reason.
+func TestRecipientFailureDescribe(t *testing.T) {
+	t.Parallel()
+
+	// tests lists failures with the description each should produce.
+	tests := []struct {
+		name    string
+		want    string
+		failure recipientFailure
+	}{
+		{
+			name:    "number",
+			failure: recipientFailure{Number: testRecipient, Username: "alice.01", UUID: "0b9f9c4e", Reason: "UNREGISTERED_FAILURE"},
+			want:    testRecipient + " (UNREGISTERED_FAILURE)",
+		},
+		{
+			name:    "username",
+			failure: recipientFailure{Username: "alice.01", UUID: "0b9f9c4e", Reason: "RATE_LIMIT_FAILURE"},
+			want:    "alice.01 (RATE_LIMIT_FAILURE)",
+		},
+		{name: "UUID", failure: recipientFailure{UUID: "0b9f9c4e", Reason: "NETWORK_FAILURE"}, want: "0b9f9c4e (NETWORK_FAILURE)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.failure.describe())
 		})
 	}
 }
@@ -227,6 +444,12 @@ func TestFormatSendError(t *testing.T) {
 			statusCode: http.StatusInternalServerError,
 			truncated:  true,
 			want:       "failed to send Signal message: server returned status 500 [truncated]",
+		},
+		{
+			name:       "long plain body",
+			statusCode: http.StatusBadGateway,
+			body:       strings.Repeat("a", maxErrorBodySize) + "tail",
+			want:       "failed to send Signal message: server returned status 502: " + strings.Repeat("a", maxErrorBodySize) + " [truncated]",
 		},
 	}
 

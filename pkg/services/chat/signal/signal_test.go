@@ -462,7 +462,8 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	assert.JSONEq(t, `{"message":"Hello","number":"+15550000000","recipients":["+15551234567"]}`, (*captured)[1].body)
 }
 
-// TestSendErrors verifies that a send rejects invalid params and a config
+// TestSendErrors verifies that a send rejects invalid params, including
+// recipients that are not phone numbers, group IDs, or usernames, and a config
 // without recipients before any request, and reports error statuses and
 // transport errors.
 func TestSendErrors(t *testing.T) {
@@ -477,6 +478,9 @@ func TestSendErrors(t *testing.T) {
 	}{
 		{name: "unknown param", params: &types.Params{"unknown": "value"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid text mode param", params: &types.Params{"textmode": "markdown"}, wantErr: format.ErrInvalidEnumValue},
+		{name: "invalid recipient param", params: &types.Params{"recipients": "alice"}, wantErr: ErrInvalidRecipient},
+		{name: "invalid to param", params: &types.Params{"to": testRecipient + ",group.AB!"}, wantErr: ErrInvalidRecipient},
+		{name: "empty recipients param", params: &types.Params{"recipients": ""}, wantErr: ErrInvalidRecipient},
 		{
 			name:    "no recipients",
 			config:  &Config{Host: "localhost", Port: 8080, Source: testSource, Recipients: []string{}},
@@ -554,14 +558,14 @@ func TestSendErrors(t *testing.T) {
 		service := newTestService(t, testServiceURL)
 		client, _ := newRecordingClient(t, cannedResponse{
 			statusCode: http.StatusBadGateway,
-			body:       strings.Repeat("a", maxResponseBodySize) + "SECRETtail",
+			body:       strings.Repeat("a", maxErrorBodySize) + "SECRETtail",
 		})
 		service.SetHTTPClient(client)
 
 		err := service.SendContext(t.Context(), "Hello", nil)
 
 		require.ErrorIs(t, err, ErrSendFailed)
-		assert.EqualError(t, err, "failed to send Signal message: server returned status 502: "+strings.Repeat("a", maxResponseBodySize)+" [truncated]")
+		assert.EqualError(t, err, "failed to send Signal message: server returned status 502: "+strings.Repeat("a", maxErrorBodySize)+" [truncated]")
 	})
 }
 

@@ -52,14 +52,6 @@ func composeMessage(title, message string, styled bool) string {
 	return heading + "\n" + message
 }
 
-// parseAttachments splits a config attachments value into API attachment strings.
-//
-// Parameters:
-//   - raw: comma-separated raw base64, or a single data URI
-//
-// Returns:
-//   - []string: attachment entries, or nil when empty
-//
 // apiRecipients maps URL recipients to REST API recipient strings.
 // Username values keep the u: prefix for URL parsing and drop it in the payload.
 //
@@ -84,6 +76,13 @@ func apiRecipients(recipients []string) []string {
 	return out
 }
 
+// parseAttachments splits a config attachments value into API attachment strings.
+//
+// Parameters:
+//   - raw: comma-separated raw base64, or a single data URI
+//
+// Returns:
+//   - []string: attachment entries, or nil when empty
 func parseAttachments(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

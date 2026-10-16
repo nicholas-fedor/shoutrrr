@@ -35,6 +35,10 @@ const (
 	minPathParts = 2
 )
 
+// urlPartKeys are the config keys that GetURL writes into the URL authority
+// and path, so it leaves them out of the query.
+var urlPartKeys = []string{"host", "port", "user", "password", "source", "recipients"}
+
 // Enums returns the fields that use an EnumFormatter for their values.
 //
 // Returns:
@@ -69,6 +73,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+// The query holds only the settings that the authority and path do not carry.
 //
 // Parameters:
 //   - resolver: the configuration query resolver for property resolution
@@ -78,11 +83,16 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	recipients := strings.Join(c.Recipients, "/")
 
+	query := format.BuildQueryWithCustomFields(resolver, url.Values{})
+	for _, key := range urlPartKeys {
+		query.Del(key)
+	}
+
 	result := &url.URL{
 		Scheme:   Scheme,
 		Host:     net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
 		Path:     fmt.Sprintf("/%s/%s", c.Source, recipients),
-		RawQuery: format.BuildQuery(resolver),
+		RawQuery: query.Encode(),
 	}
 
 	if c.User != "" {

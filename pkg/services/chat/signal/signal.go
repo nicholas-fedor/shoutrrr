@@ -153,12 +153,17 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - config: the service configuration.
 //
 // Returns:
-//   - error: [ErrNoRecipients], or the joined errors of the failed requests.
-//     When ctx ends, the remaining batches are skipped and ctx's error is
-//     included.
+//   - error: [ErrNoRecipients], [ErrInvalidRecipient], or the joined errors of
+//     the failed requests. When ctx ends, the remaining batches are skipped
+//     and ctx's error is included.
 func (s *Service) sendMessage(ctx context.Context, message string, config *Config) error {
 	if len(config.Recipients) == 0 {
 		return ErrNoRecipients
+	}
+
+	// Params set recipients without the URL's validation.
+	if err := validateRecipients(config.Recipients); err != nil {
+		return err
 	}
 
 	var errs []error
