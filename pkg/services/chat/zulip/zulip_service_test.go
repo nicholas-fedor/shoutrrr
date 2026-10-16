@@ -1,926 +1,771 @@
 package zulip
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
+	"testing"
+	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// mockLogger is a test helper that implements StdLogger interface.
-type mockLogger struct{}
-
-var _ = ginkgo.Describe("Service Unit Tests", func() {
-	ginkgo.Describe("NewDefaultHTTPClient", func() {
-		ginkgo.It("should create a non-nil client", func() {
-			client := NewDefaultHTTPClient()
-
-			gomega.Expect(client).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should create a client with the expected timeout", func() {
-			client := NewDefaultHTTPClient()
-
-			gomega.Expect(client.client.Timeout).To(gomega.Equal(defaultHTTPTimeout))
-		})
-	})
-
-	ginkgo.Describe("DefaultHTTPClient.Do", func() {
-		var client *DefaultHTTPClient
-
-		ginkgo.BeforeEach(func() {
-			client = NewDefaultHTTPClient()
-			httpmock.ActivateNonDefault(client.client)
-		})
-
-		ginkgo.AfterEach(func() {
-			httpmock.DeactivateAndReset()
-		})
-
-		ginkgo.It("should successfully make an HTTP request", func() {
-			httpmock.RegisterResponder(http.MethodPost, "https://zulip.example.com/api/v1/messages",
-				httpmock.NewStringResponder(http.StatusOK, `{"result": "success"}`))
-
-			req, err := http.NewRequest(http.MethodPost, "https://zulip.example.com/api/v1/messages", http.NoBody)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			resp, err := client.Do(req)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(resp.StatusCode).To(gomega.Equal(http.StatusOK))
-		})
-
-		ginkgo.It("should return an error when the request fails", func() {
-			httpmock.RegisterResponder(http.MethodPost, "https://zulip.example.com/api/v1/messages",
-				httpmock.NewErrorResponder(errors.New("network error")))
-
-			req, err := http.NewRequest(http.MethodPost, "https://zulip.example.com/api/v1/messages", http.NoBody)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			resp, err := client.Do(req)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(resp).To(gomega.BeNil())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("performing HTTP request"))
-		})
-	})
-
-	ginkgo.Describe("ServiceTimeout", func() {
-		ginkgo.It("should cover the register call and the message request", func() {
-			gomega.Expect((&Service{}).ServiceTimeout(nil)).To(gomega.Equal(registerTimeout + defaultHTTPTimeout))
-		})
-	})
-
-	ginkgo.Describe("GetID", func() {
-		ginkgo.It("should return the zulip scheme identifier", func() {
-			svc := &Service{}
-
-			gomega.Expect(svc.GetID()).To(gomega.Equal(Scheme))
-		})
-
-		ginkgo.It("should always return 'zulip' regardless of service state", func() {
-			svc := &Service{
-				Config: &Config{
-					Host: "zulip.example.com",
-				},
-			}
-
-			gomega.Expect(svc.GetID()).To(gomega.Equal("zulip"))
-		})
-	})
-
-	ginkgo.Describe("Initialize", func() {
-		ginkgo.It("should initialize from a valid URL", func() {
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=announcements")
-
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(svc.Config).NotTo(gomega.BeNil())
-			gomega.Expect(svc.Config.BotMail).To(gomega.Equal("bot@example.com"))
-			gomega.Expect(svc.Config.BotKey).To(gomega.Equal("secret-key"))
-			gomega.Expect(svc.Config.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(svc.Config.Stream).To(gomega.Equal("general"))
-			gomega.Expect(svc.Config.Topic).To(gomega.Equal("announcements"))
-			gomega.Expect(svc.HTTPClient).NotTo(gomega.BeNil())
-			gomega.Expect(svc.contentMaxSize).To(gomega.Equal(contentMaxSize))
-			gomega.Expect(svc.topicMaxLength).To(gomega.Equal(topicMaxLength))
-		})
-
-		ginkgo.It("should set the logger", func() {
-			svc := &Service{}
-			logger := testutils.TestLogger()
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
-
-			err := svc.Initialize(serviceURL, logger)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(svc.Logger).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should return an error for URL with missing bot mail", func() {
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://:secret-key@zulip.example.com")
-
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingBotMail))
-		})
-
-		ginkgo.It("should return an error for URL with missing API key", func() {
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com@zulip.example.com")
-
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingAPIKey))
-		})
-
-		ginkgo.It("should return an error for URL with missing host", func() {
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@")
-
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingHost))
-		})
-	})
-
-	ginkgo.Describe("Send", func() {
-		ginkgo.It("should send a message successfully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", nil)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return an error when HTTP client fails", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("network error")).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("making HTTP POST request"))
-		})
-
-		ginkgo.It("should return an error for non-200 response status", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusUnauthorized,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("401")))
-		})
-
-		ginkgo.It("should return an error when topic exceeds max length", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			longTopic := strings.Repeat("a", topicMaxLength+1)
-
-			err := service.Send("Test message", &types.Params{"topic": longTopic})
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrTopicTooLong))
-		})
-
-		ginkgo.It("should accept topic at exactly max length", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			exactTopic := strings.Repeat("a", topicMaxLength)
-
-			err := service.Send("Test message", &types.Params{"topic": exactTopic})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should count topic length in runes, not bytes", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			// 60 multi-byte characters (3 bytes each = 180 bytes, but only 60 runes)
-			unicodeTopic := strings.Repeat("日", topicMaxLength)
-
-			err := service.Send("Test message", &types.Params{"topic": unicodeTopic})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should reject topic exceeding max length in runes", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			// 61 multi-byte characters = 61 runes > 60 max
-			unicodeTopic := strings.Repeat("日", topicMaxLength+1)
-
-			err := service.Send("Test message", &types.Params{"topic": unicodeTopic})
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrTopicTooLong))
-		})
-
-		ginkgo.It("should use title as topic when topic is not set", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := &Service{
-				Config: &Config{
-					BotMail: "bot@example.com",
-					BotKey:  "secret-key",
-					Host:    "zulip.example.com",
-					Stream:  "general",
-				},
-				HTTPClient: mockClient,
-			}
-			service.SetLogger(&mockLogger{})
-			service.pkr = format.NewPropKeyResolver(service.Config)
-			service.contentMaxSize = contentMaxSize
-			service.topicMaxLength = topicMaxLength
-			service.mu.Do(func() {})
-
-			err := service.Send("Test message", &types.Params{"title": "My Topic"})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, _ := io.ReadAll(capturedReq.Body)
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=My+Topic"))
-
-			mockClient.AssertExpectations(ginkgo.GinkgoT())
-		})
-
-		ginkgo.It("should not override topic with title when both are set", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", &types.Params{"title": "Notification Title"})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, _ := io.ReadAll(capturedReq.Body)
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=Notification+Title"))
-
-			mockClient.AssertExpectations(ginkgo.GinkgoT())
-		})
-
-		ginkgo.It("should prepend title to message when both topic and title are set", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("body text", &types.Params{"title": "My Title"})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, _ := io.ReadAll(capturedReq.Body)
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=My+Title%0A%0Abody+text"))
-
-			mockClient.AssertExpectations(ginkgo.GinkgoT())
-		})
-
-		ginkgo.It("should return error when title used as topic fallback exceeds max length", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := &Service{
-				Config: &Config{
-					BotMail: "bot@example.com",
-					BotKey:  "secret-key",
-					Host:    "zulip.example.com",
-					Stream:  "general",
-				},
-				HTTPClient: mockClient,
-			}
-			service.SetLogger(&mockLogger{})
-			service.pkr = format.NewPropKeyResolver(service.Config)
-			service.contentMaxSize = contentMaxSize
-			service.topicMaxLength = topicMaxLength
-			service.mu.Do(func() {})
-
-			longTitle := strings.Repeat("a", topicMaxLength+1)
-			err := service.Send("Test message", &types.Params{"title": longTitle})
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrTopicTooLong))
-		})
-
-		ginkgo.It("should handle empty title param gracefully", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", &types.Params{"title": ""})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, _ := io.ReadAll(capturedReq.Body)
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
-
-			mockClient.AssertExpectations(ginkgo.GinkgoT())
-		})
-
-		ginkgo.It("should return an error when message exceeds max size", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			longMessage := strings.Repeat("a", contentMaxSize+1)
-
-			err := service.Send(longMessage, nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrMessageTooLong))
-		})
-
-		ginkgo.It("should accept message at exactly max size", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			exactMessage := strings.Repeat("a", contentMaxSize)
-
-			err := service.Send(exactMessage, nil)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should error for invalid message type", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-
-			err := service.Send("Test message", &types.Params{"type": "invalid"})
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid message type"))
-		})
-
-		ginkgo.It("should error when no stream is set for channel message", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := &Service{
-				Config: &Config{
-					BotMail: "bot@example.com",
-					BotKey:  "secret-key",
-					Host:    "zulip.example.com",
-				},
-				HTTPClient: mockClient,
-			}
-			service.SetLogger(&mockLogger{})
-			service.pkr = format.NewPropKeyResolver(service.Config)
-			service.contentMaxSize = contentMaxSize
-			service.topicMaxLength = topicMaxLength
-			service.mu.Do(func() {})
-
-			err := service.Send("Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingRecipient))
-		})
-	})
-
-	ginkgo.Describe("SendContext", func() {
-		ginkgo.It("should send a message with background context", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should pass context to the HTTP request", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(capturedReq).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should return an error when HTTP client returns error", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("context canceled")).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should not modify the original config", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Maybe()
-
-			service := newTestService(mockClient)
-			originalTopic := service.Config.Topic
-
-			err := service.SendContext(context.Background(), "Test message", &types.Params{"topic": "different-topic"})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Topic).To(gomega.Equal(originalTopic))
-		})
-
-		ginkgo.It("should return an error for invalid host", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			service.Config.Host = "invalid host with spaces"
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
-		})
-
-		ginkgo.It("should accept host with valid port", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			service.Config.Host = "zulip.example.com:8443"
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should reject host with invalid port format", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			service.Config.Host = "zulip.example.com:abc"
-
-			err := service.SendContext(context.Background(), "Test message", nil)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrInvalidHost))
-		})
-
-		ginkgo.It("should send direct message with type=direct and to param as JSON", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			service.Config.Stream = "" // no stream, use to
-
-			err := service.SendContext(context.Background(), "Test direct", &types.Params{
-				"type": "direct",
-				"to":   "user1@example.com,user2@example.com",
-			})
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, _ := io.ReadAll(capturedReq.Body)
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("type=direct"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring(`to=%5B%22user1%40example.com%22%2C%22user2%40example.com%22%5D`))
-		})
-
-		ginkgo.It("should error when no recipient for direct message", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			service := newTestService(mockClient)
-			service.Config.Stream = ""
-
-			err := service.SendContext(context.Background(), "Test message", &types.Params{"type": "direct"})
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingRecipient))
-		})
-	})
-
-	ginkgo.Describe("doSend", func() {
-		ginkgo.It("should send to the correct API URL path", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.doSend(context.Background(), service.Config, "Test message")
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(capturedReq).NotTo(gomega.BeNil())
-			gomega.Expect(capturedReq.URL.Path).To(gomega.Equal("/api/v1/messages"))
-		})
-
-		ginkgo.It("should set content type header", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.doSend(context.Background(), service.Config, "Test message")
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(capturedReq.Header.Get("Content-Type")).To(
-				gomega.Equal("application/x-www-form-urlencoded"),
-			)
-		})
-
-		ginkgo.It("should send form-encoded payload", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-
-			var capturedReq *http.Request
-
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Run(func(args mock.Arguments) {
-				capturedReq = args.Get(0).(*http.Request)
-			}).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.doSend(context.Background(), service.Config, "Hello World")
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			body, readErr := io.ReadAll(capturedReq.Body)
-			gomega.Expect(readErr).NotTo(gomega.HaveOccurred())
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("type=channel"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("to=general"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("content=Hello+World"))
-			gomega.Expect(string(body)).To(gomega.ContainSubstring("topic=announcements"))
-		})
-
-		ginkgo.It("should proceed with host validation already done by caller", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-			}
-
-			err := service.doSend(context.Background(), cfg, "Test message")
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return an error for non-200 response", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(strings.NewReader("")),
-			}, nil).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.doSend(context.Background(), service.Config, "Test message")
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err).To(gomega.MatchError(ErrResponseStatusFailure))
-		})
-
-		ginkgo.It("should return an error when HTTP client fails", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(nil, errors.New("connection refused")).Once()
-
-			service := newTestService(mockClient)
-
-			err := service.doSend(context.Background(), service.Config, "Test message")
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("making HTTP POST request"))
-		})
-	})
-
-	ginkgo.Describe("getAPIURL", func() {
-		ginkgo.It("should construct the correct API URL", func() {
-			svc := &Service{}
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			apiURL := svc.getAPIURL(cfg)
-
-			parsed, err := url.Parse(apiURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(parsed.Scheme).To(gomega.Equal("https"))
-			gomega.Expect(parsed.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(parsed.Path).To(gomega.Equal("/api/v1/messages"))
-			gomega.Expect(parsed.User.Username()).To(gomega.Equal("bot@example.com"))
-			password, isSet := parsed.User.Password()
-			gomega.Expect(isSet).To(gomega.BeTrue())
-			gomega.Expect(password).To(gomega.Equal("secret-key"))
-		})
-
-		ginkgo.It("should use https scheme", func() {
-			svc := &Service{}
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			apiURL := svc.getAPIURL(cfg)
-
-			gomega.Expect(apiURL).To(gomega.HavePrefix("https://"))
-		})
-
-		ginkgo.It("should include credentials in the URL", func() {
-			svc := &Service{}
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			apiURL := svc.getAPIURL(cfg)
-
-			parsed, err := url.Parse(apiURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(parsed.User.Username()).To(gomega.Equal("bot@example.com"))
-			password, isSet := parsed.User.Password()
-			gomega.Expect(isSet).To(gomega.BeTrue())
-			gomega.Expect(password).To(gomega.Equal("secret-key"))
-		})
-
-		ginkgo.It("should always use /api/v1/messages path", func() {
-			svc := &Service{}
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			apiURL := svc.getAPIURL(cfg)
-
-			parsed, err := url.Parse(apiURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(parsed.Path).To(gomega.Equal("/api/v1/messages"))
-		})
-
-		ginkgo.It("should use server-side size limits from register endpoint", func() {
-			httpmock.Activate()
-
-			defer httpmock.DeactivateAndReset()
-
-			registerURL := (&url.URL{
-				User:   url.UserPassword("bot@example.com", "secret-key"),
-				Host:   "zulip.example.com",
-				Path:   "/api/v1/register",
-				Scheme: "https",
-			}).String()
-			httpmock.RegisterResponder(
-				"POST",
-				registerURL,
-				httpmock.NewStringResponder(http.StatusOK, `{"max_message_length":5000,"max_topic_length":30}`),
-			)
-
-			apiURL := (&url.URL{
-				Host:   "zulip.example.com",
-				Path:   "/api/v1/messages",
-				Scheme: "https",
-				User:   url.UserPassword("bot@example.com", "secret-key"),
-			}).String()
-			httpmock.RegisterResponder(
-				"POST",
-				apiURL,
-				httpmock.NewStringResponder(http.StatusOK, ""),
-			)
-
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general")
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			longMessage := strings.Repeat("a", 5001)
-			err = svc.Send(longMessage, nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.Equal("message exceeds max size: 5000 bytes, got 5001 bytes"))
-		})
-
-		ginkgo.It("should fall back to defaults when register fails", func() {
-			httpmock.Activate()
-
-			defer httpmock.DeactivateAndReset()
-
-			registerURL := (&url.URL{
-				User:   url.UserPassword("bot@example.com", "secret-key"),
-				Host:   "zulip.example.com",
-				Path:   "/api/v1/register",
-				Scheme: "https",
-			}).String()
-			httpmock.RegisterResponder(
-				"POST",
-				registerURL,
-				httpmock.NewStringResponder(http.StatusServiceUnavailable, ""),
-			)
-
-			apiURL := (&url.URL{
-				Host:   "zulip.example.com",
-				Path:   "/api/v1/messages",
-				Scheme: "https",
-				User:   url.UserPassword("bot@example.com", "secret-key"),
-			}).String()
-			httpmock.RegisterResponder(
-				"POST",
-				apiURL,
-				httpmock.NewStringResponder(http.StatusOK, ""),
-			)
-
-			svc := &Service{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general")
-			err := svc.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = svc.Send("test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("Params update", func() {
-		ginkgo.It("should update config from params without mutating original", func() {
-			mockClient := mocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			mockClient.On("Do", mock.AnythingOfType("*http.Request")).Return(&http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"result": "success"}`))),
-			}, nil).Maybe()
-
-			service := newTestService(mockClient)
-			originalTopic := service.Config.Topic
-
-			params := types.Params{"topic": "new-topic"}
-
-			err := service.Send("Test message", &params)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Topic).To(gomega.Equal(originalTopic))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("request building", func() {
-	ginkgo.It("should not leak the bot credentials when the request URL cannot be parsed", func() {
-		service := &Service{
-			// The mock has no expectations, so a request fails the spec.
-			HTTPClient: mocks.NewMockHTTPClient(ginkgo.GinkgoT()),
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// form is the decoded form body.
+	form url.Values
+	// deadline is the request context's deadline, or the zero time.
+	deadline time.Time
+	// method is the request method.
+	method string
+	// url is the full request URL, including the credentials.
+	url string
+	// contentType is the request's Content-Type header.
+	contentType string
+}
+
+// cannedResponse is what the fake Zulip client returns for one request.
+type cannedResponse struct {
+	// err is a transport error returned instead of a response.
+	err error
+	// body is the response body.
+	body string
+	// statusCode is the response status code.
+	statusCode int
+}
+
+// fakeZulip records the register and message requests a fake Zulip client
+// receives.
+type fakeZulip struct {
+	// registers are the register requests, in order.
+	registers []capturedRequest
+	// messages are the message requests, in order.
+	messages []capturedRequest
+	// mu guards registers and messages.
+	mu sync.Mutex
+}
+
+// Responses shared by the service tests.
+const (
+	// sentBody is Zulip's response to a sent message.
+	sentBody = `{"result":"success","msg":"","id":42,"message_url":"https://zulip.example.com/#narrow/near/42"}`
+	// defaultLimitsBody is a register response with Zulip's default limits.
+	defaultLimitsBody = `{"result":"success","msg":"","queue_id":"1760500000:1","max_message_length":10000,"max_topic_length":60}`
+	// messagesURL is the messages endpoint for the test credentials and host.
+	messagesURL = "https://bot%40example.com:" + testBotKey + "@" + testHost + "/api/v1/messages"
+)
+
+// Values shared by the service tests.
+var (
+	// errTransport is the transport failure returned by a failing client.
+	errTransport = errors.New("transport failure")
+	// sent is the response to a sent message.
+	sent = cannedResponse{statusCode: http.StatusOK, body: sentBody}
+	// defaultLimits is the register response with Zulip's default limits.
+	defaultLimits = cannedResponse{statusCode: http.StatusOK, body: defaultLimitsBody}
+)
+
+// newFakeClient returns a mock HTTP client that answers register requests
+// with register, and message requests with messages in order, recording
+// each request. It fails the test on a request to any other endpoint or on
+// more message requests than messages.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - register: the response to every register request.
+//   - messages: the responses to the message requests, in order.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *fakeZulip: the recorded requests.
+func newFakeClient(t *testing.T, register cannedResponse, messages ...cannedResponse) (*mocks.MockHTTPClient, *fakeZulip) {
+	t.Helper()
+
+	fake := &fakeZulip{}
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		form, err := url.ParseQuery(string(body))
+		require.NoError(t, err)
+
+		deadline, _ := req.Context().Deadline()
+		request := capturedRequest{
+			form:        form,
+			deadline:    deadline,
+			method:      req.Method,
+			url:         req.URL.String(),
+			contentType: req.Header.Get("Content-Type"),
 		}
-		config := &Config{BotMail: "SECRETbot@example.com", BotKey: "SECRETbotKey", Host: "bad host", Stream: "stream", Topic: "topic"}
 
-		err := service.doSend(context.Background(), config, "message")
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
 
-		var urlErr *url.Error
-		gomega.Expect(errors.As(err, &urlErr)).To(gomega.BeTrue(), "error %v is not a *url.Error", err)
-		gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("SECRETbot"))
-	})
-})
+		var response cannedResponse
 
-func (m *mockLogger) Print(_ ...any)            {}
-func (m *mockLogger) Printf(_ string, _ ...any) {}
-func (m *mockLogger) Println(_ ...any)          {}
+		switch req.URL.Path {
+		case "/api/v1/register":
+			fake.registers = append(fake.registers, request)
+			response = register
+		case "/api/v1/messages":
+			fake.messages = append(fake.messages, request)
+			require.LessOrEqual(t, len(fake.messages), len(messages), "unexpected message request")
+			response = messages[len(fake.messages)-1]
+		default:
+			t.Errorf("unexpected request to %s", req.URL.Path)
 
-func newTestService(mockClient *mocks.MockHTTPClient) *Service {
-	service := &Service{
-		Config: &Config{
-			BotMail: "bot@example.com",
-			BotKey:  "secret-key",
-			Host:    "zulip.example.com",
-			Stream:  "general",
-			Topic:   "announcements",
-		},
-		HTTPClient: mockClient,
-	}
-	service.SetLogger(&mockLogger{})
-	service.pkr = format.NewPropKeyResolver(service.Config)
-	service.contentMaxSize = contentMaxSize
-	service.topicMaxLength = topicMaxLength
-	// Prime the Once so fetchLimits (which would call HTTPClient) is skipped in mock-based unit tests.
-	service.mu.Do(func() {})
+			return nil, errTransport
+		}
+
+		if response.err != nil {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: response.err}
+		}
+
+		return &http.Response{StatusCode: response.statusCode, Body: io.NopCloser(strings.NewReader(response.body))}, nil
+	}).Maybe()
+
+	return client, fake
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output and sends through client.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//   - client: the HTTP client for the service.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string, client types.HTTPClient) *Service {
+	t.Helper()
+
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
 
 	return service
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "zulip", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the router budget covers the register
+// request and the message request.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 40*time.Second, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestInitialize verifies that Initialize parses the service URL, starts with
+// the default limits, and creates the default client unless one was set.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+
+	assert.Equal(t, &Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, Stream: "general", Topic: "alerts"}, service.Config)
+	assert.Equal(t, 10000, service.contentMaxSize)
+	assert.Equal(t, 60, service.topicMaxLength)
+
+	client, ok := service.HTTPClient.(*DefaultHTTPClient)
+	require.True(t, ok, "default client is %T", service.HTTPClient)
+	assert.Equal(t, defaultHTTPTimeout, client.client.Timeout)
+
+	t.Run("keeps a custom client", func(t *testing.T) {
+		t.Parallel()
+
+		custom := mocks.NewMockHTTPClient(t)
+		service := newTestService(t, testServiceURL, custom)
+
+		assert.Same(t, custom, service.HTTPClient)
+	})
+
+	t.Run("invalid URL", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "zulip://"+testBotMail+"@"+testHost), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrMissingAPIKey)
+	})
+}
+
+// TestSend verifies the message request a send makes: a form POST to the
+// messages endpoint with the bot credentials, carrying the message type,
+// recipients, topic, and content built from the URL and params, after a
+// register request for the server limits.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists sends with the message request URL and form each should
+	// produce.
+	tests := []struct {
+		params   *types.Params
+		name     string
+		rawURL   string
+		message  string
+		wantURL  string
+		wantForm url.Values
+	}{
+		{
+			name:     "channel message",
+			rawURL:   testServiceURL,
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
+		},
+		{
+			name:     "stream and topic params",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"stream": "ops", "topic": "disks"},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"ops"}, "topic": {"disks"}, "content": {"Hello"}},
+		},
+		{
+			name:     "title as the topic",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?stream=general",
+			params:   &types.Params{"title": "Disk full"},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"Disk full"}, "content": {"Hello"}},
+		},
+		{
+			name:     "title before the message",
+			rawURL:   testServiceURL + "&title=Disk%20full",
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Disk full\n\nHello"}},
+		},
+		{
+			name:     "empty title param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"title": ""},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}},
+		},
+		{
+			name:     "read by sender param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"read_by_sender": "yes"},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}, "read_by_sender": {"true"}},
+		},
+		{
+			name:     "direct message",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"type": "direct", "to": "alice@example.com,bob@example.com"},
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"direct"}, "to": {`["alice@example.com","bob@example.com"]`}, "content": {"Hello"}},
+		},
+		{
+			name:     "direct message to the stream recipients",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=direct&stream=alice@example.com",
+			message:  "Hello",
+			wantURL:  messagesURL,
+			wantForm: url.Values{"type": {"direct"}, "to": {`["alice@example.com"]`}, "content": {"Hello"}},
+		},
+		{
+			name:     "host with a port",
+			rawURL:   "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443?stream=general",
+			message:  "Hello",
+			wantURL:  "https://bot%40example.com:" + testBotKey + "@" + testHost + ":8443/api/v1/messages",
+			wantForm: url.Values{"type": {"channel"}, "to": {"general"}, "content": {"Hello"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, fake := newFakeClient(t, defaultLimits, sent)
+			service := newTestService(t, tt.rawURL, client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			require.Len(t, fake.registers, 1)
+			register := fake.registers[0]
+			assert.Equal(t, http.MethodPost, register.method)
+			assert.Equal(t, strings.Replace(tt.wantURL, "/api/v1/messages", "/api/v1/register", 1), register.url)
+			assert.Equal(t, "application/x-www-form-urlencoded", register.contentType)
+			assert.Equal(t, url.Values{"fetch_event_types": {`["realm"]`}}, register.form)
+			assert.WithinDuration(t, time.Now().Add(registerTimeout), register.deadline, time.Second)
+
+			require.Len(t, fake.messages, 1)
+			request := fake.messages[0]
+			assert.Equal(t, http.MethodPost, request.method)
+			assert.Equal(t, tt.wantURL, request.url)
+			assert.Equal(t, "application/x-www-form-urlencoded", request.contentType)
+			assert.Equal(t, tt.wantForm, request.form)
+		})
+	}
+}
+
+// TestSendFetchesLimitsOnce verifies that only the first send asks the
+// server for its limits.
+func TestSendFetchesLimitsOnce(t *testing.T) {
+	t.Parallel()
+
+	client, fake := newFakeClient(t, defaultLimits, sent, sent)
+	service := newTestService(t, testServiceURL, client)
+
+	require.NoError(t, service.Send("Hello", nil))
+	require.NoError(t, service.Send("Hello again", nil))
+
+	assert.Len(t, fake.registers, 1)
+	assert.Len(t, fake.messages, 2)
+}
+
+// TestSendServerLimits verifies that the topic and message limits come from
+// the register response, with the topic counted in characters, and that a
+// send at a limit is accepted.
+func TestSendServerLimits(t *testing.T) {
+	t.Parallel()
+
+	limits := cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":"","max_message_length":5000,"max_topic_length":30}`}
+
+	// tests lists sends with the error each should produce, or nil.
+	tests := []struct {
+		wantErr   error
+		params    *types.Params
+		name      string
+		message   string
+		wantError string
+	}{
+		{name: "topic at the limit", params: &types.Params{"topic": strings.Repeat("日", 30)}, message: "Hello"},
+		{
+			name:      "topic over the limit",
+			params:    &types.Params{"topic": strings.Repeat("日", 31)},
+			message:   "Hello",
+			wantErr:   ErrTopicTooLong,
+			wantError: "topic exceeds max length: 30 characters, got 31",
+		},
+		{name: "message at the limit", message: strings.Repeat("a", 5000)},
+		{
+			name:      "message over the limit",
+			message:   strings.Repeat("a", 5001),
+			wantErr:   ErrMessageTooLong,
+			wantError: "message exceeds max size: 5000 bytes, got 5001 bytes",
+		},
+		{
+			name:      "title before the message counts",
+			params:    &types.Params{"title": "Disk"},
+			message:   strings.Repeat("a", 4995),
+			wantErr:   ErrMessageTooLong,
+			wantError: "message exceeds max size: 5000 bytes, got 5001 bytes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var responses []cannedResponse
+			if tt.wantErr == nil {
+				responses = append(responses, sent)
+			}
+
+			client, fake := newFakeClient(t, limits, responses...)
+			service := newTestService(t, testServiceURL, client)
+
+			err := service.Send(tt.message, tt.params)
+
+			assert.Len(t, fake.registers, 1)
+
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				assert.Len(t, fake.messages, 1)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tt.wantErr)
+			require.EqualError(t, err, tt.wantError)
+			assert.Empty(t, fake.messages)
+		})
+	}
+}
+
+// TestSendDefaultLimits verifies that the default limits of 60 topic
+// characters and 10000 message bytes apply when the register request fails or
+// its response has no usable limits.
+func TestSendDefaultLimits(t *testing.T) {
+	t.Parallel()
+
+	// registers lists register responses that leave the default limits.
+	registers := []struct {
+		name     string
+		response cannedResponse
+	}{
+		{
+			name:     "error status",
+			response: cannedResponse{statusCode: http.StatusServiceUnavailable, body: `{"result":"error","max_message_length":5,"max_topic_length":5}`},
+		},
+		{name: "transport error", response: cannedResponse{err: errTransport}},
+		{name: "not JSON", response: cannedResponse{statusCode: http.StatusOK, body: "<html>"}},
+		{name: "no limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":""}`}},
+		{name: "zero limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","max_message_length":0,"max_topic_length":0}`}},
+	}
+
+	for _, register := range registers {
+		t.Run(register.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, fake := newFakeClient(t, register.response, sent, sent)
+			service := newTestService(t, testServiceURL, client)
+
+			err := service.Send("Hello", &types.Params{"topic": strings.Repeat("a", 61)})
+			require.ErrorIs(t, err, ErrTopicTooLong)
+			require.EqualError(t, err, "topic exceeds max length: 60 characters, got 61")
+
+			err = service.Send(strings.Repeat("a", 10001), nil)
+			require.ErrorIs(t, err, ErrMessageTooLong)
+			require.EqualError(t, err, "message exceeds max size: 10000 bytes, got 10001 bytes")
+
+			require.NoError(t, service.Send(strings.Repeat("a", 10000), &types.Params{"topic": strings.Repeat("日", 60)}))
+			require.NoError(t, service.Send("Hello", &types.Params{"topic": strings.Repeat("a", 60)}))
+
+			assert.Len(t, fake.registers, 1)
+			assert.Len(t, fake.messages, 2)
+		})
+	}
+}
+
+// TestSendValidation verifies that a send rejects an invalid message type,
+// host, or param before any request, and a missing recipient before the
+// message request.
+func TestSendValidation(t *testing.T) {
+	t.Parallel()
+
+	// rejected lists sends that fail before any request.
+	rejected := []struct {
+		wantErr error
+		params  *types.Params
+		name    string
+		host    string
+	}{
+		{name: "invalid message type", params: &types.Params{"type": "group"}, wantErr: ErrInvalidMessageType},
+		{name: "unknown param", params: &types.Params{"unknown": "value"}, wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid read by sender param", params: &types.Params{"read_by_sender": "maybe"}, wantErr: format.ErrInvalidBoolValue},
+		{name: "port out of range", host: testHost + ":70000", wantErr: ErrInvalidHost},
+		{name: "port zero", host: testHost + ":0", wantErr: ErrInvalidHost},
+		{name: "host with a space", host: "zulip example.com", wantErr: ErrInvalidHost},
+	}
+
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The mock has no expectations, so a request fails the test.
+			service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
+			if tt.host != "" {
+				service.Config.Host = tt.host
+			}
+
+			require.ErrorIs(t, service.Send("Hello", tt.params), tt.wantErr)
+		})
+	}
+
+	// unaddressed lists sends without a recipient.
+	unaddressed := []struct {
+		params *types.Params
+		name   string
+		rawURL string
+	}{
+		{name: "channel message without a stream", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost},
+		{name: "direct message without recipients", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=direct"},
+		{name: "stream cleared by a param", rawURL: testServiceURL, params: &types.Params{"stream": ""}},
+	}
+
+	for _, tt := range unaddressed {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, fake := newFakeClient(t, defaultLimits)
+			service := newTestService(t, tt.rawURL, client)
+
+			require.ErrorIs(t, service.Send("Hello", tt.params), ErrMissingRecipient)
+			assert.Empty(t, fake.messages)
+		})
+	}
+}
+
+// TestSendErrors verifies that a send reports an error status from the
+// messages endpoint with the response body, cut at 4 KiB, and a transport
+// error without the bot credentials.
+func TestSendErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists message responses with the error each should produce.
+	tests := []struct {
+		wantErr   error
+		name      string
+		response  cannedResponse
+		wantError string
+	}{
+		{
+			name:      "API error",
+			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{"result":"error","msg":"Channel 'nope' does not exist","code":"STREAM_DOES_NOT_EXIST"}`},
+			wantErr:   ErrResponseStatusFailure,
+			wantError: `failed to send zulip message: response status code unexpected: 400, body: {"result":"error","msg":"Channel 'nope' does not exist","code":"STREAM_DOES_NOT_EXIST"}`,
+		},
+		{
+			name:      "error status without a body",
+			response:  cannedResponse{statusCode: http.StatusUnauthorized},
+			wantErr:   ErrResponseStatusFailure,
+			wantError: "failed to send zulip message: response status code unexpected: 401",
+		},
+		{
+			name:      "long error body",
+			response:  cannedResponse{statusCode: http.StatusBadGateway, body: strings.Repeat("a", maxErrorBodySize) + "tail"},
+			wantErr:   ErrResponseStatusFailure,
+			wantError: "failed to send zulip message: response status code unexpected: 502, body: " + strings.Repeat("a", maxErrorBodySize) + " [truncated]",
+		},
+		{
+			name:      "transport error",
+			response:  cannedResponse{err: errTransport},
+			wantErr:   errTransport,
+			wantError: `making HTTP POST request: Post "https://zulip.example.com": transport failure`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newFakeClient(t, defaultLimits, tt.response)
+			service := newTestService(t, testServiceURL, client)
+
+			err := service.Send("Hello", nil)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.EqualError(t, err, tt.wantError)
+		})
+	}
+}
+
+// TestSendLeavesConfigUnchanged verifies that params apply to one send only
+// and leave the caller's params unchanged.
+func TestSendLeavesConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	client, fake := newFakeClient(t, defaultLimits, sent, sent)
+	service := newTestService(t, testServiceURL, client)
+	want := service.Config.Clone()
+	params := types.Params{"type": "direct", "to": "alice@example.com", "title": "Disk", "read_by_sender": "yes"}
+
+	require.NoError(t, service.Send("Hello", &params))
+	require.NoError(t, service.Send("Hello", nil))
+
+	assert.Equal(t, want, service.Config)
+	assert.Equal(t, types.Params{"type": "direct", "to": "alice@example.com", "title": "Disk", "read_by_sender": "yes"}, params)
+	require.Len(t, fake.messages, 2)
+	assert.Equal(t, url.Values{"type": {"channel"}, "to": {"general"}, "topic": {"alerts"}, "content": {"Hello"}}, fake.messages[1].form)
+}
+
+// TestSendContextCancellation verifies that the caller's context bounds the
+// requests of a send.
+func TestSendContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	}).Twice()
+
+	service := newTestService(t, testServiceURL, client)
+
+	require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
+}
+
+// TestSendWithContext verifies that the deprecated SendWithContext sends like
+// SendContext.
+func TestSendWithContext(t *testing.T) {
+	t.Parallel()
+
+	client, fake := newFakeClient(t, defaultLimits, sent)
+	service := newTestService(t, testServiceURL, client)
+
+	require.NoError(t, service.SendWithContext(t.Context(), "Hello", nil))
+	assert.Len(t, fake.messages, 1)
+}
+
+// TestSendDefaultClient verifies that a send without a custom client, or
+// after a nil client is set, uses a default client that honors the caller's
+// context and keeps the bot credentials out of its errors. The context is
+// canceled before the send, so the transport returns before it dials.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists how each case sets up the service's HTTP client.
+	tests := []struct {
+		configure func(*Service)
+		name      string
+	}{
+		{name: "no client set", configure: func(*Service) {}},
+		{name: "nil client", configure: func(s *Service) { s.SetHTTPClient(nil) }},
+		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+			tt.configure(service)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := service.SendContext(ctx, "Hello", nil)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.NotContains(t, err.Error(), testBotKey)
+		})
+	}
+}
+
+// TestDefaultHTTPClientDo verifies that the default client performs a
+// request, and wraps a failed request without the URL's credentials.
+func TestDefaultHTTPClientDo(t *testing.T) {
+	t.Parallel()
+
+	const secretBotMail = "SECRETbot@example.com"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, _ := r.BasicAuth()
+		if user != secretBotMail || pass != testBotKey {
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		_, _ = io.WriteString(w, sentBody)
+	}))
+	t.Cleanup(server.Close)
+
+	serverURL := parseTestURL(t, server.URL)
+	serverURL.User = url.UserPassword(secretBotMail, testBotKey)
+	serverURL.Path = "/api/v1/messages"
+
+	client := NewDefaultHTTPClient()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, serverURL.String(), http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+
+	server.Close()
+
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost, serverURL.String(), http.NoBody)
+	require.NoError(t, err)
+
+	resp, err = client.Do(req)
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.True(t, strings.HasPrefix(err.Error(), "performing HTTP request: "), err.Error())
+	assert.NotContains(t, err.Error(), "SECRETbot")
+	assert.NotContains(t, err.Error(), testBotKey)
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// restores the default client for nil and a nil *http.Client.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the default client should be stored.
+	tests := []struct {
+		client      func(t *testing.T) types.HTTPClient
+		name        string
+		wantDefault bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "custom *http.Client", client: func(*testing.T) types.HTTPClient { return &http.Client{} }},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantDefault: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
+			service.SetHTTPClient(client)
+
+			if tt.wantDefault {
+				assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
+
+				return
+			}
+
+			assert.Same(t, client, service.HTTPClient)
+		})
+	}
+}
+
+// TestValidateHost verifies that a host name with an optional port from 1 to
+// 65535 is accepted and that other values are rejected.
+func TestValidateHost(t *testing.T) {
+	t.Parallel()
+
+	for _, valid := range []string{testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co"} {
+		require.NoError(t, validateHost(valid), valid)
+	}
+
+	for _, invalid := range []string{"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", "zulip example.com", "-zulip.example.com"} {
+		require.ErrorIs(t, validateHost(invalid), ErrInvalidHost, invalid)
+	}
+}
+
+// TestDoSendRedactsUnparsableURL verifies that a host that makes the request
+// URL unparsable fails before any request, without the bot credentials in the
+// error.
+func TestDoSendRedactsUnparsableURL(t *testing.T) {
+	t.Parallel()
+
+	// The mock has no expectations, so a request fails the test.
+	service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
+	config := &Config{BotMail: "SECRETbot@example.com", BotKey: testBotKey, Host: "bad host", Stream: "general", Topic: "alerts"}
+
+	err := service.doSend(t.Context(), config, "Hello")
+
+	_, isURLErr := errors.AsType[*url.Error](err)
+	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	assert.NotContains(t, err.Error(), "SECRETbot")
+	assert.NotContains(t, err.Error(), testBotKey)
 }

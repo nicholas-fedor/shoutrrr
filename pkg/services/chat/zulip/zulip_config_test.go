@@ -2,527 +2,250 @@ package zulip
 
 import (
 	"net/url"
+	"testing"
 
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	ginkgo.Describe("Clone", func() {
-		ginkgo.It("should create an independent copy with all fields preserved", func() {
-			original := &Config{
-				BotMail:      "bot@example.com",
-				BotKey:       "secret-key",
-				Host:         "zulip.example.com",
-				Type:         MessageTypeChannel,
-				Stream:       "general",
-				Topic:        "announcements",
-				Title:        "Deployment",
-				To:           "user1@example.com,user2@example.com",
-				ReadBySender: true,
+// Values shared by the tests.
+const (
+	// testBotMail is the bot e-mail address in the test URLs.
+	testBotMail = "bot@example.com"
+	// testBotKey is the bot API key in the test URLs.
+	testBotKey = "SECRETbotKey"
+	// testHost is the Zulip server in the test URLs.
+	testHost = "zulip.example.com"
+	// testServiceURL is a service URL for a channel message.
+	testServiceURL = "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?stream=general&topic=alerts"
+)
+
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsed
+}
+
+// TestConfigClone verifies that Clone copies every field into a new config.
+func TestConfigClone(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{
+		BotMail:      testBotMail,
+		BotKey:       testBotKey,
+		Host:         testHost,
+		Type:         MessageTypeDirect,
+		Stream:       "general",
+		Topic:        "alerts",
+		Title:        "Disk",
+		To:           "alice@example.com",
+		ReadBySender: true,
+	}
+
+	clone := config.Clone()
+
+	assert.Equal(t, config, clone)
+	assert.NotSame(t, config, clone)
+	assert.Equal(t, &Config{}, (&Config{}).Clone())
+}
+
+// TestConfigSetURL verifies that SetURL reads the bot credentials and host
+// from the URL authority and the message settings from the query, replacing
+// any earlier values.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "credentials and host only",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost,
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
+		},
+		{
+			name:   "channel message",
+			rawURL: testServiceURL + "&title=Disk",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, Stream: "general", Topic: "alerts", Title: "Disk"},
+		},
+		{
+			name:   "direct message",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=direct&to=alice@example.com,bob@example.com&read_by_sender=true",
+			want: Config{
+				BotMail: testBotMail, BotKey: testBotKey, Host: testHost,
+				Type: MessageTypeDirect, To: "alice@example.com,bob@example.com", ReadBySender: true,
+			},
+		},
+		{
+			name:   "read_by_sender false",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=false",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
+		},
+		{
+			name:   "host with a port",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost + ":8443"},
+		},
+		{
+			name:   "empty API key",
+			rawURL: "zulip://" + testBotMail + ":@" + testHost,
+			want:   Config{BotMail: testBotMail, Host: testHost},
+		},
+		{
+			name:   "docs command placeholder",
+			rawURL: "zulip://dummy@dummy.com",
+			want:   Config{BotMail: "dummy", Host: "dummy.com"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{
+				Type: MessageTypeDirect, Stream: "old", Topic: "old", Title: "old", To: "old", ReadBySender: true,
 			}
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
-			clone := original.Clone()
-
-			gomega.Expect(clone).NotTo(gomega.BeNil())
-			gomega.Expect(clone.BotMail).To(gomega.Equal(original.BotMail))
-			gomega.Expect(clone.BotKey).To(gomega.Equal(original.BotKey))
-			gomega.Expect(clone.Host).To(gomega.Equal(original.Host))
-			gomega.Expect(clone.Type).To(gomega.Equal(original.Type))
-			gomega.Expect(clone.Stream).To(gomega.Equal(original.Stream))
-			gomega.Expect(clone.Topic).To(gomega.Equal(original.Topic))
-			gomega.Expect(clone.Title).To(gomega.Equal(original.Title))
-			gomega.Expect(clone.To).To(gomega.Equal(original.To))
-			gomega.Expect(clone.ReadBySender).To(gomega.Equal(original.ReadBySender))
+			assert.Equal(t, tt.want, *config)
 		})
+	}
+}
 
-		ginkgo.It("should create a distinct pointer from the original", func() {
-			original := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
+// TestConfigSetURLErrors verifies that SetURL requires the bot e-mail address,
+// an API key, and a host, except in the docs command placeholder URL.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
 
-			clone := original.Clone()
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "no bot e-mail address", rawURL: "zulip://:" + testBotKey + "@" + testHost, wantErr: ErrMissingBotMail},
+		{name: "no API key", rawURL: "zulip://" + testBotMail + "@" + testHost, wantErr: ErrMissingAPIKey},
+		{name: "no host", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@", wantErr: ErrMissingHost},
+		{name: "placeholder user on another host", rawURL: "zulip://dummy@" + testHost, wantErr: ErrMissingAPIKey},
+		{name: "placeholder host with another user", rawURL: "zulip://bot@dummy.com", wantErr: ErrMissingAPIKey},
+	}
 
-			gomega.Expect(clone).NotTo(gomega.BeIdenticalTo(original))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
 		})
+	}
+}
 
-		ginkgo.It("should handle empty config", func() {
-			original := &Config{}
+// TestConfigGetURL verifies that GetURL writes the credentials and host into
+// the URL authority and the non-empty settings into the query, and
+// round-trips through SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
 
-			clone := original.Clone()
+	// tests lists configs with the URL each should produce.
+	tests := []struct {
+		name   string
+		config Config
+		want   string
+	}{
+		{
+			name:   "credentials and host only",
+			config: Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
+			want:   "zulip://bot%40example.com:" + testBotKey + "@" + testHost,
+		},
+		{
+			name: "every setting",
+			config: Config{
+				BotMail: testBotMail, BotKey: testBotKey, Host: testHost + ":8443",
+				Type: MessageTypeDirect, Stream: "general", Topic: "alerts", Title: "Disk",
+				To: "alice@example.com,bob@example.com", ReadBySender: true,
+			},
+			want: "zulip://bot%40example.com:" + testBotKey + "@" + testHost + ":8443" +
+				"?read_by_sender=true&stream=general&title=Disk&to=alice%40example.com%2Cbob%40example.com&topic=alerts&type=direct",
+		},
+	}
 
-			gomega.Expect(clone).NotTo(gomega.BeNil())
-			gomega.Expect(clone.BotMail).To(gomega.BeEmpty())
-			gomega.Expect(clone.BotKey).To(gomega.BeEmpty())
-			gomega.Expect(clone.Host).To(gomega.BeEmpty())
-			gomega.Expect(clone.Type).To(gomega.BeEmpty())
-			gomega.Expect(clone.Stream).To(gomega.BeEmpty())
-			gomega.Expect(clone.Topic).To(gomega.BeEmpty())
-			gomega.Expect(clone.Title).To(gomega.BeEmpty())
-			gomega.Expect(clone.To).To(gomega.BeEmpty())
-			gomega.Expect(clone.ReadBySender).To(gomega.BeFalse())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL := tt.config.GetURL()
+			assert.Equal(t, tt.want, serviceURL.String())
+
+			roundTrip := &Config{}
+			require.NoError(t, roundTrip.SetURL(serviceURL))
+			assert.Equal(t, tt.config, *roundTrip)
 		})
-	})
+	}
+}
 
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should generate URL with scheme, host, user, and password", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
+// TestCreateConfigFromURL verifies that CreateConfigFromURL returns the
+// config a URL describes, or the URL's validation error.
+func TestCreateConfigFromURL(t *testing.T) {
+	t.Parallel()
 
-			resultURL := cfg.GetURL()
+	config, err := CreateConfigFromURL(parseTestURL(t, testServiceURL))
+	require.NoError(t, err)
+	assert.Equal(t, &Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, Stream: "general", Topic: "alerts"}, config)
 
-			gomega.Expect(resultURL.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(resultURL.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(resultURL.User.Username()).To(gomega.Equal("bot@example.com"))
-			password, isSet := resultURL.User.Password()
-			gomega.Expect(isSet).To(gomega.BeTrue())
-			gomega.Expect(password).To(gomega.Equal("secret-key"))
+	_, err = CreateConfigFromURL(parseTestURL(t, "zulip://"+testBotMail+"@"+testHost))
+	require.ErrorIs(t, err, ErrMissingAPIKey)
+}
+
+// TestIsDummyURL verifies that only the docs command placeholder URL counts
+// as the dummy URL.
+func TestIsDummyURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with whether each is the placeholder.
+	tests := []struct {
+		rawURL string
+		want   bool
+	}{
+		{rawURL: "zulip://dummy@dummy.com", want: true},
+		{rawURL: "zulip://dummy:key@dummy.com?stream=general", want: true},
+		{rawURL: testServiceURL},
+		{rawURL: "zulip://dummy@" + testHost},
+		{rawURL: "zulip://bot@dummy.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.rawURL, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, isDummyURL(parseTestURL(t, tt.rawURL)))
 		})
-
-		ginkgo.It("should include stream as query parameter when set", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("stream")).To(gomega.Equal("general"))
-		})
-
-		ginkgo.It("should include topic as query parameter when set", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Topic:   "announcements",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("topic")).To(gomega.Equal("announcements"))
-		})
-
-		ginkgo.It("should include both stream and topic when both are set", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-				Topic:   "announcements",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("stream")).To(gomega.Equal("general"))
-			gomega.Expect(resultURL.Query().Get("topic")).To(gomega.Equal("announcements"))
-		})
-
-		ginkgo.It("should omit stream and topic query parameters when empty", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("stream")).To(gomega.BeEmpty())
-			gomega.Expect(resultURL.Query().Get("topic")).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should include type, to, and read_by_sender when set for direct message", func() {
-			cfg := &Config{
-				BotMail:      "bot@example.com",
-				BotKey:       "secret-key",
-				Host:         "zulip.example.com",
-				Type:         MessageTypeDirect,
-				To:           "user1@example.com,user2@example.com",
-				ReadBySender: true,
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("type")).To(gomega.Equal("direct"))
-			gomega.Expect(resultURL.Query().Get("to")).To(gomega.Equal("user1@example.com,user2@example.com"))
-			gomega.Expect(resultURL.Query().Get("read_by_sender")).To(gomega.Equal("true"))
-		})
-
-		ginkgo.It("should omit read_by_sender when false", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Query().Get("read_by_sender")).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should parse a valid URL with all fields", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=announcements")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.BotMail).To(gomega.Equal("bot@example.com"))
-			gomega.Expect(cfg.BotKey).To(gomega.Equal("secret-key"))
-			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(cfg.Stream).To(gomega.Equal("general"))
-			gomega.Expect(cfg.Topic).To(gomega.Equal("announcements"))
-		})
-
-		ginkgo.It("should parse a valid URL with only required fields", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.BotMail).To(gomega.Equal("bot@example.com"))
-			gomega.Expect(cfg.BotKey).To(gomega.Equal("secret-key"))
-			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(cfg.Stream).To(gomega.BeEmpty())
-			gomega.Expect(cfg.Topic).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should parse type, to, and read_by_sender from URL for direct message", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=direct&to=user1@example.com,user2@example.com&read_by_sender=true")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.Type).To(gomega.Equal(MessageTypeDirect))
-			gomega.Expect(cfg.To).To(gomega.Equal("user1@example.com,user2@example.com"))
-			gomega.Expect(cfg.ReadBySender).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should default read_by_sender to false when not set to true", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=channel&stream=general")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should reset read_by_sender when parsing a second URL without the parameter", func() {
-			cfg := &Config{}
-			urlWithReadBySender := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?read_by_sender=true")
-			err := cfg.SetURL(urlWithReadBySender)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.ReadBySender).To(gomega.BeTrue())
-
-			urlWithoutReadBySender := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
-			err = cfg.SetURL(urlWithoutReadBySender)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return ErrMissingBotMail when bot mail is empty", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://:secret-key@zulip.example.com")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingBotMail))
-		})
-
-		ginkgo.It("should return ErrMissingAPIKey when API key is missing", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com@zulip.example.com")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingAPIKey))
-		})
-
-		ginkgo.It("should return ErrMissingHost when host is empty", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingHost))
-		})
-
-		ginkgo.It("should accept dummy URL without validation errors", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://dummy@dummy.com")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("getURL", func() {
-		ginkgo.It("should construct URL with scheme and host from config", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			resultURL := cfg.getURL(nil)
-
-			gomega.Expect(resultURL.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(resultURL.Host).To(gomega.Equal("zulip.example.com"))
-		})
-
-		ginkgo.It("should set user info from config", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			resultURL := cfg.getURL(nil)
-
-			gomega.Expect(resultURL.User.Username()).To(gomega.Equal("bot@example.com"))
-			password, isSet := resultURL.User.Password()
-			gomega.Expect(isSet).To(gomega.BeTrue())
-			gomega.Expect(password).To(gomega.Equal("secret-key"))
-		})
-
-		ginkgo.It("should add stream query parameter when stream is set", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Stream:  "general",
-			}
-
-			resultURL := cfg.getURL(nil)
-
-			gomega.Expect(resultURL.Query().Get("stream")).To(gomega.Equal("general"))
-		})
-
-		ginkgo.It("should add topic query parameter when topic is set", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-				Topic:   "announcements",
-			}
-
-			resultURL := cfg.getURL(nil)
-
-			gomega.Expect(resultURL.Query().Get("topic")).To(gomega.Equal("announcements"))
-		})
-
-		ginkgo.It("should not add query parameters when stream and topic are empty", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com",
-			}
-
-			resultURL := cfg.getURL(nil)
-
-			gomega.Expect(resultURL.RawQuery).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Describe("setURL", func() {
-		ginkgo.It("should populate all fields from a complete URL", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=announcements")
-
-			err := cfg.setURL(nil, serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.BotMail).To(gomega.Equal("bot@example.com"))
-			gomega.Expect(cfg.BotKey).To(gomega.Equal("secret-key"))
-			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(cfg.Stream).To(gomega.Equal("general"))
-			gomega.Expect(cfg.Topic).To(gomega.Equal("announcements"))
-			gomega.Expect(cfg.Type).To(gomega.BeEmpty())
-			gomega.Expect(cfg.To).To(gomega.BeEmpty())
-			gomega.Expect(cfg.ReadBySender).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return ErrMissingBotMail when bot mail is empty", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://:secret-key@zulip.example.com")
-
-			err := cfg.setURL(nil, serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingBotMail))
-		})
-
-		ginkgo.It("should return ErrMissingAPIKey when password is not set", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com@zulip.example.com")
-
-			err := cfg.setURL(nil, serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingAPIKey))
-		})
-
-		ginkgo.It("should return ErrMissingHost when host is empty", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@")
-
-			err := cfg.setURL(nil, serviceURL)
-
-			gomega.Expect(err).To(gomega.MatchError(ErrMissingHost))
-		})
-
-		ginkgo.It("should skip validation for dummy URLs", func() {
-			cfg := &Config{}
-			serviceURL := &url.URL{
-				Scheme: "zulip",
-				Host:   "dummy.com",
-				User:   url.User("dummy"),
-			}
-
-			err := cfg.setURL(nil, serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("CreateConfigFromURL", func() {
-		ginkgo.It("should create a valid config from a complete URL", func() {
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?stream=general&topic=announcements")
-
-			config, err := CreateConfigFromURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config).NotTo(gomega.BeNil())
-			gomega.Expect(config.BotMail).To(gomega.Equal("bot@example.com"))
-			gomega.Expect(config.BotKey).To(gomega.Equal("secret-key"))
-			gomega.Expect(config.Host).To(gomega.Equal("zulip.example.com"))
-			gomega.Expect(config.Stream).To(gomega.Equal("general"))
-			gomega.Expect(config.Topic).To(gomega.Equal("announcements"))
-			gomega.Expect(config.Type).To(gomega.BeEmpty())
-			gomega.Expect(config.To).To(gomega.BeEmpty())
-			gomega.Expect(config.ReadBySender).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should create a valid config from URL with direct message fields", func() {
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com?type=direct&to=user@example.com&read_by_sender=true")
-
-			config, err := CreateConfigFromURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Type).To(gomega.Equal(MessageTypeDirect))
-			gomega.Expect(config.To).To(gomega.Equal("user@example.com"))
-			gomega.Expect(config.ReadBySender).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return an error for invalid URL", func() {
-			serviceURL := testutils.URLMust("zulip://:secret-key@zulip.example.com")
-
-			config, err := CreateConfigFromURL(serviceURL)
-
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(config).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should create config with only required fields", func() {
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
-
-			config, err := CreateConfigFromURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Stream).To(gomega.BeEmpty())
-			gomega.Expect(config.Topic).To(gomega.BeEmpty())
-			gomega.Expect(config.Type).To(gomega.BeEmpty())
-			gomega.Expect(config.To).To(gomega.BeEmpty())
-			gomega.Expect(config.ReadBySender).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("isDummyURL", func() {
-		ginkgo.It("should return true for the dummy URL", func() {
-			dummyURL := &url.URL{
-				Scheme: "zulip",
-				Host:   "dummy.com",
-				User:   url.User("dummy"),
-			}
-
-			gomega.Expect(isDummyURL(dummyURL)).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should return false for a regular URL", func() {
-			regularURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com")
-
-			gomega.Expect(isDummyURL(regularURL)).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return false when host matches but user does not", func() {
-			url1 := &url.URL{
-				Scheme: "zulip",
-				Host:   "dummy.com",
-				User:   url.User("other"),
-			}
-
-			gomega.Expect(isDummyURL(url1)).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should return false when user matches but host does not", func() {
-			url1 := &url.URL{
-				Scheme: "zulip",
-				Host:   "zulip.example.com",
-				User:   url.User("dummy"),
-			}
-
-			gomega.Expect(isDummyURL(url1)).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("Port preservation", func() {
-		ginkgo.It("should preserve non-standard port in host", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com:8443?stream=general")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com:8443"))
-		})
-
-		ginkgo.It("should preserve standard port in host", func() {
-			cfg := &Config{}
-			serviceURL := testutils.URLMust("zulip://bot@example.com:secret-key@zulip.example.com:443")
-
-			err := cfg.SetURL(serviceURL)
-
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(cfg.Host).To(gomega.Equal("zulip.example.com:443"))
-		})
-
-		ginkgo.It("should include port in GetURL round-trip", func() {
-			cfg := &Config{
-				BotMail: "bot@example.com",
-				BotKey:  "secret-key",
-				Host:    "zulip.example.com:8443",
-				Stream:  "general",
-				Topic:   "alerts",
-			}
-
-			resultURL := cfg.GetURL()
-
-			gomega.Expect(resultURL.Host).To(gomega.Equal("zulip.example.com:8443"))
-		})
-	})
-})
+	}
+}
+
+// TestConfigQueryResolver verifies the config's query keys and that it has
+// no enums.
+func TestConfigQueryResolver(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+
+	assert.Empty(t, config.Enums())
+	assert.Equal(t,
+		[]string{"read_by_sender", "stream", "title", "to", "topic", "type"},
+		format.GetConfigQueryResolver(config).QueryFields())
+}
