@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.13.2 by @renovate[bot] in [#1609](https://github.com/nicholas-fedor/shoutrrr/pull/1609)
 - Update dependency platformdirs to v4.13.1 by @renovate[bot] in [#1605](https://github.com/nicholas-fedor/shoutrrr/pull/1605)
 - Update binwiederhier/ntfy:latest docker digest to 803b2aa by @renovate[bot] in [#1597](https://github.com/nicholas-fedor/shoutrrr/pull/1597)
 - Update dependency inversion to v1.0.1 by @renovate[bot] in [#1592](https://github.com/nicholas-fedor/shoutrrr/pull/1592)
