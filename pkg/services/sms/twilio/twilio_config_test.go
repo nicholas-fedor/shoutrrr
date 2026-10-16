@@ -2,296 +2,241 @@ package twilio
 
 import (
 	"net/url"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("Config Unit Tests", func() {
-	var (
-		config      *Config
-		keyResolver format.PropKeyResolver
-	)
+// Test credentials and numbers in the formats Twilio uses.
+const (
+	// testAccountSID is an account SID.
+	testAccountSID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	// testMessagingServiceSID is a Messaging Service SID.
+	testMessagingServiceSID = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	// testFrom is a sender number in E.164 format.
+	testFrom = "+15551234567"
+	// testTo is a recipient number in E.164 format.
+	testTo = "+15559876543"
+)
 
-	ginkgo.BeforeEach(func() {
-		config = &Config{}
-		keyResolver = format.NewPropKeyResolver(config)
-	})
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should update the account SID from the user part of the url", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"+15551234567",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.AccountSID).To(gomega.Equal("ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
-		})
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
-		ginkgo.It("should update the auth token from the password part of the url", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"testAuthToken",
-				"+15551234567",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.AuthToken).To(gomega.Equal("testAuthToken"))
-		})
+	return parsed
+}
 
-		ginkgo.It("should update the from number from the host part of the url", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"+15551234567",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.FromNumber).To(gomega.Equal("+15551234567"))
-		})
+// TestConfigSetURL verifies that SetURL reads the account SID and auth token
+// from the user info, the sender from the host, the recipients from the path,
+// and the title from the query, normalizing phone number formatting.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should update the to numbers from the path part of the url", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"+15551234567",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.ToNumbers).To(gomega.Equal([]string{"+15559876543"}))
-		})
-
-		ginkgo.It("should parse multiple recipients from the path", func() {
-			testURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+15551234567/+15559876543/+15551111111",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.ToNumbers).
-				To(gomega.Equal([]string{"+15559876543", "+15551111111"}))
-		})
-
-		ginkgo.It("should error if the account SID is missing", func() {
-			testURL := createTestURL("", "authToken", "+15551234567", "+15559876543")
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.MatchError(ErrAccountSIDMissing))
-		})
-
-		ginkgo.It("should error if the auth token is missing", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"",
-				"+15551234567",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.MatchError(ErrAuthTokenMissing))
-		})
-
-		ginkgo.It("should error if the from number is missing", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"",
-				"+15559876543",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.MatchError(ErrFromNumberMissing))
-		})
-
-		ginkgo.It("should error if the to numbers are missing", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"+15551234567",
-				"",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.MatchError(ErrToNumbersMissing))
-		})
-
-		ginkgo.It("should error if to and from numbers are the same", func() {
-			testURL := createTestURL(
-				"ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				"authToken",
-				"+15551234567",
-				"+15551234567",
-			)
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.MatchError(ErrToFromNumberSame))
-		})
-	})
-
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should return the config as a URL", func() {
-			config.AccountSID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-			config.AuthToken = "testAuthToken"
-			config.FromNumber = "+15551234567"
-			config.ToNumbers = []string{"+15559876543"}
-
-			serviceURL := config.GetURL()
-			password, _ := serviceURL.User.Password()
-			gomega.Expect(serviceURL.Scheme).To(gomega.Equal("twilio"))
-			gomega.Expect(serviceURL.User.Username()).To(gomega.Equal(config.AccountSID))
-			gomega.Expect(password).To(gomega.Equal(config.AuthToken))
-			gomega.Expect(serviceURL.Host).To(gomega.Equal(config.FromNumber))
-		})
-
-		ginkgo.It("should encode multiple recipients in the path", func() {
-			config.AccountSID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-			config.AuthToken = "testAuthToken"
-			config.FromNumber = "+15551234567"
-			config.ToNumbers = []string{"+15559876543", "+15551111111"}
-
-			serviceURL := config.GetURL()
-			gomega.Expect(serviceURL.Path).To(gomega.Equal("/+15559876543/+15551111111"))
-		})
-	})
-
-	ginkgo.Describe("Messaging Service SID", func() {
-		ginkgo.It("should accept an MG-prefixed sender", func() {
-			testURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.FromNumber).To(gomega.Equal("MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
-		})
-
-		ginkgo.It("should not validate to==from when using Messaging Service SID", func() {
-			// MG-prefixed senders skip the to==from validation
-			testURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("normalizePhoneNumber", func() {
-		ginkgo.It("should strip dashes and parentheses", func() {
-			testURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1(555)123-4567/+1(555)987-6543",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.FromNumber).To(gomega.Equal("+15551234567"))
-			gomega.Expect(config.ToNumbers).To(gomega.Equal([]string{"+15559876543"}))
-		})
-
-		ginkgo.It("should strip spaces and dots", func() {
-			testURL, err := url.Parse(
-				"twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:authToken@+1.555.123.4567/+1 555 987 6543",
-			)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			err = config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.FromNumber).To(gomega.Equal("+15551234567"))
-			gomega.Expect(config.ToNumbers).To(gomega.Equal([]string{"+15559876543"}))
-		})
-
-		ginkgo.It("should not modify Messaging Service SIDs", func() {
-			result := normalizePhoneNumber("MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-			gomega.Expect(result).To(gomega.Equal("MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
-		})
-	})
-
-	ginkgo.Describe("parseToNumbers", func() {
-		ginkgo.It("should return nil for an empty path", func() {
-			result := parseToNumbers("")
-			gomega.Expect(result).To(gomega.BeNil())
-		})
-
-		ginkgo.It("should parse a single number", func() {
-			result := parseToNumbers("/+15559876543")
-			gomega.Expect(result).To(gomega.Equal([]string{"+15559876543"}))
-		})
-
-		ginkgo.It("should parse multiple numbers", func() {
-			result := parseToNumbers("/+15559876543/+15551111111")
-			gomega.Expect(result).To(gomega.Equal([]string{"+15559876543", "+15551111111"}))
-		})
-
-		ginkgo.It("should skip empty path segments", func() {
-			result := parseToNumbers("/+15559876543//+15551111111")
-			gomega.Expect(result).To(gomega.Equal([]string{"+15559876543", "+15551111111"}))
-		})
-	})
-
-	ginkgo.Describe("Enums", func() {
-		ginkgo.It("should return an empty map", func() {
-			enums := config.Enums()
-			gomega.Expect(enums).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Describe("PropKeyResolver", func() {
-		ginkgo.When("setting a config key", func() {
-			ginkgo.It("should update the title when supplied", func() {
-				err := keyResolver.Set("title", "new title")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.Title).To(gomega.Equal("new title"))
-			})
-
-			ginkgo.It("should return an error for an unrecognized key", func() {
-				err := keyResolver.Set("invalidkey", "value")
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("getting a config key", func() {
-			ginkgo.It("should return the title value", func() {
-				config.Title = "my title"
-				value, err := keyResolver.Get("title")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(value).To(gomega.Equal("my title"))
-			})
-
-			ginkgo.It("should return an error for an unrecognized key", func() {
-				_, err := keyResolver.Get("invalidkey")
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("listing query fields", func() {
-			ginkgo.It("should return the key title", func() {
-				fields := keyResolver.QueryFields()
-				gomega.Expect(fields).To(gomega.Equal([]string{"title"}))
-			})
-		})
-	})
-
-	ginkgo.Describe("Service API compliance", func() {
-		ginkgo.It("should pass standard config tests", func() {
-			cfg := &Config{}
-			enums := cfg.Enums()
-			gomega.Expect(enums).To(gomega.BeEmpty())
-
-			resolver := format.NewPropKeyResolver(cfg)
-			fields := resolver.QueryFields()
-			gomega.Expect(fields).To(gomega.HaveLen(1))
-		})
-	})
-})
-
-// createTestURL is a helper to construct a URL for config testing.
-func createTestURL(accountSID, authToken, fromNumber, toNumber string) *url.URL {
-	return &url.URL{
-		Scheme: "twilio",
-		User:   url.UserPassword(accountSID, authToken),
-		Host:   fromNumber,
-		Path:   "/" + toNumber,
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "one recipient",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo,
+			want:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom, ToNumbers: []string{testTo}},
+		},
+		{
+			name:   "several recipients and a title",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/+15551111111?title=Alert",
+			want: Config{
+				AccountSID: testAccountSID,
+				AuthToken:  "authToken",
+				FromNumber: testFrom,
+				ToNumbers:  []string{testTo, "+15551111111"},
+				Title:      "Alert",
+			},
+		},
+		{
+			name:   "formatted numbers and empty path segments",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + "+1.555.123.4567" + "//+1(555)987-6543/",
+			want:   Config{AccountSID: testAccountSID, AuthToken: "authToken", FromNumber: testFrom, ToNumbers: []string{testTo}},
+		},
+		{
+			name:   "Messaging Service SID",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + testMessagingServiceSID + "/" + testTo,
+			want: Config{
+				AccountSID: testAccountSID,
+				AuthToken:  "authToken",
+				FromNumber: testMessagingServiceSID,
+				ToNumbers:  []string{testTo},
+			},
+		},
+		{
+			name:   "Messaging Service SID as a recipient is not checked against the sender",
+			rawURL: "twilio://" + testAccountSID + ":authToken@" + testMessagingServiceSID + "/" + testMessagingServiceSID,
+			want: Config{
+				AccountSID: testAccountSID,
+				AuthToken:  "authToken",
+				FromNumber: testMessagingServiceSID,
+				ToNumbers:  []string{testMessagingServiceSID},
+			},
+		},
+		{
+			name:   "dummy URL without credentials",
+			rawURL: "twilio://dummy@dummy.com",
+			want:   Config{AccountSID: "dummy", FromNumber: "dummycom"},
+		},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.want, *config)
+		})
+	}
+}
+
+// TestConfigSetURLErrors verifies that SetURL rejects a URL missing any
+// required part, a recipient equal to the sender number, and an unknown query
+// prop.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "missing account SID", rawURL: "twilio://:authToken@" + testFrom + "/" + testTo, wantErr: ErrAccountSIDMissing},
+		{name: "missing auth token", rawURL: "twilio://" + testAccountSID + "@" + testFrom + "/" + testTo, wantErr: ErrAuthTokenMissing},
+		{name: "missing sender", rawURL: "twilio://" + testAccountSID + ":authToken@/" + testTo, wantErr: ErrFromNumberMissing},
+		{name: "missing recipients", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom, wantErr: ErrToNumbersMissing},
+		{name: "recipient equals sender", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/" + testFrom, wantErr: ErrToFromNumberSame},
+		{name: "unknown prop", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+		})
+	}
+}
+
+// TestConfigGetURL verifies that GetURL writes the credentials as the user
+// info, the sender as the host, and the recipients as the path, and
+// round-trips through SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{
+		AccountSID: testAccountSID,
+		AuthToken:  "authToken",
+		FromNumber: testFrom,
+		ToNumbers:  []string{testTo, "+15551111111"},
+		Title:      "Alert",
+	}
+
+	serviceURL := config.GetURL()
+	assert.Equal(t, "twilio://"+testAccountSID+":authToken@"+testFrom+"/"+testTo+"/+15551111111?title=Alert", serviceURL.String())
+
+	roundTrip := &Config{}
+	require.NoError(t, roundTrip.SetURL(serviceURL))
+	assert.Equal(t, config, roundTrip)
+}
+
+// TestNormalizePhoneNumber verifies that spaces, dashes, parentheses, and dots
+// are removed from phone numbers, while Messaging Service SIDs are kept as is.
+func TestNormalizePhoneNumber(t *testing.T) {
+	t.Parallel()
+
+	// tests lists inputs with their normalized form.
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "+1 (555) 123-4567", want: testFrom},
+		{input: "+1.555.123.4567", want: testFrom},
+		{input: testFrom, want: testFrom},
+		{input: testMessagingServiceSID, want: testMessagingServiceSID},
+		{input: "MG-ABC.DEF", want: "MG-ABC.DEF"},
+		{input: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, normalizePhoneNumber(tt.input))
+		})
+	}
+}
+
+// TestParseToNumbers verifies that the path splits into normalized numbers,
+// skipping empty and blank segments.
+func TestParseToNumbers(t *testing.T) {
+	t.Parallel()
+
+	// tests lists paths with the numbers each should produce.
+	tests := []struct {
+		name string
+		path string
+		want []string
+	}{
+		{name: "empty", path: "", want: nil},
+		{name: "root only", path: "/", want: nil},
+		{name: "one number", path: "/" + testTo, want: []string{testTo}},
+		{name: "several numbers", path: "/" + testTo + "/+15551111111", want: []string{testTo, "+15551111111"}},
+		{name: "empty and blank segments", path: "//" + testTo + "/ /", want: []string{testTo}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, parseToNumbers(tt.path))
+		})
+	}
+}
+
+// TestConfigQueryResolver verifies the config's query props: the title can be
+// set and read, an unknown key is rejected, and title is the only key with no
+// enums.
+func TestConfigQueryResolver(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	resolver := format.NewPropKeyResolver(config)
+
+	require.NoError(t, resolver.Set("title", "new title"))
+	assert.Equal(t, "new title", config.Title)
+
+	value, err := resolver.Get("title")
+	require.NoError(t, err)
+	assert.Equal(t, "new title", value)
+
+	require.ErrorIs(t, resolver.Set("foo", "bar"), format.ErrInvalidConfigKey)
+
+	_, err = resolver.Get("foo")
+	require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+
+	assert.Empty(t, config.Enums())
+	assert.Equal(t, []string{"title"}, resolver.QueryFields())
 }
