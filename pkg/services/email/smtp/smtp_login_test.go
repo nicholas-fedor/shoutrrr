@@ -48,6 +48,7 @@ func TestLoginAuthStart(t *testing.T) {
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Empty(t, mech)
+				assert.Nil(t, resp)
 
 				return
 			}
