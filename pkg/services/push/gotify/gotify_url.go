@@ -1,6 +1,9 @@
 package gotify
 
-import "net/url"
+import (
+	"net/url"
+	"strings"
+)
 
 // URLBuilder handles URL construction for Gotify API endpoints.
 type URLBuilder interface {
@@ -29,7 +32,7 @@ func (b *DefaultURLBuilder) BuildURL(config *Config) (string, error) {
 	apiURL := &url.URL{
 		Scheme: scheme,
 		Host:   config.Host,
-		Path:   config.Path + "/message",
+		Path:   strings.TrimSuffix(config.Path, "/") + "/message",
 	}
 
 	if !config.UseHeader {

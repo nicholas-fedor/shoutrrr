@@ -1,16 +1,27 @@
 package gotify
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // MessageRequest is the actual payload being sent to the Gotify API.
 // This struct represents the JSON request body sent to the Gotify message endpoint,
 // containing all notification data including message content, metadata, and custom extras.
 type MessageRequest struct {
-	Message  string         `json:"message"`        // The main notification message text content
-	Title    string         `json:"title"`          // Notification title displayed in the Gotify interface
-	Priority int            `json:"priority"`       // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients
-	Date     *string        `json:"date,omitempty"` // Optional custom timestamp in ISO 8601 format for the notification
-	Extras   map[string]any `json:"extras"`         // Additional custom key-value pairs for extended functionality
+	Message  string         `json:"message"`  // The main notification message text content
+	Title    string         `json:"title"`    // Notification title displayed in the Gotify interface
+	Priority int            `json:"priority"` // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients
+	Extras   map[string]any `json:"extras"`   // Additional custom key-value pairs for extended functionality
+
+	// Date is not sent.
+	//
+	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
+	Date *string `json:"date,omitempty"`
+
+	// omitPriority leaves the priority out of the JSON body, so Gotify applies
+	// the application's default priority.
+	omitPriority bool
 }
 
 // messageResponse represents the successful response from the Gotify API.
@@ -40,4 +51,32 @@ type responseError struct {
 // that can be returned as a standard Go error.
 func (er *responseError) Error() string {
 	return fmt.Sprintf("server responded with %v (%v): %v", er.Name, er.Code, er.Description)
+}
+
+// MarshalJSON writes the message body Gotify accepts: the message, title,
+// and extras, and the priority unless the request leaves it out.
+//
+// Returns:
+//   - []byte: the JSON body.
+//   - error: an error encoding the extras.
+func (r MessageRequest) MarshalJSON() ([]byte, error) {
+	// body is the JSON body of a message.
+	type body struct {
+		Extras   map[string]any `json:"extras"`
+		Priority *int           `json:"priority,omitempty"`
+		Message  string         `json:"message"`
+		Title    string         `json:"title"`
+	}
+
+	payload := body{Message: r.Message, Title: r.Title, Priority: &r.Priority, Extras: r.Extras}
+	if r.omitPriority {
+		payload.Priority = nil
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encoding message: %w", err)
+	}
+
+	return data, nil
 }

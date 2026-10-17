@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -158,28 +157,6 @@ func newTestService(t *testing.T, rawURL string) *Service {
 	return service
 }
 
-// assertPayload asserts that body is the JSON message payload want. The
-// comparison ignores the priority field unless want sets it.
-//
-// Parameters:
-//   - t: the test.
-//   - want: the expected JSON payload.
-//   - body: the request body.
-func assertPayload(t *testing.T, want, body string) {
-	t.Helper()
-
-	var wantFields, gotFields map[string]any
-
-	require.NoError(t, json.Unmarshal([]byte(want), &wantFields))
-	require.NoError(t, json.Unmarshal([]byte(body), &gotFields))
-
-	if _, ok := wantFields["priority"]; !ok {
-		delete(gotFields, "priority")
-	}
-
-	assert.Equal(t, wantFields, gotFields)
-}
-
 // TestGetID verifies that the service identifies itself by its scheme.
 func TestGetID(t *testing.T) {
 	t.Parallel()
@@ -202,7 +179,7 @@ func TestInitialize(t *testing.T) {
 
 	service := newTestService(t, testServiceURL+"?priority=3")
 
-	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3}, service.Config)
+	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, prioritySet: true}, service.Config)
 	assert.IsType(t, &DefaultHTTPClientManager{}, service.httpClientManager)
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
@@ -216,7 +193,9 @@ func TestInitialize(t *testing.T) {
 
 // TestSend verifies the request a send makes: a JSON POST to the message
 // endpoint with the token in the query or a header, carrying the message,
-// title, priority, extras, and date from the URL and params.
+// title, and extras from the URL and params, and the priority only when it is
+// set, so Gotify applies the application's default priority otherwise. The
+// date is never sent, because Gotify sets it.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -251,6 +230,28 @@ func TestSend(t *testing.T) {
 			message:  "Hello",
 			wantURL:  testEndpoint,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":-2,"extras":null}`,
+		},
+		{
+			name:     "zero priority param",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"priority": "0"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0,"extras":null}`,
+		},
+		{
+			name:     "zero priority in the URL",
+			rawURL:   testServiceURL + "?priority=0",
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0,"extras":null}`,
+		},
+		{
+			name:     "subpath",
+			rawURL:   "gotify://" + testHost + "/gotify/" + testToken,
+			message:  "Hello",
+			wantURL:  "https://" + testHost + "/gotify/message?token=" + testToken,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
 		},
 		{
 			name:     "extras param",
@@ -289,7 +290,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"date": "2023-12-25T10:00:00+02:00"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","date":"2023-12-25T08:00:00Z","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
 		},
 		{
 			name:     "invalid date param",
@@ -346,13 +347,13 @@ func TestSend(t *testing.T) {
 			assert.Equal(t, tt.wantURL, requests[0].url)
 			assert.Equal(t, "application/json", requests[0].contentType)
 			assert.Equal(t, tt.wantKey, requests[0].gotifyKey)
-			assertPayload(t, tt.wantBody, requests[0].body)
+			assert.JSONEq(t, tt.wantBody, requests[0].body)
 		})
 	}
 }
 
-// TestSendLogsDroppedParams verifies that a send logs an invalid date or
-// extras param that it leaves out.
+// TestSendLogsDroppedParams verifies that a send logs a date param, which it
+// does not send, and an invalid extras param that it leaves out.
 func TestSendLogsDroppedParams(t *testing.T) {
 	t.Parallel()
 
@@ -366,7 +367,7 @@ func TestSendLogsDroppedParams(t *testing.T) {
 
 	require.NoError(t, service.Send("Hello", &types.Params{"date": "tomorrow", "extras": "{invalid"}))
 	assert.Equal(t,
-		"Invalid date format: invalid date format\nFailed to parse extras from params: failed to unmarshal extras JSON\n",
+		"Warning: ignoring the date param, because Gotify sets the date of each message\nFailed to parse extras from params: failed to unmarshal extras JSON\n",
 		logs.String())
 }
 
@@ -418,8 +419,21 @@ func TestSendWithoutConfig(t *testing.T) {
 	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
 }
 
+// TestUninitializedSend verifies that a send on a service that was never
+// initialized, or whose Initialize failed, returns [ErrServiceNotInitialized].
+func TestUninitializedSend(t *testing.T) {
+	t.Parallel()
+
+	require.ErrorIs(t, (&Service{}).Send("Hello", nil), ErrServiceNotInitialized)
+
+	service := &Service{}
+	require.Error(t, service.Initialize(parseTestURL(t, testServiceURL+"?extras=%7Binvalid"), log.New(t.Output(), "", 0)))
+	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
+}
+
 // TestSendErrors verifies that a failed request fails the send with
-// [ErrSendFailed], keeping the server's error and the token out of the error.
+// [ErrSendFailed] once, keeping the server's error, labeled by status, and
+// the token out of the error.
 func TestSendErrors(t *testing.T) {
 	t.Parallel()
 
@@ -435,13 +449,19 @@ func TestSendErrors(t *testing.T) {
 			name:      "error response",
 			rawURL:    testServiceURL,
 			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
-			wantInErr: "server responded with Unauthorized (401)",
+			wantInErr: "failed to send notification to Gotify: client error (401): server responded with Unauthorized (401)",
 		},
 		{
 			name:      "error response with the token in a header",
 			rawURL:    testServiceURL + "?useheader=yes",
 			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
-			wantInErr: "server responded with Unauthorized (401)",
+			wantInErr: "failed to send notification to Gotify: client error (401): server responded with Unauthorized (401)",
+		},
+		{
+			name:      "status without an error body",
+			rawURL:    testServiceURL,
+			response:  cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
+			wantInErr: "failed to send notification to Gotify: got unexpected HTTP status: 502 Bad Gateway",
 		},
 		{name: "transport error", rawURL: testServiceURL, response: cannedResponse{err: errTransport}, wantErr: errTransport},
 		{name: "transport error with the token in a header", rawURL: testServiceURL + "?useheader=yes", response: cannedResponse{err: errTransport}, wantErr: errTransport},
@@ -464,6 +484,7 @@ func TestSendErrors(t *testing.T) {
 			}
 
 			assert.Contains(t, err.Error(), tt.wantInErr)
+			assert.Equal(t, 1, strings.Count(err.Error(), ErrSendFailed.Error()), err.Error())
 			assert.NotContains(t, err.Error(), testToken)
 		})
 	}
@@ -490,7 +511,7 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	requests := captured()
 	require.Len(t, requests, 2)
 	assert.Equal(t, testEndpoint, requests[1].url)
-	assertPayload(t, `{"message":"Hello","title":"Shoutrrr notification","extras":null}`, requests[1].body)
+	assert.JSONEq(t, `{"message":"Hello","title":"Shoutrrr notification","extras":null}`, requests[1].body)
 }
 
 // TestSendContextCancellation verifies that the caller's context bounds the

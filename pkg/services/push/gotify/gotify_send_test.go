@@ -70,9 +70,10 @@ func TestSendRequest(t *testing.T) {
 }
 
 // TestSendRequestErrorResponses verifies the error for each failed response,
-// with the token in the query and in a header: the server's error when the
-// body has one, or the status otherwise, and a parse error for a success body
-// that is not JSON.
+// with the token in the query and in a header: the server's error, labeled as
+// a client or server error by status, when the body has one, the status
+// otherwise, and a parse error for a success body that is not JSON. The
+// service adds [ErrSendFailed], so the sender's errors leave it out.
 func TestSendRequestErrorResponses(t *testing.T) {
 	t.Parallel()
 
@@ -87,17 +88,29 @@ func TestSendRequestErrorResponses(t *testing.T) {
 		{
 			name:      "error response",
 			response:  cannedResponse{statusCode: http.StatusUnauthorized, body: unauthorizedBody},
-			wantError: "server error: server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api",
+			wantError: "client error (401): server responded with Unauthorized (401): you need to provide a valid access token or user credentials to access this api",
 		},
 		{
-			name:     "status without an error body",
-			response: cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
-			wantErr:  jsonclient.ErrUnexpectedStatus,
+			name:      "server error response",
+			response:  cannedResponse{statusCode: http.StatusInternalServerError, body: `{"error":"Internal Server Error","errorCode":500,"errorDescription":"database is locked"}`},
+			wantError: "server error (500): server responded with Internal Server Error (500): database is locked",
 		},
 		{
-			name:     "success body not JSON",
-			response: cannedResponse{statusCode: http.StatusOK, body: "OK"},
-			wantErr:  ErrSendFailed,
+			name:      "status without an error body",
+			response:  cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 502 Bad Gateway",
+		},
+		{
+			name:      "JSON body without an error",
+			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{}`},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 400 Bad Request",
+		},
+		{
+			name:      "success body not JSON",
+			response:  cannedResponse{statusCode: http.StatusOK, body: "OK"},
+			wantError: "invalid character 'O' looking for beginning of value",
 		},
 		{
 			name:      "client error response with the token in a header",
@@ -132,6 +145,13 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			wantError: "got unexpected HTTP status: 503 Service Unavailable",
 		},
 		{
+			name:      "JSON body without an error with the token in a header",
+			headers:   headerAuth,
+			response:  cannedResponse{statusCode: http.StatusBadRequest, body: `{}`},
+			wantErr:   ErrUnexpectedStatus,
+			wantError: "got unexpected HTTP status: 400 Bad Request",
+		},
+		{
 			name:     "success body not JSON with the token in a header",
 			headers:  headerAuth,
 			response: cannedResponse{statusCode: http.StatusOK, body: "OK"},
@@ -148,6 +168,7 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			err := (&DefaultSender{}).SendRequestContext(t.Context(), client, testEndpoint, testRequest, tt.headers)
 
 			require.Error(t, err)
+			require.NotErrorIs(t, err, ErrSendFailed)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)

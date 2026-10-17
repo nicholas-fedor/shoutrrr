@@ -19,7 +19,7 @@ import (
 type Config struct {
 	standard.EnumlessConfig // Embeds standard configuration functionality without enum handling
 
-	Token              string         `desc:"Application token"                     required:""                               url:"path2"`     // Gotify application token for authentication (must be 15 chars starting with 'A')
+	Token              string         `desc:"Application token"                     required:""                               url:"path2"`     // Gotify application token for authentication (gtfya. token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
 	Host               string         `desc:"Server hostname (and optionally port)" required:""                               url:"host,port"` // Gotify server hostname and optional port number
 	Path               string         `desc:"Server subpath"                        optional:""                               url:"path1"`     // Optional subpath for Gotify installation (e.g., "/gotify")
 	Priority           int            `default:"0"                                  key:"priority"`                                            // Notification priority level (-2 to 10, where higher numbers are more important; negative values have special meanings in some clients)
@@ -27,8 +27,16 @@ type Config struct {
 	DisableTLS         bool           `default:"No"                                 key:"disabletls"`                                          // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
 	InsecureSkipVerify bool           `default:"No"                                 key:"insecureskipverify"`                                  // Skip TLS certificate verification (insecure, use with caution)
 	UseHeader          bool           `default:"No"                                 desc:"Enable header-based authentication" key:"useheader"` // Send token in X-Gotify-Key header instead of URL query parameter
-	Date               string         `default:""                                   key:"date"`                                                // Optional custom timestamp in ISO 8601 format for the notification
 	Extras             map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
+
+	// Date is accepted in URLs and params but not sent.
+	//
+	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
+	Date string `default:"" desc:"Deprecated: not sent, because Gotify sets the date of each message" key:"date"`
+
+	// prioritySet is true when the URL or the send params set the priority, so
+	// a priority of 0 is sent instead of leaving the application default.
+	prioritySet bool
 }
 
 // Scheme identifies this service in configuration URLs.
@@ -81,22 +89,26 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	// Construct and return the complete URL
 	return &url.URL{
-		Host:       c.Host,           // Server hostname and port
-		Scheme:     Scheme,           // URL scheme (gotify)
-		ForceQuery: false,            // Don't force query string presence
-		Path:       c.Path + c.Token, // Path with token appended
-		RawQuery:   query,            // Query parameters including extras
+		Host:       c.Host,        // Server hostname and port
+		Scheme:     Scheme,        // URL scheme (gotify)
+		ForceQuery: false,         // Don't force query string presence
+		Path:       c.tokenPath(), // Path with token appended
+		RawQuery:   query,         // Query parameters including extras
 	}
 }
 
 // processQueryParameters processes query parameters from URL.
 // This function handles both standard configuration parameters and the special 'extras'
-// JSON parameter, setting appropriate config fields through the resolver or direct assignment.
+// JSON parameter, setting appropriate config fields through the resolver or direct assignment,
+// and notes a priority the query sets.
+//
 // Parameters:
 //   - resolver: Configuration resolver for setting standard config properties
 //   - query: URL query parameters to process
 //
-// Returns: error if parameter parsing or setting fails.
+// Returns:
+//   - error: [ErrExtrasParseFailed] or [ErrConfigPropertyFailed] with the key
+//     and the cause, or nil.
 func (c *Config) processQueryParameters(
 	resolver types.ConfigQueryResolver,
 	query url.Values,
@@ -110,13 +122,17 @@ func (c *Config) processQueryParameters(
 				c.Extras = make(map[string]any)
 				// Parse JSON string into map
 				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras); err != nil {
-					return fmt.Errorf("%w", ErrExtrasParseFailed)
+					return fmt.Errorf("%w: %w", ErrExtrasParseFailed, err)
 				}
 			}
 		} else {
 			// Standard parameter handling through resolver
 			if err := resolver.Set(key, query.Get(key)); err != nil {
-				return fmt.Errorf("%w", ErrConfigPropertyFailed)
+				return fmt.Errorf("%w %q: %w", ErrConfigPropertyFailed, key, err)
+			}
+
+			if strings.EqualFold(key, "priority") {
+				c.prioritySet = true
 			}
 		}
 	}
@@ -152,6 +168,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// Set host and token from URL components
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
+	c.prioritySet = false
 
 	// Process query parameters to set remaining configuration fields
 	if err := c.processQueryParameters(resolver, serviceURL.Query()); err != nil {
@@ -159,4 +176,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	return nil
+}
+
+// tokenPath returns the URL path of the subpath and the token, separated by a
+// slash when the subpath has none at its end.
+//
+// Returns:
+//   - string: the URL path.
+func (c *Config) tokenPath() string {
+	if c.Path == "" || strings.HasSuffix(c.Path, "/") {
+		return c.Path + c.Token
+	}
+
+	return c.Path + "/" + c.Token
 }

@@ -1,6 +1,7 @@
 package gotify
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,19 +58,60 @@ func TestParseExtras(t *testing.T) {
 }
 
 // TestPrepareRequest verifies that the request carries the message, the
-// config's title and priority, the extras, and the date only when one is set.
+// config's title and priority, the extras, and the date only when one is set,
+// and leaves the priority out when the config has none of its own.
 func TestPrepareRequest(t *testing.T) {
 	t.Parallel()
 
 	builder := &DefaultPayloadBuilder{}
-	config := &Config{Title: "Backup", Priority: 5}
 	extras := map[string]any{"client::notification": map[string]any{"click": map[string]any{"url": "https://example.com"}}}
 	date := "2023-12-25T10:00:00Z"
 
 	assert.Equal(t,
 		&MessageRequest{Message: "Hello", Title: "Backup", Priority: 5, Date: &date, Extras: extras},
-		builder.PrepareRequest("Hello", config, extras, date))
+		builder.PrepareRequest("Hello", &Config{Title: "Backup", Priority: 5}, extras, date))
 	assert.Equal(t,
-		&MessageRequest{Message: "Hello", Title: "Backup", Priority: 5},
-		builder.PrepareRequest("Hello", config, nil, ""))
+		&MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true},
+		builder.PrepareRequest("Hello", &Config{Title: "Backup"}, nil, ""))
+	assert.Equal(t,
+		&MessageRequest{Message: "Hello", Title: "Backup"},
+		builder.PrepareRequest("Hello", &Config{Title: "Backup", prioritySet: true}, nil, ""))
+}
+
+// TestMessageRequestMarshalJSON verifies the JSON body of a message: the
+// message, title, and extras, the priority unless the request leaves it out,
+// and never the date, which Gotify sets itself.
+func TestMessageRequestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	date := "2023-12-25T10:00:00Z"
+
+	// tests lists requests with the JSON each should produce.
+	tests := []struct {
+		name    string
+		want    string
+		request MessageRequest
+	}{
+		{
+			name:    "priority",
+			request: MessageRequest{Message: "Hello", Title: "Backup", Priority: 5, Date: &date, Extras: map[string]any{"a": 1}},
+			want:    `{"message":"Hello","title":"Backup","priority":5,"extras":{"a":1}}`,
+		},
+		{name: "zero priority", request: MessageRequest{Message: "Hello", Title: "Backup"}, want: `{"message":"Hello","title":"Backup","priority":0,"extras":null}`},
+		{name: "priority left out", request: MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true}, want: `{"message":"Hello","title":"Backup","extras":null}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, err := json.Marshal(&tt.request)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(body))
+
+			body, err = json.Marshal(tt.request)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(body))
+		})
+	}
 }

@@ -22,8 +22,9 @@ The request includes the notification data as JSON in the request body and uses 
 !!! Note
     Tokens are generated within the Gotify web interface when creating applications.
 
-The Gotify application token must be exactly 15 characters long and must start with the letter 'A'.
-It can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.
+Gotify 3.0 and later issue application tokens that start with `gtfya.` followed by at least 43 characters.
+Tokens from earlier Gotify versions are exactly 15 characters long and start with the letter 'A'.
+They can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.
 
 !!! Warning "Token Validation"
     Invalid tokens will result in notification delivery failures. Always verify your token format matches Gotify's requirements.
@@ -76,75 +77,24 @@ Gotify supports priority levels to control how notifications are displayed and h
 
 - **-2**: Very low priority (may be hidden in some clients)
 - **-1**: Low priority
-- **0**: Normal priority (default)
+- **0**: Normal priority
 - **1**: High priority
 - **2 to 10**: Very high priority (may trigger special handling like persistent notifications)
 
 Higher priority notifications typically appear more prominently and may bypass quiet hours or notification filters. The priority can be set to a value between -2 and 10, where -2 is the lowest priority and 10 is the highest. Negative values have special meanings in some clients.
 
+When neither the URL nor the send params set a priority, Shoutrrr leaves it out of the message, and Gotify applies the application's default priority.
+A priority set explicitly is always sent, including 0.
+
 ### Custom Title
 
 The `title` parameter allows you to set a custom title for your notification. If not specified, Shoutrrr uses the default title "Shoutrrr notification". Titles should be concise and descriptive to help users quickly identify the notification's purpose.
 
-### Custom Date
+### Date
 
-The `date` parameter allows you to set a custom timestamp for the notification. Shoutrrr accepts multiple common date formats and automatically converts them to ISO 8601 format for the Gotify API. If not specified, Gotify will use the current server time when the notification is received.
-
-#### Supported Input Formats
-
-The date parameter accepts the following formats:
-
-- **ISO 8601 with timezone** (RFC3339): `2023-12-25T10:00:00Z` or `2023-12-25T10:00:00+05:00`
-- **ISO 8601 without timezone**: `2023-12-25T10:00:00` (assumes UTC)
-- **Unix timestamp** (seconds since epoch): `1703498400`
-- **Basic date-time**: `2023-12-25 10:00:00` (assumes UTC)
-
-All formats are converted to ISO 8601 format before sending to Gotify.
-
-#### Validation Behavior
-
-If an invalid date format is provided, Shoutrrr will log a warning and skip setting the custom date, falling back to Gotify's default server timestamp. This ensures notifications are still delivered even with date parsing errors.
-
-#### Use Cases
-
-This parameter is useful for:
-
-- Backdating notifications for historical events
-- Ensuring consistent timestamps across multiple notifications
-- Testing notification ordering in development
-- Scheduling notifications with specific timestamps
-
-!!! Example "ISO 8601 with timezone"
-
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=2023-12-25T10:00:00Z
-    ```
-
-    Sets the notification timestamp to Christmas morning 2023 UTC.
-
-!!! Example "ISO 8601 without timezone"
-
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=2023-12-25T10:00:00
-    ```
-
-    Sets the notification timestamp to Christmas morning 2023, interpreted as UTC.
-
-!!! Example "Unix timestamp"
-
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=1703498400
-    ```
-
-    Sets the notification timestamp to Christmas morning 2023 (Unix timestamp for 2023-12-25 10:00:00 UTC).
-
-!!! Example "Basic date-time format"
-
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=2023-12-25%2010:00:00
-    ```
-
-    Sets the notification timestamp to Christmas morning 2023, interpreted as UTC.
+!!! Warning "Deprecated"
+    The `date` parameter is deprecated and has no effect.
+    Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts `date` in URLs and params for compatibility but does not send it, and logs a warning when it is set.
 
 ### Use Header Authentication
 
@@ -186,24 +136,6 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
     ```
     **Error**: `priority must be between -2 and 10`
 
-### Date Format Handling
-
-Shoutrrr supports multiple date input formats, automatically converting them to ISO 8601 for the Gotify API. Invalid date formats are logged as warnings, and the notification uses Gotify's server timestamp instead.
-
-!!! Failure "Validation Failure Example"
-    ```bash
-    shoutrrr send --url "gotify://example.com/token?date=invalid-date" --message "test"
-    ```
-    **Warning logged**: `invalid date format`
-    **Result**: Notification sent with server timestamp
-
-Supported formats include:
-
-- ISO 8601 with timezone: `2023-12-25T10:00:00Z`
-- ISO 8601 without timezone: `2023-12-25T10:00:00`
-- Unix timestamp: `1703498400`
-- Basic date-time: `2023-12-25 10:00:00`
-
 ## Examples
 
 !!! Example "Common usage"
@@ -219,7 +151,7 @@ Supported formats include:
 
 !!! Example "With all parameters"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=System+Alert&priority=5&disabletls=yes&useheader=yes&date=2023-12-25T10%3A00%3A00Z&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
+    gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=System+Alert&priority=5&disabletls=yes&useheader=yes&extras=%7B%22action%22%3A%22view%22%2C%22url%22%3A%22https%3A%2F%2Fexample.com%2Falert%22%2C%22image%22%3A%22https%3A%2F%2Fexample.com%2Falert.png%22%7D
     ```
 
 !!! Example "Minimal configuration"
@@ -230,21 +162,6 @@ Supported formats include:
 !!! Example "With custom title and low priority"
     ```uri
     gotify://gotify.example.com/AzyoeNS.D4iJLVa?title=Info&priority=-1
-    ```
-
-!!! Example "With custom date"
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=2023-12-25T10%3A00%3A00Z&title=Scheduled+Event
-    ```
-
-!!! Example "With Unix timestamp date"
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=1703498400&title=Timestamp+Event
-    ```
-
-!!! Example "With basic date-time format"
-    ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?date=2023-12-25%2010%3A00%3A00&title=Simple+Date+Event
     ```
 
 !!! Example "With TLS disabled for self-signed certificates"
@@ -303,13 +220,13 @@ Supported formats include:
 
 **Possible causes:**
 
-- Incorrect token format (must be 15 chars starting with 'A')
+- Incorrect token format (a `gtfya.` token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
 - Token has been revoked or expired
 - Wrong token for the application
 
 **Solutions:**
 
-- Verify token format: exactly 15 characters, starts with 'A'
+- Verify the token format matches your Gotify version
 - Regenerate token in Gotify web interface
 - Ensure you're using the correct application token
 
@@ -370,28 +287,12 @@ Supported formats include:
 - Ensure proper URL encoding when passing JSON in URLs
 - Test extras JSON separately before including in URLs
 
-##### Invalid Date Formats
-
-**Error**: `invalid date format` (logged as warning)
-
-**Possible causes:**
-
-- Date format not matching supported formats
-- Invalid date values (e.g., February 30th)
-- Incorrect timezone specifications
-
-**Solutions:**
-
-- Use one of the supported date formats listed above
-- Verify date values are valid calendar dates
-- Note that invalid dates still send notifications but use server timestamps
-
 #### Error Handling Patterns
 
 Shoutrrr employs several error handling strategies for malformed inputs:
 
 - **Early Validation**: Parameters are validated before API requests to fail fast
-- **Graceful Degradation**: Non-critical validation failures (like invalid dates) allow notifications to proceed with defaults
+- **Graceful Degradation**: Non-critical validation failures (like invalid extras in send params) allow notifications to proceed with defaults
 - **Detailed Error Messages**: Specific error messages help identify the exact validation issue
 - **Fallback Behavior**: When possible, invalid inputs fall back to sensible defaults rather than failing completely
 
