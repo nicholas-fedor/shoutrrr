@@ -224,8 +224,9 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL requires the sender and
-// recipient addresses and rejects invalid query values.
+// TestConfigSetURLErrors verifies that SetURL requires the sender, including
+// one that is blank after trimming, and the recipient addresses, and rejects
+// invalid query values.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +238,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}{
 		{name: "no sender", rawURL: "smtp://mail.example.com/?toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
+		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid encryption", rawURL: "smtp://mail.example.com/?encryption=SSL", wantErr: format.ErrInvalidEnumValue},
 		{

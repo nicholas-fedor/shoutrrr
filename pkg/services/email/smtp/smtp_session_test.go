@@ -345,8 +345,8 @@ func TestSessionRunLogsStartTLS(t *testing.T) {
 }
 
 // TestSessionRunErrors verifies the failure of each rejected step, that a
-// send stops at a rejected greeting, STARTTLS, or AUTH without sending mail,
-// and that it closes the connection. After a failed AUTH, net/smtp itself
+// send stops at a missing sender or a rejected greeting, STARTTLS, or AUTH
+// without sending mail, and that it closes the connection. After a failed AUTH, net/smtp itself
 // cancels the exchange with "*" and sends QUIT.
 func TestSessionRunErrors(t *testing.T) {
 	t.Parallel()
@@ -399,6 +399,20 @@ func TestSessionRunErrors(t *testing.T) {
 			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com",
 			wantFail: failureIDs{FailEnableStartTLS},
 			want:     []string{"EHLO localhost", "STARTTLS"},
+		},
+		{
+			name:      "blank sender param",
+			rawURL:    testServiceURL,
+			params:    &types.Params{"fromaddress": " "},
+			wantFail:  failureIDs{FailSetSender},
+			wantCause: ErrFromAddressMissing,
+		},
+		{
+			name:      "empty sender param",
+			rawURL:    testServiceURL,
+			params:    &types.Params{"fromaddress": ""},
+			wantFail:  failureIDs{FailSetSender},
+			wantCause: ErrFromAddressMissing,
 		},
 		{
 			name:     "authentication method unknown",

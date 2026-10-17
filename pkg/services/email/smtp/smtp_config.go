@@ -218,6 +218,7 @@ func restorePlusInAddrSpec(spec string) string {
 // setURL updates the Config from a URL using the provided resolver.
 //
 // [Config.FromAddress] and [Config.ToAddresses] are required except for the dummy URL used in tests.
+// Addresses are trimmed first, so a sender that is only whitespace counts as missing.
 //
 // Parameters:
 //   - resolver: Resolver used to apply query parameters to configuration fields.
@@ -241,6 +242,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	c.restorePlusAddresses()
+
 	if serviceURL.String() != "smtp://dummy@dummy.com" {
 		if len(c.FromAddress) < 1 {
 			return ErrFromAddressMissing
@@ -250,8 +253,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 			return ErrToAddressMissing
 		}
 	}
-
-	c.restorePlusAddresses()
 
 	return nil
 }

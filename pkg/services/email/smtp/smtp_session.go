@@ -149,13 +149,14 @@ func (s *session) quit(errs []error) []error {
 
 // run conducts the SMTP session: handshake, optional STARTTLS, authentication,
 // delivery, and QUIT. Pre-delivery failures close the client without sending QUIT.
-// An empty recipient list fails before the handshake.
+// An empty recipient list or sender fails before the handshake, so a blank
+// sender is never sent as the null reverse-path.
 //
 // Parameters:
 //   - message: The notification body.
 //
 // Returns:
-//   - An error if there are no recipients, or if handshake, STARTTLS, authentication, or delivery fails.
+//   - An error if there are no recipients or no sender, or if handshake, STARTTLS, authentication, or delivery fails.
 func (s *session) run(message string) error {
 	s.config.restorePlusAddresses()
 
@@ -163,6 +164,10 @@ func (s *session) run(message string) error {
 
 	if len(s.config.ToAddresses) == 0 {
 		return fail(FailSendRecipient, ErrToAddressMissing, "")
+	}
+
+	if s.config.FromAddress == "" {
+		return fail(FailSetSender, ErrFromAddressMissing)
 	}
 
 	if err := s.client.Hello(s.ehloName()); err != nil {
