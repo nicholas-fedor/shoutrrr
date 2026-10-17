@@ -1,412 +1,372 @@
 package smtp
 
 import (
-	"mime"
+	"bytes"
+	"errors"
 	"net/mail"
 	"strings"
-	"text/template"
+	"testing"
 	"time"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
-var _ = ginkgo.Describe("message", func() {
-	ginkgo.Describe("headers", func() {
-		ginkgo.When("the subject contains non-ASCII characters", func() {
-			ginkgo.It("should encode it as an RFC 2047 encoded-word", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com", Subject: "Plan überschritten"},
-					"rec1@example.com",
-					"",
-				)
+// failingWriter accepts a number of writes and fails every later one.
+type failingWriter struct {
+	// written holds the accepted writes.
+	written bytes.Buffer
+	// writes is the number of writes to accept.
+	writes int
+}
 
-				gomega.Expect(headerMap["Subject"]).
-					To(gomega.Equal("=?UTF-8?q?Plan_=C3=BCberschritten?="))
-				gomega.Expect(new(mime.WordDecoder).DecodeHeader(headerMap["Subject"])).
-					To(gomega.Equal("Plan überschritten"))
-			})
+// errWriteFailed is the error a failingWriter returns.
+var errWriteFailed = errors.New("stream closed")
+
+// newTemplates returns templates for the plain and HTML parts.
+//
+// Parameters:
+//   - t: the test.
+//   - plain: the plain template, or "" for none.
+//   - html: the HTML template, or "" for none.
+//
+// Returns:
+//   - *standard.Templater: the templates.
+func newTemplates(t *testing.T, plain, html string) *standard.Templater {
+	t.Helper()
+
+	templates := &standard.Templater{}
+
+	if plain != "" {
+		require.NoError(t, templates.SetTemplateString(templatePlain, plain))
+	}
+
+	if html != "" {
+		require.NoError(t, templates.SetTemplateString(templateHTML, html))
+	}
+
+	return templates
+}
+
+// TestHeaders verifies the message headers: the subject, sender, and
+// recipient encoded for US-ASCII header values, the MIME type of plain or HTML
+// mail, a Date, and a Message-ID on the sender's domain.
+func TestHeaders(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs and recipients with the headers each should
+	// produce, apart from Date and Message-ID.
+	tests := []struct {
+		want     map[string]string
+		name     string
+		to       string
+		boundary string
+		config   Config
+	}{
+		{
+			name:   "plain text",
+			config: Config{FromAddress: "sender@example.com", Subject: "Backup done"},
+			to:     "rec@example.com",
+			want: map[string]string{
+				"Subject": "Backup done", "To": "<rec@example.com>", "From": "<sender@example.com>", "MIME-version": "1.0",
+				"Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
+			},
+		},
+		{
+			name:     "HTML",
+			config:   Config{FromAddress: "sender@example.com", FromName: "Alerts", Subject: "Backup done", UseHTML: true},
+			to:       "rec@example.com",
+			boundary: "0123456789abcdef",
+			want: map[string]string{
+				"Subject": "Backup done", "To": "<rec@example.com>", "From": `"Alerts" <sender@example.com>`, "MIME-version": "1.0",
+				"Content-Type": "multipart/alternative; boundary=0123456789abcdef",
+			},
+		},
+		{
+			name:   "non-ASCII subject and sender name",
+			config: Config{FromAddress: "sender@example.com", FromName: "Grüßer", Subject: "Prüfung"},
+			to:     "rec@example.com",
+			want: map[string]string{
+				"Subject": "=?UTF-8?q?Pr=C3=BCfung?=", "To": "<rec@example.com>", "From": "=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>",
+				"MIME-version": "1.0", "Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
+			},
+		},
+		{
+			name:   "name and address that need quoting",
+			config: Config{FromAddress: "odd name@example.com", FromName: "Doe, John", Subject: "=?UTF-8?q?Hello?="},
+			to:     "rec@example.com",
+			want: map[string]string{
+				"Subject": "=?UTF-8?q?Hello?=", "To": "<rec@example.com>", "From": `"Doe, John" <"odd name"@example.com>`,
+				"MIME-version": "1.0", "Content-Type": `text/plain; charset="UTF-8"`, "Content-Transfer-Encoding": "8bit",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := headers(&tt.config, tt.to, tt.boundary)
+
+			date, err := mail.ParseDate(got["Date"])
+			require.NoError(t, err)
+			assert.WithinDuration(t, time.Now(), date, time.Minute)
+			assert.Regexp(t, `^<[0-9a-f]{16}@example\.com>$`, got["Message-ID"])
+
+			delete(got, "Date")
+			delete(got, "Message-ID")
+			assert.Equal(t, tt.want, got)
 		})
+	}
+}
 
-		ginkgo.When("the subject is pure ASCII", func() {
-			ginkgo.It("should leave it unencoded", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com", Subject: "Plan exceeded"},
-					"rec1@example.com",
-					"",
-				)
+// TestHeadersEncoding verifies that header values keep line breaks out of the
+// raw header, so they cannot add headers, encode a non-ASCII subject and
+// sender name, and stay parseable.
+func TestHeadersEncoding(t *testing.T) {
+	t.Parallel()
 
-				gomega.Expect(headerMap["Subject"]).To(gomega.Equal("Plan exceeded"))
-			})
+	got := headers(&Config{
+		FromAddress: "sender@example.com",
+		FromName:    "Ops\r\nBcc: victim@example.com",
+		Subject:     "Hi\r\nBcc: victim@example.com",
+	}, "grüß@example.com", "")
+
+	for _, name := range []string{"Subject", "From", "To"} {
+		assert.NotContains(t, got[name], "\r", name)
+		assert.NotContains(t, got[name], "\n", name)
+	}
+
+	for _, name := range []string{"Subject", "From"} {
+		assert.Regexp(t, `^[\x20-\x7e]*$`, got[name], name)
+	}
+
+	from, err := mail.ParseAddress(got["From"])
+	require.NoError(t, err)
+	assert.Equal(t, &mail.Address{Name: "Ops\r\nBcc: victim@example.com", Address: "sender@example.com"}, from)
+
+	to, err := mail.ParseAddress(got["To"])
+	require.NoError(t, err)
+	assert.Equal(t, "grüß@example.com", to.Address)
+}
+
+// TestHeadersFoldsLongSubject verifies that a subject longer than a header line
+// is folded so that no line exceeds 998 octets and unfolding restores it.
+func TestHeadersFoldsLongSubject(t *testing.T) {
+	t.Parallel()
+
+	subject := strings.Repeat("A", 1200)
+	got := headers(&Config{FromAddress: "sender@example.com", Subject: subject}, "rec@example.com", "")
+
+	assert.Equal(t, subject, strings.ReplaceAll(got["Subject"], "\n ", ""))
+
+	for line := range strings.SplitSeq("Subject: "+got["Subject"], "\n") {
+		assert.LessOrEqual(t, len(line), maxHeaderLineOctets)
+	}
+}
+
+// TestGenerateMessageID verifies that a Message-ID uses the sender's domain,
+// or localhost when the address has none, around a random token.
+func TestGenerateMessageID(t *testing.T) {
+	t.Parallel()
+
+	// tests lists sender addresses with the Message-ID pattern each should
+	// produce.
+	tests := []struct {
+		address string
+		want    string
+	}{
+		{address: "sender@example.com", want: `^<[0-9a-f]{16}@example\.com>$`},
+		{address: "sender", want: `^<[0-9a-f]{16}@localhost>$`},
+		{address: "sender@", want: `^<[0-9a-f]{16}@localhost>$`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Regexp(t, tt.want, generateMessageID(tt.address))
 		})
+	}
 
-		ginkgo.When("the subject contains CR or LF", func() {
-			ginkgo.It("should encode them so they cannot inject a Bcc header", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com", Subject: "Hello\r\nBcc: evil@x.com"},
-					"rec1@example.com",
-					"",
-				)
+	first, second := generateMessageID("sender@example.com"), generateMessageID("sender@example.com")
+	assert.NotEqual(t, first, second)
+}
 
-				gomega.Expect(headerMap["Subject"]).NotTo(gomega.ContainSubstring("\r"))
-				gomega.Expect(headerMap["Subject"]).NotTo(gomega.ContainSubstring("\n"))
-				decoded, err := new(mime.WordDecoder).DecodeHeader(headerMap["Subject"])
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(decoded).To(gomega.Equal("Hello\r\nBcc: evil@x.com"))
+// TestGenerateBoundary verifies that a boundary is a random 16 hex digit
+// token.
+func TestGenerateBoundary(t *testing.T) {
+	t.Parallel()
 
-				writer := &captureWriter{}
-				gomega.Expect(writeHeaders(writer, map[string]string{
-					"Subject": headerMap["Subject"],
-					"From":    headerMap["From"],
-				})).To(gomega.Succeed())
-				gomega.Expect(writer.String()).NotTo(gomega.ContainSubstring("\nBcc:"))
-			})
+	first, err := generateBoundary()
+	require.NoError(t, err)
+
+	second, err := generateBoundary()
+	require.NoError(t, err)
+
+	assert.Regexp(t, `^[0-9a-f]{16}$`, first)
+	assert.NotEqual(t, first, second)
+}
+
+// TestFoldHeaderValue verifies that a header value longer than a header line
+// is split into lines of at most 998 octets, the first counting the name,
+// and that folding an already folded value changes nothing.
+func TestFoldHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "short", foldHeaderValue("Subject", "short"))
+
+	value := strings.Repeat("A", 2500)
+	folded := foldHeaderValue("Subject", value)
+	lines := strings.Split(folded, "\n ")
+
+	require.Len(t, lines, 3)
+	assert.Len(t, lines[0], maxHeaderLineOctets-len("Subject: "))
+	assert.Len(t, lines[1], maxHeaderLineOctets-1)
+	assert.Equal(t, value, strings.Join(lines, ""))
+	assert.Equal(t, folded, foldHeaderValue("Subject", folded))
+	assert.Equal(t, "ab", foldHeaderValue("X", "a\r\n b"))
+	assert.Equal(t, "ab", foldHeaderValue("X", "a\r b"))
+}
+
+// TestWriteHeaders verifies that headers are written in name order with a
+// blank line after them.
+func TestWriteHeaders(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+
+	require.NoError(t, writeHeaders(&out, map[string]string{"Subject": "Hi", "From": "<a@example.com>", "To": "<b@example.com>"}))
+	assert.Equal(t, "From: <a@example.com>\nSubject: Hi\nTo: <b@example.com>\n\n", out.String())
+}
+
+// TestWriteHeadersErrors verifies that a failed write of a header or of the
+// blank line after the headers fails with [FailWriteHeaders].
+func TestWriteHeadersErrors(t *testing.T) {
+	t.Parallel()
+
+	for writes := range 2 {
+		writer := &failingWriter{writes: writes}
+
+		err := writeHeaders(writer, map[string]string{"Subject": "Hi"})
+
+		require.ErrorIs(t, err, fail(FailWriteHeaders, nil))
+		require.ErrorIs(t, err, errWriteFailed)
+	}
+}
+
+// TestWriteAlternative verifies the multipart body of an HTML message: a plain
+// and an HTML part, each through its template or as the raw message, and the
+// closing boundary.
+func TestWriteAlternative(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+
+	require.NoError(t, writeAlternative(&out, "Hello", "b0und", newTemplates(t, "", "<p>{{.message}}</p>")))
+	assert.Equal(t,
+		"\n\n--b0und\nContent-Type: text/plain; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\nHello"+
+			"\n\n--b0und\nContent-Type: text/html; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\n<p>Hello</p>"+
+			"\n\n--b0und--",
+		out.String())
+}
+
+// TestWriteAlternativeErrors verifies the failure of each write of the
+// multipart body.
+func TestWriteAlternativeErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the writes accepted before the failure with the failure
+	// each should produce.
+	tests := []struct {
+		name   string
+		writes int
+		want   failures.FailureID
+	}{
+		{name: "plain part header", writes: 0, want: FailPlainHeader},
+		{name: "plain part", writes: 2, want: FailMessageRaw},
+		{name: "HTML part header", writes: 3, want: FailHTMLHeader},
+		{name: "HTML part", writes: 5, want: FailMessageRaw},
+		{name: "closing boundary", writes: 6, want: FailMultiEndHeader},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := writeAlternative(&failingWriter{writes: tt.writes}, "Hello", "b0und", &standard.Templater{})
+
+			require.ErrorIs(t, err, fail(tt.want, nil))
+			require.ErrorIs(t, err, errWriteFailed)
 		})
+	}
+}
 
-		ginkgo.When("the sender name contains CR or LF", func() {
-			ginkgo.It("should encode them out of the From header value", func() {
-				headerMap := headers(&Config{
-					FromName:    "Eve\r\nBcc: evil@x.com",
-					FromAddress: "sender@example.com",
-					Subject:     "Subject",
-				}, "rec1@example.com", "")
+// TestWritePart verifies that a part is written through its template when one
+// is registered, or as the raw message otherwise.
+func TestWritePart(t *testing.T) {
+	t.Parallel()
 
-				gomega.Expect(headerMap["From"]).NotTo(gomega.ContainSubstring("\r"))
-				gomega.Expect(headerMap["From"]).NotTo(gomega.ContainSubstring("\n"))
-			})
-		})
+	var raw, templated bytes.Buffer
 
-		ginkgo.When("an identifying header is already an encoded-word", func() {
-			ginkgo.It("should not wrap an ASCII encoded-word again", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com", Subject: "=?UTF-8?q?Hello?="},
-					"rec1@example.com",
-					"",
-				)
+	require.NoError(t, writePart(&raw, "Hello", templatePlain, &standard.Templater{}))
+	require.NoError(t, writePart(&templated, "Hello", templatePlain, newTemplates(t, "Note: {{.message}}", "")))
 
-				gomega.Expect(headerMap["Subject"]).To(gomega.Equal("=?UTF-8?q?Hello?="))
-			})
-		})
+	assert.Equal(t, "Hello", raw.String())
+	assert.Equal(t, "Note: Hello", templated.String())
+}
 
-		ginkgo.When("the subject is longer than 998 octets", func() {
-			ginkgo.It("should fold the value so no physical line exceeds the RFC 5322 limit", func() {
-				subject := strings.Repeat("A", 1200)
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com", Subject: subject},
-					"rec1@example.com",
-					"",
-				)
+// TestWritePartErrors verifies that a template that fails, or a failed write
+// of a templated or raw part, fails with the matching failure.
+func TestWritePartErrors(t *testing.T) {
+	t.Parallel()
 
-				gomega.Expect(strings.ReplaceAll(headerMap["Subject"], "\n ", "")).
-					To(gomega.Equal(subject))
-				gomega.Expect(headerMap["Subject"]).NotTo(gomega.ContainSubstring("\r"))
+	err := writePart(&bytes.Buffer{}, "Hello", templatePlain, newTemplates(t, "{{.message.Missing}}", ""))
+	require.ErrorIs(t, err, fail(FailMessageTemplate, nil))
 
-				for line := range strings.SplitSeq("Subject: "+headerMap["Subject"], "\n") {
-					gomega.Expect(len(line)).To(gomega.BeNumerically("<=", maxHeaderLineOctets))
-				}
-			})
-		})
+	err = writePart(&failingWriter{}, "Hello", templatePlain, newTemplates(t, "Note: {{.message}}", ""))
+	require.ErrorIs(t, err, fail(FailMessageTemplate, nil))
+	require.ErrorIs(t, err, errWriteFailed)
 
-		ginkgo.When("the sender name contains non-ASCII characters", func() {
-			ginkgo.It("should encode it and keep the address parseable", func() {
-				headerMap := headers(&Config{
-					FromName:    "Grüßer",
-					FromAddress: "sender@example.com",
-					Subject:     "Subject",
-				}, "rec1@example.com", "")
+	err = writePart(&failingWriter{}, "Hello", templatePlain, &standard.Templater{})
+	require.ErrorIs(t, err, fail(FailMessageRaw, nil))
+	require.ErrorIs(t, err, errWriteFailed)
+}
 
-				gomega.Expect(headerMap["From"]).
-					To(gomega.Equal("=?utf-8?q?Gr=C3=BC=C3=9Fer?= <sender@example.com>"))
+// TestWritePartHeader verifies a part header and the closing boundary, and
+// that a failed write of either line is reported.
+func TestWritePartHeader(t *testing.T) {
+	t.Parallel()
 
-				address, err := mail.ParseAddress(headerMap["From"])
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(address.Name).To(gomega.Equal("Grüßer"))
-				gomega.Expect(address.Address).To(gomega.Equal("sender@example.com"))
-			})
-		})
+	var part, closing bytes.Buffer
 
-		ginkgo.When("the sender name or address requires quoting", func() {
-			ginkgo.It("should quote them", func() {
-				headerMap := headers(&Config{
-					FromName:    "Doe, John",
-					FromAddress: "odd name@example.com",
-					Subject:     "Subject",
-				}, "rec1@example.com", "")
+	require.NoError(t, writePartHeader(&part, "b0und", contentPlain))
+	require.NoError(t, writePartHeader(&closing, "b0und", ""))
 
-				gomega.Expect(headerMap["From"]).
-					To(gomega.Equal(`"Doe, John" <"odd name"@example.com>`))
-				gomega.Expect(mail.ParseAddress(headerMap["From"])).
-					To(gomega.Equal(&mail.Address{
-						Name:    "Doe, John",
-						Address: `odd name@example.com`,
-					}))
-			})
-		})
+	assert.Equal(t, "\n\n--b0und\nContent-Type: text/plain; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\n", part.String())
+	assert.Equal(t, "\n\n--b0und--", closing.String())
 
-		ginkgo.When("no sender name is configured", func() {
-			ginkgo.It("should only emit the address", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender+tag@example.com", Subject: "Subject"},
-					"rec1@example.com",
-					"",
-				)
+	require.ErrorIs(t, writePartHeader(&failingWriter{}, "b0und", contentPlain), errWriteFailed)
+	require.ErrorIs(t, writePartHeader(&failingWriter{writes: 1}, "b0und", contentPlain), errWriteFailed)
+}
 
-				gomega.Expect(headerMap["From"]).To(gomega.Equal("<sender+tag@example.com>"))
-			})
-		})
+// Write accepts p while writes remain and fails afterwards.
+//
+// Parameters:
+//   - p: the bytes to write.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: [errWriteFailed] once no writes remain.
+func (w *failingWriter) Write(p []byte) (int, error) {
+	if w.writes == 0 {
+		return 0, errWriteFailed
+	}
 
-		ginkgo.When("the message is HTML", func() {
-			ginkgo.It("should put the supplied boundary in the Content-Type header", func() {
-				headerMap := headers(&Config{
-					FromAddress: "sender@example.com",
-					UseHTML:     true,
-				}, "rec1@example.com", "abc123")
+	w.writes--
 
-				gomega.Expect(headerMap["Content-Type"]).
-					To(gomega.Equal(`multipart/alternative; boundary=abc123`))
-				_, hasCTE := headerMap["Content-Transfer-Encoding"]
-				gomega.Expect(hasCTE).To(gomega.BeFalse())
-			})
-		})
-
-		ginkgo.When("the message is plain text", func() {
-			ginkgo.It("should declare 8bit content-transfer-encoding", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com"},
-					"rec1@example.com",
-					"",
-				)
-
-				gomega.Expect(headerMap["Content-Transfer-Encoding"]).To(gomega.Equal("8bit"))
-			})
-		})
-
-		ginkgo.When("constructing identifying headers", func() {
-			ginkgo.It("should generate a Message-ID using the sender domain", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com"},
-					"rec1@example.com",
-					"",
-				)
-
-				gomega.Expect(headerMap["Message-ID"]).
-					To(gomega.MatchRegexp(`^<[0-9a-f]+@example\.com>$`))
-			})
-
-			ginkgo.It("should format the To address like From", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com"},
-					"rec1+tag@example.com",
-					"",
-				)
-
-				gomega.Expect(headerMap["To"]).To(gomega.Equal("<rec1+tag@example.com>"))
-			})
-
-			ginkgo.It("should include a parseable Date and MIME-version", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com"},
-					"rec1@example.com",
-					"",
-				)
-
-				gomega.Expect(headerMap["MIME-version"]).To(gomega.Equal("1.0"))
-				_, err := time.Parse(time.RFC1123Z, headerMap["Date"])
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("should encode a non-ASCII recipient local-part", func() {
-				headerMap := headers(
-					&Config{FromAddress: "sender@example.com"},
-					"grüß@example.com",
-					"",
-				)
-
-				gomega.Expect(headerMap["To"]).NotTo(gomega.Equal("grüß@example.com"))
-				address, err := mail.ParseAddress(headerMap["To"])
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(address.Address).To(gomega.Equal("grüß@example.com"))
-			})
-		})
-	})
-
-	ginkgo.Describe("generateMessageID", func() {
-		ginkgo.It("should use the sender domain", func() {
-			gomega.Expect(generateMessageID("sender@example.com")).
-				To(gomega.MatchRegexp(`^<[0-9a-f]{16}@example\.com>$`))
-		})
-
-		ginkgo.It("should fall back to localhost when the address has no host", func() {
-			gomega.Expect(generateMessageID("nodomain")).
-				To(gomega.MatchRegexp(`^<[0-9a-f]{16}@localhost>$`))
-			gomega.Expect(generateMessageID("user@")).
-				To(gomega.MatchRegexp(`^<[0-9a-f]{16}@localhost>$`))
-		})
-	})
-
-	ginkgo.Describe("generateBoundary", func() {
-		ginkgo.It("should return a unique hex token", func() {
-			first, err := generateBoundary()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			second, err := generateBoundary()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(first).To(gomega.MatchRegexp(`^[0-9a-f]{16}$`))
-			gomega.Expect(second).To(gomega.MatchRegexp(`^[0-9a-f]{16}$`))
-			gomega.Expect(first).NotTo(gomega.Equal(second))
-		})
-	})
-
-	ginkgo.Describe("writeHeaders", func() {
-		ginkgo.It("should write each header and a blank line", func() {
-			writer := &captureWriter{}
-			gomega.Expect(writeHeaders(writer, map[string]string{"Subject": "Hello"})).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.Equal("Subject: Hello\n\n"))
-		})
-
-		ginkgo.It("should write headers in sorted key order", func() {
-			writer := &captureWriter{}
-			gomega.Expect(writeHeaders(writer, map[string]string{
-				"Subject": "Hello",
-				"From":    "<a@b.com>",
-			})).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.Equal("From: <a@b.com>\nSubject: Hello\n\n"))
-		})
-
-		ginkgo.It("should fold a long header value to the RFC 5322 line limit", func() {
-			writer := &captureWriter{}
-			gomega.Expect(writeHeaders(writer, map[string]string{
-				"Subject": strings.Repeat("B", 1200),
-			})).To(gomega.Succeed())
-
-			body := strings.TrimSuffix(writer.String(), "\n")
-			for line := range strings.SplitSeq(body, "\n") {
-				gomega.Expect(len(line)).To(gomega.BeNumerically("<=", maxHeaderLineOctets))
-			}
-
-			unfolded := strings.ReplaceAll(strings.TrimPrefix(strings.ReplaceAll(body, "\n ", ""), "Subject: "), "\n", "")
-			gomega.Expect(unfolded).To(gomega.Equal(strings.Repeat("B", 1200)))
-		})
-
-		ginkgo.When("the output stream is closed during header content", func() {
-			ginkgo.It("should fail with FailWriteHeaders", func() {
-				gomega.Expect(writeHeaders(testutils.CreateFailWriter(0), map[string]string{"key": "value"})).
-					To(matchFailure(FailWriteHeaders))
-			})
-		})
-
-		ginkgo.When("the output stream is closed after header content", func() {
-			ginkgo.It("should fail with FailWriteHeaders", func() {
-				gomega.Expect(writeHeaders(testutils.CreateFailWriter(1), map[string]string{"key": "value"})).
-					To(matchFailure(FailWriteHeaders))
-			})
-		})
-	})
-
-	ginkgo.Describe("writeAlternative", func() {
-		ginkgo.It("should write plain and HTML parts with the closing boundary", func() {
-			templater := typesmocks.NewMockTemplater(ginkgo.GinkgoT())
-			templater.On("GetTemplate", templatePlain).Return(nil, false)
-			templater.On("GetTemplate", templateHTML).Return(nil, false)
-
-			writer := &captureWriter{}
-			gomega.Expect(writeAlternative(writer, "hello", "abc", templater)).To(gomega.Succeed())
-
-			body := writer.String()
-			gomega.Expect(body).To(gomega.ContainSubstring("--abc\n"))
-			gomega.Expect(body).To(gomega.ContainSubstring("Content-Type: " + contentPlain))
-			gomega.Expect(body).To(gomega.ContainSubstring("Content-Type: " + contentHTML))
-			gomega.Expect(strings.Count(body, "hello")).To(gomega.Equal(2))
-			gomega.Expect(body).To(gomega.ContainSubstring("--abc--"))
-		})
-
-		ginkgo.When("the underlying stream stops working", func() {
-			ginkgo.It("should fail when writing multipart plain header", func() {
-				err := writeAlternative(testutils.CreateFailWriter(1), "", "boundary", &Service{})
-				gomega.Expect(err).To(matchFailure(FailPlainHeader))
-			})
-
-			ginkgo.It("should fail when writing multipart plain message", func() {
-				err := writeAlternative(testutils.CreateFailWriter(2), "", "boundary", &Service{})
-				gomega.Expect(err).To(matchFailure(FailMessageRaw))
-			})
-
-			ginkgo.It("should fail when writing multipart HTML header", func() {
-				err := writeAlternative(testutils.CreateFailWriter(4), "", "boundary", &Service{})
-				gomega.Expect(err).To(matchFailure(FailHTMLHeader))
-			})
-
-			ginkgo.It("should fail when writing multipart HTML message", func() {
-				err := writeAlternative(testutils.CreateFailWriter(5), "", "boundary", &Service{})
-				gomega.Expect(err).To(matchFailure(FailMessageRaw))
-			})
-
-			ginkgo.It("should fail when writing multipart end header", func() {
-				err := writeAlternative(testutils.CreateFailWriter(6), "", "boundary", &Service{})
-				gomega.Expect(err).To(matchFailure(FailMultiEndHeader))
-			})
-		})
-	})
-
-	ginkgo.Describe("writePart", func() {
-		ginkgo.It("should write the raw message when no template is registered", func() {
-			templater := typesmocks.NewMockTemplater(ginkgo.GinkgoT())
-			templater.On("GetTemplate", "HTML").Return(nil, false)
-
-			writer := &captureWriter{}
-			gomega.Expect(writePart(writer, "<p>styled</p>", "HTML", templater)).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.Equal("<p>styled</p>"))
-		})
-
-		ginkgo.It("should execute a registered template", func() {
-			tpl := template.Must(template.New("plain").Parse("wrapped {{.message}}"))
-			templater := typesmocks.NewMockTemplater(ginkgo.GinkgoT())
-			templater.On("GetTemplate", templatePlain).Return(tpl, true)
-
-			writer := &captureWriter{}
-			gomega.Expect(writePart(writer, "hello", templatePlain, templater)).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.Equal("wrapped hello"))
-		})
-
-		ginkgo.It("should fail when the template cannot be executed", func() {
-			tpl := template.Must(template.New("dummy").Parse("{{.message.Bogus}}"))
-			templater := typesmocks.NewMockTemplater(ginkgo.GinkgoT())
-			templater.On("GetTemplate", "dummy").Return(tpl, true)
-
-			err := writePart(&captureWriter{}, "hello", "dummy", templater)
-			gomega.Expect(err).To(matchFailure(FailMessageTemplate))
-		})
-
-		ginkgo.It("should fail when writing a template to a closed stream", func() {
-			service := Service{}
-			gomega.Expect(service.SetTemplateString("dummy", "dummy template content")).To(gomega.Succeed())
-
-			err := writePart(testutils.CreateFailWriter(0), "", "dummy", &service)
-			gomega.Expect(err).To(matchFailure(FailMessageTemplate))
-		})
-	})
-
-	ginkgo.Describe("writePartHeader", func() {
-		ginkgo.It("should write a part header with content type", func() {
-			writer := &captureWriter{}
-			gomega.Expect(writePartHeader(writer, "abc", contentPlain)).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.HavePrefix("\n\n--abc\n"))
-			gomega.Expect(writer.String()).To(gomega.ContainSubstring("Content-Type: " + contentPlain))
-			gomega.Expect(writer.String()).To(gomega.ContainSubstring("Content-Transfer-Encoding: 8bit"))
-		})
-
-		ginkgo.It("should write the closing boundary when content type is empty", func() {
-			writer := &captureWriter{}
-			gomega.Expect(writePartHeader(writer, "abc", "")).To(gomega.Succeed())
-			gomega.Expect(writer.String()).To(gomega.Equal("\n\n--abc--"))
-		})
-
-		ginkgo.It("should fail when the writer rejects the boundary", func() {
-			err := writePartHeader(testutils.CreateFailWriter(0), "abc", contentPlain)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("writing multipart boundary"))
-		})
-	})
-})
+	return w.written.Write(p)
+}
