@@ -11,7 +11,7 @@
 
 services:
   ntfy:
-    image: binwiederhier/ntfy:latest@sha256:803b2aaeb94df76c8b32ecd91039dc80b0fddb7041dcaf082b33bcdfd4ba39ad
+    image: binwiederhier/ntfy:latest@sha256:91bb7fa607b02006c119bb4a31032923b414a713a032ecb40f0c5d6bfd5b7e40
     container_name: ntfy
     command:
       - serve
