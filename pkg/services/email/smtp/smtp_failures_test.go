@@ -2,87 +2,83 @@ package smtp
 
 import (
 	"errors"
+	"testing"
 
-	"github.com/stretchr/testify/mock"
-
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	failuresmocks "github.com/nicholas-fedor/shoutrrr/internal/failures/mocks"
 )
 
-var _ = ginkgo.Describe("fail", func() {
-	ginkgo.It("should wrap the underlying error with the selected ID", func() {
-		underlying := failuresmocks.NewMockFailure(ginkgo.GinkgoT())
-		underlying.On("Error").Return("boom")
+// TestFail verifies the message of each failure ID and that the failure
+// carries the ID.
+func TestFail(t *testing.T) {
+	t.Parallel()
 
-		got := fail(FailHandshake, underlying)
-		gomega.Expect(got.ID()).To(gomega.Equal(FailHandshake))
-		gomega.Expect(got.Unwrap()).To(gomega.Equal(underlying))
-		gomega.Expect(got.Error()).To(gomega.ContainSubstring("server did not accept the handshake"))
-		gomega.Expect(got.Error()).To(gomega.ContainSubstring("boom"))
-	})
+	// tests lists failure IDs with their messages.
+	tests := []struct {
+		want string
+		id   failures.FailureID
+	}{
+		{id: FailUnknown, want: "an unknown error occurred"},
+		{id: FailGetSMTPClient, want: "error getting SMTP client"},
+		{id: FailEnableStartTLS, want: "error enabling StartTLS"},
+		{id: FailAuthenticating, want: "error authenticating"},
+		{id: FailClosingSession, want: "error closing session"},
+		{id: FailPlainHeader, want: "error writing plain header"},
+		{id: FailHTMLHeader, want: "error writing HTML header"},
+		{id: FailMultiEndHeader, want: "error writing multipart end header"},
+		{id: FailMessageTemplate, want: "error applying message template"},
+		{id: FailMessageRaw, want: "error writing message"},
+		{id: FailSetSender, want: "error setting MAIL FROM"},
+		{id: FailSetRecipient, want: "error setting RCPT"},
+		{id: FailOpenDataStream, want: "error starting DATA"},
+		{id: FailWriteHeaders, want: "error writing message headers"},
+		{id: FailCloseDataStream, want: "error closing message stream"},
+		{id: FailConnectToServer, want: "error connecting to server"},
+		{id: FailCreateSMTPClient, want: "error creating smtp client"},
+		{id: FailApplySendParams, want: "error applying params to send config"},
+		{id: FailHandshake, want: "server did not accept the handshake"},
+		{id: FailResetSession, want: "error resetting session between recipients"},
+		{id: failures.FailureID(999), want: "an unknown error occurred"},
+	}
 
-	ginkgo.It("should interpolate format verbs from extra arguments", func() {
-		got := fail(FailAuthType, nil, "bogus")
-		gomega.Expect(got.ID()).To(gomega.Equal(FailAuthType))
-		gomega.Expect(got.Error()).To(gomega.Equal("invalid authentication method 'bogus'"))
-	})
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
 
-	ginkgo.It("should interpolate the recipient into FailSendRecipient", func() {
-		got := fail(FailSendRecipient, errors.New("nope"), "rec@example.com")
-		gomega.Expect(got.ID()).To(gomega.Equal(FailSendRecipient))
-		gomega.Expect(got.Error()).To(gomega.ContainSubstring(`error sending message to recipient "rec@example.com"`))
-	})
+			got := fail(tt.id, nil)
 
-	ginkgo.It("should use the unknown message for an unrecognized ID", func() {
-		got := fail(failures.FailureID(999), nil)
-		gomega.Expect(got.ID()).To(gomega.Equal(failures.FailureID(999)))
-		gomega.Expect(got.Error()).To(gomega.Equal("an unknown error occurred"))
-	})
+			assert.Equal(t, tt.id, got.ID())
+			require.EqualError(t, got, tt.want)
+			assert.NoError(t, got.Unwrap())
+		})
+	}
+}
 
-	ginkgo.DescribeTable("should select a descriptive message for each failure ID",
-		func(id failures.FailureID, substring string) {
-			got := fail(id, nil)
-			gomega.Expect(got.ID()).To(gomega.Equal(id))
-			gomega.Expect(got.Error()).To(gomega.ContainSubstring(substring))
-		},
-		ginkgo.Entry("FailUnknown", FailUnknown, "an unknown error occurred"),
-		ginkgo.Entry("FailGetSMTPClient", FailGetSMTPClient, "error getting SMTP client"),
-		ginkgo.Entry("FailConnectToServer", FailConnectToServer, "error connecting to server"),
-		ginkgo.Entry("FailCreateSMTPClient", FailCreateSMTPClient, "error creating smtp client"),
-		ginkgo.Entry("FailEnableStartTLS", FailEnableStartTLS, "error enabling StartTLS"),
-		ginkgo.Entry("FailAuthenticating", FailAuthenticating, "error authenticating"),
-		ginkgo.Entry("FailClosingSession", FailClosingSession, "error closing session"),
-		ginkgo.Entry("FailPlainHeader", FailPlainHeader, "error writing plain header"),
-		ginkgo.Entry("FailHTMLHeader", FailHTMLHeader, "error writing HTML header"),
-		ginkgo.Entry("FailMultiEndHeader", FailMultiEndHeader, "error writing multipart end header"),
-		ginkgo.Entry("FailMessageTemplate", FailMessageTemplate, "error applying message template"),
-		ginkgo.Entry("FailMessageRaw", FailMessageRaw, "error writing message"),
-		ginkgo.Entry("FailSetSender", FailSetSender, "error setting MAIL FROM"),
-		ginkgo.Entry("FailSetRecipient", FailSetRecipient, "error setting RCPT"),
-		ginkgo.Entry("FailOpenDataStream", FailOpenDataStream, "error starting DATA"),
-		ginkgo.Entry("FailWriteHeaders", FailWriteHeaders, "error writing message headers"),
-		ginkgo.Entry("FailCloseDataStream", FailCloseDataStream, "error closing message stream"),
-		ginkgo.Entry("FailApplySendParams", FailApplySendParams, "error applying params to send config"),
-		ginkgo.Entry("FailHandshake", FailHandshake, "server did not accept the handshake"),
-		ginkgo.Entry("FailResetSession", FailResetSession, "error resetting session between recipients"),
-	)
+// TestFailArguments verifies that the authentication method and recipient
+// fill in their messages.
+func TestFailArguments(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.It("should compare equal by ID via errors.Is", func() {
-		gomega.Expect(fail(FailHandshake, errors.New("one"))).To(gomega.MatchError(fail(FailHandshake, nil)))
-		gomega.Expect(fail(FailHandshake, nil)).NotTo(gomega.MatchError(fail(FailAuthenticating, nil)))
-	})
+	require.EqualError(t, fail(FailAuthType, nil, "bogus"), "invalid authentication method 'bogus'")
+	require.EqualError(t, fail(FailSendRecipient, errors.New("rejected"), "rec@example.com"),
+		`error sending message to recipient "rec@example.com": rejected`)
+}
 
-	ginkgo.It("should not require the mock Error method when only unwrapping", func() {
-		underlying := failuresmocks.NewMockFailure(ginkgo.GinkgoT())
-		underlying.On("Error").Return("unused").Maybe()
-		underlying.On("ID").Return(FailUnknown).Maybe()
-		underlying.On("Unwrap").Return(nil).Maybe()
-		underlying.On("Is", mock.Anything).Return(false).Maybe()
+// TestFailWrapping verifies that a failure wraps its cause, adds the cause to
+// its message, and matches other failures with the same ID.
+func TestFailWrapping(t *testing.T) {
+	t.Parallel()
 
-		got := fail(FailConnectToServer, underlying)
-		gomega.Expect(got.Unwrap()).To(gomega.Equal(underlying))
-	})
-})
+	cause := failuresmocks.NewMockFailure(t)
+	cause.EXPECT().Error().Return("connection reset").Once()
+
+	got := fail(FailHandshake, cause)
+
+	assert.Same(t, cause, got.Unwrap())
+	require.EqualError(t, got, "server did not accept the handshake: connection reset")
+	require.ErrorIs(t, fail(FailHandshake, errors.New("one")), fail(FailHandshake, nil))
+	require.NotErrorIs(t, fail(FailHandshake, nil), fail(FailAuthenticating, nil))
+}

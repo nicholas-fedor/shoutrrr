@@ -1,41 +1,70 @@
 package smtp
 
 import (
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("encMethod", func() {
-	ginkgo.Describe("String", func() {
-		ginkgo.It("should print the canonical name for each method", func() {
-			gomega.Expect(EncMethods.None.String()).To(gomega.Equal("None"))
-			gomega.Expect(EncMethods.ExplicitTLS.String()).To(gomega.Equal("ExplicitTLS"))
-			gomega.Expect(EncMethods.ImplicitTLS.String()).To(gomega.Equal("ImplicitTLS"))
-			gomega.Expect(EncMethods.Auto.String()).To(gomega.Equal("Auto"))
-		})
-	})
+// TestEncMethodString verifies the name of each encryption method, which the
+// URL uses as the encryption value.
+func TestEncMethodString(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.Describe("useImplicitTLS", func() {
-		ginkgo.It("should never use implicit TLS for None or ExplicitTLS", func() {
-			gomega.Expect(useImplicitTLS(EncMethods.None, ImplicitTLSPort)).To(gomega.BeFalse())
-			gomega.Expect(useImplicitTLS(EncMethods.None, 587)).To(gomega.BeFalse())
-			gomega.Expect(useImplicitTLS(EncMethods.ExplicitTLS, ImplicitTLSPort)).To(gomega.BeFalse())
-			gomega.Expect(useImplicitTLS(EncMethods.ExplicitTLS, 587)).To(gomega.BeFalse())
-		})
+	// tests lists methods with their names.
+	tests := []struct {
+		want   string
+		method encMethod
+	}{
+		{method: EncNone, want: "None"},
+		{method: EncExplicitTLS, want: "ExplicitTLS"},
+		{method: EncImplicitTLS, want: "ImplicitTLS"},
+		{method: EncAuto, want: "Auto"},
+		{method: encMethod(99), want: "Invalid"},
+	}
 
-		ginkgo.It("should always use implicit TLS for ImplicitTLS", func() {
-			gomega.Expect(useImplicitTLS(EncMethods.ImplicitTLS, ImplicitTLSPort)).To(gomega.BeTrue())
-			gomega.Expect(useImplicitTLS(EncMethods.ImplicitTLS, 25)).To(gomega.BeTrue())
-		})
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
 
-		ginkgo.It("should use implicit TLS for Auto only on port 465", func() {
-			gomega.Expect(useImplicitTLS(EncMethods.Auto, ImplicitTLSPort)).To(gomega.BeTrue())
-			gomega.Expect(useImplicitTLS(EncMethods.Auto, 587)).To(gomega.BeFalse())
-			gomega.Expect(useImplicitTLS(EncMethods.Auto, 25)).To(gomega.BeFalse())
+			assert.Equal(t, tt.want, tt.method.String())
 		})
+	}
 
-		ginkgo.It("should return false for an unknown encryption value", func() {
-			gomega.Expect(useImplicitTLS(encMethod(99), ImplicitTLSPort)).To(gomega.BeFalse())
+	assert.Equal(t, &encMethodVals{
+		None: EncNone, ExplicitTLS: EncExplicitTLS, ImplicitTLS: EncImplicitTLS, Auto: EncAuto, Enum: EncMethods.Enum,
+	}, EncMethods)
+}
+
+// TestUseImplicitTLS verifies that implicit TLS is used for ImplicitTLS on
+// any port and for Auto on port 465 only.
+func TestUseImplicitTLS(t *testing.T) {
+	t.Parallel()
+
+	// tests lists methods and ports with whether each should use implicit TLS.
+	tests := []struct {
+		method encMethod
+		port   uint16
+		want   bool
+	}{
+		{method: EncNone, port: ImplicitTLSPort},
+		{method: EncNone, port: 587},
+		{method: EncExplicitTLS, port: ImplicitTLSPort},
+		{method: EncExplicitTLS, port: 587},
+		{method: EncImplicitTLS, port: ImplicitTLSPort, want: true},
+		{method: EncImplicitTLS, port: 25, want: true},
+		{method: EncAuto, port: ImplicitTLSPort, want: true},
+		{method: EncAuto, port: 587},
+		{method: EncAuto, port: 25},
+		{method: encMethod(99), port: ImplicitTLSPort},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%v on %d", tt.method, tt.port), func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, useImplicitTLS(tt.method, tt.port))
 		})
-	})
-})
+	}
+}

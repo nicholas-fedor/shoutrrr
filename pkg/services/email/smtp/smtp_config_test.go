@@ -4,281 +4,358 @@ import (
 	"crypto/tls"
 	"errors"
 	"net/url"
+	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	ginkgo.Describe("Clone", func() {
-		ginkgo.It("should be identical to the original", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(urlWithAllProps))).To(gomega.Succeed())
-			gomega.Expect(config.Clone()).To(gomega.Equal(*config))
-		})
+// allPropsURL is a service URL that sets every property GetURL writes.
+const allPropsURL = "smtp://user:password@example.com:2225/?auth=None&clienthost=testhost&encryption=ExplicitTLS" +
+	"&fromaddress=sender%40example.com&fromname=Sender&subject=Subject&toaddresses=rec1%40example.com%2Crec2%40example.com" +
+	"&usehtml=Yes&usestarttls=No&timeout=10s"
 
-		ginkgo.It("should copy ToAddresses so later mutations are independent", func() {
-			config := &Config{ToAddresses: []string{"a@example.com"}}
-			clone := config.Clone()
-			clone.ToAddresses[0] = "b@example.com"
-			gomega.Expect(config.ToAddresses[0]).To(gomega.Equal("a@example.com"))
+// parseConfigURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseConfigURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsed
+}
+
+// newInitialConfig returns the config Initialize starts from before it parses
+// the service URL.
+//
+// Returns:
+//   - *Config: the config.
+func newInitialConfig() *Config {
+	return &Config{
+		Port:        DefaultSMTPPort,
+		Auth:        AuthUnknown,
+		UseStartTLS: true,
+		Encryption:  EncAuto,
+		ClientHost:  "localhost",
+		Timeout:     defaultTimeout,
+	}
+}
+
+// newDefaultConfig returns a config with the default values of its key props.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Config: the config.
+func newDefaultConfig(t *testing.T) *Config {
+	t.Helper()
+
+	config := &Config{}
+	resolver := format.NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	return config
+}
+
+// TestConfigClone verifies that Clone copies every field, with a recipient
+// list that later changes to the clone do not affect.
+func TestConfigClone(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseConfigURL(t, allPropsURL)))
+
+	clone := config.Clone()
+	assert.Equal(t, *config, clone)
+
+	clone.ToAddresses[0] = "changed@example.com"
+	assert.Equal(t, []string{"rec1@example.com", "rec2@example.com"}, config.ToAddresses)
+}
+
+// TestConfigEnums verifies that the authentication and encryption fields use
+// their enum formatters.
+func TestConfigEnums(t *testing.T) {
+	t.Parallel()
+
+	enums := (&Config{}).Enums()
+
+	assert.Len(t, enums, 2)
+	assert.Same(t, AuthTypes.Enum, enums["Auth"])
+	assert.Same(t, EncMethods.Enum, enums["Encryption"])
+}
+
+// TestConfigSetURL verifies that SetURL reads the credentials, host, and port
+// from the URL authority and the other settings from the query, restoring plus
+// tags in addresses that query decoding turned into spaces.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// base returns the config a URL with only the addresses produces from the
+	// initial config, with the given overrides applied.
+	base := func(override func(*Config)) Config {
+		config := *newInitialConfig()
+		config.Host = "mail.example.com"
+		config.FromAddress = "sender@example.com"
+		config.ToAddresses = []string{"rec@example.com"}
+		override(&config)
+
+		return config
+	}
+
+	// tests lists service URLs with the overrides of the config each should
+	// produce.
+	tests := []struct {
+		override func(*Config)
+		name     string
+		rawURL   string
+	}{
+		{
+			name:     "addresses only",
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			override: func(*Config) {},
+		},
+		{
+			name:   "every setting",
+			rawURL: allPropsURL + "&requirestarttls=yes&skiptlsverify=yes",
+			override: func(c *Config) {
+				c.Host, c.Port, c.Username, c.Password = "example.com", 2225, "user", "password"
+				c.Auth, c.ClientHost, c.Encryption, c.FromName, c.Subject = AuthNone, "testhost", EncExplicitTLS, "Sender", "Subject"
+				c.ToAddresses = []string{"rec1@example.com", "rec2@example.com"}
+				c.UseHTML, c.UseStartTLS, c.RequireStartTLS, c.SkipTLSVerify = true, false, true, true
+			},
+		},
+		{
+			name:     "aliases",
+			rawURL:   "smtp://mail.example.com/?from=sender@example.com&to=rec@example.com&title=Alert&starttls=no",
+			override: func(c *Config) { c.Subject, c.UseStartTLS = "Alert", false },
+		},
+		{
+			name:     "password with @ and spaces",
+			rawURL:   "smtp://user:p%40ss%20word@mail.example.com:587/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			override: func(c *Config) { c.Username, c.Password, c.Port = "user", "p@ss word", 587 },
+		},
+		{
+			name:     "IPv6 host",
+			rawURL:   "smtp://[::1]:587/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			override: func(c *Config) { c.Host, c.Port = "::1", 587 },
+		},
+		{
+			name:   "plus tags",
+			rawURL: "smtp://mail.example.com/?fromaddress=sender+alerts@example.com&toaddresses=rec+a@example.com,other+b@example.com",
+			override: func(c *Config) {
+				c.FromAddress, c.ToAddresses = "sender+alerts@example.com", []string{"rec+a@example.com", "other+b@example.com"}
+			},
+		},
+		{
+			name:   "display name with a plus-tagged address",
+			rawURL: "smtp://mail.example.com/?fromaddress=Ops%20Team%20%3Cops+alerts@example.com%3E&toaddresses=Jane%20Doe%20%3Cjane+x@example.com%3E",
+			override: func(c *Config) {
+				c.FromAddress, c.ToAddresses = "Ops Team <ops+alerts@example.com>", []string{"Jane Doe <jane+x@example.com>"}
+			},
+		},
+		{
+			name:     "encoded semicolon",
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=a@b.com%3Bc@d.com",
+			override: func(c *Config) { c.ToAddresses = []string{"a@b.com;c@d.com"} },
+		},
+		{
+			name:     "timeout",
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com&timeout=45s",
+			override: func(c *Config) { c.Timeout = 45 * time.Second },
+		},
+		{
+			name:     "skiptlsverify no",
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com&skiptlsverify=no",
+			override: func(*Config) {},
+		},
+		{
+			name:     "port out of range keeps the previous port",
+			rawURL:   "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			override: func(c *Config) { c.Port = DefaultSMTPPort },
+		},
+		{
+			name:     "docs command placeholder",
+			rawURL:   "smtp://dummy@dummy.com",
+			override: func(c *Config) { c.Host, c.Username, c.FromAddress, c.ToAddresses = "dummy.com", "dummy", "", nil },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newInitialConfig()
+			require.NoError(t, config.SetURL(parseConfigURL(t, tt.rawURL)))
+
+			want := base(tt.override)
+			assert.Equal(t, want, *config)
 		})
+	}
+}
+
+// TestConfigSetURLErrors verifies that SetURL requires the sender and
+// recipient addresses and rejects invalid query values.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "no sender", rawURL: "smtp://mail.example.com/?toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
+		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
+		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid encryption", rawURL: "smtp://mail.example.com/?encryption=SSL", wantErr: format.ErrInvalidEnumValue},
+		{
+			name:    "invalid timeout",
+			rawURL:  "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com&timeout=soon",
+			wantErr: format.ErrParseDurationFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, newInitialConfig().SetURL(parseConfigURL(t, tt.rawURL)), tt.wantErr)
+		})
+	}
+}
+
+// TestConfigSetURLResolverError verifies that SetURL names the query key whose
+// value the resolver rejects, without the value.
+func TestConfigSetURLResolverError(t *testing.T) {
+	t.Parallel()
+
+	errRejected := errors.New("rejected")
+
+	resolver := typesmocks.NewMockConfigQueryResolver(t)
+	resolver.EXPECT().Set("foo", "SECRETvalue").Return(errRejected).Once()
+
+	err := (&Config{}).setURL(resolver, parseConfigURL(t, "smtp://dummy@dummy.com?foo=SECRETvalue"))
+
+	require.ErrorIs(t, err, errRejected)
+	assert.EqualError(t, err, `setting query parameter "foo": rejected`)
+}
+
+// TestConfigGetURL verifies that GetURL writes the credentials, host, and port
+// into the URL authority and the settings into the query, adding
+// requirestarttls and skiptlsverify only when they are on, and round-trips
+// through SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseConfigURL(t, allPropsURL)))
+	assert.Equal(t, allPropsURL, config.GetURL().String())
+
+	config.RequireStartTLS, config.SkipTLSVerify = true, true
+	serviceURL := config.GetURL()
+	assert.Equal(t, allPropsURL+"&requirestarttls=Yes&skiptlsverify=Yes", serviceURL.String())
+
+	roundTrip := &Config{}
+	require.NoError(t, roundTrip.SetURL(serviceURL))
+	assert.Equal(t, config, roundTrip)
+
+	ipv6 := Config{Host: "::1", Port: 587}
+	assert.Equal(t, "[::1]:587", ipv6.GetURL().Host)
+}
+
+// TestConfigGetURLResolver verifies that getURL writes the resolver's values
+// for the query keys and skips keys the resolver cannot get.
+func TestConfigGetURLResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("values", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := typesmocks.NewMockConfigQueryResolver(t)
+		resolver.EXPECT().Get(mock.Anything).Return("v", nil).Times(10)
+
+		got := (&Config{Host: "mail.example.com", Port: 587, Username: "user", Password: "pass"}).getURL(resolver)
+
+		assert.Equal(t,
+			"smtp://user:pass@mail.example.com:587/?auth=v&clienthost=v&encryption=v&fromaddress=v&fromname=v&subject=v&toaddresses=v&usehtml=v&usestarttls=v&timeout=v",
+			got.String())
 	})
 
-	ginkgo.Describe("Enums", func() {
-		ginkgo.It("should expose Auth and Encryption formatters", func() {
-			enums := (&Config{}).Enums()
-			gomega.Expect(enums).To(gomega.HaveLen(2))
-			gomega.Expect(enums).To(gomega.HaveKey("Auth"))
-			gomega.Expect(enums).To(gomega.HaveKey("Encryption"))
-			gomega.Expect(enums["Auth"]).To(gomega.Equal(AuthTypes.Enum))
-			gomega.Expect(enums["Encryption"]).To(gomega.Equal(EncMethods.Enum))
-		})
+	t.Run("missing keys", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := typesmocks.NewMockConfigQueryResolver(t)
+		resolver.EXPECT().Get(mock.Anything).Return("", errors.New("missing")).Times(10)
+
+		got := (&Config{Host: "example.com", Port: 25}).getURL(resolver)
+
+		assert.Equal(t, "smtp://example.com:25/?", got.String())
 	})
+}
 
-	ginkgo.Describe("GetURL and SetURL", func() {
-		ginkgo.It("should be identical after de-/serialization", func() {
-			url := testutils.URLMust(urlWithAllProps)
-			config := &Config{}
-			pkr := format.NewPropKeyResolver(config)
-			gomega.Expect(config.setURL(&pkr, url)).To(gomega.Succeed())
+// TestConfigDefaults verifies the default timeout and that the timeout reads
+// as a duration in the URL.
+func TestConfigDefaults(t *testing.T) {
+	t.Parallel()
 
-			outputURL := config.GetURL()
-			ginkgo.GinkgoT().Logf("\n\n%s\n%s\n\n-", outputURL, urlWithAllProps)
-			gomega.Expect(outputURL.String()).To(gomega.Equal(urlWithAllProps))
+	config := newDefaultConfig(t)
+	assert.Equal(t, 10*time.Second, config.Timeout)
+
+	config.Timeout = 90 * time.Second
+	assert.Equal(t, "1m30s", config.GetURL().Query().Get("timeout"))
+}
+
+// TestRestorePlusAddress verifies that spaces in the local part of an
+// address, which query decoding makes from plus signs, become plus signs
+// again, leaving the domain and any display name unchanged.
+func TestRestorePlusAddress(t *testing.T) {
+	t.Parallel()
+
+	// tests lists decoded addresses with the address each should restore to.
+	tests := []struct {
+		address string
+		want    string
+	}{
+		{address: "user tag@example.com", want: "user+tag@example.com"},
+		{address: "user a b@example.com", want: "user+a+b@example.com"},
+		{address: "user@example.com", want: "user@example.com"},
+		{address: "user tag@mail host", want: "user+tag@mail host"},
+		{address: "Jane Doe <jane x@example.com>", want: "Jane Doe <jane+x@example.com>"},
+		{address: "Jane Doe <jane@example.com>", want: "Jane Doe <jane@example.com>"},
+		{address: "no at sign", want: "no+at+sign"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, restorePlusAddress(tt.address))
 		})
+	}
+}
 
-		ginkgo.When("skiptlsverify is set to yes", func() {
-			ginkgo.It("should set SkipTLSVerify to true", func() {
-				config := &Config{}
-				gomega.Expect(config.SetURL(testutils.URLMust(
-					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com&toAddresses=rec1@example.com&skiptlsverify=yes",
-				))).To(gomega.Succeed())
-				gomega.Expect(config.SkipTLSVerify).To(gomega.BeTrue())
-			})
-		})
+// TestNewTLSConfig verifies that the TLS config names the server, requires TLS
+// 1.2 without a maximum version, and skips verification only when configured.
+func TestNewTLSConfig(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.When("skiptlsverify is set to no", func() {
-			ginkgo.It("should set SkipTLSVerify to false", func() {
-				config := &Config{}
-				gomega.Expect(config.SetURL(testutils.URLMust(
-					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com&toAddresses=rec1@example.com&skiptlsverify=no",
-				))).To(gomega.Succeed())
-				gomega.Expect(config.SkipTLSVerify).To(gomega.BeFalse())
-			})
-		})
-
-		ginkgo.When("fromAddress is missing", func() {
-			ginkgo.It("should return ErrFromAddressMissing", func() {
-				gomega.Expect((&Config{}).SetURL(testutils.URLMust(
-					"smtp://user:password@example.com:2225/?toAddresses=rec1@example.com,rec2@example.com",
-				))).To(gomega.MatchError(ErrFromAddressMissing))
-			})
-		})
-
-		ginkgo.When("toAddresses are missing", func() {
-			ginkgo.It("should return ErrToAddressMissing", func() {
-				gomega.Expect((&Config{}).SetURL(testutils.URLMust(
-					"smtp://user:password@example.com:2225/?fromAddress=sender@example.com",
-				))).To(gomega.MatchError(ErrToAddressMissing))
-			})
-		})
-
-		ginkgo.It("should not allow getting invalid query values", func() {
-			testutils.TestConfigGetInvalidQueryValue(&Config{})
-		})
-
-		ginkgo.It("should not allow setting invalid query values", func() {
-			testutils.TestConfigSetInvalidQueryValue(
-				&Config{},
-				"smtp://example.com/?fromAddress=s@example.com&toAddresses=r@example.com&foo=bar",
-			)
-		})
-
-		ginkgo.It("should have the expected number of fields and enums", func() {
-			config := &Config{}
-			testutils.TestConfigGetEnumsCount(config, 2)
-			testutils.TestConfigGetFieldsCount(config, 16)
-		})
-
-		ginkgo.It("should include requirestarttls and skiptlsverify only when true", func() {
-			config := &Config{
-				Host:            "example.com",
-				Port:            25,
-				FromAddress:     "sender@example.com",
-				ToAddresses:     []string{"rec@example.com"},
-				RequireStartTLS: true,
-				SkipTLSVerify:   true,
-			}
-
-			query := config.GetURL().Query()
-			gomega.Expect(query.Get("requirestarttls")).To(gomega.Equal("Yes"))
-			gomega.Expect(query.Get("skiptlsverify")).To(gomega.Equal("Yes"))
-
-			config.RequireStartTLS = false
-			config.SkipTLSVerify = false
-			query = config.GetURL().Query()
-			gomega.Expect(query.Get("requirestarttls")).To(gomega.BeEmpty())
-			gomega.Expect(query.Get("skiptlsverify")).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.Describe("getURL", func() {
-		ginkgo.It("should skip keys the resolver cannot get", func() {
-			config := &Config{Host: "example.com", Port: 25}
-			resolver := typesmocks.NewMockConfigQueryResolver(ginkgo.GinkgoT())
-			resolver.On("Get", mock.Anything).Return("", errors.New("missing")).Times(10)
-
-			got := config.getURL(resolver)
-			gomega.Expect(got.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(got.Host).To(gomega.Equal("example.com:25"))
-			gomega.Expect(got.RawQuery).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should serialize resolver values into the query", func() {
-			config := &Config{Host: "mail.example.com", Port: 587, Username: "user", Password: "pass"}
-			resolver := typesmocks.NewMockConfigQueryResolver(ginkgo.GinkgoT())
-			resolver.On("Get", mock.Anything).Return("value", nil).Times(10)
-
-			got := config.getURL(resolver)
-			gomega.Expect(got.User.Username()).To(gomega.Equal("user"))
-			pass, ok := got.User.Password()
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(pass).To(gomega.Equal("pass"))
-			gomega.Expect(got.RawQuery).To(gomega.ContainSubstring("auth=value"))
-			gomega.Expect(got.RawQuery).To(gomega.ContainSubstring("fromaddress=value"))
-		})
-	})
-
-	ginkgo.Describe("setURL", func() {
-		ginkgo.It("should wrap resolver Set errors", func() {
-			resolver := typesmocks.NewMockConfigQueryResolver(ginkgo.GinkgoT())
-			resolver.On("Set", "foo", "bar").Return(errors.New("nope"))
-
-			err := (&Config{}).setURL(resolver, testutils.URLMust("smtp://dummy@dummy.com?foo=bar"))
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring(`setting query parameter "foo"`))
-			gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring(`"bar"`))
-		})
-
-		ginkgo.It("should allow the dummy URL without from or to addresses", func() {
-			gomega.Expect((&Config{}).SetURL(testutils.URLMust("smtp://dummy@dummy.com"))).To(gomega.Succeed())
-		})
-
-		ginkgo.It("should parse an IPv6 host", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"smtp://[::1]:587/?fromAddress=sender@example.com&toAddresses=rec1@example.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.Host).To(gomega.Equal("::1"))
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(587)))
-			gomega.Expect(config.GetURL().Host).To(gomega.Equal("[::1]:587"))
-			gomega.Expect(config.GetURL().Hostname()).To(gomega.Equal("::1"))
-		})
-
-		ginkgo.It("should keep the previous port when the URL port is out of range", func() {
-			config := &Config{Port: DefaultSMTPPort}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"smtp://example.com:99999/?fromAddress=sender@example.com&toAddresses=rec1@example.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.Port).To(gomega.Equal(uint16(DefaultSMTPPort)))
-		})
-
-		ginkgo.It("should treat an encoded semicolon as part of a single recipient", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"smtp://example.com/?fromAddress=sender@example.com&toAddresses=a@b.com%3Bc@d.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.ToAddresses).To(gomega.Equal([]string{"a@b.com;c@d.com"}))
-		})
-
-		ginkgo.It("should keep display-name spaces in angle-bracket recipients", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"smtp://example.com/?fromAddress=sender@example.com&toAddresses=" +
-					url.QueryEscape("Name <a@b.com>"),
-			))).To(gomega.Succeed())
-			gomega.Expect(config.ToAddresses).To(gomega.Equal([]string{"Name <a@b.com>"}))
-		})
-
-		ginkgo.It("should decode a password that contains @ and spaces", func() {
-			config := &Config{}
-			gomega.Expect(config.SetURL(testutils.URLMust(
-				"smtp://user:p%40ss%20word@example.com:587/?fromAddress=sender@example.com&toAddresses=rec1@example.com",
-			))).To(gomega.Succeed())
-			gomega.Expect(config.Username).To(gomega.Equal("user"))
-			gomega.Expect(config.Password).To(gomega.Equal("p@ss word"))
-		})
-	})
-
-	ginkgo.Describe("restorePlusAddresses", func() {
-		ginkgo.It("should restore plus tags that URL parsing turned into spaces", func() {
-			config := &Config{
-				FromAddress: "sender tag@example.com",
-				ToAddresses: []string{"rec1 tag@example.com", "rec2@example.com"},
-			}
-			config.restorePlusAddresses()
-			gomega.Expect(config.FromAddress).To(gomega.Equal("sender+tag@example.com"))
-			gomega.Expect(config.ToAddresses).To(gomega.Equal([]string{
-				"rec1+tag@example.com",
-				"rec2@example.com",
-			}))
-		})
-
-		ginkgo.It("should keep display-name spaces and restore plus tags in the addr-spec", func() {
-			config := &Config{
-				FromAddress: "Sender Name <sender tag@example.com>",
-				ToAddresses: []string{"Ops Team <rec1 tag@example.com>"},
-			}
-			config.restorePlusAddresses()
-			gomega.Expect(config.FromAddress).To(gomega.Equal("Sender Name <sender+tag@example.com>"))
-			gomega.Expect(config.ToAddresses).To(gomega.Equal([]string{
-				"Ops Team <rec1+tag@example.com>",
-			}))
-		})
-	})
-
-	ginkgo.Describe("newTLSConfig", func() {
-		ginkgo.It("should set the server name and TLS 1.2 minimum without a version ceiling", func() {
-			got := newTLSConfig(&Config{Host: "mail.example.com"})
-			gomega.Expect(got.ServerName).To(gomega.Equal("mail.example.com"))
-			gomega.Expect(got.MinVersion).To(gomega.Equal(uint16(tls.VersionTLS12)))
-			gomega.Expect(got.MaxVersion).To(gomega.BeZero())
-			gomega.Expect(got.InsecureSkipVerify).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should skip certificate verification when configured", func() {
-			got := newTLSConfig(&Config{Host: "mail.example.com", SkipTLSVerify: true})
-			gomega.Expect(got.InsecureSkipVerify).To(gomega.BeTrue())
-		})
-	})
-
-	ginkgo.When("applying the default props", func() {
-		ginkgo.It("should apply the tagged timeout default", func() {
-			config := &Config{}
-			resolver := format.NewPropKeyResolver(config)
-
-			gomega.Expect(resolver.SetDefaultProps(config)).To(gomega.Succeed())
-			gomega.Expect(config.Timeout).To(gomega.Equal(defaultTimeout))
-			gomega.Expect(config.Subject).To(gomega.BeEmpty())
-		})
-	})
-
-	ginkgo.When("serializing the timeout", func() {
-		ginkgo.It("should render it as a duration rather than a nanosecond count", func() {
-			config := &Config{Timeout: 10 * time.Second}
-			resolver := format.NewPropKeyResolver(config)
-
-			value, err := resolver.Get("timeout")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(value).To(gomega.Equal("10s"))
-		})
-	})
-})
+	assert.Equal(t,
+		&tls.Config{ServerName: "mail.example.com", MinVersion: tls.VersionTLS12},
+		newTLSConfig(&Config{Host: "mail.example.com"}))
+	assert.Equal(t,
+		&tls.Config{ServerName: "mail.example.com", MinVersion: tls.VersionTLS12, InsecureSkipVerify: true},
+		newTLSConfig(&Config{Host: "mail.example.com", SkipTLSVerify: true}))
+}

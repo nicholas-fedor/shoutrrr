@@ -1,19 +1,48 @@
 package smtp
 
 import (
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("authType", func() {
-	ginkgo.Describe("String", func() {
-		ginkgo.It("should print the canonical name for each method", func() {
-			gomega.Expect(AuthTypes.None.String()).To(gomega.Equal("None"))
-			gomega.Expect(AuthTypes.Plain.String()).To(gomega.Equal("Plain"))
-			gomega.Expect(AuthTypes.CRAMMD5.String()).To(gomega.Equal("CRAMMD5"))
-			gomega.Expect(AuthTypes.Unknown.String()).To(gomega.Equal("Unknown"))
-			gomega.Expect(AuthTypes.OAuth2.String()).To(gomega.Equal("OAuth2"))
-			gomega.Expect(AuthTypes.Login.String()).To(gomega.Equal("Login"))
+// TestAuthTypeString verifies the name of each authentication method, which
+// the URL uses as the auth value.
+func TestAuthTypeString(t *testing.T) {
+	t.Parallel()
+
+	// tests lists methods with their names.
+	tests := []struct {
+		want string
+		auth authType
+	}{
+		{auth: AuthNone, want: "None"},
+		{auth: AuthPlain, want: "Plain"},
+		{auth: AuthCRAMMD5, want: "CRAMMD5"},
+		{auth: AuthUnknown, want: "Unknown"},
+		{auth: AuthOAuth2, want: "OAuth2"},
+		{auth: AuthLogin, want: "Login"},
+		{auth: authType(99), want: "Invalid"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.auth.String())
 		})
-	})
-})
+	}
+}
+
+// TestAuthTypes verifies that the enum helper holds each method and parses
+// the names regardless of case.
+func TestAuthTypes(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, &authTypeVals{
+		None: AuthNone, Plain: AuthPlain, CRAMMD5: AuthCRAMMD5, Unknown: AuthUnknown, OAuth2: AuthOAuth2, Login: AuthLogin,
+		Enum: AuthTypes.Enum,
+	}, AuthTypes)
+	assert.Equal(t, int(AuthOAuth2), AuthTypes.Enum.Parse("oauth2"))
+	assert.Equal(t, int(AuthCRAMMD5), AuthTypes.Enum.Parse("CRAMMD5"))
+}

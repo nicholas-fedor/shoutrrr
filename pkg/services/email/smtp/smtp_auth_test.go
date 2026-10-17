@@ -2,78 +2,82 @@ package smtp
 
 import (
 	"net/smtp"
+	"testing"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("newAuth", func() {
-	ginkgo.It("should return a nil mechanism when Auth is None", func() {
-		got, err := newAuth(&Config{Auth: AuthTypes.None})
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		gomega.Expect(got).To(gomega.BeNil())
-	})
+// TestNewAuth verifies the mechanism each authentication method selects, by
+// the AUTH exchange it starts with a TLS server at the configured host.
+func TestNewAuth(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.It("should return PlainAuth when Auth is Plain", func() {
-		got, err := newAuth(&Config{
-			Auth:     AuthTypes.Plain,
-			Username: "user",
-			Password: "pass",
-			Host:     "mail.example.com",
+	server := &smtp.ServerInfo{Name: "mail.example.com", TLS: true}
+
+	// tests lists methods with the mechanism name and initial response each
+	// should start with.
+	tests := []struct {
+		name     string
+		wantMech string
+		wantResp string
+		auth     authType
+	}{
+		{name: "Plain", auth: AuthPlain, wantMech: "PLAIN", wantResp: "\x00user\x00pass"},
+		{name: "CRAMMD5", auth: AuthCRAMMD5, wantMech: "CRAM-MD5"},
+		{name: "OAuth2", auth: AuthOAuth2, wantMech: "XOAUTH2", wantResp: "user=user\x01auth=Bearer pass\x01\x01"},
+		{name: "Login", auth: AuthLogin, wantMech: "LOGIN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			auth, err := newAuth(&Config{Auth: tt.auth, Username: "user", Password: "pass", Host: "mail.example.com"})
+			require.NoError(t, err)
+			require.NotNil(t, auth)
+
+			mech, resp, err := auth.Start(server)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMech, mech)
+			assert.Equal(t, tt.wantResp, string(resp))
 		})
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		gomega.Expect(got).NotTo(gomega.BeNil())
+	}
 
-		want := smtp.PlainAuth("", "user", "pass", "mail.example.com")
-		gomega.Expect(got).To(gomega.BeAssignableToTypeOf(want))
+	t.Run("None", func(t *testing.T) {
+		t.Parallel()
+
+		auth, err := newAuth(&Config{Auth: AuthNone, Username: "user", Password: "pass"})
+
+		require.NoError(t, err)
+		assert.Nil(t, auth)
 	})
+}
 
-	ginkgo.It("should return CRAMMD5Auth when Auth is CRAMMD5", func() {
-		got, err := newAuth(&Config{
-			Auth:     AuthTypes.CRAMMD5,
-			Username: "user",
-			Password: "pass",
+// TestNewAuthErrors verifies that an unset or unknown authentication method
+// fails with [FailAuthType], naming the method.
+func TestNewAuthErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists methods with the error each should produce.
+	tests := []struct {
+		name      string
+		wantError string
+		auth      authType
+	}{
+		{name: "Unknown", auth: AuthUnknown, wantError: "invalid authentication method 'Unknown'"},
+		{name: "out of range", auth: authType(99), wantError: "invalid authentication method 'Invalid'"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			auth, err := newAuth(&Config{Auth: tt.auth})
+
+			assert.Nil(t, auth)
+			require.ErrorIs(t, err, fail(FailAuthType, nil))
+			assert.EqualError(t, err, tt.wantError)
 		})
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		gomega.Expect(got).NotTo(gomega.BeNil())
-		gomega.Expect(got).To(gomega.BeAssignableToTypeOf(smtp.CRAMMD5Auth("user", "pass")))
-	})
-
-	ginkgo.It("should return oauth2Auth when Auth is OAuth2", func() {
-		got, err := newAuth(&Config{
-			Auth:     AuthTypes.OAuth2,
-			Username: "user",
-			Password: "token",
-		})
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-		_, ok := got.(*oauth2Auth)
-		gomega.Expect(ok).To(gomega.BeTrue())
-	})
-
-	ginkgo.It("should return loginAuth when Auth is Login", func() {
-		got, err := newAuth(&Config{
-			Auth:     AuthTypes.Login,
-			Username: "user",
-			Password: "pass",
-			Host:     "mail.example.com",
-		})
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-		_, ok := got.(*loginAuth)
-		gomega.Expect(ok).To(gomega.BeTrue())
-	})
-
-	ginkgo.It("should fail when Auth is Unknown", func() {
-		got, err := newAuth(&Config{Auth: AuthTypes.Unknown})
-		gomega.Expect(got).To(gomega.BeNil())
-		gomega.Expect(err).To(matchFailure(FailAuthType))
-		gomega.Expect(err.Error()).To(gomega.ContainSubstring("Unknown"))
-	})
-
-	ginkgo.It("should fail when Auth is not a known method", func() {
-		got, err := newAuth(&Config{Auth: authType(99)})
-		gomega.Expect(got).To(gomega.BeNil())
-		gomega.Expect(err).To(matchFailure(FailAuthType))
-	})
-})
+	}
+}
