@@ -128,8 +128,18 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 }
 
 // KeyIsPrimary returns whether the key is the primary (and not an alias).
+//
+// Parameters:
+//   - key: the property key, matched case-insensitively.
+//
+// Returns:
+//   - bool: whether key is the first key of its property, or false for an unknown key.
 func (pkr *PropKeyResolver) KeyIsPrimary(key string) bool {
-	return pkr.keyFields[key].Keys[0] == key
+	key = strings.ToLower(key)
+
+	field, found := pkr.keyFields[key]
+
+	return found && field.Keys[0] == key
 }
 
 // QueryFields returns a list of tagged keys.

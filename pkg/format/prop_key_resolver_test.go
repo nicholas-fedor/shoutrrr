@@ -35,6 +35,8 @@ type spelledDefaultsConfig struct {
 	Broken int `default:"NaN" key:"broken"`
 	// Plain has no default.
 	Plain bool `key:"plain"`
+	// Delay has a primary key and an alias.
+	Delay string `key:"delay,in"`
 }
 
 // spelledLevels formats the Level field of spelledDefaultsConfig.
@@ -134,6 +136,17 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 			ginkgo.Entry("no default, empty value", "plain", "", true),
 			ginkgo.Entry("unknown key", "unknown", "", false),
 			ginkgo.Entry("key in another case", "Enabled", "Yes", true),
+		)
+
+		ginkgo.DescribeTable("should report whether a key is the primary key of its property",
+			func(key string, want bool) {
+				gomega.Expect(spelled.KeyIsPrimary(key)).To(gomega.Equal(want))
+			},
+			ginkgo.Entry("primary key", "delay", true),
+			ginkgo.Entry("alias", "in", false),
+			ginkgo.Entry("primary key in another case", "Delay", true),
+			ginkgo.Entry("alias in another case", "IN", false),
+			ginkgo.Entry("unknown key", "unknown", false),
 		)
 
 		ginkgo.It("should leave values at their defaults out of the query", func() {
