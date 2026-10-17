@@ -72,6 +72,8 @@ Common ports:
 
 - `toaddresses` (alias `to`) is a comma-separated list of recipient addresses and is required.
 - Plus-tags in addresses (`user+tag@example.com`) are preserved and spaces that come from URL-decoding `+` are turned back into `+`.
+- Spaces around each address, such as after a comma, are ignored.
+  To start an address with a literal `+`, write it as `%2B`.
 
 !!! Example "Multiple recipients"
 

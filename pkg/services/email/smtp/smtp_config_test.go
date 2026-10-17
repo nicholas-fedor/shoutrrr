@@ -171,6 +171,13 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:   "spaces around addresses",
+			rawURL: "smtp://mail.example.com/?fromaddress=%20sender+alerts@example.com%20&toaddresses=a@example.com,%20c+x@example.com%20,d@example.com",
+			override: func(c *Config) {
+				c.FromAddress, c.ToAddresses = "sender+alerts@example.com", []string{"a@example.com", "c+x@example.com", "d@example.com"}
+			},
+		},
+		{
 			name:   "display name with a plus-tagged address",
 			rawURL: "smtp://mail.example.com/?fromaddress=Ops%20Team%20%3Cops+alerts@example.com%3E&toaddresses=Jane%20Doe%20%3Cjane+x@example.com%3E",
 			override: func(c *Config) {
@@ -217,8 +224,9 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL requires the sender and
-// recipient addresses and rejects invalid query values.
+// TestConfigSetURLErrors verifies that SetURL requires the sender, including
+// one that is blank after trimming, and the recipient addresses, and rejects
+// invalid query values.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -230,6 +238,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}{
 		{name: "no sender", rawURL: "smtp://mail.example.com/?toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
+		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid encryption", rawURL: "smtp://mail.example.com/?encryption=SSL", wantErr: format.ErrInvalidEnumValue},
 		{
@@ -331,7 +340,9 @@ func TestConfigDefaults(t *testing.T) {
 
 // TestRestorePlusAddress verifies that spaces in the local part of an
 // address, which query decoding makes from plus signs, become plus signs
-// again, leaving the domain and any display name unchanged.
+// again, leaving the domain and any display name unchanged. Whitespace around
+// the address and inside the angle brackets is separator space, not a plus
+// sign, and is trimmed.
 func TestRestorePlusAddress(t *testing.T) {
 	t.Parallel()
 
@@ -347,6 +358,11 @@ func TestRestorePlusAddress(t *testing.T) {
 		{address: "Jane Doe <jane x@example.com>", want: "Jane Doe <jane+x@example.com>"},
 		{address: "Jane Doe <jane@example.com>", want: "Jane Doe <jane@example.com>"},
 		{address: "no at sign", want: "no+at+sign"},
+		{address: " c x@example.com", want: "c+x@example.com"},
+		{address: "b@example.com ", want: "b@example.com"},
+		{address: "\tuser tag@example.com\n", want: "user+tag@example.com"},
+		{address: " Jane Doe <jane x@example.com> ", want: "Jane Doe <jane+x@example.com>"},
+		{address: "Jane Doe < jane x@example.com >", want: "Jane Doe <jane+x@example.com>"},
 	}
 
 	for _, tt := range tests {
