@@ -126,6 +126,23 @@ func TestSessionRun(t *testing.T) {
 			want:   []string{"EHLO localhost", "MAIL FROM:<sender+alerts@example.com> BODY=8BITMIME", "RCPT TO:<rec+a@example.com>", "DATA", "QUIT"},
 		},
 		{
+			name:   "spaces around addresses",
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=a@example.com,%20b+x@example.com%20&usestarttls=no",
+			want: []string{
+				"EHLO localhost", testMailFrom, "RCPT TO:<a@example.com>", "DATA", "RSET",
+				testMailFrom, "RCPT TO:<b+x@example.com>", "DATA", "QUIT",
+			},
+		},
+		{
+			name:   "spaces around param addresses",
+			rawURL: testServiceURL,
+			params: &types.Params{"toaddresses": "a@example.com, b+x@example.com "},
+			want: []string{
+				"EHLO localhost", testMailFrom, "RCPT TO:<a@example.com>", "DATA", "RSET",
+				testMailFrom, "RCPT TO:<b+x@example.com>", "DATA", "QUIT",
+			},
+		},
+		{
 			name:   "PLAIN",
 			server: func() *fakeSMTP { return newFakeSMTP("AUTH PLAIN") },
 			rawURL: "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",

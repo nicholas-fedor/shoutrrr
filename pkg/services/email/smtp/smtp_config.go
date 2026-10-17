@@ -155,11 +155,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return serviceURL
 }
 
-// restorePlusAddresses replaces parsed spaces in e-mail addr-spec local parts with '+'.
+// restorePlusAddresses trims each address and replaces parsed spaces in e-mail
+// addr-spec local parts with '+'.
 //
 // URL query parsing turns plus signs into spaces, so this restores plus-tagged
-// addresses such as user+tag@example.com. Display-name spaces, including those
-// in mailbox syntax like `Name <user@example.com>`, are left unchanged.
+// addresses such as user+tag@example.com. Spaces around each address are list
+// separators and are removed. Display-name spaces, including those in mailbox
+// syntax like `Name <user@example.com>`, are left unchanged.
 func (c *Config) restorePlusAddresses() {
 	c.FromAddress = restorePlusAddress(c.FromAddress)
 	for i, adr := range c.ToAddresses {
@@ -169,20 +171,26 @@ func (c *Config) restorePlusAddresses() {
 
 // restorePlusAddress restores plus tags in a mailbox string.
 //
-// If addr uses angle-bracket mailbox syntax, only the addr-spec between '<'
-// and '>' is rewritten so display-name spaces are preserved.
+// Whitespace around the mailbox and around an angle-bracket addr-spec is
+// trimmed first, because it comes from the list separator (as in
+// "a@example.com, b@example.com") rather than from a decoded plus sign. If addr
+// uses angle-bracket mailbox syntax, only the addr-spec between '<' and '>' is
+// rewritten so display-name spaces are preserved.
 //
 // Parameters:
 //   - addr: A mailbox string, either a bare addr-spec or display-name <addr-spec>.
 //
 // Returns:
-//   - The mailbox string with plus tags restored in the addr-spec local-part.
+//   - The trimmed mailbox string with plus tags restored in the addr-spec local-part.
 func restorePlusAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
 	start := strings.LastIndex(addr, "<")
 
 	end := strings.LastIndex(addr, ">")
 	if start >= 0 && end > start {
-		return addr[:start+1] + restorePlusInAddrSpec(addr[start+1:end]) + addr[end:]
+		spec := strings.TrimSpace(addr[start+1 : end])
+
+		return addr[:start+1] + restorePlusInAddrSpec(spec) + addr[end:]
 	}
 
 	return restorePlusInAddrSpec(addr)
