@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Leave defaults out of service URLs however their tags are spelled by @nicholas-fedor in [#1638](https://github.com/nicholas-fedor/shoutrrr/pull/1638)
 - Send priority only when set and stop sending the date by @nicholas-fedor in [#1632](https://github.com/nicholas-fedor/shoutrrr/pull/1632)
 - Send direct message user ids as numbers and count characters by @nicholas-fedor in [#1627](https://github.com/nicholas-fedor/shoutrrr/pull/1627)
 - Read send results and report failed recipients by @nicholas-fedor in [#1619](https://github.com/nicholas-fedor/shoutrrr/pull/1619)
