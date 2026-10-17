@@ -294,6 +294,11 @@ func TestConfigGetURL(t *testing.T) {
 				assert.Equal(t, want, query[key], key)
 			}
 
+			// GetURL writes each setting under its primary key, never an alias.
+			for _, alias := range []string{"at", "in"} {
+				assert.NotContains(t, query, alias)
+			}
+
 			roundTrip := newDefaultConfig(t)
 			require.NoError(t, roundTrip.SetURL(serviceURL))
 			assert.Equal(t, tt.config, withoutEmptyLists(roundTrip))
