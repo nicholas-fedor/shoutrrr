@@ -51,14 +51,23 @@ func (*Config) Enums() map[string]types.EnumFormatter {
 }
 
 // GetAPIURL constructs the API URL for the Ntfy service based on the configuration.
+// It uses HTTP when TLS is disabled and the configured scheme otherwise.
+//
+// Returns:
+//   - string: the publish URL for the topic.
 func (c *Config) GetAPIURL() string {
 	path := c.Topic
 	if !strings.HasPrefix(c.Topic, "/") {
 		path = "/" + path
 	}
 
+	scheme := c.Scheme
+	if c.DisableTLS {
+		scheme = "http"
+	}
+
 	apiURL := url.URL{
-		Scheme: c.Scheme,
+		Scheme: scheme,
 		Host:   c.Host,
 		Path:   path,
 	}

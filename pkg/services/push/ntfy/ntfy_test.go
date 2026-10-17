@@ -199,8 +199,9 @@ func TestServiceTimeout(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses the service URL over the
-// defaults, uses HTTP when TLS is disabled, and builds the default client,
-// warning when it skips certificate verification.
+// defaults, keeping the configured scheme while TLS disabled sends over HTTP,
+// and builds the default client, warning when it skips certificate
+// verification.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -209,16 +210,16 @@ func TestInitialize(t *testing.T) {
 	tests := []struct {
 		name       string
 		rawURL     string
-		wantScheme string
+		wantAPIURL string
 		wantLog    string
 		wantSkip   bool
 	}{
-		{name: "defaults", rawURL: testServiceURL, wantScheme: "https"},
-		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "http"},
+		{name: "defaults", rawURL: testServiceURL, wantAPIURL: testEndpoint},
+		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes", wantAPIURL: "http://ntfy.sh/" + testTopic},
 		{
 			name:       "verification disabled",
 			rawURL:     testServiceURL + "?disabletlsverification=yes",
-			wantScheme: "https",
+			wantAPIURL: testEndpoint,
 			wantSkip:   true,
 			wantLog:    "Warning: TLS verification is disabled, making connections insecure\n",
 		},
@@ -233,7 +234,8 @@ func TestInitialize(t *testing.T) {
 			service := &Service{}
 			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
 
-			assert.Equal(t, tt.wantScheme, service.Config.Scheme)
+			assert.Equal(t, "https", service.Config.Scheme)
+			assert.Equal(t, tt.wantAPIURL, service.Config.GetAPIURL())
 			assertSkipsVerify(t, service.httpClient, tt.wantSkip)
 			assert.Equal(t, tt.wantLog, logs.String())
 		})
@@ -728,6 +730,116 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 		require.NoError(t, newTestService(t, rawURL+"?disabletlsverification=yes").Send("Hello", nil))
 		assert.Equal(t, int32(1), accepted.Load())
 	})
+}
+
+// TestSendTLSParams verifies that the disabletls and disabletlsverification
+// send params apply to one send: disabletls sends over HTTP, and
+// disabletlsverification skips certificate verification for that send, with a
+// warning, while sends without the param keep the stored setting.
+func TestSendTLSParams(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disabletls", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newNtfyServer(t, false)
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic)
+
+		require.NoError(t, service.Send("Hello", &types.Params{"disabletls": "yes"}))
+		require.Error(t, service.Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+
+	t.Run("disabletlsverification", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		server, accepted := newNtfyServer(t, true)
+		service := &Service{}
+		require.NoError(t, service.Initialize(parseTestURL(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic), log.New(&logs, "", 0)))
+
+		require.NoError(t, service.Send("Hello", &types.Params{"disabletlsverification": "yes"}))
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Hello", nil))
+		assert.True(t, isCertErr, "error is not a certificate verification error")
+		assert.Equal(t, int32(1), accepted.Load())
+		assert.True(t, strings.HasPrefix(logs.String(), "Warning: TLS verification is disabled, making connections insecure\n"), logs.String())
+		assertSkipsVerify(t, service.httpClient, false)
+	})
+
+	t.Run("disabletlsverification turned back on", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newNtfyServer(t, true)
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletlsverification=yes")
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Hello", &types.Params{"disabletlsverification": "no"}))
+		assert.True(t, isCertErr, "error is not a certificate verification error")
+		require.NoError(t, service.Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+
+	t.Run("disabletls turned back on", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newNtfyServer(t, true)
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletls=yes&disabletlsverification=yes")
+
+		require.NoError(t, service.Send("Hello", &types.Params{"disabletls": "no"}))
+		require.Error(t, service.Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, captured := newRecordingClient(t, published)
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send("Hello", &types.Params{"disabletlsverification": "yes"}))
+		assert.Len(t, captured(), 1)
+	})
+}
+
+// TestSendHTTPClient verifies that sends with the stored certificate
+// verification setting share the default client, that sends that change it
+// share one other default client, built once with one warning, even when
+// they run concurrently, and that rebuilding the default client drops it.
+func TestSendHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	stored := service.sendHTTPClient(service.Config)
+	assert.Same(t, service.httpClient, stored)
+
+	insecure := *service.Config
+	insecure.DisableTLSVerification = true
+
+	clients := make([]types.HTTPClient, 8)
+
+	var wg sync.WaitGroup
+	for i := range clients {
+		wg.Go(func() { clients[i] = service.sendHTTPClient(&insecure) })
+	}
+
+	wg.Wait()
+
+	for _, client := range clients {
+		assert.Same(t, clients[0], client)
+	}
+
+	assert.NotSame(t, stored, clients[0])
+	assertSkipsVerify(t, clients[0], true)
+	assert.Equal(t, "Warning: TLS verification is disabled, making connections insecure\n", logs.String())
+
+	service.SetHTTPClient(nil)
+	assert.NotSame(t, clients[0], service.sendHTTPClient(&insecure))
 }
 
 // TestAddHeaderIfNotEmpty verifies that a header is added only for a

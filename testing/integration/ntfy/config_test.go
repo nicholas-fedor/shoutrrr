@@ -79,7 +79,7 @@ func TestServiceInitializationWithDisableTLS(t *testing.T) {
 		)
 
 		require.NotNil(t, service)
-		require.Equal(t, "http", service.Config.Scheme)
+		require.Equal(t, "http://ntfy.example.com/mytopic", service.Config.GetAPIURL())
 
 		mockClient.AssertExpectations(t)
 	})
