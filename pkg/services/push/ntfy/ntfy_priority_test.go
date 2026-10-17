@@ -1,56 +1,52 @@
 package ntfy
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("Priority", func() {
-	ginkgo.Describe("String", func() {
-		ginkgo.It("should return 'Min' for PriorityMin", func() {
-			gomega.Expect(PriorityMin.String()).To(gomega.Equal("Min"))
-		})
+// TestPriorityString verifies the name of each priority, which the service
+// sends as the Priority header.
+func TestPriorityString(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should return 'Low' for PriorityLow", func() {
-			gomega.Expect(PriorityLow.String()).To(gomega.Equal("Low"))
-		})
+	// tests lists priorities with their names.
+	tests := []struct {
+		want     string
+		priority priority
+	}{
+		{priority: PriorityMin, want: "Min"},
+		{priority: PriorityLow, want: "Low"},
+		{priority: PriorityDefault, want: "Default"},
+		{priority: PriorityHigh, want: "High"},
+		{priority: PriorityMax, want: "Max"},
+		{priority: priority(0), want: ""},
+		{priority: priority(9), want: "Invalid"},
+	}
 
-		ginkgo.It("should return 'Default' for PriorityDefault", func() {
-			gomega.Expect(PriorityDefault.String()).To(gomega.Equal("Default"))
-		})
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
 
-		ginkgo.It("should return 'High' for PriorityHigh", func() {
-			gomega.Expect(PriorityHigh.String()).To(gomega.Equal("High"))
+			assert.Equal(t, tt.want, tt.priority.String())
 		})
+	}
+}
 
-		ginkgo.It("should return 'Max' for PriorityMax", func() {
-			gomega.Expect(PriorityMax.String()).To(gomega.Equal("Max"))
-		})
+// TestPriorityEnum verifies that the priority enum parses the names, the
+// numbers 1 to 5, and the urgent alias, matching ntfy's priority values.
+func TestPriorityEnum(t *testing.T) {
+	t.Parallel()
 
-		ginkgo.It("should return formatted string for unknown values", func() {
-			unknown := priority(99)
-			result := unknown.String()
-			gomega.Expect(result).NotTo(gomega.BeEmpty())
-		})
-	})
+	assert.Equal(t, &priorityVals{
+		Min: PriorityMin, Low: PriorityLow, Default: PriorityDefault, High: PriorityHigh, Max: PriorityMax, Enum: Priority.Enum,
+	}, Priority)
 
-	ginkgo.Describe("Priority values", func() {
-		ginkgo.It("should have correct numeric values", func() {
-			gomega.Expect(int(PriorityMin)).To(gomega.Equal(1))
-			gomega.Expect(int(PriorityLow)).To(gomega.Equal(2))
-			gomega.Expect(int(PriorityDefault)).To(gomega.Equal(3))
-			gomega.Expect(int(PriorityHigh)).To(gomega.Equal(4))
-			gomega.Expect(int(PriorityMax)).To(gomega.Equal(5))
-		})
-	})
-
-	ginkgo.Describe("Priority enum formatter", func() {
-		ginkgo.It("should have non-nil Enum formatter", func() {
-			gomega.Expect(Priority.Enum).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should map string names to values", func() {
-			gomega.Expect(Priority.Enum.Parse("High")).To(gomega.Equal(int(PriorityHigh)))
-		})
-	})
-})
+	for value, want := range map[string]priority{
+		"min": PriorityMin, "Low": PriorityLow, "DEFAULT": PriorityDefault, "high": PriorityHigh, "max": PriorityMax,
+		"1": PriorityMin, "2": PriorityLow, "3": PriorityDefault, "4": PriorityHigh, "5": PriorityMax, "urgent": PriorityMax,
+	} {
+		assert.Equal(t, int(want), Priority.Enum.Parse(value), value)
+	}
+}
