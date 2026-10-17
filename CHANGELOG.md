@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Trim spaces around each address before restoring plus tags by @nicholas-fedor in [#1648](https://github.com/nicholas-fedor/shoutrrr/pull/1648)
 - Apply the tls send params to the send by @nicholas-fedor in [#1640](https://github.com/nicholas-fedor/shoutrrr/pull/1640)
 - Leave defaults out of service URLs however their tags are spelled by @nicholas-fedor in [#1638](https://github.com/nicholas-fedor/shoutrrr/pull/1638)
 - Send priority only when set and stop sending the date by @nicholas-fedor in [#1632](https://github.com/nicholas-fedor/shoutrrr/pull/1632)
