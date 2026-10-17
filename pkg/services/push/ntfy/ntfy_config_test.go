@@ -1,391 +1,323 @@
 package ntfy
 
 import (
-	"strings"
+	"net/url"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-var _ = ginkgo.Describe("Config", func() {
-	var config *Config
+// Values shared by the tests.
+const (
+	// testTopic is the topic in the test URLs.
+	testTopic = "alerts"
+	// testServiceURL is a service URL for testTopic on ntfy.sh.
+	testServiceURL = "ntfy://ntfy.sh/" + testTopic
+	// testEndpoint is the publish URL for testServiceURL.
+	testEndpoint = "https://ntfy.sh/" + testTopic
+	// testToken is an ntfy access token.
+	testToken = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+)
 
-	ginkgo.BeforeEach(func() {
-		config = &Config{}
-	})
+// parseTestURL parses rawURL and fails the test if it is invalid.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the URL to parse.
+//
+// Returns:
+//   - *url.URL: the parsed URL.
+func parseTestURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
 
-	ginkgo.Describe("Enums", func() {
-		ginkgo.It("should return a map with Priority enum formatter", func() {
-			enums := config.Enums()
-			gomega.Expect(enums).To(gomega.HaveKey("Priority"))
-			gomega.Expect(enums["Priority"]).NotTo(gomega.BeNil())
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsed
+}
+
+// newDefaultConfig returns a config with the default values, as Initialize
+// creates it.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Config: the config.
+func newDefaultConfig(t *testing.T) *Config {
+	t.Helper()
+
+	config := &Config{}
+	resolver := format.NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	return config
+}
+
+// defaultConfig returns the config a URL with only testTopic produces, with
+// the given overrides applied.
+//
+// Parameters:
+//   - override: changes to the default config.
+//
+// Returns:
+//   - Config: the config.
+func defaultConfig(override func(*Config)) Config {
+	config := Config{
+		Host:     "ntfy.sh",
+		Topic:    testTopic,
+		Scheme:   "https",
+		Priority: PriorityDefault,
+		Cache:    true,
+		Firebase: true,
+	}
+	override(&config)
+
+	return config
+}
+
+// withoutEmptyLists returns config with tag and action lists that hold only
+// an empty string set to nil. Default props leave those lists as [""], which
+// the service sends as no header, so the tests compare them as empty.
+//
+// Parameters:
+//   - original: the config.
+//
+// Returns:
+//   - Config: a copy of the config with empty lists as nil.
+func withoutEmptyLists(original *Config) Config {
+	config := *original
+	if len(config.Tags) == 1 && config.Tags[0] == "" {
+		config.Tags = nil
+	}
+
+	if len(config.Actions) == 1 && config.Actions[0] == "" {
+		config.Actions = nil
+	}
+
+	return config
+}
+
+// TestConfigSetURL verifies that SetURL reads the credentials and host from
+// the URL authority, the topic from the path, and the other settings from the
+// query, clearing credentials and a token that the URL does not set.
+func TestConfigSetURL(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs with the config each should produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{name: "topic", rawURL: testServiceURL, want: defaultConfig(func(*Config) {})},
+		{
+			name:   "self-hosted server with a port",
+			rawURL: "ntfy://ntfy.example.com:8080/" + testTopic,
+			want:   defaultConfig(func(c *Config) { c.Host = "ntfy.example.com:8080" }),
+		},
+		{
+			name:   "nested topic",
+			rawURL: "ntfy://ntfy.example.com/ntfy/" + testTopic,
+			want:   defaultConfig(func(c *Config) { c.Host, c.Topic = "ntfy.example.com", "ntfy/"+testTopic }),
+		},
+		{
+			name:   "username and password",
+			rawURL: "ntfy://user:pass@ntfy.sh/" + testTopic,
+			want:   defaultConfig(func(c *Config) { c.Username, c.Password = "user", "pass" }),
+		},
+		{
+			name:   "username only",
+			rawURL: "ntfy://user@ntfy.sh/" + testTopic,
+			want:   defaultConfig(func(c *Config) { c.Username = "user" }),
+		},
+		{
+			name:   "token",
+			rawURL: testServiceURL + "?token=" + testToken,
+			want:   defaultConfig(func(c *Config) { c.Token = testToken }),
+		},
+		{
+			name: "message settings",
+			rawURL: testServiceURL + "?title=Backup&tags=warning,skull&priority=high&click=https://example.com" +
+				"&attach=https://example.com/log.txt&filename=log.txt&delay=30m&email=ops@example.com&icon=https://example.com/icon.png",
+			want: defaultConfig(func(c *Config) {
+				c.Title, c.Tags, c.Priority, c.Click = "Backup", []string{"warning", "skull"}, PriorityHigh, "https://example.com"
+				c.Attach, c.Filename, c.Delay = "https://example.com/log.txt", "log.txt", "30m"
+				c.Email, c.Icon = "ops@example.com", "https://example.com/icon.png"
+			}),
+		},
+		{
+			name:   "actions separated by semicolons",
+			rawURL: testServiceURL + "?actions=view, Open, https://example.com; http, Ping, https://example.com/ping",
+			want: defaultConfig(func(c *Config) {
+				c.Actions = []string{"view, Open, https://example.com", " http, Ping, https://example.com/ping"}
+			}),
+		},
+		{
+			name:   "delivery switches",
+			rawURL: testServiceURL + "?markdown=yes&cache=no&firebase=no&disabletlsverification=yes&disabletls=yes&scheme=http",
+			want: defaultConfig(func(c *Config) {
+				c.Markdown, c.Cache, c.Firebase, c.DisableTLSVerification, c.DisableTLS, c.Scheme = true, false, false, true, true, "http"
+			}),
+		},
+		{name: "at alias", rawURL: testServiceURL + "?at=tomorrow,%2010am", want: defaultConfig(func(c *Config) { c.Delay = "tomorrow, 10am" })},
+		{name: "in alias", rawURL: testServiceURL + "?in=10m", want: defaultConfig(func(c *Config) { c.Delay = "10m" })},
+		{name: "numeric priority", rawURL: testServiceURL + "?priority=1", want: defaultConfig(func(c *Config) { c.Priority = PriorityMin })},
+		{name: "urgent priority", rawURL: testServiceURL + "?priority=urgent", want: defaultConfig(func(c *Config) { c.Priority = PriorityMax })},
+		{
+			name:   "docs command placeholder",
+			rawURL: "ntfy://dummy@dummy.com",
+			want:   defaultConfig(func(c *Config) { c.Host, c.Topic, c.Username = "dummy.com", "", "dummy" }),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newDefaultConfig(t)
+			// Credentials and a token from an earlier URL do not carry over.
+			config.Username, config.Password, config.Token = "old", "old", "old"
+
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.want, withoutEmptyLists(config))
 		})
-	})
+	}
+}
 
-	ginkgo.Describe("GetAPIURL", func() {
-		ginkgo.It("should construct URL with https scheme by default", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
+// TestConfigSetURLErrors verifies that SetURL requires a topic and rejects
+// query values that do not set a config property.
+func TestConfigSetURLErrors(t *testing.T) {
+	t.Parallel()
 
-			result := config.GetAPIURL()
-			gomega.Expect(result).To(gomega.Equal("https://ntfy.sh/mytopic"))
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "no topic", rawURL: "ntfy://ntfy.sh", wantErr: ErrTopicRequired},
+		{name: "no topic with a slash", rawURL: "ntfy://ntfy.sh/", wantErr: ErrTopicRequired},
+		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid priority", rawURL: testServiceURL + "?priority=extreme", wantErr: format.ErrInvalidEnumValue},
+		{name: "invalid bool", rawURL: testServiceURL + "?cache=maybe", wantErr: format.ErrInvalidBoolValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, newDefaultConfig(t).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
 		})
+	}
+}
 
-		ginkgo.It("should not double-slash when topic already has leading slash", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "/mytopic"
+// TestConfigGetAPIURL verifies that the publish URL joins the scheme, host,
+// and topic with one slash.
+func TestConfigGetAPIURL(t *testing.T) {
+	t.Parallel()
 
-			result := config.GetAPIURL()
-			gomega.Expect(result).To(gomega.Equal("https://ntfy.sh/mytopic"))
+	// tests lists configs with the publish URL each should produce.
+	tests := []struct {
+		name   string
+		config Config
+		want   string
+	}{
+		{name: "topic", config: Config{Scheme: "https", Host: "ntfy.sh", Topic: testTopic}, want: testEndpoint},
+		{name: "topic with a slash", config: Config{Scheme: "https", Host: "ntfy.sh", Topic: "/" + testTopic}, want: testEndpoint},
+		{name: "nested topic", config: Config{Scheme: "https", Host: "ntfy.example.com", Topic: "ntfy/" + testTopic}, want: "https://ntfy.example.com/ntfy/" + testTopic},
+		{name: "HTTP", config: Config{Scheme: "http", Host: "ntfy.example.com:8080", Topic: testTopic}, want: "http://ntfy.example.com:8080/" + testTopic},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.config.GetAPIURL())
 		})
+	}
+}
 
-		ginkgo.It("should handle nested topic paths", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "notifications/alerts"
+// TestConfigGetURL verifies that GetURL writes the credentials, host, and
+// topic into the URL and the settings into the query, and round-trips through
+// SetURL.
+func TestConfigGetURL(t *testing.T) {
+	t.Parallel()
 
-			result := config.GetAPIURL()
-			gomega.Expect(result).To(gomega.Equal("https://ntfy.sh/notifications/alerts"))
+	// tests lists configs with the URL parts and query values each should
+	// produce.
+	tests := []struct {
+		wantQuery url.Values
+		name      string
+		wantUser  string
+		config    Config
+	}{
+		{name: "defaults", config: defaultConfig(func(*Config) {}), wantQuery: url.Values{}},
+		{name: "username only", config: defaultConfig(func(c *Config) { c.Username = "user" }), wantUser: "user", wantQuery: url.Values{}},
+		{
+			name: "every setting",
+			config: defaultConfig(func(c *Config) {
+				c.Username, c.Password, c.Token = "user", "pass", testToken
+				c.Title, c.Tags, c.Priority = "Backup", []string{"warning", "skull"}, PriorityMax
+				c.Actions = []string{"view, Open, https://example.com", "http, Ping, https://example.com/ping"}
+				c.Click, c.Attach, c.Filename, c.Delay = "https://example.com", "https://example.com/log.txt", "log.txt", "30m"
+				c.Email, c.Icon, c.Markdown, c.Cache, c.Firebase = "ops@example.com", "https://example.com/icon.png", true, false, false
+				c.DisableTLSVerification = true
+			}),
+			wantUser: "user:pass",
+			wantQuery: url.Values{
+				"actions": {"view, Open, https://example.com;http, Ping, https://example.com/ping"}, "attach": {"https://example.com/log.txt"},
+				"cache": {"No"}, "click": {"https://example.com"}, "delay": {"30m"}, "disabletlsverification": {"Yes"},
+				"email": {"ops@example.com"}, "filename": {"log.txt"}, "firebase": {"No"}, "icon": {"https://example.com/icon.png"},
+				"markdown": {"Yes"}, "priority": {"Max"}, "tags": {"warning,skull"}, "title": {"Backup"}, "token": {testToken},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL := tt.config.GetURL()
+
+			assert.Equal(t, Scheme, serviceURL.Scheme)
+			assert.Equal(t, tt.wantUser, serviceURL.User.String())
+			assert.Equal(t, "ntfy.sh", serviceURL.Host)
+			assert.Equal(t, "/"+testTopic, serviceURL.Path)
+
+			query := serviceURL.Query()
+			for key, want := range tt.wantQuery {
+				assert.Equal(t, want, query[key], key)
+			}
+
+			// GetURL writes each setting under its primary key, never an alias.
+			for _, alias := range []string{"at", "in"} {
+				assert.NotContains(t, query, alias)
+			}
+
+			roundTrip := newDefaultConfig(t)
+			require.NoError(t, roundTrip.SetURL(serviceURL))
+			assert.Equal(t, tt.config, withoutEmptyLists(roundTrip))
 		})
+	}
+}
 
-		ginkgo.It("should use http scheme when configured", func() {
-			config.Scheme = "http"
-			config.Host = "ntfy.local"
-			config.Topic = "mytopic"
+// TestConfigQueryResolver verifies the config's query keys and that priority
+// is its only enum.
+func TestConfigQueryResolver(t *testing.T) {
+	t.Parallel()
 
-			result := config.GetAPIURL()
-			gomega.Expect(result).To(gomega.Equal("http://ntfy.local/mytopic"))
-		})
-	})
+	config := &Config{}
 
-	ginkgo.Describe("GetURL", func() {
-		ginkgo.It("should build URL with all fields populated", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-			config.Username = "user"
-			config.Password = "pass"
-			config.Title = "Alert"
-			config.Priority = PriorityHigh
-
-			result := config.GetURL()
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(result.Host).To(gomega.Equal("ntfy.sh"))
-			gomega.Expect(result.Path).To(gomega.Equal("/mytopic"))
-			gomega.Expect(result.User.Username()).To(gomega.Equal("user"))
-			pass, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeTrue())
-			gomega.Expect(pass).To(gomega.Equal("pass"))
-			gomega.Expect(result.Query().Get("title")).To(gomega.Equal("Alert"))
-			gomega.Expect(result.Query().Get("priority")).To(gomega.Equal("High"))
-		})
-
-		ginkgo.It("should build URL without credentials when empty", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-
-			result := config.GetURL()
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.User).To(gomega.BeNil())
-		})
-
-		ginkgo.It("should build URL with username only", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-			config.Username = "user"
-
-			result := config.GetURL()
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.User.Username()).To(gomega.Equal("user"))
-			_, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should force query string even with no params", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-
-			result := config.GetURL()
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.ForceQuery).To(gomega.BeTrue())
-		})
-	})
-
-	ginkgo.Describe("QueryFields", func() {
-		ginkgo.It("should return non-empty list of query fields", func() {
-			fields := config.QueryFields()
-			gomega.Expect(fields).NotTo(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should contain priority field", func() {
-			fields := config.QueryFields()
-			gomega.Expect(fields).To(gomega.ContainElement("priority"))
-		})
-
-		ginkgo.It("should contain title field", func() {
-			fields := config.QueryFields()
-			gomega.Expect(fields).To(gomega.ContainElement("title"))
-		})
-	})
-
-	ginkgo.Describe("SetURL", func() {
-		ginkgo.It("should parse URL components correctly", func() {
-			testURL := mustParseURL("ntfy://user:pass@ntfy.example.com/mytopic?priority=5")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Host).To(gomega.Equal("ntfy.example.com"))
-			gomega.Expect(config.Topic).To(gomega.Equal("mytopic"))
-			gomega.Expect(config.Username).To(gomega.Equal("user"))
-			gomega.Expect(config.Password).To(gomega.Equal("pass"))
-			gomega.Expect(config.Priority).To(gomega.Equal(PriorityMax))
-		})
-
-		ginkgo.It("should parse URL without credentials", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Username).To(gomega.Equal(""))
-			gomega.Expect(config.Password).To(gomega.Equal(""))
-			gomega.Expect(config.Host).To(gomega.Equal("ntfy.example.com"))
-			gomega.Expect(config.Topic).To(gomega.Equal("mytopic"))
-		})
-
-		ginkgo.It("should parse URL with username only", func() {
-			testURL := mustParseURL("ntfy://user@ntfy.example.com/mytopic")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Username).To(gomega.Equal("user"))
-			gomega.Expect(config.Password).To(gomega.Equal(""))
-		})
-
-		ginkgo.It("should parse token from query", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_mytoken")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Token).To(gomega.Equal("tk_mytoken"))
-			gomega.Expect(config.Username).To(gomega.Equal(""))
-			gomega.Expect(config.Password).To(gomega.Equal(""))
-		})
-
-		ginkgo.It("should clear token when reused with a URL without token", func() {
-			err := config.SetURL(mustParseURL("ntfy://ntfy.example.com/mytopic?token=tk_mytoken"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = config.SetURL(mustParseURL("ntfy://ntfy.example.com/mytopic"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Token).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return ErrTopicRequired for empty topic", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).To(gomega.Equal(ErrTopicRequired))
-		})
-
-		ginkgo.It("should skip topic validation for dummy URL", func() {
-			testURL := mustParseURL("ntfy://dummy@dummy.com")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should parse nested topic paths", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/level1/level2/level3")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Topic).To(gomega.Equal("level1/level2/level3"))
-		})
-
-		ginkgo.It("should parse query parameters", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?title=Alert&priority=High&tags=warning,skull")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Title).To(gomega.Equal("Alert"))
-			gomega.Expect(config.Priority).To(gomega.Equal(PriorityHigh))
-			gomega.Expect(config.Tags).To(gomega.Equal([]string{"warning", "skull"}))
-		})
-
-		ginkgo.It("should handle semicolons in query by splitting actions", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?actions=view;open")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Actions).To(gomega.Equal([]string{"view", "open"}))
-		})
-
-		ginkgo.It("should parse markdown query parameter", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?markdown=yes")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Markdown).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should parse cache query parameter as No", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?cache=no")
-
-			err := config.SetURL(testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Cache).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("getURL", func() {
-		ginkgo.It("should construct URL with ntfy scheme", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-			config.Username = "user"
-			config.Password = "pass"
-
-			resolver := format.NewPropKeyResolver(config)
-			result := config.getURL(&resolver)
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.Scheme).To(gomega.Equal(Scheme))
-			gomega.Expect(result.Host).To(gomega.Equal("ntfy.sh"))
-			gomega.Expect(result.Path).To(gomega.Equal("/mytopic"))
-			gomega.Expect(result.User.Username()).To(gomega.Equal("user"))
-			pass, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeTrue())
-			gomega.Expect(pass).To(gomega.Equal("pass"))
-		})
-
-		ginkgo.It("should include username without password", func() {
-			config.Scheme = "https"
-			config.Host = "ntfy.sh"
-			config.Topic = "mytopic"
-			config.Username = "user"
-
-			resolver := format.NewPropKeyResolver(config)
-			result := config.getURL(&resolver)
-			gomega.Expect(result).NotTo(gomega.BeNil())
-			gomega.Expect(result.User.Username()).To(gomega.Equal("user"))
-			_, hasPass := result.User.Password()
-			gomega.Expect(hasPass).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("setURL", func() {
-		ginkgo.It("should set topic from URL path without leading slash", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Topic).To(gomega.Equal("mytopic"))
-		})
-
-		ginkgo.It("should set topic from URL path with leading slash", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com//mytopic")
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Topic).To(gomega.Equal("/mytopic"))
-		})
-
-		ginkgo.It("should clear credentials when URL has no user info", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			config.Username = "olduser"
-			config.Password = "oldpass"
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Username).To(gomega.Equal(""))
-			gomega.Expect(config.Password).To(gomega.Equal(""))
-		})
-
-		ginkgo.It("should set host from URL", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com:8080/mytopic")
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Host).To(gomega.Equal("ntfy.example.com:8080"))
-		})
-
-		ginkgo.It("should split semicolons in actions query", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/mytopic?actions=a;b;c")
-			gomega.Expect(strings.Contains(testURL.RawQuery, ";")).To(gomega.BeTrue())
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(config.Actions).To(gomega.Equal([]string{"a", "b", "c"}))
-		})
-
-		ginkgo.It("should return ErrTopicRequired for empty topic except dummy URL", func() {
-			testURL := mustParseURL("ntfy://ntfy.example.com/")
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).To(gomega.Equal(ErrTopicRequired))
-		})
-
-		ginkgo.It("should skip topic validation for dummy URL", func() {
-			testURL := mustParseURL("ntfy://dummy@dummy.com")
-
-			resolver := format.NewPropKeyResolver(config)
-			err := config.setURL(&resolver, testURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("default values", func() {
-		ginkgo.It("should apply defaults from struct tags when only required fields are set", func() {
-			svc := &Service{}
-			serviceURL := mustParseURL("ntfy://hostname/topic")
-			gomega.Expect(svc.Initialize(serviceURL, &noOpLogger{})).To(gomega.Succeed())
-			gomega.Expect(svc.Config.Host).To(gomega.Equal("hostname"))
-			gomega.Expect(svc.Config.Topic).To(gomega.Equal("topic"))
-			gomega.Expect(svc.Config.Scheme).To(gomega.Equal("https"))
-			gomega.Expect(svc.Config.Tags).To(gomega.Equal([]string{""}))
-			gomega.Expect(svc.Config.Actions).To(gomega.Equal([]string{""}))
-			gomega.Expect(svc.Config.Priority).To(gomega.Equal(PriorityDefault))
-			gomega.Expect(svc.Config.Markdown).To(gomega.BeFalse())
-			gomega.Expect(svc.Config.Firebase).To(gomega.BeTrue())
-			gomega.Expect(svc.Config.Cache).To(gomega.BeTrue())
-			gomega.Expect(svc.Config.DisableTLSVerification).To(gomega.BeFalse())
-			gomega.Expect(svc.Config.DisableTLS).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("URL round-trip", func() {
-		ginkgo.It("should be identical after de-/serialization", func() {
-			testURL := "ntfy://user:pass@example.com:2225/topic?cache=No&click=CLICK&disabletls=No&disabletlsverification=No&firebase=No&icon=ICON&markdown=No&priority=Max&scheme=http&title=TITLE"
-			cfg := &Config{}
-			pkr := format.NewPropKeyResolver(cfg)
-			gomega.Expect(cfg.setURL(&pkr, mustParseURL(testURL))).To(gomega.Succeed())
-			gomega.Expect(cfg.GetURL().String()).To(gomega.Equal(testURL))
-		})
-	})
-
-	ginkgo.Describe("Service API compliance", func() {
-		ginkgo.It("should pass standard config tests", func() {
-			cfg := &Config{}
-			enums := cfg.Enums()
-			gomega.Expect(enums).To(gomega.HaveKey("Priority"))
-
-			resolver := format.NewPropKeyResolver(cfg)
-			fields := resolver.QueryFields()
-			gomega.Expect(fields).To(gomega.HaveLen(19))
-		})
-	})
-})
+	enums := config.Enums()
+	assert.Len(t, enums, 1)
+	assert.Same(t, Priority.Enum, enums["Priority"])
+	assert.Equal(t, []string{
+		"actions", "at", "attach", "cache", "click", "delay", "disabletls", "disabletlsverification", "email", "filename",
+		"firebase", "icon", "in", "markdown", "priority", "scheme", "tags", "title", "token",
+	}, config.QueryFields())
+}

@@ -1,758 +1,746 @@
 package ntfy
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	mock "github.com/stretchr/testify/mock"
-
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
+	"github.com/nicholas-fedor/shoutrrr/internal/meta"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
-	jsonclientmocks "github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient/mocks"
 )
 
-// concurrentSends is the number of simultaneous sends in the concurrency test.
-const concurrentSends = 8
+// capturedRequest records the parts of a request that an HTTP client received.
+type capturedRequest struct {
+	// header is the request's headers.
+	header http.Header
+	// method is the request method.
+	method string
+	// url is the full request URL.
+	url string
+	// body is the request body.
+	body string
+}
 
-var _ = ginkgo.Describe("Service", func() {
+// cannedResponse is what the recording client returns for one request.
+type cannedResponse struct {
+	// err is a transport error returned instead of a response.
+	err error
+	// body is the response body.
+	body string
+	// statusCode is the response status code.
+	statusCode int
+}
+
+// Values shared by the service tests.
+const (
+	// publishedBody is ntfy's response to a published message.
+	publishedBody = `{"id":"sPs71M8A2T","time":1760500000,"expires":1760543200,"event":"message","topic":"alerts","message":"Hello"}`
+	// forbiddenBody is ntfy's response to a publish without access to the topic.
+	forbiddenBody = `{"code":40301,"http":403,"error":"forbidden","link":"https://ntfy.sh/docs/publish/#authentication"}`
+)
+
+// Values shared by the service tests.
+var (
+	// errTransport is the transport failure returned by a failing client.
+	errTransport = errors.New("transport failure")
+	// published is the response to a published message.
+	published = cannedResponse{statusCode: http.StatusOK, body: publishedBody}
+)
+
+// newRecordingClient returns a mock HTTP client that expects one request per
+// response, records each request, and answers them in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - responses: the responses to return, in request order.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - func() []capturedRequest: returns the requests received so far.
+func newRecordingClient(t *testing.T, responses ...cannedResponse) (*mocks.MockHTTPClient, func() []capturedRequest) {
+	t.Helper()
+
 	var (
-		service  *Service
-		mockJSON *jsonclientmocks.MockContextClient
-		logger   types.StdLogger
+		mu       sync.Mutex
+		captured []capturedRequest
 	)
 
-	ginkgo.BeforeEach(func() {
-		mockJSON = newMockJSONClient()
-		logger = &noOpLogger{}
-		service = &Service{
-			Config: &Config{
-				Scheme: "https",
-				Host:   "ntfy.sh",
-				Topic:  "mytopic",
-			},
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		captured = append(captured, capturedRequest{
+			header: req.Header.Clone(),
+			method: req.Method,
+			url:    req.URL.String(),
+			body:   string(body),
+		})
+
+		response := responses[len(captured)-1]
+		if response.err != nil {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: response.err}
 		}
-		service.SetLogger(logger)
-		service.apiClient = func() jsonclient.ContextClient { return mockJSON }
+
+		return &http.Response{
+			StatusCode: response.statusCode,
+			Status:     fmt.Sprintf("%d %s", response.statusCode, http.StatusText(response.statusCode)),
+			Body:       io.NopCloser(strings.NewReader(response.body)),
+		}, nil
+	}).Times(len(responses))
+
+	return client, func() []capturedRequest {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(captured)
+	}
+}
+
+// newTestService returns a service initialized from rawURL that logs to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string) *Service {
+	t.Helper()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(t.Output(), "", 0)))
+
+	return service
+}
+
+// requestHeader returns the headers every publish carries, with the given
+// headers added.
+//
+// Parameters:
+//   - extra: header names and values to add, in pairs.
+//
+// Returns:
+//   - http.Header: the headers.
+func requestHeader(extra ...string) http.Header {
+	header := http.Header{
+		"Content-Type": {"text/plain; charset=utf-8"},
+		"User-Agent":   {meta.UserAgent()},
+		"Priority":     {"Default"},
+	}
+
+	for i := 0; i+1 < len(extra); i += 2 {
+		header.Set(extra[i], extra[i+1])
+	}
+
+	return header
+}
+
+// assertSkipsVerify asserts that client is a default client with the request
+// timeout, TLS 1.2 or later, and the given certificate verification setting.
+//
+// Parameters:
+//   - t: the test.
+//   - client: the client to check.
+//   - wantSkip: whether the client should skip certificate verification.
+func assertSkipsVerify(t *testing.T, client types.HTTPClient, wantSkip bool) {
+	t.Helper()
+
+	httpClient, ok := client.(*http.Client)
+	require.True(t, ok, "client is %T", client)
+	assert.Equal(t, 10*time.Second, httpClient.Timeout)
+
+	transport, ok := httpClient.Transport.(*http.Transport)
+	require.True(t, ok, "transport is %T", httpClient.Transport)
+	require.NotNil(t, transport.TLSClientConfig)
+	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+	assert.Equal(t, wantSkip, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.NotNil(t, transport.Proxy)
+}
+
+// TestGetID verifies that the service identifies itself by its scheme.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "ntfy", (&Service{}).GetID())
+}
+
+// TestServiceTimeout verifies that the router gives ntfy the default send
+// budget.
+func TestServiceTimeout(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, types.DefaultSendTimeout, (&Service{}).ServiceTimeout(nil))
+}
+
+// TestInitialize verifies that Initialize parses the service URL over the
+// defaults, uses HTTP when TLS is disabled, and builds the default client,
+// warning when it skips certificate verification.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with the scheme, certificate verification, and log
+	// each should produce.
+	tests := []struct {
+		name       string
+		rawURL     string
+		wantScheme string
+		wantLog    string
+		wantSkip   bool
+	}{
+		{name: "defaults", rawURL: testServiceURL, wantScheme: "https"},
+		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "http"},
+		{
+			name:       "verification disabled",
+			rawURL:     testServiceURL + "?disabletlsverification=yes",
+			wantScheme: "https",
+			wantSkip:   true,
+			wantLog:    "Warning: TLS verification is disabled, making connections insecure\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
+
+			assert.Equal(t, tt.wantScheme, service.Config.Scheme)
+			assertSkipsVerify(t, service.httpClient, tt.wantSkip)
+			assert.Equal(t, tt.wantLog, logs.String())
+		})
+	}
+
+	t.Run("missing topic", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "ntfy://ntfy.sh"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrTopicRequired)
 	})
-
-	ginkgo.Describe("GetID", func() {
-		ginkgo.It("should return the scheme name", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal(Scheme))
-		})
-	})
-
-	ginkgo.Describe("Initialize", func() {
-		ginkgo.It("should parse a valid URL and initialize config", func() {
-			serviceURL := mustParseURL("ntfy://user:pass@ntfy.example.com/mytopic?priority=5")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config).NotTo(gomega.BeNil())
-			gomega.Expect(service.Config.Host).To(gomega.Equal("ntfy.example.com"))
-			gomega.Expect(service.Config.Topic).To(gomega.Equal("mytopic"))
-			gomega.Expect(service.Config.Username).To(gomega.Equal("user"))
-			gomega.Expect(service.Config.Password).To(gomega.Equal("pass"))
-			gomega.Expect(service.Config.Priority).To(gomega.Equal(PriorityMax))
-		})
-
-		ginkgo.It("should return an error when topic is missing", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).To(gomega.Equal(ErrTopicRequired))
-		})
-
-		ginkgo.It("should skip topic validation for dummy URL", func() {
-			serviceURL := mustParseURL("ntfy://dummy@dummy.com")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should force HTTP scheme when DisableTLS is set", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic?disabletls=yes")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Scheme).To(gomega.Equal("http"))
-		})
-
-		ginkgo.It("should create HTTP client with TLS 1.2 minimum when TLS is enabled", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should create HTTP client with InsecureSkipVerify when DisableTLSVerification is set", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic?disabletlsverification=yes")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
-		})
-
-		ginkgo.It("should use existing HTTP client when already set", func() {
-			existingClient := &http.Client{}
-			service.httpClient = existingClient
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(existingClient))
-		})
-
-		ginkgo.It("should keep a client from SetHTTPClient when reinitialized", func() {
-			injected := &http.Client{}
-			service.SetHTTPClient(injected)
-
-			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(injected))
-		})
-
-		ginkgo.It("should rebuild a restored default client for the new config", func() {
-			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic?disabletlsverification=yes"), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service.SetHTTPClient(&http.Client{})
-			service.SetHTTPClient(nil)
-
-			err = service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			client, ok := service.httpClient.(*http.Client)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			transport, ok := client.Transport.(*http.Transport)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should rebuild its own default client when reinitialized", func() {
-			err := service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic?disabletlsverification=yes"), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			client, ok := service.httpClient.(*http.Client)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			transport, ok := client.Transport.(*http.Transport)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
-		})
-
-		ginkgo.It("should create jsonclient from HTTP client", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-
-			err := service.Initialize(serviceURL, logger)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
-			gomega.Expect(service.newAPIClient()).NotTo(gomega.BeNil())
-		})
-	})
-
-	ginkgo.Describe("Send", func() {
-		ginkgo.BeforeEach(func() {
-			mockJSON.On("Headers").Return(http.Header{})
-		})
-
-		ginkgo.It("should send message via sendAPI", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.Send("hello", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should apply params to the send without changing the service config", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			params := &types.Params{"title": "New Title"}
-			err := service.Send("hello", params)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(service.Config.Title).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return error when sendAPI fails", func() {
-			serviceURL := mustParseURL("ntfy://ntfy.example.com/mytopic")
-			gomega.Expect(service.Initialize(serviceURL, logger)).NotTo(gomega.HaveOccurred())
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(io.ErrClosedPipe)
-			mockJSON.EXPECT().ErrorResponse(mock.Anything, mock.Anything).
-				Return(false)
-
-			err := service.Send("hello", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-	})
-
-	ginkgo.Describe("SetHTTPClient", func() {
-		ginkgo.It("should set the HTTP client", func() {
-			newClient := &http.Client{}
-			service.SetHTTPClient(newClient)
-			gomega.Expect(service.httpClient).To(gomega.BeIdenticalTo(newClient))
-		})
-
-		ginkgo.It("should restore the default client when client is nil", func() {
-			injected := &http.Client{}
-			service.SetHTTPClient(injected)
-
-			service.SetHTTPClient(nil)
-			gomega.Expect(service.httpClient).NotTo(gomega.BeNil())
-			gomega.Expect(service.httpClient).NotTo(gomega.BeIdenticalTo(injected))
-		})
-
-		ginkgo.It("should honor disabled TLS verification in the restored default client", func() {
-			service.Config.DisableTLSVerification = true
-			service.SetHTTPClient(nil)
-
-			client, ok := service.httpClient.(*http.Client)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			transport, ok := client.Transport.(*http.Transport)
-			gomega.Expect(ok).To(gomega.BeTrue())
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should leave the client to Initialize when the service is not configured", func() {
-			service.Config = nil
-			service.SetHTTPClient(nil)
-			gomega.Expect(service.httpClient).To(gomega.BeNil())
-		})
-	})
-
-	ginkgo.Describe("per-send requests", func() {
-		var (
-			httpClient *typesmocks.MockHTTPClient
-			mu         sync.Mutex
-			requests   []*http.Request
-		)
-
-		ginkgo.BeforeEach(func() {
-			requests = nil
-			httpClient = typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-			httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-				mu.Lock()
-
-				requests = append(requests, req)
-
-				mu.Unlock()
-
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Header:     http.Header{"Content-Type": []string{"application/json"}},
-					Body:       io.NopCloser(strings.NewReader("{}")),
-				}, nil
-			}).Maybe()
-
-			service.apiClient = nil
-			gomega.Expect(service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), logger)).
-				To(gomega.Succeed())
-			service.SetHTTPClient(httpClient)
-		})
-
-		ginkgo.It("should not carry params or headers into later sends", func() {
-			params := &types.Params{"title": "First", "tags": "warning", "token": "tk_first"}
-			gomega.Expect(service.Send("first", params)).To(gomega.Succeed())
-			gomega.Expect(service.Send("second", nil)).To(gomega.Succeed())
-
-			gomega.Expect(requests).To(gomega.HaveLen(2))
-			gomega.Expect(requests[0].Header.Values("Title")).To(gomega.Equal([]string{"First"}))
-			gomega.Expect(requests[0].Header.Get("Authorization")).To(gomega.Equal("Bearer tk_first"))
-			gomega.Expect(requests[1].Header.Values("Title")).To(gomega.BeEmpty())
-			gomega.Expect(requests[1].Header.Values("Tags")).To(gomega.BeEmpty())
-			gomega.Expect(requests[1].Header.Get("Authorization")).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should send concurrently without sharing request headers", func() {
-			var wg sync.WaitGroup
-			for i := range concurrentSends {
-				wg.Go(func() {
-					defer ginkgo.GinkgoRecover()
-
-					title := fmt.Sprintf("Title %d", i)
-					gomega.Expect(service.Send("concurrent", &types.Params{"title": title})).To(gomega.Succeed())
-				})
-			}
-
-			wg.Wait()
-
-			titles := make([]string, 0, concurrentSends)
-
-			for _, req := range requests {
-				gomega.Expect(req.Header.Values("Title")).To(gomega.HaveLen(1))
-				titles = append(titles, req.Header.Get("Title"))
-			}
-
-			gomega.Expect(titles).To(gomega.HaveLen(concurrentSends))
-
-			for i := range concurrentSends {
-				gomega.Expect(titles).To(gomega.ContainElement(fmt.Sprintf("Title %d", i)))
-			}
-		})
-	})
-
-	ginkgo.Describe("sendAPI", func() {
-		var headers http.Header
-
-		ginkgo.BeforeEach(func() {
-			service.Config = &Config{
-				Scheme: "https",
-				Host:   "ntfy.example.com",
-				Topic:  "mytopic",
-			}
-			headers = http.Header{}
-			mockJSON.On("Headers").Return(headers)
-		})
-
-		ginkgo.It("should set Content-Type to text/plain by default", func() {
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/plain; charset=utf-8"))
-		})
-
-		ginkgo.It("should set Content-Type to text/markdown when Markdown is enabled", func() {
-			service.Config.Markdown = true
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "**hello**")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/markdown"))
-		})
-
-		ginkgo.It("should set Content-Type to text/plain when Markdown is disabled", func() {
-			service.Config.Markdown = false
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Content-Type")).To(gomega.Equal("text/plain; charset=utf-8"))
-		})
-
-		ginkgo.It("should set User-Agent header with shoutrrr version", func() {
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("User-Agent")).To(gomega.ContainSubstring("shoutrrr/"))
-		})
-
-		ginkgo.It("should set Title header when configured", func() {
-			service.Config.Title = "Alert"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Title")).To(gomega.Equal("Alert"))
-		})
-
-		ginkgo.It("should set Priority header when configured", func() {
-			service.Config.Priority = PriorityHigh
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Priority")).To(gomega.Equal("High"))
-		})
-
-		ginkgo.It("should set Tags header as comma-separated list", func() {
-			service.Config.Tags = []string{"warning", "skull"}
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Tags")).To(gomega.Equal("warning,skull"))
-		})
-
-		ginkgo.It("should set Basic Auth header when username and password are provided", func() {
-			service.Config.Username = "user"
-			service.Config.Password = "pass"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
-		})
-
-		ginkgo.It("should set Bearer Auth header when token is provided", func() {
-			service.Config.Token = "tk_mytoken"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
-		})
-
-		ginkgo.It("should prefer token over username and password", func() {
-			service.Config.Username = "user"
-			service.Config.Password = "pass"
-			service.Config.Token = "tk_mytoken"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.Equal("Bearer tk_mytoken"))
-		})
-
-		ginkgo.It("should set Cache header to no when Cache is disabled", func() {
-			service.Config.Cache = false
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Cache")).To(gomega.Equal("no"))
-		})
-
-		ginkgo.It("should set Firebase header to no when Firebase is disabled", func() {
-			service.Config.Firebase = false
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Firebase")).To(gomega.Equal("no"))
-		})
-
-		ginkgo.It("should set Actions header when configured", func() {
-			service.Config.Actions = []string{"view", "open"}
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Actions")).To(gomega.Equal("view;open"))
-		})
-
-		ginkgo.It("should set Delay header when configured", func() {
-			service.Config.Delay = "2h"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Delay")).To(gomega.Equal("2h"))
-		})
-
-		ginkgo.It("should set Click header when configured", func() {
-			service.Config.Click = "https://example.com"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Click")).To(gomega.Equal("https://example.com"))
-		})
-
-		ginkgo.It("should set Attach header when configured", func() {
-			service.Config.Attach = "https://example.com/image.png"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Attach")).To(gomega.Equal("https://example.com/image.png"))
-		})
-
-		ginkgo.It("should set X-Icon header when configured", func() {
-			service.Config.Icon = "https://example.com/icon.png"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("X-Icon")).To(gomega.Equal("https://example.com/icon.png"))
-		})
-
-		ginkgo.It("should set Filename header when configured", func() {
-			service.Config.Filename = "document.pdf"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Filename")).To(gomega.Equal("document.pdf"))
-		})
-
-		ginkgo.It("should set Email header when configured", func() {
-			service.Config.Email = "user@example.com"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Email")).To(gomega.Equal("user@example.com"))
-		})
-
-		ginkgo.It("should call Post with the API URL and message body", func() {
-			mockJSON.On("PostContext", mock.Anything, service.Config.GetAPIURL(), "hello", mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should set Basic Auth header with username only", func() {
-			service.Config.Username = "user"
-			service.Config.Password = ""
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
-		})
-
-		ginkgo.It("should set Basic Auth header with password only", func() {
-			service.Config.Username = ""
-			service.Config.Password = "pass"
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Authorization")).To(gomega.HavePrefix("Basic "))
-		})
-
-		ginkgo.It("should send empty message without error", func() {
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should set single tag without comma separator", func() {
-			service.Config.Tags = []string{"warning"}
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(nil)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(headers.Get("Tags")).To(gomega.Equal("warning"))
-		})
-
-		ginkgo.It("should return error when Post fails", func() {
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(io.ErrClosedPipe)
-			mockJSON.On("ErrorResponse", mock.Anything, mock.Anything).
-				Return(false)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return apiResponseError when API returns structured error", func() {
-			responseBody := `{"code":400,"error":"invalid request","link":"https://docs.ntfy.sh"}`
-
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(jsonclient.Error{
-					StatusCode: 400,
-					Body:       responseBody,
-				})
-			mockJSON.EXPECT().ErrorResponse(mock.Anything, mock.Anything).
-				RunAndReturn(func(_ error, response any) bool {
-					if resp, ok := response.(*apiResponseError); ok {
-						resp.Code = 400
-						resp.Message = "invalid request"
-						resp.Link = "https://docs.ntfy.sh"
-					}
-
-					return true
-				})
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("invalid request"))
-		})
-
-		ginkgo.It("should return wrapped error when Post fails and ErrorResponse parsing fails", func() {
-			mockJSON.On("PostContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-				Return(io.ErrClosedPipe)
-			mockJSON.On("ErrorResponse", mock.Anything, mock.Anything).
-				Return(false)
-
-			err := service.sendAPI(context.Background(), service.Config, "hello")
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("posting to ntfy API"))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("addHeaderIfNotEmpty", func() {
-	ginkgo.It("should add header when value is non-empty", func() {
-		headers := http.Header{}
-		addHeaderIfNotEmpty(&headers, "X-Test", "value")
-		gomega.Expect(headers.Get("X-Test")).To(gomega.Equal("value"))
-	})
-
-	ginkgo.It("should not add header when value is empty", func() {
-		headers := http.Header{}
-		addHeaderIfNotEmpty(&headers, "X-Test", "")
-		gomega.Expect(headers.Get("X-Test")).To(gomega.Equal(""))
-	})
-
-	ginkgo.It("should append multiple values for the same header", func() {
-		headers := http.Header{}
-		addHeaderIfNotEmpty(&headers, "X-Test", "value1")
-		addHeaderIfNotEmpty(&headers, "X-Test", "value2")
-		gomega.Expect(headers["X-Test"]).To(gomega.Equal([]string{"value1", "value2"}))
-	})
-})
-
-var _ = ginkgo.Describe("TLS configuration", func() {
-	var (
-		svc        *Service
-		testLogger types.StdLogger
-	)
-
-	ginkgo.BeforeEach(func() {
-		testLogger = &noOpLogger{}
-	})
-
-	ginkgo.Describe("DisableTLSVerification", func() {
-		ginkgo.It("should set InsecureSkipVerify when DisableTLSVerification is true", func() {
-			svc = &Service{}
-			serviceURL := mustParseURL("ntfy://example.com/test?disabletlsverification=yes")
-			gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
-			transport := svc.httpClient.(*http.Client).Transport.(*http.Transport)
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should set DisableTLSVerification config when enabled", func() {
-			svc = &Service{}
-			serviceURL := mustParseURL("ntfy://example.com/test?disabletlsverification=yes")
-			gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
-			gomega.Expect(svc.Config.DisableTLSVerification).To(gomega.BeTrue())
-		})
-
-		ginkgo.It("should not set InsecureSkipVerify when DisableTLSVerification is false", func() {
-			svc = &Service{}
-			serviceURL := mustParseURL("ntfy://example.com/test")
-			gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
-			transport := svc.httpClient.(*http.Client).Transport.(*http.Transport)
-			gomega.Expect(transport.TLSClientConfig.InsecureSkipVerify).To(gomega.BeFalse())
-		})
-	})
-
-	ginkgo.Describe("DisableTLS", func() {
-		ginkgo.It("should use HTTP scheme when DisableTLS is true", func() {
-			svc = &Service{}
-			serviceURL := mustParseURL("ntfy://example.com/test?disabletls=yes")
-			gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
-			gomega.Expect(svc.Config.GetAPIURL()).To(gomega.Equal("http://example.com/test"))
-		})
-
-		ginkgo.It("should use HTTPS scheme when DisableTLS is false", func() {
-			config := &Config{
-				Host:       "example.com",
-				Topic:      "test",
-				Scheme:     "https",
-				DisableTLS: false,
-			}
-			gomega.Expect(config.GetAPIURL()).To(gomega.Equal("https://example.com/test"))
-		})
-	})
-})
-
-var _ = ginkgo.Describe("service identification", func() {
-	ginkgo.It("should return the correct service ID", func() {
-		svc := &Service{}
-		gomega.Expect(svc.GetID()).To(gomega.Equal(Scheme))
-	})
-})
-
-var _ = ginkgo.Describe("service API compliance", func() {
-	var (
-		svc        *Service
-		testLogger types.StdLogger
-	)
-
-	ginkgo.BeforeEach(func() {
-		testLogger = &noOpLogger{}
-	})
-
-	ginkgo.It("should pass config API compliance checks", func() {
-		testutils.TestConfigSetInvalidQueryValue(&Config{}, "ntfy://host/topic?foo=bar")
-		testutils.TestConfigGetInvalidQueryValue(&Config{})
-		testutils.TestConfigSetDefaultValues(&Config{})
-		testutils.TestConfigGetEnumsCount(&Config{}, 1)
-		testutils.TestConfigGetFieldsCount(&Config{}, 19)
-	})
-
-	ginkgo.It("should pass service API compliance checks", func() {
-		svc = &Service{}
-		serviceURL := mustParseURL("ntfy://:devicekey@hostname/testtopic")
-		gomega.Expect(svc.Initialize(serviceURL, testLogger)).To(gomega.Succeed())
-		testutils.TestServiceSetInvalidParamValue(svc, "foo", "bar")
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.It("should stop the request when the caller's context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
-
+}
+
+// TestInitializeClients verifies which client survives a second Initialize: a
+// custom client is kept, while the service's own default client, including
+// one restored by setting a nil client, is rebuilt for the new config.
+func TestInitializeClients(t *testing.T) {
+	t.Parallel()
+
+	reinitialize := func(t *testing.T, service *Service) {
+		t.Helper()
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"?disabletlsverification=yes"), log.New(t.Output(), "", 0)))
+	}
+
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
 		service := &Service{}
-		gomega.Expect(service.Initialize(mustParseURL("ntfy://ntfy.example.com/mytopic"), testutils.TestLogger())).
-			To(gomega.Succeed())
+		service.SetHTTPClient(client)
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+		reinitialize(t, service)
+
+		assert.Same(t, client, service.httpClient)
+	})
+
+	t.Run("default client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		reinitialize(t, service)
+
+		assertSkipsVerify(t, service.httpClient, true)
+	})
+
+	t.Run("restored default client", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		service.SetHTTPClient(nil)
+		reinitialize(t, service)
+
+		assertSkipsVerify(t, service.httpClient, true)
+	})
+}
+
+// TestSend verifies the request a send makes: a POST of the message to the
+// topic URL, with the settings from the URL and params as ntfy headers.
+func TestSend(t *testing.T) {
+	t.Parallel()
+
+	// tests lists sends with the request each should produce.
+	tests := []struct {
+		params     *types.Params
+		wantHeader http.Header
+		name       string
+		rawURL     string
+		message    string
+		wantURL    string
+	}{
+		{name: "message only", rawURL: testServiceURL, message: "Hello", wantURL: testEndpoint, wantHeader: requestHeader()},
+		{name: "empty message", rawURL: testServiceURL, wantURL: testEndpoint, wantHeader: requestHeader()},
+		{
+			name: "message settings",
+			rawURL: testServiceURL + "?title=Backup&tags=warning,skull&priority=high&click=https://example.com" +
+				"&attach=https://example.com/log.txt&filename=log.txt&delay=30m&email=ops@example.com&icon=https://example.com/icon.png" +
+				"&actions=view, Open, https://example.com;http, Ping, https://example.com/ping",
+			message: "Hello",
+			wantURL: testEndpoint,
+			wantHeader: requestHeader(
+				"Title", "Backup", "Tags", "warning,skull", "Priority", "High", "Click", "https://example.com",
+				"Attach", "https://example.com/log.txt", "Filename", "log.txt", "Delay", "30m", "Email", "ops@example.com",
+				"X-Icon", "https://example.com/icon.png", "Actions", "view, Open, https://example.com;http, Ping, https://example.com/ping",
+			),
+		},
+		{
+			name:       "params",
+			rawURL:     testServiceURL + "?title=Backup",
+			params:     &types.Params{"title": "Restore", "priority": "5", "tags": "white_check_mark"},
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Title", "Restore", "Priority", "Max", "Tags", "white_check_mark"),
+		},
+		{
+			name:       "markdown",
+			rawURL:     testServiceURL + "?markdown=yes",
+			message:    "**Hello**",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Content-Type", "text/markdown"),
+		},
+		{
+			name:       "cache and Firebase off",
+			rawURL:     testServiceURL + "?cache=no&firebase=no",
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Cache", "no", "Firebase", "no"),
+		},
+		{
+			name:       "username and password",
+			rawURL:     "ntfy://user:pass@ntfy.sh/" + testTopic,
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Authorization", "Basic dXNlcjpwYXNz"),
+		},
+		{
+			name:       "username only",
+			rawURL:     "ntfy://user@ntfy.sh/" + testTopic,
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Authorization", "Basic dXNlcjo="),
+		},
+		{
+			name:       "password only",
+			rawURL:     "ntfy://:pass@ntfy.sh/" + testTopic,
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Authorization", "Basic OnBhc3M="),
+		},
+		{
+			name:       "token",
+			rawURL:     testServiceURL + "?token=" + testToken,
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Authorization", "Bearer "+testToken),
+		},
+		{
+			name:       "token over username and password",
+			rawURL:     "ntfy://user:pass@ntfy.sh/" + testTopic + "?token=" + testToken,
+			message:    "Hello",
+			wantURL:    testEndpoint,
+			wantHeader: requestHeader("Authorization", "Bearer "+testToken),
+		},
+		{
+			name:       "TLS disabled",
+			rawURL:     "ntfy://ntfy.example.com:8080/" + testTopic + "?disabletls=yes",
+			message:    "Hello",
+			wantURL:    "http://ntfy.example.com:8080/" + testTopic,
+			wantHeader: requestHeader(),
+		},
+		{
+			name:       "nested topic",
+			rawURL:     "ntfy://ntfy.example.com/ntfy/" + testTopic,
+			message:    "Hello",
+			wantURL:    "https://ntfy.example.com/ntfy/" + testTopic,
+			wantHeader: requestHeader(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRecordingClient(t, published)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, http.MethodPost, requests[0].method)
+			assert.Equal(t, tt.wantURL, requests[0].url)
+			assert.Equal(t, tt.wantHeader, requests[0].header)
+			assert.Equal(t, tt.message, requests[0].body)
+		})
+	}
+}
+
+// TestSendLogs verifies that a send logs whether the request succeeded.
+func TestSendLogs(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	client, _ := newRecordingClient(t, published, cannedResponse{statusCode: http.StatusForbidden, body: forbiddenBody})
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Hello", nil))
+	require.Error(t, service.Send("Hello", nil))
+	assert.Equal(t, "NTFY API request succeeded\nNTFY API request failed with error: got unexpected HTTP status: 403 Forbidden\n", logs.String())
+}
+
+// TestSendErrors verifies that a send reports ntfy's error response, other
+// error statuses, and transport errors without the credentials, and rejects
+// an invalid param before any request.
+func TestSendErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists responses with the error each should produce.
+	tests := []struct {
+		wantErr   error
+		name      string
+		response  cannedResponse
+		wantError string
+	}{
+		{
+			name:      "error response",
+			response:  cannedResponse{statusCode: http.StatusForbidden, body: forbiddenBody},
+			wantError: "failed to send ntfy notification: server response: forbidden (40301), see: https://ntfy.sh/docs/publish/#authentication",
+		},
+		{
+			name:      "status without an error body",
+			response:  cannedResponse{statusCode: http.StatusBadGateway, body: "<html>Bad Gateway</html>"},
+			wantErr:   jsonclient.ErrUnexpectedStatus,
+			wantError: "failed to send ntfy notification: posting to ntfy API: got unexpected HTTP status: 502 Bad Gateway",
+		},
+		{
+			name:     "transport error",
+			response: cannedResponse{err: errTransport},
+			wantErr:  errTransport,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ntfy://user:SECRETpass@ntfy.sh/"+testTopic+"?token=SECRETtoken")
+			client, _ := newRecordingClient(t, tt.response)
+			service.SetHTTPClient(client)
+
+			err := service.Send("Hello", nil)
+
+			require.Error(t, err)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+			}
+
+			assert.NotContains(t, err.Error(), "SECRET")
+		})
+	}
+
+	t.Run("API error type", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, _ := newRecordingClient(t, cannedResponse{statusCode: http.StatusTooManyRequests, body: `{"code":42901,"http":429,"error":"limit reached: too many requests"}`})
 		service.SetHTTPClient(client)
 
-		gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
+		apiErr, ok := errors.AsType[*apiResponseError](service.Send("Hello", nil))
+		require.True(t, ok, "error is not an *apiResponseError")
+		assert.Equal(t, &apiResponseError{Code: 42901, Message: "limit reached: too many requests"}, apiErr)
 	})
-})
+
+	t.Run("invalid param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.Send("Hello", &types.Params{"unknown": "value"}), format.ErrInvalidConfigKey)
+	})
+}
+
+// TestSendLeavesConfigUnchanged verifies that params and their headers apply
+// to one send only and leave the caller's params unchanged.
+func TestSendLeavesConfigUnchanged(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRecordingClient(t, published, published)
+	service.SetHTTPClient(client)
+
+	want := *service.Config
+	params := types.Params{"title": "Backup", "priority": "max", "tags": "skull", "markdown": "yes"}
+
+	require.NoError(t, service.Send("Hello", &params))
+	require.NoError(t, service.Send("Hello", nil))
+
+	assert.Equal(t, want, *service.Config)
+	assert.Equal(t, types.Params{"title": "Backup", "priority": "max", "tags": "skull", "markdown": "yes"}, params)
+
+	requests := captured()
+	require.Len(t, requests, 2)
+	assert.Equal(t, requestHeader(), requests[1].header)
+}
+
+// TestSendConcurrently verifies that concurrent sends with different params
+// each carry only their own headers.
+func TestSendConcurrently(t *testing.T) {
+	t.Parallel()
+
+	const sends = 8
+
+	responses := make([]cannedResponse, sends)
+	for i := range responses {
+		responses[i] = published
+	}
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRecordingClient(t, responses...)
+	service.SetHTTPClient(client)
+
+	var wg sync.WaitGroup
+	for i := range sends {
+		wg.Go(func() {
+			assert.NoError(t, service.Send(strconv.Itoa(i), &types.Params{"title": fmt.Sprintf("Title %d", i)}))
+		})
+	}
+
+	wg.Wait()
+
+	requests := captured()
+	require.Len(t, requests, sends)
+
+	for _, request := range requests {
+		assert.Equal(t, requestHeader("Title", "Title "+request.body), request.header)
+	}
+}
+
+// TestSendContextCancellation verifies that the caller's context bounds the
+// request.
+func TestSendContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	}).Once()
+
+	service := newTestService(t, testServiceURL)
+	service.SetHTTPClient(client)
+
+	require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
+// restores the default client for nil and a nil *http.Client, honoring the
+// config's certificate verification, or leaves the client to Initialize
+// before the service is configured.
+func TestSetHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// tests lists constructors for the clients to set, which build any mock
+	// with the subtest's t, and whether the default client should be stored.
+	tests := []struct {
+		client      func(t *testing.T) types.HTTPClient
+		name        string
+		wantDefault bool
+	}{
+		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
+			t.Helper()
+
+			return mocks.NewMockHTTPClient(t)
+		}},
+		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantDefault: true},
+		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := tt.client(t)
+			service := newTestService(t, testServiceURL+"?disabletlsverification=yes")
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(client)
+
+			assert.Equal(t, tt.wantDefault, service.defaultClient)
+
+			if tt.wantDefault {
+				assertSkipsVerify(t, service.httpClient, true)
+
+				return
+			}
+
+			assert.Same(t, client, service.httpClient)
+		})
+	}
+
+	t.Run("before Initialize", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{}
+		service.SetHTTPClient(nil)
+
+		assert.Nil(t, service.httpClient)
+		assert.True(t, service.defaultClient)
+
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+		assertSkipsVerify(t, service.httpClient, false)
+	})
+}
+
+// TestSendDefaultClient verifies that a send through the default client
+// honors the caller's context and keeps the credentials out of its errors.
+// The context is canceled before the send, so the transport returns before it
+// dials.
+func TestSendDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "ntfy://user:SECRETpass@ntfy.sh/"+testTopic+"?token=SECRETtoken")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := service.SendContext(ctx, "Hello", nil)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotContains(t, err.Error(), "SECRET")
+}
+
+// newNtfyServer returns a loopback server that accepts messages for testTopic,
+// counting them.
+//
+// Parameters:
+//   - t: the test.
+//   - useTLS: whether the server uses TLS with a self-signed certificate.
+//
+// Returns:
+//   - *httptest.Server: the started server, closed when the test ends.
+//   - *atomic.Int32: the number of accepted messages.
+func newNtfyServer(t *testing.T, useTLS bool) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+
+	var accepted atomic.Int32
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/"+testTopic {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"code":40401,"http":404,"error":"page not found"}`)
+
+			return
+		}
+
+		accepted.Add(1)
+
+		_, _ = io.WriteString(w, publishedBody)
+	}))
+	// The server logs rejected TLS handshakes to the test output.
+	server.Config.ErrorLog = log.New(t.Output(), "", 0)
+
+	if useTLS {
+		server.StartTLS()
+	} else {
+		server.Start()
+	}
+
+	t.Cleanup(server.Close)
+
+	return server, &accepted
+}
+
+// TestSendDefaultClientLoopback verifies the default client against loopback
+// servers: plain HTTP with TLS disabled, and HTTPS with a self-signed
+// certificate, which fails verification unless disabletlsverification is set.
+func TestSendDefaultClientLoopback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newNtfyServer(t, false)
+
+		require.NoError(t, newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletls=yes").Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+
+	t.Run("self-signed HTTPS", func(t *testing.T) {
+		t.Parallel()
+
+		server, accepted := newNtfyServer(t, true)
+		rawURL := "ntfy://" + server.Listener.Addr().String() + "/" + testTopic
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
+		assert.True(t, isCertErr, "error is not a certificate verification error")
+
+		require.NoError(t, newTestService(t, rawURL+"?disabletlsverification=yes").Send("Hello", nil))
+		assert.Equal(t, int32(1), accepted.Load())
+	})
+}
+
+// TestAddHeaderIfNotEmpty verifies that a header is added only for a
+// non-empty value, alongside any existing values.
+func TestAddHeaderIfNotEmpty(t *testing.T) {
+	t.Parallel()
+
+	header := http.Header{}
+
+	addHeaderIfNotEmpty(&header, "Title", "")
+	assert.Empty(t, header)
+
+	addHeaderIfNotEmpty(&header, "Tags", "a")
+	addHeaderIfNotEmpty(&header, "Tags", "b")
+	assert.Equal(t, http.Header{"Tags": {"a", "b"}}, header)
+}
