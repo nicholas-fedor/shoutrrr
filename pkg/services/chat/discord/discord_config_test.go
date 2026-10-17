@@ -84,6 +84,17 @@ func TestConfigLevelColors(t *testing.T) {
 	}
 }
 
+// TestConfigGetURLDefaults verifies that GetURL leaves settings at their
+// defaults out of the query.
+func TestConfigGetURLDefaults(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	config.WebhookID, config.Token = "123456789", "test-token"
+
+	assert.Equal(t, "discord://test-token@123456789", config.GetURL().String())
+}
+
 // TestConfigURLRoundTrip verifies that a config survives GetURL and SetURL,
 // with only the required fields and with every query parameter set.
 func TestConfigURLRoundTrip(t *testing.T) {

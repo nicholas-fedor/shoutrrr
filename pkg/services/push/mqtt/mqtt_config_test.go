@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -26,9 +28,22 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigGetURL verifies that GetURL encodes every field in the URL, omits
-// absent credentials, and refuses a password without a username.
+// absent credentials and settings at their defaults, and refuses a password
+// without a username.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
+
+	t.Run("defaults", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{}
+		resolver := format.NewPropKeyResolver(config)
+		require.NoError(t, resolver.SetDefaultProps(config))
+
+		config.Host, config.Port, config.Topic = "broker.example.com", 1883, "notifications/alerts"
+
+		assert.Equal(t, "mqtt://broker.example.com:1883/notifications/alerts?", config.GetURL().String())
+	})
 
 	t.Run("all fields", func(t *testing.T) {
 		t.Parallel()

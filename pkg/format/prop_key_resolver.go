@@ -92,13 +92,54 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 }
 
 // IsDefault returns whether the specified key value is the default value.
+// The value matches the default as written in its tag, or as the formatter
+// prints it, so a bool default of "yes" matches "Yes" and an enum default of
+// "high" matches "High".
+//
+// Parameters:
+//   - key: the property key, matched case-insensitively.
+//   - value: the formatted property value.
+//
+// Returns:
+//   - bool: whether value is the property's default, or false for an unknown key.
 func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
-	return pkr.keyFields[key].DefaultValue == value
+	field, found := pkr.keyFields[strings.ToLower(key)]
+	if !found {
+		return false
+	}
+
+	if field.DefaultValue == value {
+		return true
+	}
+
+	// A resolver without a bound config has no type to format the default with.
+	if !pkr.confValue.IsValid() {
+		return false
+	}
+
+	defaults := reflect.New(pkr.confValue.Type()).Elem()
+	if valid, err := SetConfigField(defaults, field, field.DefaultValue); !valid || err != nil {
+		return false
+	}
+
+	formatted, err := GetConfigFieldString(defaults, field)
+
+	return err == nil && formatted == value
 }
 
 // KeyIsPrimary returns whether the key is the primary (and not an alias).
+//
+// Parameters:
+//   - key: the property key, matched case-insensitively.
+//
+// Returns:
+//   - bool: whether key is the first key of its property, or false for an unknown key.
 func (pkr *PropKeyResolver) KeyIsPrimary(key string) bool {
-	return pkr.keyFields[key].Keys[0] == key
+	key = strings.ToLower(key)
+
+	field, found := pkr.keyFields[key]
+
+	return found && field.Keys[0] == key
 }
 
 // QueryFields returns a list of tagged keys.

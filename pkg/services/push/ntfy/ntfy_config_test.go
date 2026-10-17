@@ -243,8 +243,8 @@ func TestConfigGetAPIURL(t *testing.T) {
 }
 
 // TestConfigGetURL verifies that GetURL writes the credentials, host, and
-// topic into the URL and the settings into the query, and round-trips through
-// SetURL.
+// topic into the URL and only the settings that differ from their defaults
+// into the query, and round-trips through SetURL.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -289,15 +289,7 @@ func TestConfigGetURL(t *testing.T) {
 			assert.Equal(t, "ntfy.sh", serviceURL.Host)
 			assert.Equal(t, "/"+testTopic, serviceURL.Path)
 
-			query := serviceURL.Query()
-			for key, want := range tt.wantQuery {
-				assert.Equal(t, want, query[key], key)
-			}
-
-			// GetURL writes each setting under its primary key, never an alias.
-			for _, alias := range []string{"at", "in"} {
-				assert.NotContains(t, query, alias)
-			}
+			assert.Equal(t, tt.wantQuery, serviceURL.Query())
 
 			roundTrip := newDefaultConfig(t)
 			require.NoError(t, roundTrip.SetURL(serviceURL))
