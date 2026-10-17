@@ -4,841 +4,657 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
-	"io"
+	"errors"
 	"log"
-	"mime"
-	"mime/multipart"
 	"net/mail"
-	"net/smtp"
-	"net/url"
 	"os"
 	"strings"
-	"time"
+	"testing"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	gomega "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("session", func() {
-	ginkgo.BeforeEach(func() {
-		service = &Service{}
-	})
+// failureIDs lists the failure IDs an error should match.
+type failureIDs []failures.FailureID
 
-	ginkgo.Describe("ehloName", func() {
-		ginkgo.When("clienthost is set to auto", func() {
-			ginkgo.It("should return the os hostname", func() {
-				hostname, err := os.Hostname()
-				gomega.Expect(err).ToNot(gomega.HaveOccurred())
-				gomega.Expect((&session{config: &Config{ClientHost: "auto"}, svc: service}).ehloName()).
-					To(gomega.Equal(hostname))
-			})
-		})
+// b64 returns s in standard base64, as SMTP AUTH exchanges carry it.
+//
+// Parameters:
+//   - s: the text to encode.
+//
+// Returns:
+//   - string: the encoded text.
+func b64(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
 
-		ginkgo.When("clienthost is set to a custom value", func() {
-			ginkgo.It("should return that value", func() {
-				gomega.Expect((&session{config: &Config{ClientHost: "computah"}, svc: service}).ehloName()).
-					To(gomega.Equal("computah"))
-			})
-		})
-	})
+// parseMessage parses a message the server received.
+//
+// Parameters:
+//   - t: the test.
+//   - raw: the message.
+//
+// Returns:
+//   - *mail.Message: the parsed message.
+//   - string: the message body.
+func parseMessage(t *testing.T, raw string) (*mail.Message, string) {
+	t.Helper()
 
-	ginkgo.Describe("auth", func() {
-		ginkgo.It("should succeed without AUTH when Auth is None", func() {
-			sess := &session{config: &Config{Auth: AuthTypes.None}, svc: service}
-			gomega.Expect(sess.auth()).To(gomega.Succeed())
-		})
+	message, err := mail.ReadMessage(strings.NewReader(raw))
+	require.NoError(t, err)
 
-		ginkgo.It("should fail when Auth is Unknown", func() {
-			sess := &session{config: &Config{Auth: AuthTypes.Unknown}, svc: service}
-			gomega.Expect(sess.auth()).To(matchFailure(FailAuthType))
-		})
-	})
+	body := new(bytes.Buffer)
+	_, err = body.ReadFrom(message.Body)
+	require.NoError(t, err)
 
-	ginkgo.Describe("closeIfOpen", func() {
-		ginkgo.It("should not close an already closed session", func() {
-			textCon, _ := testutils.CreateTextConFaker(nil, "\r\n")
-			client := &smtp.Client{Text: textCon}
-			mock := &mockConn{}
-			injectConn(client, mock)
+	return message, body.String()
+}
 
-			sess := &session{closed: true, client: client, svc: service}
-			sess.closeIfOpen()
-			gomega.Expect(mock.closeCount).To(gomega.BeZero())
+// newTestSession returns a session for config over a new connection to
+// server, logging to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - server: the server to connect to.
+//   - config: the session config.
+//
+// Returns:
+//   - *session: the session.
+func newTestSession(t *testing.T, server *fakeSMTP, config *Config) *session {
+	t.Helper()
 
-			sess.closed = false
-			sess.closeIfOpen()
-			gomega.Expect(mock.closeCount).To(gomega.Equal(1))
-			gomega.Expect(sess.closed).To(gomega.BeTrue())
-		})
-	})
+	client, err := dialClient(t.Context(), config, server.dial)
+	require.NoError(t, err)
 
-	ginkgo.When("sending an HTML message", func() {
-		ginkgo.It("should use the same multipart boundary in the Content-Type header and body", func() {
-			gomega.Expect(service.Initialize(testutils.URLMust(baseNoAuthURL), logger)).To(gomega.Succeed())
+	svc := &Service{}
+	svc.SetLogger(log.New(t.Output(), "", 0))
 
-			textCon, tcfaker := testutils.CreateTextConFaker([]string{
-				"250-mx.google.com at your service",
-				"250 8BITMIME",
-				"250 Sender OK",
-				"250 Receiver OK",
-				"354 Go ahead",
-				"250 Data OK",
-				"221 OK",
-			}, "\r\n")
-			client := &smtp.Client{Text: textCon}
-			fakeTLSEnabled(client, "example.com")
+	return &session{client: client, config: config, svc: svc}
+}
 
-			config := service.Config.Clone()
-			config.UseHTML = true
-			gomega.Expect(runSMTPSession(service, client, &config)).To(gomega.Succeed())
+// TestSessionRun verifies the SMTP conversation of a send: the greeting,
+// STARTTLS when the server offers it and the URL asks for it, AUTH with the
+// configured mechanism, and one MAIL, RCPT, and DATA transaction per
+// recipient, separated by RSET and followed by QUIT.
+func TestSessionRun(t *testing.T) {
+	t.Parallel()
 
-			received := tcfaker.GetClientSentences()
-			boundary := ""
+	cramResponse := func() string {
+		mac := hmac.New(md5.New, []byte("pass"))
+		mac.Write([]byte("<1896.697170952@mock.local>"))
 
-			for _, line := range received {
-				if rest, ok := strings.CutPrefix(line, "Content-Type: multipart/alternative; boundary="); ok {
-					boundary = rest
+		return b64("user " + hex.EncodeToString(mac.Sum(nil)))
+	}()
 
-					break
-				}
+	// tests lists URLs and servers with the client lines each send should
+	// produce.
+	tests := []struct {
+		server func() *fakeSMTP
+		params *types.Params
+		name   string
+		rawURL string
+		want   []string
+	}{
+		{
+			name:   "no authentication",
+			rawURL: testServiceURL,
+			want:   []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "client host",
+			rawURL: testServiceURL + "&clienthost=client.example.com",
+			want:   []string{"EHLO client.example.com", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "several recipients",
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=a@example.com,b@example.com&usestarttls=no",
+			want: []string{
+				"EHLO localhost", testMailFrom, "RCPT TO:<a@example.com>", "DATA", "RSET",
+				testMailFrom, "RCPT TO:<b@example.com>", "DATA", "QUIT",
+			},
+		},
+		{
+			name:   "plus-tagged addresses",
+			rawURL: "smtp://localhost:2525/?fromaddress=sender+alerts@example.com&toaddresses=rec+a@example.com&usestarttls=no",
+			want:   []string{"EHLO localhost", "MAIL FROM:<sender+alerts@example.com> BODY=8BITMIME", "RCPT TO:<rec+a@example.com>", "DATA", "QUIT"},
+		},
+		{
+			name:   "PLAIN",
+			server: func() *fakeSMTP { return newFakeSMTP("AUTH PLAIN") },
+			rawURL: "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			want:   []string{"EHLO localhost", "AUTH PLAIN " + b64("\x00user\x00pass"), testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "PLAIN without credentials",
+			server: func() *fakeSMTP { return newFakeSMTP("AUTH PLAIN") },
+			rawURL: testServiceURL + "&auth=plain",
+			want:   []string{"EHLO localhost", "AUTH PLAIN " + b64("\x00\x00"), testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "LOGIN",
+			server: func() *fakeSMTP { return newFakeSMTP("AUTH LOGIN") },
+			rawURL: "smtp://user:pass@localhost:2525/?auth=login&fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			want:   []string{"EHLO localhost", "AUTH LOGIN", b64("user"), b64("pass"), testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "CRAM-MD5",
+			server: func() *fakeSMTP { return newFakeSMTP("AUTH CRAM-MD5") },
+			rawURL: "smtp://user:pass@localhost:2525/?auth=crammd5&fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			want:   []string{"EHLO localhost", "AUTH CRAM-MD5", cramResponse, testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "XOAUTH2",
+			server: func() *fakeSMTP { return newFakeSMTP("AUTH XOAUTH2") },
+			rawURL: "smtp://user:token@localhost:2525/?auth=oauth2&fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			want: []string{
+				"EHLO localhost", "AUTH XOAUTH2 " + b64("user=user\x01auth=Bearer token\x01\x01"), testMailFrom, testRcptTo, "DATA", "QUIT",
+			},
+		},
+		{
+			name: "STARTTLS",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP("AUTH PLAIN")
+				server.startTLS = true
+
+				return server
+			},
+			rawURL: "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&skiptlsverify=yes",
+			want:   []string{"EHLO localhost", "STARTTLS", "EHLO localhost", "AUTH PLAIN " + b64("\x00user\x00pass"), testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name: "STARTTLS with encryption None",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP()
+				server.startTLS = true
+
+				return server
+			},
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&encryption=none&skiptlsverify=yes",
+			want:   []string{"EHLO localhost", "STARTTLS", "EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name: "STARTTLS turned off",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP()
+				server.startTLS = true
+
+				return server
+			},
+			rawURL: testServiceURL,
+			want:   []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:   "STARTTLS not offered",
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			want:   []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name: "implicit TLS",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP("AUTH PLAIN")
+				server.implicitTLS = true
+
+				return server
+			},
+			rawURL: "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&encryption=implicittls&skiptlsverify=yes",
+			want:   []string{"EHLO localhost", "AUTH PLAIN " + b64("\x00user\x00pass"), testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name: "implicit TLS with STARTTLS offered",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP("STARTTLS")
+				server.implicitTLS = true
+
+				return server
+			},
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&encryption=implicittls&skiptlsverify=yes",
+			want:   []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name: "skiptlsverify param",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP()
+				server.implicitTLS = true
+
+				return server
+			},
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&encryption=implicittls",
+			params: &types.Params{"skiptlsverify": "yes"},
+			want:   []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newFakeSMTP()
+			if tt.server != nil {
+				server = tt.server()
 			}
 
-			gomega.Expect(boundary).NotTo(gomega.BeEmpty())
-			gomega.Expect(received).To(gomega.ContainElement("--" + boundary))
-			gomega.Expect(received).To(gomega.ContainElement("--" + boundary + "--"))
-
-			payload := dataPayload(received)
-			msg, err := mail.ReadMessage(strings.NewReader(payload))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(msg.Header.Get("MIME-Version")).To(gomega.Equal("1.0"))
-			_, parseErr := time.Parse(time.RFC1123Z, msg.Header.Get("Date"))
-			gomega.Expect(parseErr).NotTo(gomega.HaveOccurred())
-
-			mediaType, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(mediaType).To(gomega.Equal("multipart/alternative"))
-
-			mr := multipart.NewReader(msg.Body, params["boundary"])
-			plainPart, err := mr.NextPart()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			plainBody, err := io.ReadAll(plainPart)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(string(plainBody)).To(gomega.ContainSubstring("Test message"))
-
-			htmlPart, err := mr.NextPart()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			htmlBody, err := io.ReadAll(htmlPart)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(string(htmlBody)).To(gomega.ContainSubstring("Test message"))
+			require.NoError(t, newTestService(t, tt.rawURL, server).Send("Hello", tt.params))
+			assert.Equal(t, tt.want, server.received())
 		})
+	}
+}
+
+// TestSessionRunMessage verifies the message each recipient receives: the
+// headers addressed to that recipient alone, the subject and sender name, and
+// the body, through the plain template when one is set.
+func TestSessionRunMessage(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	service := newTestService(t,
+		"smtp://localhost:2525/?fromaddress=sender@example.com&fromname=Alerts&toaddresses=a@example.com,b@example.com&subject=Disk%20full&usestarttls=no",
+		server)
+	require.NoError(t, service.SetTemplateString(templatePlain, "Note: {{.message}}"))
+
+	require.NoError(t, service.Send("90% used", nil))
+
+	for i, recipient := range []string{"<a@example.com>", "<b@example.com>"} {
+		message, body := parseMessage(t, server.message(t, i))
+
+		assert.Equal(t, recipient, message.Header.Get("To"))
+		assert.Equal(t, `"Alerts" <sender@example.com>`, message.Header.Get("From"))
+		assert.Equal(t, "Disk full", message.Header.Get("Subject"))
+		assert.Equal(t, `text/plain; charset="UTF-8"`, message.Header.Get("Content-Type"))
+		assert.Empty(t, message.Header.Get("Cc"))
+		assert.Empty(t, message.Header.Get("Bcc"))
+		assert.Equal(t, "Note: 90% used\n", body)
+	}
+}
+
+// TestSessionRunHTML verifies that an HTML send carries a plain and an HTML
+// part, each through its template, between the boundary that the
+// Content-Type header names.
+func TestSessionRunHTML(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	service := newTestService(t, testServiceURL+"&usehtml=yes", server)
+	require.NoError(t, service.SetTemplateString(templatePlain, "plain: {{.message}}"))
+	require.NoError(t, service.SetTemplateString(templateHTML, "<p>{{.message}}</p>"))
+
+	require.NoError(t, service.Send("Hello", nil))
+
+	message, body := parseMessage(t, server.message(t, 0))
+
+	contentType, boundary, found := strings.Cut(message.Header.Get("Content-Type"), "boundary=")
+	require.True(t, found, "no boundary in %q", message.Header.Get("Content-Type"))
+	assert.Equal(t, "multipart/alternative; ", contentType)
+	assert.Len(t, boundary, 16)
+	assert.Equal(t,
+		"\n\n--"+boundary+"\nContent-Type: text/plain; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\nplain: Hello"+
+			"\n\n--"+boundary+"\nContent-Type: text/html; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\n<p>Hello</p>"+
+			"\n\n--"+boundary+"--\n",
+		body)
+}
+
+// TestSessionRunEmptyMessage verifies that an empty message is sent with an
+// empty body.
+func TestSessionRunEmptyMessage(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	require.NoError(t, newTestService(t, testServiceURL, server).Send("", nil))
+
+	_, body := parseMessage(t, server.message(t, 0))
+	assert.Empty(t, body)
+}
+
+// TestSessionRunLogsStartTLS verifies that a send warns when the server does
+// not offer STARTTLS and continues without it.
+func TestSessionRunLogsStartTLS(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	server := newFakeSMTP()
+	service := newLoggingService(t, "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com", server, log.New(&logs, "", 0))
+
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t,
+		"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted\nMail successfully sent to \"rec@example.com\"!\n",
+		logs.String())
+}
+
+// TestSessionRunErrors verifies the failure of each rejected step, that a
+// send stops at a rejected greeting, STARTTLS, or AUTH without sending mail,
+// and that it closes the connection. After a failed AUTH, net/smtp itself
+// cancels the exchange with "*" and sends QUIT.
+func TestSessionRunErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs, servers, and params with the failure each send
+	// should produce and the client lines the server should receive.
+	tests := []struct {
+		wantCause error
+		params    *types.Params
+		server    func() *fakeSMTP
+		name      string
+		rawURL    string
+		want      []string
+		wantFail  failureIDs
+	}{
+		{
+			name:     "greeting rejected",
+			server:   withReplies(map[string][]string{"EHLO": {"500 5.5.1 Not now"}, "HELO": {"500 5.5.1 Not now"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailHandshake},
+			want:     []string{"EHLO localhost", "HELO localhost"},
+		},
+		{
+			name:      "STARTTLS required but not offered",
+			rawURL:    "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&requirestarttls=yes",
+			wantFail:  failureIDs{FailEnableStartTLS},
+			wantCause: ErrServerNoStartTLS,
+			want:      []string{"EHLO localhost"},
+		},
+		{
+			name: "STARTTLS rejected",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP("STARTTLS")
+				server.replies["STARTTLS"] = []string{"454 4.7.0 TLS not available"}
+
+				return server
+			},
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			wantFail: failureIDs{FailEnableStartTLS},
+			want:     []string{"EHLO localhost", "STARTTLS"},
+		},
+		{
+			name: "STARTTLS with an untrusted certificate",
+			server: func() *fakeSMTP {
+				server := newFakeSMTP()
+				server.startTLS = true
+
+				return server
+			},
+			rawURL:   "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			wantFail: failureIDs{FailEnableStartTLS},
+			want:     []string{"EHLO localhost", "STARTTLS"},
+		},
+		{
+			name:     "authentication method unknown",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"auth": "unknown"},
+			wantFail: failureIDs{FailAuthType},
+			want:     []string{"EHLO localhost"},
+		},
+		{
+			name:     "PLAIN rejected",
+			server:   withReplies(map[string][]string{"AUTH": {"535 5.7.8 Authentication credentials invalid"}}),
+			rawURL:   "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			wantFail: failureIDs{FailAuthenticating},
+			want:     []string{"EHLO localhost", "AUTH PLAIN " + b64("\x00user\x00pass"), "*", "QUIT"},
+		},
+		{
+			name:     "LOGIN rejected after the password",
+			server:   withReplies(map[string][]string{"AUTH": {"334 VXNlcm5hbWU6", "334 UGFzc3dvcmQ6", "535 5.7.8 Authentication credentials invalid"}}),
+			rawURL:   "smtp://user:pass@localhost:2525/?auth=login&fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			wantFail: failureIDs{FailAuthenticating},
+			want:     []string{"EHLO localhost", "AUTH LOGIN", b64("user"), b64("pass"), "*", "QUIT"},
+		},
+		{
+			name: "XOAUTH2 rejected with an error status",
+			server: withReplies(map[string][]string{"AUTH": {
+				"334 " + b64(`{"status":"400","schemes":"Bearer","scope":"https://mail.google.com/"}`), "535 5.7.8 Username and Password not accepted",
+			}}),
+			rawURL:   "smtp://user:token@localhost:2525/?auth=oauth2&fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			wantFail: failureIDs{FailAuthenticating},
+			want:     []string{"EHLO localhost", "AUTH XOAUTH2 " + b64("user=user\x01auth=Bearer token\x01\x01"), "", "*", "QUIT"},
+		},
+		{
+			name:     "PLAIN to a remote server without TLS",
+			rawURL:   "smtp://user:pass@mail.example.com:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
+			wantFail: failureIDs{FailAuthenticating},
+			want:     []string{"EHLO localhost", "QUIT"},
+		},
+		{
+			name:     "sender rejected",
+			server:   withReplies(map[string][]string{"MAIL": {"550 5.1.0 Sender rejected"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailSendRecipient, FailSetSender},
+			want:     []string{"EHLO localhost", testMailFrom, "QUIT"},
+		},
+		{
+			name:     "recipient rejected",
+			server:   withReplies(map[string][]string{"RCPT": {"550 5.1.1 User unknown"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailSendRecipient, FailSetRecipient},
+			want:     []string{"EHLO localhost", testMailFrom, testRcptTo, "QUIT"},
+		},
+		{
+			name:     "DATA rejected",
+			server:   withReplies(map[string][]string{"DATA": {"554 5.5.1 No valid recipients"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailSendRecipient, FailOpenDataStream},
+			want:     []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:     "message rejected",
+			server:   withReplies(map[string][]string{"DATA-END": {"554 5.7.1 Message rejected as spam"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailSendRecipient, FailCloseDataStream},
+			want:     []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+		{
+			name:      "sender with a line break",
+			rawURL:    testServiceURL,
+			params:    &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"},
+			wantFail:  failureIDs{FailSendRecipient, FailSetSender},
+			wantCause: errHeaderBreak,
+			want:      []string{"EHLO localhost", "QUIT"},
+		},
+		{
+			name:      "recipient with a line break",
+			rawURL:    testServiceURL,
+			params:    &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"},
+			wantFail:  failureIDs{FailSendRecipient, FailSetRecipient},
+			wantCause: errHeaderBreak,
+			want:      []string{"EHLO localhost", "QUIT"},
+		},
+		{
+			name:     "QUIT rejected",
+			server:   withReplies(map[string][]string{"QUIT": {"502 5.5.1 You cannot quit"}}),
+			rawURL:   testServiceURL,
+			wantFail: failureIDs{FailSendRecipient, FailClosingSession},
+			want:     []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newFakeSMTP()
+			if tt.server != nil {
+				server = tt.server()
+			}
+
+			err := newTestService(t, tt.rawURL, server).Send("Hello", tt.params)
+
+			for _, id := range tt.wantFail {
+				require.ErrorIs(t, err, fail(id, nil))
+			}
+
+			if tt.wantCause != nil {
+				require.ErrorIs(t, err, tt.wantCause)
+			}
+
+			assert.Equal(t, tt.want, server.received())
+			assert.Positive(t, server.closes.Load())
+		})
+	}
+}
+
+// TestSessionRunUntrustedCertificate verifies that a STARTTLS upgrade to a
+// server with an untrusted certificate fails certificate verification.
+func TestSessionRunUntrustedCertificate(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	server.startTLS = true
+
+	err := newTestService(t, "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com", server).Send("Hello", nil)
+
+	_, isCertErr := errors.AsType[*tls.CertificateVerificationError](err)
+	assert.True(t, isCertErr, "error %v is not a certificate verification error", err)
+}
+
+// TestSessionRunRecipientFailures verifies that a send delivers to the other
+// recipients after one is rejected and reports the rejected one, and stops
+// when the server rejects RSET between recipients.
+func TestSessionRunRecipientFailures(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=a@example.com,b@example.com,c@example.com&usestarttls=no"
+
+	t.Run("rejected recipient", func(t *testing.T) {
+		t.Parallel()
+
+		server := newFakeSMTP()
+		server.replies["RCPT"] = []string{"", "550 5.1.1 User unknown"}
+
+		err := newTestService(t, rawURL, server).Send("Hello", nil)
+
+		require.ErrorIs(t, err, fail(FailSetRecipient, nil))
+		assert.Contains(t, err.Error(), `error sending message to recipient "b@example.com"`)
+		assert.NotContains(t, err.Error(), "a@example.com")
+		assert.NotContains(t, err.Error(), "c@example.com")
+
+		first, _ := parseMessage(t, server.message(t, 0))
+		second, _ := parseMessage(t, server.message(t, 1))
+		assert.Equal(t, "<a@example.com>", first.Header.Get("To"))
+		assert.Equal(t, "<c@example.com>", second.Header.Get("To"))
 	})
 
-	ginkgo.Describe("message body", func() {
-		ginkgo.It("should send an empty body without error", func() {
-			gomega.Expect(service.Initialize(testutils.URLMust(baseNoAuthURL), logger)).To(gomega.Succeed())
+	t.Run("RSET rejected", func(t *testing.T) {
+		t.Parallel()
 
-			textCon, tcfaker := testutils.CreateTextConFaker([]string{
-				"250-mx.google.com at your service",
-				"250 8BITMIME",
-				"250 Sender OK",
-				"250 Receiver OK",
-				"354 Go ahead",
-				"250 Data OK",
-				"221 OK",
-			}, "\r\n")
-			client := &smtp.Client{Text: textCon}
-			fakeTLSEnabled(client, "example.com")
-			gomega.Expect(runSMTPSessionMessage(service, client, service.Config, "")).To(gomega.Succeed())
-			gomega.Expect(tcfaker.GetClientSentences()).To(gomega.ContainElement("DATA"))
-		})
+		server := newFakeSMTP()
+		server.replies["RSET"] = []string{"421 4.3.0 Service shutting down"}
+
+		err := newTestService(t, rawURL, server).Send("Hello", nil)
+
+		require.ErrorIs(t, err, fail(FailResetSession, nil))
+		assert.Equal(t, []string{"EHLO localhost", testMailFrom, "RCPT TO:<a@example.com>", "DATA", "RSET", "QUIT"}, server.received())
+	})
+}
+
+// TestSessionQuit verifies that a successful QUIT closes the connection once,
+// and that a short reply to QUIT, after the mail was accepted, is logged
+// without failing the send.
+func TestSessionQuit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("successful QUIT", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		server := newFakeSMTP()
+		require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
+
+		assert.Equal(t, int32(1), server.closes.Load())
+		assert.NotContains(t, logs.String(), "Failed to close")
 	})
 
-	ginkgo.Describe("recipient headers", func() {
-		ginkgo.It("should not emit Cc or Bcc headers for envelope-only recipients", func() {
-			gomega.Expect(service.Initialize(testutils.URLMust(baseAuthURL), logger)).To(gomega.Succeed())
+	t.Run("short reply", func(t *testing.T) {
+		t.Parallel()
 
-			textCon, tcfaker := testutils.CreateTextConFaker([]string{
-				"250-mx.google.com at your service",
-				"250-AUTH LOGIN PLAIN",
-				"250 8BITMIME",
-				"235 Accepted",
-				"250 Sender OK",
-				"250 Receiver OK",
-				"354 Go ahead",
-				"250 Data OK",
-				"250 Reset OK",
-				"250 Sender OK",
-				"250 Receiver OK",
-				"354 Go ahead",
-				"250 Data OK",
-				"221 OK",
-			}, "\r\n")
-			client := &smtp.Client{Text: textCon}
-			fakeTLSEnabled(client, "example.com")
-			gomega.Expect(runSMTPSession(service, client, service.Config)).To(gomega.Succeed())
+		var logs bytes.Buffer
 
-			received := tcfaker.GetClientSentences()
-			gomega.Expect(headerLines(received, "To")).To(gomega.Equal([]string{
-				"To: <rec1@example.com>",
-				"To: <rec2@example.com>",
-			}))
-			gomega.Expect(headerLines(received, "Cc")).To(gomega.BeEmpty())
-			gomega.Expect(headerLines(received, "Bcc")).To(gomega.BeEmpty())
-		})
+		server := newFakeSMTP()
+		server.replies["QUIT"] = []string{"22"}
+
+		require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
+		assert.Contains(t, logs.String(), `Warning: Ignoring session closure error (delivery succeeded): short response: "22"`+"\n")
 	})
-
-	ginkgo.When("running integration tests", func() {
-		ginkgo.When("given a typical usage case configuration URL", func() {
-			ginkgo.It("should send notifications without any errors", func() {
-				err := testIntegration(baseAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "<pre>{{ .message }}</pre>", "{{ .message }}",
-					"AUTH PLAIN AHVzZXIAcGFzc3dvcmQ=",
-					"To: <rec1@example.com>",
-					"To: <rec2@example.com>",
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("given auth=Login", func() {
-			ginkgo.It("should complete the multi-step AUTH LOGIN dialog", func() {
-				testURL := modifyURL(baseAuthURL, map[string]string{
-					"auth":    "Login",
-					"useHTML": "no",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"334 VXNlciBOYW1lAA==",
-					"334 UGFzc3dvcmQ=",
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "", "",
-					"AUTH LOGIN",
-					"dXNlcg==",
-					"cGFzc3dvcmQ=",
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("should fail when the server rejects LOGIN with 535", func() {
-				testURL := modifyURL(baseAuthURL, map[string]string{
-					"auth":    "Login",
-					"useHTML": "no",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"334 VXNlciBOYW1lAA==",
-					"334 UGFzc3dvcmQ=",
-					"535 5.7.8 Authentication failed",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-			})
-		})
-
-		ginkgo.When("given auth=OAuth2", func() {
-			ginkgo.It("should send AUTH XOAUTH2 with the Bearer token and succeed on 235", func() {
-				testURL := modifyURL(baseAuthURL, map[string]string{
-					"auth":    "OAuth2",
-					"useHTML": "no",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH XOAUTH2",
-					"250 8BITMIME",
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "", "",
-					"AUTH XOAUTH2 dXNlcj11c2VyAWF1dGg9QmVhcmVyIHBhc3N3b3JkAQE=",
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-
-			ginkgo.It("should fail AUTH when the server returns 334 then 535", func() {
-				testURL := modifyURL(baseAuthURL, map[string]string{
-					"auth":    "OAuth2",
-					"useHTML": "no",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH XOAUTH2",
-					"250 8BITMIME",
-					"334 eyJzdGF0dXMiOiI0MDAifQ==",
-					"535 5.7.8 Username and Password not accepted",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-				gomega.Expect(err.Error()).NotTo(gomega.ContainSubstring("password"))
-			})
-		})
-
-		ginkgo.When("given auth=CRAMMD5", func() {
-			ginkgo.It("should respond to the challenge with an HMAC-MD5 digest", func() {
-				testURL := modifyURL(baseAuthURL, map[string]string{
-					"auth":    "CRAMMD5",
-					"useHTML": "no",
-				})
-				challenge := "<12345.67890@example.com>"
-				mac := hmac.New(md5.New, []byte("password"))
-				_, _ = mac.Write([]byte(challenge))
-				digest := hex.EncodeToString(mac.Sum(nil))
-				response := base64.StdEncoding.EncodeToString([]byte("user " + digest))
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH CRAM-MD5",
-					"250 8BITMIME",
-					"334 " + base64.StdEncoding.EncodeToString([]byte(challenge)),
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "", "",
-					"AUTH CRAM-MD5",
-					response,
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("AUTH is not advertised", func() {
-			ginkgo.It("should still attempt AUTH and fail when the server rejects it", func() {
-				err := testIntegration(baseAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250 8BITMIME",
-					"503 5.5.1 AUTH not advertised",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-			})
-		})
-
-		ginkgo.When("credentials are empty", func() {
-			ginkgo.It("should send AUTH PLAIN with an empty identity payload", func() {
-				testURL := "smtp://example.com:2225/?auth=Plain&useStartTLS=no" +
-					"&fromAddress=sender@example.com&toAddresses=rec1@example.com&timeout=10s"
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH PLAIN",
-					"250 8BITMIME",
-					"535 5.7.8 empty credentials",
-				}, "", "",
-					"AUTH PLAIN AAA=",
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-			})
-		})
-
-		ginkgo.When("PLAIN is used without TLS on a remote host", func() {
-			ginkgo.It("should refuse to send credentials", func() {
-				err := testIntegrationWithoutTLS(baseAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250-AUTH PLAIN",
-					"250 8BITMIME",
-				})
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-			})
-		})
-
-		ginkgo.When("encryption is None", func() {
-			ginkgo.It("should still issue STARTTLS when usestarttls is yes", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{
-					"encryption":  "None",
-					"useStartTLS": "yes",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-STARTTLS",
-					"250 8BITMIME",
-					"502 That's too hard",
-				}, "", "",
-					"STARTTLS",
-				)
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailEnableStartTLS))
-			})
-
-			ginkgo.It("should not issue STARTTLS when usestarttls is no", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{
-					"encryption":  "None",
-					"useStartTLS": "no",
-				})
-
-				gomega.Expect(service.Initialize(testutils.URLMust(testURL), logger)).To(gomega.Succeed())
-
-				textCon, tcfaker := testutils.CreateTextConFaker([]string{
-					"250-mx.google.com at your service",
-					"250-STARTTLS",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, "example.com")
-				gomega.Expect(runSMTPSession(service, client, service.Config)).To(gomega.Succeed())
-				gomega.Expect(tcfaker.GetClientSentences()).NotTo(gomega.ContainElement("STARTTLS"))
-			})
-		})
-
-		ginkgo.When("no recipients are configured at send time", func() {
-			ginkgo.It("should fail with ErrToAddressMissing", func() {
-				gomega.Expect(service.Initialize(testutils.URLMust(baseNoAuthURL), logger)).To(gomega.Succeed())
-
-				textCon, _ := testutils.CreateTextConFaker(nil, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				config := service.Config.Clone()
-				config.ToAddresses = nil
-				err := runSMTPSession(service, client, &config)
-				gomega.Expect(err).To(matchFailure(FailSendRecipient))
-				gomega.Expect(err).To(gomega.MatchError(ErrToAddressMissing))
-			})
-		})
-
-		ginkgo.When("given e-mail addresses with pluses in the configuration URL", func() {
-			ginkgo.It("should send notifications without any errors", func() {
-				err := testIntegration(basePlusURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "<pre>{{ .message }}</pre>", "{{ .message }}",
-					"RCPT TO:<rec1+tag@example.com>",
-					"To: <rec1+tag@example.com>",
-					"From: <sender+tag@example.com>")
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("given a configuration URL with authentication disabled", func() {
-			ginkgo.It("should send notifications without any errors", func() {
-				err := testIntegration(baseNoAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("given a configuration URL with StartTLS but it is not supported", func() {
-			ginkgo.It("should send notifications without any errors", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{"useStartTLS": "yes"})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-		})
-
-		ginkgo.When("StartTLS is required but unsupported", func() {
-			ginkgo.It("should fail with FailEnableStartTLS", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{
-					"useStartTLS":     "yes",
-					"requirestarttls": "yes",
-				})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailEnableStartTLS))
-			})
-		})
-
-		ginkgo.When("server communication fails", func() {
-			ginkgo.It("should fail when initial handshake is not accepted", func() {
-				testURL := modifyURL(
-					baseNoAuthURL,
-					map[string]string{"useStartTLS": "yes", "clienthost": "spammer"},
-				)
-
-				err := testIntegration(testURL, []string{
-					"421 4.7.0 Try again later, closing connection. (EHLO) r20-20020a50d694000000b004588af8956dsm771862edi.9 - gsmtp",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailHandshake))
-			})
-
-			ginkgo.It("should fail when not being able to enable StartTLS", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{"useStartTLS": "yes"})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-STARTTLS",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"502 That's too hard",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailEnableStartTLS))
-			})
-
-			ginkgo.It("should fail when authentication type is invalid", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{"auth": "bad"})
-
-				err := testIntegration(testURL, []string{}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(standard.FailServiceInit))
-			})
-
-			ginkgo.It("should fail when not being able to use authentication type", func() {
-				testURL := modifyURL(baseNoAuthURL, map[string]string{"auth": "crammd5"})
-
-				err := testIntegration(testURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"504 Liar",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailAuthenticating))
-			})
-
-			ginkgo.It("should fail MAIL FROM with FailSetSender", func() {
-				err := testSendRecipient([]string{
-					"250 mx.google.com at your service",
-					"550 sender rejected",
-				})
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailSetSender))
-			})
-
-			ginkgo.It("should reject a From address that contains CR or LF", func() {
-				gomega.Expect(service.Initialize(testutils.URLMust(baseNoAuthURL), logger)).To(gomega.Succeed())
-
-				textCon, _ := testutils.CreateTextConFaker([]string{
-					"250 mx.google.com at your service",
-				}, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				config := service.Config.Clone()
-				config.FromAddress = "sender@example.com\r\nBcc: evil@x.com"
-				err := (&session{client: client, config: &config, svc: service}).
-					sendMessage("rec1@example.com", "body", "")
-				gomega.Expect(err).To(matchFailure(FailSetSender))
-				gomega.Expect(err).To(gomega.MatchError(errHeaderBreak))
-			})
-
-			ginkgo.It("should reject a recipient address that contains CR or LF", func() {
-				gomega.Expect(service.Initialize(testutils.URLMust(baseNoAuthURL), logger)).To(gomega.Succeed())
-
-				textCon, _ := testutils.CreateTextConFaker([]string{
-					"250 mx.google.com at your service",
-				}, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				config := service.Config.Clone()
-				err := (&session{client: client, config: &config, svc: service}).
-					sendMessage("rec1@example.com\r\nBcc: evil@x.com", "body", "")
-				gomega.Expect(err).To(matchFailure(FailSetRecipient))
-				gomega.Expect(err).To(gomega.MatchError(errHeaderBreak))
-			})
-
-			ginkgo.It("should fail when not being able to send to recipient", func() {
-				err := testIntegration(baseNoAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"551 I don't know you",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailSendRecipient))
-			})
-
-			ginkgo.It("should fail when the recipient is not accepted", func() {
-				err := testSendRecipient([]string{
-					"250 mx.google.com at your service",
-					"250 Sender OK",
-					"553 She doesn't want to be disturbed",
-				})
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailSetRecipient))
-			})
-
-			ginkgo.It("should fail when the server does not accept the data stream", func() {
-				err := testSendRecipient([]string{
-					"250 mx.google.com at your service",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"554 Nah I'm fine thanks",
-				})
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailOpenDataStream))
-			})
-
-			ginkgo.It("should fail when the server does not accept the data stream content", func() {
-				err := testSendRecipient([]string{
-					"250 mx.google.com at your service",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"554 Such garbage!",
-				})
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailCloseDataStream))
-			})
-
-			ginkgo.It("should fail when the server does not close the connection gracefully", func() {
-				err := testIntegration(baseNoAuthURL, []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"502 You can't quit, you're fired!",
-				}, "", "")
-				skipIfTestSetup(err)
-				gomega.Expect(err).To(matchFailure(FailClosingSession))
-			})
-
-			ginkgo.It("should ignore short response errors on QUIT and log warning", func() {
-				serviceURL, _ := url.Parse(baseNoAuthURL)
-				localService := &Service{}
-				gomega.Expect(localService.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				var buf bytes.Buffer
-
-				testLogger := log.New(&buf, "", 0)
-				localService.SetLogger(testLogger)
-
-				responses := []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"22",
-				}
-				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, serviceURL.Hostname())
-
-				gomega.Expect(runSMTPSession(localService, client, localService.Config)).To(gomega.Succeed())
-				gomega.Expect(buf.String()).
-					To(gomega.ContainSubstring("Warning: Ignoring session closure error (delivery succeeded)"))
-			})
-
-			ginkgo.It("should not close again after a successful QUIT", func() {
-				serviceURL, _ := url.Parse(baseNoAuthURL)
-				localService := &Service{}
-				gomega.Expect(localService.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				var buf bytes.Buffer
-
-				testLogger := log.New(&buf, "", 0)
-				localService.SetLogger(testLogger)
-
-				responses := []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}
-				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, serviceURL.Hostname())
-
-				mock := &mockConn{}
-				injectConn(client, mock)
-
-				gomega.Expect(runSMTPSession(localService, client, localService.Config)).To(gomega.Succeed())
-				gomega.Expect(buf.String()).
-					NotTo(gomega.ContainSubstring("Failed to close SMTP client connection"))
-				gomega.Expect(mock.closeCount).To(gomega.Equal(1))
-			})
-
-			ginkgo.It("should close the client when the handshake fails", func() {
-				serviceURL, _ := url.Parse(baseNoAuthURL)
-				localService := &Service{}
-				gomega.Expect(localService.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				responses := []string{
-					"421 4.7.0 Try again later, closing connection. (EHLO)",
-				}
-				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, serviceURL.Hostname())
-
-				mock := &mockConn{}
-				injectConn(client, mock)
-
-				err := runSMTPSession(localService, client, localService.Config)
-				gomega.Expect(err).To(matchFailure(FailHandshake))
-				gomega.Expect(mock.closeCount).To(gomega.BeNumerically(">=", 1))
-			})
-
-			ginkgo.It("should attempt all recipients and collect errors", func() {
-				serviceURL, _ := url.Parse(baseAuthURL)
-				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				responses := []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"235 Accepted",
-					"250 Sender OK",
-					"553 Recipient1 not found",
-					"250 Reset OK",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"221 OK",
-				}
-				textCon, tcfaker := testutils.CreateTextConFaker(responses, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, serviceURL.Hostname())
-
-				config := service.Config
-				config.ToAddresses = []string{"rec1@example.com", "rec2@example.com"}
-				err := runSMTPSession(service, client, config)
-				gomega.Expect(err).To(matchFailure(FailSendRecipient))
-				gomega.Expect(err.Error()).
-					To(gomega.ContainSubstring("error sending message to recipient \"rec1@example.com\""))
-
-				received := tcfaker.GetClientSentences()
-				gomega.Expect(received).To(gomega.ContainElement("RSET"))
-				gomega.Expect(received).To(gomega.ContainElement("RCPT TO:<rec2@example.com>"))
-				gomega.Expect(received).To(gomega.ContainElement("QUIT"))
-				logger.Printf("\n%s", tcfaker.GetConversation(false))
-			})
-
-			ginkgo.It("should fail when RSET is rejected between recipients", func() {
-				serviceURL, _ := url.Parse(baseAuthURL)
-				gomega.Expect(service.Initialize(serviceURL, logger)).To(gomega.Succeed())
-
-				responses := []string{
-					"250-mx.google.com at your service",
-					"250-SIZE 35651584",
-					"250-AUTH LOGIN PLAIN",
-					"250 8BITMIME",
-					"235 Accepted",
-					"250 Sender OK",
-					"250 Receiver OK",
-					"354 Go ahead",
-					"250 Data OK",
-					"502 cannot reset",
-				}
-				textCon, _ := testutils.CreateTextConFaker(responses, "\r\n")
-				client := &smtp.Client{Text: textCon}
-				fakeTLSEnabled(client, serviceURL.Hostname())
-
-				config := service.Config
-				config.ToAddresses = []string{"rec1@example.com", "rec2@example.com"}
-				err := runSMTPSession(service, client, config)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("error resetting session between recipients"))
-			})
-		})
-	})
-})
+}
+
+// TestSessionWithoutRecipients verifies that a session without recipients
+// fails before the greeting.
+func TestSessionWithoutRecipients(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	config := newInitialConfig()
+	config.Host, config.FromAddress = "localhost", "sender@example.com"
+
+	err := newTestSession(t, server, config).run("Hello")
+
+	require.ErrorIs(t, err, fail(FailSendRecipient, nil))
+	require.ErrorIs(t, err, ErrToAddressMissing)
+	assert.Empty(t, server.received())
+	assert.Equal(t, int32(1), server.closes.Load())
+}
+
+// TestSessionAuth verifies that no authentication sends no AUTH command.
+func TestSessionAuth(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP("AUTH PLAIN")
+	config := newInitialConfig()
+	config.Host, config.Auth = "localhost", AuthNone
+
+	session := newTestSession(t, server, config)
+	t.Cleanup(session.closeIfOpen)
+
+	require.NoError(t, session.auth())
+	assert.Empty(t, server.received())
+}
+
+// TestSessionCloseIfOpen verifies that a session closes its connection once.
+func TestSessionCloseIfOpen(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	config := newInitialConfig()
+	config.Host = "localhost"
+
+	session := newTestSession(t, server, config)
+
+	session.closeIfOpen()
+	session.closeIfOpen()
+
+	assert.True(t, session.closed)
+	assert.Equal(t, int32(1), server.closes.Load())
+}
+
+// TestSessionEhloName verifies the EHLO name: the client host, or the local
+// host name for auto.
+func TestSessionEhloName(t *testing.T) {
+	t.Parallel()
+
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+
+	assert.Equal(t, "client.example.com", (&session{config: &Config{ClientHost: "client.example.com"}}).ehloName())
+	assert.Equal(t, hostname, (&session{config: &Config{ClientHost: "auto"}}).ehloName())
+}
+
+// withReplies returns a server constructor with the given scripted replies.
+//
+// Parameters:
+//   - replies: the scripted replies by command verb.
+//
+// Returns:
+//   - func() *fakeSMTP: the constructor.
+func withReplies(replies map[string][]string) func() *fakeSMTP {
+	return func() *fakeSMTP {
+		server := newFakeSMTP()
+		server.replies = replies
+
+		return server
+	}
+}
