@@ -133,6 +133,7 @@ var _ = ginkgo.Describe("Prop Key Resolver", func() {
 			ginkgo.Entry("no default", "plain", "No", false),
 			ginkgo.Entry("no default, empty value", "plain", "", true),
 			ginkgo.Entry("unknown key", "unknown", "", false),
+			ginkgo.Entry("key in another case", "Enabled", "Yes", true),
 		)
 
 		ginkgo.It("should leave values at their defaults out of the query", func() {

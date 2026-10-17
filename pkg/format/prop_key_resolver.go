@@ -97,13 +97,13 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 // "high" matches "High".
 //
 // Parameters:
-//   - key: the property key.
+//   - key: the property key, matched case-insensitively.
 //   - value: the formatted property value.
 //
 // Returns:
 //   - bool: whether value is the property's default, or false for an unknown key.
 func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
-	field, found := pkr.keyFields[key]
+	field, found := pkr.keyFields[strings.ToLower(key)]
 	if !found {
 		return false
 	}
