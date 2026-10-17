@@ -58,13 +58,17 @@ func TestFail(t *testing.T) {
 }
 
 // TestFailArguments verifies that the authentication method and recipient
-// fill in their messages.
+// fill in their messages, keeping the failure IDs.
 func TestFailArguments(t *testing.T) {
 	t.Parallel()
 
-	require.EqualError(t, fail(FailAuthType, nil, "bogus"), "invalid authentication method 'bogus'")
-	require.EqualError(t, fail(FailSendRecipient, errors.New("rejected"), "rec@example.com"),
-		`error sending message to recipient "rec@example.com": rejected`)
+	authType := fail(FailAuthType, nil, "bogus")
+	assert.Equal(t, FailAuthType, authType.ID())
+	require.EqualError(t, authType, "invalid authentication method 'bogus'")
+
+	sendRecipient := fail(FailSendRecipient, errors.New("rejected"), "rec@example.com")
+	assert.Equal(t, FailSendRecipient, sendRecipient.ID())
+	require.EqualError(t, sendRecipient, `error sending message to recipient "rec@example.com": rejected`)
 }
 
 // TestFailWrapping verifies that a failure wraps its cause, adds the cause to

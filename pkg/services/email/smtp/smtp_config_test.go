@@ -97,6 +97,17 @@ func TestConfigEnums(t *testing.T) {
 	assert.Same(t, EncMethods.Enum, enums["Encryption"])
 }
 
+// TestConfigQueryResolverGet verifies that the config's query resolver rejects
+// a key the config does not declare.
+func TestConfigQueryResolverGet(t *testing.T) {
+	t.Parallel()
+
+	value, err := format.GetConfigQueryResolver(&Config{}).Get("unknown")
+
+	require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	assert.Empty(t, value)
+}
+
 // TestConfigSetURL verifies that SetURL reads the credentials, host, and port
 // from the URL authority and the other settings from the query, restoring plus
 // tags in addresses that query decoding turned into spaces.
