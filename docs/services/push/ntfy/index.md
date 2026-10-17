@@ -71,6 +71,9 @@ Ntfy supports two TLS-related configuration options to handle different security
 
 - **`DisableTLS`**: When set to `true`, disables TLS entirely and forces the use of the HTTP scheme instead of HTTPS. This makes the connection unencrypted and should only be used in secure, trusted environments or for testing purposes.
 
+Both options can also be passed as send params (`disabletls` and `disabletlsverification`), which apply to that send only.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `disabletlsverification` does not change it.
+
 !!! warning
     Using either of these options reduces the security of your connection. `DisableTLS` is particularly insecure as it transmits data in plain text. Only use these options when necessary and in controlled environments.
 

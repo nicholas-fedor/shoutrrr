@@ -217,7 +217,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 }
 
 // TestConfigGetAPIURL verifies that the publish URL joins the scheme, host,
-// and topic with one slash.
+// and topic with one slash, using HTTP when TLS is disabled.
 func TestConfigGetAPIURL(t *testing.T) {
 	t.Parallel()
 
@@ -231,6 +231,7 @@ func TestConfigGetAPIURL(t *testing.T) {
 		{name: "topic with a slash", config: Config{Scheme: "https", Host: "ntfy.sh", Topic: "/" + testTopic}, want: testEndpoint},
 		{name: "nested topic", config: Config{Scheme: "https", Host: "ntfy.example.com", Topic: "ntfy/" + testTopic}, want: "https://ntfy.example.com/ntfy/" + testTopic},
 		{name: "HTTP", config: Config{Scheme: "http", Host: "ntfy.example.com:8080", Topic: testTopic}, want: "http://ntfy.example.com:8080/" + testTopic},
+		{name: "TLS disabled", config: Config{Scheme: "https", Host: "ntfy.example.com:8080", Topic: testTopic, DisableTLS: true}, want: "http://ntfy.example.com:8080/" + testTopic},
 	}
 
 	for _, tt := range tests {

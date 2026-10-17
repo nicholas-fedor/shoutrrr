@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
@@ -25,12 +26,14 @@ type Service struct {
 	Config     *Config
 	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
-	// apiClient creates the JSON client for one send. Nil builds one over
-	// httpClient, so every send has its own request headers.
-	apiClient func() jsonclient.ContextClient
 	// defaultClient reports whether httpClient was built by the service rather than
 	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
 	defaultClient bool
+	// otherClientMu guards otherClient.
+	otherClientMu sync.Mutex
+	// otherClient is the default client for sends whose certificate verification
+	// setting differs from the stored config, built on first use.
+	otherClient *http.Client
 }
 
 // HTTPTimeout defines the HTTP client timeout in seconds.
@@ -64,14 +67,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	// Force HTTP scheme when DisableTLS is true
-	if s.Config.DisableTLS {
-		s.Config.Scheme = "http"
-	}
-
 	if s.httpClient == nil || s.defaultClient {
-		s.httpClient = s.newDefaultHTTPClient()
-		s.defaultClient = true
+		s.setDefaultHTTPClient()
 
 		if s.Config.DisableTLSVerification {
 			s.Log("Warning: TLS verification is disabled, making connections insecure")
@@ -95,7 +92,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to ntfy. Params apply to this send only.
+// SendContext delivers a notification message to ntfy. Params apply to this send only,
+// including disabletls and disabletlsverification.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -129,44 +127,48 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 		client = nil
 	}
 
-	s.defaultClient = client == nil
+	if client != nil {
+		s.httpClient = client
+		s.defaultClient = false
 
-	if client == nil {
-		if s.Config == nil {
-			s.httpClient = nil
-
-			return
-		}
-
-		client = s.newDefaultHTTPClient()
+		return
 	}
 
-	s.httpClient = client
+	if s.Config == nil {
+		s.httpClient = nil
+		s.defaultClient = true
+
+		return
+	}
+
+	s.setDefaultHTTPClient()
 }
 
-// newAPIClient returns the JSON client for one send.
+// newAPIClient returns the JSON client for one send, so every send has its own
+// request headers.
+//
+// Parameters:
+//   - config: the configuration for this send.
 //
 // Returns:
-//   - jsonclient.ContextClient: a new client over the service's HTTP client.
-func (s *Service) newAPIClient() jsonclient.ContextClient {
-	if s.apiClient != nil {
-		return s.apiClient()
-	}
-
-	return jsonclient.NewContextClient(s.httpClient)
+//   - jsonclient.ContextClient: a new client over the send's HTTP client.
+func (s *Service) newAPIClient(config *Config) jsonclient.ContextClient {
+	return jsonclient.NewContextClient(s.sendHTTPClient(config))
 }
 
 // newDefaultHTTPClient builds the client used when none is injected. It enforces
-// TLS 1.2 or later and skips certificate verification only when the config
-// disables it.
+// TLS 1.2 or later and skips certificate verification only when asked to.
+//
+// Parameters:
+//   - skipVerify: whether to skip certificate verification.
 //
 // Returns:
 //   - *http.Client: the default client.
-func (s *Service) newDefaultHTTPClient() *http.Client {
+func (s *Service) newDefaultHTTPClient(skipVerify bool) *http.Client {
 	return &http.Client{
 		Timeout: HTTPTimeout * time.Second,
 		Transport: transport.New(&tls.Config{
-			InsecureSkipVerify: s.Config.DisableTLSVerification,
+			InsecureSkipVerify: skipVerify,
 			MinVersion:         tls.VersionTLS12,
 		}),
 	}
@@ -185,7 +187,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	response := apiResponseError{}
 	request := message
 
-	client := s.newAPIClient()
+	client := s.newAPIClient(config)
 
 	// Prepare request headers
 	headers := client.Headers()
@@ -239,6 +241,46 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	s.Logf("NTFY API request succeeded")
 
 	return nil
+}
+
+// sendHTTPClient returns the HTTP client for one send. A custom client is used
+// as is. The default client serves sends with the stored certificate
+// verification setting, and sends that change it share another default client,
+// built on first use.
+//
+// Parameters:
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client for the send.
+func (s *Service) sendHTTPClient(config *Config) types.HTTPClient {
+	if !s.defaultClient || config.DisableTLSVerification == s.Config.DisableTLSVerification {
+		return s.httpClient
+	}
+
+	s.otherClientMu.Lock()
+	defer s.otherClientMu.Unlock()
+
+	if s.otherClient == nil {
+		if config.DisableTLSVerification {
+			s.Log("Warning: TLS verification is disabled, making connections insecure")
+		}
+
+		s.otherClient = s.newDefaultHTTPClient(config.DisableTLSVerification)
+	}
+
+	return s.otherClient
+}
+
+// setDefaultHTTPClient builds the default client for the stored config and
+// drops the default client for the other certificate verification setting.
+func (s *Service) setDefaultHTTPClient() {
+	s.httpClient = s.newDefaultHTTPClient(s.Config.DisableTLSVerification)
+	s.defaultClient = true
+
+	s.otherClientMu.Lock()
+	s.otherClient = nil
+	s.otherClientMu.Unlock()
 }
 
 // addHeaderIfNotEmpty adds a header to the request if the value is non-empty.
