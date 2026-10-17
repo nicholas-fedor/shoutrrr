@@ -67,7 +67,8 @@ func (b *DefaultPayloadBuilder) ParseExtras(
 //   - extras: Additional key-value pairs to include in the notification
 //   - date: Optional custom timestamp in ISO 8601 format
 //
-// Returns: *MessageRequest containing all data to be sent to the API.
+// Returns: *MessageRequest containing all data to be sent to the API, which
+// leaves the priority out when the config has none of its own.
 func (b *DefaultPayloadBuilder) PrepareRequest(
 	message string,
 	config *Config,
@@ -80,10 +81,11 @@ func (b *DefaultPayloadBuilder) PrepareRequest(
 	}
 
 	return &MessageRequest{
-		Message:  message,         // The notification message content
-		Title:    config.Title,    // Notification title from configuration
-		Priority: config.Priority, // Priority level for the notification
-		Date:     datePtr,         // Optional custom timestamp
-		Extras:   extras,          // Additional metadata or custom fields
+		Message:      message,         // The notification message content
+		Title:        config.Title,    // Notification title from configuration
+		Priority:     config.Priority, // Priority level for the notification
+		Date:         datePtr,         // Optional custom timestamp
+		Extras:       extras,          // Additional metadata or custom fields
+		omitPriority: config.Priority == 0 && !config.prioritySet,
 	}
 }

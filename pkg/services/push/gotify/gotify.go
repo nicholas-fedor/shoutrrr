@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -190,6 +191,15 @@ func (s *Service) initClient() {
 }
 
 // processConfig handles configuration processing including parameter updates, validation, and extras parsing.
+// A priority the params set is sent even when it is 0. A date is ignored, because Gotify sets it.
+//
+// Parameters:
+//   - params: the send params.
+//
+// Returns:
+//   - Config: the config for this send.
+//   - map[string]any: the extras for this send.
+//   - error: a params or priority error.
 func (s *Service) processConfig(params *types.Params) (Config, map[string]any, error) {
 	// Get reference to current configuration
 	config := *s.Config
@@ -202,19 +212,19 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
+	for key := range filteredParams {
+		if strings.EqualFold(key, "priority") {
+			config.prioritySet = true
+		}
+	}
+
 	// Validate priority is within valid range (-2 to 10)
 	if err := s.validator.ValidatePriority(config.Priority); err != nil {
 		return config, nil, fmt.Errorf("priority validation failed: %w", err)
 	}
 
-	// Validate and convert date format
-	validatedDate, err := s.validator.ValidateDate(config.Date)
-	if err != nil {
-		s.Logf("Invalid date format: %v", err)
-
-		config.Date = ""
-	} else {
-		config.Date = validatedDate
+	if config.Date != "" {
+		s.Log("Warning: ignoring the date param, because Gotify sets the date of each message")
 	}
 
 	// Parse extras from parameters or fall back to config extras
@@ -258,7 +268,18 @@ func (s *Service) sendRequest(
 }
 
 // validateInputs performs initial validation checks for the Send method.
+//
+// Parameters:
+//   - message: the message to send.
+//
+// Returns:
+//   - error: [ErrServiceNotInitialized] when Initialize has not succeeded, or
+//     a message validation error.
 func (s *Service) validateInputs(message string, _ *types.Params) error {
+	if s.validator == nil || s.httpClientManager == nil {
+		return ErrServiceNotInitialized
+	}
+
 	if err := s.validator.ValidateMessage(message); err != nil {
 		return fmt.Errorf("message validation failed: %w", err)
 	}

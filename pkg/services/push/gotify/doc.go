@@ -16,7 +16,7 @@
 //   - host: Gotify server hostname (required)
 //   - port: optional port number (default: 443 for HTTPS, 80 for HTTP)
 //   - path: optional subpath for Gotify installation (e.g., "/gotify")
-//   - token: application token for authentication (required, must be 15 characters starting with 'A')
+//   - token: application token for authentication (required, a gtfya. token from Gotify 3.0 or later, or 15 characters starting with 'A' from earlier versions)
 //   - query: configuration parameters
 //
 // # Configuration Options
@@ -24,11 +24,12 @@
 // The following query parameters can be used to configure the service:
 //
 //   - title: notification title (default: "Shoutrrr notification")
-//   - priority: message priority (-2 to 10, where higher numbers indicate higher priority; negative values have special meanings in some clients)
+//   - priority: message priority (-2 to 10, where higher numbers indicate higher priority; negative values have special meanings in some clients).
+//     When unset, the priority is left out and Gotify applies the application's default priority.
 //   - disabletls: set to "yes" to disable TLS (use HTTP instead of HTTPS)
 //   - insecureskipverify: set to "yes" to skip TLS certificate verification (insecure, use with caution)
 //   - useheader: set to "yes" to send token in X-Gotify-Key header instead of URL query parameter
-//   - date: optional custom timestamp in ISO 8601 format for the notification (accepts multiple input formats and converts to RFC3339)
+//   - date: deprecated and not sent, because Gotify stamps each message with the server time
 //   - extras: JSON string containing additional key-value pairs to include in the notification
 //
 // # Templates
@@ -68,11 +69,6 @@
 //
 //	url := "gotify://gotify.example.com/gotify/Aaa.bbb.ccc.ddd"
 //	err := shoutrrr.Send(url, "Notification to subpath installation")
-//
-// ## Notification with custom timestamp
-//
-//	url := "gotify://gotify.example.com/Aaa.bbb.ccc.ddd?date=2023-12-25T10:30:00Z"
-//	err := shoutrrr.Send(url, "Scheduled notification")
 //
 // # Common Use Cases
 //
@@ -128,7 +124,7 @@
 //	}
 //
 // Common error scenarios:
-//   - Invalid token format (must be 15 characters starting with 'A', valid characters only)
+//   - Invalid token format (a gtfya. token from Gotify 3.0 or later, or 15 characters starting with 'A' from earlier versions)
 //   - Empty message content
 //   - Network connectivity issues
 //   - Invalid server hostname or port
@@ -152,12 +148,11 @@
 //
 // # Limitations and Behaviors
 //
-// - Application tokens must be exactly 15 characters long and start with 'A'
-// - Valid token characters are: a-z, A-Z, 0-9, ., -, _
+// - Application tokens from Gotify 3.0 or later start with gtfya. followed by at least 43 characters
+// - Application tokens from earlier Gotify versions are exactly 15 characters long, start with 'A', and use only a-z, A-Z, 0-9, ., -, _
 // - Message content cannot be empty
 // - Priority can be set to a value between -2 and 10, where -2 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
-// - Date parameter accepts multiple formats (RFC3339, RFC3339 without timezone, Unix timestamp seconds, "2006-01-02 15:04:05") and converts them to ISO 8601 format; invalid dates are skipped with a
-// warning
+// - The date parameter is deprecated and not sent, because Gotify stamps each message with the server time. A warning is logged when it is set
 // - Extras field accepts valid JSON objects for custom data
 // - HTTP client timeout is set to 10 seconds for API requests
 // - TLS can be disabled entirely (disabletls=yes) or certificate verification can be skipped (insecureskipverify=yes), both are not recommended for production use

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -84,13 +85,13 @@ func (s *DefaultSender) SendRequestContext(
 
 		err = jsonClient.PostContext(ctx, url, request, response)
 		if err != nil {
-			// Try to extract structured error
-			errorRes := &responseError{}
-			if jsonClient.ErrorResponse(err, errorRes) {
-				return fmt.Errorf("server error: %w", errorRes)
+			if jsonErr, ok := errors.AsType[jsonclient.Error](err); ok {
+				if gotifyErr := serverError(jsonErr.StatusCode, []byte(jsonErr.Body)); gotifyErr != nil {
+					return gotifyErr
+				}
 			}
 
-			return fmt.Errorf("%w: %w", ErrSendFailed, err)
+			return err
 		}
 
 		return nil
@@ -110,35 +111,25 @@ func (s *DefaultSender) SendRequestContext(
 	return nil
 }
 
-// extractErrorResponse attempts to extract a structured error from a failed request.
-func (s *DefaultSender) extractErrorResponse(body []byte, errorRes *responseError) bool {
-	return json.Unmarshal(body, errorRes) == nil
-}
-
 // handleResponseError checks the response status and extracts error information if present.
+//
+// Parameters:
+//   - res: the response.
+//   - body: the response body.
+//
+// Returns:
+//   - error: the Gotify error in the body for an error status, or
+//     [ErrUnexpectedStatus] with the status when the body has none, or nil.
 func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) error {
-	// Handle all HTTP error status codes (>= 400 covers both 4xx client errors and 5xx server errors)
-	if res.StatusCode >= http.StatusBadRequest {
-		errorRes := &responseError{}
-		if s.extractErrorResponse(body, errorRes) {
-			// Segment based on error category for more deterministic error handling
-			if res.StatusCode >= http.StatusInternalServerError {
-				// 5xx: Server-side errors (e.g., internal server error, bad gateway)
-				return fmt.Errorf("server error (%d): %w", res.StatusCode, errorRes)
-			}
-			// 4xx: Client-side errors (e.g., bad request, unauthorized, not found)
-			return fmt.Errorf("client error (%d): %w", res.StatusCode, errorRes)
-		}
-
-		// Fallback when no structured error response is available
-		if res.StatusCode >= http.StatusInternalServerError {
-			return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
-		}
-
-		return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
+	if res.StatusCode < http.StatusBadRequest {
+		return nil
 	}
 
-	return nil
+	if err := serverError(res.StatusCode, body); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
 }
 
 // sendRequestWithHeaders sends a request with custom headers using the underlying HTTP client.
@@ -207,4 +198,27 @@ func (s *DefaultSender) setRequestHeaders(req *http.Request, headers http.Header
 			req.Header.Add(key, value)
 		}
 	}
+}
+
+// serverError returns the Gotify error in the body of an error response,
+// labeled as a client or server error by status.
+//
+// Parameters:
+//   - statusCode: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - error: the labeled Gotify error, or nil for a body without a Gotify
+//     error.
+func serverError(statusCode int, body []byte) error {
+	errorRes := &responseError{}
+	if json.Unmarshal(body, errorRes) == nil && errorRes.Name != "" {
+		if statusCode >= http.StatusInternalServerError {
+			return fmt.Errorf("server error (%d): %w", statusCode, errorRes)
+		}
+
+		return fmt.Errorf("client error (%d): %w", statusCode, errorRes)
+	}
+
+	return nil
 }

@@ -44,7 +44,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 
 // TestConfigSetURL verifies that SetURL reads the host from the URL authority,
 // the token from the last path segment with any subpath before it, and the
-// other settings and the extras JSON from the query.
+// other settings and the extras JSON from the query, noting a priority the
+// query sets.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -71,9 +72,10 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&insecureskipverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
 			want: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
-				DisableTLS: true, InsecureSkipVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
+				DisableTLS: true, InsecureSkipVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
 			},
 		},
+		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
 		{
 			name:   "extras",
 			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
@@ -89,7 +91,8 @@ func TestConfigSetURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := &Config{}
+			// The priority from an earlier URL does not carry over.
+			config := &Config{prioritySet: true}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
 			assert.Equal(t, tt.want, *config)
@@ -98,28 +101,40 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects extras that are not a
-// JSON object and query values that do not set a config property.
+// JSON object and query values that do not set a config property, keeping
+// the key and the cause in the error.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
-	// tests lists invalid service URLs with the error each should produce.
+	// tests lists invalid service URLs with the error each should produce and
+	// the cause it should keep.
 	tests := []struct {
-		wantErr error
-		name    string
-		rawURL  string
+		wantErr   error
+		wantCause error
+		name      string
+		rawURL    string
+		wantInErr string
 	}{
-		{name: "extras not JSON", rawURL: testServiceURL + "?extras=" + url.QueryEscape("{invalid"), wantErr: ErrExtrasParseFailed},
-		{name: "extras not an object", rawURL: testServiceURL + "?extras=" + url.QueryEscape(`["a"]`), wantErr: ErrExtrasParseFailed},
-		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: ErrConfigPropertyFailed},
-		{name: "priority not a number", rawURL: testServiceURL + "?priority=high", wantErr: ErrConfigPropertyFailed},
-		{name: "invalid bool", rawURL: testServiceURL + "?useheader=maybe", wantErr: ErrConfigPropertyFailed},
+		{name: "extras not JSON", rawURL: testServiceURL + "?extras=" + url.QueryEscape("{invalid"), wantErr: ErrExtrasParseFailed, wantInErr: "invalid character"},
+		{name: "extras not an object", rawURL: testServiceURL + "?extras=" + url.QueryEscape(`["a"]`), wantErr: ErrExtrasParseFailed, wantInErr: "cannot unmarshal array"},
+		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidConfigKey, wantInErr: `"foo"`},
+		{name: "priority not a number", rawURL: testServiceURL + "?priority=high", wantErr: ErrConfigPropertyFailed, wantInErr: `"priority"`},
+		{name: "invalid bool", rawURL: testServiceURL + "?useheader=maybe", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidBoolValue, wantInErr: `"useheader"`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+			err := (&Config{}).SetURL(parseTestURL(t, tt.rawURL))
+
+			require.ErrorIs(t, err, tt.wantErr)
+
+			if tt.wantCause != nil {
+				require.ErrorIs(t, err, tt.wantCause)
+			}
+
+			assert.Contains(t, err.Error(), tt.wantInErr)
 		})
 	}
 }
@@ -148,7 +163,8 @@ func TestConfigGetURL(t *testing.T) {
 			config: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
 				DisableTLS: true, InsecureSkipVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
-				Extras: map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
+				Extras:      map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
+				prioritySet: true,
 			},
 			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&insecureskipverify=Yes&priority=5&title=Backup&useheader=Yes" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
@@ -167,6 +183,21 @@ func TestConfigGetURL(t *testing.T) {
 			assert.Equal(t, tt.config, *roundTrip)
 		})
 	}
+}
+
+// TestConfigGetURLSubpath verifies that GetURL separates a subpath without a
+// trailing slash from the token.
+func TestConfigGetURLSubpath(t *testing.T) {
+	t.Parallel()
+
+	config := Config{Host: testHost, Path: "/gotify", Token: testToken, Title: defaultTitle}
+	serviceURL := config.GetURL()
+
+	assert.Equal(t, "gotify://"+testHost+"/gotify/"+testToken, serviceURL.String())
+
+	roundTrip := &Config{Title: defaultTitle}
+	require.NoError(t, roundTrip.SetURL(serviceURL))
+	assert.Equal(t, Config{Host: testHost, Path: "/gotify/", Token: testToken, Title: defaultTitle}, *roundTrip)
 }
 
 // TestConfigGetURLSkipsUnmarshalableExtras verifies that GetURL leaves out
