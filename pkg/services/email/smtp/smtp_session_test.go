@@ -9,7 +9,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"log"
+	"mime"
 	"net/mail"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -314,6 +316,45 @@ func TestSessionRunHTML(t *testing.T) {
 			"\n\n--"+boundary+"\nContent-Type: text/html; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\n<p>Hello</p>"+
 			"\n\n--"+boundary+"--\n",
 		body)
+}
+
+// TestSessionRunLongSubject verifies that a long subject reaches the server
+// folded within the recommended line lengths and parses back to the original
+// text, whether plain ASCII or RFC 2047 encoded.
+func TestSessionRunLongSubject(t *testing.T) {
+	t.Parallel()
+
+	// tests lists subjects with the line limit each folded header should keep.
+	tests := []struct {
+		name    string
+		subject string
+		limit   int
+	}{
+		{name: "ASCII", subject: strings.TrimSpace(strings.Repeat("Backup of the database finished ", 8)), limit: 78},
+		{name: "UTF-8", subject: strings.TrimSpace(strings.Repeat("Sicherung der Datenbank abgeschlossen: Größe geprüft ", 8)), limit: 76},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newFakeSMTP()
+			require.NoError(t, newTestService(t, testServiceURL+"&subject="+url.QueryEscape(tt.subject), server).Send("Hello", nil))
+
+			raw := server.message(t, 0)
+			header, _, _ := strings.Cut(raw, "\n\n")
+
+			for line := range strings.SplitSeq(header, "\n") {
+				assert.LessOrEqual(t, len(line), tt.limit, line)
+			}
+
+			message, _ := parseMessage(t, raw)
+
+			subject, err := new(mime.WordDecoder).DecodeHeader(message.Header.Get("Subject"))
+			require.NoError(t, err)
+			assert.Equal(t, tt.subject, subject)
+		})
+	}
 }
 
 // TestSessionRunEmptyMessage verifies that an empty message is sent with an

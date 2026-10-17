@@ -32,14 +32,28 @@ const (
 	// maxHeaderLineOctets is the RFC 5322 maximum length of a header line,
 	// excluding the CRLF. See https://datatracker.ietf.org/doc/html/rfc5322#section-2.1.1.
 	maxHeaderLineOctets = 998
+	// headerLineOctets is the RFC 5322 recommended length of a header line,
+	// excluding the CRLF. See https://datatracker.ietf.org/doc/html/rfc5322#section-2.1.1.
+	headerLineOctets = 78
+	// encodedWordLineOctets is the RFC 2047 maximum length of a header line
+	// that contains an encoded-word. See https://datatracker.ietf.org/doc/html/rfc2047#section-2.
+	encodedWordLineOctets = 76
+)
+
+// headerUnfolder removes the line breaks of RFC 5322 folding whitespace and
+// keeps the whitespace that follows each break.
+var headerUnfolder = strings.NewReplacer(
+	"\r\n ", " ", "\r\n\t", "\t",
+	"\n ", " ", "\n\t", "\t",
+	"\r ", " ", "\r\t", "\t",
 )
 
 // headers constructs email headers for the SMTP message.
 //
 // Non-ASCII header values are encoded per RFC 2047
-// (https://datatracker.ietf.org/doc/html/rfc2047). The Subject value is folded
-// to [maxHeaderLineOctets]. When [Config.UseHTML] is true, the Content-Type is
-// multipart/alternative with the given boundary.
+// (https://datatracker.ietf.org/doc/html/rfc2047). Values are left unfolded
+// for [writeHeaders] to fold. When [Config.UseHTML] is true, the Content-Type
+// is multipart/alternative with the given boundary.
 //
 // Parameters:
 //   - config: SMTP configuration providing sender, subject, and HTML options.
@@ -65,10 +79,7 @@ func headers(config *Config, toAddress, boundary string) map[string]string {
 	recipient := &mail.Address{Name: "", Address: toAddress}
 
 	headerMap := map[string]string{
-		"Subject": foldHeaderValue(
-			"Subject",
-			mime.QEncoding.Encode("UTF-8", config.Subject),
-		),
+		"Subject":      mime.QEncoding.Encode("UTF-8", config.Subject),
 		"Date":         time.Now().Format(time.RFC1123Z),
 		"To":           recipient.String(),
 		"From":         from.String(),
@@ -107,49 +118,116 @@ func generateMessageID(fromAddress string) string {
 	return fmt.Sprintf("<%s@%s>", hex.EncodeToString(b), domain)
 }
 
-// foldHeaderValue folds an unstructured header value to RFC 5322 line limits.
+// foldHeader returns a header field folded to RFC 5322 line limits.
 //
-// Existing RFC 5322 folding whitespace is unfolded first so the function is
-// idempotent. The first physical line is limited so that `name: value` stays
-// within [maxHeaderLineOctets]; continuation lines start with a single space.
+// Existing folding line breaks in value are removed first, keeping their
+// whitespace. Lines longer than [headerLineOctets], or [encodedWordLineOctets]
+// when the field contains an RFC 2047 encoded-word, are folded by inserting a
+// line break before whitespace, so unfolding restores the field. The space
+// after the colon is a fold point too, which moves an encoded-word that does
+// not fit after the name onto a continuation line. No line is left with
+// whitespace alone. A token that no whitespace splits within
+// [maxHeaderLineOctets] is split at that limit, with a space inserted, because
+// no line may be longer.
 //
 // Parameters:
-//   - name: The header field name, used to size the first line.
+//   - name: The header field name.
 //   - value: The header field body, which may already be folded.
 //
 // Returns:
-//   - The header body with `\n ` inserted so no physical line exceeds [maxHeaderLineOctets].
-func foldHeaderValue(name, value string) string {
-	unfolded := strings.ReplaceAll(value, "\r\n ", "")
-	unfolded = strings.ReplaceAll(unfolded, "\n ", "")
-	unfolded = strings.ReplaceAll(unfolded, "\r ", "")
+//   - The `name: value` field with `\n` inserted before folding whitespace.
+func foldHeader(name, value string) string {
+	field := name + ": " + headerUnfolder.Replace(value)
 
-	firstLimit := max(maxHeaderLineOctets-len(name)-len(": "), 1)
-
-	if len(unfolded) <= firstLimit {
-		return unfolded
+	limit := headerLineOctets
+	if strings.Contains(field, "=?") {
+		limit = encodedWordLineOctets
 	}
 
 	var builder strings.Builder
 
-	builder.Grow(len(unfolded) + len(unfolded)/firstLimit*2)
+	builder.Grow(len(field) + len(field)/limit*2)
 
-	remaining := unfolded
-	limit := firstLimit
+	remaining := field
+	for len(remaining) > limit {
+		breakAt := foldPoint(remaining, limit)
+		if breakAt < 0 {
+			if len(remaining) <= maxHeaderLineOctets {
+				break
+			}
 
-	for remaining != "" {
-		n := min(limit, len(remaining))
-		builder.WriteString(remaining[:n])
-		remaining = remaining[n:]
+			builder.WriteString(remaining[:maxHeaderLineOctets])
+			builder.WriteString("\n")
 
-		if remaining != "" {
-			builder.WriteString("\n ")
+			remaining = " " + remaining[maxHeaderLineOctets:]
 
-			limit = maxHeaderLineOctets - 1
+			continue
+		}
+
+		builder.WriteString(remaining[:breakAt])
+		builder.WriteString("\n")
+
+		remaining = remaining[breakAt:]
+	}
+
+	builder.WriteString(remaining)
+
+	return builder.String()
+}
+
+// foldPoint returns where to break the first line of line, before a
+// whitespace character with other text on both sides of it.
+//
+// It prefers the last such point that keeps the first line within limit, and
+// otherwise takes the first point that keeps it within [maxHeaderLineOctets].
+//
+// Parameters:
+//   - line: The rest of the header field, starting at the current line.
+//   - limit: The preferred maximum length of the first line.
+//
+// Returns:
+//   - int: the index of the whitespace to break before, or -1 if there is none.
+func foldPoint(line string, limit int) int {
+	first := strings.IndexFunc(line, isNotFoldingSpace)
+	last := strings.LastIndexFunc(line, isNotFoldingSpace)
+
+	for i := min(limit, last-1); i > first; i-- {
+		if isFoldingSpace(rune(line[i])) {
+			return i
 		}
 	}
 
-	return builder.String()
+	for i := max(limit+1, first+1); i < last && i <= maxHeaderLineOctets; i++ {
+		if isFoldingSpace(rune(line[i])) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// isFoldingSpace reports whether r is RFC 5322 whitespace, a space or a
+// horizontal tab.
+//
+// Parameters:
+//   - r: The character to check.
+//
+// Returns:
+//   - bool: true for a space or a horizontal tab.
+func isFoldingSpace(r rune) bool {
+	return r == ' ' || r == '\t'
+}
+
+// isNotFoldingSpace reports whether r is anything other than RFC 5322
+// whitespace.
+//
+// Parameters:
+//   - r: The character to check.
+//
+// Returns:
+//   - bool: true for any character but a space or a horizontal tab.
+func isNotFoldingSpace(r rune) bool {
+	return !isFoldingSpace(r)
 }
 
 // generateBoundary returns a random multipart boundary token.
@@ -164,8 +242,8 @@ func generateBoundary() (string, error) {
 
 // writeHeaders writes email headers to the provided writer.
 //
-// Keys are written in sorted order. Values are folded to [maxHeaderLineOctets].
-// A blank line is written after the headers to separate them from the body.
+// Keys are written in sorted order, each field folded by [foldHeader]. A blank
+// line is written after the headers to separate them from the body.
 //
 // Parameters:
 //   - writer: The DATA stream writer.
@@ -175,8 +253,7 @@ func generateBoundary() (string, error) {
 //   - An error if a header line or the trailing blank line cannot be written.
 func writeHeaders(writer io.Writer, headerMap map[string]string) error {
 	for _, key := range slices.Sorted(maps.Keys(headerMap)) {
-		val := foldHeaderValue(key, headerMap[key])
-		if _, err := fmt.Fprintf(writer, "%s: %s\n", key, val); err != nil {
+		if _, err := fmt.Fprintln(writer, foldHeader(key, headerMap[key])); err != nil {
 			return fail(FailWriteHeaders, err)
 		}
 	}

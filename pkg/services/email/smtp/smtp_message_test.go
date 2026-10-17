@@ -3,6 +3,7 @@ package smtp
 import (
 	"bytes"
 	"errors"
+	"mime"
 	"net/mail"
 	"strings"
 	"testing"
@@ -153,21 +154,6 @@ func TestHeadersEncoding(t *testing.T) {
 	assert.Equal(t, "grüß@example.com", to.Address)
 }
 
-// TestHeadersFoldsLongSubject verifies that a subject longer than a header line
-// is folded so that no line exceeds 998 octets and unfolding restores it.
-func TestHeadersFoldsLongSubject(t *testing.T) {
-	t.Parallel()
-
-	subject := strings.Repeat("A", 1200)
-	got := headers(&Config{FromAddress: "sender@example.com", Subject: subject}, "rec@example.com", "")
-
-	assert.Equal(t, subject, strings.ReplaceAll(got["Subject"], "\n ", ""))
-
-	for line := range strings.SplitSeq("Subject: "+got["Subject"], "\n") {
-		assert.LessOrEqual(t, len(line), maxHeaderLineOctets)
-	}
-}
-
 // TestGenerateMessageID verifies that a Message-ID uses the sender's domain,
 // or localhost when the address has none, around a random token.
 func TestGenerateMessageID(t *testing.T) {
@@ -211,25 +197,50 @@ func TestGenerateBoundary(t *testing.T) {
 	assert.NotEqual(t, first, second)
 }
 
-// TestFoldHeaderValue verifies that a header value longer than a header line
-// is split into lines of at most 998 octets, the first counting the name,
-// and that folding an already folded value changes nothing.
-func TestFoldHeaderValue(t *testing.T) {
+// TestFoldHeader verifies the fold points and limits of a header field: a
+// tab is whitespace to fold before, a field with an encoded-word folds past
+// 76 octets where plain text folds past 78, a token longer than 998 octets is
+// split at the limit on every line, even when whitespace follows past the
+// limit, no line is whitespace alone, and a lone CR before whitespace unfolds
+// like CRLF.
+func TestFoldHeader(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "short", foldHeaderValue("Subject", "short"))
+	// tests lists header values with the field each should fold to.
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "tab", value: strings.Repeat("a", 74) + "\tb", want: "X: " + strings.Repeat("a", 74) + "\n\tb"},
+		{name: "77 octets", value: "zz" + strings.Repeat("a", 70) + " b", want: "X: zz" + strings.Repeat("a", 70) + " b"},
+		{name: "77 octets with an encoded-word", value: "=?" + strings.Repeat("a", 70) + " b", want: "X: =?" + strings.Repeat("a", 70) + "\n b"},
+		{
+			name:  "token longer than the limit",
+			value: strings.Repeat("A", 2000),
+			want:  "X:\n " + strings.Repeat("A", 997) + "\n " + strings.Repeat("A", 997) + "\n " + strings.Repeat("A", 6),
+		},
+		{name: "lone CR", value: "a\r b", want: "X: a b"},
+		{name: "trailing whitespace", value: "word" + strings.Repeat(" ", 100), want: "X:\n word" + strings.Repeat(" ", 100)},
+		{
+			name:  "whitespace run across the limit",
+			value: strings.Repeat("a", 72) + strings.Repeat(" ", 10) + strings.Repeat("b", 100),
+			want:  "X: " + strings.Repeat("a", 72) + "   \n       " + strings.Repeat("b", 100),
+		},
+		{
+			name:  "whitespace past the limit",
+			value: strings.Repeat("A", 1100) + " tail",
+			want:  "X:\n " + strings.Repeat("A", 997) + "\n " + strings.Repeat("A", 103) + "\n tail",
+		},
+	}
 
-	value := strings.Repeat("A", 2500)
-	folded := foldHeaderValue("Subject", value)
-	lines := strings.Split(folded, "\n ")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Len(t, lines, 3)
-	assert.Len(t, lines[0], maxHeaderLineOctets-len("Subject: "))
-	assert.Len(t, lines[1], maxHeaderLineOctets-1)
-	assert.Equal(t, value, strings.Join(lines, ""))
-	assert.Equal(t, folded, foldHeaderValue("Subject", folded))
-	assert.Equal(t, "ab", foldHeaderValue("X", "a\r\n b"))
-	assert.Equal(t, "ab", foldHeaderValue("X", "a\r b"))
+			assert.Equal(t, tt.want, foldHeader("X", tt.value))
+		})
+	}
 }
 
 // TestWriteHeaders verifies that headers are written in name order with a
@@ -241,6 +252,101 @@ func TestWriteHeaders(t *testing.T) {
 
 	require.NoError(t, writeHeaders(&out, map[string]string{"Subject": "Hi", "From": "<a@example.com>", "To": "<b@example.com>"}))
 	assert.Equal(t, "From: <a@example.com>\nSubject: Hi\nTo: <b@example.com>\n\n", out.String())
+}
+
+// TestWriteHeadersFolding verifies that a header line longer than 78
+// octets is folded before existing whitespace, including the space after the
+// colon, so unfolding restores it, that no folded line is whitespace alone,
+// and that a token longer than 998 octets is split at the limit.
+func TestWriteHeadersFolding(t *testing.T) {
+	t.Parallel()
+
+	words := strings.TrimSpace(strings.Repeat("backup done ", 12))
+	spaced := "a" + strings.Repeat(" ", 100) + "b"
+
+	// tests lists header values with the output each should produce.
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "short",
+			value: "Backup done",
+			want:  "Subject: Backup done\n\n",
+		},
+		{
+			name:  "words",
+			value: words,
+			want:  "Subject: " + words[:66] + "\n" + words[66:] + "\n\n",
+		},
+		{
+			name:  "break after the colon",
+			value: strings.Repeat("a", 70) + " bbb",
+			want:  "Subject:\n " + strings.Repeat("a", 70) + " bbb\n\n",
+		},
+		{
+			name:  "token longer than a line",
+			value: strings.Repeat("x", 200) + " tail",
+			want:  "Subject:\n " + strings.Repeat("x", 200) + "\n tail\n\n",
+		},
+		{
+			name:  "token longer than the limit",
+			value: strings.Repeat("A", 1200),
+			want:  "Subject:\n " + strings.Repeat("A", 997) + "\n " + strings.Repeat("A", 203) + "\n\n",
+		},
+		{
+			name:  "whitespace run",
+			value: spaced,
+			want:  "Subject: " + spaced[:69] + "\n" + spaced[69:] + "\n\n",
+		},
+		{
+			name:  "folded value",
+			value: "a\r\n b\n\tc",
+			want:  "Subject: a b\tc\n\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+
+			require.NoError(t, writeHeaders(&out, map[string]string{"Subject": tt.value}))
+			assert.Equal(t, tt.want, out.String())
+		})
+	}
+}
+
+// TestWriteHeadersEncodedWords verifies that a long non-ASCII subject and
+// sender name are written in lines of at most 76 octets, the RFC 2047 limit
+// for lines with encoded-words, that decode to the original text.
+func TestWriteHeadersEncodedWords(t *testing.T) {
+	t.Parallel()
+
+	subject := strings.TrimSpace(strings.Repeat("Prüfung der Sicherung ", 12))
+	name := strings.TrimSpace(strings.Repeat("Jürgen Groß ", 8))
+
+	var out bytes.Buffer
+
+	require.NoError(t, writeHeaders(&out, headers(&Config{FromAddress: "sender@example.com", FromName: name, Subject: subject}, "rec@example.com", "")))
+
+	for line := range strings.SplitSeq(strings.TrimSuffix(out.String(), "\n\n"), "\n") {
+		assert.LessOrEqual(t, len(line), 76, line)
+		assert.NotEmpty(t, strings.TrimSpace(line), "whitespace-only line")
+	}
+
+	message, err := mail.ReadMessage(&out)
+	require.NoError(t, err)
+
+	decoded, err := new(mime.WordDecoder).DecodeHeader(message.Header.Get("Subject"))
+	require.NoError(t, err)
+	assert.Equal(t, subject, decoded)
+
+	from, err := mail.ParseAddress(message.Header.Get("From"))
+	require.NoError(t, err)
+	assert.Equal(t, &mail.Address{Name: name, Address: "sender@example.com"}, from)
 }
 
 // TestWriteHeadersErrors verifies that a failed write of a header or of the
