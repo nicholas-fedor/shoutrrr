@@ -3,131 +3,175 @@ package format
 import (
 	"errors"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-type subPropStruct struct {
-	Value string
-}
-
+// subStruct is a struct field type that does not implement
+// [types.ConfigProp].
 type subStruct struct {
+	// Value is the struct's only field.
 	Value string
 }
 
-type testStruct struct {
-	Signed          int `default:"0" key:"signed"`
-	Unsigned        uint
-	Duration        time.Duration `default:"10s"      key:"duration"`
-	Str             string        `default:"notempty" key:"str"`
-	StrSlice        []string
-	StrArray        [3]string
-	Sub             subStruct
-	TestEnum        int `default:"None" key:"testenum"`
-	SubProp         subPropStruct
-	SubSlice        []subStruct
-	SubPropSlice    []subPropStruct
-	SubPropPtrSlice []*subPropStruct
-	StrMap          map[string]string
-	IntMap          map[string]int
-	Int8Map         map[string]int8
-	Int16Map        map[string]int16
-	Int32Map        map[string]int32
-	Int64Map        map[string]int64
-	UintMap         map[string]uint
-	Uint8Map        map[string]int8
-	Uint16Map       map[string]int16
-	Uint32Map       map[string]int32
-	Uint64Map       map[string]int64
+// subPropStruct is a struct field type that implements [types.ConfigProp]
+// with values written as "@value".
+type subPropStruct struct {
+	// Value is the value without its "@" prefix.
+	Value string
 }
 
+// testStruct is a service config with a field of each kind the formatter
+// supports.
+type testStruct struct {
+	// Signed is a keyed int with a default.
+	Signed int `default:"0" key:"signed"`
+	// Unsigned is a uint without a key.
+	Unsigned uint
+	// Duration is a keyed duration with a default.
+	Duration time.Duration `default:"10s" key:"duration"`
+	// Str is a keyed string with a default.
+	Str string `default:"notempty" key:"str"`
+	// StrSlice is a string slice.
+	StrSlice []string
+	// StrArray is a string array of three items.
+	StrArray [3]string
+	// Sub is a struct that is not a config prop.
+	Sub subStruct
+	// TestEnum is a keyed enum with a default.
+	TestEnum int `default:"None" key:"testenum"`
+	// SubProp is a config prop struct.
+	SubProp subPropStruct
+	// SubSlice is a slice of structs that are not config props.
+	SubSlice []subStruct
+	// SubPropSlice is a slice of config prop structs.
+	SubPropSlice []subPropStruct
+	// SubPropPtrSlice is a slice of pointers to config prop structs.
+	SubPropPtrSlice []*subPropStruct
+	// StrMap is a map of strings.
+	StrMap map[string]string
+	// IntMap is a map of ints.
+	IntMap map[string]int
+	// Int8Map is a map of int8s.
+	Int8Map map[string]int8
+	// Int16Map is a map of int16s.
+	Int16Map map[string]int16
+	// Int32Map is a map of int32s.
+	Int32Map map[string]int32
+	// Int64Map is a map of int64s.
+	Int64Map map[string]int64
+	// UintMap is a map of uints.
+	UintMap map[string]uint
+	// Uint8Map is a map of uint8s.
+	Uint8Map map[string]uint8
+	// Uint16Map is a map of uint16s.
+	Uint16Map map[string]uint16
+	// Uint32Map is a map of uint32s.
+	Uint32Map map[string]uint32
+	// Uint64Map is a map of uint64s.
+	Uint64Map map[string]uint64
+}
+
+// testStructBadDefault is a service config whose default does not parse.
 type testStructBadDefault struct {
 	standard.EnumlessConfig
 
+	// Value is an int whose default is not a number.
 	Value int `default:"NaN" key:"value"`
 }
 
-var _ = ginkgo.BeforeSuite(func() {
-	// Disable color output for tests using environment variable
-	os.Setenv("NO_COLOR", "true")
-})
+// errInvalidProp is the error subPropStruct returns for a value without its
+// "@" prefix.
+var errInvalidProp = errors.New("invalid value")
 
-var (
-	testEnum = CreateEnumFormatter([]string{"None", "Foo", "Bar"})
-	enums    = map[string]types.EnumFormatter{
-		"TestEnum": testEnum,
+// testEnum formats the TestEnum field of testStruct.
+var testEnum = CreateEnumFormatter([]string{"None", "Foo", "Bar"})
+
+// TestParseBool verifies that ParseBool accepts the truthy and falsy
+// spellings in any case and returns the default for anything else.
+func TestParseBool(t *testing.T) {
+	t.Parallel()
+
+	// tests lists raw values with the bool each should parse to.
+	tests := []struct {
+		raw    string
+		want   bool
+		wantOK bool
+	}{
+		{raw: "true", want: true, wantOK: true},
+		{raw: "1", want: true, wantOK: true},
+		{raw: "yes", want: true, wantOK: true},
+		{raw: "y", want: true, wantOK: true},
+		{raw: "trUE", want: true, wantOK: true},
+		{raw: "false", want: false, wantOK: true},
+		{raw: "0", want: false, wantOK: true},
+		{raw: "no", want: false, wantOK: true},
+		{raw: "N", want: false, wantOK: true},
 	}
-)
 
-var _ = ginkgo.Describe("the format package", func() {
-	ginkgo.Describe("Generic Format Utils", func() {
-		ginkgo.When("parsing a bool", func() {
-			testParseValidBool := func(raw string, expected bool) {
-				parsed, ok := ParseBool(raw, !expected)
-				gomega.Expect(parsed).To(gomega.Equal(expected))
-				gomega.Expect(ok).To(gomega.BeTrue())
-			}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
 
-			ginkgo.It("should parse truthy values as true", func() {
-				testParseValidBool("true", true)
-				testParseValidBool("1", true)
-				testParseValidBool("yes", true)
-			})
-			ginkgo.It("should parse falsy values as false", func() {
-				testParseValidBool("false", false)
-				testParseValidBool("0", false)
-				testParseValidBool("no", false)
-			})
-			ginkgo.It("should match regardless of case", func() {
-				testParseValidBool("trUE", true)
-			})
-			ginkgo.It("should return the default if no value matches", func() {
-				parsed, ok := ParseBool("bad", true)
-				gomega.Expect(parsed).To(gomega.BeTrue())
-				gomega.Expect(ok).To(gomega.BeFalse())
-				parsed, ok = ParseBool("values", false)
-				gomega.Expect(parsed).To(gomega.BeFalse())
-				gomega.Expect(ok).To(gomega.BeFalse())
-			})
+			parsed, ok := ParseBool(tt.raw, !tt.want)
+			assert.Equal(t, tt.want, parsed)
+			assert.Equal(t, tt.wantOK, ok)
 		})
-		ginkgo.When("printing a bool", func() {
-			ginkgo.It("should return yes or no", func() {
-				gomega.Expect(PrintBool(true)).To(gomega.Equal("Yes"))
-				gomega.Expect(PrintBool(false)).To(gomega.Equal("No"))
-			})
-		})
-		ginkgo.When("checking for number-like strings", func() {
-			ginkgo.It("should be true for numbers", func() {
-				gomega.Expect(IsNumber("1.5")).To(gomega.BeTrue())
-				gomega.Expect(IsNumber("0")).To(gomega.BeTrue())
-				gomega.Expect(IsNumber("NaN")).To(gomega.BeTrue())
-			})
-			ginkgo.It("should be false for non-numbers", func() {
-				gomega.Expect(IsNumber("baNaNa")).To(gomega.BeFalse())
-			})
-		})
-	})
-	ginkgo.Describe("Enum Formatter", func() {
-		ginkgo.It("should return all enum values on listing", func() {
-			gomega.Expect(testEnum.Names()).To(gomega.ConsistOf("None", "Foo", "Bar"))
-		})
-	})
-})
+	}
 
+	parsed, ok := ParseBool("bad", true)
+	assert.True(t, parsed)
+	assert.False(t, ok)
+
+	parsed, ok = ParseBool("", false)
+	assert.False(t, parsed)
+	assert.False(t, ok)
+}
+
+// TestPrintBool verifies that a bool prints as Yes or No.
+func TestPrintBool(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Yes", PrintBool(true))
+	assert.Equal(t, "No", PrintBool(false))
+}
+
+// TestIsNumber verifies that IsNumber accepts what parses as a float.
+func TestIsNumber(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, IsNumber("1.5"))
+	assert.True(t, IsNumber("0"))
+	assert.True(t, IsNumber("-3"))
+	assert.True(t, IsNumber("NaN"))
+	assert.False(t, IsNumber("baNaNa"))
+	assert.False(t, IsNumber(""))
+}
+
+// GetPropValue writes the value with its "@" prefix.
+//
+// Returns:
+//   - string: the value with an "@" prefix.
+//   - error: always nil.
 func (s *subPropStruct) GetPropValue() (string, error) {
 	return "@" + s.Value, nil
 }
 
+// SetFromProp reads a value written with an "@" prefix.
+//
+// Parameters:
+//   - propValue: the value with its "@" prefix.
+//
+// Returns:
+//   - error: errInvalidProp when the prefix is missing.
 func (s *subPropStruct) SetFromProp(propValue string) error {
 	if len(propValue) < 1 || propValue[0] != '@' {
-		return errors.New("invalid value")
+		return errInvalidProp
 	}
 
 	s.Value = propValue[1:]
@@ -135,28 +179,48 @@ func (s *subPropStruct) SetFromProp(propValue string) error {
 	return nil
 }
 
+// Enums returns the enum formatter of the TestEnum field.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: the enum formatters by field name.
 func (t *testStruct) Enums() map[string]types.EnumFormatter {
-	return enums
+	return map[string]types.EnumFormatter{"TestEnum": testEnum}
 }
 
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
 func (t *testStruct) GetURL() *url.URL {
-	panic("not implemented")
+	return &url.URL{}
 }
 
-func (t *testStruct) SetURL(_ *url.URL) error {
-	panic("not implemented")
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStruct) SetURL(*url.URL) error {
+	return nil
 }
 
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
 func (t *testStructBadDefault) GetURL() *url.URL {
-	panic("not implemented")
+	return &url.URL{}
 }
 
-func (t *testStructBadDefault) SetURL(_ *url.URL) error {
-	panic("not implemented")
-}
-
-func TestFormat(t *testing.T) {
-	t.Parallel()
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Format Suite")
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructBadDefault) SetURL(*url.URL) error {
+	return nil
 }
