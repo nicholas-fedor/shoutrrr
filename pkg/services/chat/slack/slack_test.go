@@ -1,365 +1,438 @@
-package slack_test
+package slack
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
-	"github.com/jarcoal/httpmock"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/slack"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
+// failingReader is a response body whose reads fail.
+type failingReader struct{}
+
+// recordedRequest is a request a recording client received.
+type recordedRequest struct {
+	header http.Header
+	method string
+	url    string
+	body   []byte
+}
+
+// Service URLs and endpoints shared by the service tests.
 const (
-	TestWebhookURL = "https://hooks.slack.com/services/AAAAAAAAA/BBBBBBBBB/123456789123456789123456"
+	// testWebhookServiceURL is a webhook service URL in the current format.
+	testWebhookServiceURL = "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook"
+	// testAPIServiceURL is a bot API service URL in the current format.
+	testAPIServiceURL = "slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789"
+	// testWebhookURL is the webhook URL that testWebhookServiceURL posts to.
+	testWebhookURL = "https://hooks.slack.com/services/AAAAAAAAA/BBBBBBBBB/123456789123456789123456"
 )
 
-var (
-	service     *slack.Service
-	envSlackURL *url.URL
-	logger      *log.Logger
-	_           = ginkgo.BeforeSuite(func() {
-		service = &slack.Service{}
-		logger = log.New(ginkgo.GinkgoWriter, "Test", log.LstdFlags)
-		envSlackURL, _ = url.Parse(os.Getenv("SHOUTRRR_SLACK_URL"))
+// errTransport is the error a failing client returns.
+var errTransport = errors.New("connection refused")
+
+// newRecordingClient returns a client that records each request and answers
+// it with status and body.
+//
+// Parameters:
+//   - t: the test.
+//   - status: the response status code.
+//   - body: the response body.
+//
+// Returns:
+//   - *mocks.MockHTTPClient: the client.
+//   - *[]recordedRequest: the requests the client received.
+func newRecordingClient(t *testing.T, status int, body string) (*mocks.MockHTTPClient, *[]recordedRequest) {
+	t.Helper()
+
+	var requests []recordedRequest
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		payload, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		requests = append(requests, recordedRequest{header: req.Header.Clone(), method: req.Method, url: req.URL.String(), body: payload})
+
+		return &http.Response{
+			StatusCode: status,
+			Status:     http.StatusText(status),
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	}).Maybe()
+
+	return client, &requests
+}
+
+// newTestService returns a service initialized from rawURL that sends
+// through client and logs to logs.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//   - client: the HTTP client to send through.
+//   - logs: where the service logs.
+//
+// Returns:
+//   - *Service: the service.
+func newTestService(t *testing.T, rawURL string, client types.HTTPClient, logs io.Writer) *Service {
+	t.Helper()
+
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, log.New(logs, "", 0)))
+	service.SetHTTPClient(client)
+
+	return service
+}
+
+// TestGetID verifies the service identifier.
+func TestGetID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "slack", (&Service{}).GetID())
+}
+
+// TestInitialize verifies that Initialize parses the URL into the config and
+// gives the service a default client with a timeout.
+func TestInitialize(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse(testAPIServiceURL + "?title=Alert")
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, nil))
+
+	assert.Equal(t, "C0123456789", service.Config.Channel)
+	assert.Equal(t, "Alert", service.Config.Title)
+	assert.Equal(t, "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N", service.Config.Token.String())
+	require.NotNil(t, service.client)
+	assert.Equal(t, defaultHTTPTimeout, service.client.Timeout)
+}
+
+// TestInitializeErrors verifies that a token with a part that is too short or
+// missing, or an unknown query key, fails initialization.
+func TestInitializeErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists invalid service URLs with the error each should produce.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "short part A", rawURL: "slack://lol@12345678/123456789/123456789123456789123456", wantErr: ErrInvalidToken},
+		{name: "short part B", rawURL: "slack://lol@123456789/12345678/123456789123456789123456", wantErr: ErrInvalidToken},
+		{name: "short part C", rawURL: "slack://123456789/123456789/12345678912345678912345", wantErr: ErrInvalidToken},
+		{name: "missing part A", rawURL: "slack://lol@/123456789/123456789123456789123456", wantErr: ErrInvalidToken},
+		{name: "missing part B", rawURL: "slack://lol@123456789//123456789", wantErr: ErrInvalidToken},
+		{name: "missing part C", rawURL: "slack://lol@123456789/123456789/", wantErr: ErrInvalidToken},
+		{name: "unknown key", rawURL: testWebhookServiceURL + "?bass=dirty", wantErr: format.ErrInvalidConfigKey},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL, err := url.Parse(tt.rawURL)
+			require.NoError(t, err)
+
+			require.ErrorIs(t, (&Service{}).Initialize(serviceURL, nil), tt.wantErr)
+		})
+	}
+}
+
+// TestSendWebhook verifies that a webhook send posts the JSON payload to the
+// webhook URL and succeeds on an "ok" or empty 200 response.
+func TestSendWebhook(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{"ok", ""} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
+
+			client, requests := newRecordingClient(t, http.StatusOK, body)
+			service := newTestService(t, testWebhookServiceURL+"?botname=testbot&color=3f00fe&title=Alert", client, io.Discard)
+
+			require.NoError(t, service.Send("Line 1\nLine 2", nil))
+
+			require.Len(t, *requests, 1)
+
+			request := (*requests)[0]
+			assert.Equal(t, http.MethodPost, request.method)
+			assert.Equal(t, testWebhookURL, request.url)
+			assert.Equal(t, "application/json", request.header.Get("Content-Type"))
+			assert.Empty(t, request.header.Get("Authorization"))
+			assert.JSONEq(t,
+				`{"text":"Alert","username":"testbot","attachments":[{"text":"Line 1","color":"3f00fe"},{"text":"Line 2","color":"3f00fe"}]}`,
+				string(request.body))
+		})
+	}
+}
+
+// TestSendWebhookErrors verifies that a webhook send fails with the error
+// code the webhook returns, the status of an empty error response, the
+// transport error without the webhook secret, or a body read error.
+func TestSendWebhookErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists webhook responses with the error each send should produce.
+	tests := []struct {
+		wantErr  error
+		name     string
+		body     string
+		wantText string
+		status   int
+	}{
+		{name: "error code", status: http.StatusBadRequest, body: "invalid_payload", wantErr: ErrWebhookResponseFailure, wantText: "invalid_payload"},
+		{name: "error code with OK status", status: http.StatusOK, body: "no_text", wantErr: ErrWebhookResponseFailure, wantText: "no_text"},
+		{name: "empty error response", status: http.StatusInternalServerError, body: "", wantErr: ErrWebhookStatusFailure, wantText: "Internal Server Error"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newRecordingClient(t, tt.status, tt.body)
+
+			err := newTestService(t, testWebhookServiceURL, client, io.Discard).Send("Message", nil)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			require.ErrorContains(t, err, tt.wantText)
+		})
+	}
+
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errTransport}
+		}).Once()
+
+		err := newTestService(t, testWebhookServiceURL, client, io.Discard).Send("Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "123456789123456789123456")
 	})
-)
 
-var _ = ginkgo.Describe("the slack service", func() {
-	ginkgo.When("running integration tests", func() {
-		ginkgo.It("should not error out", func() {
-			if envSlackURL.String() == "" {
-				return
+	t.Run("body read error", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(&http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(failingReader{}),
+		}, nil).Once()
+
+		err := newTestService(t, testWebhookServiceURL, client, io.Discard).Send("Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		require.ErrorContains(t, err, "failed to read response body")
+	})
+}
+
+// TestSendWebhookTimeout verifies that a webhook request that never answers
+// ends after [defaultHTTPTimeout].
+func TestSendWebhookTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			<-req.Context().Done()
+
+			return nil, req.Context().Err()
+		}).Once()
+
+		service := newTestService(t, testWebhookServiceURL, client, io.Discard)
+		start := time.Now()
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, defaultHTTPTimeout, time.Since(start))
+	})
+}
+
+// TestSendAPI verifies that an API send posts the JSON payload with the
+// channel to chat.postMessage, authorized with the bot token, and logs a
+// warning the API returns with a successful response.
+func TestSendAPI(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	client, requests := newRecordingClient(t, http.StatusOK, `{"ok":true,"warning":"missing_charset"}`)
+	service := newTestService(t, testAPIServiceURL+"?icon=:robot_face:&thread_ts=1503435956.000247", client, &logs)
+
+	require.NoError(t, service.Send("Message", nil))
+
+	require.Len(t, *requests, 1)
+
+	request := (*requests)[0]
+	assert.Equal(t, http.MethodPost, request.method)
+	assert.Equal(t, apiPostMessage, request.url)
+	assert.Equal(t, "Bearer xoxb-123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N", request.header.Get("Authorization"))
+	assert.Equal(t, "application/json", request.header.Get("Content-Type"))
+	assert.JSONEq(t,
+		`{"text":"","channel":"C0123456789","thread_ts":"1503435956.000247","icon_emoji":":robot_face:","attachments":[{"text":"Message"}]}`,
+		string(request.body))
+	assert.Equal(t, "Slack API warning: \"missing_charset\"\n", logs.String())
+}
+
+// TestSendAPIErrors verifies that an API send fails with the error code the
+// API returns, an unknown error when it returns none, the HTTP status of a
+// failed request, and the transport error.
+func TestSendAPIErrors(t *testing.T) {
+	t.Parallel()
+
+	// tests lists API responses with the error each send should produce.
+	tests := []struct {
+		wantErr  error
+		name     string
+		body     string
+		wantText string
+		status   int
+	}{
+		{name: "error code", status: http.StatusOK, body: `{"ok":false,"error":"channel_not_found"}`, wantErr: ErrAPIResponseFailure, wantText: "channel_not_found"},
+		{name: "no error code", status: http.StatusOK, body: `{"ok":false}`, wantErr: ErrUnknownAPIError},
+		{
+			name: "HTTP error", status: http.StatusTooManyRequests, body: `{"ok":false,"error":"ratelimited"}`,
+			wantErr: jsonclient.ErrUnexpectedStatus, wantText: "Too Many Requests",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newRecordingClient(t, tt.status, tt.body)
+
+			err := newTestService(t, testAPIServiceURL, client, io.Discard).Send("Message", nil)
+
+			require.Error(t, err)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 			}
 
-			serviceURL, _ := url.Parse(envSlackURL.String())
-			err := service.Initialize(serviceURL, testutils.TestLogger())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			require.ErrorContains(t, err, tt.wantText)
+		})
+	}
 
-			err = service.Send("This is an integration test message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-		ginkgo.It("returns the correct service identifier", func() {
-			gomega.Expect(service.GetID()).To(gomega.Equal("slack"))
-		})
+	t.Run("transport error", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).Return(nil, errTransport).Once()
+
+		err := newTestService(t, testAPIServiceURL, client, io.Discard).Send("Message", nil)
+
+		require.ErrorIs(t, err, errTransport)
+		assert.NotContains(t, err.Error(), "4mt0t4l1YL3g1T5L4cK70k3N")
 	})
+}
 
-	// xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N
+// TestSendParams verifies that params apply to a single send without changing
+// the service config, and that an unknown param fails the send.
+func TestSendParams(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.When("given a token with a malformed part", func() {
-		ginkgo.It("should return an error if part A is not 9 letters", func() {
-			expectErrorMessageGivenURL(
-				slack.ErrInvalidToken,
-				"slack://lol@12345678/123456789/123456789123456789123456",
-			)
-		})
-		ginkgo.It("should return an error if part B is not 9 letters", func() {
-			expectErrorMessageGivenURL(
-				slack.ErrInvalidToken,
-				"slack://lol@123456789/12345678/123456789123456789123456",
-			)
-		})
-		ginkgo.It("should return an error if part C is not 24 letters", func() {
-			expectErrorMessageGivenURL(
-				slack.ErrInvalidToken,
-				"slack://123456789/123456789/12345678912345678912345",
-			)
-		})
-	})
-	ginkgo.When("given a token missing a part", func() {
-		ginkgo.It("should return an error if the missing part is A", func() {
-			expectErrorMessageGivenURL(
-				slack.ErrInvalidToken,
-				"slack://lol@/123456789/123456789123456789123456",
-			)
-		})
-		ginkgo.It("should return an error if the missing part is B", func() {
-			expectErrorMessageGivenURL(slack.ErrInvalidToken, "slack://lol@123456789//123456789")
-		})
-		ginkgo.It("should return an error if the missing part is C", func() {
-			expectErrorMessageGivenURL(slack.ErrInvalidToken, "slack://lol@123456789/123456789/")
-		})
-	})
-	ginkgo.Describe("the slack config", func() {
-		ginkgo.When("parsing the configuration URL", func() {
-			ginkgo.When("given a config using the legacy format", func() {
-				ginkgo.It("should be converted to the new format after de-/serialization", func() {
-					oldURL := "slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456?color=3f00fe&title=Test+title"
-					newURL := "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?botname=testbot&color=3f00fe&title=Test+title"
+	client, requests := newRecordingClient(t, http.StatusOK, "ok")
+	service := newTestService(t, testWebhookServiceURL+"?title=Alert", client, io.Discard)
+	before := *service.Config
 
-					config := &slack.Config{}
-					err := config.SetURL(testutils.URLMust(oldURL))
-					gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Override", "color": "good"}))
 
-					gomega.Expect(config.GetURL().String()).To(gomega.Equal(newURL))
-				})
-			})
-		})
-		ginkgo.When("the URL contains an invalid property", func() {
-			testURL := testutils.URLMust(
-				"slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?bass=dirty",
-			)
-			err := (&slack.Config{}).SetURL(testURL)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-		ginkgo.It("should be identical after de-/serialization", func() {
-			testURL := "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook?botname=testbot&color=3f00fe&title=Test+title"
+	require.Len(t, *requests, 1)
 
-			config := &slack.Config{}
-			err := config.SetURL(testutils.URLMust(testURL))
-			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "verifying")
+	var payload MessagePayload
 
-			outputURL := config.GetURL()
-			gomega.Expect(outputURL.String()).To(gomega.Equal(testURL))
-		})
-		ginkgo.When("generating a config object", func() {
-			ginkgo.It(
-				"should use the default botname if the argument list contains three strings",
-				func() {
-					slackURL, _ := url.Parse("slack://AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
-					config, configError := slack.CreateConfigFromURL(slackURL)
+	require.NoError(t, json.Unmarshal((*requests)[0].body, &payload))
+	assert.Equal(t, "Override", payload.Text)
+	assert.Equal(t, "good", payload.Attachments[0].Color)
+	assert.Equal(t, before, *service.Config)
 
-					gomega.Expect(configError).NotTo(gomega.HaveOccurred())
-					gomega.Expect(config.BotName).To(gomega.BeEmpty())
-				},
-			)
-			ginkgo.It("should set the botname if the argument list is three", func() {
-				slackURL, _ := url.Parse(
-					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
-				)
-				config, configError := slack.CreateConfigFromURL(slackURL)
+	err := service.Send("Message", &types.Params{"bass": "dirty"})
 
-				gomega.Expect(configError).NotTo(gomega.HaveOccurred())
-				gomega.Expect(config.BotName).To(gomega.Equal("testbot"))
-			})
-			ginkgo.It("should return an error if the argument list is shorter than three", func() {
-				slackURL, _ := url.Parse("slack://AAAAAAAA")
+	require.ErrorContains(t, err, "updating config from params")
+	assert.Len(t, *requests, 1)
+}
 
-				_, configError := slack.CreateConfigFromURL(slackURL)
-				gomega.Expect(configError).To(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("getting credentials from token", func() {
-			ginkgo.It("should return a valid webhook URL for the given token", func() {
-				token := tokenMust("AAAAAAAAA/BBBBBBBBB/123456789123456789123456")
-				gomega.Expect(token.WebhookURL()).To(gomega.Equal(TestWebhookURL))
-			})
-			ginkgo.It(
-				"should return a valid authorization header value for the given token",
-				func() {
-					token := tokenMust("xoxb:AAAAAAAAA-BBBBBBBBB-123456789123456789123456")
-					expected := "Bearer xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456"
-					gomega.Expect(token.Authorization()).To(gomega.Equal(expected))
-				},
-			)
-		})
-	})
+// TestSendContextCanceled verifies that a canceled context stops the request
+// through either path.
+func TestSendContextCanceled(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.Describe("creating the payload", func() {
-		ginkgo.Describe("the icon fields", func() {
-			payload := slack.MessagePayload{}
+	for _, rawURL := range []string{testAPIServiceURL, testWebhookServiceURL} {
+		t.Run(rawURL, func(t *testing.T) {
+			t.Parallel()
 
-			ginkgo.It("should set IconURL when the configured icon looks like an URL", func() {
-				payload.SetIcon("https://example.com/logo.png")
-				gomega.Expect(payload.IconURL).To(gomega.Equal("https://example.com/logo.png"))
-				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
-			})
-			ginkgo.It(
-				"should set IconEmoji when the configured icon does not look like an URL",
-				func() {
-					payload.SetIcon("tanabata_tree")
-					gomega.Expect(payload.IconEmoji).To(gomega.Equal("tanabata_tree"))
-					gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-				},
-			)
-			ginkgo.It("should clear both fields when icon is empty", func() {
-				payload.SetIcon("")
-				gomega.Expect(payload.IconEmoji).To(gomega.BeEmpty())
-				gomega.Expect(payload.IconURL).To(gomega.BeEmpty())
-			})
-		})
-		ginkgo.When("when more than 99 lines are being sent", func() {
-			ginkgo.It("should append the exceeding lines to the last attachment", func() {
-				config := slack.Config{}
-
-				sb := strings.Builder{}
-				for i := 1; i <= 110; i++ {
-					fmt.Fprintf(&sb, "Line %d\n", i)
-				}
-
-				payload := slack.CreateJSONPayload(&config, sb.String()).(slack.MessagePayload)
-				atts := payload.Attachments
-
-				_, _ = fmt.Fprint(
-					ginkgo.GinkgoWriter,
-					"\nLines: ",
-					len(atts),
-					" Last: ",
-					atts[len(atts)-1],
-					"\n",
-				)
-
-				gomega.Expect(atts).To(gomega.HaveLen(100))
-				gomega.Expect(atts[len(atts)-1].Text).To(gomega.ContainSubstring("Line 110"))
-			})
-		})
-		ginkgo.When("when the last message line ends with a newline", func() {
-			ginkgo.It("should not send an empty attachment", func() {
-				payload := slack.CreateJSONPayload(&slack.Config{}, "One\nTwo\nThree\n").(slack.MessagePayload)
-				atts := payload.Attachments
-				gomega.Expect(atts[len(atts)-1].Text).NotTo(gomega.BeEmpty())
-			})
-		})
-	})
-
-	ginkgo.Describe("sending the payload", func() {
-		ginkgo.When("sending via webhook URL", func() {
-			var err error
-
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-
-			ginkgo.It("should not report an error if the server accepts the payload", func() {
-				serviceURL, _ := url.Parse(
-					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
-				)
-				err = service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL,
-					httpmock.NewStringResponder(200, ""),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-				serviceURL, _ := url.Parse(
-					"slack://testbot@AAAAAAAAA/BBBBBBBBB/123456789123456789123456",
-				)
-				err = service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				httpmock.RegisterResponder(
-					"POST",
-					TestWebhookURL,
-					httpmock.NewErrorResponder(errors.New("dummy error")),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-		ginkgo.When("sending via bot API", func() {
-			var err error
-
-			ginkgo.BeforeEach(func() {
-				httpmock.Activate()
-			})
-			ginkgo.AfterEach(func() {
-				httpmock.DeactivateAndReset()
-			})
-
-			ginkgo.It("should not report an error if the server accepts the payload", func() {
-				serviceURL := testutils.URLMust(
-					"slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789",
-				)
-				err = service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				targetURL := "https://slack.com/api/chat.postMessage"
-				httpmock.RegisterResponder(
-					"POST",
-					targetURL,
-					testutils.JSONRespondMust(200, slack.APIResponse{
-						Ok: true,
-					}),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			})
-			ginkgo.It("should not panic if an error occurs when sending the payload", func() {
-				serviceURL := testutils.URLMust(
-					"slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789",
-				)
-				err = service.Initialize(serviceURL, logger)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				targetURL := "https://slack.com/api/chat.postMessage"
-				httpmock.RegisterResponder(
-					"POST",
-					targetURL,
-					testutils.JSONRespondMust(200, slack.APIResponse{
-						Error: "someone turned off the internet",
-					}),
-				)
-
-				err = service.Send("Message", nil)
-				gomega.Expect(err).To(gomega.HaveOccurred())
-			})
-		})
-	})
-})
-
-var _ = ginkgo.Describe("SendContext", func() {
-	ginkgo.DescribeTable("should stop the request when the caller's context is canceled",
-		func(rawURL string) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
-			client := typesmocks.NewMockHTTPClient(ginkgo.GinkgoT())
+			client := mocks.NewMockHTTPClient(t)
 			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 				return nil, req.Context().Err()
 			}).Once()
 
-			service := &slack.Service{}
-			gomega.Expect(service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())).To(gomega.Succeed())
-			service.SetHTTPClient(client)
+			err := newTestService(t, rawURL, client, io.Discard).SendContext(ctx, "Message", nil)
 
-			gomega.Expect(service.SendContext(ctx, "message", nil)).To(gomega.MatchError(context.Canceled))
-		},
-		ginkgo.Entry("through the API", "slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789"),
-		ginkgo.Entry("through a webhook", "slack://hook:AAAAAAAAA-BBBBBBBBB-123456789123456789123456@webhook"),
-	)
-})
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
 
-func TestSlack(t *testing.T) {
+// TestSetHTTPClient verifies that the injected client is used, and that a nil
+// client, including a nil *http.Client, selects the default client.
+func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	format.CharactersAroundMismatchToInclude = 20
+	client := mocks.NewMockHTTPClient(t)
+	service := newTestService(t, testWebhookServiceURL, client, io.Discard)
+	assert.Same(t, client, service.httpClientOrDefault())
 
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Shoutrrr Slack Suite")
+	service.SetHTTPClient(nil)
+	assert.Same(t, service.client, service.httpClientOrDefault())
+
+	service.SetHTTPClient(client)
+	service.SetHTTPClient((*http.Client)(nil))
+	assert.Same(t, service.client, service.httpClientOrDefault())
 }
 
-func tokenMust(rawToken string) *slack.Token {
-	token, err := slack.ParseToken(rawToken)
-	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
-
-	return token
-}
-
-func expectErrorMessageGivenURL(expected error, rawURL string) {
-	err := service.Initialize(testutils.URLMust(rawURL), testutils.TestLogger())
-	gomega.ExpectWithOffset(1, err).To(gomega.HaveOccurred())
-	gomega.ExpectWithOffset(1, err).To(gomega.Equal(expected))
+// Read fails with errTransport.
+//
+// Parameters:
+//   - []byte: unused.
+//
+// Returns:
+//   - int: always 0.
+//   - error: always errTransport.
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errTransport
 }
