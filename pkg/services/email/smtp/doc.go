@@ -102,9 +102,8 @@
 //
 // # Testing
 //
-// The `smtp_test.go` file includes unit and integration tests using the Ginkgo and Gomega frameworks.
-// Tests cover configuration parsing, email sending, error handling, and integration scenarios with mocked SMTP server responses.
-// The [testIntegration] and [testSendRecipient] functions simulate SMTP server interactions for testing purposes.
+// Each source file has a matching `_test.go` file with testify unit tests.
+// The service, session, and dial tests talk to an in-process SMTP server that records the commands and messages it receives, so no test connects to a real mail server.
 //
 // # Notes
 //
