@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Correct the failure messages for details and test setup by @nicholas-fedor in [#1656](https://github.com/nicholas-fedor/shoutrrr/pull/1656)
 - Fold header lines at whitespace within rfc line limits by @nicholas-fedor in [#1650](https://github.com/nicholas-fedor/shoutrrr/pull/1650)
 - Trim spaces around each address before restoring plus tags by @nicholas-fedor in [#1648](https://github.com/nicholas-fedor/shoutrrr/pull/1648)
 - Apply the tls send params to the send by @nicholas-fedor in [#1640](https://github.com/nicholas-fedor/shoutrrr/pull/1640)
