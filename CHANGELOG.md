@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 59250e1 by @renovate[bot] in [#1660](https://github.com/nicholas-fedor/shoutrrr/pull/1660)
 - Update dependency platformdirs to v4.13.4 by @renovate[bot] in [#1646](https://github.com/nicholas-fedor/shoutrrr/pull/1646)
 - Update binwiederhier/ntfy:latest docker digest to 91bb7fa by @renovate[bot] in [#1636](https://github.com/nicholas-fedor/shoutrrr/pull/1636)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 33afb06 by @renovate[bot] in [#1628](https://github.com/nicholas-fedor/shoutrrr/pull/1628)
