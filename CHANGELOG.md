@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the services and standard tests from ginkgo to testify by @nicholas-fedor in [#1652](https://github.com/nicholas-fedor/shoutrrr/pull/1652)
 - Migrate the smtp protocol tests from ginkgo to testify by @nicholas-fedor in [#1644](https://github.com/nicholas-fedor/shoutrrr/pull/1644)
 - Migrate the smtp config and auth tests from ginkgo to testify by @nicholas-fedor in [#1642](https://github.com/nicholas-fedor/shoutrrr/pull/1642)
 - Migrate the ntfy tests from ginkgo to testify by @nicholas-fedor in [#1634](https://github.com/nicholas-fedor/shoutrrr/pull/1634)
