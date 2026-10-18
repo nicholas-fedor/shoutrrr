@@ -2,6 +2,7 @@ package format
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,10 @@ import (
 type unknownNode struct {
 	ValueNode
 }
+
+// ansiEscape matches the color escape codes the console renderer writes when
+// stdout is a terminal.
+var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 var _ = ginkgo.Describe("RenderConsole", func() {
 	format.CharactersAroundMismatchToInclude = 30
@@ -68,7 +73,7 @@ Path3 string                                                                    
 // TestConsoleTreeRendererWriteNodeValue verifies that values are written as
 // they are, slices in brackets, and maps in braces with their keys in order,
 // that a node of another type is written as "?", and that the returned width
-// is the length of what was written.
+// is the length of what was written, not counting color escape codes.
 func TestConsoleTreeRendererWriteNodeValue(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +117,7 @@ func TestConsoleTreeRendererWriteNodeValue(t *testing.T) {
 
 			width := ConsoleTreeRenderer{}.writeNodeValue(&out, node)
 
-			assert.Equal(t, tt.want, out.String())
+			assert.Equal(t, tt.want, ansiEscape.ReplaceAllString(out.String(), ""))
 			assert.Equal(t, len(tt.want), width)
 		})
 	}

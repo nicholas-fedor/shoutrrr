@@ -1,22 +1,16 @@
 package format
 
 import (
-	"os"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
 
-// The renderer and URL part specs disable color so their expected output
-// carries no escape codes.
-var _ = ginkgo.BeforeSuite(func() {
-	_ = os.Setenv("NO_COLOR", "true")
-})
-
-// TestFormat runs the Ginkgo specs of the renderers and URL parts.
+// TestFormat runs the Ginkgo specs of the renderers and URL parts with
+// NO_COLOR set, so the colors chosen while rendering stay off.
 func TestFormat(t *testing.T) {
-	t.Parallel()
+	t.Setenv("NO_COLOR", "true")
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Shoutrrr Format Suite")
 }
