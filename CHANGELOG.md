@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update emqx/emqx:latest docker digest to 96dd9ea by @renovate[bot] in [#1671](https://github.com/nicholas-fedor/shoutrrr/pull/1671)
+- Update step-security/harden-runner action to v2.22.2 by @renovate[bot] in [#1672](https://github.com/nicholas-fedor/shoutrrr/pull/1672)
 - Update dependency platformdirs to v4.13.5 by @renovate[bot] in [#1665](https://github.com/nicholas-fedor/shoutrrr/pull/1665)
 - Update dependency certifi to v2026.10.18 by @renovate[bot] in [#1661](https://github.com/nicholas-fedor/shoutrrr/pull/1661)
 - Update binwiederhier/ntfy:latest docker digest to 59250e1 by @renovate[bot] in [#1660](https://github.com/nicholas-fedor/shoutrrr/pull/1660)
