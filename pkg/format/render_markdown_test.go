@@ -9,8 +9,9 @@ import (
 
 // TestMarkdownTreeRendererRenderTree verifies the markdown rendering of the
 // URL fields, each with its place in the URL highlighted, and of the keyed
-// query props with their defaults, aliases, and possible values. The output is
-// compared as rendered, so it must carry no color escape codes.
+// query props with their defaults, aliases, and possible values. A URL ends
+// in a slash only when it has no path. The output is compared as rendered, so
+// it must carry no color escape codes.
 func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +78,37 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/<strong>token</strong>/target</code>\n" +
 				"* __Target__ (__Required__)\n" +
 				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/token/<strong>target</strong></code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "single path",
+			renderer: renderer,
+			config: &struct {
+				Host  string `url:"host,port"`
+				Topic string `url:"path"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>:<strong>port</strong>/topic</code>\n" +
+				"* __Topic__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host:port/<strong>topic</strong></code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "paths past the fourth",
+			renderer: renderer,
+			config: &struct {
+				Host  string `url:"host"`
+				Path1 string `url:"path1"`
+				Path5 string `url:"path5"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/path1/path5</code>\n" +
+				"* __Path1__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host/<strong>path1</strong>/path5</code>\n" +
+				"* __Path5__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host/path1/<strong>path5</strong></code>\n\n" +
 				"### Query/Param Props\n\n",
 		},
 		{

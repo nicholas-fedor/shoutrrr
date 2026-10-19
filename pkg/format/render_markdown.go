@@ -51,16 +51,14 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 	for _, node := range root.Items {
 		field := node.Field()
 		for _, urlPart := range field.URLParts {
-			switch urlPart {
-			case URLQuery:
+			switch {
+			case urlPart == URLQuery:
 				// Query parameter fields are added to queryFields.
 				queryFields = append(queryFields, field)
-			case URLPath + PathOffset1,
-				URLPath + PathOffset2,
-				URLPath + PathOffset3:
-				// Dynamic path segments are added to dynamicURLFields.
+			case urlPart > URLPath:
+				// Numbered path segments after the first are added to dynamicURLFields.
 				dynamicURLFields = append(dynamicURLFields, field)
-			case URLUser, URLPassword, URLHost, URLPort, URLPath:
+			default:
 				// Standard URL components are added to urlFields.
 				urlFields = append(urlFields, field)
 			}
@@ -316,8 +314,8 @@ func (r MarkdownTreeRenderer) writeURLFields(
 		}
 
 		// Build the URL with the current field highlighted.
-		// Iterate through all possible URL parts to construct the complete URL structure.
-		for i := URLUser; i <= URLPath+PathOffset3; i++ {
+		// Iterate through the URL parts up to the highest one present to construct the complete URL structure.
+		for i := URLUser; i <= maxPart; i++ {
 			for _, fieldInfo := range urlFields {
 				// Skip fields that don't correspond to the current URL part.
 				if fieldInfo == nil || !fieldInfo.IsURLPart(i) {
@@ -356,8 +354,8 @@ func (r MarkdownTreeRenderer) writeURLFields(
 			}
 		}
 
-		// Add trailing '/' if no dynamic path segments follow the base path.
-		if maxPart < URLPath+PathOffset1 {
+		// Add a trailing '/' when the URL has no path.
+		if maxPart < URLPath {
 			stringBuilder.WriteByte('/')
 		}
 
