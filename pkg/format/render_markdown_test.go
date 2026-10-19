@@ -9,7 +9,8 @@ import (
 
 // TestMarkdownTreeRendererRenderTree verifies the markdown rendering of the
 // URL fields, each with its place in the URL highlighted, and of the keyed
-// query props with their defaults, aliases, and possible values.
+// query props with their defaults, aliases, and possible values. The output is
+// compared as rendered, so it must carry no color escape codes.
 func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +178,7 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, testRenderTree(tt.renderer, tt.config))
+			assert.Equal(t, tt.want, tt.renderer.RenderTree(getRootNode(tt.config), "mock"))
 		})
 	}
 }
