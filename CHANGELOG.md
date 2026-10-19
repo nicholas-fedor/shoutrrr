@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send every rich item and stop waiting after the last retry by @nicholas-fedor in [#1679](https://github.com/nicholas-fedor/shoutrrr/pull/1679)
 - Stop adding a slash after the path in markdown url examples by @nicholas-fedor in [#1668](https://github.com/nicholas-fedor/shoutrrr/pull/1668)
 - Read hex prefixes, colons in map values, and enum aliases in any case by @nicholas-fedor in [#1667](https://github.com/nicholas-fedor/shoutrrr/pull/1667)
 - Correct the failure messages for details and test setup by @nicholas-fedor in [#1656](https://github.com/nicholas-fedor/shoutrrr/pull/1656)
