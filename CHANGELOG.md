@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Move the e2e logger into testing/e2e and remove the unused test helpers by @nicholas-fedor in [#1670](https://github.com/nicholas-fedor/shoutrrr/pull/1670)
 - Migrate the format renderer tests from ginkgo to testify by @nicholas-fedor in [#1664](https://github.com/nicholas-fedor/shoutrrr/pull/1664)
 - Migrate the format core tests from ginkgo to testify by @nicholas-fedor in [#1658](https://github.com/nicholas-fedor/shoutrrr/pull/1658)
 - Migrate the slack tests from ginkgo to testify by @nicholas-fedor in [#1654](https://github.com/nicholas-fedor/shoutrrr/pull/1654)
