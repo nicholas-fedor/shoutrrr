@@ -76,6 +76,8 @@ When `splitLines` is enabled (default), each line of the input becomes a separat
 
 Shoutrrr supports rich embed formatting with authors, images, thumbnails, and custom fields when using the Go library API. Embeds are automatically created when using structured message items with metadata. For detailed information about embed objects, refer to Discord's [embed documentation](https://discord.com/developers/docs/resources/channel#embed-object).
 
+Discord accepts at most 10 embeds in one message, so items past the tenth are sent in further messages of up to 10 embeds each, with each item's file attached to the message that carries its embed.
+
 !!! note ""
     Enhanced embed features are only available through the Go library API using `SendItems` with `MessageItem` structs containing metadata. The CLI does not support embed parameters.
 

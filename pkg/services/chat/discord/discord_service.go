@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -151,7 +152,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // messages. This method's *types.Params parameter does not match
 // [types.RichSender], so the router never calls it.
 func (s *Service) SendItems(items []types.MessageItem, params *types.Params) error {
-	return s.sendItems(context.Background(), items, params)
+	return s.sendItemBatches(context.Background(), items, params)
 }
 
 // SendItemsContext delivers message items with enhanced metadata and formatting to
@@ -166,7 +167,7 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 // Returns:
 //   - error: the send failure, or nil on success.
 func (s *Service) SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) error {
-	return s.sendItems(ctx, items, &params)
+	return s.sendItemBatches(ctx, items, &params)
 }
 
 // ServiceTimeout reports the send budget the router gives Discord: the sender's
@@ -243,6 +244,50 @@ func (s *Service) doSendMultipart(
 	}
 
 	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+}
+
+// sendItemBatches sends items in batches of at most [MaxEmbeds], the most
+// embeds Discord accepts in one message, so every item and its file is
+// delivered. A failed batch does not stop the batches after it, and failures
+// other than the first are logged. Once ctx ends, the remaining batches are
+// not sent.
+//
+// Parameters:
+//   - ctx: bounds the requests and their retries.
+//   - items: the message items to send.
+//   - params: per-send parameters, applied to a copy of the config.
+//
+// Returns:
+//   - error: the first batch's failure, ctx's error when ctx ended before every
+//     batch was sent and no batch failed, or nil when every batch is sent.
+func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
+	if len(items) == 0 {
+		return s.sendItems(ctx, items, params)
+	}
+
+	var firstErr error
+
+	for batch := range slices.Chunk(items, MaxEmbeds) {
+		if err := ctx.Err(); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+
+			break
+		}
+
+		err := s.sendItems(ctx, batch, params)
+
+		switch {
+		case err == nil:
+		case firstErr == nil:
+			firstErr = err
+		default:
+			s.Log(err)
+		}
+	}
+
+	return firstErr
 }
 
 // sendItems builds the webhook payload for items and sends it, as multipart when

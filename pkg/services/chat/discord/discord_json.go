@@ -118,6 +118,19 @@ func processEmbedFields(
 }
 
 // CreatePayloadFromItems creates a JSON payload to be sent to the discord webhook API.
+//
+// A single plain item becomes the message content, and any other items become
+// embeds, at most [MaxEmbeds] of them. Items past that limit are left out, so
+// callers send them in further payloads.
+//
+// Parameters:
+//   - items: the message items.
+//   - title: the title of the first embed.
+//   - colors: the embed color for each message level.
+//
+// Returns:
+//   - WebhookPayload: the payload.
+//   - error: [ErrEmptyMessage] for no items or a single plain item without text.
 func CreatePayloadFromItems(
 	items []types.MessageItem,
 	title string,
@@ -143,6 +156,10 @@ func CreatePayloadFromItems(
 		items[0].Timestamp.IsZero() &&
 		!hasEmbedFields(items[0].Fields) &&
 		!hasFiles {
+		if items[0].Text == "" {
+			return WebhookPayload{}, ErrEmptyMessage
+		}
+
 		return WebhookPayload{
 			Content: items[0].Text,
 		}, nil
