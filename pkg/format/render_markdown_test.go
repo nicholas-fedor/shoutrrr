@@ -1,145 +1,199 @@
 package format
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("RenderMarkdown", func() {
-	format.CharactersAroundMismatchToInclude = 10
+// TestMarkdownTreeRendererRenderTree verifies the markdown rendering of the
+// URL fields, each with its place in the URL highlighted, and of the keyed
+// query props with their defaults, aliases, and possible values. The output is
+// compared as rendered, so it must carry no color escape codes.
+func TestMarkdownTreeRendererRenderTree(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.It("should render the expected output based on config reflection/tags", func() {
-		actual := testRenderTree(MarkdownTreeRenderer{HeaderPrefix: `### `}, &struct {
-			Name string `default:"notempty" key:"name"`
-			Host string `url:"host"`
-		}{})
+	renderer := MarkdownTreeRenderer{HeaderPrefix: "### "}
 
-		expected := `
-### URL Fields
-
-* __Host__ (__Required__)
-<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
-
-### Query/Param Props
-
-* __name__
-  Default: `[1:] + "`notempty`" + `
-`
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-
-	ginkgo.It("should render url paths in sorted order", func() {
-		actual := testRenderTree(MarkdownTreeRenderer{HeaderPrefix: `### `}, &struct {
-			Host  string `url:"host"`
-			Path1 string `url:"path1"`
-			Path3 string `url:"path3"`
-			Path2 string `url:"path2"`
-		}{})
-
-		expected := `
-### URL Fields
-
-* __Host__ (__Required__)
-<br>URL part: <code class="service-url">mock://<strong>host</strong>/path1/path2/path3</code>
-* __Path1__ (__Required__)
-<br>URL part: <code class="service-url">mock://host/<strong>path1</strong>/path2/path3</code>
-* __Path2__ (__Required__)
-<br>URL part: <code class="service-url">mock://host/path1/<strong>path2</strong>/path3</code>
-* __Path3__ (__Required__)
-<br>URL part: <code class="service-url">mock://host/path1/path2/<strong>path3</strong></code>
-
-### Query/Param Props
-
-`[1:] // Remove initial newline
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-
-	ginkgo.It("should render prop aliases", func() {
-		actual := testRenderTree(MarkdownTreeRenderer{HeaderPrefix: `### `}, &struct {
-			Name string `key:"name,handle,title,target"`
-		}{})
-
-		expected := `
-### URL Fields
-
-### Query/Param Props
-
-* __name__ (__Required__)
-  Aliases: `[1:] + "`handle`, `title`, `target`" + `
-`
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-
-	ginkgo.It("should render possible enum values", func() {
-		actual := testRenderTree(MarkdownTreeRenderer{HeaderPrefix: `### `}, &testEnummer{})
-
-		expected := `
-### URL Fields
-
-### Query/Param Props
-
-* __choice__
-  Default: `[1:] + "`Maybe`" + `
-  Possible values: ` + "`Yes`, `No`, `Maybe`" + `
-`
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-
-	ginkgo.When("there are no query props", func() {
-		ginkgo.It("should prepend an empty-message instead of props description", func() {
-			actual := testRenderTree(MarkdownTreeRenderer{
-				HeaderPrefix:      `### `,
-				PropsDescription:  "Feel free to set these:",
-				PropsEmptyMessage: "There is nothing to set!",
-			}, &struct {
+	// tests lists renderers and configs with the markdown each should render.
+	tests := []struct {
+		config   any
+		name     string
+		want     string
+		renderer MarkdownTreeRenderer
+	}{
+		{
+			name:     "URL field and prop",
+			renderer: renderer,
+			config: &struct {
+				Name string `default:"notempty" key:"name"`
 				Host string `url:"host"`
-			}{})
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n\n" +
+				"### Query/Param Props\n\n" +
+				"* __name__\n  Default: `notempty`\n",
+		},
+		{
+			name:     "URL paths in part order",
+			renderer: renderer,
+			config: &struct {
+				Host  string `url:"host"`
+				Path1 string `url:"path1"`
+				Path3 string `url:"path3"`
+				Path2 string `url:"path2"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/path1/path2/path3</code>\n" +
+				"* __Path1__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host/<strong>path1</strong>/path2/path3</code>\n" +
+				"* __Path2__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host/path1/<strong>path2</strong>/path3</code>\n" +
+				"* __Path3__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://host/path1/path2/<strong>path3</strong></code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "credentials, host and port, and paths",
+			renderer: renderer,
+			config: &struct {
+				User   string `url:"user"`
+				Pass   string `url:"pass"`
+				Host   string `url:"host,port"`
+				Token  string `url:"path1"`
+				Target string `url:"path2"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __User__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>user</strong>:pass@host:port/token/target</code>\n" +
+				"* __Pass__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://user:<strong>pass</strong>@host:port/token/target</code>\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://user:pass@<strong>host</strong>:<strong>port</strong>/token/target</code>\n" +
+				"* __Token__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/<strong>token</strong>/target</code>\n" +
+				"* __Target__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://user:pass@host:port/token/<strong>target</strong></code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "user without password",
+			renderer: renderer,
+			config: &struct {
+				User string `url:"user"`
+				Host string `url:"host"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __User__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>user</strong>@host/</code>\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://user@<strong>host</strong>/</code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "one field for user and password",
+			renderer: renderer,
+			config: &struct {
+				Token string `url:"user,pass"`
+				Host  string `url:"host"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Token__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>token</strong>:<strong>token</strong>@host/</code>\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://token:token@<strong>host</strong>/</code>\n\n" +
+				"### Query/Param Props\n\n",
+		},
+		{
+			name:     "prop aliases",
+			renderer: renderer,
+			config: &struct {
+				Name string `key:"name,handle,title,target"`
+			}{},
+			want: "### URL Fields\n\n### Query/Param Props\n\n" +
+				"* __name__ (__Required__)\n  Aliases: `handle`, `title`, `target`\n",
+		},
+		{
+			name:     "possible enum values",
+			renderer: renderer,
+			config:   &testEnummer{},
+			want: "### URL Fields\n\n### Query/Param Props\n\n" +
+				"* __choice__\n  Default: `Maybe`\n  Possible values: `Yes`, `No`, `Maybe`\n",
+		},
+		{
+			name:     "required props first, with descriptions and bool defaults",
+			renderer: renderer,
+			config: &struct {
+				Quiet   bool   `default:"no"  key:"quiet"`
+				Verbose bool   `default:"yes" desc:"Log more" key:"verbose"`
+				Query   string `key:"query"   url:"query"`
+				Token   string `key:"token"`
+				Hidden  string
+			}{},
+			want: "### URL Fields\n\n### Query/Param Props\n\n" +
+				"* __query__ (__Required__)\n\n" +
+				"* __token__ (__Required__)\n\n" +
+				"* __quiet__\n  Default: ❌ `no`\n\n" +
+				"* __verbose__ - Log more\n  Default: ✔ `yes`\n",
+		},
+		{
+			name: "props empty message",
+			renderer: MarkdownTreeRenderer{
+				HeaderPrefix: "### ", PropsDescription: "Feel free to set these:", PropsEmptyMessage: "There is nothing to set!",
+			},
+			config: &struct {
+				Host string `url:"host"`
+			}{},
+			want: "### URL Fields\n\n" +
+				"* __Host__ (__Required__)\n" +
+				"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n\n" +
+				"### Query/Param Props\n\nThere is nothing to set!",
+		},
+		{
+			name: "props description",
+			renderer: MarkdownTreeRenderer{
+				HeaderPrefix: "### ", PropsDescription: "Feel free to set these:", PropsEmptyMessage: "There is nothing to set!",
+			},
+			config: &struct {
+				CoolMode bool `key:"coolmode" optional:""`
+			}{},
+			want: "### URL Fields\n\n### Query/Param Props\n\nFeel free to set these:\n\n" +
+				"* __coolmode__\n  Default: *empty*\n",
+		},
+		{
+			name:     "props description ending in a newline",
+			renderer: MarkdownTreeRenderer{HeaderPrefix: "### ", PropsDescription: "Set these:\n"},
+			config: &struct {
+				CoolMode bool `key:"coolmode" optional:""`
+			}{},
+			want: "### URL Fields\n\n### Query/Param Props\n\nSet these:\n\n" +
+				"* __coolmode__\n  Default: *empty*\n",
+		},
+	}
 
-			expected := `
-### URL Fields
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-* __Host__ (__Required__)
-<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
-
-### Query/Param Props
-
-There is nothing to set!`[1:] // Remove initial newline
-
-			gomega.Expect(actual).To(gomega.Equal(expected))
+			assert.Equal(t, tt.want, tt.renderer.RenderTree(getRootNode(tt.config), "mock"))
 		})
-	})
+	}
+}
 
-	ginkgo.When("there are query props", func() {
-		ginkgo.It("should prepend the props description", func() {
-			actual := testRenderTree(MarkdownTreeRenderer{
-				HeaderPrefix:      `### `,
-				PropsDescription:  "Feel free to set these:",
-				PropsEmptyMessage: "There is nothing to set!",
-			}, &struct {
-				Host     string `url:"host"`
-				CoolMode bool   `key:"coolmode" optional:""`
-			}{})
+// TestMarkdownTreeRendererWriteURLFields verifies that a field listed twice
+// and a nil field are each written at most once.
+func TestMarkdownTreeRendererWriteURLFields(t *testing.T) {
+	t.Parallel()
 
-			expected := `
-### URL Fields
+	host := &FieldInfo{Name: "Host", URLParts: []URLPart{URLHost}, Required: true}
 
-* __Host__ (__Required__)
-<br>URL part: <code class="service-url">mock://<strong>host</strong>/</code>
+	var out strings.Builder
 
-### Query/Param Props
+	MarkdownTreeRenderer{}.writeURLFields(&out, []*FieldInfo{host, nil, host}, "mock")
 
-Feel free to set these:
-
-* __coolmode__
-  Default: *empty*
-`[1:] // Remove initial newline
-
-			gomega.Expect(actual).To(gomega.Equal(expected))
-		})
-	})
-})
+	assert.Equal(t, "URL Fields\n\n* __Host__ (__Required__)\n"+
+		"<br>URL part: <code class=\"service-url\">mock://<strong>host</strong>/</code>\n", out.String())
+}

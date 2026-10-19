@@ -2,14 +2,10 @@ package format
 
 import (
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"github.com/onsi/gomega/format"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,56 +15,92 @@ type unknownNode struct {
 	ValueNode
 }
 
-// ansiEscape matches the color escape codes the console renderer writes when
-// stdout is a terminal.
-var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
+// TestConsoleTreeRendererRenderTree verifies the console rendering of each
+// field: the name padded past the longest name, the type or value padded to
+// its column, the description padded to its column, and the URL part,
+// template, default, required, alias, and enum markers.
+func TestConsoleTreeRendererRenderTree(t *testing.T) {
+	t.Parallel()
 
-var _ = ginkgo.Describe("RenderConsole", func() {
-	format.CharactersAroundMismatchToInclude = 30
-	renderer := ConsoleTreeRenderer{WithValues: false}
+	types := ConsoleTreeRenderer{WithValues: false}
+	values := ConsoleTreeRenderer{WithValues: true}
+	pad := strings.Repeat
 
-	ginkgo.It("should render the expected output based on config reflection/tags", func() {
-		actual := testRenderTree(renderer, &struct {
-			Name string `default:"notempty"`
-			Host string `url:"host"`
-		}{})
+	// tests lists renderers and configs with the tree each should render.
+	tests := []struct {
+		config   any
+		name     string
+		want     string
+		renderer ConsoleTreeRenderer
+	}{
+		{
+			name:     "types",
+			renderer: types,
+			config: &struct {
+				Name string `default:"notempty"`
+				Host string `url:"host"`
+			}{},
+			want: "Host string" + pad(" ", 10) + pad(" ", 60) + " <URL: Host> <Required>\n" +
+				"Name string" + pad(" ", 10) + pad(" ", 60) + " <Default: notempty>\n",
+		},
+		{
+			name:     "enum as option",
+			renderer: types,
+			config:   &testEnummer{},
+			want:     "Choice option" + pad(" ", 10) + pad(" ", 60) + " <Default: Maybe> [Yes, No, Maybe]\n",
+		},
+		{
+			name:     "URL paths in name order",
+			renderer: types,
+			config: &struct {
+				Host  string `url:"host"`
+				Path1 string `url:"path1"`
+				Path3 string `url:"path3"`
+				Path2 string `url:"path2"`
+			}{},
+			want: "Host  string" + pad(" ", 10) + pad(" ", 60) + " <URL: Host> <Required>\n" +
+				"Path1 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n" +
+				"Path2 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n" +
+				"Path3 string" + pad(" ", 10) + pad(" ", 60) + " <URL: Path> <Required>\n",
+		},
+		{
+			name:     "values with markers",
+			renderer: values,
+			config: &struct {
+				Name  string `default:"x"     desc:"Desc" key:"name,n,alias" tpl:"{{.x}}"`
+				Host  string `url:"host,port"`
+				Query string `url:"query"`
+			}{Name: "val", Host: "example.com"},
+			want: "Host  example.com" + pad(" ", 19) + pad(" ", 60) + " <URL: Host, Port> <Required>\n" +
+				"Name  val" + pad(" ", 27) + "Desc" + pad(" ", 56) + " <Template: {{.x}}> <Default: x> <Aliases: n, alias>\n" +
+				"Query " + pad(" ", 30) + pad(" ", 60) + " <Required>\n",
+		},
+		{
+			name:     "enum value",
+			renderer: values,
+			config:   &testEnummer{Choice: 1},
+			want:     "Choice No" + pad(" ", 28) + pad(" ", 60) + " <Default: Maybe> [Yes, No, Maybe]\n",
+		},
+		{
+			name:     "long value and description",
+			renderer: values,
+			config: &struct {
+				Token string `desc:"A description that is longer than the sixty column description width"`
+			}{Token: strings.Repeat("t", 40)},
+			want: "Token " + strings.Repeat("t", 40) + " A description that is longer than the sixty column description width  <Required>\n",
+		},
+	}
 
-		expected := `
-Host string                                                                       <URL: Host> <Required>
-Name string                                                                       <Default: notempty>
-`[1:]
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
+			assert.Equal(t, tt.want, testRenderTree(tt.renderer, tt.config))
+		})
+	}
 
-	ginkgo.It(`should render enum types as "option"`, func() {
-		actual := testRenderTree(renderer, &testEnummer{})
-
-		expected := `
-Choice option                                                                       <Default: Maybe> [Yes, No, Maybe]
-`[1:]
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-
-	ginkgo.It("should render url paths in sorted order", func() {
-		actual := testRenderTree(renderer, &struct {
-			Host  string `url:"host"`
-			Path1 string `url:"path1"`
-			Path3 string `url:"path3"`
-			Path2 string `url:"path2"`
-		}{})
-
-		expected := `
-Host  string                                                                       <URL: Host> <Required>
-Path1 string                                                                       <URL: Path> <Required>
-Path2 string                                                                       <URL: Path> <Required>
-Path3 string                                                                       <URL: Path> <Required>
-`[1:]
-
-		gomega.Expect(actual).To(gomega.Equal(expected))
-	})
-})
+	assert.Empty(t, testRenderTree(types, &struct{}{}))
+}
 
 // TestConsoleTreeRendererWriteNodeValue verifies that values are written as
 // they are, slices in brackets, and maps in braces with their keys in order,
