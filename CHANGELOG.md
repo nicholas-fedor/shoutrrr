@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Read hex prefixes, colons in map values, and enum aliases in any case by @nicholas-fedor in [#1667](https://github.com/nicholas-fedor/shoutrrr/pull/1667)
 - Correct the failure messages for details and test setup by @nicholas-fedor in [#1656](https://github.com/nicholas-fedor/shoutrrr/pull/1656)
 - Fold header lines at whitespace within rfc line limits by @nicholas-fedor in [#1650](https://github.com/nicholas-fedor/shoutrrr/pull/1650)
 - Trim spaces around each address before restoring plus tags by @nicholas-fedor in [#1648](https://github.com/nicholas-fedor/shoutrrr/pull/1648)
@@ -61,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.13.5 by @renovate[bot] in [#1665](https://github.com/nicholas-fedor/shoutrrr/pull/1665)
 - Update dependency certifi to v2026.10.18 by @renovate[bot] in [#1661](https://github.com/nicholas-fedor/shoutrrr/pull/1661)
 - Update binwiederhier/ntfy:latest docker digest to 59250e1 by @renovate[bot] in [#1660](https://github.com/nicholas-fedor/shoutrrr/pull/1660)
 - Update dependency platformdirs to v4.13.4 by @renovate[bot] in [#1646](https://github.com/nicholas-fedor/shoutrrr/pull/1646)
