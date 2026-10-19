@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
@@ -32,7 +32,7 @@ var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: No auth message", nil)
@@ -69,7 +69,7 @@ var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Authenticated message", nil)
@@ -127,7 +127,7 @@ var _ = ginkgo.Describe("MQTT E2E Authentication Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(credURL, testutils.TestLogger())
+			err = service.Initialize(credURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// This should fail with authentication error

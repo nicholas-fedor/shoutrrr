@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Discord E2E Basic Test", func() {
@@ -23,7 +23,7 @@ var _ = ginkgo.Describe("Discord E2E Basic Test", func() {
 
 			serviceURL, _ := url.Parse(envURL)
 			service := &discord.Service{}
-			err := service.Initialize(serviceURL, testutils.TestLogger())
+			err := service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Basic text content notification", nil)

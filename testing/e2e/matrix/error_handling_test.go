@@ -10,8 +10,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
@@ -32,7 +32,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 				svc = sharedService
 			} else {
 				svc = &matrix.Service{}
-				err = svc.Initialize(parsedURL, testutils.TestLogger())
+				err = svc.Initialize(parsedURL, logger.New())
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			}
 
@@ -60,7 +60,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 				svc = sharedService
 			} else {
 				svc = &matrix.Service{}
-				err = svc.Initialize(parsedURL, testutils.TestLogger())
+				err = svc.Initialize(parsedURL, logger.New())
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			}
 
@@ -89,7 +89,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			service := &matrix.Service{}
 
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			if err != nil {
 				// If initialization fails due to unreachable server, that's expected
 				gomega.Expect(err).To(gomega.HaveOccurred())
@@ -114,7 +114,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			service := &matrix.Service{}
 
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			if err != nil {
 				ginkgo.Skip("Cannot initialize service, skipping test")
 			}
@@ -128,7 +128,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			// Re-initialize with invalid room
 			service = &matrix.Service{}
-			err = service.Initialize(invalidRoomURL, testutils.TestLogger())
+			err = service.Initialize(invalidRoomURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Send should eventually timeout or return error
@@ -154,7 +154,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			parsedURL.RawQuery = q.Encode()
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Try to send - should fail to join room
@@ -184,7 +184,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			parsedURL.RawQuery = q.Encode()
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Try to send - may fail or succeed depending on server handling
@@ -204,7 +204,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 
 			service := &matrix.Service{}
 
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			if err != nil {
 				// Connection refused is expected (platform-agnostic)
 				gomega.Expect(err.Error()).To(gomega.SatisfyAny(
@@ -229,7 +229,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// The login runs on the first send, which should fail with a DNS/network error
@@ -255,7 +255,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// The login runs on the first send, where the server should reject the credentials
@@ -270,7 +270,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(invalidURL, testutils.TestLogger())
+			err = service.Initialize(invalidURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// The login runs on the first send, which should fail due to the invalid host
@@ -299,7 +299,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("", nil)
@@ -326,7 +326,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			longMessage := strings.Repeat("Test message content. ", 500)
@@ -346,7 +346,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Send should complete within reasonable time (not hang indefinitely)

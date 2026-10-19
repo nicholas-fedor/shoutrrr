@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
@@ -23,7 +23,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			longMessage := strings.Repeat("This is a long message. ", 100)
@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Unicode — 日本語 🎉 émojis ñ", nil)
@@ -58,7 +58,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Special <>&\"' \t\n\r characters", nil)
@@ -75,7 +75,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			markdown := `**Bold text** and *italic text* and ~~strikethrough~~` + "\n" +
@@ -97,7 +97,7 @@ var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("", nil)

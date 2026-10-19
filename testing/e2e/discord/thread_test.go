@@ -8,8 +8,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
@@ -35,7 +35,7 @@ var _ = ginkgo.Describe("Discord E2E Thread Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to parse Discord URL")
 
 			service := &discord.Service{}
-			err = service.Initialize(demoURL, testutils.TestLogger())
+			err = service.Initialize(demoURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Debug: Print configuration

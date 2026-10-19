@@ -244,8 +244,6 @@ linters:
         - '.*_test\.\w+$'
         # Exclude cobra.Command - typically used with partial initialization
         - '.+/cobra\.Command$'
-        # Exclude internal/testutils package - test utilities
-        - 'github\.com/nicholas-fedor/shoutrrr/internal/testutils/.*'
         # Exclude service types - initialized via factory functions
         - 'github\.com/nicholas-fedor/shoutrrr/pkg/services/.+\.Service'
         # Exclude config types - initialized via URL parsing (setURL method)

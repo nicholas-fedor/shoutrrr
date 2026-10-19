@@ -19,8 +19,8 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/nicholas-fedor/shoutrrr"
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 // Timing for the connection lifecycle e2e test.
@@ -51,7 +51,7 @@ var _ = ginkgo.Describe("MQTT E2E Connection Lifecycle Test", func() {
 		received := subscribe(serviceURL)
 
 		service := &mqtt.Service{}
-		gomega.Expect(service.Initialize(serviceURL, testutils.TestLogger())).To(gomega.Succeed())
+		gomega.Expect(service.Initialize(serviceURL, logger.New())).To(gomega.Succeed())
 
 		ginkgo.DeferCleanup(service.Close)
 

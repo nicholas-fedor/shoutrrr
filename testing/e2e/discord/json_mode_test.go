@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Discord E2E JSON Mode Test", func() {
@@ -24,7 +24,7 @@ var _ = ginkgo.Describe("Discord E2E JSON Mode Test", func() {
 			demoURLStr := envURL + "?json=true"
 			demoURL, _ := url.Parse(demoURLStr)
 			service := &discord.Service{}
-			err := service.Initialize(demoURL, testutils.TestLogger())
+			err := service.Initialize(demoURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			jsonPayload := `{"content": "E2E Test: Raw JSON message demonstrating JSON mode"}`

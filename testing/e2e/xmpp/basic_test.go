@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/xmpp"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("XMPP E2E", func() {
@@ -24,7 +24,7 @@ var _ = ginkgo.Describe("XMPP E2E", func() {
 		defer probe.close()
 
 		service := &xmpp.Service{}
-		err = service.Initialize(serviceURL, testutils.TestLogger())
+		err = service.Initialize(serviceURL, logger.New())
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(service.Send(message, nil)).To(gomega.Succeed())
 		gomega.Eventually(probe.bodies).
@@ -60,7 +60,7 @@ var _ = ginkgo.Describe("XMPP E2E", func() {
 		serviceURL.User = url.UserPassword("sender", "wrong-password")
 
 		service := &xmpp.Service{}
-		err = service.Initialize(serviceURL, testutils.TestLogger())
+		err = service.Initialize(serviceURL, logger.New())
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(service.Send("should fail", nil)).To(gomega.MatchError(xmpp.ErrAuthenticationFailed))
 	})

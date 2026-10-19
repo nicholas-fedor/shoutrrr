@@ -7,9 +7,9 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
@@ -24,7 +24,7 @@ var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: title used as topic", &types.Params{
@@ -43,7 +43,7 @@ var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: body content", &types.Params{
@@ -63,7 +63,7 @@ var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			longTitle := strings.Repeat("x", 50)
@@ -83,7 +83,7 @@ var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: topic only", &types.Params{
@@ -102,7 +102,7 @@ var _ = ginkgo.Describe("Zulip E2E Title and Topic Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: title only", &types.Params{

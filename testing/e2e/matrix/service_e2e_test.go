@@ -7,9 +7,9 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
@@ -33,7 +33,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			gomega.Expect(service.Config).NotTo(gomega.BeNil())
@@ -53,7 +53,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// The login runs on the first send, where the server should reject the credentials
@@ -68,7 +68,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 
@@ -78,7 +78,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).To(gomega.HaveOccurred())
 		})
 	})
@@ -103,7 +103,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Basic text message", nil)
@@ -132,7 +132,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Message with custom title", nil)
@@ -148,7 +148,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			// This should succeed because the dummy URL is detected and client is not initialized
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -166,7 +166,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			serviceID := service.GetID()
@@ -193,7 +193,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			// This may fail due to auth, but we can check config parsing
 			if err == nil {
 				gomega.Expect(service.Config.Rooms).To(gomega.Not(gomega.BeEmpty()))

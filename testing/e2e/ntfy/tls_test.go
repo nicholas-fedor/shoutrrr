@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("ntfy E2E TLS Tests", func() {
@@ -30,7 +30,7 @@ var _ = ginkgo.Describe("ntfy E2E TLS Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
@@ -56,7 +56,7 @@ var _ = ginkgo.Describe("ntfy E2E TLS Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			gomega.Expect(service.Config.DisableTLS).To(gomega.BeFalse())

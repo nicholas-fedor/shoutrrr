@@ -13,8 +13,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 // envValueTrue is the string value for boolean true in environment variables.
@@ -99,7 +99,7 @@ func initializeService(urlStr string) *ntfy.Service {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	service := &ntfy.Service{}
-	err = service.Initialize(serviceURL, testutils.TestLogger())
+	err = service.Initialize(serviceURL, logger.New())
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	return service

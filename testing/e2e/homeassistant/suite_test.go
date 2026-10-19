@@ -14,8 +14,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/homeassistant"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 type haNotification struct {
@@ -42,7 +42,7 @@ func initializeService(urlStr string) *homeassistant.Service {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	service := &homeassistant.Service{}
-	err = service.Initialize(parsed, testutils.TestLogger())
+	err = service.Initialize(parsed, logger.New())
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	return service

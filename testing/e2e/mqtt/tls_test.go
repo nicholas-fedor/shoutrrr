@@ -8,8 +8,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: TLS message", nil)
@@ -84,7 +84,7 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(tlsURL, testutils.TestLogger())
+			err = service.Initialize(tlsURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: TLS on port 8883", nil)
@@ -125,7 +125,7 @@ var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &mqtt.Service{}
-			err = service.Initialize(tlsURL, testutils.TestLogger())
+			err = service.Initialize(tlsURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// This should fail because we're trying TLS on a non-TLS port
