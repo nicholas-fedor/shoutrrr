@@ -165,6 +165,24 @@ func CreatePayloadFromItems(
 		}, nil
 	}
 
+	return createEmbedPayload(items, title, colors), nil
+}
+
+// createEmbedPayload creates a webhook payload with an embed for each item, at
+// most [MaxEmbeds] of them, and an attachment entry for each of their files.
+//
+// Parameters:
+//   - items: the message items, at least one.
+//   - title: the title of the first embed.
+//   - colors: the embed color for each message level.
+//
+// Returns:
+//   - WebhookPayload: the payload.
+func createEmbedPayload(
+	items []types.MessageItem,
+	title string,
+	colors [types.MessageLevelCount]uint,
+) WebhookPayload {
 	itemCount := util.Min(MaxEmbeds, len(items))
 
 	embeds := make([]embedItem, 0, itemCount)
@@ -223,5 +241,5 @@ func CreatePayloadFromItems(
 	return WebhookPayload{
 		Embeds:      embeds,
 		Attachments: attachments,
-	}, nil
+	}
 }

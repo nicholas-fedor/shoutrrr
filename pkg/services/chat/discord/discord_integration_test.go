@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -937,7 +938,8 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 
 // TestIntegrationSendItemsBatches verifies that rich items past Discord's
 // limit of 10 embeds per message are sent in further requests, each with the
-// title on its first embed and only its own items' files, numbered from zero.
+// title on its first embed and only its own items' files, numbered from zero,
+// and that every batch is sent as embeds, even a batch of one plain item.
 func TestIntegrationSendItemsBatches(t *testing.T) {
 	t.Parallel()
 
@@ -999,6 +1001,25 @@ func TestIntegrationSendItemsBatches(t *testing.T) {
 			assert.Equal(t, wantAttachments, payload.Attachments)
 			assert.Equal(t, wantFiles, files)
 		}
+	})
+
+	t.Run("single plain item in the last batch", func(t *testing.T) {
+		t.Parallel()
+
+		long := strings.Repeat("a", discord.ChunkSize+1)
+		items := append(slices.Clone(plainItems[:discord.MaxEmbeds]), types.MessageItem{Text: long})
+
+		client, hook := newWebhook(t, noContent, noContent)
+
+		require.NoError(t, newService(t, testServiceURL, client).SendItemsContext(t.Context(), items, nil))
+
+		sent := hook.sent()
+		require.Len(t, sent, 2)
+
+		payload := decodePayload(t, sent[1].body)
+		assert.Empty(t, payload.Content)
+		require.Len(t, payload.Embeds, 1)
+		assert.Equal(t, long, payload.Embeds[0].Description)
 	})
 
 	t.Run("failed batch", func(t *testing.T) {
@@ -1252,6 +1273,20 @@ func TestIntegrationRejectedBeforeSending(t *testing.T) {
 			name: "unknown param",
 			send: func(_ *testing.T, service *discord.Service) error {
 				return service.Send(testMessage, &types.Params{"invalid_key": "value"})
+			},
+			wantText: "updating config from params",
+		},
+		{
+			name: "unknown param with more items than one message holds",
+			send: func(t *testing.T, service *discord.Service) error {
+				t.Helper()
+
+				items := make([]types.MessageItem, discord.MaxEmbeds+1)
+				for i := range items {
+					items[i] = types.MessageItem{Text: "Item " + strconv.Itoa(i)}
+				}
+
+				return service.SendItemsContext(t.Context(), items, types.Params{"invalid_key": "value"})
 			},
 			wantText: "updating config from params",
 		},

@@ -246,11 +246,51 @@ func (s *Service) doSendMultipart(
 	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
 }
 
+// sendConfig returns a copy of the service config with params applied.
+//
+// Parameters:
+//   - params: per-send parameters.
+//
+// Returns:
+//   - Config: the config for this send.
+//   - error: the failure applying params, or nil.
+func (s *Service) sendConfig(params *types.Params) (Config, error) {
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return Config{}, fmt.Errorf("updating config from params: %w", err)
+	}
+
+	return config, nil
+}
+
+// sendEmbedItems sends items with an embed for each of them, as multipart
+// when any item carries a file.
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - items: the message items to send, at least one and at most [MaxEmbeds].
+//   - params: per-send parameters, applied to a copy of the config.
+//
+// Returns:
+//   - error: the params or send failure, or nil on success.
+func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem, params *types.Params) error {
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return err
+	}
+
+	payload := createEmbedPayload(items, config.Title, config.LevelColors())
+
+	return s.sendPayload(ctx, &config, &payload, items)
+}
+
 // sendItemBatches sends items in batches of at most [MaxEmbeds], the most
 // embeds Discord accepts in one message, so every item and its file is
-// delivered. A failed batch does not stop the batches after it, and failures
-// other than the first are logged. Once ctx ends, the remaining batches are
-// not sent.
+// delivered. Items that fit in one batch are sent as [Service.sendItems] sends
+// them. Otherwise every batch is sent as embeds, so a batch of one plain item
+// matches the others and gets the embed length limit. A failed batch does not
+// stop the batches after it, and failures other than the first are logged.
+// Once ctx ends, the remaining batches are not sent.
 //
 // Parameters:
 //   - ctx: bounds the requests and their retries.
@@ -261,7 +301,7 @@ func (s *Service) doSendMultipart(
 //   - error: the first batch's failure, ctx's error when ctx ended before every
 //     batch was sent and no batch failed, or nil when every batch is sent.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	if len(items) == 0 {
+	if len(items) <= MaxEmbeds {
 		return s.sendItems(ctx, items, params)
 	}
 
@@ -276,7 +316,7 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 			break
 		}
 
-		err := s.sendItems(ctx, batch, params)
+		err := s.sendEmbedItems(ctx, batch, params)
 
 		switch {
 		case err == nil:
@@ -291,7 +331,7 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 }
 
 // sendItems builds the webhook payload for items and sends it, as multipart when
-// any item carries a file.
+// any item carries a file. A single plain item is sent as the message content.
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
@@ -301,9 +341,9 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 // Returns:
 //   - error: the payload or send failure, or nil on success.
 func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return err
 	}
 
 	payload, err := CreatePayloadFromItems(items, config.Title, config.LevelColors())
@@ -311,21 +351,32 @@ func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, para
 		return fmt.Errorf("creating payload: %w", err)
 	}
 
+	return s.sendPayload(ctx, &config, &payload, items)
+}
+
+// sendPayload sends payload with the configured username and avatar, as
+// multipart with the items' files when any item carries one.
+//
+// Parameters:
+//   - ctx: bounds the request and its retries.
+//   - config: the config for this send.
+//   - payload: the webhook payload built from items.
+//   - items: the message items, whose files are attached.
+//
+// Returns:
+//   - error: the marshaling or send failure, or nil on success.
+func (s *Service) sendPayload(
+	ctx context.Context,
+	config *Config,
+	payload *WebhookPayload,
+	items []types.MessageItem,
+) error {
 	payload.Username = config.Username
 	payload.AvatarURL = config.Avatar
 
-	postURL := CreatePostURLFromConfig(&config)
+	postURL := CreatePostURLFromConfig(config)
 
-	// Check if any items have files
-	fileCount := 0
-
-	for _, item := range items {
-		if item.File != nil {
-			fileCount++
-		}
-	}
-
-	files := make([]types.File, 0, fileCount)
+	files := make([]types.File, 0, len(items))
 
 	for _, item := range items {
 		if item.File != nil {
@@ -333,10 +384,8 @@ func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, para
 		}
 	}
 
-	hasFiles := len(files) > 0
-
-	if hasFiles {
-		return s.doSendMultipart(ctx, &payload, files, postURL)
+	if len(files) > 0 {
+		return s.doSendMultipart(ctx, payload, files, postURL)
 	}
 
 	payloadBytes, err := json.Marshal(payload)
