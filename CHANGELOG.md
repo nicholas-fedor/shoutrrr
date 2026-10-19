@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency markdown to v3.11.2 by @renovate[bot] in [#1677](https://github.com/nicholas-fedor/shoutrrr/pull/1677)
 - Update emqx/emqx:latest docker digest to 96dd9ea by @renovate[bot] in [#1671](https://github.com/nicholas-fedor/shoutrrr/pull/1671)
 - Update step-security/harden-runner action to v2.22.2 by @renovate[bot] in [#1672](https://github.com/nicholas-fedor/shoutrrr/pull/1672)
 - Update dependency platformdirs to v4.13.5 by @renovate[bot] in [#1665](https://github.com/nicholas-fedor/shoutrrr/pull/1665)
