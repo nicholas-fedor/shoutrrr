@@ -456,6 +456,21 @@ func sleepContext(ctx context.Context, sleeper Sleeper, duration time.Duration) 
 }
 
 // handleRateLimitResponse handles rate limiting logic for 429 responses.
+//
+// It waits for the Retry-After duration, or an exponential backoff when the
+// response has none, before the next attempt. After the last attempt it
+// returns [ErrMaxRetries] without waiting.
+//
+// Parameters:
+//   - ctx: bounds the wait.
+//   - res: the 429 response, whose body is closed.
+//   - attempt: the attempt that got the response, from zero.
+//   - startTime: when the send started, for the retry time limit.
+//   - sleeper: waits between attempts.
+//
+// Returns:
+//   - error: [ErrMaxRetries] after the last attempt, the wait's failure, or nil
+//     when the next attempt may start.
 func handleRateLimitResponse(
 	ctx context.Context,
 	res *http.Response,
@@ -463,6 +478,12 @@ func handleRateLimitResponse(
 	startTime time.Time,
 	sleeper Sleeper,
 ) error {
+	if attempt >= maxRetries {
+		_ = res.Body.Close()
+
+		return ErrMaxRetries
+	}
+
 	retryAfter := res.Header.Get("Retry-After")
 	if retryAfter != "" {
 		if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {

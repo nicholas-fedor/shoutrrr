@@ -106,6 +106,29 @@ func newJSONPreparer() *JSONRequestPreparer {
 	return &JSONRequestPreparer{payload: []byte(`{"content":"test"}`)}
 }
 
+// newRecordingSleeper returns a mock sleeper that expects exactly calls waits
+// and records their durations in order.
+//
+// Parameters:
+//   - t: the test that owns the mock.
+//   - calls: the number of waits to expect.
+//
+// Returns:
+//   - *mocks.MockSleeper: the sleeper.
+//   - *[]time.Duration: the recorded waits, in order.
+func newRecordingSleeper(t *testing.T, calls int) (*mocks.MockSleeper, *[]time.Duration) {
+	t.Helper()
+
+	var waits []time.Duration
+
+	sleeper := mocks.NewMockSleeper(t)
+	sleeper.EXPECT().Sleep(mock.Anything).Run(func(d time.Duration) {
+		waits = append(waits, d)
+	}).Return().Times(calls)
+
+	return sleeper, &waits
+}
+
 // TestNewDefaultHTTPClient verifies the default client's timeout.
 func TestNewDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
@@ -305,12 +328,29 @@ func TestSendWithRetryMaxRetriesExceeded(t *testing.T) {
 			return statusResponse(http.StatusInternalServerError, nil), nil
 		}).Times(maxRetries + 1)
 
-		sleeper := mocks.NewMockSleeper(t)
-		for _, wait := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second} {
-			sleeper.EXPECT().Sleep(wait).Return().Once()
-		}
+		sleeper, waits := newRecordingSleeper(t, maxRetries)
 
 		require.ErrorIs(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper), ErrMaxRetries)
+		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}, *waits)
+	})
+}
+
+// TestSendWithRetryRateLimitedUntilMaxRetries verifies that persistent rate
+// limits are retried after each wait until ErrMaxRetries, with no wait after
+// the last attempt.
+func TestSendWithRetryRateLimitedUntilMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			return statusResponse(http.StatusTooManyRequests, nil), nil
+		}).Times(maxRetries + 1)
+
+		sleeper, waits := newRecordingSleeper(t, maxRetries)
+
+		require.ErrorIs(t, sendWithRetry(t.Context(), newJSONPreparer(), "http://example.com", client, sleeper), ErrMaxRetries)
+		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}, *waits)
 	})
 }
 
@@ -491,8 +531,9 @@ func TestHandleRateLimitResponse(t *testing.T) {
 	t.Parallel()
 
 	// tests lists Retry-After values and attempts with the wait to expect, or
-	// zero when the wait should be refused.
+	// the error when no wait should happen.
 	tests := []struct {
+		wantErr    error
 		name       string
 		retryAfter string
 		attempt    int
@@ -501,8 +542,10 @@ func TestHandleRateLimitResponse(t *testing.T) {
 		{name: "Retry-After", retryAfter: "2", wantWait: 2 * time.Second},
 		{name: "invalid Retry-After", retryAfter: "invalid", wantWait: time.Second},
 		{name: "backoff", attempt: 2, wantWait: 4 * time.Second},
-		{name: "capped backoff", attempt: 6, wantWait: 64 * time.Second},
-		{name: "Retry-After beyond the retry limit", retryAfter: "400"},
+		{name: "longer backoff", attempt: 4, wantWait: 16 * time.Second},
+		{name: "last attempt", attempt: maxRetries, wantErr: ErrMaxRetries},
+		{name: "last attempt with Retry-After", retryAfter: "1", attempt: maxRetries, wantErr: ErrMaxRetries},
+		{name: "Retry-After beyond the retry limit", retryAfter: "400", wantErr: ErrRateLimited},
 	}
 
 	for _, tt := range tests {
@@ -521,11 +564,13 @@ func TestHandleRateLimitResponse(t *testing.T) {
 
 			err := handleRateLimitResponse(t.Context(), statusResponse(http.StatusTooManyRequests, header), tt.attempt, time.Now(), sleeper)
 
-			if tt.wantWait > 0 {
+			if tt.wantErr == nil {
 				require.NoError(t, err)
-			} else {
-				require.ErrorIs(t, err, ErrRateLimited)
+
+				return
 			}
+
+			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
 }

@@ -1,11 +1,14 @@
 package discord
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -246,6 +249,93 @@ func TestSendItemsContextFailures(t *testing.T) {
 		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItems(t.Context(), []types.MessageItem{{Text: "Test message"}}, &types.Params{"invalid_key": "value"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "updating config from params")
+	})
+}
+
+// TestSendItemBatchesFailures verifies that when several batches fail, every
+// batch is still sent, the first failure is returned, and the later failures
+// are logged.
+func TestSendItemBatchesFailures(t *testing.T) {
+	t.Parallel()
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+		return statusResponse(http.StatusBadRequest, nil), nil
+	}).Times(2)
+
+	var logs bytes.Buffer
+
+	service := newTestService(t, client)
+	service.SetLogger(log.New(&logs, "", 0))
+
+	items := make([]types.MessageItem, MaxEmbeds+1)
+	for i := range items {
+		items[i] = types.MessageItem{Text: "Item " + strconv.Itoa(i)}
+	}
+
+	err := service.sendItemBatches(t.Context(), items, &types.Params{})
+
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
+	assert.Equal(t, 1, strings.Count(logs.String(), ErrUnexpectedStatus.Error()))
+}
+
+// TestSendItemBatchesCanceled verifies that a canceled context stops the
+// batches that have not been sent yet and is returned unless a batch already
+// failed. The mock client fails the test on any request past those expected.
+func TestSendItemBatchesCanceled(t *testing.T) {
+	t.Parallel()
+
+	items := make([]types.MessageItem, 2*MaxEmbeds+1)
+	for i := range items {
+		items[i] = types.MessageItem{Text: "Item " + strconv.Itoa(i)}
+	}
+
+	t.Run("canceled before the first batch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItemBatches(ctx, items, &types.Params{})
+
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("canceled after a sent batch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			cancel()
+
+			return statusResponse(http.StatusNoContent, nil), nil
+		}).Once()
+
+		err := newTestService(t, client).sendItemBatches(ctx, items, &types.Params{})
+
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("canceled after a failed batch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			cancel()
+
+			return statusResponse(http.StatusBadRequest, nil), nil
+		}).Once()
+
+		err := newTestService(t, client).sendItemBatches(ctx, items, &types.Params{})
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		require.NotErrorIs(t, err, context.Canceled)
 	})
 }
 

@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -935,6 +936,104 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 	}
 }
 
+// TestIntegrationSendItemsBatches verifies that rich items past Discord's
+// limit of 10 embeds per message are sent in further requests, each with the
+// title on its first embed and only its own items' files, numbered from zero,
+// and that every batch is sent as embeds, even a batch of one plain item.
+func TestIntegrationSendItemsBatches(t *testing.T) {
+	t.Parallel()
+
+	const itemCount = discord.MaxEmbeds + 2
+
+	plainItems := make([]types.MessageItem, itemCount)
+	fileItems := make([]types.MessageItem, itemCount)
+
+	for i := range itemCount {
+		text := "Item " + strconv.Itoa(i)
+		plainItems[i] = types.MessageItem{Text: text}
+		fileItems[i] = types.MessageItem{Text: text, File: &types.File{Name: "file" + strconv.Itoa(i) + ".txt", Data: []byte(text)}}
+	}
+
+	t.Run("embeds", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, noContent, noContent)
+
+		require.NoError(t, newService(t, testServiceURL, client).SendItemsContext(t.Context(), plainItems, types.Params{"title": "Report"}))
+
+		sent := hook.sent()
+		require.Len(t, sent, 2)
+
+		for i, wantTexts := range [][]string{textsOf(plainItems[:discord.MaxEmbeds]), textsOf(plainItems[discord.MaxEmbeds:])} {
+			payload := decodePayload(t, sent[i].body)
+			require.Len(t, payload.Embeds, len(wantTexts))
+			assert.Equal(t, "Report", payload.Embeds[0].Title)
+
+			for j, embed := range payload.Embeds {
+				assert.Equal(t, wantTexts[j], embed.Description)
+			}
+		}
+	})
+
+	t.Run("files", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, noContent, noContent)
+
+		require.NoError(t, newService(t, testServiceURL, client).SendItemsContext(t.Context(), fileItems, nil))
+
+		sent := hook.sent()
+		require.Len(t, sent, 2)
+
+		for i, batch := range [][]types.MessageItem{fileItems[:discord.MaxEmbeds], fileItems[discord.MaxEmbeds:]} {
+			payloadJSON, files := readMultipart(t, sent[i])
+			payload := decodePayload(t, []byte(payloadJSON))
+
+			wantAttachments := make([]wireAttachment, 0, len(batch))
+			wantFiles := make([]sentFile, 0, len(batch))
+
+			for j, item := range batch {
+				wantAttachments = append(wantAttachments, wireAttachment{Filename: item.File.Name, ID: j})
+				wantFiles = append(wantFiles, sentFile{field: fmt.Sprintf("files[%d]", j), name: item.File.Name, data: item.File.Data})
+			}
+
+			assert.Len(t, payload.Embeds, len(batch))
+			assert.Equal(t, wantAttachments, payload.Attachments)
+			assert.Equal(t, wantFiles, files)
+		}
+	})
+
+	t.Run("single plain item in the last batch", func(t *testing.T) {
+		t.Parallel()
+
+		long := strings.Repeat("a", discord.ChunkSize+1)
+		items := append(slices.Clone(plainItems[:discord.MaxEmbeds]), types.MessageItem{Text: long})
+
+		client, hook := newWebhook(t, noContent, noContent)
+
+		require.NoError(t, newService(t, testServiceURL, client).SendItemsContext(t.Context(), items, nil))
+
+		sent := hook.sent()
+		require.Len(t, sent, 2)
+
+		payload := decodePayload(t, sent[1].body)
+		assert.Empty(t, payload.Content)
+		require.Len(t, payload.Embeds, 1)
+		assert.Equal(t, long, payload.Embeds[0].Description)
+	})
+
+	t.Run("failed batch", func(t *testing.T) {
+		t.Parallel()
+
+		client, hook := newWebhook(t, reply{status: http.StatusBadRequest, body: `{"message": "Invalid Form Body"}`}, noContent)
+
+		err := newService(t, testServiceURL, client).SendItemsContext(t.Context(), plainItems, nil)
+
+		require.ErrorIs(t, err, discord.ErrUnexpectedStatus)
+		assert.Len(t, hook.sent(), 2)
+	})
+}
+
 // TestIntegrationSendRetries verifies how a send started with SendContext
 // retries with the service's default sleeper: it waits for Retry-After or an
 // exponential backoff on rate limits and server errors, retries transient
@@ -949,8 +1048,7 @@ func TestIntegrationSendRetries(t *testing.T) {
 	timeout := reply{err: timeoutError{}}
 
 	// tests lists scripted replies and contexts with the number of requests,
-	// the total wait, and the error to expect. skipElapsed leaves the total wait
-	// unchecked.
+	// the total wait, and the error to expect.
 	tests := []struct {
 		name         string
 		replies      []reply
@@ -958,7 +1056,6 @@ func TestIntegrationSendRetries(t *testing.T) {
 		wantErr      error
 		wantElapsed  time.Duration
 		wantRequests int
-		skipElapsed  bool
 	}{
 		{
 			name:         "Retry-After then success",
@@ -994,8 +1091,8 @@ func TestIntegrationSendRetries(t *testing.T) {
 			name:         "rate limit backoff until retries run out",
 			replies:      repeatReply(rateLimited, 6),
 			wantErr:      discord.ErrMaxRetries,
+			wantElapsed:  31 * time.Second,
 			wantRequests: 6,
-			skipElapsed:  true,
 		},
 		{
 			name:         "server errors until retries run out",
@@ -1061,9 +1158,7 @@ func TestIntegrationSendRetries(t *testing.T) {
 
 				err := service.SendContext(ctx, testMessage, nil)
 
-				if !tt.skipElapsed {
-					assert.Equal(t, tt.wantElapsed, time.Since(start))
-				}
+				assert.Equal(t, tt.wantElapsed, time.Since(start))
 
 				if tt.wantErr == nil {
 					require.NoError(t, err)
@@ -1180,6 +1275,30 @@ func TestIntegrationRejectedBeforeSending(t *testing.T) {
 				return service.Send(testMessage, &types.Params{"invalid_key": "value"})
 			},
 			wantText: "updating config from params",
+		},
+		{
+			name: "unknown param with more items than one message holds",
+			send: func(t *testing.T, service *discord.Service) error {
+				t.Helper()
+
+				items := make([]types.MessageItem, discord.MaxEmbeds+1)
+				for i := range items {
+					items[i] = types.MessageItem{Text: "Item " + strconv.Itoa(i)}
+				}
+
+				return service.SendItemsContext(t.Context(), items, types.Params{"invalid_key": "value"})
+			},
+			wantText: "updating config from params",
+		},
+		{
+			name: "single item without text",
+			send: func(t *testing.T, service *discord.Service) error {
+				t.Helper()
+
+				return service.SendItemsContext(t.Context(), []types.MessageItem{{Text: ""}}, nil)
+			},
+			wantErr:  discord.ErrEmptyMessage,
+			wantText: "creating payload",
 		},
 		{
 			name: "nil items",
@@ -1369,6 +1488,22 @@ func newService(t *testing.T, rawURL string, client discord.HTTPClient) *discord
 	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
 	return service
+}
+
+// textsOf returns the text of each item.
+//
+// Parameters:
+//   - items: the message items.
+//
+// Returns:
+//   - []string: the texts, in order.
+func textsOf(items []types.MessageItem) []string {
+	texts := make([]string, 0, len(items))
+	for _, item := range items {
+		texts = append(texts, item.Text)
+	}
+
+	return texts
 }
 
 // repeatReply returns count copies of r.

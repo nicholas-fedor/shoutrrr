@@ -45,12 +45,12 @@
 //   - username: Override webhook username
 //   - thread_id: Send to specific thread
 //   - color: Border color for plain messages (hex)
-//   - color_error: Border color for error messages (hex)
-//   - color_warn: Border color for warning messages (hex)
-//   - color_info: Border color for info messages (hex)
-//   - color_debug: Border color for debug messages (hex)
+//   - colorError: Border color for error messages (hex)
+//   - colorWarn: Border color for warning messages (hex)
+//   - colorInfo: Border color for info messages (hex)
+//   - colorDebug: Border color for debug messages (hex)
 //   - json: Send raw JSON payload (true/false)
-//   - split_lines: Send each line as separate embed (true/false)
+//   - splitLines: Send each line as separate embed (true/false)
 //   - title: Message title
 //
 // # Embed Features

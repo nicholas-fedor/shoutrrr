@@ -279,8 +279,8 @@ func TestCreatePayloadFromItemsAttachments(t *testing.T) {
 	assert.Equal(t, []attachment{{ID: 0, Filename: "file1.txt"}, {ID: 1, Filename: "file2.txt"}}, payload.Attachments)
 }
 
-// TestCreatePayloadFromItemsLimits verifies that empty items are rejected and
-// that embeds are capped at MaxEmbeds.
+// TestCreatePayloadFromItemsLimits verifies that no items or a single item
+// without text are rejected and that embeds are capped at MaxEmbeds.
 func TestCreatePayloadFromItemsLimits(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +288,13 @@ func TestCreatePayloadFromItemsLimits(t *testing.T) {
 		t.Parallel()
 
 		_, err := CreatePayloadFromItems([]types.MessageItem{}, "", testLevelColors)
+		require.ErrorIs(t, err, ErrEmptyMessage)
+	})
+
+	t.Run("single item without text", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := CreatePayloadFromItems([]types.MessageItem{{Text: ""}}, "", testLevelColors)
 		require.ErrorIs(t, err, ErrEmptyMessage)
 	})
 
