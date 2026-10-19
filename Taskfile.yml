@@ -111,16 +111,25 @@ tasks:
       - go test -race -count=1 -v "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
 
   test:integration:
-    desc: "Run the integration tests of one service, such as: task test:integration -- ntfy"
+    desc: "Run every integration test, or one service's, such as: task test:integration -- ntfy"
     vars:
       SERVICE: "{{.CLI_ARGS}}"
     preconditions:
-      - sh: test -n "{{.SERVICE}}"
-        msg: "usage: task test:integration -- <service>"
-      - sh: test -d "./testing/integration/{{.SERVICE}}"
-        msg: "no integration tests under testing/integration/{{.SERVICE}}"
+      - sh: test -z "{{.SERVICE}}" || test -n "$(find ./pkg/services -mindepth 3 -maxdepth 3 -name '{{.SERVICE}}_integration_test.go')"
+        msg: "no integration tests for {{.SERVICE}} under pkg/services"
     cmds:
-      - go test -race -count=1 -v ./testing/integration/{{.SERVICE}}
+      - |
+        {{if .SERVICE}}
+        go test -race -count=1 -v -run '^TestIntegration' "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
+        {{else}}
+        pkgs="$(go list ./...)" || exit 1
+        pkgs="$(printf '%s\n' "$pkgs" | grep -vE '/testing/e2e(/|$)')" || true
+        if [ -z "$pkgs" ]; then
+          echo "go list found no packages to test"
+          exit 1
+        fi
+        go test -race -count=1 -run '^TestIntegration' $pkgs
+        {{end}}
 
   test:e2e:
     desc: "Run the e2e tests of one service against a live server, such as: task test:e2e -- mqtt"
