@@ -61,11 +61,11 @@ const (
 // testServiceURL is the Teams service URL for the test workflow.
 var testServiceURL = "teams://?host=" + url.QueryEscape(testWorkflowURL)
 
-// Requests returns the requests received so far.
-//
 // errConnectionRefused is the error the refused dials report.
 var errConnectionRefused = errors.New("connection refused")
 
+// Requests returns the requests received so far.
+//
 // Returns:
 //   - []webhookRequest: the requests, in order.
 func (f *fakeWebhook) Requests() []webhookRequest {

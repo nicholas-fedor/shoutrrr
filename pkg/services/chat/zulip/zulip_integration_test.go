@@ -100,11 +100,11 @@ var (
 	defaultLimits = cannedResponse{statusCode: http.StatusOK, body: defaultLimitsBody}
 )
 
-// Messages returns the message requests received so far.
-//
 // errConnectionRefused is the error the refused dials report.
 var errConnectionRefused = errors.New("connection refused")
 
+// Messages returns the message requests received so far.
+//
 // Returns:
 //   - []zulipRequest: the requests, in order.
 func (f *fakeZulip) Messages() []zulipRequest {

@@ -53,6 +53,9 @@ type fakeHomeAssistant struct {
 // testToken is the long-lived access token the fake API accepts.
 const testToken = "s3cret"
 
+// errConnectionRefused is the error the refused dials report.
+var errConnectionRefused = errors.New("connection refused")
+
 // newFakeHomeAssistant starts a fake Home Assistant API on a loopback port
 // and stops it when the test ends.
 //
@@ -61,9 +64,6 @@ const testToken = "s3cret"
 //   - status: the status code for an authenticated request.
 //   - body: the response body for an authenticated request.
 //
-// errConnectionRefused is the error the refused dials report.
-var errConnectionRefused = errors.New("connection refused")
-
 // Returns:
 //   - *fakeHomeAssistant: the running fake.
 func newFakeHomeAssistant(t *testing.T, status int, body string) *fakeHomeAssistant {

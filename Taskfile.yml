@@ -99,7 +99,7 @@ tasks:
       - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic {{.PKGS}}
 
   test:unit:
-    desc: "Run the unit tests of one service, such as: task test:unit -- ntfy"
+    desc: "Run the unit tests of one service, without its integration tests, such as: task test:unit -- ntfy"
     vars:
       SERVICE: "{{.CLI_ARGS}}"
     preconditions:
@@ -108,7 +108,7 @@ tasks:
       - sh: test -n "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
         msg: "no service named {{.SERVICE}} under pkg/services"
     cmds:
-      - go test -race -count=1 -v "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
+      - go test -race -count=1 -v -skip '^TestIntegration' "$(find ./pkg/services -mindepth 2 -maxdepth 2 -type d -name '{{.SERVICE}}')"
 
   test:integration:
     desc: "Run every integration test, or one service's, such as: task test:integration -- ntfy"
