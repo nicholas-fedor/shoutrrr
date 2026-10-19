@@ -32,10 +32,10 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-// TestRouterInjectedClientAuthenticates verifies that a push sent through a
-// client the router injects carries the access token. The fake API answers
-// 401 without it, like the Pushbullet API.
-func TestRouterInjectedClientAuthenticates(t *testing.T) {
+// TestIntegrationRouterInjectedClientAuthenticates verifies that a push sent
+// through a client the router injects carries the access token. The fake API
+// answers 401 without it, like the Pushbullet API.
+func TestIntegrationRouterInjectedClientAuthenticates(t *testing.T) {
 	t.Parallel()
 
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {

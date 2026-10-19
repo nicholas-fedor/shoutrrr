@@ -304,6 +304,6 @@ sudo rm -rf  ./testing/e2e/matrix/data
 
 ## Related Files
 
-- Matrix Service Implementation: `pkg/services/chat/matrix/service.go`
-- Matrix Configuration: `pkg/services/chat/matrix/config.go`
-- Integration Tests: `testing/integration/matrix/`
+- Matrix Service Implementation: `pkg/services/chat/matrix/matrix_service.go`
+- Matrix Configuration: `pkg/services/chat/matrix/matrix_config.go`
+- Integration Tests: `pkg/services/chat/matrix/matrix_integration_test.go`

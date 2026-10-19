@@ -1,6 +1,4 @@
-// Package proxy_test verifies that services send through the proxy named by the
-// proxy environment variables when they use their own default HTTP client.
-package proxy_test
+package services_test
 
 import (
 	"context"
@@ -37,7 +35,8 @@ var proxy = &recordingProxy{hosts: map[string]int{}}
 // any test runs. net/http reads them once per process, so they must be set before
 // the first request. DNS lookups are blocked, so a service that bypasses the
 // proxy fails on the host instead of reaching the network. The proxy listens on
-// a loopback IP address, so reaching it needs no lookup.
+// a loopback IP address, so reaching it needs no lookup. Every test in the
+// package runs with this environment.
 func TestMain(m *testing.M) {
 	net.DefaultResolver = &net.Resolver{
 		PreferGo: true,
@@ -68,11 +67,11 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestDefaultClientsUseProxyEnvironment verifies that each service's default HTTP
-// client sends through the proxy from the environment. The targets use the
-// reserved .invalid TLD, and the proxy refuses every request, so nothing leaves
-// the host and no target name is resolved.
-func TestDefaultClientsUseProxyEnvironment(t *testing.T) {
+// TestIntegrationDefaultClientsUseProxyEnvironment verifies that each
+// service's default HTTP client sends through the proxy from the environment.
+// The targets use the reserved .invalid TLD, and the proxy refuses every
+// request, so nothing leaves the host and no target name is resolved.
+func TestIntegrationDefaultClientsUseProxyEnvironment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

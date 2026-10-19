@@ -179,8 +179,10 @@ Refer to GitHub's documentation on getting it setup: <https://docs.github.com/en
 
 Given the prevalence of LLM's for generating code, it is expected that testing follows the following established pattern to ensure at least a bare minimum level of functionality is met. Successful testing does not excuse other code quality issues.
 
-- Unit testing: white-box testing that resides in the corresponding package, makes no calls to actual services, and uses the Ginkgo/Gomega testing framework.
-- Integration testing: black-box testing that resides within the `/testing/integration/<service>` directory, uses the corresponding <service>_test package, makes no outbound calls to external/actual services and instead uses mocking, as needed, and uses the Testify testing framework.
+- Unit testing: white-box testing that resides in the corresponding package, makes no calls to actual services, and uses the Testify testing framework.
+- Integration testing: black-box testing that resides in the service package as `<service>_integration_test.go`, uses the corresponding `<service>_test` package, names its tests with a `TestIntegration` prefix, makes no outbound calls to external/actual services and instead uses mocking, as needed, and uses the Testify testing framework.
+  Run one service's integration tests with `task test:integration -- <service>`, or every integration test with `task test:integration`.
+  The cross-service suites are `pkg/router/router_integration_test.go`, which checks client and dialer injection for every registered service, and `pkg/services/services_integration_test.go`, which checks that the services' default clients honor the proxy environment.
 - E2E testing: black-box testing that resides within the `/testing/e2e/<service>` directory, uses the `e2e_test` package, performs outbound calls to the corresponding service, and uses the Ginkgo/Gomega testing framework.
 
 Use the pre-existing implementations, such as for Discord and Matrix, as a guide to help with this process.
