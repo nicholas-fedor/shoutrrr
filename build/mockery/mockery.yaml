@@ -95,8 +95,7 @@ recursive: true
 # Exclude specific subpackages from recursive discovery.
 # Applies when recursive: true; uses package import paths (e.g., "pkg/subpkg").
 # Default: []
-exclude-subpkg-regex:
-  - "internal/testutils"
+exclude-subpkg-regex: []
 
 # Include auto-generated files in package discovery when true.
 # When false, skips files matching Go's generated file convention (e.g., "// Code generated").

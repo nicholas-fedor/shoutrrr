@@ -9,9 +9,9 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
@@ -21,7 +21,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -38,7 +38,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -62,7 +62,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			parsedURL.User = url.UserPassword("bot@example.com", "wrong-key-invalid-key")
 
 			service := &zulip.Service{}
-			err = service.Initialize(parsedURL, testutils.TestLogger())
+			err = service.Initialize(parsedURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: invalid credentials", nil)
@@ -82,7 +82,7 @@ var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			params := &types.Params{

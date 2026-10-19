@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Twilio E2E Service ID Test", func() {
@@ -23,7 +23,7 @@ var _ = ginkgo.Describe("Twilio E2E Service ID Test", func() {
 
 			serviceURL, _ := url.Parse(envURL)
 			service := &twilio.Service{}
-			err := service.Initialize(serviceURL, testutils.TestLogger())
+			err := service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			gomega.Expect(service.GetID()).To(gomega.Equal("twilio"))

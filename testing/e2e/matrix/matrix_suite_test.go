@@ -14,8 +14,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 const envValueTrue = "true"
@@ -54,7 +54,7 @@ func Test_Matrix_E2E(t *testing.T) {
 		// after Initialize succeeds to prevent tests from using an
 		// uninitialized client.
 		service := &matrix.Service{}
-		if err := service.Initialize(parsedURL, testutils.TestLogger()); err != nil {
+		if err := service.Initialize(parsedURL, logger.New()); err != nil {
 			// Log but continue; individual tests will handle failures
 			fmt.Fprintf(ginkgo.GinkgoWriter, "Warning: shared service init failed: %v\n", err)
 
@@ -210,7 +210,7 @@ func getOrInitSharedService() error {
 		// after Initialize succeeds to prevent tests from using an
 		// uninitialized client.
 		service := &matrix.Service{}
-		if err := service.Initialize(parsedURL, testutils.TestLogger()); err != nil {
+		if err := service.Initialize(parsedURL, logger.New()); err != nil {
 			errSharedServiceInit = fmt.Errorf("initializing service: %w", err)
 
 			return

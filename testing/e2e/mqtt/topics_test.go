@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
@@ -31,7 +31,7 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 			serviceURL.Path = "/test/single"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Single-level topic", nil)
@@ -59,7 +59,7 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 			serviceURL.Path = "/home/alerts/notifications"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Nested topic message", nil)
@@ -87,7 +87,7 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 			serviceURL.Path = "/sensors/+/temperature"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Wildcard topic base", nil)
@@ -115,7 +115,7 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 			serviceURL.Path = "/home/#"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Multi-level wildcard topic", nil)
@@ -143,7 +143,7 @@ var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
 			serviceURL.Path = "/sensor%2Fdevice%231/temperature"
 
 			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Topic with special characters", nil)

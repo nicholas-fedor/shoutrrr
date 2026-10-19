@@ -7,9 +7,9 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
@@ -24,7 +24,7 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Basic text notification", nil)
@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Custom topic notification", &types.Params{
@@ -60,7 +60,7 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Override stream via params using the same stream from config
@@ -94,7 +94,7 @@ var _ = ginkgo.Describe("Zulip E2E Basic Tests", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, testutils.TestLogger())
+			err = service.Initialize(serviceURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Direct message notification", &types.Params{

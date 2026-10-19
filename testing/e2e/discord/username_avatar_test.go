@@ -7,8 +7,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/discord"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Discord E2E Username Avatar Test", func() {
@@ -24,7 +24,7 @@ var _ = ginkgo.Describe("Discord E2E Username Avatar Test", func() {
 			demoURLStr := envURL + "?username=ShoutrrrDemo&avatar=https://raw.githubusercontent.com/nicholas-fedor/shoutrrr/master/docs/assets/media/shoutrrr-180px.png"
 			demoURL, _ := url.Parse(demoURLStr)
 			service := &discord.Service{}
-			err := service.Initialize(demoURL, testutils.TestLogger())
+			err := service.Initialize(demoURL, logger.New())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = service.Send("E2E Test: Custom username and avatar", nil)

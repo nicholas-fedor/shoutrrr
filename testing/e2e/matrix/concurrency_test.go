@@ -10,8 +10,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/testutils"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
+	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
@@ -102,7 +102,7 @@ var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
 				wg.Go(func() {
 					service := &matrix.Service{}
 
-					err := service.Initialize(parsedURL, testutils.TestLogger())
+					err := service.Initialize(parsedURL, logger.New())
 					serviceChan <- service
 
 					errChan <- err
