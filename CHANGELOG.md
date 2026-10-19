@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the format renderer tests from ginkgo to testify by @nicholas-fedor in [#1664](https://github.com/nicholas-fedor/shoutrrr/pull/1664)
 - Migrate the format core tests from ginkgo to testify by @nicholas-fedor in [#1658](https://github.com/nicholas-fedor/shoutrrr/pull/1658)
 - Migrate the slack tests from ginkgo to testify by @nicholas-fedor in [#1654](https://github.com/nicholas-fedor/shoutrrr/pull/1654)
 - Migrate the services and standard tests from ginkgo to testify by @nicholas-fedor in [#1652](https://github.com/nicholas-fedor/shoutrrr/pull/1652)
@@ -60,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency certifi to v2026.10.18 by @renovate[bot] in [#1661](https://github.com/nicholas-fedor/shoutrrr/pull/1661)
 - Update binwiederhier/ntfy:latest docker digest to 59250e1 by @renovate[bot] in [#1660](https://github.com/nicholas-fedor/shoutrrr/pull/1660)
 - Update dependency platformdirs to v4.13.4 by @renovate[bot] in [#1646](https://github.com/nicholas-fedor/shoutrrr/pull/1646)
 - Update binwiederhier/ntfy:latest docker digest to 91bb7fa by @renovate[bot] in [#1636](https://github.com/nicholas-fedor/shoutrrr/pull/1636)
