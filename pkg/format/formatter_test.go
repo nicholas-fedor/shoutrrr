@@ -71,7 +71,8 @@ func newFieldTarget[T any](t *testing.T) (reflect.Value, map[string]*FieldInfo) 
 }
 
 // TestSetConfigField verifies that each supported field kind is set from its
-// string and reads back as the same string.
+// string and reads back as the same string, that a 0x or # prefix reads a
+// number in base 16, and that a map value may contain colons.
 func TestSetConfigField(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +84,10 @@ func TestSetConfigField(t *testing.T) {
 		read  string
 	}{
 		{field: "Signed", value: "-45", want: -45},
+		{field: "Signed", value: "0x10", want: 16, read: "16"},
+		{field: "Signed", value: "#ff", want: 255, read: "255"},
 		{field: "Unsigned", value: "5", want: uint(5)},
+		{field: "Unsigned", value: "0X1F", want: uint(31), read: "31"},
 		{field: "Duration", value: "1h2m3s", want: time.Hour + 2*time.Minute + 3*time.Second},
 		{field: "Duration", value: "0", want: time.Duration(0), read: "0s"},
 		{field: "Str", value: "text", want: "text"},
@@ -94,6 +98,10 @@ func TestSetConfigField(t *testing.T) {
 		{field: "SubPropSlice", value: "@be,@the", want: []subPropStruct{{Value: "be"}, {Value: "the"}}},
 		{field: "SubPropPtrSlice", value: "@diet,@glue", want: []*subPropStruct{{Value: "diet"}, {Value: "glue"}}},
 		{field: "StrMap", value: "a:1,b:2", want: map[string]string{"a": "1", "b": "2"}},
+		{
+			field: "StrMap", value: "link:https://example.com:8443/x,owner:ops",
+			want: map[string]string{"link": "https://example.com:8443/x", "owner": "ops"},
+		},
 		{field: "IntMap", value: "a:-1,b:0x10", want: map[string]int{"a": -1, "b": 16}, read: "a:-1,b:16"},
 		{field: "Int8Map", value: "a:-128,b:127", want: map[string]int8{"a": -128, "b": 127}},
 		{field: "Int16Map", value: "a:1", want: map[string]int16{"a": 1}},
@@ -192,6 +200,8 @@ func TestSetConfigFieldErrors(t *testing.T) {
 		{field: "StrArray", value: "one,two", wantErr: ErrInvalidFieldCount},
 		{field: "StrMap", value: "a", wantErr: ErrInvalidFieldValue},
 		{field: "IntMap", value: "a:one", wantErr: ErrParseIntFailed},
+		{field: "IntMap", value: "a:1:2", wantErr: ErrParseIntFailed},
+		{field: "Signed", value: "0xzz", wantErr: ErrParseIntFailed},
 		{field: "Int8Map", value: "a:128", wantErr: ErrParseIntFailed},
 		{field: "Int16Map", value: "a:32768", wantErr: ErrParseIntFailed},
 		{field: "Int32Map", value: "a:2147483648", wantErr: ErrParseIntFailed},

@@ -1,6 +1,8 @@
 package format
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -11,16 +13,38 @@ type EnumFormatter struct {
 	names       []string
 	firstOffset int
 	aliases     map[string]int
+	// foldedAliases maps each lowercased alias to its value.
+	foldedAliases map[string]int
 }
 
 // EnumInvalid is the constant value that an enum gets assigned when it could not be parsed.
 const EnumInvalid = -1
 
 // CreateEnumFormatter creates a EnumFormatter struct.
+//
+// Aliases match in any case, as names do. An exact alias match wins, and
+// aliases that differ only in case otherwise resolve to the first of them in
+// sorted order.
+//
+// Parameters:
+//   - names: the enum names by value, with leading empty names left out of the listed names.
+//   - optAliases: an optional map of other spellings to values.
+//
+// Returns:
+//   - types.EnumFormatter: the formatter.
 func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.EnumFormatter {
 	aliases := map[string]int{}
+	foldedAliases := map[string]int{}
+
 	if len(optAliases) > 0 {
-		aliases = optAliases[0]
+		for _, alias := range slices.Sorted(maps.Keys(optAliases[0])) {
+			value := optAliases[0][alias]
+			aliases[alias] = value
+
+			if _, taken := foldedAliases[strings.ToLower(alias)]; !taken {
+				foldedAliases[strings.ToLower(alias)] = value
+			}
+		}
 	}
 
 	firstOffset := 0
@@ -34,9 +58,10 @@ func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.Enu
 	}
 
 	return &EnumFormatter{
-		names,
-		firstOffset,
-		aliases,
+		names:         names,
+		firstOffset:   firstOffset,
+		aliases:       aliases,
+		foldedAliases: foldedAliases,
 	}
 }
 
@@ -46,6 +71,14 @@ func (ef EnumFormatter) Names() []string {
 }
 
 // Parse takes an enum mapped string and returns it's int representation or EnumInvalid (-1).
+//
+// Names and aliases match in any case, with an exact alias match first.
+//
+// Parameters:
+//   - mappedString: the name or alias to parse.
+//
+// Returns:
+//   - int: the enum value, or [EnumInvalid] when nothing matches.
 func (ef EnumFormatter) Parse(mappedString string) int {
 	target := strings.ToLower(mappedString)
 	for index, name := range ef.names {
@@ -55,6 +88,10 @@ func (ef EnumFormatter) Parse(mappedString string) int {
 	}
 
 	if index, found := ef.aliases[mappedString]; found {
+		return index
+	}
+
+	if index, found := ef.foldedAliases[target]; found {
 		return index
 	}
 

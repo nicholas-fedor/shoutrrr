@@ -144,17 +144,23 @@ func setDurationField(configField reflect.Value, inputValue string) (bool, error
 	return true, nil
 }
 
-// setIntField handles integer field setting.
+// setIntField sets an integer field from its string.
+//
+// A 0x or # prefix reads the digits in base 16. Without a prefix, the digits
+// are read in the field's base.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its type and base.
+//   - inputValue: the number to set.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: an error wrapping [ErrParseIntFailed] when the number does not parse.
 func setIntField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
-	number, detectedBase := util.StripNumberPrefix(inputValue)
-
-	base := detectedBase
-	if field.Base > 0 {
+	number, base := util.StripNumberPrefix(inputValue)
+	if base == 0 {
 		base = field.Base
-
-		if detectedBase == 0 {
-			number = inputValue
-		}
 	}
 
 	value, err := strconv.ParseInt(number, base, field.Type.Bits())
@@ -167,17 +173,23 @@ func setIntField(configField reflect.Value, field *FieldInfo, inputValue string)
 	return true, nil
 }
 
-// setUintField handles unsigned integer field setting.
+// setUintField sets an unsigned integer field from its string.
+//
+// A 0x or # prefix reads the digits in base 16. Without a prefix, the digits
+// are read in the field's base.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its type and base.
+//   - inputValue: the number to set.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: an error wrapping [ErrParseUintFailed] when the number does not parse.
 func setUintField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
-	number, detectedBase := util.StripNumberPrefix(inputValue)
-
-	base := detectedBase
-	if field.Base > 0 {
+	number, base := util.StripNumberPrefix(inputValue)
+	if base == 0 {
 		base = field.Base
-
-		if detectedBase == 0 {
-			number = inputValue
-		}
 	}
 
 	value, err := strconv.ParseUint(number, base, field.Type.Bits())
@@ -202,7 +214,21 @@ func setBoolField(configField reflect.Value, inputValue string) (bool, error) {
 	return true, nil
 }
 
-// setMapField handles map field setting.
+// setMapField sets a map field from comma-separated key:value pairs.
+//
+// Each pair splits at its first colon, so keys cannot contain a colon while
+// values can.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its map type.
+//   - inputValue: the comma-separated key:value pairs.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: [ErrUnsupportedFieldKey] for a map without string keys,
+//     [ErrInvalidFieldValue] for a pair without a colon, or the value's parse
+//     error.
 func setMapField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	if field.Type.Key().Kind() != reflect.String {
 		return false, ErrUnsupportedFieldKey
@@ -212,12 +238,10 @@ func setMapField(configField reflect.Value, field *FieldInfo, inputValue string)
 
 	pairs := strings.SplitSeq(inputValue, ",")
 	for pair := range pairs {
-		elems := strings.Split(pair, ":")
-		if len(elems) != KeyValuePairSize {
+		key, valueRaw, found := strings.Cut(pair, ":")
+		if !found {
 			return false, ErrInvalidFieldValue
 		}
-
-		key, valueRaw := elems[0], elems[1]
 
 		value, err := getMapValue(field.Type.Elem(), valueRaw)
 		if err != nil {

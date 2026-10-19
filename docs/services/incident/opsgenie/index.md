@@ -58,6 +58,8 @@ service.Send("An example alert message", &types.Params{
   `visibleTo` accepts only `team` and `user` entries, as OpsGenie requires, and any other type fails the send.
 - `actions` and `tags` are comma-separated lists.
 - `details` is a comma-separated list of `key:value` pairs.
+  Each pair splits at its first colon, so values can contain colons, as in `runbook:https://wiki.example.com/disk`, while keys cannot.
+  Neither keys nor values can contain commas.
 - The alert message is the title when one is set, and the notification message otherwise, cut to 130 characters.
   The notification message is sent as the description when a title is set or when it is cut.
 

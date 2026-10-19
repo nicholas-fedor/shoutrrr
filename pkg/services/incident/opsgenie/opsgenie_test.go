@@ -264,6 +264,14 @@ func TestSend(t *testing.T) {
 				`"priority":"P1","user":"Dracula","note":"Here is a note"}`,
 		},
 		{
+			name:     "details with colons in a value",
+			rawURL:   "opsgenie://api.opsgenie.com/" + testAPIKey,
+			message:  "Disk full",
+			params:   &types.Params{"details": "runbook:https://wiki.example.com/disk,owner:ops"},
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"Disk full","details":{"runbook":"https://wiki.example.com/disk","owner":"ops"}}`,
+		},
+		{
 			name: "alert props from the URL",
 			rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey +
 				"?alias=query-alias&description=query-description&responders=team:query_team&visibleTo=user:query_user" +
