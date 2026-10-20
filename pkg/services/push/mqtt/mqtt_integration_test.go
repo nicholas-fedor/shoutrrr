@@ -178,6 +178,11 @@ func TestIntegrationPublish(t *testing.T) {
 			want:   paho.Publish{Topic: "test_topic/test-topic/test123"},
 		},
 		{
+			name:   "leading slash topic",
+			rawURL: "mqtt://broker.example.com//home/alerts",
+			want:   paho.Publish{Topic: "/home/alerts"},
+		},
+		{
 			name:   "deep topic",
 			rawURL: "mqtt://broker.example.com/level1/level2/level3/level4/level5/level6/level7/level8/level9/level10",
 			want:   paho.Publish{Topic: "level1/level2/level3/level4/level5/level6/level7/level8/level9/level10"},

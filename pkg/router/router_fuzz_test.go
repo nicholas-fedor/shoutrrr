@@ -33,12 +33,6 @@ const skipEmptySliceValue = "an empty query value sets a slice key to one empty 
 // not parse, such as [:]:1. Fixing it must remove the skip.
 const skipUnbracketedIPv6Host = "a host with several colons and no brackets comes back as a host that does not parse"
 
-// skipMQTTLeadingSlashTopic is the known failure FuzzConfigRoundTrip skips for
-// MQTT topics that start with a slash: GetURL writes the topic as the URL path,
-// so SetURL reads it back without its leading slash. Fixing it must remove the
-// skip.
-const skipMQTTLeadingSlashTopic = "MQTT drops a topic's leading slash from the URL GetURL writes"
-
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{
@@ -113,10 +107,6 @@ func FuzzConfigRoundTrip(f *testing.F) {
 			t.Skip(skipUnbracketedIPv6Host)
 		}
 
-		if (scheme == "mqtt" || scheme == "mqtts") && hasLeadingSlashPath(rawURL) {
-			t.Skip(skipMQTTLeadingSlashTopic)
-		}
-
 		serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
 		require.NoError(t, err)
 
@@ -165,6 +155,7 @@ func addRouterSeeds(f *testing.F, schemes []string) {
 	add("discord", "://SECRETdiscordTOKEN@123456/%zz")
 	add("smtp", "://user:SECRETsmtpPASSWORD@mail.example.invalid:port/")
 	add("mqtt", "://:SECRETmqttPASSWORD@broker.example.invalid/topic")
+	add("mqtt", "://broker.example.invalid//home/alerts")
 }
 
 // userinfoSecrets returns the username and password of rawURL that carry
@@ -240,21 +231,6 @@ func hasUnbracketedIPv6Host(rawURL string) bool {
 	parsed, err := url.Parse(rawURL)
 
 	return err == nil && !strings.HasPrefix(parsed.Host, "[") && strings.Count(parsed.Host, ":") > 1
-}
-
-// hasLeadingSlashPath reports whether rawURL has a path that starts with two
-// slashes, which a service that reads the path after its first slash sees as a
-// value with a leading slash.
-//
-// Parameters:
-//   - rawURL: the service URL.
-//
-// Returns:
-//   - bool: true when the URL parses and its path starts with two slashes.
-func hasLeadingSlashPath(rawURL string) bool {
-	parsed, err := url.Parse(rawURL)
-
-	return err == nil && strings.HasPrefix(parsed.Path, "//")
 }
 
 // hasConfig reports whether service has the Config field that
