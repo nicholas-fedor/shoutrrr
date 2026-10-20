@@ -2,6 +2,7 @@ package discord
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -277,6 +278,120 @@ func TestCreatePayloadFromItemsAttachments(t *testing.T) {
 	assert.Empty(t, payload.Content)
 	assert.Len(t, payload.Embeds, 2)
 	assert.Equal(t, []attachment{{ID: 0, Filename: "file1.txt"}, {ID: 1, Filename: "file2.txt"}}, payload.Attachments)
+}
+
+// TestCreatePayloadFromItemsTotalLength verifies that embeds past Discord's
+// combined limit of 6000 characters, which counts the author names as well as
+// the descriptions, are shortened to the characters left, so a payload built
+// directly from long items stays within the limit.
+func TestCreatePayloadFromItemsTotalLength(t *testing.T) {
+	t.Parallel()
+
+	author := []types.Field{{Key: "embed_author_name", Value: strings.Repeat("n", 256)}}
+
+	// tests lists items with the description the last embed should keep.
+	tests := []struct {
+		name     string
+		items    []types.MessageItem
+		wantLast string
+	}{
+		{
+			name:     "descriptions",
+			items:    []types.MessageItem{{Text: strings.Repeat("a", 4000)}, {Text: strings.Repeat("b", 4000)}},
+			wantLast: strings.Repeat("b", TotalChunkSize-4000-len(" [...]")) + " [...]",
+		},
+		{
+			name:     "author name",
+			items:    []types.MessageItem{{Text: strings.Repeat("a", 3000), Fields: author}, {Text: strings.Repeat("b", 3000)}},
+			wantLast: strings.Repeat("b", TotalChunkSize-3000-256-len(" [...]")) + " [...]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := CreatePayloadFromItems(tt.items, "", testLevelColors)
+			require.NoError(t, err)
+
+			require.Len(t, payload.Embeds, len(tt.items))
+			assert.Equal(t, tt.items[0].Text, payload.Embeds[0].Content)
+			assert.Equal(t, tt.wantLast, payload.Embeds[len(tt.items)-1].Content)
+		})
+	}
+}
+
+// TestCreatePayloadFromItemsOverBudget verifies that an embed with no
+// characters left in Discord's combined limit of 6000 loses its description,
+// author, and footer, which Discord does not accept empty, so the payload
+// stays within the limit.
+func TestCreatePayloadFromItemsOverBudget(t *testing.T) {
+	t.Parallel()
+
+	items := []types.MessageItem{
+		{Text: strings.Repeat("a", 4000)},
+		{Text: strings.Repeat("b", 2000)},
+		{Text: "late", Level: types.Error, Fields: []types.Field{{Key: "embed_author_name", Value: strings.Repeat("n", 256)}}},
+	}
+
+	payload, err := CreatePayloadFromItems(items, "", testLevelColors)
+	require.NoError(t, err)
+
+	require.Len(t, payload.Embeds, 3)
+	assert.Empty(t, payload.Embeds[2].Content)
+	assert.Nil(t, payload.Embeds[2].Author)
+	assert.Nil(t, payload.Embeds[2].Footer)
+
+	total := 0
+	for i := range payload.Embeds {
+		total += embedLength(&payload.Embeds[i])
+	}
+
+	assert.Equal(t, TotalChunkSize, total)
+}
+
+// TestFitEmbed verifies that an embed over its budget gives up characters in
+// order, from its fields, description, author name, and footer, and keeps an
+// author or footer it shortens only while it still has text.
+func TestFitEmbed(t *testing.T) {
+	t.Parallel()
+
+	// newTestEmbed returns an embed with a 10-character description, author
+	// name, and footer.
+	newTestEmbed := func() embedItem {
+		return embedItem{
+			Content: strings.Repeat("d", 10),
+			Author:  &embedAuthor{Name: strings.Repeat("n", 10)},
+			Footer:  &embedFooter{Text: strings.Repeat("f", 10)},
+		}
+	}
+
+	// tests lists budgets with the embed each should leave.
+	tests := []struct {
+		name   string
+		budget int
+		want   embedItem
+	}{
+		{name: "fits", budget: 30, want: newTestEmbed()},
+		{
+			name:   "author shortened",
+			budget: 15,
+			want:   embedItem{Author: &embedAuthor{Name: strings.Repeat("n", 5)}, Footer: &embedFooter{Text: strings.Repeat("f", 10)}},
+		},
+		{name: "footer shortened", budget: 4, want: embedItem{Footer: &embedFooter{Text: strings.Repeat("f", 4)}}},
+		{name: "negative budget", budget: -5, want: embedItem{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embed := newTestEmbed()
+			fitEmbed(&embed, tt.budget)
+
+			assert.Equal(t, tt.want, embed)
+		})
+	}
 }
 
 // TestCreatePayloadFromItemsLimits verifies that no items or a single item

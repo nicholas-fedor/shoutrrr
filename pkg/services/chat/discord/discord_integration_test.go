@@ -92,10 +92,28 @@ type wirePayload struct {
 
 // wireEmbed is the part of an embed the tests decode.
 type wireEmbed struct {
+	// Author is the embed author, or nil when the embed has none.
+	Author *wireAuthor `json:"author"`
 	// Title is the embed title.
 	Title string `json:"title"`
 	// Description is the embed text.
 	Description string `json:"description"`
+	// Fields holds the embed fields.
+	Fields []wireField `json:"fields"`
+}
+
+// wireAuthor is the part of an embed author the tests decode.
+type wireAuthor struct {
+	// Name is the author name.
+	Name string `json:"name"`
+}
+
+// wireField is an embed field.
+type wireField struct {
+	// Name is the field name.
+	Name string `json:"name"`
+	// Value is the field value.
+	Value string `json:"value"`
 }
 
 // wireAttachment is the attachment metadata for one uploaded file.
@@ -1032,6 +1050,132 @@ func TestIntegrationSendItemsBatches(t *testing.T) {
 		require.ErrorIs(t, err, discord.ErrUnexpectedStatus)
 		assert.Len(t, hook.sent(), 2)
 	})
+}
+
+// TestIntegrationSendItemsEmbedLimits verifies that rich sends stay within
+// Discord's embed limits: text past a field's limit is shortened with " [...]",
+// fields past the 25th are left out, a long single plain item is sent as an
+// embed instead of content, items are batched so a message's embeds stay
+// within 6000 characters including the title, and a single item over that
+// total drops fields from the end.
+func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
+	t.Parallel()
+
+	shortened := func(r string, limit int) string {
+		return strings.Repeat(r, limit-len(" [...]")) + " [...]"
+	}
+
+	manyFields := make([]types.Field, 30)
+	for i := range manyFields {
+		manyFields[i] = types.Field{Key: "f" + strconv.Itoa(i), Value: "v"}
+	}
+
+	bigFields := make([]types.Field, 25)
+	for i := range bigFields {
+		bigFields[i] = types.Field{Key: fmt.Sprintf("%0100d", i), Value: strings.Repeat("v", 1000)}
+	}
+
+	itemsOf := func(count, length int, level types.MessageLevel) []types.MessageItem {
+		items := make([]types.MessageItem, count)
+		for i := range items {
+			items[i] = types.MessageItem{Text: strings.Repeat(strconv.Itoa(i), length), Level: level}
+		}
+
+		return items
+	}
+
+	// tests lists items and params with the embeds each request should carry.
+	tests := []struct {
+		params types.Params
+		name   string
+		items  []types.MessageItem
+		want   [][]wireEmbed
+	}{
+		{
+			name:  "long description",
+			items: []types.MessageItem{{Text: strings.Repeat("a", 5000), Level: types.Info}},
+			want:  [][]wireEmbed{{{Description: shortened("a", 4096)}}},
+		},
+		{
+			name:  "long single plain item",
+			items: []types.MessageItem{{Text: strings.Repeat("a", discord.ChunkSize+1)}},
+			want:  [][]wireEmbed{{{Description: strings.Repeat("a", discord.ChunkSize+1)}}},
+		},
+		{
+			name:   "long title",
+			params: types.Params{"title": strings.Repeat("t", 300)},
+			items:  []types.MessageItem{{Text: "body"}},
+			want:   [][]wireEmbed{{{Title: shortened("t", 256), Description: "body"}}},
+		},
+		{
+			name:  "fields past the 25th",
+			items: []types.MessageItem{{Text: "body", Fields: manyFields}},
+			want: [][]wireEmbed{{{Description: "body", Fields: func() []wireField {
+				fields := make([]wireField, 25)
+				for i := range fields {
+					fields[i] = wireField{Name: "f" + strconv.Itoa(i), Value: "v"}
+				}
+
+				return fields
+			}()}}},
+		},
+		{
+			name: "long field name, field value, and author name",
+			items: []types.MessageItem{{Text: "body", Fields: []types.Field{
+				{Key: strings.Repeat("n", 300), Value: strings.Repeat("v", 1500)},
+				{Key: "embed_author_name", Value: strings.Repeat("a", 300)},
+			}}},
+			want: [][]wireEmbed{{{
+				Author:      &wireAuthor{Name: shortened("a", 256)},
+				Description: "body",
+				Fields:      []wireField{{Name: shortened("n", 256), Value: shortened("v", 1024)}},
+			}}},
+		},
+		{
+			name:  "batched by combined length",
+			items: itemsOf(4, 2000, types.Info),
+			want: [][]wireEmbed{
+				{{Description: strings.Repeat("0", 2000)}, {Description: strings.Repeat("1", 2000)}},
+				{{Description: strings.Repeat("2", 2000)}, {Description: strings.Repeat("3", 2000)}},
+			},
+		},
+		{
+			name:   "title counted in each batch",
+			params: types.Params{"title": strings.Repeat("t", 100)},
+			items:  itemsOf(3, 1990, types.Unknown),
+			want: [][]wireEmbed{
+				{{Title: strings.Repeat("t", 100), Description: strings.Repeat("0", 1990)}, {Description: strings.Repeat("1", 1990)}},
+				{{Title: strings.Repeat("t", 100), Description: strings.Repeat("2", 1990)}},
+			},
+		},
+		{
+			name:  "single item over the combined length",
+			items: []types.MessageItem{{Text: strings.Repeat("d", 4000), Fields: bigFields}},
+			want: [][]wireEmbed{{{
+				Description: strings.Repeat("d", 4000),
+				Fields:      []wireField{{Name: fmt.Sprintf("%0100d", 0), Value: strings.Repeat("v", 1000)}},
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, hook := newWebhook(t, repeatReply(noContent, len(tt.want))...)
+
+			require.NoError(t, newService(t, testServiceURL, client).SendItemsContext(t.Context(), tt.items, tt.params))
+
+			sent := hook.sent()
+			require.Len(t, sent, len(tt.want))
+
+			for i, want := range tt.want {
+				payload := decodePayload(t, sent[i].body)
+				assert.Empty(t, payload.Content, "request %d", i)
+				assert.Equal(t, want, payload.Embeds, "request %d", i)
+			}
+		})
+	}
 }
 
 // TestIntegrationSendRetries verifies how a send started with SendContext

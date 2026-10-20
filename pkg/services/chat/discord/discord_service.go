@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -284,13 +283,13 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 	return s.sendPayload(ctx, &config, &payload, items)
 }
 
-// sendItemBatches sends items in batches of at most [MaxEmbeds], the most
-// embeds Discord accepts in one message, so every item and its file is
-// delivered. Items that fit in one batch are sent as [Service.sendItems] sends
-// them. Otherwise every batch is sent as embeds, so a batch of one plain item
-// matches the others and gets the embed length limit. A failed batch does not
-// stop the batches after it, and failures other than the first are logged.
-// Once ctx ends, the remaining batches are not sent.
+// sendItemBatches sends items in batches that each fit one Discord message:
+// at most [MaxEmbeds] embeds whose text, with the title on the first, stays
+// within [TotalChunkSize] characters. Items that fit in one batch are sent as
+// [Service.sendItems] sends them. Otherwise every batch is sent as embeds, so a
+// batch of one plain item matches the others and gets the embed length limit.
+// A failed batch does not stop the batches after it, and failures other than
+// the first are logged. Once ctx ends, the remaining batches are not sent.
 //
 // Parameters:
 //   - ctx: bounds the requests and their retries.
@@ -298,16 +297,23 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //   - params: per-send parameters, applied to a copy of the config.
 //
 // Returns:
-//   - error: the first batch's failure, ctx's error when ctx ended before every
-//     batch was sent and no batch failed, or nil when every batch is sent.
+//   - error: the params failure, the first batch's failure, ctx's error when
+//     ctx ended before every batch was sent and no batch failed, or nil when
+//     every batch is sent.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	if len(items) <= MaxEmbeds {
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return err
+	}
+
+	batches := batchItems(items, config.Title, config.LevelColors())
+	if len(batches) <= 1 {
 		return s.sendItems(ctx, items, params)
 	}
 
 	var firstErr error
 
-	for batch := range slices.Chunk(items, MaxEmbeds) {
+	for _, batch := range batches {
 		if err := ctx.Err(); err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -394,6 +400,48 @@ func (s *Service) sendPayload(
 	}
 
 	return s.doSend(ctx, payloadBytes, postURL)
+}
+
+// batchItems groups items into batches that each fit one Discord message: at
+// most [MaxEmbeds] items whose embeds, with the title on the first, stay within
+// [TotalChunkSize] characters. An item over that total alone gets a batch of
+// its own, which [createEmbedPayload] shortens to fit.
+//
+// Parameters:
+//   - items: the message items.
+//   - title: the title of each batch's first embed.
+//   - colors: the embed color for each message level.
+//
+// Returns:
+//   - [][]types.MessageItem: the batches, in order, or none for no items.
+func batchItems(items []types.MessageItem, title string, colors [types.MessageLevelCount]uint) [][]types.MessageItem {
+	budget := TotalChunkSize - utf8.RuneCountInString(util.Ellipsis(title, maxEmbedTitle))
+
+	var (
+		batches [][]types.MessageItem
+		total   int
+	)
+
+	batch := make([]types.MessageItem, 0, MaxEmbeds)
+
+	for i := range items {
+		embed := newEmbed(&items[i], colors)
+		length := embedLength(&embed)
+
+		if len(batch) == MaxEmbeds || (len(batch) > 0 && total+length > budget) {
+			batches = append(batches, batch)
+			batch, total = make([]types.MessageItem, 0, MaxEmbeds), 0
+		}
+
+		batch = append(batch, items[i])
+		total += length
+	}
+
+	if len(batch) > 0 {
+		batches = append(batches, batch)
+	}
+
+	return batches
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
