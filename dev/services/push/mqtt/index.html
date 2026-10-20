@@ -2862,7 +2862,7 @@
 <li><strong>QoS Levels</strong>: Support for Quality of Service levels 0 (at most once), 1 (at least once), and 2 (exactly once)</li>
 <li><strong>Retained Messages</strong>: Messages can be retained by the broker for new subscribers</li>
 <li><strong>TLS/SSL Support</strong>: Secure connections via the <code>mqtts://</code> scheme</li>
-<li><strong>Authentication</strong>: Username/password authentication</li>
+<li><strong>Authentication</strong>: Username and password, username only, or password only (such as an access token), as MQTT v5 allows</li>
 <li><strong>Clean Session</strong>: Control whether the broker maintains session state</li>
 <li><strong>Managed Connection</strong>: The first send connects to the broker, later sends reuse the connection, and an idle connection is closed after 60 seconds</li>
 </ul>
@@ -2883,13 +2883,13 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
 <li><strong><code>mqtt://</code></strong>: Standard unencrypted connection (port 1883 by default)</li>
 </ul>
 <div class="admonition info">
-<p>mqtt://[<strong><code>username</code></strong>[:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>topic</code></strong></p>
+<p>mqtt://[[<strong><code>username</code></strong>][:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>topic</code></strong></p>
 </div>
 <ul>
 <li><strong><code>mqtts://</code></strong>: TLS-encrypted connection (port 8883 by default)</li>
 </ul>
 <div class="admonition info">
-<p>mqtts://[<strong><code>username</code></strong>[:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>topic</code></strong></p>
+<p>mqtts://[[<strong><code>username</code></strong>][:<strong><code>password</code></strong>]@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/<strong><code>topic</code></strong></p>
 </div>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3047,7 +3047,7 @@ Topics use a hierarchical naming scheme with forward slashes (e.g., <code>home/a
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 8, 2026 16:21:27 UTC"><span class="timeago" datetime="2026-10-08T16:21:27+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 8, 2026 16:21:27 UTC">2026-10-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 20, 2026 05:17:33 UTC"><span class="timeago" datetime="2026-10-20T05:17:33+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 20, 2026 05:17:33 UTC">2026-10-20</span>
   </span>
 
     
