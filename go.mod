@@ -2,7 +2,7 @@ module github.com/nicholas-fedor/shoutrrr
 
 go 1.27
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	github.com/eclipse/paho.golang v0.23.0
