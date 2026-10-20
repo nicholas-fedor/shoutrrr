@@ -238,8 +238,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		Scheme:     scheme,
 		Host:       fmt.Sprintf("%s:%d", c.Host, c.Port),
 		ForceQuery: true, // Always include the query string separator (?)
-		Path:       c.Topic,
-		RawQuery:   format.BuildQuery(resolver),
+		// SetURL strips the path's first slash, so a topic's own leading slash,
+		// which makes it a distinct MQTT topic, follows the path's slash.
+		Path:     "/" + c.Topic,
+		RawQuery: format.BuildQuery(resolver),
 	}
 
 	// Add user credentials if authentication is configured. A password may

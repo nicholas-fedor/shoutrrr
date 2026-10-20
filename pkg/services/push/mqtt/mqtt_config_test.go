@@ -68,7 +68,7 @@ func TestConfigGetURL(t *testing.T) {
 		assert.Equal(t, "mqtt", result.Scheme)
 		assert.Equal(t, "broker.example.com", result.Hostname())
 		assert.Equal(t, "1883", result.Port())
-		assert.Equal(t, "notifications/alerts", result.Path)
+		assert.Equal(t, "/notifications/alerts", result.Path)
 		assert.Equal(t, "testuser", result.User.Username())
 
 		password, hasPassword := result.User.Password()
@@ -270,6 +270,38 @@ func TestConfigKeepsTLSScheme(t *testing.T) {
 	require.NoError(t, config.SetURL(parseTestURL(t, "mqtts://broker.example.com/test/topic")))
 
 	assert.Equal(t, SchemeTLS, config.GetURL().Scheme)
+}
+
+// TestConfigURLRoundTripKeepsTopic verifies that a config restored from its own
+// URL keeps the topic exactly, since MQTT treats a leading or trailing slash
+// as part of a distinct topic and accepts a topic of only a slash.
+func TestConfigURLRoundTripKeepsTopic(t *testing.T) {
+	t.Parallel()
+
+	// tests lists topics that must survive GetURL and SetURL unchanged.
+	tests := []struct {
+		name  string
+		topic string
+	}{
+		{name: "plain", topic: "home/alerts"},
+		{name: "leading slash", topic: "/home/alerts"},
+		{name: "trailing slash", topic: "home/alerts/"},
+		{name: "only a slash", topic: "/"},
+		{name: "empty levels", topic: "home//alerts"},
+		{name: "characters to escape", topic: "home alerts/100%/a?b#c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{Host: "broker.example.com", Port: DefaultPort, Topic: tt.topic, ClientID: "shoutrrr"}
+
+			restored := &Config{}
+			require.NoError(t, restored.SetURL(config.GetURL()))
+			assert.Equal(t, tt.topic, restored.Topic)
+		})
+	}
 }
 
 // TestConfigQueryFieldsAndEnums verifies the query parameters the config

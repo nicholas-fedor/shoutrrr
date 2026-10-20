@@ -23,6 +23,7 @@ The protocol is supported by many popular brokers:
 
 To send notifications via MQTT, you need a running MQTT broker and a topic to publish to.
 Topics use a hierarchical naming scheme with forward slashes (e.g., `home/alerts`, `sensors/temperature`).
+The topic is the URL path after its first slash, so a topic that starts with a slash, such as `/home/alerts`, which MQTT treats as distinct from `home/alerts`, is written with two: `mqtt://broker//home/alerts`.
 
 ## URL Formats
 
