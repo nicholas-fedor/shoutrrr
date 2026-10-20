@@ -1,6 +1,7 @@
 package util
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -194,15 +195,15 @@ func FuzzEllipsis(f *testing.F) {
 
 // splitStarts returns the offsets where the next chunk or the omitted runes can
 // start after chunks ending at ends: each end itself and, after a split, the
-// offset past a space or newline at that end.
+// offset past a space or newline at that end, without duplicates.
 //
 // Parameters:
 //   - runes: the partitioned input.
-//   - ends: the offsets where the previous chunk can end.
+//   - ends: the offsets where the previous chunk can end, in increasing order.
 //   - split: whether a chunk precedes the offsets, so a separator may follow it.
 //
 // Returns:
-//   - []int: the possible start offsets.
+//   - []int: the possible start offsets, in increasing order.
 func splitStarts(runes []rune, ends []int, split bool) []int {
 	starts := make([]int, 0, 2*len(ends))
 
@@ -214,5 +215,6 @@ func splitStarts(runes []rune, ends []int, split bool) []int {
 		}
 	}
 
-	return starts
+	// An end one past the previous end repeats its separator offset.
+	return slices.Compact(starts)
 }

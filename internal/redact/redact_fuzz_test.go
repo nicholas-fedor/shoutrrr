@@ -68,9 +68,10 @@ func FuzzRequestURL(f *testing.F) {
 // URL left in the message is already reduced to its scheme and host, and that the
 // redacted error keeps its operation and still matches its cause with errors.Is.
 // The URL's password is a fixed secret, and the fuzzer varies the operation, the
-// host, the path and query after it, and the text around the URL. The seed
-// corpus covers request and parse operations, quoted and unquoted URLs, and the
-// Location header and parse messages that net/http and net/url quote.
+// host, the path and query after it, and the text around the URL, skipping
+// inputs that repeat the secret anywhere else. The seed corpus covers request
+// and parse operations, quoted and unquoted URLs, and the Location header and
+// parse messages that net/http and net/url quote.
 func FuzzURLError(f *testing.F) {
 	for _, seed := range []struct {
 		op, host, rest, prefix, suffix string
@@ -87,6 +88,13 @@ func FuzzURLError(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, op, host, rest, prefix, suffix string) {
 		rawURL := "https://user:" + testSecret + "@" + host + rest
+
+		// Redaction keeps the operation, the host, and text outside URLs, so the
+		// secret may appear only as the password.
+		if strings.Contains(op, testSecret) || strings.Count(prefix+rawURL+suffix, testSecret) != 1 {
+			t.Skip()
+		}
+
 		cause := fmt.Errorf("%s%s%s: %w", prefix, rawURL, suffix, errFuzzCause)
 
 		redacted := URLError(&url.Error{Op: op, URL: rawURL, Err: cause})
