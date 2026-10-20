@@ -66,7 +66,8 @@ func FuzzRequestURL(f *testing.F) {
 // FuzzURLError checks that redaction removes a password quoted in a *url.Error
 // or in any other error's message, wherever the URL sits in the text, that every
 // URL left in the message is already reduced to its scheme and host, and that the
-// redacted error keeps its operation and still matches its cause with errors.Is.
+// redacted error keeps its operation, carries the reduced URL, or [Placeholder]
+// for a parse error, and still matches its cause with errors.Is.
 // The URL's password is a fixed secret, and the fuzzer varies the operation, the
 // host, the path and query after it, and the text around the URL, skipping
 // inputs that repeat the secret anywhere else. The seed corpus covers request
@@ -105,8 +106,10 @@ func FuzzURLError(f *testing.F) {
 		assert.Equal(t, op, urlErr.Op)
 
 		if op == "parse" {
+			assert.Equal(t, Placeholder, urlErr.URL)
 			require.ErrorIs(t, redacted, ErrInvalidURL)
 		} else {
+			assert.Equal(t, RequestURL(rawURL), urlErr.URL)
 			require.ErrorIs(t, redacted, errFuzzCause)
 		}
 
