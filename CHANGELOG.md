@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Add fuzz targets for parsing, redaction, and config round trips by @nicholas-fedor in [#1685](https://github.com/nicholas-fedor/shoutrrr/pull/1685)
 - Move all integration tests into their packages by @nicholas-fedor in [#1675](https://github.com/nicholas-fedor/shoutrrr/pull/1675)
 - Move the e2e logger into testing/e2e and remove the unused test helpers by @nicholas-fedor in [#1670](https://github.com/nicholas-fedor/shoutrrr/pull/1670)
 - Migrate the format renderer tests from ginkgo to testify by @nicholas-fedor in [#1664](https://github.com/nicholas-fedor/shoutrrr/pull/1664)
