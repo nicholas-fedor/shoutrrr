@@ -292,6 +292,16 @@ func TestSend(t *testing.T) {
 			wantHeaders: map[string]string{"Content-Type": "application/vnd.api+json", "Authorization": "frend"},
 		},
 		{
+			name:       "custom header keys with acronyms, digits, and camelCase",
+			rawURL:     "generic://host.tld/webhook?@X-API-Key=key&@x-1st=first&@acceptLanguage=tlh-Piqd",
+			wantMethod: http.MethodPost,
+			wantURL:    "https://host.tld/webhook",
+			wantBody:   "Message",
+			wantHeaders: map[string]string{
+				"X-Api-Key": "key", "X-1st": "first", "Accept-Language": "tlh-Piqd",
+			},
+		},
+		{
 			name:       "config props from params",
 			rawURL:     "generic://host.tld/webhook",
 			params:     &types.Params{"method": "GET"},
