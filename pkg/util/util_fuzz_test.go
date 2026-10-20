@@ -1,9 +1,13 @@
 package util
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -66,4 +70,151 @@ func FuzzMessageItemsFromLines(f *testing.F) {
 			t.Fatalf("lines = %q, want %q", got, want)
 		}
 	})
+}
+
+// FuzzPartitionMessage checks that partitioning keeps every chunk within its
+// limits, never emits an empty chunk or invalid UTF-8, and only drops a single
+// space or newline at each split, so the chunks, their separators, and the
+// omitted runes rebuild the input. The seed corpus covers ASCII with and without
+// whitespace, multi-byte text, newlines, and input longer than the total size.
+//
+// The limits stay positive and the search distance within the chunk size, as for
+// every caller. The backward search for whitespace reads before the chunk at
+// larger distances, and a total size of zero yields an empty chunk.
+func FuzzPartitionMessage(f *testing.F) {
+	for _, seed := range []string{
+		"",
+		"a",
+		"lorem ipsum dolor sit amet consectetur adipiscing elit",
+		strings.Repeat("x", 120),
+		"世界 こんにちは 안녕 世界 こんにちは 안녕",
+		"line one\nline two\nline three\n\n\nline four",
+	} {
+		f.Add(seed, 10, 50, 4, 5)
+	}
+
+	f.Fuzz(func(t *testing.T, input string, chunkSize, totalSize, chunkCount, distance int) {
+		if chunkSize < 1 || chunkSize > 200 || totalSize < 1 || totalSize > 2000 ||
+			chunkCount < 1 || chunkCount > 20 || distance < 0 || distance > chunkSize ||
+			!utf8.ValidString(input) {
+			t.Skip()
+		}
+
+		limits := types.MessageLimit{ChunkSize: chunkSize, TotalChunkSize: totalSize, ChunkCount: chunkCount}
+		items, omitted := PartitionMessage(input, limits, distance)
+
+		require.LessOrEqual(t, len(items), chunkCount, "too many chunks")
+
+		runes := []rune(input)
+		// ends holds the offsets where the last chunk can end, since a chunk
+		// may follow a skipped space or newline or start with its own.
+		ends := []int{0}
+		total := 0
+
+		for i, item := range items {
+			chunk := []rune(item.Text)
+			require.NotEmpty(t, chunk, "chunk %d is empty", i)
+			require.LessOrEqual(t, len(chunk), chunkSize, "chunk %d %q is too long", i, item.Text)
+			require.True(t, utf8.ValidString(item.Text), "chunk %d %q is not valid UTF-8", i, item.Text)
+
+			total += len(chunk)
+
+			var next []int
+
+			for _, start := range splitStarts(runes, ends, i > 0) {
+				if start+len(chunk) <= len(runes) && string(runes[start:start+len(chunk)]) == item.Text {
+					next = append(next, start+len(chunk))
+				}
+			}
+
+			require.NotEmpty(t, next, "chunk %d %q does not continue the input %q", i, item.Text, input)
+
+			ends = next
+		}
+
+		require.LessOrEqual(t, total, totalSize, "the chunks hold too many runes")
+
+		rests := make([]int, 0, len(ends))
+		for _, start := range splitStarts(runes, ends, len(items) > 0) {
+			rests = append(rests, len(runes)-start)
+		}
+
+		assert.Contains(t, rests, omitted, "omitted does not count the runes after the last chunk of %q", input)
+	})
+}
+
+// FuzzEllipsis checks that shortened text stays within the limit as a rune prefix
+// of the input, with the ellipsis only when the limit leaves room for it, and that
+// text within the limit comes back unchanged. The seed corpus covers ASCII,
+// multi-byte text, and limits around the ellipsis length, including negative ones.
+func FuzzEllipsis(f *testing.F) {
+	for _, seed := range []struct {
+		text      string
+		maxLength int
+	}{
+		{"", 0},
+		{"hello", 10},
+		{"hello world", 5},
+		{"hello world", 6},
+		{"hello world", 7},
+		{"世界こんにちは안녕하세요", 8},
+		{"truncate me", -1},
+	} {
+		f.Add(seed.text, seed.maxLength)
+	}
+
+	f.Fuzz(func(t *testing.T, text string, maxLength int) {
+		if !utf8.ValidString(text) {
+			t.Skip()
+		}
+
+		got := Ellipsis(text, maxLength)
+		runes := []rune(text)
+
+		if len(runes) <= maxLength {
+			assert.Equal(t, text, got, "text within the limit must come back unchanged")
+
+			return
+		}
+
+		require.LessOrEqual(t, utf8.RuneCountInString(got), max(maxLength, 0), "Ellipsis(%q, %d) = %q", text, maxLength, got)
+
+		prefix := got
+
+		if maxLength > len(ellipsis) {
+			var found bool
+
+			prefix, found = strings.CutSuffix(got, ellipsis)
+			require.True(t, found, "Ellipsis(%q, %d) = %q, want the %q suffix", text, maxLength, got, ellipsis)
+		}
+
+		assert.True(t, strings.HasPrefix(text, prefix) && utf8.ValidString(prefix),
+			"Ellipsis(%q, %d) = %q, want a rune prefix of the text", text, maxLength, got)
+	})
+}
+
+// splitStarts returns the offsets where the next chunk or the omitted runes can
+// start after chunks ending at ends: each end itself and, after a split, the
+// offset past a space or newline at that end, without duplicates.
+//
+// Parameters:
+//   - runes: the partitioned input.
+//   - ends: the offsets where the previous chunk can end, in increasing order.
+//   - split: whether a chunk precedes the offsets, so a separator may follow it.
+//
+// Returns:
+//   - []int: the possible start offsets, in increasing order.
+func splitStarts(runes []rune, ends []int, split bool) []int {
+	starts := make([]int, 0, 2*len(ends))
+
+	for _, end := range ends {
+		starts = append(starts, end)
+
+		if split && end < len(runes) && (runes[end] == ' ' || runes[end] == '\n') {
+			starts = append(starts, end+1)
+		}
+	}
+
+	// An end one past the previous end repeats its separator offset.
+	return slices.Compact(starts)
 }
