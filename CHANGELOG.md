@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Accept a password without a username by @nicholas-fedor in [#1690](https://github.com/nicholas-fedor/shoutrrr/pull/1690)
 - Keep rich sends within discord's embed limits by @nicholas-fedor in [#1683](https://github.com/nicholas-fedor/shoutrrr/pull/1683)
 - Report rejected qos 1 publishes as PublishError by @nicholas-fedor in [#1681](https://github.com/nicholas-fedor/shoutrrr/pull/1681)
 - Send every rich item and stop waiting after the last retry by @nicholas-fedor in [#1679](https://github.com/nicholas-fedor/shoutrrr/pull/1679)
