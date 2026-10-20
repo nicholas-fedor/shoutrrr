@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update go toolchain directive to v1.27.3 by @renovate[bot] in [#1688](https://github.com/nicholas-fedor/shoutrrr/pull/1688)
+- Update dependency certifi to v2026.10.19 by @renovate[bot] in [#1687](https://github.com/nicholas-fedor/shoutrrr/pull/1687)
 - Update dependency markdown to v3.11.2 by @renovate[bot] in [#1677](https://github.com/nicholas-fedor/shoutrrr/pull/1677)
 - Update emqx/emqx:latest docker digest to 96dd9ea by @renovate[bot] in [#1671](https://github.com/nicholas-fedor/shoutrrr/pull/1671)
 - Update step-security/harden-runner action to v2.22.2 by @renovate[bot] in [#1672](https://github.com/nicholas-fedor/shoutrrr/pull/1672)
