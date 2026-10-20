@@ -568,17 +568,14 @@ func (s *Service) openConnectionLocked(config *Config) error {
 		},
 	}
 
-	// Set authentication credentials if username is provided
+	// Set the credentials the URL carries. MQTT v5 allows a password without a
+	// username, which brokers use for credentials such as tokens.
 	if config.Username != "" {
 		cliCfg.ConnectUsername = config.Username
+	}
 
-		// Set password if provided alongside username
-		if config.Password != "" {
-			cliCfg.ConnectPassword = []byte(config.Password)
-		}
-	} else if config.Password != "" {
-		// Password without username creates invalid MQTT auth state
-		s.Log("Warning: Password provided without username; skipping password authentication")
+	if config.Password != "" {
+		cliCfg.ConnectPassword = []byte(config.Password)
 	}
 
 	// Configure TLS based on scheme and DisableTLS setting
