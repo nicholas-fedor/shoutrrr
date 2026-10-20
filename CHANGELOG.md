@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send each mention as its own list entry by @nicholas-fedor in [#1697](https://github.com/nicholas-fedor/shoutrrr/pull/1697)
 - Validate the webhook key from every source by @nicholas-fedor in [#1694](https://github.com/nicholas-fedor/shoutrrr/pull/1694)
 - Keep a topic's leading slash in the config url by @nicholas-fedor in [#1692](https://github.com/nicholas-fedor/shoutrrr/pull/1692)
 - Accept a password without a username by @nicholas-fedor in [#1690](https://github.com/nicholas-fedor/shoutrrr/pull/1690)
