@@ -23,7 +23,9 @@ The following adds webhook-specific information:
     ```
 
 !!! note
-    Header names are normalized to HTTP header format (e.g., `acceptlanguage` becomes `Accept-Language`).
+    Header names are normalized to HTTP header format.
+    A capital letter after a lowercase letter or a digit starts a new word, so `acceptLanguage` becomes `Accept-Language`, and the first letter of each word is capitalized, so `x-api-key` becomes `X-Api-Key`.
+    Acronyms, digits, and other characters are kept as written, so `X-API-Key` stays `X-API-Key`, while an all-lowercase name such as `acceptlanguage` becomes `Acceptlanguage`.
 
 ## JSON template
 

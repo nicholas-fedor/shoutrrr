@@ -16,25 +16,45 @@ const (
 	HeaderCapacityFactor = 2         // Estimated capacity multiplier for header string builder
 )
 
-// normalizedHeaderKey converts a header key to HTTP header format (e.g., "ContentType" -> "content-type").
+// normalizedHeaderKey converts a header key from a URL to HTTP header format.
+//
+// A capital that follows a lowercase letter or a digit starts a new word, so
+// "acceptLanguage" becomes "Accept-Language". The first letter of each word is
+// capitalized when it is a lowercase ASCII letter. Acronyms, digits, and other
+// characters stay as written, so "X-API-Key" and "x-1st" keep their words.
+//
+// Parameters:
+//   - key: the header key, without its @ prefix.
+//
+// Returns:
+//   - string: the header key in HTTP header format.
 func normalizedHeaderKey(key string) string {
 	stringBuilder := strings.Builder{}
 	// Pre-allocate capacity for efficiency
 	stringBuilder.Grow(len(key) * HeaderCapacityFactor)
 
-	for i, c := range key {
-		if UppercaseA <= c && c <= UppercaseZ {
-			// If character is uppercase
-			if i > 0 && key[i-1] != DashChar {
-				// Add dash before uppercase if not after dash
-				stringBuilder.WriteRune(DashChar)
-			}
-		} else if i == 0 || key[i-1] == DashChar {
-			// First char or after dash: convert to lowercase
-			c -= CaseOffset
+	// previous is the input rune before c, as written rather than capitalized,
+	// or 0 at the start of the key.
+	var previous rune
+
+	for _, c := range key {
+		isUpper := UppercaseA <= c && c <= UppercaseZ
+		followsLowerOrDigit := 'a' <= previous && previous <= 'z' || '0' <= previous && previous <= '9'
+
+		switch {
+		case isUpper && followsLowerOrDigit:
+			// A capital after a lowercase letter or digit starts a camelCase word.
+			stringBuilder.WriteRune(DashChar)
+			stringBuilder.WriteRune(c)
+		case 'a' <= c && c <= 'z' && (previous == 0 || previous == DashChar):
+			// The first letter of a word is capitalized.
+			stringBuilder.WriteRune(c - CaseOffset)
+		default:
+			// Any other character is kept as written.
+			stringBuilder.WriteRune(c)
 		}
 
-		stringBuilder.WriteRune(c)
+		previous = c
 	}
 
 	return stringBuilder.String()

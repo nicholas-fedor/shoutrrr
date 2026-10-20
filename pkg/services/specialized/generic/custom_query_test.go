@@ -8,8 +8,9 @@ import (
 )
 
 // TestNormalizedHeaderKey verifies that header keys from the URL are written
-// in canonical HTTP form: each word capitalized, with a dash before each
-// uppercase letter that does not follow a dash.
+// in HTTP form: the first letter of each word capitalized, with a dash before
+// a capital that follows a lowercase letter or a digit, so camelCase keys gain
+// dashes while acronyms, digits, and other characters stay as written.
 func TestNormalizedHeaderKey(t *testing.T) {
 	t.Parallel()
 
@@ -22,7 +23,19 @@ func TestNormalizedHeaderKey(t *testing.T) {
 		{key: "Authorization", want: "Authorization"},
 		{key: "contentType", want: "Content-Type"},
 		{key: "x-custom-header", want: "X-Custom-Header"},
-		{key: "X-Request-ID", want: "X-Request-I-D"},
+		{key: "X-Request-ID", want: "X-Request-ID"},
+		{key: "X-API-Key", want: "X-API-Key"},
+		{key: "acceptLanguage", want: "Accept-Language"},
+		{key: "acceptlanguage", want: "Acceptlanguage"},
+		{key: "xApiKey", want: "X-Api-Key"},
+		{key: "x-aB", want: "X-A-B"},
+		{key: "x-1st-header", want: "X-1st-Header"},
+		{key: "v2Token", want: "V2-Token"},
+		{key: "0abc", want: "0abc"},
+		{key: "X-Custom_Header", want: "X-Custom_Header"},
+		{key: "x--y", want: "X--Y"},
+		{key: "-leading", want: "-Leading"},
+		{key: "día-ñandú", want: "Día-ñandú"},
 	}
 
 	for _, tt := range tests {
