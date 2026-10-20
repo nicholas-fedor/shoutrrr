@@ -36,9 +36,7 @@ const skipUnbracketedIPv6Host = "a host with several colons and no brackets come
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{
-	"googlechat": "Google Chat accepts a URL without key and token, but GetURL writes them empty, which SetURL rejects",
 	"gotify":     "Gotify accepts a URL without a host, and GetURL then writes the token as the host",
-	"hangouts":   "Google Chat accepts a URL without key and token, but GetURL writes them empty, which SetURL rejects",
 	"ntfy":       "ntfy accepts a topic that starts with a slash, which GetURL writes as the path's own slash",
 	"opsgenie":   "Opsgenie accepts an entity without an identifier, such as user:, which GetURL writes as <ERR>",
 	"rocketchat": "Rocket.Chat accepts a URL without a host, but rejects the URL GetURL writes for it",
@@ -157,6 +155,7 @@ func addRouterSeeds(f *testing.F, schemes []string) {
 	add("mqtt", "://broker.example.invalid//home/alerts")
 	add("wecom", "://key?key=other-key_2&mentioned_list=@all")
 	add("generic", "://example.invalid/hook?@X-API-Key=key&@x-1st=first&@acceptLanguage=tlh")
+	add("hangouts", ":///v1/spaces/FOO/messages?key=k&token=t")
 }
 
 // userinfoSecrets returns the username and password of rawURL that carry

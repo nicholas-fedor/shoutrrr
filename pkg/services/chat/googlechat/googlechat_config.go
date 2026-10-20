@@ -21,6 +21,8 @@ type Config struct {
 
 const (
 	Scheme = "googlechat"
+	// DefaultHost is the Google Chat API host a URL without a host uses.
+	DefaultHost = "chat.googleapis.com"
 )
 
 // Static error definitions.
@@ -58,6 +60,18 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
+//
+// Google Chat webhook URLs always carry a key and a token, so both are
+// required. A URL without a host uses [DefaultHost]. The documentation dummy
+// URL, <scheme>://dummy@dummy.com, is accepted without them.
+//
+// Parameters:
+//   - types.ConfigQueryResolver: unused.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrMissingKey] or [ErrMissingToken] when the URL lacks the key or
+//     the token, or has it empty.
 func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
 	c.Path = serviceURL.Path
@@ -66,12 +80,19 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Key = query.Get("key")
 	c.Token = query.Get("token")
 
-	// Only enforce if explicitly provided but empty
-	if query.Has("key") && c.Key == "" {
+	if serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com" {
+		return nil
+	}
+
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Key == "" {
 		return ErrMissingKey
 	}
 
-	if query.Has("token") && c.Token == "" {
+	if c.Token == "" {
 		return ErrMissingToken
 	}
 
