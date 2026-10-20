@@ -7,7 +7,7 @@ MQTT is a lightweight messaging protocol for small sensors and mobile devices, i
 - __QoS Levels__: Support for Quality of Service levels 0 (at most once), 1 (at least once), and 2 (exactly once)
 - __Retained Messages__: Messages can be retained by the broker for new subscribers
 - __TLS/SSL Support__: Secure connections via the `mqtts://` scheme
-- __Authentication__: Username/password authentication
+- __Authentication__: Username and password, username only, or password only (such as an access token), as MQTT v5 allows
 - __Clean Session__: Control whether the broker maintains session state
 - __Managed Connection__: The first send connects to the broker, later sends reuse the connection, and an idle connection is closed after 60 seconds
 
@@ -31,12 +31,12 @@ The MQTT service supports two URL schemes for connection security:
 - __`mqtt://`__: Standard unencrypted connection (port 1883 by default)
 
 !!! Info ""
-    mqtt://[__`username`__[:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
+    mqtt://[[__`username`__][:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
 
 - __`mqtts://`__: TLS-encrypted connection (port 8883 by default)
 
 !!! Info ""
-    mqtts://[__`username`__[:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
+    mqtts://[[__`username`__][:__`password`__]@]__`host`__[:__`port`__]/__`topic`__
 
 --8<-- "docs/services/push/mqtt/config.md"
 

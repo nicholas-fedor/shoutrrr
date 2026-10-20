@@ -28,8 +28,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigGetURL verifies that GetURL encodes every field in the URL, omits
-// absent credentials and settings at their defaults, and refuses a password
-// without a username.
+// absent credentials and settings at their defaults, and keeps a password
+// without a username so that SetURL restores it.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +107,19 @@ func TestConfigGetURL(t *testing.T) {
 	t.Run("password without username", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Nil(t, (&Config{Host: "broker.example.com", Port: 1883, Topic: "t", Password: "secret", ClientID: "shoutrrr"}).GetURL())
+		config := &Config{Host: "broker.example.com", Port: 1883, Topic: "t", Password: "secret", ClientID: "shoutrrr"}
+		result := config.GetURL()
+		require.NotNil(t, result)
+		assert.Empty(t, result.User.Username())
+
+		password, hasPassword := result.User.Password()
+		assert.True(t, hasPassword)
+		assert.Equal(t, "secret", password)
+
+		restored := &Config{}
+		require.NoError(t, restored.SetURL(result))
+		assert.Empty(t, restored.Username)
+		assert.Equal(t, "secret", restored.Password)
 	})
 
 	t.Run("exactly once QoS", func(t *testing.T) {

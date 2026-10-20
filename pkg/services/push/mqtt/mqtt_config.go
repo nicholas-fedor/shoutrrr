@@ -171,8 +171,8 @@ func (c *Config) Enums() map[string]types.EnumFormatter {
 // The URL contains all configuration values and can be used to recreate
 // an identical service configuration.
 //
-// Returns a *url.URL in the format: mqtt://[user:pass@]host:port/topic?options
-// Returns nil if credential validation fails (password without username).
+// Returns:
+//   - *url.URL: the URL in the format mqtt://[user][:pass]@host:port/topic?options.
 func (c *Config) GetURL() *url.URL {
 	// Create a new property key resolver for building the query string
 	resolver := format.NewPropKeyResolver(c)
@@ -202,11 +202,15 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// ValidateCredentials validates that the configuration has valid credentials.
-// Returns an error if a password is provided without a username, as this
-// combination is invalid for URL-based authentication.
+// ValidateCredentials reports whether the configuration has a password without
+// a username. It is kept for compatibility, and the service never calls it.
 //
-// Returns nil if credentials are valid or no credentials are provided.
+// Deprecated: MQTT v5 allows a password without a username, which the service
+// sends and [Config.GetURL] keeps, so callers do not need to check for it.
+//
+// Returns:
+//   - error: [ErrPasswordWithoutUsername] for a password without a username,
+//     kept for compatibility even though the service accepts one, otherwise nil.
 func (c *Config) ValidateCredentials() error {
 	if c.Password != "" && c.Username == "" {
 		return ErrPasswordWithoutUsername
@@ -221,14 +225,9 @@ func (c *Config) ValidateCredentials() error {
 // Parameters:
 //   - resolver: The query resolver to use for building the URL query string
 //
-// Returns a complete URL representing the current configuration.
-// Returns nil if password is provided without username.
+// Returns:
+//   - *url.URL: the URL representing the current configuration.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	// Validate credentials before building the URL
-	if err := c.ValidateCredentials(); err != nil {
-		return nil
-	}
-
 	// Build the base URL with scheme, host:port, and topic path
 	scheme := Scheme
 	if c.scheme == SchemeTLS {
@@ -243,15 +242,12 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		RawQuery:   format.BuildQuery(resolver),
 	}
 
-	// Add user credentials if authentication is configured
-	if c.Username != "" {
-		if c.Password != "" {
-			// Include both username and password in the URL
-			result.User = url.UserPassword(c.Username, c.Password)
-		} else {
-			// Username only (no password)
-			result.User = url.User(c.Username)
-		}
+	// Add user credentials if authentication is configured. A password may
+	// stand alone, since MQTT v5 allows a password without a username.
+	if c.Password != "" {
+		result.User = url.UserPassword(c.Username, c.Password)
+	} else if c.Username != "" {
+		result.User = url.User(c.Username)
 	}
 
 	return result

@@ -40,8 +40,11 @@ var (
 	// ErrNoDialContext is returned when a custom connection attempt runs without a dialer.
 	ErrNoDialContext = errors.New("custom dial context is not configured")
 
-	// ErrPasswordWithoutUsername is returned when a password is provided without a username.
-	// Password credentials require a username to be included in the URL.
+	// ErrPasswordWithoutUsername is returned by the deprecated
+	// [Config.ValidateCredentials] for a password without a username.
+	//
+	// Deprecated: MQTT v5 allows a password without a username, so nothing
+	// in the service rejects it.
 	ErrPasswordWithoutUsername = errors.New(
 		"password provided without username: username is required when using password authentication",
 	)

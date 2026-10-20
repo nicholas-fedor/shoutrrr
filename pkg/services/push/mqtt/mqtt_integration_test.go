@@ -598,7 +598,8 @@ func TestIntegrationInitializeErrors(t *testing.T) {
 
 // TestIntegrationBrokerConnect verifies that the first send dials the URL's
 // broker address and connects with the client identifier, session setting, and
-// percent-decoded credentials from the URL.
+// percent-decoded credentials from the URL, including a password without a
+// username, which MQTT v5 allows.
 func TestIntegrationBrokerConnect(t *testing.T) {
 	t.Parallel()
 
@@ -633,6 +634,12 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 				clientID: "shoutrrr", cleanStart: true,
 				username: "user@domain", usernameFlag: true, password: "pass@word", passwordFlag: true,
 			},
+		},
+		{
+			name:     "password without username",
+			rawURL:   "mqtt://:token@broker.example.invalid/test/topic",
+			wantAddr: "broker.example.invalid:1883",
+			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true, password: "token", passwordFlag: true},
 		},
 		{
 			name:     "username only",
