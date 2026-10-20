@@ -212,17 +212,23 @@ func TestIntegrationPublish(t *testing.T) {
 
 // TestIntegrationPublishReasonCodes verifies that a publish response with a
 // failure reason code fails the send with a PublishError that carries the code
-// and reason string, and that a success or warning code does not.
+// and reason string, including when the client also returns an error, as paho
+// does for a rejected QoS 1 PUBACK, and that a success or warning code does
+// not. A QoS 2 PUBCOMP with Packet Identifier not found completes a publish
+// whose PUBREL was resent after a reconnect, which MQTT v5 does not treat as an
+// error during recovery.
 func TestIntegrationPublishReasonCodes(t *testing.T) {
 	t.Parallel()
 
-	// tests lists reason codes and reason strings from the broker, with
-	// whether the send should fail.
+	// tests lists reason codes, reason strings, and client errors from the
+	// publish, with whether the send should fail.
 	tests := []struct {
-		name     string
-		reason   string
-		code     byte
-		wantFail bool
+		publishErr   error
+		name         string
+		reason       string
+		code         byte
+		wantFail     bool
+		noProperties bool
 	}{
 		{name: "success", code: 0x00},
 		{name: "granted QoS 1", code: 0x01},
@@ -236,6 +242,21 @@ func TestIntegrationPublishReasonCodes(t *testing.T) {
 		{name: "client identifier not valid", code: 0x85, reason: "Client Identifier not valid", wantFail: true},
 		{name: "bad user name or password", code: 0x86, reason: "Bad User Name or Password", wantFail: true},
 		{name: "not authorized", code: 0x87, reason: "Not authorized", wantFail: true},
+		{
+			name:       "not authorized with the client's error",
+			code:       0x87,
+			reason:     "Not authorized",
+			publishErr: errors.New("error publishing: The PUBLISH is not authorized."),
+			wantFail:   true,
+		},
+		{name: "failure without properties", code: 0x80, noProperties: true, wantFail: true},
+		{name: "packet identifier not found in a recovered QoS 2 PUBCOMP", code: 0x92},
+		{
+			name:       "packet identifier not found with the client's error",
+			code:       0x92,
+			publishErr: errors.New("error publishing: Packet Identifier not found"),
+			wantFail:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -244,10 +265,16 @@ func TestIntegrationPublishReasonCodes(t *testing.T) {
 
 			manager := mocks.NewMockConnectionManager(t)
 			manager.EXPECT().AwaitConnection(mock.Anything).Return(nil).Once()
-			manager.EXPECT().Publish(mock.Anything, mock.Anything).Return(&paho.PublishResponse{
+
+			response := &paho.PublishResponse{
 				ReasonCode: tt.code,
 				Properties: &paho.PublishResponseProperties{ReasonString: tt.reason},
-			}, nil).Once()
+			}
+			if tt.noProperties {
+				response.Properties = nil
+			}
+
+			manager.EXPECT().Publish(mock.Anything, mock.Anything).Return(response, tt.publishErr).Once()
 
 			service := newMockedService(t, mockBrokerURL, manager)
 
@@ -705,22 +732,18 @@ func TestIntegrationBrokerPublish(t *testing.T) {
 }
 
 // TestIntegrationBrokerRejects verifies that a publish the broker rejects in
-// its acknowledgement fails the send. A QoS 2 rejection arrives in the PUBREC
-// response, so the send fails with a PublishError that carries the broker's
-// reason code and reason string. The paho client reports a rejected QoS 1
-// PUBACK as its own error, so that row checks only that the send fails.
+// its PUBACK for QoS 1 or its PUBREC for QoS 2 fails the send with a
+// PublishError that carries the broker's reason code and reason string.
 func TestIntegrationBrokerRejects(t *testing.T) {
 	t.Parallel()
 
-	// tests lists QoS levels with whether the send error should be a
-	// PublishError.
+	// tests lists the QoS levels whose acknowledgement the broker rejects.
 	tests := []struct {
-		name             string
-		query            string
-		wantPublishError bool
+		name  string
+		query string
 	}{
 		{name: "QoS 1", query: "?qos=1"},
-		{name: "QoS 2", query: "?qos=2", wantPublishError: true},
+		{name: "QoS 2", query: "?qos=2"},
 	}
 
 	for _, tt := range tests {
@@ -732,11 +755,6 @@ func TestIntegrationBrokerRejects(t *testing.T) {
 				service := newBrokerService(t, pipeBrokerURL+tt.query, broker)
 
 				err := service.Send("denied", nil)
-				require.Error(t, err)
-
-				if !tt.wantPublishError {
-					return
-				}
 
 				publishErr, ok := errors.AsType[mqtt.PublishError](err)
 				require.True(t, ok, "error %v is not a PublishError", err)
