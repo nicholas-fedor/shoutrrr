@@ -2969,7 +2969,9 @@ This is implemented through Shoutrrr's PartitionMessage utility and is not a Dis
 </div>
 <h2 id="enhanced_embeds">Enhanced Embeds<a class="headerlink" href="#enhanced_embeds" title="Permanent link">&para;</a></h2>
 <p>Shoutrrr supports rich embed formatting with authors, images, thumbnails, and custom fields when using the Go library API. Embeds are automatically created when using structured message items with metadata. For detailed information about embed objects, refer to Discord's <a href="https://discord.com/developers/docs/resources/channel#embed-object">embed documentation</a>.</p>
-<p>Discord accepts at most 10 embeds in one message, so items past the tenth are sent in further messages of up to 10 embeds each, with each item's file attached to the message that carries its embed.</p>
+<p>Discord accepts at most 10 embeds in one message, with at most 6000 characters across their titles, descriptions, fields, footers, and author names, so items that do not fit are sent in further messages, with each item's file attached to the message that carries its embed.
+Text longer than Discord allows in an embed is shortened and ends with <code>[...]</code>: 256 characters for a title, field name, or author name, 4096 for a description, and 1024 for a field value, and fields past the 25th are left out.
+An item still over 6000 characters on its own loses fields from the end, then has its description shortened.</p>
 <div class="admonition note">
 <p>Enhanced embed features are only available through the Go library API using <code>SendItems</code> with <code>MessageItem</code> structs containing metadata. The CLI does not support embed parameters.</p>
 </div>
@@ -3091,7 +3093,7 @@ discord://W3dE2OZz4C13_4z_uHfDOoC7BqTW288s-z1ykqI0iJnY_HjRqMGO8Sc7YDqvf_KVKjhJ@6
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 19, 2026 23:41:21 UTC"><span class="timeago" datetime="2026-10-19T23:41:21+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 19, 2026 23:41:21 UTC">2026-10-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 20, 2026 01:35:02 UTC"><span class="timeago" datetime="2026-10-20T01:35:02+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 20, 2026 01:35:02 UTC">2026-10-20</span>
   </span>
 
     
