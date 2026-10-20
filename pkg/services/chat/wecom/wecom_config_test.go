@@ -47,6 +47,46 @@ func TestConfigURLRoundTrip(t *testing.T) {
 	assert.Equal(t, fullURL, config.GetURL().String())
 }
 
+// TestConfigURLRoundTripKeepsFields verifies that a config restored from its own
+// URL keeps the key, including one set through the key query parameter, and
+// both mention lists.
+func TestConfigURLRoundTripKeepsFields(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with the config SetURL and a round trip through GetURL
+	// should both produce.
+	tests := []struct {
+		name   string
+		rawURL string
+		want   Config
+	}{
+		{
+			name:   "mention lists",
+			rawURL: fullURL + "?mentioned_list=@all&mentioned_mobile_list=13800001111",
+			want:   Config{Key: testKey, MentionedList: "@all", MentionedMobileList: "13800001111"},
+		},
+		{
+			name:   "key query parameter",
+			rawURL: fullURL + "?key=other-key_2",
+			want:   Config{Key: "other-key_2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+			assert.Equal(t, tt.want, *config)
+
+			restored := &Config{}
+			require.NoError(t, restored.SetURL(config.GetURL()))
+			assert.Equal(t, tt.want, *restored)
+		})
+	}
+}
+
 // TestConfigSetURL verifies the fields SetURL sets from the key, the query
 // parameters, and the documentation dummy URL.
 func TestConfigSetURL(t *testing.T) {
@@ -88,8 +128,9 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects an empty key, a key with
-// invalid characters, and an unknown query parameter, without echoing the
-// rejected key.
+// characters other than letters, digits, hyphens, and underscores, whether in
+// the host or the key query parameter, and an unknown query parameter, without
+// echoing the rejected key.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +141,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 		wantErr error
 	}{
 		{name: "empty key", rawURL: "wecom://", wantErr: ErrEmptyKey},
-		{name: "invalid key characters", rawURL: "wecom://invalid.key", wantErr: ErrInvalidKey},
+		{name: "invalid key characters", rawURL: "wecom://SECRET.key", wantErr: ErrInvalidKey},
+		{name: "tilde in the key", rawURL: "wecom://SECRET~key", wantErr: ErrInvalidKey},
+		{name: "invalid key in the query", rawURL: fullURL + "?key=SECRET.key", wantErr: ErrInvalidKey},
+		{name: "space in the query key", rawURL: fullURL + "?key=SECRET%20key", wantErr: ErrInvalidKey},
+		{name: "empty key in the query", rawURL: fullURL + "?key=", wantErr: ErrEmptyKey},
 		{name: "unknown query parameter", rawURL: fullURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 	}
 
@@ -111,7 +156,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 			err := (&Config{}).SetURL(parseTestURL(t, tt.rawURL))
 
 			require.ErrorIs(t, err, tt.wantErr)
-			assert.NotContains(t, err.Error(), "invalid.key")
+			assert.NotContains(t, err.Error(), "SECRET")
 		})
 	}
 }
