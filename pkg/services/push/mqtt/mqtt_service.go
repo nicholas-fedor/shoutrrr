@@ -227,6 +227,24 @@ func (s *Service) Send(message string, params *types.Params) error {
 			Payload: []byte(message),
 		},
 	)
+	// Per MQTT v5 spec, reason codes >= 0x80 indicate failures that are
+	// returned as a PublishError. The client returns a rejected QoS 2 PUBREC as
+	// a response alone and a rejected QoS 1 PUBACK as a response with an error,
+	// so the response is checked before the error. Packet Identifier not found
+	// without an error comes only from a QoS 2 PUBCOMP, which answers a PUBREL
+	// the client resent after a reconnect. The spec does not treat it as an
+	// error during recovery, and the broker accepted the message in its PUBREC.
+	recovered := err == nil && resp != nil &&
+		resp.ReasonCode == packets.PubcompPacketIdentifierNotFound
+	if resp != nil && IsFailureCode(resp.ReasonCode) && !recovered {
+		publishErr := PublishError{ReasonCode: resp.ReasonCode, ReasonString: ""}
+		if resp.Properties != nil {
+			publishErr.ReasonString = resp.Properties.ReasonString
+		}
+
+		return publishErr
+	}
+
 	if err != nil {
 		return fmt.Errorf(
 			"publishing to MQTT topic %q: %w",
@@ -235,19 +253,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 		)
 	}
 
-	// Handle MQTT v5 reason codes from the publish response.
-	// Per MQTT v5 spec, reason codes >= 0x80 indicate failures that should be
-	// returned as errors, while codes 0x01-0x7F are non-fatal warnings.
+	// Non-fatal codes (> 0 but < 0x80) and a recovered PUBCOMP are logged as
+	// warnings but don't fail
 	if resp != nil && resp.ReasonCode != 0 {
-		if IsFailureCode(resp.ReasonCode) {
-			// Failure codes (>= 0x80) should be returned as errors to the caller
-			return PublishError{
-				ReasonCode:   resp.ReasonCode,
-				ReasonString: resp.Properties.ReasonString,
-			}
-		}
-
-		// Non-fatal codes (> 0 but < 0x80) are logged as warnings but don't fail
 		s.Logf("Warning: Publish completed with reason code %d", resp.ReasonCode)
 	}
 
