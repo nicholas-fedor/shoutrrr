@@ -87,8 +87,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: a validation, params, or send error. A request error matches ctx's
-//     error when ctx ends the request.
+//   - error: a validation, params, or send error, such as [ErrInvalidKey] for a
+//     key param with characters a webhook key cannot have. A request error
+//     matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if len(message) > maxLength {
 		return ErrLargeMessage
@@ -101,6 +102,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	if config.Key == "" {
 		return ErrKeyRequired
+	}
+
+	// A key param replaces the URL's key, so it is validated here as well.
+	if !isValidKey(config.Key) {
+		return ErrInvalidKey
 	}
 
 	return s.doSend(ctx, config, message, params)

@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -376,7 +375,7 @@ func TestSendValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	// tests lists configs, messages, and params with the error each send
-	// should return. A nil wantErr requires a *url.Error instead of a sentinel.
+	// should return.
 	tests := []struct {
 		name    string
 		config  Config
@@ -406,11 +405,18 @@ func TestSendValidationErrors(t *testing.T) {
 			wantErr: ErrKeyRequired,
 		},
 		{
-			name:    "key with a control character",
+			name:    "key param with a control character",
 			config:  Config{Key: testKey},
 			message: "test message",
 			params:  &types.Params{"key": "bad\nkey"},
-			wantMsg: "creating HTTP request",
+			wantErr: ErrInvalidKey,
+		},
+		{
+			name:    "key param that adds a query parameter",
+			config:  Config{Key: testKey},
+			message: "test message",
+			params:  &types.Params{"key": "key&debug=1"},
+			wantErr: ErrInvalidKey,
 		},
 	}
 
@@ -425,12 +431,7 @@ func TestSendValidationErrors(t *testing.T) {
 
 			err := service.Send(tt.message, tt.params)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				var urlErr *url.Error
-				require.ErrorAs(t, err, &urlErr)
-			}
+			require.ErrorIs(t, err, tt.wantErr)
 
 			if tt.wantMsg != "" {
 				require.ErrorContains(t, err, tt.wantMsg)
@@ -457,9 +458,10 @@ func TestSendContextCanceled(t *testing.T) {
 	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 }
 
-// TestSendRedactsUnparsableURL verifies that a key that makes the webhook URL
-// unparsable fails the send without the key in the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidKeyParam verifies that a key param with characters a
+// webhook key cannot have fails the send before any request, without the key
+// in the error.
+func TestSendRejectsInvalidKeyParam(t *testing.T) {
 	t.Parallel()
 
 	// The mock has no expectations, so a request fails the test.
@@ -467,7 +469,6 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", &types.Params{"key": "SECRETkey\x7f"})
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, ErrInvalidKey)
 	assert.NotContains(t, err.Error(), "SECRETkey")
 }

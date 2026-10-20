@@ -156,6 +156,7 @@ func addRouterSeeds(f *testing.F, schemes []string) {
 	add("smtp", "://user:SECRETsmtpPASSWORD@mail.example.invalid:port/")
 	add("mqtt", "://:SECRETmqttPASSWORD@broker.example.invalid/topic")
 	add("mqtt", "://broker.example.invalid//home/alerts")
+	add("wecom", "://key?key=other-key_2&mentioned_list=@all")
 }
 
 // userinfoSecrets returns the username and password of rawURL that carry

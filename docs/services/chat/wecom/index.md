@@ -9,7 +9,7 @@ Send notifications to WeChat Work (Enterprise WeChat) using webhook bots.
 
 --8<-- "docs/services/chat/wecom/config.md"
 
-- `key`: The webhook key from your WeChat Work bot (required).
+- `key`: The webhook key from your WeChat Work bot (required). It consists of letters, digits, hyphens, and underscores, and a `key` query parameter or send param replaces it.
 
 ### Example URL
 
