@@ -261,6 +261,33 @@ func TestSendSuccess(t *testing.T) {
 				MentionedMobileList: []string{"13800001111"},
 			}},
 		},
+		{
+			name:    "several mentioned users",
+			message: "message",
+			params:  &types.Params{"mentioned_list": "wangqing,@all"},
+			wantBody: RequestBody{MsgType: "text", Text: TextContent{
+				Content:       "message",
+				MentionedList: []string{"wangqing", "@all"},
+			}},
+		},
+		{
+			name:    "several mentioned mobile numbers with spaces",
+			message: "message",
+			params:  &types.Params{"mentioned_mobile_list": " 13800001111 , 13900002222 "},
+			wantBody: RequestBody{MsgType: "text", Text: TextContent{
+				Content:             "message",
+				MentionedMobileList: []string{"13800001111", "13900002222"},
+			}},
+		},
+		{
+			name:    "empty mention entries",
+			message: "message",
+			params:  &types.Params{"mentioned_list": "wangqing,, ,", "mentioned_mobile_list": " , "},
+			wantBody: RequestBody{MsgType: "text", Text: TextContent{
+				Content:       "message",
+				MentionedList: []string{"wangqing"},
+			}},
+		},
 	}
 
 	for _, tt := range tests {
