@@ -39,10 +39,12 @@ Official Documentation: [Webhook Bot Guide](https://developer.work.weixin.qq.com
 ### Message Features
 
 - Supports text messages up to 4096 characters
-- Can mention users with `mentioned_list` parameter
-- Can mention users by mobile number with `mentioned_mobile_list` parameter
+- Can mention users by user ID with the `mentioned_list` parameter, or everyone with `@all`
+- Can mention users by mobile number with the `mentioned_mobile_list` parameter
+- Both lists are comma-separated, so one parameter can mention several users
 
 ### Example with Mentions
 
 ```bash
 shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa?mentioned_list=@all" "Alert message"
+shoutrrr send "wecom://693axxx6-7aoc-4bc4-97a0-0ec2sifa5aaa?mentioned_list=wangqing,lisi&mentioned_mobile_list=13800001111" "Alert message"

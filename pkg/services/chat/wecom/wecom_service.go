@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -151,30 +152,49 @@ func (s *Service) doSend(ctx context.Context, config Config, message string, par
 	return s.sendRequest(ctx, postURL, payload)
 }
 
-// getRequestBody constructs the request body for the WeCom API.
+// getRequestBody constructs the request body for the WeCom API, with each
+// comma-separated mention list sent as one entry per user ID or mobile number.
+//
+// Parameters:
+//   - message: the message text.
+//   - config: the configuration for this send.
+//   - *types.Params: unused, because params are already applied to config.
+//
+// Returns:
+//   - *RequestBody: the request body.
 func (s *Service) getRequestBody(
 	message string,
 	config Config,
 	_ *types.Params,
 ) *RequestBody {
-	body := &RequestBody{
+	return &RequestBody{
 		MsgType: "text",
 		Text: TextContent{
-			Content: message,
+			Content:             message,
+			MentionedList:       splitMentions(config.MentionedList),
+			MentionedMobileList: splitMentions(config.MentionedMobileList),
 		},
 	}
+}
 
-	// Handle mentions from config
-	if config.MentionedList != "" {
-		// Parse comma-separated list
-		body.Text.MentionedList = []string{config.MentionedList}
+// splitMentions splits a comma-separated mention list into its entries, with
+// the spaces around each entry trimmed and empty entries left out.
+//
+// Parameters:
+//   - list: the comma-separated user IDs or mobile numbers, which may include @all.
+//
+// Returns:
+//   - []string: the entries, or nil when the list has none.
+func splitMentions(list string) []string {
+	var mentions []string
+
+	for mention := range strings.SplitSeq(list, ",") {
+		if mention = strings.TrimSpace(mention); mention != "" {
+			mentions = append(mentions, mention)
+		}
 	}
 
-	if config.MentionedMobileList != "" {
-		body.Text.MentionedMobileList = []string{config.MentionedMobileList}
-	}
-
-	return body
+	return mentions
 }
 
 // handleResponse processes the API response and checks for errors.
