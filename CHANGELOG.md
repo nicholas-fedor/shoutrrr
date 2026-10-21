@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate topic names and reject empty path segments by @nicholas-fedor in [#1711](https://github.com/nicholas-fedor/shoutrrr/pull/1711)
 - Support ipv6 hosts in services that connect to their host by @nicholas-fedor in [#1709](https://github.com/nicholas-fedor/shoutrrr/pull/1709)
 - Skip validation only for the docs dummy url by @nicholas-fedor in [#1707](https://github.com/nicholas-fedor/shoutrrr/pull/1707)
 - Validate the api key and port and default the host by @nicholas-fedor in [#1705](https://github.com/nicholas-fedor/shoutrrr/pull/1705)
