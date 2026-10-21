@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject entities without an identifier by @nicholas-fedor in [#1703](https://github.com/nicholas-fedor/shoutrrr/pull/1703)
 - Require the key and token and default the host by @nicholas-fedor in [#1701](https://github.com/nicholas-fedor/shoutrrr/pull/1701)
 - Keep acronyms and digits in custom header keys by @nicholas-fedor in [#1699](https://github.com/nicholas-fedor/shoutrrr/pull/1699)
 - Send each mention as its own list entry by @nicholas-fedor in [#1697](https://github.com/nicholas-fedor/shoutrrr/pull/1697)
