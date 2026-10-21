@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -72,11 +73,6 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{ClientKey: "key", Channel: "channel", Type: TypeWARN},
 		},
 		{
-			name:   "port is not part of the channel",
-			rawURL: "signalgrid://key@channel:8080",
-			want:   Config{ClientKey: "key", Channel: "channel", Type: TypeINFO},
-		},
-		{
 			name:   "docs dummy URL",
 			rawURL: dummyServiceURL,
 			want:   Config{ClientKey: "dummy", Channel: "dummy.com", Type: TypeINFO},
@@ -96,7 +92,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without a client
-// key or channel, and a URL with an unknown or invalid query prop.
+// key or channel, a channel token with a port or brackets, and a URL with an
+// unknown or invalid query prop.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +106,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing client key", rawURL: "signalgrid://channel", wantErr: ErrClientKeyMissing},
 		{name: "empty client key", rawURL: "signalgrid://@channel", wantErr: ErrClientKeyMissing},
 		{name: "missing channel", rawURL: "signalgrid://key@", wantErr: ErrChannelMissing},
+		{name: "channel with a port", rawURL: "signalgrid://key@SECRETchannel:8443", wantErr: util.ErrInvalidHost},
+		{name: "channel in brackets", rawURL: "signalgrid://key@[::]", wantErr: util.ErrInvalidHost},
 		{name: "unknown prop", rawURL: "signalgrid://key@channel?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid type", rawURL: "signalgrid://key@channel?type=nope", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid critical", rawURL: "signalgrid://key@channel?critical=maybe", wantErr: format.ErrInvalidBoolValue},

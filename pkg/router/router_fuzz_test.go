@@ -33,16 +33,6 @@ const skipEmptySliceValue = "an empty query value sets a slice key to one empty 
 // config is not meant to be restored from its URL.
 const skipDocsDummyURL = "the documentation dummy URL bypasses validation and is not a real configuration"
 
-// skipIDHostAuthority is the known failure FuzzConfigRoundTrip skips for
-// services that use the URL host as an ID, such as a webhook ID, when the host
-// has brackets or a colon: they read it with url.URL.Hostname, which strips
-// those characters, so the ID changes on every round trip. Fixing it must
-// remove the skip.
-const skipIDHostAuthority = "a service that uses the host as an ID strips its brackets and colons"
-
-// idHostSchemes lists the schemes [skipIDHostAuthority] applies to.
-var idHostSchemes = []string{"ifttt", "pushbullet", "signalgrid"}
-
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{}
@@ -102,10 +92,6 @@ func FuzzConfigRoundTrip(f *testing.F) {
 		rawURL := scheme + rest
 		if isDocsDummyURL(rawURL) {
 			t.Skip(skipDocsDummyURL)
-		}
-
-		if slices.Contains(idHostSchemes, scheme) && hasBracketOrColonHost(rawURL) {
-			t.Skip(skipIDHostAuthority)
 		}
 
 		if hasEmptyQueryValue(rawURL) {
@@ -241,20 +227,6 @@ func hasEmptyQueryValue(rawURL string) bool {
 	}
 
 	return false
-}
-
-// hasBracketOrColonHost reports whether rawURL has a host with a bracket or a
-// colon.
-//
-// Parameters:
-//   - rawURL: the service URL.
-//
-// Returns:
-//   - bool: true when the URL parses and its host has a bracket or a colon.
-func hasBracketOrColonHost(rawURL string) bool {
-	parsed, err := url.Parse(rawURL)
-
-	return err == nil && strings.ContainsAny(parsed.Host, "[]:")
 }
 
 // hasConfig reports whether service has the Config field that

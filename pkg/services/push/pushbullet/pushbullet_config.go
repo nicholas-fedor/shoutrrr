@@ -9,6 +9,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the Pushbullet service.
@@ -67,8 +68,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	targets := strings.Split(path, "/")
 
-	token := serviceURL.Hostname()
+	// The token is the host as written, which cannot hold a port or brackets
+	// that url.URL.Hostname would strip.
+	token := serviceURL.Host
 	if serviceURL.String() != "pushbullet://dummy@dummy.com" {
+		if strings.ContainsAny(token, ":[]") {
+			return fmt.Errorf("access token: %w", util.ErrInvalidHost)
+		}
+
 		if err := validateToken(token); err != nil {
 			return err
 		}

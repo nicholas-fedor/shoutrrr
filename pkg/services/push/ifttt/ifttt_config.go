@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the IFTTT notification service.
@@ -75,14 +77,21 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - error: A query parameter error, a value field error from
+//   - error: [util.ErrInvalidHost] for a webhook ID with a colon or brackets, a
+//     query parameter error, a value field error from
 //     [Config.validateValueFields], [ErrMissingEvents], or [ErrMissingWebhookID].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if c.UseMessageAsValue == DisabledValue {
 		c.UseMessageAsValue = DefaultMessageValue
 	}
 
-	c.WebHookID = serviceURL.Hostname()
+	// The webhook ID is the host as written, which cannot hold a port or brackets
+	// that url.URL.Hostname would strip.
+	if strings.ContainsAny(serviceURL.Host, ":[]") {
+		return fmt.Errorf("webhook ID: %w", util.ErrInvalidHost)
+	}
+
+	c.WebHookID = serviceURL.Host
 
 	for key, vals := range serviceURL.Query() {
 		if err := resolver.Set(key, vals[0]); err != nil {
