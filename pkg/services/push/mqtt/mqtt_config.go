@@ -331,8 +331,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	// Validate that a topic was provided (skip for dummy URL used in docs generation)
-	if serviceURL.String() != "mqtt://dummy@dummy.com" {
+	// Validate that a topic was provided (skip for the dummy URL used in docs
+	// generation, with either scheme)
+	if serviceURL.String() != serviceURL.Scheme+"://dummy@dummy.com" {
 		if c.Topic == "" {
 			return ErrTopicRequired
 		}
