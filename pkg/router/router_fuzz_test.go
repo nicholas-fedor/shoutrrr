@@ -44,7 +44,6 @@ const skipDocsDummyURL = "the documentation dummy URL bypasses validation and is
 var roundTripAllowlist = map[string]string{
 	"gotify":     "Gotify accepts a URL without a host, and GetURL then writes the token as the host",
 	"ntfy":       "ntfy accepts a topic that starts with a slash, which GetURL writes as the path's own slash",
-	"opsgenie":   "Opsgenie accepts an empty API key, port 0, and no host, which GetURL writes as a URL that restores port 443",
 	"rocketchat": "Rocket.Chat accepts a URL without a host, but rejects the URL GetURL writes for it",
 	"signal":     "Signal keeps the port in the host when the URL has no hostname, so GetURL writes a host such as [:0]:0",
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -33,10 +34,17 @@ type Config struct {
 const (
 	defaultPort = 443        // defaultPort is the default port for OpsGenie API connections.
 	Scheme      = "opsgenie" // Scheme is the identifying part of this service's configuration URL.
+	// DefaultHost is the OpsGenie API host a URL without a host uses.
+	DefaultHost = "api.opsgenie.com"
 )
 
-// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
-var ErrAPIKeyMissing = errors.New("API key missing from config URL path")
+// Errors for an invalid config URL.
+var (
+	// ErrAPIKeyMissing indicates that the API key is missing from the config URL path.
+	ErrAPIKeyMissing = errors.New("API key missing from config URL path")
+	// ErrInvalidPort indicates a port that is not a number from 1 to 65535.
+	ErrInvalidPort = errors.New("invalid port")
+)
 
 // Enums returns an empty map because the OpsGenie service doesn't use Enums.
 func (c *Config) Enums() map[string]types.EnumFormatter {
@@ -77,14 +85,29 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// A URL without a host uses [DefaultHost], and one without a port uses 443.
+// The documentation dummy URL is accepted without an API key.
+//
+// Parameters:
+//   - resolver: the resolver that sets the alert props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrAPIKeyMissing] for a missing or empty API key,
+//     [ErrInvalidPort] for a port that is not a number from 1 to 65535, or a
+//     query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Hostname()
 
 	if serviceURL.String() != "opsgenie://dummy@dummy.com" {
-		if serviceURL.Path != "" {
-			c.APIKey = serviceURL.Path[1:]
-		} else {
+		c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
+		if c.APIKey == "" {
 			return ErrAPIKeyMissing
+		}
+
+		if c.Host == "" {
+			c.Host = DefaultHost
 		}
 	}
 
@@ -95,7 +118,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 			16,
 		)
 		if err != nil {
-			return fmt.Errorf("parsing port %q: %w", serviceURL.Port(), err)
+			return fmt.Errorf("%w %q: %w", ErrInvalidPort, serviceURL.Port(), err)
+		}
+
+		if port == 0 {
+			return fmt.Errorf("%w %q", ErrInvalidPort, serviceURL.Port())
 		}
 
 		c.Port = uint16(port)

@@ -36,7 +36,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigSetURL verifies that SetURL reads the host and port, the API key
-// from the path, and the alert props from the query.
+// from the path, and the alert props from the query, and applies the default
+// host when the URL omits it.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +51,16 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "host and API key",
 			rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey,
 			want:   Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey},
+		},
+		{
+			name:   "omitted host",
+			rawURL: "opsgenie:///" + testAPIKey,
+			want:   Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey},
+		},
+		{
+			name:   "omitted host with a port",
+			rawURL: "opsgenie://:8443/" + testAPIKey,
+			want:   Config{Host: "api.opsgenie.com", Port: 8443, APIKey: testAPIKey},
 		},
 		{
 			name:   "port",
@@ -106,7 +117,7 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without an API
-// key, a port above 65535, an unknown query prop, an invalid responder, and a
+// key or with an empty one, port 0 or a port above 65535, an unknown query prop, an invalid responder, and a
 // responder or visibleTo entry without an identifier.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
@@ -119,7 +130,9 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "missing API key", rawURL: "opsgenie://api.opsgenie.com", wantErr: ErrAPIKeyMissing},
-		{name: "port out of range", rawURL: "opsgenie://api.opsgenie.com:70000/" + testAPIKey},
+		{name: "empty API key", rawURL: "opsgenie://api.opsgenie.com/", wantErr: ErrAPIKeyMissing},
+		{name: "port zero", rawURL: "opsgenie://api.opsgenie.com:0/" + testAPIKey, wantErr: ErrInvalidPort},
+		{name: "port out of range", rawURL: "opsgenie://api.opsgenie.com:70000/" + testAPIKey, wantErr: ErrInvalidPort},
 		{name: "unknown prop", rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{
 			name:    "responder without a type",

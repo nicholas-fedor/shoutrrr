@@ -20,6 +20,7 @@
 
 The host can be either api.opsgenie.com or api.eu.opsgenie.com depending on the location of your instance. See
 the [OpsGenie documentation](https://docs.opsgenie.com/docs/alert-api) for details.
+The host can be left out, as in `opsgenie:///API_KEY`, in which case `api.opsgenie.com` is used.
 
 ```url
 opsgenie://api.opsgenie.com/eb243592-faa2-4ba2-a551q-1afdf565c889
