@@ -23,7 +23,9 @@ Ntfy supports both the public [ntfy.sh](https://ntfy.sh) service and self-hosted
     ntfy://my-ntfy-server.com:8080/mytopic
     ```
 
-Topics are user-defined and can be any string. If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
+Topic names may contain up to 64 letters, digits, underscores, and dashes, as ntfy [requires](https://docs.ntfy.sh/publish/#picking-a-topic).
+For a server behind a reverse proxy, put its base path before the topic, as in `ntfy://example.com/ntfy/mytopic`.
+If your ntfy server requires authentication, put a username and password in the URL, or pass an [access token](https://docs.ntfy.sh/publish/#access-tokens) with the `token` query parameter.
 
 !!! note
     Shoutrrr sends the token as `Authorization: Bearer <token>`. If you set both a token and a username or password, the token wins and Shoutrrr skips Basic auth.

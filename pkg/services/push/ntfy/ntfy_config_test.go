@@ -2,6 +2,7 @@ package ntfy
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,9 @@ const (
 	testEndpoint = "https://ntfy.sh/" + testTopic
 	// testToken is an ntfy access token.
 	testToken = "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+	// longTopic is a topic of the 64 characters ntfy allows, using every kind
+	// of character a topic name may contain.
+	longTopic = "Alerts_2026-" + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -120,6 +124,11 @@ func TestConfigSetURL(t *testing.T) {
 			want:   defaultConfig(func(c *Config) { c.Host = "ntfy.example.com:8080" }),
 		},
 		{
+			name:   "topic of 64 characters with dashes and underscores",
+			rawURL: "ntfy://ntfy.sh/" + longTopic,
+			want:   defaultConfig(func(c *Config) { c.Topic = longTopic }),
+		},
+		{
 			name:   "nested topic",
 			rawURL: "ntfy://ntfy.example.com/ntfy/" + testTopic,
 			want:   defaultConfig(func(c *Config) { c.Host, c.Topic = "ntfy.example.com", "ntfy/"+testTopic }),
@@ -189,8 +198,10 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL requires a topic and rejects
-// query values that do not set a config property.
+// TestConfigSetURLErrors verifies that SetURL requires a topic, rejects a
+// topic name outside ntfy's rule and a path with an empty segment, without
+// echoing the topic, and rejects query values that do not set a config
+// property.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +213,13 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}{
 		{name: "no topic", rawURL: "ntfy://ntfy.sh", wantErr: ErrTopicRequired},
 		{name: "no topic with a slash", rawURL: "ntfy://ntfy.sh/", wantErr: ErrTopicRequired},
+		{name: "only slashes", rawURL: "ntfy://ntfy.sh//", wantErr: ErrInvalidTopic},
+		{name: "leading empty segment", rawURL: "ntfy://ntfy.sh//SECRETtopic", wantErr: ErrInvalidTopic},
+		{name: "empty base path segment", rawURL: "ntfy://ntfy.sh/ntfy//SECRETtopic", wantErr: ErrInvalidTopic},
+		{name: "trailing slash", rawURL: "ntfy://ntfy.sh/SECRETtopic/", wantErr: ErrInvalidTopic},
+		{name: "space in the topic", rawURL: "ntfy://ntfy.sh/SECRET%20topic", wantErr: ErrInvalidTopic},
+		{name: "dot in the topic", rawURL: "ntfy://ntfy.sh/SECRET.topic", wantErr: ErrInvalidTopic},
+		{name: "topic over 64 characters", rawURL: "ntfy://ntfy.sh/SECRET" + strings.Repeat("a", 59), wantErr: ErrInvalidTopic},
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid priority", rawURL: testServiceURL + "?priority=extreme", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?cache=maybe", wantErr: format.ErrInvalidBoolValue},
@@ -211,7 +229,10 @@ func TestConfigSetURLErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.ErrorIs(t, newDefaultConfig(t).SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+			err := newDefaultConfig(t).SetURL(parseTestURL(t, tt.rawURL))
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.NotContains(t, err.Error(), "SECRET")
 		})
 	}
 }
