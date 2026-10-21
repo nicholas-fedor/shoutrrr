@@ -122,10 +122,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a query prop error, or [ErrAPIKeyMissing] when neither the host
-//     nor the query sets an API key.
+//   - error: a query prop error, or [ErrAPIKeyMissing] when neither the host,
+//     other than a port alone, nor the query sets an API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
+
+	// A port alone, as in notifiarr://:8080, is not an API key.
+	if serviceURL.Hostname() == "" {
+		c.APIKey = ""
+	}
 
 	// Set config properties from query
 	serviceQuery := serviceURL.Query()
