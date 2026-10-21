@@ -384,6 +384,8 @@ func TestSendContextErrors(t *testing.T) {
 	}{
 		{name: "unknown param", params: &types.Params{"foo": "bar"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid responder", params: &types.Params{"responders": "NOC"}, wantErr: ErrInvalidEntityFormat},
+		{name: "responder without an identifier", params: &types.Params{"responders": "team:"}, wantErr: ErrMissingEntityIdentity},
+		{name: "visibleTo entry without an identifier", params: &types.Params{"visibleTo": "user:"}, wantErr: ErrMissingEntityIdentity},
 		{name: "escalation name in visibleTo", params: &types.Params{"visibleTo": "escalation:Nightwatch Escalation"}, wantErr: ErrUnexpectedEntityType},
 		{
 			name:    "schedule ID in visibleTo",
