@@ -128,7 +128,8 @@ func (c *Config) parseAuth(serviceURL *url.URL) {
 //
 // Returns:
 //   - error: [util.ErrInvalidHost] or [util.ErrInvalidPort] for an authority
-//     that does not split into a hostname and port.
+//     that does not split into a hostname and port, or a parse error for a
+//     port above 65535.
 func (c *Config) parseHostPort(serviceURL *url.URL) error {
 	host, portStr, err := util.SplitURLHost(serviceURL)
 	if err != nil {
@@ -141,9 +142,12 @@ func (c *Config) parseHostPort(serviceURL *url.URL) error {
 		portStr = "8080"
 	}
 
-	if port, err := strconv.Atoi(portStr); err == nil {
-		c.Port = port
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return fmt.Errorf("parsing port: %w", err)
 	}
+
+	c.Port = int(port)
 
 	return nil
 }
