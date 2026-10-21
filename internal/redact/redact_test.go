@@ -23,7 +23,9 @@ type temporaryError struct{}
 // testSecret is a credential embedded in test URLs that must never survive redaction.
 const testSecret = "SECRETredactTOKEN"
 
-// TestRequestURL verifies that only the scheme and host of a request URL are kept.
+// TestRequestURL verifies that only the scheme and host of a request URL are
+// kept, and that the result parses back to the same scheme and host, with any
+// percent escapes in the host, such as an IPv6 zone, kept escaped.
 func TestRequestURL(t *testing.T) {
 	t.Parallel()
 
@@ -37,13 +39,28 @@ func TestRequestURL(t *testing.T) {
 		{name: "userinfo", rawURL: "https://user:" + testSecret + "@api.example.com:8443/", want: "https://api.example.com:8443"},
 		{name: "unparsable", rawURL: "https://api.example.com/%zz" + testSecret, want: Placeholder},
 		{name: "no host", rawURL: testSecret, want: Placeholder},
+		{name: "percent-escaped host", rawURL: "https://user:" + testSecret + "@0%250:/path", want: "https://0%250:"},
+		{name: "IPv6 zone", rawURL: "http://[fe80::1%25en0]:8080/" + testSecret, want: "http://[fe80::1%25en0]:8080"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, RequestURL(tt.rawURL))
+			got := RequestURL(tt.rawURL)
+			assert.Equal(t, tt.want, got)
+
+			if got == Placeholder {
+				return
+			}
+
+			want, err := url.Parse(tt.rawURL)
+			require.NoError(t, err)
+
+			parsed, err := url.Parse(got)
+			require.NoError(t, err)
+			assert.Equal(t, want.Scheme, parsed.Scheme)
+			assert.Equal(t, want.Host, parsed.Host)
 		})
 	}
 }

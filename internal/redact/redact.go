@@ -57,14 +57,17 @@ var (
 //   - rawURL: the URL to redact.
 //
 // Returns:
-//   - string: "scheme://host", or [Placeholder] when rawURL has no parsable host.
+//   - string: "scheme://host", with any percent escapes in the host, such as an
+//     IPv6 zone, kept escaped so the result parses, or [Placeholder] when
+//     rawURL has no parsable host.
 func RequestURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return Placeholder
 	}
 
-	return parsed.Scheme + "://" + parsed.Host
+	// The URL type escapes the host that url.Parse decoded.
+	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String()
 }
 
 // URLError redacts the URL in a *url.Error, such as the errors returned by
