@@ -181,8 +181,8 @@ func (c *Config) mucNick() string {
 
 // setURL updates the configuration from a URL representation.
 //
-// Dummy docs URLs (host dummy.com) skip credential and target validation so
-// generated documentation can initialize the service.
+// The docs dummy URL, <scheme>://dummy@dummy.com, skips credential and target
+// validation so generated documentation can initialize the service.
 //
 // Parameters:
 //   - resolver: Resolver used to apply query keys onto the config.
@@ -354,9 +354,9 @@ func defaultPort(scheme string) uint16 {
 //   - serviceURL: The URL to inspect.
 //
 // Returns:
-//   - true when the hostname is dummy.com.
+//   - true when the URL is exactly <scheme>://dummy@dummy.com, for either scheme.
 func isDummyURL(serviceURL *url.URL) bool {
-	return serviceURL.Hostname() == "dummy.com"
+	return serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
 }
 
 // isEmpty reports whether value is the empty string.

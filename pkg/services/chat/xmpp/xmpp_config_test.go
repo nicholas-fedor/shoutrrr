@@ -134,6 +134,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing password", rawURL: "xmpp://alice@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingPassword},
 		{name: "missing user", rawURL: "xmpp://:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingUser},
 		{name: "missing host", rawURL: "xmpp://alice:secret@/?to=bob@example.com", wantErr: ErrMissingHost},
+		{name: "dummy.com host without a password", rawURL: "xmpp://alice@dummy.com/?to=bob@example.com", wantErr: ErrMissingPassword},
+		{name: "dummy.com host without targets", rawURL: "xmpps://alice:secret@dummy.com/", wantErr: ErrMissingTargets},
 		{name: "unbracketed IPv6 host", rawURL: "xmpp://alice:secret@2001:db8::1/?to=bob@example.com", wantErr: util.ErrInvalidHost},
 		{name: "disabletls on xmpps", rawURL: "xmpps://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes", wantErr: ErrDisableTLSOnXMPPS},
 		{name: "invalid recipient JID", rawURL: "xmpp://alice:secret@xmpp.example.com/?to=not-a-jid", wantErr: ErrInvalidRecipientJID},

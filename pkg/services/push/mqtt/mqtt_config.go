@@ -331,11 +331,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	// Validate that a topic was provided (skip for dummy URL used in docs generation)
-	if serviceURL.String() != "mqtt://dummy@dummy.com" {
-		if c.Topic == "" {
-			return ErrTopicRequired
-		}
+	// Validate that a topic was provided (skip for the dummy URL used in docs
+	// generation, with either MQTT scheme)
+	isDummy := (serviceURL.Scheme == Scheme || serviceURL.Scheme == SchemeTLS) &&
+		serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
+	if !isDummy && c.Topic == "" {
+		return ErrTopicRequired
 	}
 
 	// Validate QoS value is within MQTT protocol range (0-2)
