@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// skipEscapedHost is the known failure that the fuzz targets skip: RequestURL
-// writes the host unescaped, so a host with percent escapes yields a URL that
-// does not parse. Fixing it must remove the skips.
-const skipEscapedHost = "RequestURL writes a percent-escaped host unescaped"
-
 // errFuzzCause is the sentinel that the causes built by FuzzURLError wrap.
 var errFuzzCause = errors.New("fuzz cause")
 
@@ -46,10 +41,6 @@ func FuzzRequestURL(f *testing.F) {
 
 		want, err := url.Parse(rawURL)
 		require.NoError(t, err, "RequestURL(%q) = %q for a URL that does not parse", rawURL, got)
-
-		if strings.Contains(want.Host, "%") {
-			t.Skip(skipEscapedHost)
-		}
 
 		parsed, err := url.Parse(got)
 		require.NoError(t, err, "RequestURL(%q) = %q does not parse", rawURL, got)
@@ -134,11 +125,6 @@ func requireRedacted(t *testing.T, err error) {
 	require.NotContains(t, msg, testSecret)
 
 	for _, match := range urlPattern.FindAllString(msg, -1) {
-		if strings.Contains(match, "%") {
-			// Skips the known failure in skipEscapedHost.
-			continue
-		}
-
 		assert.Equal(t, RequestURL(match), match, "message %q keeps an unreduced URL", msg)
 	}
 }
