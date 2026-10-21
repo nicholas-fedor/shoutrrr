@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Match the docs dummy url exactly in xmpp and mqtt by @nicholas-fedor in [#1731](https://github.com/nicholas-fedor/shoutrrr/pull/1731)
 - Keep host escapes in redacted request urls by @nicholas-fedor in [#1729](https://github.com/nicholas-fedor/shoutrrr/pull/1729)
 - Keep the username and channel in the config url by @nicholas-fedor in [#1727](https://github.com/nicholas-fedor/shoutrrr/pull/1727)
 - Validate source and recipients from the url query by @nicholas-fedor in [#1723](https://github.com/nicholas-fedor/shoutrrr/pull/1723)
