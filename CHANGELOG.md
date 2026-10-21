@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Skip validation only for the docs dummy url by @nicholas-fedor in [#1707](https://github.com/nicholas-fedor/shoutrrr/pull/1707)
 - Validate the api key and port and default the host by @nicholas-fedor in [#1705](https://github.com/nicholas-fedor/shoutrrr/pull/1705)
 - Reject entities without an identifier by @nicholas-fedor in [#1703](https://github.com/nicholas-fedor/shoutrrr/pull/1703)
 - Require the key and token and default the host by @nicholas-fedor in [#1701](https://github.com/nicholas-fedor/shoutrrr/pull/1701)
