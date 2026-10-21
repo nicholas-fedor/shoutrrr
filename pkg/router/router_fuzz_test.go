@@ -46,9 +46,8 @@ var idHostSchemes = []string{"ifttt", "pushbullet", "signalgrid"}
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{
-	"gotify":     "Gotify checks its token only when sending, so it accepts a URL without one, whose empty path segments GetURL drops",
-	"rocketchat": "Rocket.Chat accepts an empty token, such as rocketchat://host//b, but rejects the URL GetURL writes for it",
-	"signal":     "Signal accepts unvalidated recipients from the to query param, and GetURL writes them into the path, where they are rejected",
+	"gotify": "Gotify checks its token only when sending, so it accepts a URL without one, whose empty path segments GetURL drops",
+	"signal": "Signal accepts unvalidated recipients from the to query param, and GetURL writes them into the path, where they are rejected",
 }
 
 // FuzzLocate checks that locating any service URL never panics, performs no

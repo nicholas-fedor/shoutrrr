@@ -54,6 +54,11 @@ func TestConfigSetURL(t *testing.T) {
 		want Config
 	}{
 		{
+			name: "trailing slash after the tokens sets no channel",
+			url:  "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/",
+			want: Config{Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB},
+		},
+		{
 			name: "user channel keeps the @ prefix",
 			url:  "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/@user",
 			want: Config{Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB, Channel: "@user"},
@@ -95,7 +100,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLNotEnoughArguments verifies that SetURL rejects URLs
-// without both tokens.
+// without both tokens, including an empty integration ID or token, since the
+// webhook URL needs both.
 func TestConfigSetURLNotEnoughArguments(t *testing.T) {
 	t.Parallel()
 
@@ -106,6 +112,9 @@ func TestConfigSetURLNotEnoughArguments(t *testing.T) {
 	}{
 		{name: "no path", url: "rocketchat://rocketchat.my-domain.com"},
 		{name: "one token", url: "rocketchat://rocketchat.my-domain.com/" + testTokenA},
+		{name: "empty first token", url: "rocketchat://rocketchat.my-domain.com//" + testTokenB},
+		{name: "empty second token", url: "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/"},
+		{name: "both tokens empty", url: "rocketchat://rocketchat.my-domain.com//"},
 	}
 
 	for _, tt := range tests {
@@ -141,5 +150,28 @@ func TestConfigSetURLMissingHost(t *testing.T) {
 		require.NoError(t, err)
 
 		require.ErrorIs(t, (&Config{}).SetURL(serviceURL), ErrHostMissing, rawURL)
+	}
+}
+
+// TestConfigSetURLClearsChannel verifies that a config reused for a URL without
+// a channel, with or without a trailing slash, drops the channel an earlier URL
+// set.
+func TestConfigSetURLClearsChannel(t *testing.T) {
+	t.Parallel()
+
+	base := "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB
+
+	for _, rawURL := range []string{base, base + "/"} {
+		config := &Config{}
+
+		withChannel, err := url.Parse(base + "/general")
+		require.NoError(t, err)
+		require.NoError(t, config.SetURL(withChannel))
+		require.Equal(t, "#general", config.Channel)
+
+		withoutChannel, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		require.NoError(t, config.SetURL(withoutChannel))
+		assert.Empty(t, config.Channel, rawURL)
 	}
 }
