@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate the token when reading the service url by @nicholas-fedor in [#1717](https://github.com/nicholas-fedor/shoutrrr/pull/1717)
 - Reject empty webhook tokens in the service url by @nicholas-fedor in [#1715](https://github.com/nicholas-fedor/shoutrrr/pull/1715)
 - Default or reject a missing host in service urls by @nicholas-fedor in [#1713](https://github.com/nicholas-fedor/shoutrrr/pull/1713)
 - Validate topic names and reject empty path segments by @nicholas-fedor in [#1711](https://github.com/nicholas-fedor/shoutrrr/pull/1711)
