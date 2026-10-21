@@ -45,9 +45,7 @@ var idHostSchemes = []string{"ifttt", "pushbullet", "signalgrid"}
 
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
-var roundTripAllowlist = map[string]string{
-	"signal": "Signal accepts unvalidated recipients from the to query param, and GetURL writes them into the path, where they are rejected",
-}
+var roundTripAllowlist = map[string]string{}
 
 // FuzzLocate checks that locating any service URL never panics, performs no
 // network I/O, and keeps a username or password marked with [fuzzSecretMarker]

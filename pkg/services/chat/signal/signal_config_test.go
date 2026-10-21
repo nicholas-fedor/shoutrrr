@@ -162,7 +162,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without a source
-// or recipients, an invalid source or recipient, and invalid query values.
+// or recipients, an invalid source or recipient from the path or the query,
+// and invalid query values.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -178,6 +179,9 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid group ID", rawURL: testServiceURL + "/group.invalid!", wantErr: ErrInvalidRecipient},
 		{name: "invalid recipient", rawURL: testServiceURL + "/alice", wantErr: ErrInvalidRecipient},
 		{name: "empty username", rawURL: testServiceURL + "/u:", wantErr: ErrInvalidRecipient},
+		{name: "invalid recipient from the to param", rawURL: testServiceURL + "?to=alice", wantErr: ErrInvalidRecipient},
+		{name: "invalid recipient from the recipients param", rawURL: testServiceURL + "?recipients=%2B15559876543,alice", wantErr: ErrInvalidRecipient},
+		{name: "invalid source from the source param", rawURL: testServiceURL + "?source=alice", wantErr: ErrInvalidPhoneNumber},
 		{name: "unknown query key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "unbracketed IPv6 host", rawURL: "signal://2001:db8::1/" + testSource + "/" + testRecipient, wantErr: util.ErrInvalidHost},
 		{name: "port out of range", rawURL: "signal://localhost:70000/" + testSource + "/" + testRecipient, wantErr: strconv.ErrRange},
@@ -267,4 +271,19 @@ func TestConfigQueryResolver(t *testing.T) {
 	_, err := resolver.Get("foo")
 	require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 	require.ErrorIs(t, resolver.Set("foo", "bar"), format.ErrInvalidConfigKey)
+}
+
+// TestConfigSetURLQueryRecipients verifies that valid recipients from the to
+// param replace the path's recipients and survive a round trip through
+// GetURL, including a group ID that contains a slash.
+func TestConfigSetURLQueryRecipients(t *testing.T) {
+	t.Parallel()
+
+	config := newDefaultConfig(t)
+	require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+"?to=group.ABCD%2FEFGH%3D,u:alice.01")))
+	assert.Equal(t, []string{"group.ABCD/EFGH=", "u:alice.01"}, config.Recipients)
+
+	restored := newDefaultConfig(t)
+	require.NoError(t, restored.SetURL(config.GetURL()))
+	assert.Equal(t, config.Recipients, restored.Recipients)
 }
