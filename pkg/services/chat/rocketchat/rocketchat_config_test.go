@@ -43,6 +43,11 @@ func TestConfigGetURL(t *testing.T) {
 			want:   "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/@alice",
 		},
 		{
+			name:   "channel starting with @ written as a fragment",
+			config: &Config{Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB, Channel: "#@team"},
+			want:   "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "/#@team",
+		},
+		{
 			name:   "username",
 			config: &Config{UserName: "bot", Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB},
 			want:   "rocketchat://bot@rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB,
@@ -208,6 +213,7 @@ func TestConfigURLRoundTrip(t *testing.T) {
 		{name: "channel", rawURL: "rocketchat://" + base + "/general"},
 		{name: "user recipient", rawURL: "rocketchat://" + base + "/@alice"},
 		{name: "channel as a fragment", rawURL: "rocketchat://" + base + "/#general"},
+		{name: "channel starting with @ as a fragment", rawURL: "rocketchat://" + base + "/#@team"},
 		{name: "username and port", rawURL: "rocketchat://bot@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/general"},
 	}
 
@@ -258,4 +264,9 @@ func TestConfigSetURLInvalidChannel(t *testing.T) {
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseURL(t, base+"/general/")))
 	assert.Equal(t, "#general", config.Channel)
+
+	// A rejected URL leaves the config as it was.
+	before := *config
+	require.ErrorIs(t, config.SetURL(parseURL(t, "rocketchat://bot@other.example.com/a/b/general/other")), ErrInvalidChannel)
+	assert.Equal(t, before, *config)
 }

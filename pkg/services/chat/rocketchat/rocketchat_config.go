@@ -44,13 +44,24 @@ const (
 //
 // The username is the userinfo, and the channel follows the tokens as a path
 // segment: a channel without its # prefix, which [Config.SetURL] restores, or
-// a user recipient with its @ prefix.
+// a user recipient with its @ prefix. A channel whose name starts with @ goes
+// in the URL fragment after a trailing slash instead, so it does not read back
+// as a user recipient.
 //
 // Returns:
 //   - A pointer to a url.URL struct representing the current configuration
 func (c *Config) GetURL() *url.URL {
 	path := fmt.Sprintf("/%s/%s", c.TokenA, c.TokenB)
-	if channel := strings.TrimPrefix(c.Channel, "#"); channel != "" {
+
+	var fragment string
+
+	switch channel := strings.TrimPrefix(c.Channel, "#"); {
+	case channel == "":
+		// No channel, so the path ends after the tokens.
+	case strings.HasPrefix(c.Channel, "#@"):
+		path += "/"
+		fragment = channel
+	default:
 		path += "/" + channel
 	}
 
@@ -58,6 +69,7 @@ func (c *Config) GetURL() *url.URL {
 		User:       util.URLUserPassword(c.UserName, ""),
 		Host:       util.JoinURLHost(c.Host, c.Port),
 		Path:       path,
+		Fragment:   fragment,
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
@@ -99,9 +111,34 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		}
 	}
 
+	// A URL without a channel segment, or with an empty one, names no channel.
+	var channel string
+
+	if len(path) > ChannelIndex {
+		switch {
+		case serviceURL.Fragment != "":
+			channel = "#" + serviceURL.Fragment
+		case path[ChannelIndex] == "":
+			// A trailing slash after the tokens names no channel.
+		case !strings.HasPrefix(path[ChannelIndex], "@"):
+			channel = "#" + path[ChannelIndex]
+		default:
+			channel = path[ChannelIndex]
+		}
+	}
+
+	// The channel path segment GetURL writes holds neither a slash, which only a
+	// fragment can carry, nor further segments, though a trailing slash is fine.
+	// The config is left unchanged when the URL is rejected.
+	if strings.Contains(channel, "/") ||
+		len(path) > ChannelIndex+1 && strings.Join(path[ChannelIndex+1:], "") != "" {
+		return ErrInvalidChannel
+	}
+
 	c.Port = port
 	c.UserName = userName
 	c.Host = host
+	c.Channel = channel
 
 	if len(path) > 1 {
 		c.TokenA = path[1]
@@ -109,29 +146,6 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 	if len(path) > TokenBIndex {
 		c.TokenB = path[TokenBIndex]
-	}
-
-	// A URL without a channel segment, or with an empty one, names no channel.
-	c.Channel = ""
-
-	if len(path) > ChannelIndex {
-		switch {
-		case serviceURL.Fragment != "":
-			c.Channel = "#" + serviceURL.Fragment
-		case path[ChannelIndex] == "":
-			// A trailing slash after the tokens keeps the channel cleared.
-		case !strings.HasPrefix(path[ChannelIndex], "@"):
-			c.Channel = "#" + path[ChannelIndex]
-		default:
-			c.Channel = path[ChannelIndex]
-		}
-	}
-
-	// The channel path segment GetURL writes holds neither a slash, which only a
-	// fragment can carry, nor further segments, though a trailing slash is fine.
-	if strings.Contains(c.Channel, "/") ||
-		len(path) > ChannelIndex+1 && strings.Join(path[ChannelIndex+1:], "") != "" {
-		return ErrInvalidChannel
 	}
 
 	return nil
