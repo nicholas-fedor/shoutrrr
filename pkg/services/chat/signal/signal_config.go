@@ -9,6 +9,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Signal notification service.
@@ -119,26 +120,36 @@ func (c *Config) parseAuth(serviceURL *url.URL) {
 	}
 }
 
-// parseHostPort extracts host and port from the URL.
+// parseHostPort extracts host and port from the URL. An IPv6 host must be in
+// brackets.
 //
 // Parameters:
 //   - serviceURL: the URL to extract host and port from
-func (c *Config) parseHostPort(serviceURL *url.URL) {
-	host := serviceURL.Hostname()
-	if host == "" {
-		host = serviceURL.Host
+//
+// Returns:
+//   - error: [util.ErrInvalidHost] or [util.ErrInvalidPort] for an authority
+//     that does not split into a hostname and port, or a parse error for a
+//     port above 65535.
+func (c *Config) parseHostPort(serviceURL *url.URL) error {
+	host, portStr, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	c.Host = host
 
-	portStr := serviceURL.Port()
 	if portStr == "" {
 		portStr = "8080"
 	}
 
-	if port, err := strconv.Atoi(portStr); err == nil {
-		c.Port = port
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return fmt.Errorf("parsing port: %w", err)
 	}
+
+	c.Port = int(port)
+
+	return nil
 }
 
 // parsePath extracts source phone number and recipients from the URL path.
@@ -209,7 +220,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	c.parseAuth(serviceURL)
-	c.parseHostPort(serviceURL)
+
+	if err := c.parseHostPort(serviceURL); err != nil {
+		return err
+	}
 
 	if err := c.parsePath(serviceURL); err != nil {
 		return err

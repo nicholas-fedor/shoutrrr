@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service implements the notification service interface for MQTT brokers.
@@ -531,12 +533,7 @@ func (s *Service) openConnectionLocked(config *Config) error {
 	useTLS := scheme == SchemeTLS && !config.DisableTLS
 
 	// Build the broker URL
-	brokerURL := fmt.Sprintf(
-		"%s://%s:%d",
-		scheme,
-		config.Host,
-		port,
-	)
+	brokerURL := (&url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, strconv.Itoa(port))}).String()
 
 	// Parse the broker URL for autopaho
 	serverURL, err := url.Parse(brokerURL)

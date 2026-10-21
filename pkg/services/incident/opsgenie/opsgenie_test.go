@@ -178,6 +178,20 @@ func TestSend(t *testing.T) {
 			wantBody: `{"message":"hello world"}`,
 		},
 		{
+			name:     "IPv6 host and port",
+			rawURL:   "opsgenie://[2001:db8::1]:8443/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://[2001:db8::1]:8443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
+			name:     "IPv6 host with a zone",
+			rawURL:   "opsgenie://[fe80::1%25en0]:8443/" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://[fe80::1%25en0]:8443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
 			name:     "EU host and port",
 			rawURL:   "opsgenie://api.eu.opsgenie.com:8443/" + testAPIKey,
 			message:  "hello world",

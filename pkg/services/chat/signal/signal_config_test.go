@@ -2,12 +2,14 @@ package signal
 
 import (
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -162,6 +164,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid recipient", rawURL: testServiceURL + "/alice", wantErr: ErrInvalidRecipient},
 		{name: "empty username", rawURL: testServiceURL + "/u:", wantErr: ErrInvalidRecipient},
 		{name: "unknown query key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "unbracketed IPv6 host", rawURL: "signal://2001:db8::1/" + testSource + "/" + testRecipient, wantErr: util.ErrInvalidHost},
+		{name: "port out of range", rawURL: "signal://localhost:70000/" + testSource + "/" + testRecipient, wantErr: strconv.ErrRange},
 		{name: "invalid text mode", rawURL: testServiceURL + "?textmode=markdown", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?notifyself=maybe", wantErr: format.ErrInvalidBoolValue},
 	}

@@ -27,17 +27,21 @@ const fuzzSecretMarker = "SECRET"
 // which GetURL leaves out as the default. Fixing it must remove the skip.
 const skipEmptySliceValue = "an empty query value sets a slice key to one empty item, which GetURL leaves out"
 
-// skipUnbracketedIPv6Host is the known failure FuzzConfigRoundTrip skips for
-// hosts with several colons and no brackets, such as ::1: services split them
-// into a hostname and port that net.JoinHostPort rebuilds as a host that does
-// not parse, such as [:]:1. Fixing it must remove the skip.
-const skipUnbracketedIPv6Host = "a host with several colons and no brackets comes back as a host that does not parse"
-
 // skipDocsDummyURL is the reason FuzzConfigRoundTrip skips the documentation
 // generator's <scheme>://dummy@dummy.com URL, which services accept without
 // validation only so the generator can render their config fields, and whose
 // config is not meant to be restored from its URL.
 const skipDocsDummyURL = "the documentation dummy URL bypasses validation and is not a real configuration"
+
+// skipIDHostAuthority is the known failure FuzzConfigRoundTrip skips for
+// services that use the URL host as an ID, such as a webhook ID, when the host
+// has brackets or a colon: they read it with url.URL.Hostname, which strips
+// those characters, so the ID changes on every round trip. Fixing it must
+// remove the skip.
+const skipIDHostAuthority = "a service that uses the host as an ID strips its brackets and colons"
+
+// idHostSchemes lists the schemes [skipIDHostAuthority] applies to.
+var idHostSchemes = []string{"ifttt", "pushbullet", "signalgrid"}
 
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
@@ -45,7 +49,7 @@ var roundTripAllowlist = map[string]string{
 	"gotify":     "Gotify accepts a URL without a host, and GetURL then writes the token as the host",
 	"ntfy":       "ntfy accepts a topic that starts with a slash, which GetURL writes as the path's own slash",
 	"rocketchat": "Rocket.Chat accepts a URL without a host, but rejects the URL GetURL writes for it",
-	"signal":     "Signal keeps the port in the host when the URL has no hostname, so GetURL writes a host such as [:0]:0",
+	"signal":     "Signal accepts unvalidated recipients from the to query param, and GetURL writes them into the path, where they are rejected",
 }
 
 // FuzzLocate checks that locating any service URL never panics, performs no
@@ -105,12 +109,12 @@ func FuzzConfigRoundTrip(f *testing.F) {
 			t.Skip(skipDocsDummyURL)
 		}
 
-		if hasEmptyQueryValue(rawURL) {
-			t.Skip(skipEmptySliceValue)
+		if slices.Contains(idHostSchemes, scheme) && hasBracketOrColonHost(rawURL) {
+			t.Skip(skipIDHostAuthority)
 		}
 
-		if hasUnbracketedIPv6Host(rawURL) {
-			t.Skip(skipUnbracketedIPv6Host)
+		if hasEmptyQueryValue(rawURL) {
+			t.Skip(skipEmptySliceValue)
 		}
 
 		serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
@@ -244,18 +248,18 @@ func hasEmptyQueryValue(rawURL string) bool {
 	return false
 }
 
-// hasUnbracketedIPv6Host reports whether rawURL has a host with several colons
-// that is not enclosed in brackets.
+// hasBracketOrColonHost reports whether rawURL has a host with a bracket or a
+// colon.
 //
 // Parameters:
 //   - rawURL: the service URL.
 //
 // Returns:
-//   - bool: true when the URL parses and its host is an unbracketed IPv6 form.
-func hasUnbracketedIPv6Host(rawURL string) bool {
+//   - bool: true when the URL parses and its host has a bracket or a colon.
+func hasBracketOrColonHost(rawURL string) bool {
 	parsed, err := url.Parse(rawURL)
 
-	return err == nil && !strings.HasPrefix(parsed.Host, "[") && strings.Count(parsed.Host, ":") > 1
+	return err == nil && strings.ContainsAny(parsed.Host, "[]:")
 }
 
 // hasConfig reports whether service has the Config field that

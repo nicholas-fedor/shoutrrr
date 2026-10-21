@@ -9,6 +9,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the OpsGenie service.
@@ -67,15 +68,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	var host string
+	port := ""
 	if c.Port > 0 {
-		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
-	} else {
-		host = c.Host
+		port = strconv.FormatUint(uint64(c.Port), 10)
 	}
 
 	result := &url.URL{
-		Host:     host,
+		Host:     util.JoinURLHost(c.Host, port),
 		Path:     "/" + c.APIKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
@@ -94,11 +93,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrAPIKeyMissing] for a missing or empty API key,
-//     [ErrInvalidPort] for a port that is not a number from 1 to 65535, or a
-//     query prop error.
+//   - error: [util.ErrInvalidHost] for a host that is not a hostname or a
+//     bracketed IPv6 address, [util.ErrInvalidPort] for a port that is not a
+//     number, [ErrAPIKeyMissing] for a missing or empty API key,
+//     [ErrInvalidPort] for a port outside 1 to 65535, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	c.Host = serviceURL.Hostname()
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	c.Host = host
 
 	if serviceURL.String() != "opsgenie://dummy@dummy.com" {
 		c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
@@ -111,21 +116,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	if serviceURL.Port() != "" {
-		port, err := strconv.ParseUint(
-			serviceURL.Port(),
-			10,
-			16,
-		)
+	if port != "" {
+		portNumber, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
-			return fmt.Errorf("%w %q: %w", ErrInvalidPort, serviceURL.Port(), err)
+			return fmt.Errorf("%w %q: %w", ErrInvalidPort, port, err)
 		}
 
-		if port == 0 {
-			return fmt.Errorf("%w %q", ErrInvalidPort, serviceURL.Port())
+		if portNumber == 0 {
+			return fmt.Errorf("%w %q", ErrInvalidPort, port)
 		}
 
-		c.Port = uint16(port)
+		c.Port = uint16(portNumber)
 	} else {
 		c.Port = defaultPort
 	}

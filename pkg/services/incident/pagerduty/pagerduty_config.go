@@ -8,6 +8,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the PagerDuty service.
@@ -66,15 +67,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - *url.URL: The service URL.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	var host string
+	port := ""
 	if c.Port > 0 && c.Port != defaultPort {
-		host = fmt.Sprintf("%s:%d", c.Host, c.Port)
-	} else {
-		host = c.Host
+		port = strconv.FormatUint(uint64(c.Port), 10)
 	}
 
 	return &url.URL{
-		Host:     host,
+		Host:     util.JoinURLHost(c.Host, port),
 		Path:     "/" + c.IntegrationKey,
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
@@ -92,8 +91,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - error: A missing or invalid integration key, an invalid port, or a query
-//     prop error.
+//   - error: A missing or invalid integration key, a host that is not a
+//     hostname or a bracketed IPv6 address ([util.ErrInvalidHost]), an invalid
+//     port, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Skip validation for the dummy URL used in docs generation
 	if serviceURL.String() == "pagerduty://dummy@dummy.com" {
@@ -113,20 +113,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return errInvalidIntegrationKey
 	}
 
-	c.Host = serviceURL.Hostname()
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	c.Host = host
 	if c.Host == "" {
 		c.Host = defaultHost
 	}
 
 	c.Port = defaultPort
 
-	if serviceURL.Port() != "" {
-		port, err := strconv.ParseUint(serviceURL.Port(), 10, 16)
+	if port != "" {
+		portNumber, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
 			return fmt.Errorf("failed to parse port: %w", err)
 		}
 
-		c.Port = uint16(port)
+		c.Port = uint16(portNumber)
 	}
 
 	for key, vals := range serviceURL.Query() {

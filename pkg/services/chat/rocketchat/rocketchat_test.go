@@ -449,6 +449,16 @@ func TestBuildURL(t *testing.T) {
 			want:   "https://rocketchat.example.com:5055/hooks/a/b",
 		},
 		{
+			name:   "IPv6 host without port",
+			config: &Config{Host: "::1", TokenA: "a", TokenB: "b"},
+			want:   "https://[::1]/hooks/a/b",
+		},
+		{
+			name:   "IPv6 host with a zone",
+			config: &Config{Host: "fe80::1%en0", Port: "8443", TokenA: "a", TokenB: "b"},
+			want:   "https://[fe80::1%25en0]:8443/hooks/a/b",
+		},
+		{
 			name:   "IPv6 host with port",
 			config: &Config{Host: "::1", Port: "8443", TokenA: "a", TokenB: "b"},
 			want:   "https://[::1]:8443/hooks/a/b",

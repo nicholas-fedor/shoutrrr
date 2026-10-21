@@ -209,9 +209,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	c.Host = serviceURL.Hostname()
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
 
-	if port := serviceURL.Port(); port != "" {
+	c.Host = host
+
+	if port != "" {
 		parsed, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
 			return fmt.Errorf("parsing port: %w", err)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service sends notifications to a pre-configured Rocket.Chat channel or user.
@@ -183,19 +183,18 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 
 // buildURL constructs the API URL for Rocket.Chat based on the Config.
 //
-// Params:
+// Parameters:
 //   - config: The configuration containing host, port, and token information
 //
 // Returns:
 //   - The complete Rocket.Chat webhook URL as a string
 func buildURL(config *Config) string {
-	base := config.Host
-	if config.Port != "" {
-		base = net.JoinHostPort(config.Host, config.Port)
-	}
+	// The URL type escapes an IPv6 zone in the host, and the tokens are kept as
+	// written.
+	base := (&url.URL{Scheme: "https", Host: util.JoinURLHost(config.Host, config.Port)}).String()
 
 	return fmt.Sprintf(
-		"https://%s/hooks/%s/%s",
+		"%s/hooks/%s/%s",
 		base,
 		config.TokenA,
 		config.TokenB,
