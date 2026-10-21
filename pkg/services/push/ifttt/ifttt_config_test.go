@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -78,8 +79,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without events or
-// a webhook ID, an unknown or invalid query prop, and value field choices
-// outside 1 to 3 or in conflict.
+// a webhook ID, a webhook ID with a port or brackets, an unknown or invalid
+// query prop, and value field choices outside 1 to 3 or in conflict.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +92,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}{
 		{name: "no arguments", rawURL: "ifttt://", wantErr: ErrMissingEvents},
 		{name: "missing webhook ID", rawURL: "ifttt:///?events=event1", wantErr: ErrMissingWebhookID},
+		{name: "webhook ID with a port", rawURL: "ifttt://SECRETid:8443/?events=event1", wantErr: util.ErrInvalidHost},
+		{name: "webhook ID in brackets", rawURL: "ifttt://[::1]/?events=event1", wantErr: util.ErrInvalidHost},
 		{name: "missing events", rawURL: "ifttt://dummyID", wantErr: ErrMissingEvents},
 		{name: "unknown prop", rawURL: "ifttt://dummyID/?events=event1&badquery=foo", wantErr: format.ErrInvalidConfigKey},
 		{name: "messagevalue not a number", rawURL: "ifttt://dummyID/?events=event1&messagevalue=abc", wantErr: format.ErrParseUintFailed},

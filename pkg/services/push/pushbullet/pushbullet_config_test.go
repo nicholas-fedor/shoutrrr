@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // testToken is an access token of the length Pushbullet issues.
@@ -82,7 +83,7 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a token of the wrong
-// length and an unknown query prop.
+// length, a token with colons or brackets, and an unknown query prop.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +94,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "short token", rawURL: "pushbullet://shorttoken/device", wantErr: ErrTokenIncorrectSize},
+		{name: "token with colons", rawURL: "pushbullet://:SECRETtokentokentokentokentokent:/device", wantErr: util.ErrInvalidHost},
+		{name: "token in brackets", rawURL: "pushbullet://[::1]/device", wantErr: util.ErrInvalidHost},
 		{name: "long token", rawURL: "pushbullet://" + testToken + "x/device", wantErr: ErrTokenIncorrectSize},
 		{name: "unknown prop", rawURL: "pushbullet://" + testToken + "/device?foo=bar", wantErr: format.ErrInvalidConfigKey},
 	}

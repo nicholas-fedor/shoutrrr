@@ -3,9 +3,11 @@ package signalgrid
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Signalgrid notification service.
@@ -86,7 +88,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - An error if a query parameter is invalid or required fields are missing.
+//   - An error if the channel token has a colon or brackets
+//     ([util.ErrInvalidHost]), a query parameter is invalid, or required fields
+//     are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	isDummy := serviceURL.String() == dummyServiceURL
 
@@ -96,7 +100,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.ClientKey = ""
 	}
 
-	c.Channel = serviceURL.Hostname()
+	// The channel token is the host as written, which cannot hold a port or
+	// brackets that url.URL.Hostname would strip.
+	if strings.ContainsAny(serviceURL.Host, ":[]") {
+		return fmt.Errorf("channel token: %w", util.ErrInvalidHost)
+	}
+
+	c.Channel = serviceURL.Host
 
 	for key, vals := range serviceURL.Query() {
 		if len(vals) == 0 {
