@@ -83,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.1 by @renovate[bot] in [#1720](https://github.com/nicholas-fedor/shoutrrr/pull/1720)
 - Update dependency python to v3.15.1 by @renovate[bot] in [#1719](https://github.com/nicholas-fedor/shoutrrr/pull/1719)
 - Update go toolchain directive to v1.27.3 by @renovate[bot] in [#1688](https://github.com/nicholas-fedor/shoutrrr/pull/1688)
 - Update dependency certifi to v2026.10.19 by @renovate[bot] in [#1687](https://github.com/nicholas-fedor/shoutrrr/pull/1687)
