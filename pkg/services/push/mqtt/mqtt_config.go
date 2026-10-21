@@ -104,6 +104,9 @@ const Scheme = "mqtt"
 // SchemeTLS identifies the URL scheme for MQTT over TLS service URLs.
 const SchemeTLS = "mqtts"
 
+// DefaultHost is the broker host a URL without a host uses.
+const DefaultHost = "localhost"
+
 // DefaultPort is the standard MQTT port (1883).
 const DefaultPort = 1883
 
@@ -260,6 +263,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // It extracts all configuration values from the URL including:
 //   - User credentials from the URL user info (username:password@host)
 //   - Host and port from the URL host component, with an IPv6 host in brackets
+//     and [DefaultHost] when the URL has no host
 //   - Topic from the URL path (with leading slash removed)
 //   - Additional options from URL query parameters
 //
@@ -291,9 +295,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
-	if host != "" {
-		c.Host = host
+	if host == "" {
+		host = DefaultHost
 	}
+
+	c.Host = host
 
 	if port != "" {
 		// Parse the port string to an integer

@@ -5,6 +5,8 @@
 !!! Info ""
     signal://[__`user`__[:__`password`__]@]__`host`__[:__`port`__]/__`source_phone`__/__`recipient1`__[/__`recipient2`__/...]
 
+A URL without a host, such as `signal:///+1234567890/+0987654321`, uses `localhost`, with port `8080` unless the URL sets one.
+
 --8<-- "docs/services/chat/signal/config.md"
 
 !!! Note "Authentication Priority"

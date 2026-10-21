@@ -12,6 +12,9 @@ var (
 	// ErrToAddressMissing is returned when the configuration URL omits [Config.ToAddresses].
 	ErrToAddressMissing = errors.New("toAddress missing from config URL")
 
+	// ErrHostMissing is returned when the configuration URL omits the SMTP server host.
+	ErrHostMissing = errors.New("host missing from config URL")
+
 	// errUnencryptedConnection is returned when authentication is attempted
 	// on a non-local server without TLS.
 	errUnencryptedConnection = errors.New("unencrypted connection")

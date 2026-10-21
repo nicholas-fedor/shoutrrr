@@ -126,6 +126,21 @@ func TestConfigSetURL(t *testing.T) {
 			}),
 		},
 		{
+			name:   "omitted host",
+			rawURL: "signal:///" + testSource + "/" + testRecipient,
+			want:   defaults(func(*Config) {}),
+		},
+		{
+			name:   "omitted host with a port",
+			rawURL: "signal://:9000/" + testSource + "/" + testRecipient,
+			want:   defaults(func(c *Config) { c.Port = 9000 }),
+		},
+		{
+			name:   "empty host query param",
+			rawURL: "signal:///" + testSource + "/" + testRecipient + "?host=",
+			want:   defaults(func(*Config) {}),
+		},
+		{
 			name:   "docs command placeholder",
 			rawURL: "signal://dummy@dummy.com",
 			want: defaults(func(c *Config) {

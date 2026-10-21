@@ -130,3 +130,16 @@ func TestConfigSetURLInvalidHost(t *testing.T) {
 
 	require.ErrorIs(t, (&Config{}).SetURL(serviceURL), util.ErrInvalidHost)
 }
+
+// TestConfigSetURLMissingHost verifies that SetURL rejects a URL without a
+// host, since a Rocket.Chat server has no default host.
+func TestConfigSetURLMissingHost(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{"rocketchat:///tokenA/tokenB", "rocketchat://:5055/tokenA/tokenB"} {
+		serviceURL, err := url.Parse(rawURL)
+		require.NoError(t, err)
+
+		require.ErrorIs(t, (&Config{}).SetURL(serviceURL), ErrHostMissing, rawURL)
+	}
+}

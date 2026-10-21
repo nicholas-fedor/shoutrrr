@@ -35,11 +35,16 @@ const (
 	defaultSendTimeout = types.DefaultSendTimeout
 )
 
-// ErrSendFailed indicates a failure to send a notification to the generic webhook.
+// Errors returned by the generic webhook service.
 var (
-	ErrSendFailed        = errors.New("failed to send notification to generic webhook")
-	ErrUnexpectedStatus  = errors.New("server returned unexpected response status code")
+	// ErrSendFailed indicates a failure to send a notification to the generic webhook.
+	ErrSendFailed = errors.New("failed to send notification to generic webhook")
+	// ErrUnexpectedStatus indicates that the webhook answered with an error status, 400 or above.
+	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
+	// ErrTemplateNotLoaded indicates that the configured template is not loaded.
 	ErrTemplateNotLoaded = errors.New("template has not been loaded")
+	// ErrHostMissing indicates that the service URL has no webhook host.
+	ErrHostMissing = errors.New("host missing from service URL")
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.

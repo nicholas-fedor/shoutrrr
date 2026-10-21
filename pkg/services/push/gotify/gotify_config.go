@@ -148,7 +148,9 @@ func (c *Config) processQueryParameters(
 //   - resolver: Configuration resolver for setting config fields from query parameters
 //   - url: The URL to parse configuration values from
 //
-// Returns: error if URL parsing or parameter processing fails.
+// Returns:
+//   - error: [ErrHostMissing] for a URL without a host, or a query parameter
+//     error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
@@ -165,7 +167,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Path = c.Path[1:] // Remove leading slash to normalize empty path
 	}
 
-	// Set host and token from URL components
+	// Set host and token from URL components. A Gotify server has no default host.
+	if serviceURL.Hostname() == "" {
+		return ErrHostMissing
+	}
+
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
 	c.prioritySet = false

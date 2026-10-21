@@ -189,6 +189,16 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:   "omitted host",
+			rawURL: "mqtt:///notifications/alerts",
+			want:   Config{Host: "localhost", Port: 1883, Topic: "notifications/alerts"},
+		},
+		{
+			name:   "omitted host with a port",
+			rawURL: "mqtts://:8884/notifications/alerts",
+			want:   Config{Host: "localhost", Port: 8884, Topic: "notifications/alerts"},
+		},
+		{
 			name:   "no credentials",
 			rawURL: "mqtt://broker.example.com:1883/notifications/alerts",
 			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts"},

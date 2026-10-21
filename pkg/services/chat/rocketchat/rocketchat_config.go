@@ -62,8 +62,9 @@ func (c *Config) GetURL() *url.URL {
 //
 // Returns:
 //   - error: An error if the URL is invalid or missing required components,
-//     such as [util.ErrInvalidHost] for a host that is not a hostname or a
-//     bracketed IPv6 address
+//     such as [ErrHostMissing] for a URL without a host, or
+//     [util.ErrInvalidHost] for a host that is not a hostname or a bracketed
+//     IPv6 address
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
 
@@ -74,6 +75,11 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 	path := strings.Split(serviceURL.Path, "/")
 	if serviceURL.String() != "rocketchat://dummy@dummy.com" {
+		// A Rocket.Chat server has no default host.
+		if host == "" {
+			return ErrHostMissing
+		}
+
 		if len(path) < MinPathParts {
 			return ErrNotEnoughArguments
 		}

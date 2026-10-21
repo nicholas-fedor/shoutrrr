@@ -653,6 +653,12 @@ func TestIntegrationBrokerConnect(t *testing.T) {
 			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true, username: "user", usernameFlag: true},
 		},
 		{
+			name:     "omitted host",
+			rawURL:   "mqtt:///test/topic",
+			wantAddr: "localhost:1883",
+			want:     brokerConnect{clientID: "shoutrrr", cleanStart: true},
+		},
+		{
 			name:     "IPv6 broker",
 			rawURL:   "mqtt://[2001:db8::1]/test/topic",
 			wantAddr: "[2001:db8::1]:1883",

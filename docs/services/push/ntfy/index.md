@@ -12,6 +12,7 @@ Upstream docs: <https://docs.ntfy.sh/publish/>
 ## Getting Started
 
 Ntfy supports both the public [ntfy.sh](https://ntfy.sh) service and self-hosted instances. For the public service, simply use `ntfy.sh` as the host. For self-hosted instances, specify your server's hostname and port.
+A URL without a host, such as `ntfy:///mytopic`, uses `ntfy.sh`.
 
 !!! example "Public ntfy.sh service"
     ```uri

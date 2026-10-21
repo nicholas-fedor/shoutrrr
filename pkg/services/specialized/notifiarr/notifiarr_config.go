@@ -114,6 +114,16 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.
+//
+// The API key is the URL host, unless the apikey query parameter replaces it.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: a query prop error, or [ErrAPIKeyMissing] when neither the host
+//     nor the query sets an API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
 
@@ -123,6 +133,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	_, err := format.SetConfigPropsFromQuery(resolver, serviceQuery)
 	if err != nil {
 		return fmt.Errorf("setting config properties from service URL query: %w", err)
+	}
+
+	if c.APIKey == "" {
+		return ErrAPIKeyMissing
 	}
 
 	return nil

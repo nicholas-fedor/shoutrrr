@@ -15,6 +15,9 @@ var (
 	// ErrInvalidToken indicates an invalid Gotify token format or content.
 	ErrInvalidToken = errors.New("invalid gotify token")
 
+	// ErrHostMissing indicates that the config URL has no Gotify server host.
+	ErrHostMissing = errors.New("host missing from config URL")
+
 	// ErrEmptyMessage indicates that the message to send is empty.
 	ErrEmptyMessage = errors.New("message cannot be empty")
 

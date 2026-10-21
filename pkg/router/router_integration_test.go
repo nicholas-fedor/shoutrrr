@@ -481,6 +481,56 @@ func TestIntegrationIPv6Hosts(t *testing.T) {
 	}
 }
 
+// TestIntegrationMissingHost verifies how each service treats a URL without a
+// host: the services with a documented default host use it, keep it in their
+// config URL, and survive a round trip, while the services without one reject
+// the URL.
+func TestIntegrationMissingHost(t *testing.T) {
+	t.Parallel()
+
+	// defaultHosts lists the schemes that apply a default host, with that host.
+	defaultHosts := map[string]string{
+		"mqtt": "localhost", "mqtts": "localhost", "ntfy": "ntfy.sh", "signal": "localhost",
+	}
+
+	for scheme, wantHost := range defaultHosts {
+		t.Run(scheme+" default", func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(withURLHost(t, fixtureURLFor(t, scheme), ""))
+			closeService(t, service)
+			require.NoError(t, err)
+
+			first := format.GetServiceConfig(service).GetURL()
+			assert.Equal(t, wantHost, first.Hostname())
+
+			restored, err := serviceRouter.Locate(first.String())
+			closeService(t, restored)
+			require.NoError(t, err)
+			assert.Equal(t, first.Host, format.GetServiceConfig(restored).GetURL().Host)
+		})
+	}
+
+	// requiredHostSchemes lists the schemes whose URL must name a host.
+	requiredHostSchemes := []string{"generic", "gotify", "mattermost", "notifiarr", "rocketchat", "smtp"}
+
+	for _, scheme := range requiredHostSchemes {
+		t.Run(scheme+" rejected", func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(withURLHost(t, fixtureURLFor(t, scheme), ""))
+			closeService(t, service)
+			require.Error(t, err)
+		})
+	}
+}
+
 // fixtureURLFor returns the contract fixture URL for scheme.
 //
 // Parameters:

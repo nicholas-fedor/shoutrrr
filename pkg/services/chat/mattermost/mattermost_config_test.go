@@ -126,6 +126,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "missing token", rawURL: "mattermost://mattermost.my-domain.com", wantErr: ErrNotEnoughArguments},
+		{name: "missing host", rawURL: "mattermost:///atoken", wantErr: ErrHostMissing},
+		{name: "port without a host", rawURL: "mattermost://:8065/atoken", wantErr: ErrHostMissing},
 		{name: "unknown prop", rawURL: "mattermost://user@mockserver/atoken?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid bool prop", rawURL: "mattermost://mockserver/atoken?disabletls=maybe", wantErr: format.ErrInvalidBoolValue},
 	}
