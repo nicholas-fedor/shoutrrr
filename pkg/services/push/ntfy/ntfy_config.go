@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -40,8 +42,17 @@ const (
 	Scheme = "ntfy"
 )
 
-// ErrTopicRequired indicates that the topic is missing from the config URL.
-var ErrTopicRequired = errors.New("topic is required")
+// topicNamePattern matches the topic names ntfy accepts.
+var topicNamePattern = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
+
+// Errors for an invalid topic in the config URL.
+var (
+	// ErrTopicRequired indicates that the topic is missing from the config URL.
+	ErrTopicRequired = errors.New("topic is required")
+	// ErrInvalidTopic indicates a topic name that ntfy does not accept, or a
+	// path with an empty segment.
+	ErrInvalidTopic = errors.New("invalid topic: use up to 64 letters, digits, underscores, and dashes")
+)
 
 // Enums returns the fields that use an EnumFormatter for their values.
 func (*Config) Enums() map[string]types.EnumFormatter {
@@ -120,6 +131,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// The topic is the URL path without its first slash. Its last segment is the
+// topic name, which must follow ntfy's rule, and any segments before it form a
+// base path, such as for a server behind a reverse proxy.
+//
+// Parameters:
+//   - resolver: the resolver that sets the query parameters.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: a query parameter error, [ErrTopicRequired] for a missing topic,
+//     or [ErrInvalidTopic] for an invalid topic name or an empty path segment.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -145,7 +168,30 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		if c.Topic == "" {
 			return ErrTopicRequired
 		}
+
+		if !isValidTopicPath(c.Topic) {
+			return ErrInvalidTopic
+		}
 	}
 
 	return nil
+}
+
+// isValidTopicPath reports whether topicPath is a topic name, optionally after
+// a base path, with no empty segment. The topic name follows ntfy's rule of up
+// to 64 letters, digits, underscores, and dashes.
+//
+// Parameters:
+//   - topicPath: the URL path without its first slash.
+//
+// Returns:
+//   - bool: true when every segment is non-empty and the last one is a valid
+//     topic name.
+func isValidTopicPath(topicPath string) bool {
+	segments := strings.Split(topicPath, "/")
+	if slices.Contains(segments, "") {
+		return false
+	}
+
+	return topicNamePattern.MatchString(segments[len(segments)-1])
 }

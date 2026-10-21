@@ -47,7 +47,6 @@ var idHostSchemes = []string{"ifttt", "pushbullet", "signalgrid"}
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{
 	"gotify":     "Gotify accepts a URL without a host, and GetURL then writes the token as the host",
-	"ntfy":       "ntfy accepts a topic that starts with a slash, which GetURL writes as the path's own slash",
 	"rocketchat": "Rocket.Chat accepts a URL without a host, but rejects the URL GetURL writes for it",
 	"signal":     "Signal accepts unvalidated recipients from the to query param, and GetURL writes them into the path, where they are rejected",
 }
