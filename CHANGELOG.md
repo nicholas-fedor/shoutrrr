@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep host credentials exact in ifttt, signalgrid, and pushbullet by @nicholas-fedor in [#1733](https://github.com/nicholas-fedor/shoutrrr/pull/1733)
+
+## [0.22.1] - 2026-10-21
+
+### Fixed
+
 - Match the docs dummy url exactly in xmpp and mqtt by @nicholas-fedor in [#1731](https://github.com/nicholas-fedor/shoutrrr/pull/1731)
 - Keep host escapes in redacted request urls by @nicholas-fedor in [#1729](https://github.com/nicholas-fedor/shoutrrr/pull/1729)
 - Keep the username and channel in the config url by @nicholas-fedor in [#1727](https://github.com/nicholas-fedor/shoutrrr/pull/1727)
@@ -2435,7 +2441,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.22.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/shoutrrr/compare/v0.22.1...HEAD)
+- [0.22.1](https://github.com/nicholas-fedor/shoutrrr/compare/v0.22.0...v0.22.1)
 - [0.22.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.2...v0.22.0)
 - [0.21.2](https://github.com/nicholas-fedor/shoutrrr/compare/v0.21.0...v0.21.2)
 - [0.21.0](https://github.com/nicholas-fedor/shoutrrr/compare/v0.20.0...v0.21.0)
