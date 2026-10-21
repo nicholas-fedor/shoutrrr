@@ -62,7 +62,8 @@ func (c *Config) GetURL() *url.URL {
 //
 // Returns:
 //   - error: An error if the URL is invalid or missing required components,
-//     such as [ErrHostMissing] for a URL without a host, or
+//     such as [ErrHostMissing] for a URL without a host,
+//     [ErrNotEnoughArguments] for a missing or empty integration ID or token, or
 //     [util.ErrInvalidHost] for a host that is not a hostname or a bracketed
 //     IPv6 address
 func (c *Config) SetURL(serviceURL *url.URL) error {
@@ -80,7 +81,8 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 			return ErrHostMissing
 		}
 
-		if len(path) < MinPathParts {
+		// The webhook URL needs both the integration ID and the token.
+		if len(path) < MinPathParts || path[1] == "" || path[TokenBIndex] == "" {
 			return ErrNotEnoughArguments
 		}
 	}
@@ -97,10 +99,15 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		c.TokenB = path[TokenBIndex]
 	}
 
+	// A URL without a channel segment, or with an empty one, names no channel.
+	c.Channel = ""
+
 	if len(path) > ChannelIndex {
 		switch {
 		case serviceURL.Fragment != "":
 			c.Channel = "#" + serviceURL.Fragment
+		case path[ChannelIndex] == "":
+			// A trailing slash after the tokens keeps the channel cleared.
 		case !strings.HasPrefix(path[ChannelIndex], "@"):
 			c.Channel = "#" + path[ChannelIndex]
 		default:
