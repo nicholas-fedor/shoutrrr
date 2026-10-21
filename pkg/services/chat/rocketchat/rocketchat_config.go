@@ -42,12 +42,22 @@ const (
 
 // GetURL returns a URL representation of the Config's current field values.
 //
+// The username is the userinfo, and the channel follows the tokens as a path
+// segment: a channel without its # prefix, which [Config.SetURL] restores, or
+// a user recipient with its @ prefix.
+//
 // Returns:
 //   - A pointer to a url.URL struct representing the current configuration
 func (c *Config) GetURL() *url.URL {
+	path := fmt.Sprintf("/%s/%s", c.TokenA, c.TokenB)
+	if channel := strings.TrimPrefix(c.Channel, "#"); channel != "" {
+		path += "/" + channel
+	}
+
 	serviceURL := &url.URL{
+		User:       util.URLUserPassword(c.UserName, ""),
 		Host:       util.JoinURLHost(c.Host, c.Port),
-		Path:       fmt.Sprintf("%s/%s", c.TokenA, c.TokenB),
+		Path:       path,
 		Scheme:     Scheme,
 		ForceQuery: false,
 	}
@@ -63,7 +73,9 @@ func (c *Config) GetURL() *url.URL {
 // Returns:
 //   - error: An error if the URL is invalid or missing required components,
 //     such as [ErrHostMissing] for a URL without a host,
-//     [ErrNotEnoughArguments] for a missing or empty integration ID or token, or
+//     [ErrNotEnoughArguments] for a missing or empty integration ID or token,
+//     [ErrInvalidChannel] for a channel with a slash or path segments after
+//     the channel, or
 //     [util.ErrInvalidHost] for a host that is not a hostname or a bracketed
 //     IPv6 address
 func (c *Config) SetURL(serviceURL *url.URL) error {
@@ -113,6 +125,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		default:
 			c.Channel = path[ChannelIndex]
 		}
+	}
+
+	// The channel path segment GetURL writes holds neither a slash, which only a
+	// fragment can carry, nor further segments, though a trailing slash is fine.
+	if strings.Contains(c.Channel, "/") ||
+		len(path) > ChannelIndex+1 && strings.Join(path[ChannelIndex+1:], "") != "" {
+		return ErrInvalidChannel
 	}
 
 	return nil
