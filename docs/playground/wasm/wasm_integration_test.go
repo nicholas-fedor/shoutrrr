@@ -16,7 +16,7 @@ import (
 var exampleURLs = map[string]string{
 	"discord":    "discord://token@123456789",
 	"generic":    "generic://192.168.1.100:8123/api/webhook",
-	"gotify":     "gotify://gotify.example.com/token",
+	"gotify":     "gotify://gotify.example.com/AzyoeNS.D4iJLVa",
 	"logger":     "logger://",
 	"ntfy":       "ntfy://ntfy.sh/mytopic",
 	"smtp":       "smtp://user:password@mail.example.com:587/?from=from@example.com&to=to@example.com",

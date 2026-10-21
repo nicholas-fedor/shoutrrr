@@ -149,8 +149,9 @@ func (c *Config) processQueryParameters(
 //   - url: The URL to parse configuration values from
 //
 // Returns:
-//   - error: [ErrHostMissing] for a URL without a host, or a query parameter
-//     error.
+//   - error: [ErrHostMissing] for a URL without a host, [ErrInvalidToken] for a
+//     missing token or one in neither Gotify token format, or a query
+//     parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
@@ -175,6 +176,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
 	c.prioritySet = false
+
+	// The documentation dummy URL has no token.
+	if serviceURL.String() != "gotify://dummy@dummy.com" && !(&DefaultValidator{}).ValidateToken(c.Token) {
+		return ErrInvalidToken
+	}
 
 	// Process query parameters to set remaining configuration fields
 	if err := c.processQueryParameters(resolver, serviceURL.Query()); err != nil {

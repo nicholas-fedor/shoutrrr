@@ -65,8 +65,7 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: testHost, Path: "/push/gotify/", Token: testToken},
 		},
 		{name: "Gotify 3 token", rawURL: "gotify://" + testHost + "/" + enhancedToken, want: Config{Host: testHost, Token: enhancedToken}},
-		{name: "no token", rawURL: "gotify://" + testHost + "/", want: Config{Host: testHost}},
-		{name: "no path", rawURL: "gotify://" + testHost, want: Config{Host: testHost}},
+		{name: "documentation dummy URL", rawURL: "gotify://dummy@dummy.com", want: Config{Host: "dummy.com"}},
 		{
 			name:   "query settings",
 			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&insecureskipverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
@@ -100,9 +99,10 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL rejects extras that are not a
-// JSON object and query values that do not set a config property, keeping
-// the key and the cause in the error.
+// TestConfigSetURLErrors verifies that SetURL rejects a URL without a host, a
+// missing or malformed token, extras that are not a JSON object, and query
+// values that do not set a config property, keeping the key and the cause in
+// the error.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -120,6 +120,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing host", rawURL: "gotify:///Aaa.bbb.ccc.ddd", wantErr: ErrHostMissing},
 		{name: "port without a host", rawURL: "gotify://:8080/Aaa.bbb.ccc.ddd", wantErr: ErrHostMissing},
 		{name: "token as an opaque path", rawURL: "gotify:/00", wantErr: ErrHostMissing},
+		{name: "no token", rawURL: "gotify://" + testHost + "/", wantErr: ErrInvalidToken},
+		{name: "no path", rawURL: "gotify://" + testHost, wantErr: ErrInvalidToken},
+		{name: "only slashes", rawURL: "gotify://" + testHost + "///", wantErr: ErrInvalidToken},
+		{name: "legacy token too short", rawURL: "gotify://" + testHost + "/Aaa", wantErr: ErrInvalidToken},
+		{name: "legacy token without the A prefix", rawURL: "gotify://" + testHost + "/Bzyoe.S.D4iJLVa", wantErr: ErrInvalidToken},
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidConfigKey, wantInErr: `"foo"`},
 		{name: "priority not a number", rawURL: testServiceURL + "?priority=high", wantErr: ErrConfigPropertyFailed, wantInErr: `"priority"`},
 		{name: "invalid bool", rawURL: testServiceURL + "?useheader=maybe", wantErr: ErrConfigPropertyFailed, wantCause: format.ErrInvalidBoolValue, wantInErr: `"useheader"`},
