@@ -95,7 +95,20 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that sets the query parameters.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a URL without a host, a path error such as
+//     [ErrNotEnoughArguments], or a query parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	// A Mattermost server has no default host.
+	if serviceURL.Hostname() == "" {
+		return ErrHostMissing
+	}
+
 	c.Host = serviceURL.Host
 	c.UserName = serviceURL.User.Username()
 

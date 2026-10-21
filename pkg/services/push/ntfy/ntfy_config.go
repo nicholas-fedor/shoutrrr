@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the Ntfy service.
@@ -37,9 +38,12 @@ type Config struct {
 	DisableTLS             bool     `default:"no"                                                                                            desc:"Disable TLS entirely (force HTTP scheme)"                                          key:"disabletls"`
 }
 
-// Scheme is the identifying part of this service's configuration URL.
+// Identifiers and defaults for this service's configuration URL.
 const (
+	// Scheme is the identifying part of this service's configuration URL.
 	Scheme = "ntfy"
+	// DefaultHost is the public ntfy server a URL without a host uses.
+	DefaultHost = "ntfy.sh"
 )
 
 // topicNamePattern matches the topic names ntfy accepts.
@@ -132,7 +136,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // setURL updates the Config from a URL using the provided resolver.
 //
-// The topic is the URL path without its first slash. Its last segment is the
+// A URL without a host uses [DefaultHost], keeping any port. The topic is the
+// URL path without its first slash. Its last segment is the
 // topic name, which must follow ntfy's rule, and any segments before it form a
 // base path, such as for a server behind a reverse proxy.
 //
@@ -141,8 +146,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a query parameter error, [ErrTopicRequired] for a missing topic,
-//     or [ErrInvalidTopic] for an invalid topic name or an empty path segment.
+//   - error: a host error such as [util.ErrInvalidHost], a query parameter
+//     error, [ErrTopicRequired] for a missing topic, or [ErrInvalidTopic] for
+//     an invalid topic name or an empty path segment.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -153,7 +159,16 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Username = ""
 	}
 
-	c.Host = serviceURL.Host
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	if host == "" {
+		host = DefaultHost
+	}
+
+	c.Host = util.JoinURLHost(host, port)
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 	c.Token = ""
 

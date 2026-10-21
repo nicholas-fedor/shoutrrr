@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Values shared by the tests.
@@ -119,6 +120,16 @@ func TestConfigSetURL(t *testing.T) {
 	}{
 		{name: "topic", rawURL: testServiceURL, want: defaultConfig(func(*Config) {})},
 		{
+			name:   "omitted host",
+			rawURL: "ntfy:///" + testTopic,
+			want:   defaultConfig(func(*Config) {}),
+		},
+		{
+			name:   "omitted host with a port",
+			rawURL: "ntfy://:8080/" + testTopic,
+			want:   defaultConfig(func(c *Config) { c.Host = "ntfy.sh:8080" }),
+		},
+		{
 			name:   "self-hosted server with a port",
 			rawURL: "ntfy://ntfy.example.com:8080/" + testTopic,
 			want:   defaultConfig(func(c *Config) { c.Host = "ntfy.example.com:8080" }),
@@ -220,6 +231,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "space in the topic", rawURL: "ntfy://ntfy.sh/SECRET%20topic", wantErr: ErrInvalidTopic},
 		{name: "dot in the topic", rawURL: "ntfy://ntfy.sh/SECRET.topic", wantErr: ErrInvalidTopic},
 		{name: "topic over 64 characters", rawURL: "ntfy://ntfy.sh/SECRET" + strings.Repeat("a", 59), wantErr: ErrInvalidTopic},
+		{name: "unbracketed IPv6 host", rawURL: "ntfy://2001:db8::1/" + testTopic, wantErr: util.ErrInvalidHost},
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid priority", rawURL: testServiceURL + "?priority=extreme", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?cache=maybe", wantErr: format.ErrInvalidBoolValue},

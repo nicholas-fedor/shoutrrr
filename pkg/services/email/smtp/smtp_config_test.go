@@ -238,6 +238,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "no sender", rawURL: "smtp://mail.example.com/?toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
+		{name: "missing host", rawURL: "smtp:///?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: ErrHostMissing},
+		{name: "port without a host", rawURL: "smtp://:587/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: ErrHostMissing},
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
 		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},

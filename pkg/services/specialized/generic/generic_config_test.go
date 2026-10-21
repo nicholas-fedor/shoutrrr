@@ -179,3 +179,15 @@ func TestConfigQueryResolver(t *testing.T) {
 		[]string{"contenttype", "disabletls", "messagekey", "method", "template", "title", "titlekey"},
 		format.GetConfigQueryResolver(config).QueryFields())
 }
+
+// TestConfigSetURLMissingHost verifies that SetURL rejects a URL without a
+// host, since a generic webhook has no default host.
+func TestConfigSetURLMissingHost(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{"generic:///webhook", "generic://:8080/webhook", "generic:/%2F%20"} {
+		config, resolver := DefaultConfig()
+
+		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), ErrHostMissing, rawURL)
+	}
+}

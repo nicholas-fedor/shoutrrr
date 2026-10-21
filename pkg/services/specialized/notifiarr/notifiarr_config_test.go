@@ -173,3 +173,20 @@ func TestConfigQueryResolver(t *testing.T) {
 		[]string{"apikey", "channel", "color", "image", "name", "thumbnail"},
 		format.GetConfigQueryResolver(config).QueryFields())
 }
+
+// TestConfigSetURLMissingAPIKey verifies that SetURL rejects a URL without an
+// API key in the host or the apikey query parameter, including one whose
+// authority is only a port, and accepts the query parameter alone.
+func TestConfigSetURLMissingAPIKey(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{"notifiarr:", "notifiarr://", "notifiarr://:8080", "notifiarr://?apikey="} {
+		config, resolver := DefaultConfig()
+
+		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), ErrAPIKeyMissing, rawURL)
+	}
+
+	config, resolver := DefaultConfig()
+	require.NoError(t, config.setURL(&resolver, parseTestURL(t, "notifiarr://?apikey="+testAPIKey)))
+	assert.Equal(t, testAPIKey, config.APIKey)
+}

@@ -47,13 +47,16 @@ const (
 // requestTimeout is the timeout for one Notifiarr request.
 const requestTimeout = 30 * time.Second
 
-// ErrSendFailed indicates a failure to send a notification to Notifiarr.
+// Errors returned by the Notifiarr service.
 var (
+	// ErrSendFailed indicates a failure to send a notification to Notifiarr.
 	ErrSendFailed = errors.New("failed to send notification to Notifiarr")
 	// ErrUnexpectedStatus indicates the server returned an unexpected response status code.
 	ErrUnexpectedStatus = errors.New("server returned unexpected response status code")
 	// ErrInvalidAPIKey indicates an invalid API key was provided.
 	ErrInvalidAPIKey = errors.New("invalid API key")
+	// ErrAPIKeyMissing indicates that the service URL has no API key.
+	ErrAPIKeyMissing = errors.New("API key missing from service URL")
 	// ErrAuthenticationFailed indicates authentication failure (e.g., 401 response).
 	ErrAuthenticationFailed = errors.New("authentication failed")
 	// ErrEmptyMessage indicates the message is empty.

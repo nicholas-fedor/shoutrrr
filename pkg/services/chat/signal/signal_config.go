@@ -32,6 +32,8 @@ type Config struct {
 const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "signal"
+	// DefaultHost is the Signal REST API host a URL without a host uses.
+	DefaultHost = "localhost"
 	// minPathParts is the minimum number of path parts required (source + at least one recipient).
 	minPathParts = 2
 )
@@ -200,7 +202,9 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 	return nil
 }
 
-// setURL updates the Config from a URL using the provided resolver.
+// setURL updates the Config from a URL using the provided resolver. A URL
+// without a host, from its authority or the host query param, uses
+// [DefaultHost].
 //
 // Parameters:
 //   - resolver: the configuration query resolver
@@ -210,7 +214,7 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 //   - error: if parsing fails, nil otherwise
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.String() == "signal://dummy@dummy.com" {
-		c.Host = "localhost"
+		c.Host = DefaultHost
 		c.Port = 8080
 		c.Source = "+1234567890"
 		c.Recipients = []string{"+0987654321"}
@@ -231,6 +235,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	if err := c.parseQuery(resolver, serviceURL); err != nil {
 		return err
+	}
+
+	// The host may come from the URL or the host query param, and neither is
+	// required.
+	if c.Host == "" {
+		c.Host = DefaultHost
 	}
 
 	return nil

@@ -130,7 +130,19 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a service URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a URL without a host, which a webhook needs,
+//     or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	if serviceURL.Hostname() == "" {
+		return ErrHostMissing
+	}
+
 	// Copy service URL
 	webhookURL := *serviceURL
 	// Extract query parameters
