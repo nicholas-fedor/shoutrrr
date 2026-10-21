@@ -58,7 +58,9 @@ func TestEntitySetFromProp(t *testing.T) {
 }
 
 // TestEntitySetFromPropErrors verifies that SetFromProp rejects a prop without
-// exactly one colon and a name for a type other than team or user.
+// exactly one colon, an entity without an identifier, which Opsgenie requires
+// for every responder and visibleTo entry, and a name for a type other than
+// team or user.
 func TestEntitySetFromPropErrors(t *testing.T) {
 	t.Parallel()
 
@@ -71,6 +73,11 @@ func TestEntitySetFromPropErrors(t *testing.T) {
 		{name: "no colon", prop: "NOC", wantErr: ErrInvalidEntityFormat},
 		{name: "two colons", prop: "user:a:b", wantErr: ErrInvalidEntityFormat},
 		{name: "name for an unknown type", prop: "group:NOC", wantErr: ErrUnexpectedEntityType},
+		{name: "user without a username", prop: "user:", wantErr: ErrMissingEntityIdentity},
+		{name: "team without a name", prop: "team:", wantErr: ErrMissingEntityIdentity},
+		{name: "escalation without a name", prop: "escalation:", wantErr: ErrMissingEntityIdentity},
+		{name: "schedule without a name", prop: "schedule:", wantErr: ErrMissingEntityIdentity},
+		{name: "no type and no identifier", prop: ":", wantErr: ErrMissingEntityIdentity},
 	}
 
 	for _, tt := range tests {

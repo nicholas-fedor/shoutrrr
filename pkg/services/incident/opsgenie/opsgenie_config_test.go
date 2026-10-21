@@ -106,7 +106,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without an API
-// key, a port above 65535, an unknown query prop, and an invalid responder.
+// key, a port above 65535, an unknown query prop, an invalid responder, and a
+// responder or visibleTo entry without an identifier.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -124,6 +125,16 @@ func TestConfigSetURLErrors(t *testing.T) {
 			name:    "responder without a type",
 			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey + "?responders=NOC",
 			wantErr: ErrInvalidEntityFormat,
+		},
+		{
+			name:    "responder without an identifier",
+			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey + "?responders=team:NOC,user:",
+			wantErr: ErrMissingEntityIdentity,
+		},
+		{
+			name:    "visibleTo entry without an identifier",
+			rawURL:  "opsgenie://api.opsgenie.com/" + testAPIKey + "?visibleTo=team:",
+			wantErr: ErrMissingEntityIdentity,
 		},
 	}
 

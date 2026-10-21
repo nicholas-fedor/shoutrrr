@@ -59,8 +59,10 @@ func (e *Entity) GetPropValue() (string, error) {
 //   - propValue: The entity in the format "type:identifier".
 //
 // Returns:
-//   - error: [ErrInvalidEntityFormat] without exactly one colon, or
-//     [ErrUnexpectedEntityType] for a name with another type.
+//   - error: [ErrInvalidEntityFormat] without exactly one colon,
+//     [ErrMissingEntityIdentity] without an identifier, which Opsgenie requires
+//     for every entity, or [ErrUnexpectedEntityType] for a name with another
+//     type.
 func (e *Entity) SetFromProp(propValue string) error {
 	elements := strings.Split(propValue, ":")
 
@@ -70,6 +72,10 @@ func (e *Entity) SetFromProp(propValue string) error {
 
 	e.Type = elements[0]
 	identifier := elements[1]
+
+	if identifier == "" {
+		return fmt.Errorf("%w: %q", ErrMissingEntityIdentity, propValue)
+	}
 
 	isID, err := isOpsGenieID(identifier)
 	if err != nil {
