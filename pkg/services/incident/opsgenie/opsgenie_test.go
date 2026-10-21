@@ -171,6 +171,13 @@ func TestSend(t *testing.T) {
 			wantBody: `{"message":"hello world"}`,
 		},
 		{
+			name:     "omitted host",
+			rawURL:   "opsgenie:///" + testAPIKey,
+			message:  "hello world",
+			wantURL:  "https://api.opsgenie.com:443/v2/alerts",
+			wantBody: `{"message":"hello world"}`,
+		},
+		{
 			name:     "EU host and port",
 			rawURL:   "opsgenie://api.eu.opsgenie.com:8443/" + testAPIKey,
 			message:  "hello world",
