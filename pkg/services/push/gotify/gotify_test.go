@@ -386,8 +386,6 @@ func TestSendValidation(t *testing.T) {
 		message string
 	}{
 		{name: "empty message", rawURL: testServiceURL, wantErr: ErrEmptyMessage},
-		{name: "invalid token", rawURL: "gotify://" + testHost + "/Aaa", message: "Hello", wantErr: ErrInvalidToken},
-		{name: "no token", rawURL: "gotify://" + testHost, message: "Hello", wantErr: ErrInvalidToken},
 		{name: "priority too high", rawURL: testServiceURL, params: &types.Params{"priority": "11"}, message: "Hello", wantErr: ErrInvalidPriority},
 		{name: "priority too low in the URL", rawURL: testServiceURL + "?priority=-3", message: "Hello", wantErr: ErrInvalidPriority},
 		{name: "unknown param", rawURL: testServiceURL, params: &types.Params{"unknown": "value"}, message: "Hello", wantErr: format.ErrInvalidConfigKey},
@@ -403,6 +401,21 @@ func TestSendValidation(t *testing.T) {
 
 			require.ErrorIs(t, service.Send(tt.message, tt.params), tt.wantErr)
 		})
+	}
+}
+
+// TestSendInvalidToken verifies that a send fails before any request when the
+// config's token is invalid, as a config changed after Initialize can be.
+func TestSendInvalidToken(t *testing.T) {
+	t.Parallel()
+
+	for _, token := range []string{"", "Aaa"} {
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+		service.Config.Token = token
+
+		require.ErrorIs(t, service.Send("Hello", nil), ErrInvalidToken, token)
 	}
 }
 

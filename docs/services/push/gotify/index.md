@@ -27,7 +27,7 @@ Tokens from earlier Gotify versions are exactly 15 characters long and start wit
 They can contain uppercase and lowercase letters, numbers, and the special characters '.', '-', and '_'.
 
 !!! Warning "Token Validation"
-    Invalid tokens will result in notification delivery failures. Always verify your token format matches Gotify's requirements.
+    Shoutrrr rejects a URL whose token is missing or in neither format, with the error `invalid gotify token`. Always verify your token format matches Gotify's requirements.
 
 ### Extras Field Support
 
@@ -122,7 +122,7 @@ Messages must contain at least one character. Empty messages are not allowed.
 
 !!! Failure "Validation Failure Example"
     ```bash
-    shoutrrr send --url "gotify://example.com/token" --message ""
+    shoutrrr send --url "gotify://example.com/AzyoeNS.D4iJLVa" --message ""
     ```
     **Error**: `message cannot be empty`
 
@@ -132,7 +132,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 !!! Failure "Validation Failure Example"
     ```bash
-    shoutrrr send --url "gotify://example.com/token?priority=15" --message "test"
+    shoutrrr send --url "gotify://example.com/AzyoeNS.D4iJLVa?priority=15" --message "test"
     ```
     **Error**: `priority must be between -2 and 10`
 
