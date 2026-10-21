@@ -20,12 +20,15 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // netKind is how a service reaches the network.
@@ -421,6 +424,103 @@ func TestIntegrationContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIntegrationIPv6Hosts verifies that every service that connects to its
+// URL's host accepts an IPv6 address in brackets, with or without a port,
+// keeps the brackets and port in its config URL so the config survives a round
+// trip, and rejects an unbracketed IPv6 address, which url.Parse splits at its
+// last colon.
+func TestIntegrationIPv6Hosts(t *testing.T) {
+	t.Parallel()
+
+	// ipv6Schemes lists the schemes whose URL host is the server they connect to.
+	ipv6Schemes := []string{
+		"homeassistant", "mqtt", "mqtts", "opsgenie", "pagerduty", "rocketchat", "signal", "smtp", "xmpp", "xmpps",
+	}
+
+	for _, scheme := range ipv6Schemes {
+		fixtureURL := fixtureURLFor(t, scheme)
+
+		for _, host := range []string{"[2001:db8::1]", "[2001:db8::1]:8443"} {
+			t.Run(scheme+" "+host, func(t *testing.T) {
+				t.Parallel()
+
+				serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+				require.NoError(t, err)
+
+				service, err := serviceRouter.Locate(withURLHost(t, fixtureURL, host))
+				closeService(t, service)
+				require.NoError(t, err)
+
+				first := format.GetServiceConfig(service).GetURL()
+				assert.Equal(t, "2001:db8::1", first.Hostname())
+				assert.True(t, strings.HasPrefix(first.Host, "[2001:db8::1]"), "host %q lost its brackets", first.Host)
+
+				if strings.HasSuffix(host, ":8443") {
+					assert.Equal(t, "8443", first.Port())
+				}
+
+				restored, err := serviceRouter.Locate(first.String())
+				closeService(t, restored)
+				require.NoError(t, err)
+				assert.Equal(t, first.Host, format.GetServiceConfig(restored).GetURL().Host)
+			})
+		}
+
+		t.Run(scheme+" unbracketed", func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(withURLHost(t, fixtureURL, "2001:db8::1"))
+			closeService(t, service)
+			require.ErrorIs(t, err, util.ErrInvalidHost)
+		})
+	}
+}
+
+// fixtureURLFor returns the contract fixture URL for scheme.
+//
+// Parameters:
+//   - t: the test.
+//   - scheme: the service scheme.
+//
+// Returns:
+//   - string: the fixture's service URL.
+func fixtureURLFor(t *testing.T, scheme string) string {
+	t.Helper()
+
+	for _, fx := range fixtures {
+		if fx.scheme == scheme {
+			return fx.url
+		}
+	}
+
+	t.Fatalf("no fixture for scheme %q", scheme)
+
+	return ""
+}
+
+// withURLHost returns rawURL with its host and port replaced by host.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//   - host: the new URL authority, such as [2001:db8::1]:8443.
+//
+// Returns:
+//   - string: the service URL with the new host.
+func withURLHost(t *testing.T, rawURL, host string) string {
+	t.Helper()
+
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	serviceURL.Host = host
+
+	return serviceURL.String()
 }
 
 // checkFixtureCoverage fails when a registered scheme has no fixture, so new

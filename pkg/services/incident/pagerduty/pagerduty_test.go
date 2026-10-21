@@ -208,6 +208,14 @@ func TestSend(t *testing.T) {
 				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
 		},
 		{
+			name:    "IPv6 host and port",
+			rawURL:  "pagerduty://[2001:db8::1]:8443/" + testIntegrationKey,
+			message: "hello world",
+			wantURL: "https://[2001:db8::1]:8443/v2/enqueue",
+			wantBody: `{"payload":{"summary":"hello world","severity":"error","source":"default"},` +
+				`"routing_key":"` + testIntegrationKey + `","event_action":"trigger"}`,
+		},
+		{
 			name:    "custom host and port",
 			rawURL:  "pagerduty://events.eu.pagerduty.com:8443/" + testIntegrationKey,
 			message: "hello world",

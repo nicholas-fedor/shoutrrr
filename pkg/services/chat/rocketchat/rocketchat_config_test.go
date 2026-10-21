@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // TestConfigGetURL verifies the URL built from a config with and without a
@@ -116,4 +118,15 @@ func TestConfigSetURLNotEnoughArguments(t *testing.T) {
 			require.ErrorIs(t, (&Config{}).SetURL(serviceURL), ErrNotEnoughArguments)
 		})
 	}
+}
+
+// TestConfigSetURLInvalidHost verifies that SetURL rejects an unbracketed
+// IPv6 host, which url.Parse splits at its last colon.
+func TestConfigSetURLInvalidHost(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse("rocketchat://2001:db8::1/tokenA/tokenB")
+	require.NoError(t, err)
+
+	require.ErrorIs(t, (&Config{}).SetURL(serviceURL), util.ErrInvalidHost)
 }

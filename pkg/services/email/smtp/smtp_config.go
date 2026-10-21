@@ -225,14 +225,22 @@ func restorePlusInAddrSpec(spec string) string {
 //   - serviceURL: The SMTP configuration URL to parse.
 //
 // Returns:
-//   - An error if a query parameter is invalid or required addresses are missing.
+//   - An error if the host is not a hostname or a bracketed IPv6 address
+//     ([util.ErrInvalidHost]), a query parameter is invalid, or required
+//     addresses are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.Username = serviceURL.User.Username()
 	c.Password = password
-	c.Host = serviceURL.Hostname()
 
-	if port, err := strconv.ParseUint(serviceURL.Port(), 10, 16); err == nil {
+	host, portStr, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	c.Host = host
+
+	if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 		c.Port = uint16(port)
 	}
 

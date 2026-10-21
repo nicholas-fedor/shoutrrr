@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service provides OpsGenie as a notification service.
@@ -27,12 +29,12 @@ type Service struct {
 	httpClient types.HTTPClient
 }
 
-// alertEndpointTemplate is the OpsGenie API endpoint template for sending alerts.
+// alertEndpointPath is the OpsGenie API endpoint path for sending alerts.
 const (
-	alertEndpointTemplate = "https://%s:%d/v2/alerts"
-	MaxMessageLength      = 130              // MaxMessageLength is the maximum length of the alert message field in OpsGenie.
-	httpSuccessMax        = 299              // httpSuccessMax is the maximum HTTP status code for a successful response.
-	defaultHTTPTimeout    = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	alertEndpointPath  = "/v2/alerts"
+	MaxMessageLength   = 130              // MaxMessageLength is the maximum length of the alert message field in OpsGenie.
+	httpSuccessMax     = 299              // httpSuccessMax is the maximum HTTP status code for a successful response.
+	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
 )
 
 // ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
@@ -89,11 +91,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config := s.Config
-	serviceURL := fmt.Sprintf(
-		alertEndpointTemplate,
-		config.Host,
-		config.Port,
-	)
+	serviceURL := (&url.URL{
+		Scheme: "https",
+		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
+		Path:   alertEndpointPath,
+	}).String()
 
 	payload, err := s.newAlertPayload(message, params)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -242,6 +243,12 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 		t.Parallel()
 
 		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883/")), ErrTopicRequired)
+	})
+
+	t.Run("unbracketed IPv6 host", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://2001:db8::1/test/topic")), util.ErrInvalidHost)
 	})
 
 	t.Run("invalid QoS", func(t *testing.T) {

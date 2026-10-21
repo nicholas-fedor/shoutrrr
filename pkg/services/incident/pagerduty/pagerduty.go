@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service provides PagerDuty as a notification service.
@@ -27,9 +29,9 @@ type Service struct {
 }
 
 const (
-	eventEndpointTemplate = "https://%s:%d/v2/enqueue"
-	defaultHTTPTimeout    = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
-	maxMessageLength      = 1024             // maxMessageLength is the maximum permitted length of the summary property.
+	eventEndpointPath  = "/v2/enqueue"
+	defaultHTTPTimeout = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	maxMessageLength   = 1024             // maxMessageLength is the maximum permitted length of the summary property.
 
 	contextTypeLink  = "link"
 	contextTypeImage = "image"
@@ -101,7 +103,11 @@ func (s *Service) SendContext(
 	params *types.Params,
 ) error {
 	config := s.Config
-	endpointURL := fmt.Sprintf(eventEndpointTemplate, config.Host, config.Port)
+	endpointURL := (&url.URL{
+		Scheme: "https",
+		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
+		Path:   eventEndpointPath,
+	}).String()
 
 	payload, err := s.newEventPayload(message, params)
 	if err != nil {

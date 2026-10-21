@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -119,6 +120,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing token", rawURL: "homeassistant://ha.example.com", wantErr: ErrTokenMissing},
 		{name: "empty token", rawURL: "homeassistant://@ha.example.com", wantErr: ErrTokenMissing},
 		{name: "missing host", rawURL: "homeassistant://s3cret@", wantErr: ErrHostMissing},
+		{name: "unbracketed IPv6 host", rawURL: "homeassistant://s3cret@2001:db8::1", wantErr: util.ErrInvalidHost},
 		{name: "port out of range", rawURL: "homeassistant://s3cret@ha.example.com:99999", wantErr: ErrInvalidPort},
 		{name: "port zero", rawURL: "homeassistant://s3cret@ha.example.com:0", wantErr: ErrInvalidPort},
 		{name: "unknown prop", rawURL: "homeassistant://s3cret@ha.example.com?foo=bar", wantErr: format.ErrInvalidConfigKey},

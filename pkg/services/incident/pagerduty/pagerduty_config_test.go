@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // testIntegrationKey is a 32-character hexadecimal integration key.
@@ -126,6 +127,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "port out of range", rawURL: "pagerduty://events.pagerduty.com:70000/" + testIntegrationKey},
 		{name: "unknown prop", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "dummy.com host without a key", rawURL: "pagerduty://dummy.com", wantErr: errMissingIntegrationKey},
+		{name: "unbracketed IPv6 host", rawURL: "pagerduty://2001:db8::1/" + testIntegrationKey, wantErr: util.ErrInvalidHost},
 		{name: "dummy.com host with an invalid key", rawURL: "pagerduty://dummy.com/not-a-hex-key", wantErr: errInvalidIntegrationKey},
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Test credentials in the format the OpsGenie API documentation uses.
@@ -132,6 +133,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing API key", rawURL: "opsgenie://api.opsgenie.com", wantErr: ErrAPIKeyMissing},
 		{name: "empty API key", rawURL: "opsgenie://api.opsgenie.com/", wantErr: ErrAPIKeyMissing},
 		{name: "port zero", rawURL: "opsgenie://api.opsgenie.com:0/" + testAPIKey, wantErr: ErrInvalidPort},
+		{name: "unbracketed IPv6 host", rawURL: "opsgenie://2001:db8::1/" + testAPIKey, wantErr: util.ErrInvalidHost},
 		{name: "port out of range", rawURL: "opsgenie://api.opsgenie.com:70000/" + testAPIKey, wantErr: ErrInvalidPort},
 		{name: "unknown prop", rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{

@@ -8,6 +8,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds all configuration settings for the MQTT service.
@@ -236,7 +237,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	result := &url.URL{
 		Scheme:     scheme,
-		Host:       fmt.Sprintf("%s:%d", c.Host, c.Port),
+		Host:       util.JoinURLHost(c.Host, strconv.Itoa(c.Port)),
 		ForceQuery: true, // Always include the query string separator (?)
 		// SetURL strips the path's first slash, so a topic's own leading slash,
 		// which makes it a distinct MQTT topic, follows the path's slash.
@@ -258,15 +259,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // setURL is the internal implementation of SetURL that accepts a resolver interface.
 // It extracts all configuration values from the URL including:
 //   - User credentials from the URL user info (username:password@host)
-//   - Host and port from the URL host component
+//   - Host and port from the URL host component, with an IPv6 host in brackets
 //   - Topic from the URL path (with leading slash removed)
 //   - Additional options from URL query parameters
 //
 // Parameters:
 //   - resolver: The query resolver to use for parsing query parameters
-//   - url: The configuration URL to parse
+//   - serviceURL: The configuration URL to parse
 //
-// Returns an error if parsing fails or required fields are missing.
+// Returns:
+//   - error: a host error such as [util.ErrInvalidHost], a port or query
+//     parameter error, [ErrTopicRequired], or [ErrInvalidQoS].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.scheme = serviceURL.Scheme
 
@@ -282,14 +285,16 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Username = ""
 	}
 
-	// Extract hostname from the URL
-	host := serviceURL.Hostname()
+	// Extract the hostname and port from the URL. An IPv6 host must be in brackets.
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
 	if host != "" {
 		c.Host = host
 	}
 
-	// Extract and parse port number from the URL
-	port := serviceURL.Port()
 	if port != "" {
 		// Parse the port string to an integer
 		parsedPort, err := strconv.Atoi(port)

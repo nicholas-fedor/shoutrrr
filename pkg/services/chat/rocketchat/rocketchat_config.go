@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the Rocket.Chat service.
@@ -44,13 +45,8 @@ const (
 // Returns:
 //   - A pointer to a url.URL struct representing the current configuration
 func (c *Config) GetURL() *url.URL {
-	host := c.Host
-	if c.Port != "" {
-		host = fmt.Sprintf("%s:%s", c.Host, c.Port)
-	}
-
 	serviceURL := &url.URL{
-		Host:       host,
+		Host:       util.JoinURLHost(c.Host, c.Port),
 		Path:       fmt.Sprintf("%s/%s", c.TokenA, c.TokenB),
 		Scheme:     Scheme,
 		ForceQuery: false,
@@ -61,14 +57,20 @@ func (c *Config) GetURL() *url.URL {
 
 // SetURL updates the Config from a URL representation of its field values.
 //
-// Params:
+// Parameters:
 //   - serviceURL: The URL to parse and extract configuration from
 //
 // Returns:
-//   - error: An error if the URL is invalid or missing required components
+//   - error: An error if the URL is invalid or missing required components,
+//     such as [util.ErrInvalidHost] for a host that is not a hostname or a
+//     bracketed IPv6 address
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
-	host := serviceURL.Hostname()
+
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
 
 	path := strings.Split(serviceURL.Path, "/")
 	if serviceURL.String() != "rocketchat://dummy@dummy.com" {
@@ -77,7 +79,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		}
 	}
 
-	c.Port = serviceURL.Port()
+	c.Port = port
 	c.UserName = userName
 	c.Host = host
 

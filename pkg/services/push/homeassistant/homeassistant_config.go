@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Home Assistant notification service.
@@ -151,10 +152,12 @@ func (c *Config) domainService() (string, string, error) {
 // Returns:
 //   - The service URL with the token as userinfo and the host as hostname.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	host := c.Host
+	port := ""
 	if c.Port != 0 && c.Port != c.impliedPort() {
-		host = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+		port = strconv.Itoa(c.Port)
 	}
+
+	host := util.JoinURLHost(c.Host, port)
 
 	return &url.URL{
 		Scheme:   Scheme,
@@ -233,7 +236,9 @@ func (c *Config) setPort(rawPort string) error {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - An error if a query parameter is invalid or required fields are missing.
+//   - An error if the host is not a hostname or a bracketed IPv6 address
+//     ([util.ErrInvalidHost]), a query parameter is invalid, or required fields
+//     are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	isDummy := serviceURL.String() == dummyServiceURL
 
@@ -243,9 +248,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Token = ""
 	}
 
-	c.Host = serviceURL.Hostname()
+	host, port, err := util.SplitURLHost(serviceURL)
+	if err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
 
-	if err := c.setPort(serviceURL.Port()); err != nil {
+	c.Host = host
+
+	if err := c.setPort(port); err != nil {
 		return err
 	}
 

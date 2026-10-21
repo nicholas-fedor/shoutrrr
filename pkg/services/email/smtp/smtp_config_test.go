@@ -13,6 +13,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // allPropsURL is a service URL that sets every property GetURL writes.
@@ -240,6 +241,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
 		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{
+			name:    "unbracketed IPv6 host",
+			rawURL:  "smtp://2001:db8::1/?fromaddress=sender@example.com&toaddresses=rec@example.com",
+			wantErr: util.ErrInvalidHost,
+		},
 		{name: "invalid encryption", rawURL: "smtp://mail.example.com/?encryption=SSL", wantErr: format.ErrInvalidEnumValue},
 		{
 			name:    "invalid timeout",
