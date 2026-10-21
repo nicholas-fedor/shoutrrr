@@ -87,13 +87,8 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Source: "my app"},
 		},
 		{
-			name:   "dummy URL with a key",
-			rawURL: "pagerduty://dummy.com/not-a-hex-key",
-			want:   Config{IntegrationKey: "not-a-hex-key"},
-		},
-		{
-			name:   "dummy URL without a key",
-			rawURL: "pagerduty://dummy.com",
+			name:   "documentation dummy URL",
+			rawURL: "pagerduty://dummy@dummy.com",
 			want:   Config{},
 		},
 	}
@@ -112,7 +107,8 @@ func TestConfigSetURL(t *testing.T) {
 
 // TestConfigSetURLErrors verifies that SetURL rejects a URL without an
 // integration key, a key that is not 32 hexadecimal characters, a port above
-// 65535, and an unknown query prop.
+// 65535, and an unknown query prop, including URLs on the dummy.com host that
+// are not the documentation dummy URL.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -129,6 +125,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "non-hex key", rawURL: "pagerduty://events.pagerduty.com/" + "z1b2c3d4e5f678901234567890abcdef", wantErr: errInvalidIntegrationKey},
 		{name: "port out of range", rawURL: "pagerduty://events.pagerduty.com:70000/" + testIntegrationKey},
 		{name: "unknown prop", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "dummy.com host without a key", rawURL: "pagerduty://dummy.com", wantErr: errMissingIntegrationKey},
+		{name: "dummy.com host with an invalid key", rawURL: "pagerduty://dummy.com/not-a-hex-key", wantErr: errInvalidIntegrationKey},
 	}
 
 	for _, tt := range tests {
