@@ -33,12 +33,16 @@ const skipEmptySliceValue = "an empty query value sets a slice key to one empty 
 // not parse, such as [:]:1. Fixing it must remove the skip.
 const skipUnbracketedIPv6Host = "a host with several colons and no brackets comes back as a host that does not parse"
 
+// skipDocsDummyURL is the reason FuzzConfigRoundTrip skips the documentation
+// generator's <scheme>://dummy@dummy.com URL, which services accept without
+// validation only so the generator can render their config fields, and whose
+// config is not meant to be restored from its URL.
+const skipDocsDummyURL = "the documentation dummy URL bypasses validation and is not a real configuration"
+
 // roundTripAllowlist records the schemes whose configs FuzzConfigRoundTrip skips,
 // each with the known failure. Fixing a failure must remove its entry.
 var roundTripAllowlist = map[string]string{
-	"googlechat": "Google Chat accepts a URL without key and token, but GetURL writes them empty, which SetURL rejects",
 	"gotify":     "Gotify accepts a URL without a host, and GetURL then writes the token as the host",
-	"hangouts":   "Google Chat accepts a URL without key and token, but GetURL writes them empty, which SetURL rejects",
 	"ntfy":       "ntfy accepts a topic that starts with a slash, which GetURL writes as the path's own slash",
 	"opsgenie":   "Opsgenie accepts an entity without an identifier, such as user:, which GetURL writes as <ERR>",
 	"rocketchat": "Rocket.Chat accepts a URL without a host, but rejects the URL GetURL writes for it",
@@ -98,6 +102,10 @@ func FuzzConfigRoundTrip(f *testing.F) {
 		}
 
 		rawURL := scheme + rest
+		if isDocsDummyURL(rawURL) {
+			t.Skip(skipDocsDummyURL)
+		}
+
 		if hasEmptyQueryValue(rawURL) {
 			t.Skip(skipEmptySliceValue)
 		}
@@ -157,6 +165,8 @@ func addRouterSeeds(f *testing.F, schemes []string) {
 	add("mqtt", "://broker.example.invalid//home/alerts")
 	add("wecom", "://key?key=other-key_2&mentioned_list=@all")
 	add("generic", "://example.invalid/hook?@X-API-Key=key&@x-1st=first&@acceptLanguage=tlh")
+	add("hangouts", ":///v1/spaces/FOO/messages?key=k&token=t")
+	add("googlechat", "://dummy@dummy.com")
 }
 
 // userinfoSecrets returns the username and password of rawURL that carry
@@ -195,6 +205,21 @@ func userinfoSecrets(rawURL string) []string {
 	}
 
 	return secrets
+}
+
+// isDocsDummyURL reports whether rawURL is the documentation generator's
+// dummy URL, which services recognize by comparing the parsed URL's string
+// with <scheme>://dummy@dummy.com.
+//
+// Parameters:
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - bool: true when the URL parses to the dummy URL of its scheme.
+func isDocsDummyURL(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+
+	return err == nil && parsed.String() == parsed.Scheme+"://dummy@dummy.com"
 }
 
 // hasEmptyQueryValue reports whether rawURL has a query parameter without a

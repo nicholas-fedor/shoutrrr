@@ -9,7 +9,8 @@ import (
 )
 
 // TestConfigSetURL verifies that SetURL reads the host, path, key, and token
-// from a service URL and rejects a key or token that is present but empty.
+// from a service URL, applies the default host when the URL omits it, requires
+// both the key and the token, and accepts the documentation dummy URL.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -26,9 +27,39 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"},
 		},
 		{
-			name:   "no query",
-			rawURL: "googlechat://chat.googleapis.com/v1/spaces/FOO/messages",
-			want:   Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages"},
+			name:   "omitted host",
+			rawURL: "googlechat:///v1/spaces/FOO/messages?key=bar&token=baz",
+			want:   Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"},
+		},
+		{
+			name:   "documentation dummy URL",
+			rawURL: "googlechat://dummy@dummy.com",
+			want:   Config{Host: "dummy.com"},
+		},
+		{
+			name:   "hangouts documentation dummy URL",
+			rawURL: "hangouts://dummy@dummy.com",
+			want:   Config{Host: "dummy.com"},
+		},
+		{
+			name:    "no query",
+			rawURL:  "googlechat://chat.googleapis.com/v1/spaces/FOO/messages",
+			wantErr: ErrMissingKey,
+		},
+		{
+			name:    "missing key",
+			rawURL:  "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?token=baz",
+			wantErr: ErrMissingKey,
+		},
+		{
+			name:    "missing token",
+			rawURL:  "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar",
+			wantErr: ErrMissingToken,
+		},
+		{
+			name:    "bare scheme",
+			rawURL:  "googlechat:",
+			wantErr: ErrMissingKey,
 		},
 		{
 			name:    "empty key",
@@ -78,4 +109,23 @@ func TestConfigGetURL(t *testing.T) {
 	require.NoError(t, config.SetURL(serviceURL))
 
 	assert.Equal(t, rawURL, config.GetURL().String())
+}
+
+// TestConfigGetURLOmittedHost verifies that a config read from a URL without a
+// host writes the default host, and that SetURL restores the same config.
+func TestConfigGetURLOmittedHost(t *testing.T) {
+	t.Parallel()
+
+	serviceURL, err := url.Parse("googlechat:///v1/spaces/FOO/messages?key=bar&token=baz")
+	require.NoError(t, err)
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(serviceURL))
+
+	got := config.GetURL()
+	assert.Equal(t, "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=baz", got.String())
+
+	restored := &Config{}
+	require.NoError(t, restored.SetURL(got))
+	assert.Equal(t, *config, *restored)
 }
