@@ -47,6 +47,7 @@ modules:
   mod_ping: {}
   mod_roster: {}
   mod_stream_mgmt: {}
+  mod_muc_admin: {}
   mod_muc:
     host: "conference.@HOST@"
     access: muc

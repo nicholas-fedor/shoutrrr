@@ -23,7 +23,7 @@ services:
       - "127.0.0.1:5224:5224"
     environment:
       - EJABBERD_MACRO_HOST=localhost
-      - CTL_ON_CREATE=register sender localhost senderpass ; register recipient localhost recipientpass ; create_room alerts conference.localhost localhost ; create_room secret conference.localhost localhost ; change_room_option secret conference.localhost password roompass
+      - CTL_ON_CREATE=register sender localhost senderpass ; register recipient localhost recipientpass ; create_room alerts conference.localhost localhost ; create_room secret conference.localhost localhost ; change_room_option secret conference.localhost password roompass ; change_room_option secret conference.localhost password_protected true
       - CTL_ON_START=status
     volumes:
       - ./ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml:ro
