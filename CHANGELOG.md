@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clear slice and map keys set from an empty value by @nicholas-fedor in [#1735](https://github.com/nicholas-fedor/shoutrrr/pull/1735)
 - Keep host credentials exact in ifttt, signalgrid, and pushbullet by @nicholas-fedor in [#1733](https://github.com/nicholas-fedor/shoutrrr/pull/1733)
 
+### Chores
+
+- Update alpine docker tag to v3.24.3 by @renovate[bot] in [#1737](https://github.com/nicholas-fedor/shoutrrr/pull/1737)
+
 ## [0.22.1] - 2026-10-21
 
 ### Fixed
