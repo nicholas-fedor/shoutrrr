@@ -23,17 +23,18 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
-	// defaultClient reports whether httpClient was built by the service rather than
-	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
-	defaultClient bool
-	// otherClientMu guards otherClient.
-	otherClientMu sync.Mutex
+
+	Config *Config
 	// otherClient is the default client for sends whose certificate verification
 	// setting differs from the stored config, built on first use.
 	otherClient *http.Client
+	pkr         format.PropKeyResolver
+	// otherClientMu guards otherClient.
+	otherClientMu sync.Mutex
+	// defaultClient reports whether httpClient was built by the service rather than
+	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
+	defaultClient bool
 }
 
 // HTTPTimeout defines the HTTP client timeout in seconds.

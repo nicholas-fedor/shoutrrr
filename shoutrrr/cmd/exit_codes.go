@@ -3,10 +3,10 @@ package cmd
 
 // ExitError contains the final exit message and code for a CLI session.
 type ExitError struct {
-	// ExitCode is the numeric exit code returned to the operating system.
-	ExitCode int
 	// Message is the human-readable error message.
 	Message string
+	// ExitCode is the numeric exit code returned to the operating system.
+	ExitCode int
 }
 
 const (
@@ -41,8 +41,8 @@ func (e ExitError) Error() string {
 //   - ExitError: An ExitError with ExitCode set to ExUsage.
 func InvalidUsage(message string) ExitError {
 	return ExitError{
-		ExUsage,
-		message,
+		ExitCode: ExUsage,
+		Message:  message,
 	}
 }
 
@@ -55,8 +55,8 @@ func InvalidUsage(message string) ExitError {
 //   - ExitError: An ExitError with ExitCode set to ExUnavailable.
 func TaskUnavailable(message string) ExitError {
 	return ExitError{
-		ExUnavailable,
-		message,
+		ExitCode: ExUnavailable,
+		Message:  message,
 	}
 }
 
@@ -69,7 +69,7 @@ func TaskUnavailable(message string) ExitError {
 //   - ExitError: An ExitError with ExitCode set to ExConfig.
 func ConfigurationError(message string) ExitError {
 	return ExitError{
-		ExConfig,
-		message,
+		ExitCode: ExConfig,
+		Message:  message,
 	}
 }

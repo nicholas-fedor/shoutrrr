@@ -8,12 +8,12 @@ import (
 type priority int
 
 type priorityVals struct {
+	Enum    types.EnumFormatter
 	Min     priority
 	Low     priority
 	Default priority
 	High    priority
 	Max     priority
-	Enum    types.EnumFormatter
 }
 
 // Priority levels as constants.

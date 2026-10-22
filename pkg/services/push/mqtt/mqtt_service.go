@@ -32,33 +32,34 @@ type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
 
+	// connectionManager is the underlying MQTT connection manager for broker communication.
+	connectionManager ConnectionManager
+
 	// Config holds the MQTT connection and publishing settings.
 	Config *Config
-	// pkr resolves property keys for configuration updates from URL parameters.
-	pkr format.PropKeyResolver
 	// dialContext, if non-nil, is used for the MQTT TCP dial via AttemptConnection.
 	dialContext types.DialContextFunc
 	// connect creates a connection manager. Nil uses [autopaho.NewConnection].
 	connect connectFunc
-	// clientMutex guards the connection state below.
-	clientMutex sync.Mutex
-	// connectionManager is the underlying MQTT connection manager for broker communication.
-	connectionManager ConnectionManager
-	// ownedConnection reports whether the service created connectionManager, so it
-	// may replace the connection once it ends and tear it down when idle.
-	ownedConnection bool
 	// cancelConnection ends the lifetime of a connection the service created.
 	cancelConnection context.CancelFunc
-	// activeSends counts the sends in progress, which keeps the idle timer stopped.
-	activeSends int
 	// connectionSends tracks the sends using connectionManager, so tearing the
 	// connection down waits for them to finish.
 	connectionSends *sync.WaitGroup
 	// idleTimer tears down a connection the service created once it is idle.
 	idleTimer *time.Timer
+	// pkr resolves property keys for configuration updates from URL parameters.
+	pkr format.PropKeyResolver
+	// activeSends counts the sends in progress, which keeps the idle timer stopped.
+	activeSends int
 	// idleGeneration identifies the current idle period, so a timer that fires
 	// after a send has started does nothing.
 	idleGeneration uint64
+	// clientMutex guards the connection state below.
+	clientMutex sync.Mutex
+	// ownedConnection reports whether the service created connectionManager, so it
+	// may replace the connection once it ends and tear it down when idle.
+	ownedConnection bool
 }
 
 // connectFunc creates a connection manager whose lifetime ends with ctx. The

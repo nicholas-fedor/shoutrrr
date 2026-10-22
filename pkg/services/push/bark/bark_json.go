@@ -20,8 +20,8 @@ type PushPayload struct {
 //
 //nolint:errname // APIResponse name is mandated by the Bark API response format
 type APIResponse struct {
-	Code      int64  `json:"code"`
 	Message   string `json:"message"`
+	Code      int64  `json:"code"`
 	Timestamp int64  `json:"timestamp"`
 }
 

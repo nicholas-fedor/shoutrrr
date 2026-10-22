@@ -17,17 +17,17 @@ package opsgenie
 //		"details":     "key1:value1,key2:value2",
 //	})
 type AlertPayload struct {
+	Details     map[string]string `json:"details,omitempty"`
 	Message     string            `json:"message"`
 	Alias       string            `json:"alias,omitempty"`
 	Description string            `json:"description,omitempty"`
-	Responders  []Entity          `json:"responders,omitempty"`
-	VisibleTo   []Entity          `json:"visibleTo,omitempty"`
-	Actions     []string          `json:"actions,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	Details     map[string]string `json:"details,omitempty"`
 	Entity      string            `json:"entity,omitempty"`
 	Source      string            `json:"source,omitempty"`
 	Priority    string            `json:"priority,omitempty"`
 	User        string            `json:"user,omitempty"`
 	Note        string            `json:"note,omitempty"`
+	Responders  []Entity          `json:"responders,omitempty"`
+	VisibleTo   []Entity          `json:"visibleTo,omitempty"`
+	Actions     []string          `json:"actions,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
 }

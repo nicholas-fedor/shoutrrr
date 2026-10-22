@@ -8,6 +8,8 @@ import "fmt"
 // errors.As to recover the *TargetError, read the identifier and position of the
 // failed target, and use errors.Unwrap to reach the underlying error.
 type TargetError struct {
+	// Err is the underlying error from the service.
+	Err error
 	// URL identifies the failed target by its service ID, such as "telegram".
 	// It never contains the service URL, so the error is safe to log.
 	URL string
@@ -15,8 +17,6 @@ type TargetError struct {
 	// URLs. It identifies the target when several share a service ID, and when
 	// results arrive in completion order from SendAsync.
 	Index int
-	// Err is the underlying error from the service.
-	Err error
 }
 
 // Error returns the formatted error message including the target URL.

@@ -43,6 +43,15 @@ git clone https://github.com/nicholas-fedor/shoutrrr.git
 
   Installation Documentation: <https://golangci-lint.run/welcome/install/#local-installation>
 
+- [betteralign](https://github.com/dkorunic/betteralign)
+
+  `task fmt` uses it to order struct fields, and `task lint` checks that order.
+  With Go installed, run:
+
+  ```bash
+  go install github.com/dkorunic/betteralign/cmd/betteralign@latest
+  ```
+
 - [GoReleaser](https://goreleaser.com/)
 
   Installation Documentation: <https://goreleaser.com/install/>
@@ -79,7 +88,7 @@ Run `task` to list every task.
 ```bash
 task build              # builds a static CLI binary at ./bin/shoutrrr
 task test               # runs the unit and integration tests with race detection
-task lint               # runs golangci-lint, which applies its fixes to the tree
+task lint               # runs golangci-lint, which applies its fixes to the tree, and checks struct field order with betteralign
 task check              # runs fmt, vet, modernize, test, lint, and vuln
 ./bin/shoutrrr --help   # runs the built CLI
 ```

@@ -20,29 +20,29 @@ type Config struct {
 
 	// Host is the XMPP server hostname used for the TCP dial.
 	Host string `desc:"XMPP server hostname" url:"Host"`
-	// Port is the XMPP server port.
-	Port uint16 `desc:"XMPP server port" url:"Port"`
 	// User is the auth JID localpart or a full JID (local@domain).
 	User string `desc:"Auth JID localpart or full JID" url:"User"`
 	// Password is the SASL password.
 	Password string `desc:"Auth password" sensitive:"true" url:"Pass"`
-	// To is the list of 1:1 chat recipient JIDs.
-	To []string `desc:"Chat recipient JIDs" key:"to" optional:""`
-	// Rooms is the list of MUC room JIDs.
-	Rooms []string `desc:"MUC room JIDs" key:"rooms" optional:""`
 	// Nick is the MUC nickname. Empty uses the auth JID localpart.
 	Nick string `desc:"MUC nickname" key:"nick" optional:""`
 	// RoomPassword is sent when joining password-protected rooms.
 	RoomPassword string `desc:"Password for protected MUC rooms" key:"roompassword" optional:"" sensitive:"true"`
 	// Title is prepended to the message body when set.
 	Title string `desc:"Optional title prepended to the message body" key:"title" optional:""`
+
+	// scheme is the URL scheme used to build GetURL, either [Scheme] or [SchemeTLS].
+	scheme string
+	// To is the list of 1:1 chat recipient JIDs.
+	To []string `desc:"Chat recipient JIDs" key:"to" optional:""`
+	// Rooms is the list of MUC room JIDs.
+	Rooms []string `desc:"MUC room JIDs" key:"rooms" optional:""`
+	// Port is the XMPP server port.
+	Port uint16 `desc:"XMPP server port" url:"Port"`
 	// DisableTLS disables encryption. Allowed only on xmpp://.
 	DisableTLS bool `default:"No" desc:"Disable TLS (xmpp:// only)" key:"disabletls"`
 	// SkipTLSVerify skips TLS certificate verification.
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
-
-	// scheme is the URL scheme used to build GetURL, either [Scheme] or [SchemeTLS].
-	scheme string
 }
 
 const (

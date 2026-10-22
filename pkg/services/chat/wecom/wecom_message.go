@@ -15,6 +15,6 @@ type TextContent struct {
 
 // Response represents the API response from WeCom.
 type Response struct {
-	ErrCode int    `json:"errcode"`
 	ErrMsg  string `json:"errmsg"`
+	ErrCode int    `json:"errcode"`
 }

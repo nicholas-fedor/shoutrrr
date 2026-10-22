@@ -61,9 +61,12 @@ tasks:
       - go run ./shoutrrr {{.CLI_ARGS}}
 
   fmt:
-    desc: "Format code with golangci-lint fmt"
+    desc: "Format code with golangci-lint fmt and order struct fields with betteralign"
+    # betteralign exits non-zero after applying changes, so a second run fails
+    # the task only for structs it could not reorder.
     cmds:
       - golangci-lint fmt --config {{.GOLANGCI_CONFIG}} ./...
+      - betteralign -apply ./... || betteralign ./...
 
   vet:
     desc: "Run go vet"
@@ -85,9 +88,10 @@ tasks:
         fi
 
   lint:
-    desc: "Run golangci-lint, which applies its fixes to the tree"
+    desc: "Run golangci-lint, which applies its fixes to the tree, and check struct field order with betteralign"
     cmds:
       - golangci-lint run --config {{.GOLANGCI_CONFIG}} ./...
+      - betteralign ./...
 
   test:
     desc: "Run the unit and integration tests with race detection and coverage"

@@ -19,9 +19,9 @@ type Service struct {
 	standard.Standard
 
 	client     jsonclient.ContextClient
+	httpClient types.HTTPClient
 	Config     *Config
 	pkr        format.PropKeyResolver
-	httpClient types.HTTPClient
 }
 
 // Constants.

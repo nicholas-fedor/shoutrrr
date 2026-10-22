@@ -22,9 +22,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // JSONTemplate identifies the JSON format for webhook payloads.

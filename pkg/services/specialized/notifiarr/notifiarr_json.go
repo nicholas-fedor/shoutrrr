@@ -9,8 +9,8 @@ type Field struct {
 
 // NotificationPayload represents the main payload structure for Notifiarr API.
 type NotificationPayload struct {
-	Notification NotificationData `json:"notification"`
 	Discord      *DiscordPayload  `json:"discord,omitempty"`
+	Notification NotificationData `json:"notification"`
 }
 
 // NotificationData contains the notification metadata.
@@ -22,11 +22,11 @@ type NotificationData struct {
 
 // DiscordPayload contains Discord-specific configuration for notifications.
 type DiscordPayload struct {
-	Color  string        `json:"color,omitempty"`  // Optional color as 6-digit HTML color code
 	Ping   *PingPayload  `json:"ping,omitempty"`   // Optional ping configuration
 	Images *ImagePayload `json:"images,omitempty"` // Optional image configuration
 	Text   *TextPayload  `json:"text,omitempty"`   // Optional text configuration
 	IDs    *IDPayload    `json:"ids,omitempty"`    // Optional IDs configuration
+	Color  string        `json:"color,omitempty"`  // Optional color as 6-digit HTML color code
 }
 
 // PingPayload contains ping configuration for Discord notifications.
@@ -47,8 +47,8 @@ type TextPayload struct {
 	Icon        string  `json:"icon,omitempty"`        // Optional icon URL
 	Content     string  `json:"content,omitempty"`     // Optional content
 	Description string  `json:"description,omitempty"` // Optional description
-	Fields      []Field `json:"fields,omitempty"`      // Optional fields array
 	Footer      string  `json:"footer,omitempty"`      // Optional footer text
+	Fields      []Field `json:"fields,omitempty"`      // Optional fields array
 }
 
 // IDPayload contains required IDs for Discord notifications.

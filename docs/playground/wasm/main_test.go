@@ -167,7 +167,7 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
-			catchHandler = js.FuncOf(func(_ js.Value, args []js.Value) interface{} {
+			catchHandler = js.FuncOf(func(_ js.Value, args []js.Value) any {
 				catchHandler.Release()
 				done <- args[0].String()
 
@@ -195,7 +195,7 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
-			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
 				catchHandler.Release()
 				done <- catchArgs[0].String()
 
@@ -222,7 +222,7 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
-			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) interface{} {
+			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
 				catchHandler.Release()
 				done <- catchArgs[0].String()
 

@@ -15,13 +15,9 @@ type PushRequest struct {
 }
 
 type PushResponse struct {
-	Active                  bool    `json:"active"`
 	Body                    string  `json:"body"`
-	Created                 float64 `json:"created"`
 	Direction               string  `json:"direction"`
-	Dismissed               bool    `json:"dismissed"`
 	Iden                    string  `json:"iden"`
-	Modified                float64 `json:"modified"`
 	ReceiverEmail           string  `json:"receiver_email"`
 	ReceiverEmailNormalized string  `json:"receiver_email_normalized"`
 	ReceiverIden            string  `json:"receiver_iden"`
@@ -31,6 +27,10 @@ type PushResponse struct {
 	SenderName              string  `json:"sender_name"`
 	Title                   string  `json:"title"`
 	Type                    string  `json:"type"`
+	Created                 float64 `json:"created"`
+	Modified                float64 `json:"modified"`
+	Active                  bool    `json:"active"`
+	Dismissed               bool    `json:"dismissed"`
 }
 
 type ResponseError struct {

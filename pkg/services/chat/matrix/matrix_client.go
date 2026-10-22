@@ -28,10 +28,10 @@ type HTTPClient interface {
 
 // client manages interactions with the Matrix API.
 type client struct {
-	apiURL      url.URL
-	accessToken string
 	logger      types.StdLogger
 	httpClient  HTTPClient
+	accessToken string
+	apiURL      url.URL
 }
 
 // DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.

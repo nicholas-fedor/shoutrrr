@@ -8,8 +8,6 @@ type fieldSchema struct {
 	Name string `json:"name"`
 	// Type is the human-readable type string (e.g., "string", "bool", "enum").
 	Type string `json:"type"`
-	// Required indicates whether the field must be set for URL generation.
-	Required bool `json:"required"`
 	// Description provides context about the field's purpose.
 	Description string `json:"description"`
 	// DefaultValue is the field's default value from struct tags.
@@ -20,6 +18,8 @@ type fieldSchema struct {
 	Keys []string `json:"keys"`
 	// EnumValues lists valid options for enum-type fields.
 	EnumValues []string `json:"enumValues,omitempty"`
+	// Required indicates whether the field must be set for URL generation.
+	Required bool `json:"required"`
 }
 
 // configSchema represents the full configuration schema for a service.
@@ -37,10 +37,10 @@ type configSchema struct {
 
 // parseResult is the output of parsing a Shoutrrr URL.
 type parseResult struct {
-	// Service is the extracted service scheme.
-	Service string `json:"service"`
 	// Config contains field name-value pairs from the parsed URL.
 	Config map[string]string `json:"config"`
+	// Service is the extracted service scheme.
+	Service string `json:"service"`
 }
 
 // errorResult is returned when an operation fails.

@@ -21,10 +21,11 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
-	client     *http.Client
 	httpClient types.HTTPClient
+
+	Config *Config
+	client *http.Client
+	pkr    format.PropKeyResolver
 }
 
 // apiPostMessage is the Slack API endpoint for sending messages.

@@ -16,9 +16,10 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
+	Token string `url:"host"`
+	Title string `default:"Shoutrrr notification" key:"title"`
+
 	Targets []string `url:"path"`
-	Token   string   `url:"host"`
-	Title   string   `default:"Shoutrrr notification" key:"title"`
 }
 
 // Scheme is the scheme part of the service configuration URL.

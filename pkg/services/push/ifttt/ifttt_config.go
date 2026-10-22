@@ -17,13 +17,13 @@ type Config struct {
 	standard.EnumlessConfig
 
 	WebHookID         string   `required:"true" url:"host"`
-	Events            []string `key:"events"    required:"true"`
 	Value1            string   `key:"value1"    optional:""`
 	Value2            string   `key:"value2"    optional:""`
 	Value3            string   `key:"value3"    optional:""`
+	Title             string   `default:""      desc:"Notification title, optionally set by the sender"               key:"title"`
+	Events            []string `key:"events"    required:"true"`
 	UseMessageAsValue uint8    `default:"2"     desc:"Sets the corresponding value field to the notification message" key:"messagevalue"`
 	UseTitleAsValue   uint8    `default:"0"     desc:"Sets the corresponding value field to the notification title"   key:"titlevalue"`
-	Title             string   `default:""      desc:"Notification title, optionally set by the sender"               key:"title"`
 }
 
 const (

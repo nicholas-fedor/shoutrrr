@@ -23,12 +23,12 @@ func main() {
 }
 
 // getServices returns all registered service schemes as a JSON array.
-func getServices(_ js.Value, _ []js.Value) interface{} {
+func getServices(_ js.Value, _ []js.Value) any {
 	return listServicesJSON()
 }
 
 // getConfigSchema returns the configuration schema for args[0] (service name).
-func getConfigSchema(_ js.Value, args []js.Value) interface{} {
+func getConfigSchema(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return marshalErrorStr("missing service name argument")
 	}
@@ -37,7 +37,7 @@ func getConfigSchema(_ js.Value, args []js.Value) interface{} {
 }
 
 // parseURL parses args[0] (Shoutrrr URL) and returns service + config values.
-func parseURL(_ js.Value, args []js.Value) interface{} {
+func parseURL(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return marshalErrorStr("missing URL argument")
 	}
@@ -46,7 +46,7 @@ func parseURL(_ js.Value, args []js.Value) interface{} {
 }
 
 // generateURL builds a Shoutrrr URL from args[0] (service) and args[1] (config JSON).
-func generateURL(_ js.Value, args []js.Value) interface{} {
+func generateURL(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
 		return marshalErrorStr("missing arguments: expected service name and config JSON")
 	}
@@ -55,7 +55,7 @@ func generateURL(_ js.Value, args []js.Value) interface{} {
 }
 
 // validateURL validates args[0] (Shoutrrr URL) and returns success or error.
-func validateURL(_ js.Value, args []js.Value) interface{} {
+func validateURL(_ js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return marshalErrorStr("missing URL argument")
 	}
@@ -65,7 +65,7 @@ func validateURL(_ js.Value, args []js.Value) interface{} {
 
 // send returns a Promise that sends args[0] (URL) with args[1] (message).
 // The send runs in a goroutine to avoid blocking the JavaScript event loop.
-func send(_ js.Value, args []js.Value) interface{} {
+func send(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
 		errJSON := marshalErrorStr("missing arguments: expected URL and message")
 
@@ -77,7 +77,7 @@ func send(_ js.Value, args []js.Value) interface{} {
 
 	var promiseHandler js.Func
 
-	promiseHandler = js.FuncOf(func(_ js.Value, promiseArgs []js.Value) interface{} {
+	promiseHandler = js.FuncOf(func(_ js.Value, promiseArgs []js.Value) any {
 		resolve := promiseArgs[0]
 		reject := promiseArgs[1]
 

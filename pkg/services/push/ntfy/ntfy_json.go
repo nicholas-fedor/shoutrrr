@@ -3,9 +3,9 @@ package ntfy
 import "fmt"
 
 type apiResponseError struct {
-	Code    int64  `json:"code"`
 	Message string `json:"error"`
 	Link    string `json:"link"`
+	Code    int64  `json:"code"`
 }
 
 func (e *apiResponseError) Error() string {

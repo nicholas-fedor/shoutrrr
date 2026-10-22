@@ -13,8 +13,8 @@ type MsgType string
 
 // Content holds the message content, supporting text or post formats.
 type Content struct {
-	Text string `json:"text,omitempty"`
 	Post *Post  `json:"post,omitempty"`
+	Text string `json:"text,omitempty"`
 }
 
 // Post represents a rich post message with language-specific content.
@@ -41,9 +41,9 @@ type TagValue string
 
 // Response represents the API response from Lark.
 type Response struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
 	Data any    `json:"data"`
+	Msg  string `json:"msg"`
+	Code int    `json:"code"`
 }
 
 // Constants for message types supported by Lark.

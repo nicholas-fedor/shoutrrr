@@ -12,8 +12,8 @@ import (
 
 // Client for Telegram API.
 type Client struct {
-	token      string
 	httpClient types.HTTPClient
+	token      string
 }
 
 // GetBotInfo returns the bot User info.

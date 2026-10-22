@@ -19,18 +19,18 @@ type Config struct {
 	Token string `desc:"Long-lived access token" url:"user"`
 	// Host is the Home Assistant hostname.
 	Host string `desc:"Home Assistant hostname" url:"host"`
-	// Port is the Home Assistant port. When omitted, HTTPS uses 443 and HTTP uses 8123.
-	Port int `desc:"Home Assistant port" optional:"" url:"port"`
 	// Path is an optional reverse-proxy URL prefix.
 	Path string `desc:"Reverse-proxy path prefix" optional:"" url:"path"`
 	// Title is an optional notification title. It is omitted from the API request when empty.
 	Title string `desc:"Notification title" key:"title" optional:""`
 	// Service is the Home Assistant action to call. Empty defaults to persistent_notification.create.
 	Service string `desc:"Home Assistant action (domain.action or notify target)" key:"service" optional:""`
-	// Targets are notify-platform destination names. They are omitted for persistent notifications.
-	Targets []string `desc:"Notify targets" key:"targets" optional:""`
 	// Nid is the persistent notification ID. It is omitted when empty.
 	Nid string `desc:"Persistent notification ID" key:"nid" optional:""`
+	// Targets are notify-platform destination names. They are omitted for persistent notifications.
+	Targets []string `desc:"Notify targets" key:"targets" optional:""`
+	// Port is the Home Assistant port. When omitted, HTTPS uses 443 and HTTP uses 8123.
+	Port int `desc:"Home Assistant port" optional:"" url:"port"`
 	// DisableTLS sends the request over HTTP instead of HTTPS.
 	DisableTLS bool `default:"No" desc:"Disable TLS (use HTTP)" key:"disabletls"`
 	// SkipTLSVerify skips TLS certificate verification.
