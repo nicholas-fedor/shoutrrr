@@ -21,14 +21,13 @@ docs/playground/
     ├── helpers.go        # Utility functions
     ├── main.go           # WASM entry point, JS function registration
     ├── fetch.go          # Send implementation using Shoutrrr
-    ├── wasm_suite_test.go     # Ginkgo test suite
     ├── helpers_test.go        # Helper function tests
     ├── schema_test.go         # Schema generation tests
     ├── parser_test.go         # URL parsing tests
     ├── generator_test.go      # URL generation tests
     ├── main_test.go           # JS binding tests (WASM-only)
     ├── fetch_test.go          # Send function tests (WASM-only)
-    └── wasm_test.go           # Integration-style tests
+    └── wasm_integration_test.go # Integration-style tests
 ```
 
 ## How It Works
@@ -94,7 +93,7 @@ cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/playground/assets/
 go test ./docs/playground/wasm/
 ```
 
-Tests use Ginkgo/Gomega and cover all pure logic functions. WASM-only tests (`main_test.go`, `fetch_test.go`) are skipped in non-WASM builds.
+Tests use Testify and cover all pure logic functions. WASM-only tests (`main_test.go`, `fetch_test.go`) are skipped in non-WASM builds.
 
 ## Lint
 

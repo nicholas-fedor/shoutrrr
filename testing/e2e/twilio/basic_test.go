@@ -1,33 +1,14 @@
 package e2e_test
 
 import (
-	"net/url"
-	"os"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Twilio E2E Basic Test", func() {
-	ginkgo.When("running e2e tests", func() {
-		ginkgo.It("should send a basic SMS message", func() {
-			envURL := os.Getenv("SHOUTRRR_TWILIO_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_TWILIO_URL not set, skipping basic SMS test")
-
-				return
-			}
-
-			serviceURL, _ := url.Parse(envURL)
-			service := &twilio.Service{}
-			err := service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Basic SMS notification", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-})
+// TestTwilioBasic verifies that a basic SMS message reaches Twilio.
+//
+//nolint:paralleltest // Sends to a live service one message at a time.
+func TestTwilioBasic(t *testing.T) {
+	require.NoError(t, newService(t, nil).Send("E2E Test: Basic SMS notification", nil))
+}

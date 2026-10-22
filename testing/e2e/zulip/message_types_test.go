@@ -1,107 +1,45 @@
 package e2e_test
 
 import (
-	"net/url"
 	"strings"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("Zulip E2E Message Types", func() {
-	ginkgo.When("sending different message types", func() {
-		ginkgo.It("should send a long message", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping long message test")
-			}
-
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			longMessage := strings.Repeat("This is a long message. ", 100)
-			err = service.Send(longMessage, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send a message with unicode characters", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping unicode test")
-			}
-
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Unicode — 日本語 🎉 émojis ñ", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send a message with special characters", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping special chars test")
-			}
-
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Special <>&\"' \t\n\r characters", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send a message with markdown formatting", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping markdown test")
-			}
-
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			markdown := `**Bold text** and *italic text* and ~~strikethrough~~` + "\n" +
+// TestZulipMessageTypes verifies that a real Zulip server accepts long,
+// unicode, special character, and Markdown messages, and that an empty message
+// fails.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestZulipMessageTypes(t *testing.T) {
+	// messages lists the messages the server accepts, by name.
+	messages := []struct {
+		name, message string
+	}{
+		{name: "long message", message: strings.Repeat("This is a long message. ", 100)},
+		{name: "unicode characters", message: "E2E Test: Unicode — 日本語 🎉 émojis ñ"},
+		{name: "special characters", message: "E2E Test: Special <>&\"' \t\n\r characters"},
+		{
+			name: "markdown formatting",
+			message: `**Bold text** and *italic text* and ~~strikethrough~~` + "\n" +
 				"```go\npackage main\n```" + "\n" +
 				"- List item 1\n- List item 2\n" + "\n" +
-				"[Link](https://example.com)"
+				"[Link](https://example.com)",
+		},
+	}
 
-			err = service.Send(markdown, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	for _, tt := range messages {
+		t.Run(tt.name, func(t *testing.T) {
+			service := newService(t, requireServiceURL(t))
+
+			require.NoError(t, service.Send(tt.message, nil))
 		})
+	}
 
-		ginkgo.It("should return an error for an empty message", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping empty message test")
-			}
+	t.Run("empty message fails", func(t *testing.T) {
+		service := newService(t, requireServiceURL(t))
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.Error(t, service.Send("", nil))
 	})
-})
+}
