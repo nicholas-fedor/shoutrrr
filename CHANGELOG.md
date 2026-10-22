@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Migrate the remaining e2e suites to testify and drop ginkgo by @nicholas-fedor in [#1751](https://github.com/nicholas-fedor/shoutrrr/pull/1751)
 - Migrate the mqtt and matrix suites to testify by @nicholas-fedor in [#1749](https://github.com/nicholas-fedor/shoutrrr/pull/1749)
 - Migrate the ntfy, home assistant, and xmpp suites to testify by @nicholas-fedor in [#1745](https://github.com/nicholas-fedor/shoutrrr/pull/1745)
 - Add benchmarks for the router, message splitting, config formatting, and redaction by @nicholas-fedor in [#1743](https://github.com/nicholas-fedor/shoutrrr/pull/1743)
