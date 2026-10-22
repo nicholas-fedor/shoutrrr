@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Order struct fields with betteralign by @nicholas-fedor in [#1767](https://github.com/nicholas-fedor/shoutrrr/pull/1767)
 - Update emqx/emqx:latest docker digest to 1351164 by @renovate[bot] in [#1764](https://github.com/nicholas-fedor/shoutrrr/pull/1764)
 - Update alpine:3.24.3 docker digest to b341357 by @renovate[bot] in [#1761](https://github.com/nicholas-fedor/shoutrrr/pull/1761)
 - Regenerate the docs lock file for python-dateutil 3 by @nicholas-fedor in [#1757](https://github.com/nicholas-fedor/shoutrrr/pull/1757)
