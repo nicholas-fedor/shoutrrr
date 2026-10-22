@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.3 docker digest to b341357 by @renovate[bot] in [#1761](https://github.com/nicholas-fedor/shoutrrr/pull/1761)
 - Regenerate the docs lock file for python-dateutil 3 by @nicholas-fedor in [#1757](https://github.com/nicholas-fedor/shoutrrr/pull/1757)
 - Update module github.com/rogpeppe/go-internal to v1.16.0 by @renovate[bot] in [#1753](https://github.com/nicholas-fedor/shoutrrr/pull/1753)
 - Update actions/setup-python action to v7.1.0 by @renovate[bot] in [#1747](https://github.com/nicholas-fedor/shoutrrr/pull/1747)
