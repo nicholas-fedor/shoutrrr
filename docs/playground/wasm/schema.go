@@ -1,11 +1,12 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"path"
 	"reflect"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -53,7 +54,7 @@ func listServicesJSON() string {
 	r := router.ServiceRouter{}
 	schemes := r.ListServices()
 
-	data, err := json.Marshal(schemes)
+	data, err := json.Marshal(schemes, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}
@@ -117,7 +118,7 @@ func configSchemaJSON(serviceName string) string {
 		Fields:  fields,
 	}
 
-	data, err := json.Marshal(schema)
+	data, err := json.Marshal(schema, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}

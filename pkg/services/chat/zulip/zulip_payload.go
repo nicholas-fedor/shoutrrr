@@ -1,11 +1,13 @@
 package zulip
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // CreatePayload builds a form-encoded payload for the Zulip messages API.
@@ -38,9 +40,9 @@ func CreatePayload(config *Config, message string) url.Values {
 		)
 
 		if ids, ok := userIDs(recipientList); ok {
-			b, err = json.Marshal(ids)
+			b, err = json.Marshal(ids, jsonopts.Default)
 		} else {
-			b, err = json.Marshal(recipientList)
+			b, err = json.Marshal(recipientList, jsonopts.Default)
 		}
 
 		if err != nil {

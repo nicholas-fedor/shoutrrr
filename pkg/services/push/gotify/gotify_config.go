@@ -1,12 +1,13 @@
 package gotify
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -76,7 +77,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Handle extras serialization if present
 	if c.Extras != nil {
 		// Marshal extras map to JSON string
-		extrasJSON, err := json.Marshal(c.Extras)
+		extrasJSON, err := json.Marshal(c.Extras, jsonopts.Default)
 		if err != nil {
 			// Skip adding extras when Extras cannot be serialized
 			log.Printf("Failed to marshal Extras %v: %v, skipping extras", c.Extras, err)
@@ -124,7 +125,7 @@ func (c *Config) processQueryParameters(
 				// Initialize extras map
 				c.Extras = make(map[string]any)
 				// Parse JSON string into map
-				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras); err != nil {
+				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras, jsonopts.Default); err != nil {
 					return fmt.Errorf("%w: %w", ErrExtrasParseFailed, err)
 				}
 			}

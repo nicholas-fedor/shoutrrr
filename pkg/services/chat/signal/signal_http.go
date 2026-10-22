@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
@@ -68,7 +69,7 @@ func (s *Service) createRequest(
 ) (*http.Request, context.CancelFunc, error) {
 	apiURL := s.buildAPIURL(config)
 
-	jsonData, err := json.Marshal(payload)
+	jsonData, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
@@ -178,7 +179,7 @@ func parseSendResults(body []byte) ([]sendResult, error) {
 
 	if len(body) > 0 && body[0] == '{' {
 		var result sendResult
-		if err := json.Unmarshal(body, &result); err != nil {
+		if err := json.Unmarshal(body, &result, jsonopts.Default); err != nil {
 			return nil, fmt.Errorf("decoding send result: %w", err)
 		}
 
@@ -186,7 +187,7 @@ func parseSendResults(body []byte) ([]sendResult, error) {
 	}
 
 	var results []sendResult
-	if err := json.Unmarshal(body, &results); err != nil {
+	if err := json.Unmarshal(body, &results, jsonopts.Default); err != nil {
 		return nil, fmt.Errorf("decoding send results: %w", err)
 	}
 
@@ -302,7 +303,7 @@ func formatSendError(statusCode int, body []byte, truncated bool) error {
 	}
 
 	var apiErr sendErrorResponse
-	if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Error != "" {
+	if err := json.Unmarshal(body, &apiErr, jsonopts.Default); err == nil && apiErr.Error != "" {
 		var details []string
 		if apiErr.Account != "" {
 			details = append(details, "account "+apiErr.Account)

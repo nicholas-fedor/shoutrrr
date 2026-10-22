@@ -9,14 +9,14 @@ import (
 
 // SendMessagePayload is the notification payload for the telegram notification service.
 type SendMessagePayload struct {
-	MessageThreadID     *int         `json:"message_thread_id,omitempty"`
-	ReplyMarkup         *replyMarkup `json:"reply_markup,omitempty"`
+	MessageThreadID     *int         `json:"message_thread_id,omitzero"`
+	ReplyMarkup         *replyMarkup `json:"reply_markup,omitzero"`
 	Text                string       `json:"text"`
 	ID                  string       `json:"chat_id"`
 	ParseMode           string       `json:"parse_mode,omitempty"`
 	Entities            []entity     `json:"entities,omitempty"`
 	ReplyTo             int64        `json:"reply_to_message_id"`
-	MessageID           int64        `json:"message_id,omitempty"`
+	MessageID           int64        `json:"message_id,omitzero"`
 	DisablePreview      bool         `json:"disable_web_page_preview"`
 	DisableNotification bool         `json:"disable_notification"`
 }

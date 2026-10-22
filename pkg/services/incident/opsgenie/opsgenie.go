@@ -3,7 +3,7 @@ package opsgenie
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -209,7 +210,7 @@ func (s *Service) newAlertPayload(
 //   - error: a marshaling or request error, or [ErrUnexpectedStatus] for a
 //     non-success status.
 func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payload *AlertPayload) error {
-	jsonBody, err := json.Marshal(payload)
+	jsonBody, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling alert payload to JSON: %w", err)
 	}

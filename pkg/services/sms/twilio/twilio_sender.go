@@ -2,7 +2,7 @@ package twilio
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 )
 
@@ -108,7 +109,7 @@ func parseAPIError(res *http.Response) error {
 
 	var apiErr apiErrorResponse
 
-	err = json.Unmarshal(respBody, &apiErr)
+	err = json.Unmarshal(respBody, &apiErr, jsonopts.Default)
 	if err == nil && apiErr.Message != "" {
 		return fmt.Errorf("%w: %s (code %d)", ErrSendFailed, apiErr.Message, apiErr.Code)
 	}

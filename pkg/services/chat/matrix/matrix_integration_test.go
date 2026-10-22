@@ -2,7 +2,7 @@ package matrix_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"log"
 	"net/http"

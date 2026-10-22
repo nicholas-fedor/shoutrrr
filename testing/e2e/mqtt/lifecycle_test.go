@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log"
@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr"
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 )
 
@@ -136,7 +137,7 @@ func clientConnected(ctx context.Context, host, clientID string) (bool, error) {
 	apiURL := "http://" + net.JoinHostPort(host, "18083") + "/api/v5"
 	client := &http.Client{Timeout: deliveryTimeout}
 
-	credentials, err := json.Marshal(map[string]string{"username": "admin", "password": "public"})
+	credentials, err := json.Marshal(map[string]string{"username": "admin", "password": "public"}, jsonopts.Default)
 	if err != nil {
 		return false, fmt.Errorf("encoding credentials: %w", err)
 	}
@@ -161,7 +162,7 @@ func clientConnected(ctx context.Context, host, clientID string) (bool, error) {
 		Token string `json:"token"`
 	}
 
-	if err := json.NewDecoder(loginRes.Body).Decode(&login); err != nil || login.Token == "" {
+	if err := json.UnmarshalRead(loginRes.Body, &login, jsonopts.Default); err != nil || login.Token == "" {
 		return false, fmt.Errorf("%w: login status %s", errNoAPIToken, loginRes.Status)
 	}
 
@@ -186,7 +187,7 @@ func clientConnected(ctx context.Context, host, clientID string) (bool, error) {
 		Connected bool `json:"connected"`
 	}
 
-	if err := json.NewDecoder(clientRes.Body).Decode(&info); err != nil {
+	if err := json.UnmarshalRead(clientRes.Body, &info, jsonopts.Default); err != nil {
 		return false, fmt.Errorf("decoding client: %w", err)
 	}
 

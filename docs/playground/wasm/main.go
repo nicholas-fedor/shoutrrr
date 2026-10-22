@@ -3,9 +3,11 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"syscall/js"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // pairArgs is the number of arguments generateURL and send require.
@@ -98,7 +100,7 @@ func send(_ js.Value, args []js.Value) any {
 			result := sendString(rawURL, message)
 
 			var errResp errorResult
-			if err := json.Unmarshal([]byte(result), &errResp); err != nil {
+			if err := json.Unmarshal([]byte(result), &errResp, jsonopts.Default); err != nil {
 				// Malformed response from sendString — reject with context.
 				reject.Invoke(marshalErrorStr(
 					fmt.Sprintf("invalid response from send: %v (raw: %s)", err, result),

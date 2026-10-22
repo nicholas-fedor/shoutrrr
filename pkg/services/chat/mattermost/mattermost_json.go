@@ -1,10 +1,11 @@
 package mattermost
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -75,7 +76,7 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 
 	payload.SetIcon(icon)
 
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling Mattermost payload to JSON: %w", err)
 	}

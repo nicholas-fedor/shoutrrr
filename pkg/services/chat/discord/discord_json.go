@@ -19,16 +19,16 @@ type WebhookPayload struct {
 
 // JSON is the actual notification payload.
 type embedItem struct {
-	Footer    *embedFooter    `json:"footer,omitempty"`
-	Author    *embedAuthor    `json:"author,omitempty"`
-	Image     *embedImage     `json:"image,omitempty"`
-	Thumbnail *embedThumbnail `json:"thumbnail,omitempty"`
+	Footer    *embedFooter    `json:"footer,omitzero"`
+	Author    *embedAuthor    `json:"author,omitzero"`
+	Image     *embedImage     `json:"image,omitzero"`
+	Thumbnail *embedThumbnail `json:"thumbnail,omitzero"`
 	Title     string          `json:"title,omitempty"`
 	Content   string          `json:"description,omitempty"`
 	URL       string          `json:"url,omitempty"`
 	Timestamp string          `json:"timestamp,omitempty"`
 	Fields    []embedField    `json:"fields,omitempty"`
-	Color     uint            `json:"color,omitempty"`
+	Color     uint            `json:"color,omitzero"`
 }
 
 type embedFooter struct {
@@ -53,7 +53,7 @@ type embedThumbnail struct {
 type embedField struct {
 	Name   string `json:"name"`
 	Value  string `json:"value"`
-	Inline bool   `json:"inline,omitempty"`
+	Inline bool   `json:"inline,omitzero"`
 }
 
 type attachment struct {

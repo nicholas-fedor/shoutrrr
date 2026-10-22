@@ -3,7 +3,7 @@ package pagerduty
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -223,7 +224,7 @@ func (s *Service) newEventPayload(
 	// Custom details must be a JSON object, so arrays, scalars, and null are rejected.
 	if payloadFields.Details != "" {
 		var details map[string]any
-		if err := json.Unmarshal([]byte(payloadFields.Details), &details); err != nil || details == nil {
+		if err := json.Unmarshal([]byte(payloadFields.Details), &details, jsonopts.Default); err != nil || details == nil {
 			return EventPayload{}, fmt.Errorf("%w: %q", errInvalidDetails, payloadFields.Details)
 		}
 
@@ -253,7 +254,7 @@ func (s *Service) newEventPayload(
 // sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
 func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *EventPayload) error {
 	// Marshal the payload into JSON format
-	jsonBody, err := json.Marshal(payload)
+	jsonBody, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
@@ -301,7 +302,7 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 					Error   string   `json:"error"`
 					Errors  []string `json:"errors"`
 				}
-				if jsonErr := json.Unmarshal(bodyBytes, &errorResponse); jsonErr == nil {
+				if jsonErr := json.Unmarshal(bodyBytes, &errorResponse, jsonopts.Default); jsonErr == nil {
 					switch {
 					case errorResponse.Message != "":
 						errorMsg = errorResponse.Message
@@ -344,7 +345,7 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 
 	// First, attempt to parse as JSON array
 	var result []PagerDutyContext
-	if err := json.Unmarshal([]byte(contextsStr), &result); err == nil {
+	if err := json.Unmarshal([]byte(contextsStr), &result, jsonopts.Default); err == nil {
 		// Validate Type field and required fields for each context in JSON format
 		for _, ctx := range result {
 			if ctx.Type != contextTypeLink && ctx.Type != contextTypeImage {

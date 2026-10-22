@@ -3,13 +3,14 @@ package teams
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -234,7 +235,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 		},
 	}
 
-	jsonBytes, err := json.Marshal(payload)
+	jsonBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

@@ -2,7 +2,7 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -209,7 +210,7 @@ func pollForMessage(ctx context.Context, topic, expectedMessage string) (*ntfyMe
 		}
 
 		var msg ntfyMessage
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		if err := json.Unmarshal([]byte(line), &msg, jsonopts.Default); err != nil {
 			continue
 		}
 

@@ -2,7 +2,7 @@ package teams
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log"
@@ -122,7 +122,7 @@ func newCapturingClient(t *testing.T) (*mocks.MockHTTPClient, *capturedRequest) 
 		captured.url = req.URL.String()
 		captured.contentType = req.Header.Get("Content-Type")
 
-		if err := json.NewDecoder(req.Body).Decode(&captured.payload); err != nil {
+		if err := json.UnmarshalRead(req.Body, &captured.payload); err != nil {
 			return nil, err
 		}
 

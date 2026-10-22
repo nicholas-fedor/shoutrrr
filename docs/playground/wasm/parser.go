@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -45,7 +46,7 @@ func parseURLString(rawURL string) string {
 		Config:  values,
 	}
 
-	data, err := json.Marshal(result)
+	data, err := json.Marshal(result, jsonopts.Default)
 	if err != nil {
 		return marshalError(err)
 	}

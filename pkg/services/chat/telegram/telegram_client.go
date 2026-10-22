@@ -2,10 +2,11 @@ package telegram
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
@@ -108,7 +109,7 @@ func (c *Client) httpClientOrDefault() types.HTTPClient {
 //   - error: the Telegram API error, or nil when body is not a Telegram error response.
 func GetErrorResponse(body string) error {
 	response := &responseError{}
-	if json.Unmarshal([]byte(body), response) == nil &&
+	if json.Unmarshal([]byte(body), response, jsonopts.Default) == nil &&
 		(response.ErrorCode != 0 || response.Description != "") {
 		return response
 	}

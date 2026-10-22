@@ -3,7 +3,7 @@ package wecom
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -210,7 +211,7 @@ func (s *Service) handleResponse(resp *http.Response) error {
 	}
 
 	var response Response
-	if err := json.Unmarshal(data, &response); err != nil {
+	if err := json.Unmarshal(data, &response, jsonopts.Default); err != nil {
 		return fmt.Errorf("unmarshaling response: %w", err)
 	}
 
@@ -245,7 +246,7 @@ func (s *Service) preparePayload(
 ) ([]byte, error) {
 	body := s.getRequestBody(message, config, params)
 
-	data, err := json.Marshal(body)
+	data, err := json.Marshal(body, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

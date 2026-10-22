@@ -110,7 +110,7 @@ func TestSendRequestErrorResponses(t *testing.T) {
 		{
 			name:      "success body not JSON",
 			response:  cannedResponse{statusCode: http.StatusOK, body: "OK"},
-			wantError: "invalid character 'O' looking for beginning of value",
+			wantError: "jsontext: invalid character 'O' at start of value",
 		},
 		{
 			name:      "client error response with the token in a header",
