@@ -220,3 +220,44 @@ func TestJoinURLHost(t *testing.T) {
 		})
 	}
 }
+
+// TestParseURLQuery verifies that ParseURLQuery returns the query values of a
+// URL and rejects a malformed escape or a semicolon separator, which
+// url.URL.Query drops without an error.
+func TestParseURLQuery(t *testing.T) {
+	t.Parallel()
+
+	// tests lists raw queries with the values, or error, ParseURLQuery should
+	// return.
+	tests := []struct {
+		want     url.Values
+		wantErr  error
+		name     string
+		rawQuery string
+	}{
+		{name: "empty", rawQuery: "", want: url.Values{}},
+		{name: "values", rawQuery: "a=1&b=x%20y&a=2", want: url.Values{"a": {"1", "2"}, "b": {"x y"}}},
+		{name: "key without a value", rawQuery: "a", want: url.Values{"a": {""}}},
+		{name: "malformed escape in a value", rawQuery: "a=1&b=%zz", wantErr: ErrInvalidQuery},
+		{name: "malformed escape in a key", rawQuery: "%zz=1", wantErr: ErrInvalidQuery},
+		{name: "semicolon separator", rawQuery: "a=1;b=2", wantErr: ErrInvalidQuery},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			query, err := ParseURLQuery(&url.URL{RawQuery: tt.rawQuery})
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, query)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, query)
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the generic notification service.
@@ -49,17 +50,31 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
+//
+// Parameters:
+//   - webhookURL: the webhook URL, whose query is rewritten without the
+//     config props, custom headers, and extra data.
+//
+// Returns:
+//   - *Config: the config, or nil on error.
+//   - format.PropKeyResolver: the resolver bound to the config.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, or
+//     a query prop error.
 func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	// Get default config and resolver
 	config, pkr := DefaultConfig()
 
 	// Extract query parameters
-	webhookQuery := webhookURL.Query()
+	webhookQuery, err := util.ParseURLQuery(webhookURL)
+	if err != nil {
+		return nil, pkr, err
+	}
+
 	// Extract custom headers and extra data
 	headers, extraData := stripCustomQueryValues(webhookQuery)
 
 	// Set config properties from remaining query params
-	_, err := format.SetConfigPropsFromQuery(&pkr, webhookQuery)
+	_, err = format.SetConfigPropsFromQuery(&pkr, webhookQuery)
 	if err != nil {
 		return nil, pkr, fmt.Errorf("setting config properties from query: %w", err)
 	}
@@ -137,7 +152,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: [ErrHostMissing] for a URL without a host, which a webhook needs,
-//     or a query prop error.
+//     an error wrapping [util.ErrInvalidQuery] for a malformed query, or a
+//     query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.Hostname() == "" {
 		return ErrHostMissing
@@ -146,7 +162,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// Copy service URL
 	webhookURL := *serviceURL
 	// Extract query parameters
-	serviceQuery := serviceURL.Query()
+	serviceQuery, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
 	// Extract custom headers and extra data
 	headers, extraData := stripCustomQueryValues(serviceQuery)
 

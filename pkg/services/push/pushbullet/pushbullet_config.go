@@ -56,6 +56,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [util.ErrInvalidHost] for an access token with a colon or
+//     brackets, a token error, an error wrapping [util.ErrInvalidQuery] for a
+//     malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	path := serviceURL.Path
 	if path != "" && path[0] == '/' {
@@ -84,7 +93,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Token = token
 	c.Targets = targets
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

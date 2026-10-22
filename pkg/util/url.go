@@ -2,18 +2,22 @@ package util
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
 )
 
-// Errors for a URL authority that does not split into a hostname and port.
+// Errors for a URL whose authority or query does not parse.
 var (
 	// ErrInvalidHost indicates a URL host that is not a hostname, an IPv4
 	// address, or an IPv6 address in brackets.
 	ErrInvalidHost = errors.New("invalid URL host")
 	// ErrInvalidPort indicates a URL port that is not a decimal number.
 	ErrInvalidPort = errors.New("invalid URL port")
+	// ErrInvalidQuery indicates a URL query with a malformed escape or a
+	// semicolon separator.
+	ErrInvalidQuery = errors.New("invalid URL query")
 )
 
 // URLUserPassword creates a url.Userinfo from user and password strings.
@@ -104,4 +108,25 @@ func JoinURLHost(host, port string) string {
 	}
 
 	return host
+}
+
+// ParseURLQuery parses the query of serviceURL.
+//
+// [url.URL.Query] silently drops each pair it cannot parse, so a setting with a
+// malformed escape would be ignored. ParseURLQuery reports it instead.
+//
+// Parameters:
+//   - serviceURL: the URL whose query to parse.
+//
+// Returns:
+//   - url.Values: the query values.
+//   - error: an error wrapping [ErrInvalidQuery] when a pair has a malformed
+//     escape or the query uses a semicolon separator.
+func ParseURLQuery(serviceURL *url.URL) (url.Values, error) {
+	query, err := url.ParseQuery(serviceURL.RawQuery)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidQuery, err)
+	}
+
+	return query, nil
 }

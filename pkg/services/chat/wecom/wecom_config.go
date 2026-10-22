@@ -8,6 +8,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config represents the configuration for the WeCom service.
@@ -81,7 +82,8 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a query parameter error, [ErrEmptyKey], or [ErrInvalidKey].
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
+//     query parameter error, [ErrEmptyKey], or [ErrInvalidKey].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Handle dummy URL used for documentation generation
 	if serviceURL.String() == "wecom://dummy@dummy.com" {
@@ -94,7 +96,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Key = serviceURL.Host
 
 	// Handle query parameters
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

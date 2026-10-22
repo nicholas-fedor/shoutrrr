@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -527,6 +528,52 @@ func TestIntegrationMissingHost(t *testing.T) {
 			service, err := serviceRouter.Locate(withURLHost(t, fixtureURLFor(t, scheme), ""))
 			closeService(t, service)
 			require.Error(t, err)
+		})
+	}
+}
+
+// TestIntegrationMalformedQuery verifies that every service that reads its URL
+// query rejects a query pair with a malformed escape, which url.URL.Query
+// would drop without an error, including in the webhook URL of a custom URL.
+func TestIntegrationMalformedQuery(t *testing.T) {
+	t.Parallel()
+
+	// queryless lists the schemes that do not read their URL query.
+	queryless := []string{"logger", "rocketchat"}
+
+	// rawURLs lists the service URLs to test by name: each fixture with a
+	// malformed pair added to its query, and the custom URLs.
+	rawURLs := map[string]string{
+		"generic custom":   "generic+https://hooks.example.invalid/webhook?title=%zz",
+		"notifiarr custom": "notifiarr+https://notifiarr.example.invalid/api?title=%zz",
+	}
+
+	for _, fx := range fixtures {
+		if slices.Contains(queryless, fx.scheme) {
+			continue
+		}
+
+		serviceURL, err := url.Parse(fx.url)
+		require.NoError(t, err)
+
+		if serviceURL.RawQuery != "" {
+			serviceURL.RawQuery += "&"
+		}
+
+		serviceURL.RawQuery += "title=%zz"
+		rawURLs[fx.scheme] = serviceURL.String()
+	}
+
+	for name, rawURL := range rawURLs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(rawURL)
+			closeService(t, service)
+			require.ErrorIs(t, err, util.ErrInvalidQuery)
 		})
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config represents the configuration for the Lark service.
@@ -55,6 +56,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // setURL updates the Config from a URL using the provided resolver.
 // It sets the host, path, and query parameters, validating host and path, and
 // returns an error if parsing or validation fails.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrInvalidHost] for a host other than Lark or Feishu, [ErrNoPath]
+//     for a missing path, an error wrapping [util.ErrInvalidQuery] for a
+//     malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
 	// Handle documentation generation or empty host
@@ -72,7 +82,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return ErrNoPath
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

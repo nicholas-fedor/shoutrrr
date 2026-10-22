@@ -77,8 +77,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - error: [util.ErrInvalidHost] for a webhook ID with a colon or brackets, a
-//     query parameter error, a value field error from
+//   - error: [util.ErrInvalidHost] for a webhook ID with a colon or brackets, an
+//     error wrapping [util.ErrInvalidQuery] for a malformed query, a query
+//     parameter error, a value field error from
 //     [Config.validateValueFields], [ErrMissingEvents], or [ErrMissingWebhookID].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if c.UseMessageAsValue == DisabledValue {
@@ -93,7 +94,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.WebHookID = serviceURL.Host
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}

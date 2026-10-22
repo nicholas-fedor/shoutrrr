@@ -7,6 +7,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds the configuration for the Google Chat service.
@@ -70,13 +71,18 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrMissingKey] or [ErrMissingToken] when the URL lacks the key or
-//     the token, or has it empty.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
+//     or [ErrMissingKey] or [ErrMissingToken] when the URL lacks the key or the
+//     token, or has it empty.
 func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
 	c.Path = serviceURL.Path
 
-	query := serviceURL.Query()
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
 	c.Key = query.Get("key")
 	c.Token = query.Get("token")
 

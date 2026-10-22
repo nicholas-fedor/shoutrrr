@@ -93,7 +93,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // Returns:
 //   - error: A missing or invalid integration key, a host that is not a
 //     hostname or a bracketed IPv6 address ([util.ErrInvalidHost]), an invalid
-//     port, or a query prop error.
+//     port, a malformed query ([util.ErrInvalidQuery]), or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Skip validation for the dummy URL used in docs generation
 	if serviceURL.String() == "pagerduty://dummy@dummy.com" {
@@ -134,7 +134,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Port = uint16(portNumber)
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("failed to set query parameter %q: %w", key, err)
 		}

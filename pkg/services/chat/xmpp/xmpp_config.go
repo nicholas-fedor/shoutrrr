@@ -189,7 +189,8 @@ func (c *Config) mucNick() string {
 //   - serviceURL: The XMPP configuration URL to parse.
 //
 // Returns:
-//   - An error if the URL is invalid or required fields are missing.
+//   - An error if the URL is invalid, including a malformed query
+//     ([util.ErrInvalidQuery]), or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	dummy := isDummyURL(serviceURL)
 
@@ -227,7 +228,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Port = defaultPort(c.scheme)
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

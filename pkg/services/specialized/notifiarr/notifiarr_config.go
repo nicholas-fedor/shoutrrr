@@ -8,6 +8,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Notifiarr notification service.
@@ -51,11 +52,23 @@ func DefaultConfig() (*Config, format.PropKeyResolver) {
 }
 
 // ConfigFromWebhookURL constructs a Config from a parsed webhook URL.
+//
+// Parameters:
+//   - webhookURL: the webhook or service URL.
+//
+// Returns:
+//   - *Config: the config, or nil on error.
+//   - format.PropKeyResolver: the resolver bound to the config.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, or
+//     a query prop error.
 func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver, error) {
 	config, pkr := DefaultConfig()
 
 	// Extract query parameters
-	webhookQuery := webhookURL.Query()
+	webhookQuery, err := util.ParseURLQuery(webhookURL)
+	if err != nil {
+		return nil, pkr, err
+	}
 
 	// Set config properties from query params
 	customQuery, err := format.SetConfigPropsFromQuery(&pkr, webhookQuery)
@@ -122,8 +135,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a query prop error, or [ErrAPIKeyMissing] when neither the host,
-//     other than a port alone, nor the query sets an API key.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
+//     query prop error, or [ErrAPIKeyMissing] when neither the host, other
+//     than a port alone, nor the query sets an API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
 
@@ -133,9 +147,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	// Set config properties from query
-	serviceQuery := serviceURL.Query()
+	serviceQuery, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
 
-	_, err := format.SetConfigPropsFromQuery(resolver, serviceQuery)
+	_, err = format.SetConfigPropsFromQuery(resolver, serviceQuery)
 	if err != nil {
 		return fmt.Errorf("setting config properties from service URL query: %w", err)
 	}

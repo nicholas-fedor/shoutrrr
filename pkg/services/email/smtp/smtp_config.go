@@ -232,8 +232,9 @@ func restorePlusInAddrSpec(spec string) string {
 //
 // Returns:
 //   - An error if the host is missing ([ErrHostMissing]) or is not a hostname
-//     or a bracketed IPv6 address ([util.ErrInvalidHost]), a query parameter
-//     is invalid, or required addresses are missing.
+//     or a bracketed IPv6 address ([util.ErrInvalidHost]), the query is
+//     malformed ([util.ErrInvalidQuery]), a query parameter is invalid, or
+//     required addresses are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.Username = serviceURL.User.Username()
@@ -255,7 +256,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Port = uint16(port)
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}
