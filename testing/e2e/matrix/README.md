@@ -11,7 +11,7 @@ The tests make real HTTP connections to the Matrix server's Client-Server API.
 ## Test Characteristics
 
 - **Package**: `e2e_test`
-- **Framework**: [Ginkgo](https://github.com/onsi/ginkgo) + [Gomega](https://github.com/onsi/gomega)
+- **Framework**: Go's `testing` package with [testify](https://github.com/stretchr/testify)
 - **Location**: `testing/e2e/matrix`
 - **External Calls**: Yes (requires running Matrix server)
 - **Requires**: Docker and Docker Compose for local testing
@@ -176,14 +176,14 @@ Run all E2E tests:
 go test -v ./testing/e2e/matrix/...
 ```
 
-Run specific test suites:
+Run one group of tests:
 
 ```bash
 # Run service initialization tests
-go test ./testing/e2e/matrix/ -v -ginkgo.focus "Service Initialization"
+go test ./testing/e2e/matrix/ -v -run TestMatrixInitialization
 
 # Run send message tests
-go test ./testing/e2e/matrix/ -v -ginkgo.focus "Send Messages"
+go test ./testing/e2e/matrix/ -v -run TestMatrixSend
 ```
 
 ### Using .env File
@@ -205,7 +205,7 @@ The test suite automatically loads environment variables from `.env` if present.
 
 ```bash
 testing/e2e/matrix/
-├── matrix_suite_test.go      # Ginkgo test suite setup and helpers
+├── matrix_suite_test.go      # Test setup and helpers
 ├── service_e2e_test.go      # E2E test cases
 ├── docker-compose.yaml       # Local Matrix Synapse server
 └── README.md                # This documentation
@@ -247,16 +247,14 @@ func loadEnvFile(filename string)
 
 ## Test Patterns
 
-Tests use Ginkgo'sDescribe/It syntax:
+Each group of tests is a top-level test with a subtest per case:
 
 ```go
-var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
-    ginkgo.Describe("Service Initialization", func() {
-        ginkgo.It("should initialize with valid credentials", func() {
-            // Test logic
-        })
+func TestMatrixInitialization(t *testing.T) {
+    t.Run("valid credentials from environment", func(t *testing.T) {
+        // Test logic
     })
-})
+}
 ```
 
 ## Skipping Tests
@@ -265,7 +263,7 @@ Tests automatically skip when environment variables are not configured:
 
 ```go
 if serviceURL == "" {
-    ginkgo.Skip("Matrix server not configured, skipping test...")
+    t.Skip("Matrix server not configured, skipping test...")
 }
 ```
 

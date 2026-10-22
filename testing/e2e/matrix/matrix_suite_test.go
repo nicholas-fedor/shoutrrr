@@ -2,8 +2,8 @@ package e2e_test
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
+	"io"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -11,76 +11,206 @@ import (
 	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
-const envValueTrue = "true"
-
-// sharedService is the authenticated Matrix service shared across tests.
-// Initialized once in BeforeSuite to avoid repeated login operations.
-var (
-	sharedService        *matrix.Service
-	sharedServiceOnce    sync.Once
-	errSharedServiceInit error
-)
-
-// Test_Matrix_E2E runs the Matrix E2E test suite using Ginkgo.
-// These tests connect to a real Matrix server and verify actual behavior.
-func Test_Matrix_E2E(t *testing.T) {
-	t.Parallel()
-
-	// Load .env file if it exists
-	loadEnvFile(".env")
-
-	gomega.RegisterFailHandler(ginkgo.Fail)
-
-	// Initialize shared service once before all tests
-	ginkgo.BeforeSuite(func() {
-		serviceURL := buildServiceURL()
-		if serviceURL == "" {
-			return // tests will skip anyway
-		}
-
-		parsedURL, err := url.Parse(serviceURL)
-		if err != nil {
-			return
-		}
-
-		// Create a local service instance and only assign to sharedService
-		// after Initialize succeeds to prevent tests from using an
-		// uninitialized client.
-		service := &matrix.Service{}
-		if err := service.Initialize(parsedURL, logger.New()); err != nil {
-			// Log but continue; individual tests will handle failures
-			fmt.Fprintf(ginkgo.GinkgoWriter, "Warning: shared service init failed: %v\n", err)
-
-			return
-		}
-
-		sharedService = service
-	})
-
-	ginkgo.BeforeEach(func() {
-		time.Sleep(500 * time.Millisecond) // slightly longer safety delay
-	})
-
-	ginkgo.RunSpecs(t, "Matrix E2E Tests")
+// logSwitch is the writer behind the shared service's logger. The shared
+// service outlives each test, so each test that uses it points the writer at
+// its own output for the test's duration.
+type logSwitch struct {
+	writer io.Writer
+	mu     sync.Mutex
 }
 
-// matrixServerURL returns the Matrix server URL from environment or default.
-// Expected format: matrix://user:password@host:port
+// Settings for the Matrix e2e tests.
+const (
+	// envValueTrue is the string value for boolean true in environment variables.
+	envValueTrue = "true"
+	// testDelay spaces the tests out to respect the server's rate limits.
+	testDelay = 500 * time.Millisecond
+)
+
+var (
+	// sharedLog routes the shared service's log output to the current test.
+	sharedLog = &logSwitch{writer: io.Discard, mu: sync.Mutex{}}
+	// sharedServiceOnce initializes the shared service on first use.
+	sharedServiceOnce sync.Once
+	// sharedService is the Matrix service the tests share, so its login and room
+	// joins happen once rather than in every test.
+	sharedService *matrix.Service
+	// errSharedService is the error from initializing the shared service.
+	errSharedService error
+)
+
+// TestMain loads the .env file in this directory, if any, before running the
+// tests. These tests connect to a real Matrix server and verify actual
+// behavior.
+//
+// Environment variables:
+//   - SHOUTRRR_MATRIX_URL: the service URL, such as matrix://user:password@host:port (optional)
+//   - SHOUTRRR_MATRIX_HOST, SHOUTRRR_MATRIX_USER, SHOUTRRR_MATRIX_PASSWORD: the
+//     parts of the service URL, used when SHOUTRRR_MATRIX_URL is unset
+//   - SHOUTRRR_MATRIX_ROOM: the room alias to send to (default: #test:localhost)
+//   - SHOUTRRR_MATRIX_DISABLE_TLS: set to "true" to use HTTP instead of HTTPS (optional)
+func TestMain(m *testing.M) {
+	loadEnvFile(".env")
+
+	os.Exit(m.Run())
+}
+
+// TestMatrixServiceID verifies the service ID of a service initialized from
+// the documentation dummy URL, which needs no server.
+func TestMatrixServiceID(t *testing.T) {
+	t.Parallel()
+
+	service := newService(t, "matrix://:dummy@dummy.com")
+
+	assert.Equal(t, "matrix", service.GetID())
+}
+
+// Write writes p to the current test's output, or discards it between tests.
+//
+// Parameters:
+//   - p: the log output.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: the writer's error.
+func (s *logSwitch) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.writer.Write(p)
+}
+
+// use points the writer at a test's output until the test ends.
+//
+// Parameters:
+//   - t: the test.
+func (s *logSwitch) use(t *testing.T) {
+	t.Helper()
+
+	s.mu.Lock()
+	s.writer = t.Output()
+	s.mu.Unlock()
+
+	t.Cleanup(func() {
+		s.mu.Lock()
+		s.writer = io.Discard
+		s.mu.Unlock()
+	})
+}
+
+// requireServiceURL returns the configured service URL, skipping the test when
+// no server is configured, then waits [testDelay] to respect the server's rate
+// limits.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - string: the service URL.
+func requireServiceURL(t *testing.T) string {
+	t.Helper()
+
+	serviceURL := buildServiceURL()
+	if serviceURL == "" {
+		t.Skip("Matrix server not configured, skipping test. " +
+			"Set SHOUTRRR_MATRIX_USER and SHOUTRRR_MATRIX_PASSWORD environment variables")
+	}
+
+	time.Sleep(testDelay)
+
+	return serviceURL
+}
+
+// getSharedService returns the shared Matrix service, initializing it on first
+// use, with its log output routed to t. It skips the test when no server is
+// configured.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *matrix.Service: the shared service.
+func getSharedService(t *testing.T) *matrix.Service {
+	t.Helper()
+
+	serviceURL := requireServiceURL(t)
+
+	sharedServiceOnce.Do(func() {
+		parsedURL, err := url.Parse(serviceURL)
+		if err != nil {
+			errSharedService = err
+
+			return
+		}
+
+		service := &matrix.Service{}
+
+		errSharedService = service.Initialize(parsedURL, log.New(sharedLog, "[Test] ", 0))
+		if errSharedService == nil {
+			sharedService = service
+		}
+	})
+
+	require.NoError(t, errSharedService, "initializing the shared service")
+	sharedLog.use(t)
+
+	return sharedService
+}
+
+// newService parses a service URL and initializes a matrix.Service from it
+// with a logger that writes to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *matrix.Service: the initialized service.
+func newService(t *testing.T, rawURL string) *matrix.Service {
+	t.Helper()
+
+	parsedURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	service := &matrix.Service{}
+	require.NoError(t, service.Initialize(parsedURL, log.New(t.Output(), "[Test] ", 0)))
+
+	return service
+}
+
+// initErr initializes a matrix.Service from a URL with a logger that writes to
+// the test output, for tests that expect initialization to fail.
+//
+// Parameters:
+//   - t: the test.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the initialization error.
+func initErr(t *testing.T, serviceURL *url.URL) error {
+	t.Helper()
+
+	service := &matrix.Service{}
+
+	return service.Initialize(serviceURL, log.New(t.Output(), "[Test] ", 0))
+}
+
+// matrixServerURL returns the Matrix server URL from the environment.
+//
+// Returns:
+//   - string: SHOUTRRR_MATRIX_URL, or a URL built from the host, user, and
+//     password variables, or "" when no credentials are set.
 func matrixServerURL() string {
-	// Check for URL in environment variable
-	envURL := os.Getenv("SHOUTRRR_MATRIX_URL")
-	if envURL != "" {
+	if envURL := os.Getenv("SHOUTRRR_MATRIX_URL"); envURL != "" {
 		return envURL
 	}
 
-	// Build URL from individual components
 	host := os.Getenv("SHOUTRRR_MATRIX_HOST")
 	if host == "" {
 		host = "localhost:8008"
@@ -93,60 +223,53 @@ func matrixServerURL() string {
 		return "matrix://" + url.UserPassword(user, password).String() + "@" + host
 	}
 
-	// Return empty string if no credentials available
 	return ""
 }
 
-// matrixRoom returns the Matrix room from environment or default test room.
+// matrixRoom returns the Matrix room from the environment.
+//
+// Returns:
+//   - string: SHOUTRRR_MATRIX_ROOM, or #test:localhost when it is unset.
 func matrixRoom() string {
-	room := os.Getenv("SHOUTRRR_MATRIX_ROOM")
-	if room != "" {
+	if room := os.Getenv("SHOUTRRR_MATRIX_ROOM"); room != "" {
 		return room
 	}
 
-	// Default test room alias
 	return "#test:localhost"
 }
 
-// matrixDisableTLS returns whether TLS should be disabled.
-func matrixDisableTLS() bool {
-	return os.Getenv("SHOUTRRR_MATRIX_DISABLE_TLS") == envValueTrue
-}
-
-// buildServiceURL builds a complete Matrix service URL with all parameters.
+// buildServiceURL builds the Matrix service URL with its room and TLS setting.
+//
+// Returns:
+//   - string: the service URL, or "" when no server is configured.
 func buildServiceURL() string {
 	baseURL := matrixServerURL()
-
-	// If no URL from environment, return empty
 	if baseURL == "" {
 		return ""
 	}
 
-	// Parse to add query params
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return ""
 	}
 
-	// Add room parameter
-	room := matrixRoom()
-	if room != "" {
-		q := parsedURL.Query()
-		q.Add("room", room)
-		parsedURL.RawQuery = q.Encode()
+	query := parsedURL.Query()
+	query.Add("room", matrixRoom())
+
+	if os.Getenv("SHOUTRRR_MATRIX_DISABLE_TLS") == envValueTrue {
+		query.Add("disableTLS", "true")
 	}
 
-	// Add TLS disable if needed
-	if matrixDisableTLS() {
-		q := parsedURL.Query()
-		q.Add("disableTLS", "true")
-		parsedURL.RawQuery = q.Encode()
-	}
+	parsedURL.RawQuery = query.Encode()
 
 	return parsedURL.String()
 }
 
-// loadEnvFile loads environment variables from a .env file.
+// loadEnvFile sets the variables in a .env file that the environment does not
+// already set.
+//
+// Parameters:
+//   - filename: the .env file, which may be missing.
 func loadEnvFile(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -175,49 +298,4 @@ func loadEnvFile(filename string) {
 			}
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		return
-	}
-}
-
-// getOrInitSharedService initializes the shared Matrix service once in a
-// thread-safe manner if it hasn't been initialized yet. If BeforeSuite has
-// already initialized sharedService, it returns the existing instance without
-// re-initializing.
-func getOrInitSharedService() error {
-	// Check if sharedService was already initialized (e.g., by BeforeSuite)
-	if sharedService != nil {
-		return nil
-	}
-
-	sharedServiceOnce.Do(func() {
-		serviceURL := buildServiceURL()
-		if serviceURL == "" {
-			errSharedServiceInit = errors.New("Matrix server not configured")
-
-			return
-		}
-
-		parsedURL, err := url.Parse(serviceURL)
-		if err != nil {
-			errSharedServiceInit = fmt.Errorf("parsing service URL: %w", err)
-
-			return
-		}
-
-		// Create a local service instance and only assign to sharedService
-		// after Initialize succeeds to prevent tests from using an
-		// uninitialized client.
-		service := &matrix.Service{}
-		if err := service.Initialize(parsedURL, logger.New()); err != nil {
-			errSharedServiceInit = fmt.Errorf("initializing service: %w", err)
-
-			return
-		}
-
-		sharedService = service
-	})
-
-	return errSharedServiceInit
 }

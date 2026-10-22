@@ -7,20 +7,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"testing"
 	"time"
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
 // Timing for the connection lifecycle e2e test.
@@ -34,50 +34,38 @@ const (
 // errNoAPIToken reports that the EMQX management API returned no login token.
 var errNoAPIToken = errors.New("no management API token")
 
-var _ = ginkgo.Describe("MQTT E2E Connection Lifecycle Test", func() {
-	ginkgo.It("should deliver messages sent more than 10 seconds apart through one service", func() {
-		envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-		if envURL == "" {
-			ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping connection lifecycle test")
-
-			return
-		}
-
-		serviceURL, err := url.Parse(addTLSParam(addCredentialsToURL(envURL)))
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// TestMQTTConnectionLifecycle verifies that one service delivers messages sent
+// more than 10 seconds apart, and that a one-shot root Send delivers its
+// message and then disconnects its client, as a subscriber and the EMQX
+// management API observe.
+//
+//nolint:paralleltest // Publishes to a live broker one message at a time.
+func TestMQTTConnectionLifecycle(t *testing.T) {
+	t.Run("messages sent more than 10 seconds apart through one service", func(t *testing.T) {
+		serviceURL, err := url.Parse(addTLSParam(addCredentialsToURL(brokerURL(t))))
+		require.NoError(t, err)
 
 		serviceURL.Path = fmt.Sprintf("/shoutrrr/e2e/lifecycle/%d", time.Now().UnixNano())
 
-		received := subscribe(serviceURL)
+		received := subscribe(t, serviceURL)
 
 		service := &mqtt.Service{}
-		gomega.Expect(service.Initialize(serviceURL, logger.New())).To(gomega.Succeed())
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "[Test] ", 0)))
 
-		ginkgo.DeferCleanup(service.Close)
+		t.Cleanup(func() { _ = service.Close() })
 
-		gomega.Expect(service.Send("E2E Test: first lifecycle message", nil)).To(gomega.Succeed())
-		gomega.Eventually(received, deliveryTimeout).
-			Should(gomega.Receive(gomega.Equal("E2E Test: first lifecycle message")))
+		require.NoError(t, service.Send("E2E Test: first lifecycle message", nil))
+		waitForPayload(t, received, "E2E Test: first lifecycle message")
 
 		time.Sleep(sendInterval)
 
-		gomega.Expect(service.Send("E2E Test: second lifecycle message", nil)).To(gomega.Succeed())
-		gomega.Eventually(received, deliveryTimeout).
-			Should(gomega.Receive(gomega.Equal("E2E Test: second lifecycle message")))
+		require.NoError(t, service.Send("E2E Test: second lifecycle message", nil))
+		waitForPayload(t, received, "E2E Test: second lifecycle message")
 	})
-})
 
-var _ = ginkgo.Describe("MQTT E2E One-Shot Send Test", func() {
-	ginkgo.It("should deliver a root Send and disconnect afterwards", func() {
-		envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-		if envURL == "" {
-			ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping one-shot send test")
-
-			return
-		}
-
-		serviceURL, err := url.Parse(addTLSParam(addCredentialsToURL(envURL)))
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("root Send delivers and disconnects afterwards", func(t *testing.T) {
+		serviceURL, err := url.Parse(addTLSParam(addCredentialsToURL(brokerURL(t))))
+		require.NoError(t, err)
 
 		run := time.Now().UnixNano()
 		clientID := fmt.Sprintf("shoutrrr-e2e-oneshot-%d", run)
@@ -89,35 +77,62 @@ var _ = ginkgo.Describe("MQTT E2E One-Shot Send Test", func() {
 
 		// Check the management API before sending, so the test skips without
 		// delivering anything when the API is not reachable.
-		if _, err := clientConnected(serviceURL.Hostname(), clientID); err != nil {
-			ginkgo.Skip("EMQX management API not available: " + err.Error())
+		if _, err := clientConnected(t.Context(), serviceURL.Hostname(), clientID); err != nil {
+			t.Skip("EMQX management API not available: " + err.Error())
 		}
 
-		received := subscribe(serviceURL)
+		received := subscribe(t, serviceURL)
 
-		gomega.Expect(shoutrrr.Send(serviceURL.String(), "E2E Test: one-shot message")).To(gomega.Succeed())
-		gomega.Eventually(received, deliveryTimeout).
-			Should(gomega.Receive(gomega.Equal("E2E Test: one-shot message")))
+		require.NoError(t, shoutrrr.Send(serviceURL.String(), "E2E Test: one-shot message"))
+		waitForPayload(t, received, "E2E Test: one-shot message")
 
 		// The broker records the disconnect asynchronously, so poll for it. A lookup
 		// failure here fails the assertion, since the API was reachable before the send.
-		gomega.Eventually(func() (bool, error) {
-			return clientConnected(serviceURL.Hostname(), clientID)
-		}, deliveryTimeout, 100*time.Millisecond).
-			Should(gomega.BeFalse(), "Send must disconnect its one-shot client")
+		require.Eventually(t, func() bool {
+			connected, err := clientConnected(t.Context(), serviceURL.Hostname(), clientID)
+
+			return err == nil && !connected
+		}, deliveryTimeout, 100*time.Millisecond, "Send must disconnect its one-shot client")
 	})
-})
+}
+
+// waitForPayload requires a payload equal to want to arrive within
+// [deliveryTimeout], skipping any other payloads that arrive first.
+//
+// Parameters:
+//   - t: the test.
+//   - received: the payloads the subscriber receives.
+//   - want: the expected payload.
+func waitForPayload(t *testing.T, received <-chan string, want string) {
+	t.Helper()
+
+	timeout := time.After(deliveryTimeout)
+
+	for {
+		select {
+		case payload := <-received:
+			if payload == want {
+				return
+			}
+		case <-timeout:
+			require.Failf(t, "message not received", "no payload %q within %s", want, deliveryTimeout)
+
+			return
+		}
+	}
+}
 
 // clientConnected asks the EMQX management API whether clientID is connected.
 //
 // Parameters:
+//   - ctx: cancellation for the API requests.
 //   - host: the broker host, which also serves the management API on port 18083.
 //   - clientID: the MQTT client ID to look up.
 //
 // Returns:
 //   - bool: true when the broker reports the client as connected.
 //   - error: the failure to reach or authenticate with the management API.
-func clientConnected(host, clientID string) (bool, error) {
+func clientConnected(ctx context.Context, host, clientID string) (bool, error) {
 	apiURL := "http://" + net.JoinHostPort(host, "18083") + "/api/v5"
 	client := &http.Client{Timeout: deliveryTimeout}
 
@@ -126,7 +141,7 @@ func clientConnected(host, clientID string) (bool, error) {
 		return false, fmt.Errorf("encoding credentials: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 	defer cancel()
 
 	loginReq, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL+"/login", bytes.NewReader(credentials))
@@ -180,22 +195,25 @@ func clientConnected(host, clientID string) (bool, error) {
 
 // subscribe connects a separate client to the broker in serviceURL, subscribes to
 // its topic, and returns a channel that receives each payload published there.
-// The client disconnects when the spec ends.
+// The client disconnects when the test ends.
 //
 // Parameters:
+//   - t: the test.
 //   - serviceURL: the service URL whose broker, credentials, and topic are used.
 //
 // Returns:
 //   - <-chan string: the payloads received on the topic.
-func subscribe(serviceURL *url.URL) <-chan string {
-	ginkgo.GinkgoHelper()
+func subscribe(t *testing.T, serviceURL *url.URL) <-chan string {
+	t.Helper()
 
 	topic := serviceURL.Path[1:]
 	received := make(chan string, 4)
 	subscribed := make(chan error, 1)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	ginkgo.DeferCleanup(cancel)
+	// The test's context ends before its cleanups run, so the client keeps a
+	// context of its own until the cleanup below has disconnected it.
+	ctx, cancel := context.WithCancel(context.WithoutCancel(t.Context()))
+	t.Cleanup(cancel)
 
 	brokerURL := &url.URL{Scheme: serviceURL.Scheme, Host: serviceURL.Host}
 	password, _ := serviceURL.User.Password()
@@ -231,16 +249,21 @@ func subscribe(serviceURL *url.URL) <-chan string {
 	}
 
 	manager, err := autopaho.NewConnection(ctx, config)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, err)
 
-	ginkgo.DeferCleanup(func() {
-		disconnectCtx, stop := context.WithTimeout(context.Background(), deliveryTimeout)
+	t.Cleanup(func() {
+		disconnectCtx, stop := context.WithTimeout(context.WithoutCancel(t.Context()), deliveryTimeout)
 		defer stop()
 
 		_ = manager.Disconnect(disconnectCtx)
 	})
 
-	gomega.Eventually(subscribed, deliveryTimeout).Should(gomega.Receive(gomega.Succeed()))
+	select {
+	case err := <-subscribed:
+		require.NoError(t, err)
+	case <-time.After(deliveryTimeout):
+		require.Fail(t, "subscription not confirmed", "no SUBACK within %s", deliveryTimeout)
+	}
 
 	return received
 }

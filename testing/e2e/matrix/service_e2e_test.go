@@ -2,202 +2,87 @@ package e2e_test
 
 import (
 	"net/url"
-	"os"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
-var _ = ginkgo.Describe("Matrix Service E2E Tests", func() {
-	ginkgo.Describe("Service Initialization", func() {
-		ginkgo.It("should initialize with valid credentials from environment", func() {
-			// Use shared service if available, otherwise create new one
-			if sharedService != nil {
-				gomega.Expect(sharedService.Config).NotTo(gomega.BeNil())
-				gomega.Expect(sharedService.Config.Host).NotTo(gomega.BeEmpty())
+// TestMatrixInitialization verifies that a service initializes from valid
+// credentials, that a real Matrix server rejects invalid ones on the first
+// send, and that a URL without a host or credentials is rejected.
+//
+//nolint:paralleltest // Talks to a live server one test at a time.
+func TestMatrixInitialization(t *testing.T) {
+	t.Run("valid credentials from environment", func(t *testing.T) {
+		service := getSharedService(t)
 
-				return
-			}
-
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping test. " +
-					"Set SHOUTRRR_MATRIX_USER and SHOUTRRR_MATRIX_PASSWORD environment variables")
-			}
-
-			parsedURL, err := url.Parse(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(service.Config).NotTo(gomega.BeNil())
-			gomega.Expect(service.Config.Host).NotTo(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should return error with invalid credentials", func() {
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping invalid credentials test")
-			}
-
-			// Use the configured server with credentials it will reject
-			parsedURL, err := url.Parse(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// The login runs on the first send, where the server should reject the credentials
-			err = service.Send("E2E Test: invalid credentials", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Invalid username or password"))
-		})
-
-		ginkgo.It("should return error with missing host", func() {
-			invalidURL := "matrix://user:password@"
-			parsedURL, err := url.Parse(invalidURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should return error with missing credentials", func() {
-			invalidURL := "matrix://localhost:8008"
-			parsedURL, err := url.Parse(invalidURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.NotNil(t, service.Config)
+		assert.NotEmpty(t, service.Config.Host)
 	})
 
-	ginkgo.Describe("Send Messages", func() {
-		ginkgo.It("should send basic text message to Matrix room", func() {
-			// Use shared service if available
-			if sharedService != nil {
-				err := sharedService.Send("E2E Test: Basic text message", nil)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("invalid credentials", func(t *testing.T) {
+		parsedURL, err := url.Parse(requireServiceURL(t))
+		require.NoError(t, err)
 
-				return
-			}
+		// The configured server, with credentials it rejects.
+		parsedURL.User = url.UserPassword("invaliduser", "invalidpassword")
 
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping test. " +
-					"Set SHOUTRRR_MATRIX_USER, SHOUTRRR_MATRIX_PASSWORD, and SHOUTRRR_MATRIX_ROOM environment variables")
-			}
+		service := newService(t, parsedURL.String())
 
-			parsedURL, err := url.Parse(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Basic text message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send message with custom title", func() {
-			// Use shared service if available to avoid rate limit from new login
-			if sharedService != nil {
-				err := sharedService.Send(
-					"E2E Test: Message with custom title",
-					&types.Params{"title": "TestNotification"},
-				)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-				return
-			}
-
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping test")
-			}
-
-			// Fallback: create new service (hits rate limit - not recommended)
-			parsedURL, err := url.Parse(serviceURL + "&title=TestNotification")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Message with custom title", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should fail to send when client is not initialized", func() {
-			// Use dummy URL which skips client initialization
-			// Format: matrix://:password@host - password is empty, which triggers ErrMissingCredentials
-			// but this is handled differently - we need a URL that parses successfully but skips client init
-			dummyURL := "matrix://:dummy@dummy.com"
-			parsedURL, err := url.Parse(dummyURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			// This should succeed because the dummy URL is detected and client is not initialized
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("This should fail", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		// The login runs on the first send, where the server rejects the credentials.
+		err = service.Send("E2E Test: invalid credentials", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid username or password")
 	})
 
-	ginkgo.Describe("Service ID", func() {
-		ginkgo.It("should return correct service ID", func() {
-			// Even with dummy URL, service ID should work
-			// Use format with empty username but password present: matrix://:password@host
-			dummyURL := "matrix://:dummy@dummy.com"
-			parsedURL, err := url.Parse(dummyURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("missing host", func(t *testing.T) {
+		parsedURL, err := url.Parse("matrix://user:password@")
+		require.NoError(t, err)
 
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			serviceID := service.GetID()
-			gomega.Expect(serviceID).To(gomega.Equal("matrix"))
-		})
+		require.Error(t, initErr(t, parsedURL))
 	})
 
-	ginkgo.Describe("Configuration", func() {
-		ginkgo.It("should parse room aliases correctly", func() {
-			// Test that room aliases are handled with # prefix
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping test")
-			}
+	t.Run("missing credentials", func(t *testing.T) {
+		parsedURL, err := url.Parse("matrix://localhost:8008")
+		require.NoError(t, err)
 
-			// Add room without # prefix
-			room := os.Getenv("SHOUTRRR_MATRIX_ROOM")
-			if room == "" {
-				room = "testroom"
-			}
-
-			// Build URL with room that needs prefix
-			parsedURL, err := url.Parse("matrix://user:pass@localhost:8008?room=" + room + "&disableTLS=true")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &matrix.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			// This may fail due to auth, but we can check config parsing
-			if err == nil {
-				gomega.Expect(service.Config.Rooms).To(gomega.Not(gomega.BeEmpty()))
-			}
-		})
+		require.Error(t, initErr(t, parsedURL))
 	})
-})
+}
+
+// TestMatrixSend verifies that messages reach a real Matrix room, with or
+// without a title, and that a service without a client fails to send.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestMatrixSend(t *testing.T) {
+	t.Run("basic text message", func(t *testing.T) {
+		require.NoError(t, getSharedService(t).Send("E2E Test: Basic text message", nil))
+	})
+
+	t.Run("custom title", func(t *testing.T) {
+		require.NoError(t, getSharedService(t).Send(
+			"E2E Test: Message with custom title",
+			&types.Params{"title": "TestNotification"},
+		))
+	})
+
+	t.Run("fails when the client is not initialized", func(t *testing.T) {
+		// The documentation dummy URL initializes the service without a client.
+		service := newService(t, "matrix://:dummy@dummy.com")
+
+		require.Error(t, service.Send("This should fail", nil))
+	})
+}
+
+// TestMatrixConfiguration verifies that a room given without its # prefix is
+// stored as a room alias.
+func TestMatrixConfiguration(t *testing.T) {
+	t.Parallel()
+
+	service := newService(t, "matrix://user:pass@localhost:8008?room=testroom&disableTLS=true")
+
+	assert.Equal(t, []string{"#testroom"}, service.Config.Rooms)
+}

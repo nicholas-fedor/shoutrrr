@@ -1,138 +1,58 @@
 package e2e_test
 
 import (
+	"net"
 	"net/url"
 	"os"
-	"strings"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("MQTT E2E TLS Test", func() {
-	ginkgo.When("testing TLS connections", func() {
-		ginkgo.It("should connect using mqtts:// scheme", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_TLS_URL")
-			if envURL == "" {
-				// Try to construct from the base URL by changing scheme
-				envURL = os.Getenv("SHOUTRRR_MQTT_URL")
-				if envURL == "" {
-					ginkgo.Skip(
-						"SHOUTRRR_MQTT_URL or SHOUTRRR_MQTT_TLS_URL not set, skipping TLS test",
-					)
+// TestMQTTTLS verifies that messages are published to a real MQTT broker over
+// TLS with the mqtts scheme, on its TLS port, and that TLS to the plain MQTT
+// port fails.
+//
+//nolint:paralleltest // Publishes to a live broker one message at a time.
+func TestMQTTTLS(t *testing.T) {
+	t.Run("mqtts scheme", func(t *testing.T) {
+		// Without a TLS URL, the base URL is used on the broker's TLS port.
+		tlsURL := tlsURLWithPort(t, "8883")
+		if envURL := os.Getenv("SHOUTRRR_MQTT_TLS_URL"); envURL != "" {
+			tlsURL = addTLSParam(addCredentialsToURL(envURL))
+		}
 
-					return
-				}
-
-				// Replace mqtt:// with mqtts://
-				envURL = strings.Replace(envURL, "mqtt://", "mqtts://", 1)
-			}
-
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
-
-			// Add TLS skip verify param if enabled (for self-signed certificates)
-			envURL = addTLSParam(envURL)
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: TLS message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should connect using mqtts:// with custom port", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping TLS test")
-
-				return
-			}
-
-			// Parse the URL and change the port to 8883
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change scheme to mqtts and port to 8883
-			scheme := "mqtts"
-			port := "8883"
-
-			// Build new URL
-			newURL := scheme + "://" + serviceURL.Hostname() + ":" + port + serviceURL.Path
-
-			// Add credentials from environment variables if set
-			newURL = addCredentialsToURL(newURL)
-
-			// Add TLS skip verify param if enabled
-			newURL = addTLSParam(newURL)
-
-			if serviceURL.RawQuery != "" {
-				newURL += "?" + serviceURL.RawQuery
-			}
-
-			tlsURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &mqtt.Service{}
-			err = service.Initialize(tlsURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: TLS on port 8883", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should fail when connecting with TLS to non-TLS port", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping TLS test")
-
-				return
-			}
-
-			// Parse the URL and change the scheme to mqtts
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change scheme to mqtts but keep the standard MQTT port (1883)
-			// This should fail since port 1883 typically doesn't support TLS
-			scheme := "mqtts"
-			port := "1883"
-
-			newURL := scheme + "://" + serviceURL.Hostname() + ":" + port + serviceURL.Path
-
-			// Add credentials and TLS skip verify param
-			newURL = addCredentialsToURL(newURL)
-			newURL = addTLSParam(newURL)
-
-			if serviceURL.RawQuery != "" {
-				newURL += "?" + serviceURL.RawQuery
-			}
-
-			tlsURL, err := url.Parse(newURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &mqtt.Service{}
-			err = service.Initialize(tlsURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// This should fail because we're trying TLS on a non-TLS port
-			err = service.Send("E2E Test: Should fail", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-
-			_ = service.Close()
-		})
+		sendAndClose(t, tlsURL, "E2E Test: TLS message", nil)
 	})
-})
+
+	t.Run("mqtts with custom port", func(t *testing.T) {
+		sendAndClose(t, tlsURLWithPort(t, "8883"), "E2E Test: TLS on port 8883", nil)
+	})
+
+	t.Run("TLS to the non-TLS port fails", func(t *testing.T) {
+		// Port 1883 serves plain MQTT, so a TLS handshake there fails.
+		sendExpectingFailure(t, tlsURLWithPort(t, "1883"))
+	})
+}
+
+// tlsURLWithPort returns the broker URL with the mqtts scheme and the given
+// port, keeping its host, credentials, topic, and query, with the credentials
+// and TLS parameter from the environment.
+//
+// Parameters:
+//   - t: the test.
+//   - port: the broker port.
+//
+// Returns:
+//   - string: the TLS service URL.
+func tlsURLWithPort(t *testing.T, port string) string {
+	t.Helper()
+
+	serviceURL, err := url.Parse(brokerURL(t))
+	require.NoError(t, err)
+
+	serviceURL.Scheme = "mqtts"
+	serviceURL.Host = net.JoinHostPort(serviceURL.Hostname(), port)
+
+	return addTLSParam(addCredentialsToURL(serviceURL.String()))
+}

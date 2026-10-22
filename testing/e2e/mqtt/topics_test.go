@@ -2,155 +2,38 @@ package e2e_test
 
 import (
 	"net/url"
-	"os"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("MQTT E2E Topic Test", func() {
-	ginkgo.When("testing different topic formats", func() {
-		ginkgo.It("should send to single-level topic", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping topic test")
+// TestMQTTTopics verifies that messages are published to a real MQTT broker on
+// single-level, nested, and escaped topics.
+//
+//nolint:paralleltest // Publishes to a live broker one message at a time.
+func TestMQTTTopics(t *testing.T) {
+	// topics lists the topics to publish to, unescaped, with the message for
+	// each. The URL escapes them once.
+	topics := []struct {
+		name, path, message string
+	}{
+		{name: "single-level topic", path: "/test/single", message: "E2E Test: Single-level topic"},
+		{name: "nested topic", path: "/home/alerts/notifications", message: "E2E Test: Nested topic message"},
+		{
+			name:    "topic with characters the URL escapes",
+			path:    "/sensor device/température",
+			message: "E2E Test: Topic with special characters",
+		},
+	}
 
-				return
-			}
+	for _, topic := range topics {
+		t.Run(topic.name, func(t *testing.T) {
+			serviceURL, err := url.Parse(addCredentialsToURL(brokerURL(t)))
+			require.NoError(t, err)
 
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
+			serviceURL.Path = topic.path
 
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change topic to single level by modifying the path
-			serviceURL.Path = "/test/single"
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Single-level topic", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			sendAndClose(t, serviceURL.String(), topic.message, nil)
 		})
-
-		ginkgo.It("should send to nested topic", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping topic test")
-
-				return
-			}
-
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change topic to nested levels by modifying the path
-			serviceURL.Path = "/home/alerts/notifications"
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Nested topic message", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send to wildcard topic base", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping topic test")
-
-				return
-			}
-
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change topic to multi-level wildcard base by modifying the path
-			serviceURL.Path = "/sensors/+/temperature"
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Wildcard topic base", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send to multi-level wildcard topic", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping topic test")
-
-				return
-			}
-
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change topic to multi-level wildcard by modifying the path
-			serviceURL.Path = "/home/#"
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Multi-level wildcard topic", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("should send to topic with special characters", func() {
-			envURL := os.Getenv("SHOUTRRR_MQTT_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_MQTT_URL not set, skipping topic test")
-
-				return
-			}
-
-			// Add credentials from environment variables if set
-			envURL = addCredentialsToURL(envURL)
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			// Change topic with special characters by modifying the path
-			serviceURL.Path = "/sensor%2Fdevice%231/temperature"
-
-			service := &mqtt.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Topic with special characters", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Close()
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-})
+	}
+}

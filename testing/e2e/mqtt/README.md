@@ -47,9 +47,7 @@ The end-to-end tests validate the complete MQTT notification functionality by co
 
 - Single-level topics (e.g., `test/topic`)
 - Nested topics (e.g., `home/alerts/notifications`)
-- Single-level wildcards (e.g., `sensors/+/temperature`)
-- Multi-level wildcards (e.g., `home/#`)
-- Topics with special characters (URL-encoded)
+- Topics with characters the URL escapes, such as spaces and accented letters
 
 ## Test Environment Setup
 
@@ -249,23 +247,23 @@ Run all e2e tests:
 go test ./testing/e2e/mqtt/ -v
 ```
 
-Run specific test files:
+Run one group of tests:
 
 ```bash
 # Test basic functionality
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="basic"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTBasic
 
 # Test QoS levels
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="QoS"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTQoS
 
 # Test authentication
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="Authentication"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTAuthentication
 
 # Test TLS connections
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="TLS"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTTLS
 
 # Test topics
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="Topic"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTTopics
 ```
 
 ### Test Behavior
@@ -319,7 +317,7 @@ Each test file focuses on a specific feature category:
 - **Retained Tests** (`retained_test.go`): Retained message handling
 - **Auth Tests** (`auth_test.go`): Username/password authentication
 - **TLS Tests** (`tls_test.go`): Secure TLS connections
-- **Topic Tests** (`topics_test.go`): Topic format variations and wildcards
+- **Topic Tests** (`topics_test.go`): Topic format variations and escaped topics
 
 ## MQTT URL Examples
 
