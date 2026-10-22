@@ -214,6 +214,11 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "level1/level2/level3"},
 		},
 		{
+			name:   "escaped topic",
+			rawURL: "mqtt://broker.example.com:1883/sensor%20device/temp%C3%A9rature",
+			want:   Config{Host: "broker.example.com", Port: 1883, Topic: "sensor device/température"},
+		},
+		{
 			name:   "default mqtts port",
 			rawURL: "mqtts://broker.example.com/test/topic",
 			want:   Config{Host: "broker.example.com", Port: 8883, Topic: "test/topic"},
@@ -244,8 +249,10 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic
-// and rejects QoS values outside the enum.
+// TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic,
+// rejects a topic with a wildcard or a null character, which MQTT forbids in a
+// topic name, rejects a URL whose unescaped # starts a fragment, and rejects
+// QoS values outside the enum.
 func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +261,28 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 
 		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883/")), ErrTopicRequired)
 	})
+
+	for _, path := range []string{"/+", "/sensors/+/temperature", "/%23", "/home/%23", "/sensor%00/temperature"} {
+		t.Run("topic "+path, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883"+path)), ErrInvalidTopic)
+		})
+	}
+
+	// An unescaped # starts the URL fragment, which would cut the intended
+	// topic short.
+	for _, rawURL := range []string{
+		"mqtt://broker.example.com:1883/sensors/#/temperature",
+		"mqtt://broker.example.com:1883/home/alerts#urgent",
+		"mqtt://broker.example.com:1883/#sensors",
+	} {
+		t.Run("fragment in "+rawURL, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), ErrInvalidTopic)
+		})
+	}
 
 	t.Run("unbracketed IPv6 host", func(t *testing.T) {
 		t.Parallel()
@@ -311,7 +340,7 @@ func TestConfigURLRoundTripKeepsTopic(t *testing.T) {
 		{name: "trailing slash", topic: "home/alerts/"},
 		{name: "only a slash", topic: "/"},
 		{name: "empty levels", topic: "home//alerts"},
-		{name: "characters to escape", topic: "home alerts/100%/a?b#c"},
+		{name: "characters to escape", topic: "home alerts/100%/a?b&c"},
 	}
 
 	for _, tt := range tests {

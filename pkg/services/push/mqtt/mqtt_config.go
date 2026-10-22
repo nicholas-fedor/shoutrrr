@@ -274,7 +274,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // Returns:
 //   - error: a host error such as [util.ErrInvalidHost], a port error, a
 //     malformed query ([util.ErrInvalidQuery]) or query parameter error,
-//     [ErrTopicRequired], or [ErrInvalidQoS].
+//     [ErrTopicRequired], [ErrInvalidTopic] for a topic with a wildcard or a
+//     null character or a URL with a fragment, or [ErrInvalidQoS].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.scheme = serviceURL.Scheme
 
@@ -324,6 +325,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// Example: "/notifications/alerts" becomes "notifications/alerts"
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 
+	// An unescaped # starts the URL fragment, which would cut the intended topic
+	// short. A # in a topic is a wildcard, which a topic name must not contain.
+	if serviceURL.Fragment != "" {
+		return fmt.Errorf("%w: %q", ErrInvalidTopic, c.Topic+"#"+serviceURL.Fragment)
+	}
+
 	// Process all query parameters through the resolver
 	// This handles optional parameters like qos, retained, clientid, etc.
 	query, err := util.ParseURLQuery(serviceURL)
@@ -343,6 +350,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
 	if !isDummy && c.Topic == "" {
 		return ErrTopicRequired
+	}
+
+	// MQTT forbids wildcards and the null character in the topic name of a
+	// PUBLISH packet, so a broker would reject every message to such a topic.
+	if strings.ContainsAny(c.Topic, "+#\x00") {
+		return fmt.Errorf("%w: %q", ErrInvalidTopic, c.Topic)
 	}
 
 	// Validate QoS value is within MQTT protocol range (0-2)

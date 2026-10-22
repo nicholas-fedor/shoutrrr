@@ -25,6 +25,7 @@ To send notifications via MQTT, you need a running MQTT broker and a topic to pu
 Topics use a hierarchical naming scheme with forward slashes (e.g., `home/alerts`, `sensors/temperature`).
 A URL without a host, such as `mqtt:///home/alerts`, connects to a broker on `localhost`.
 The topic is the URL path after its first slash, so a topic that starts with a slash, such as `/home/alerts`, which MQTT treats as distinct from `home/alerts`, is written with two: `mqtt://broker//home/alerts`.
+A topic name cannot contain the `+` or `#` wildcards, which MQTT only allows in subscriptions, so a URL with one in its topic is rejected.
 
 ## URL Formats
 
