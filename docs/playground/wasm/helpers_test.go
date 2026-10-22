@@ -21,6 +21,8 @@ type testSetFieldStruct struct {
 }
 
 func TestClassifyType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		typ      reflect.Type
 		isEnum   bool
@@ -52,7 +54,10 @@ func TestClassifyType(t *testing.T) {
 		if tc.isEnum {
 			name = "enum_override"
 		}
+
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			actual := classifyType(tc.typ, tc.isEnum)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -60,6 +65,8 @@ func TestClassifyType(t *testing.T) {
 }
 
 func TestURLPartToString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		parts    []format.URLPart
@@ -78,12 +85,16 @@ func TestURLPartToString(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			actual := urlPartToString(tc.parts)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
 
 	t.Run("handles path offsets greater than URLPath", func(t *testing.T) {
+		t.Parallel()
+
 		parts := []format.URLPart{format.URLPath + 1}
 		result := urlPartToString(parts)
 		assert.Equal(t, "path1", result)
@@ -91,18 +102,28 @@ func TestURLPartToString(t *testing.T) {
 }
 
 func TestGetEnumNames(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns nil for nil formatter", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Nil(t, getEnumNames(nil))
 	})
 
 	t.Run("returns names from formatter", func(t *testing.T) {
+		t.Parallel()
+
 		ef := format.CreateEnumFormatter([]string{"Option1", "Option2", "Option3"})
 		assert.Equal(t, []string{"Option1", "Option2", "Option3"}, getEnumNames(ef))
 	})
 }
 
 func TestSetFieldFromString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sets string field", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Name", "hello")
@@ -111,6 +132,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from Yes", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "Yes")
@@ -119,6 +142,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from No", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "No")
@@ -127,6 +152,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from true", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "true")
@@ -135,6 +162,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from false", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "false")
@@ -143,6 +172,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from 1", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "1")
@@ -151,6 +182,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from 0", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "0")
@@ -159,6 +192,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid field name", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "NonExistent", "value")
@@ -167,6 +202,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from lowercase yes", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "yes")
@@ -175,6 +212,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from uppercase TRUE", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "TRUE")
@@ -183,6 +222,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("sets bool field from uppercase FALSE", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "FALSE")
@@ -191,6 +232,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid bool input", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "invalid")
@@ -199,6 +242,8 @@ func TestSetFieldFromString(t *testing.T) {
 	})
 
 	t.Run("returns error for numeric invalid bool input", func(t *testing.T) {
+		t.Parallel()
+
 		s := testSetFieldStruct{Enabled: true}
 		val := reflect.ValueOf(&s).Elem()
 		err := setFieldFromString(val, "Enabled", "2")
@@ -208,40 +253,58 @@ func TestSetFieldFromString(t *testing.T) {
 }
 
 func TestHelpersMarshalError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("serializes error to JSON", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalError(errors.New("test error"))
-		assert.Equal(t, `{"error":"test error"}`, result)
+		assert.JSONEq(t, `{"error":"test error"}`, result)
 	})
 
 	t.Run("handles empty error message", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalError(errors.New(""))
-		assert.Equal(t, `{"error":""}`, result)
+		assert.JSONEq(t, `{"error":""}`, result)
 	})
 
 	t.Run("handles nil error", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalError(nil)
-		assert.Equal(t, `{"error":"unknown error"}`, result)
+		assert.JSONEq(t, `{"error":"unknown error"}`, result)
 	})
 }
 
 func TestHelpersMarshalErrorStr(t *testing.T) {
+	t.Parallel()
+
 	t.Run("serializes string to error JSON", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalErrorStr("something failed")
-		assert.Equal(t, `{"error":"something failed"}`, result)
+		assert.JSONEq(t, `{"error":"something failed"}`, result)
 	})
 
 	t.Run("handles empty string", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalErrorStr("")
-		assert.Equal(t, `{"error":""}`, result)
+		assert.JSONEq(t, `{"error":""}`, result)
 	})
 
 	t.Run("handles string with special characters", func(t *testing.T) {
+		t.Parallel()
+
 		result := marshalErrorStr(`error with "quotes"`)
-		assert.Equal(t, `{"error":"error with \"quotes\""}`, result)
+		assert.JSONEq(t, `{"error":"error with \"quotes\""}`, result)
 	})
 }
 
 func TestHelpersExtractScheme(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rawURL   string
@@ -259,17 +322,23 @@ func TestHelpersExtractScheme(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			actual := extractScheme(tc.rawURL)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
 
 	t.Run("handles scheme with plus separator", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "log", extractScheme("log+http://localhost"))
 	})
 }
 
 func TestIsNillableKind(t *testing.T) {
+	t.Parallel()
+
 	nillableKinds := []struct {
 		name string
 		kind reflect.Kind
@@ -284,6 +353,8 @@ func TestIsNillableKind(t *testing.T) {
 
 	for _, tc := range nillableKinds {
 		t.Run(tc.name+" returns true", func(t *testing.T) {
+			t.Parallel()
+
 			assert.True(t, isNillableKind(tc.kind))
 		})
 	}
@@ -302,6 +373,8 @@ func TestIsNillableKind(t *testing.T) {
 
 	for _, tc := range nonNillableKinds {
 		t.Run(tc.name+" returns false", func(t *testing.T) {
+			t.Parallel()
+
 			assert.False(t, isNillableKind(tc.kind))
 		})
 	}

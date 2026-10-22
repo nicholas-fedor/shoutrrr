@@ -13,7 +13,11 @@ import (
 )
 
 func TestListServicesJSON(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns valid JSON array", func(t *testing.T) {
+		t.Parallel()
+
 		result := listServicesJSON()
 
 		var schemes []string
@@ -24,6 +28,8 @@ func TestListServicesJSON(t *testing.T) {
 	})
 
 	t.Run("contains known services", func(t *testing.T) {
+		t.Parallel()
+
 		result := listServicesJSON()
 
 		var schemes []string
@@ -39,6 +45,8 @@ func TestListServicesJSON(t *testing.T) {
 	})
 
 	t.Run("matches router.ListServices", func(t *testing.T) {
+		t.Parallel()
+
 		r := router.ServiceRouter{}
 		expected := r.ListServices()
 
@@ -53,7 +61,11 @@ func TestListServicesJSON(t *testing.T) {
 }
 
 func TestConfigSchemaJSON(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns valid schema for discord", func(t *testing.T) {
+		t.Parallel()
+
 		result := configSchemaJSON("discord")
 
 		var schema configSchema
@@ -66,6 +78,8 @@ func TestConfigSchemaJSON(t *testing.T) {
 	})
 
 	t.Run("returns valid schema for ntfy", func(t *testing.T) {
+		t.Parallel()
+
 		result := configSchemaJSON("ntfy")
 
 		var schema configSchema
@@ -76,6 +90,8 @@ func TestConfigSchemaJSON(t *testing.T) {
 	})
 
 	t.Run("includes webhookURL field for generic service", func(t *testing.T) {
+		t.Parallel()
+
 		result := configSchemaJSON("generic")
 
 		var schema configSchema
@@ -97,6 +113,8 @@ func TestConfigSchemaJSON(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid service", func(t *testing.T) {
+		t.Parallel()
+
 		result := configSchemaJSON("nonexistent")
 
 		var errResp errorResult
@@ -107,6 +125,8 @@ func TestConfigSchemaJSON(t *testing.T) {
 	})
 
 	t.Run("handles logger service with no fields", func(t *testing.T) {
+		t.Parallel()
+
 		result := configSchemaJSON("logger")
 
 		var schema configSchema

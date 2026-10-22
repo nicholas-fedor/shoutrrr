@@ -11,6 +11,8 @@ import (
 )
 
 func TestParseURLString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		input           string
@@ -59,10 +61,13 @@ func TestParseURLString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := parseURLString(tt.input)
 
 			if tt.wantError {
 				var errResp errorResult
+
 				err := json.Unmarshal([]byte(result), &errResp)
 				require.NoError(t, err)
 				assert.NotEmpty(t, errResp.Error)
@@ -71,6 +76,7 @@ func TestParseURLString(t *testing.T) {
 			}
 
 			var parsed parseResult
+
 			err := json.Unmarshal([]byte(result), &parsed)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantService, parsed.Service)
@@ -89,37 +95,51 @@ func TestParseURLString(t *testing.T) {
 }
 
 func TestValidateURLString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns valid for discord URL", func(t *testing.T) {
+		t.Parallel()
+
 		result := validateURLString("discord://token@123456789")
 
 		var valid map[string]bool
+
 		err := json.Unmarshal([]byte(result), &valid)
 		require.NoError(t, err)
 		assert.True(t, valid["valid"])
 	})
 
 	t.Run("returns valid for ntfy URL", func(t *testing.T) {
+		t.Parallel()
+
 		result := validateURLString("ntfy://ntfy.sh/mytopic")
 
 		var valid map[string]bool
+
 		err := json.Unmarshal([]byte(result), &valid)
 		require.NoError(t, err)
 		assert.True(t, valid["valid"])
 	})
 
 	t.Run("returns error for invalid URL", func(t *testing.T) {
+		t.Parallel()
+
 		result := validateURLString("not-valid")
 
 		var errResp errorResult
+
 		err := json.Unmarshal([]byte(result), &errResp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, errResp.Error)
 	})
 
 	t.Run("returns error for unknown service", func(t *testing.T) {
+		t.Parallel()
+
 		result := validateURLString("unknown://something")
 
 		var errResp errorResult
+
 		err := json.Unmarshal([]byte(result), &errResp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, errResp.Error)
