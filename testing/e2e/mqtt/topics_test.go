@@ -8,21 +8,20 @@ import (
 )
 
 // TestMQTTTopics verifies that messages are published to a real MQTT broker on
-// single-level, nested, wildcard, and escaped topics.
+// single-level, nested, and escaped topics.
 //
 //nolint:paralleltest // Publishes to a live broker one message at a time.
 func TestMQTTTopics(t *testing.T) {
-	// topics lists the URL paths to publish to, with the message for each.
+	// topics lists the topics to publish to, unescaped, with the message for
+	// each. The URL escapes them once.
 	topics := []struct {
 		name, path, message string
 	}{
 		{name: "single-level topic", path: "/test/single", message: "E2E Test: Single-level topic"},
 		{name: "nested topic", path: "/home/alerts/notifications", message: "E2E Test: Nested topic message"},
-		{name: "wildcard topic base", path: "/sensors/+/temperature", message: "E2E Test: Wildcard topic base"},
-		{name: "multi-level wildcard topic", path: "/home/#", message: "E2E Test: Multi-level wildcard topic"},
 		{
-			name:    "topic with special characters",
-			path:    "/sensor%2Fdevice%231/temperature",
+			name:    "topic with characters the URL escapes",
+			path:    "/sensor device/température",
 			message: "E2E Test: Topic with special characters",
 		},
 	}

@@ -47,9 +47,7 @@ The end-to-end tests validate the complete MQTT notification functionality by co
 
 - Single-level topics (e.g., `test/topic`)
 - Nested topics (e.g., `home/alerts/notifications`)
-- Single-level wildcards (e.g., `sensors/+/temperature`)
-- Multi-level wildcards (e.g., `home/#`)
-- Topics with special characters (URL-encoded)
+- Topics with characters the URL escapes, such as spaces and accented letters
 
 ## Test Environment Setup
 
@@ -319,7 +317,7 @@ Each test file focuses on a specific feature category:
 - **Retained Tests** (`retained_test.go`): Retained message handling
 - **Auth Tests** (`auth_test.go`): Username/password authentication
 - **TLS Tests** (`tls_test.go`): Secure TLS connections
-- **Topic Tests** (`topics_test.go`): Topic format variations and wildcards
+- **Topic Tests** (`topics_test.go`): Topic format variations and escaped topics
 
 ## MQTT URL Examples
 

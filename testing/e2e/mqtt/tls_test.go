@@ -1,9 +1,9 @@
 package e2e_test
 
 import (
+	"net"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,13 +16,13 @@ import (
 //nolint:paralleltest // Publishes to a live broker one message at a time.
 func TestMQTTTLS(t *testing.T) {
 	t.Run("mqtts scheme", func(t *testing.T) {
-		envURL := os.Getenv("SHOUTRRR_MQTT_TLS_URL")
-		if envURL == "" {
-			// Without a TLS URL, the base URL is used with the mqtts scheme.
-			envURL = strings.Replace(brokerURL(t), "mqtt://", "mqtts://", 1)
+		// Without a TLS URL, the base URL is used on the broker's TLS port.
+		tlsURL := tlsURLWithPort(t, "8883")
+		if envURL := os.Getenv("SHOUTRRR_MQTT_TLS_URL"); envURL != "" {
+			tlsURL = addTLSParam(addCredentialsToURL(envURL))
 		}
 
-		sendAndClose(t, addTLSParam(addCredentialsToURL(envURL)), "E2E Test: TLS message", nil)
+		sendAndClose(t, tlsURL, "E2E Test: TLS message", nil)
 	})
 
 	t.Run("mqtts with custom port", func(t *testing.T) {
@@ -36,8 +36,8 @@ func TestMQTTTLS(t *testing.T) {
 }
 
 // tlsURLWithPort returns the broker URL with the mqtts scheme and the given
-// port, keeping its host, topic, and query, with the credentials and TLS
-// parameter from the environment.
+// port, keeping its host, credentials, topic, and query, with the credentials
+// and TLS parameter from the environment.
 //
 // Parameters:
 //   - t: the test.
@@ -51,10 +51,8 @@ func tlsURLWithPort(t *testing.T, port string) string {
 	serviceURL, err := url.Parse(brokerURL(t))
 	require.NoError(t, err)
 
-	newURL := "mqtts://" + serviceURL.Hostname() + ":" + port + serviceURL.Path
-	if serviceURL.RawQuery != "" {
-		newURL += "?" + serviceURL.RawQuery
-	}
+	serviceURL.Scheme = "mqtts"
+	serviceURL.Host = net.JoinHostPort(serviceURL.Hostname(), port)
 
-	return addTLSParam(addCredentialsToURL(newURL))
+	return addTLSParam(addCredentialsToURL(serviceURL.String()))
 }
