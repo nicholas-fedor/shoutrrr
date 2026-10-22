@@ -1,5 +1,7 @@
 package lark
 
+import "encoding/json/jsontext"
+
 // RequestBody represents the payload sent to the Lark API.
 type RequestBody struct {
 	MsgType   MsgType `json:"msg_type"`
@@ -41,9 +43,13 @@ type TagValue string
 
 // Response represents the API response from Lark.
 type Response struct {
-	Data any    `json:"data"`
-	Msg  string `json:"msg"`
-	Code int    `json:"code"`
+	// Msg is the result message, which describes the error when Code is not 0.
+	Msg string `json:"msg"`
+	// Data is the response payload, kept undecoded because a send only checks
+	// the code and message.
+	Data jsontext.Value `json:"data"`
+	// Code is 0 for a successful request.
+	Code int `json:"code"`
 }
 
 // Constants for message types supported by Lark.

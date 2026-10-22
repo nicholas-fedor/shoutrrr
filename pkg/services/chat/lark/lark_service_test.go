@@ -5,7 +5,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -506,7 +507,7 @@ func TestServiceSendInvalidJSONResponse(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	var syntaxErr *json.SyntaxError
+	var syntaxErr *jsontext.SyntacticError
 	require.ErrorAs(t, err, &syntaxErr)
 }
 

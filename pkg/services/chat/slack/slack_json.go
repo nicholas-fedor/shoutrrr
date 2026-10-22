@@ -60,8 +60,16 @@ const (
 
 var iconURLPattern = regexp.MustCompile(`https?://`)
 
-// CreateJSONPayload compatible with the slack post message API.
-func CreateJSONPayload(config *Config, message string) any {
+// CreateJSONPayload builds a payload for the Slack chat.postMessage API or a
+// webhook, with one attachment for each line of the message.
+//
+// Parameters:
+//   - config: the configuration for this send.
+//   - message: the message text.
+//
+// Returns:
+//   - MessagePayload: the payload to send.
+func CreateJSONPayload(config *Config, message string) MessagePayload {
 	lines := strings.Split(message, "\n")
 	// Pre-allocate atts with a capacity of min(len(lines), MaxAttachments)
 	atts := make([]attachment, 0, minInt(len(lines), MaxAttachments))
