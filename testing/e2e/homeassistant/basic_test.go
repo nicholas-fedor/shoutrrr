@@ -1,71 +1,78 @@
 package e2e_test
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-var _ = ginkgo.Describe("Home Assistant E2E", func() {
-	ginkgo.BeforeEach(func() {
-		if !isHomeAssistantAvailable() {
-			ginkgo.Skip("Home Assistant is not available, skipping e2e tests")
-		}
-	})
+// TestHomeAssistant verifies that sends to a real Home Assistant instance
+// create, title, and replace persistent notifications, work over HTTP, and
+// fail with an unauthorized token.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestHomeAssistant(t *testing.T) {
+	t.Run("creates a persistent notification", func(t *testing.T) {
+		requireHomeAssistant(t)
 
-	ginkgo.It("should create a persistent notification", func() {
-		rawURL := withNid(serviceURL(), "shoutrrr_e2e")
-		service := initializeService(rawURL)
+		rawURL := withNid(t, serviceURL(), "shoutrrr_e2e")
+		service := initializeService(t, rawURL)
 
 		message := "E2E Test: persistent notification"
-		gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
+		require.NoError(t, service.Send(message, nil))
 
-		state := fetchPersistentNotification(accessToken(rawURL), "shoutrrr_e2e")
-		gomega.Expect(state.Message).To(gomega.Equal(message))
+		state := fetchPersistentNotification(t, accessToken(t, rawURL), "shoutrrr_e2e")
+		assert.Equal(t, message, state.Message)
 	})
 
-	ginkgo.It("should include a title", func() {
-		rawURL := withNid(serviceURL(), "shoutrrr_e2e_title")
-		service := initializeService(rawURL)
+	t.Run("includes a title", func(t *testing.T) {
+		requireHomeAssistant(t)
+
+		rawURL := withNid(t, serviceURL(), "shoutrrr_e2e_title")
+		service := initializeService(t, rawURL)
 
 		params := types.Params{"title": "E2E Title"}
-		gomega.Expect(service.Send("E2E Test: titled notification", &params)).
-			NotTo(gomega.HaveOccurred())
+		require.NoError(t, service.Send("E2E Test: titled notification", &params))
 
-		state := fetchPersistentNotification(accessToken(rawURL), "shoutrrr_e2e_title")
-		gomega.Expect(state.Title).To(gomega.Equal("E2E Title"))
-		gomega.Expect(state.Message).To(gomega.Equal("E2E Test: titled notification"))
+		state := fetchPersistentNotification(t, accessToken(t, rawURL), "shoutrrr_e2e_title")
+		assert.Equal(t, "E2E Title", state.Title)
+		assert.Equal(t, "E2E Test: titled notification", state.Message)
 	})
 
-	ginkgo.It("should replace a persistent notification when nid is reused", func() {
-		rawURL := withNid(serviceURL(), "shoutrrr_e2e_replace")
-		service := initializeService(rawURL)
+	t.Run("replaces a persistent notification when nid is reused", func(t *testing.T) {
+		requireHomeAssistant(t)
 
-		gomega.Expect(service.Send("first message", nil)).NotTo(gomega.HaveOccurred())
-		gomega.Expect(service.Send("second message", nil)).NotTo(gomega.HaveOccurred())
+		rawURL := withNid(t, serviceURL(), "shoutrrr_e2e_replace")
+		service := initializeService(t, rawURL)
 
-		state := fetchPersistentNotification(accessToken(rawURL), "shoutrrr_e2e_replace")
-		gomega.Expect(state.Message).To(gomega.Equal("second message"))
+		require.NoError(t, service.Send("first message", nil))
+		require.NoError(t, service.Send("second message", nil))
+
+		state := fetchPersistentNotification(t, accessToken(t, rawURL), "shoutrrr_e2e_replace")
+		assert.Equal(t, "second message", state.Message)
 	})
 
-	ginkgo.It("should send over HTTP when disabletls is set", func() {
-		gomega.Expect(serviceURL()).To(gomega.ContainSubstring("disabletls"))
+	t.Run("sends over HTTP when disabletls is set", func(t *testing.T) {
+		requireHomeAssistant(t)
+		require.Contains(t, serviceURL(), "disabletls")
 
-		rawURL := withNid(serviceURL(), "shoutrrr_e2e_http")
-		service := initializeService(rawURL)
+		rawURL := withNid(t, serviceURL(), "shoutrrr_e2e_http")
+		service := initializeService(t, rawURL)
 
-		gomega.Expect(service.Send("E2E Test: HTTP", nil)).NotTo(gomega.HaveOccurred())
+		require.NoError(t, service.Send("E2E Test: HTTP", nil))
 
-		state := fetchPersistentNotification(accessToken(rawURL), "shoutrrr_e2e_http")
-		gomega.Expect(state.Message).To(gomega.Equal("E2E Test: HTTP"))
+		state := fetchPersistentNotification(t, accessToken(t, rawURL), "shoutrrr_e2e_http")
+		assert.Equal(t, "E2E Test: HTTP", state.Message)
 	})
 
-	ginkgo.It("should reject an unauthorized token", func() {
-		rawURL := "homeassistant://invalid-token@localhost:8123/?disabletls=yes"
-		service := initializeService(rawURL)
+	t.Run("rejects an unauthorized token", func(t *testing.T) {
+		requireHomeAssistant(t)
 
-		err := service.Send("should fail", nil)
-		gomega.Expect(err).To(gomega.HaveOccurred())
+		service := initializeService(t, "homeassistant://invalid-token@localhost:8123/?disabletls=yes")
+
+		require.Error(t, service.Send("should fail", nil))
 	})
-})
+}
