@@ -30,10 +30,10 @@ func TestGenerateURLString(t *testing.T) {
 			wantSubstr: []string{"discord://", "123456789", "mytoken"},
 		},
 		{
-			name:       "generates ntfy URL with host and path",
+			name:       "generates ntfy URL with host and topic",
 			service:    "ntfy",
-			configJSON: `{"Host":"ntfy.sh","Path":"mytopic"}`,
-			wantSubstr: []string{"ntfy://", "ntfy.sh"},
+			configJSON: `{"Host":"ntfy.sh","Topic":"mytopic"}`,
+			wantSubstr: []string{"ntfy://", "ntfy.sh/mytopic"},
 		},
 		{
 			name:       "generates generic URL with webhook",

@@ -48,12 +48,14 @@ func TestParseURLString(t *testing.T) {
 		{
 			name:            "handles URL with query parameters - color",
 			input:           "discord://token@webhook?color=0x50D9ff&splitlines=Yes",
+			wantService:     "discord",
 			wantConfigKey:   "Color",
 			wantConfigValue: "0x50d9ff",
 		},
 		{
 			name:            "handles URL with query parameters - splitlines",
 			input:           "discord://token@webhook?color=0x50D9ff&splitlines=Yes",
+			wantService:     "discord",
 			wantConfigKey:   "SplitLines",
 			wantConfigValue: "Yes",
 		},
