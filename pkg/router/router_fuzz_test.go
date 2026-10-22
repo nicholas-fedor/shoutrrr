@@ -22,11 +22,6 @@ import (
 // not a value that happens to match fixed text.
 const fuzzSecretMarker = "SECRET"
 
-// skipEmptySliceValue is the known failure FuzzConfigRoundTrip skips for URLs
-// with an empty query value: an empty value sets a slice key to one empty item,
-// which GetURL leaves out as the default. Fixing it must remove the skip.
-const skipEmptySliceValue = "an empty query value sets a slice key to one empty item, which GetURL leaves out"
-
 // skipDocsDummyURL is the reason FuzzConfigRoundTrip skips the documentation
 // generator's <scheme>://dummy@dummy.com URL, which services accept without
 // validation only so the generator can render their config fields, and whose
@@ -92,10 +87,6 @@ func FuzzConfigRoundTrip(f *testing.F) {
 		rawURL := scheme + rest
 		if isDocsDummyURL(rawURL) {
 			t.Skip(skipDocsDummyURL)
-		}
-
-		if hasEmptyQueryValue(rawURL) {
-			t.Skip(skipEmptySliceValue)
 		}
 
 		serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
@@ -204,29 +195,6 @@ func isDocsDummyURL(rawURL string) bool {
 	parsed, err := url.Parse(rawURL)
 
 	return err == nil && parsed.String() == parsed.Scheme+"://dummy@dummy.com"
-}
-
-// hasEmptyQueryValue reports whether rawURL has a query parameter without a
-// value.
-//
-// Parameters:
-//   - rawURL: the service URL.
-//
-// Returns:
-//   - bool: true when the URL parses and a query parameter has an empty value.
-func hasEmptyQueryValue(rawURL string) bool {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return false
-	}
-
-	for _, values := range parsed.Query() {
-		if slices.Contains(values, "") {
-			return true
-		}
-	}
-
-	return false
 }
 
 // hasConfig reports whether service has the Config field that

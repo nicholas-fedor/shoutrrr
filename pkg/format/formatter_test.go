@@ -72,7 +72,8 @@ func newFieldTarget[T any](t *testing.T) (reflect.Value, map[string]*FieldInfo) 
 
 // TestSetConfigField verifies that each supported field kind is set from its
 // string and reads back as the same string, that a 0x or # prefix reads a
-// number in base 16, and that a map value may contain colons.
+// number in base 16, that a map value may contain colons, and that an empty
+// value sets a slice or map to empty.
 func TestSetConfigField(t *testing.T) {
 	t.Parallel()
 
@@ -112,6 +113,11 @@ func TestSetConfigField(t *testing.T) {
 		{field: "Uint16Map", value: "a:1", want: map[string]uint16{"a": 1}},
 		{field: "Uint32Map", value: "a:1", want: map[string]uint32{"a": 1}},
 		{field: "Uint64Map", value: "a:1", want: map[string]uint64{"a": 1}},
+		{field: "StrSlice", value: "", want: []string(nil)},
+		{field: "SubPropSlice", value: "", want: []subPropStruct(nil)},
+		{field: "SubPropPtrSlice", value: "", want: []*subPropStruct(nil)},
+		{field: "StrMap", value: "", want: map[string]string(nil)},
+		{field: "IntMap", value: "", want: map[string]int(nil)},
 	}
 
 	for _, tt := range tests {
@@ -198,6 +204,7 @@ func TestSetConfigFieldErrors(t *testing.T) {
 		{field: "SubPropSlice", value: "@a,b", wantErr: errInvalidProp},
 		{field: "StrArray", value: "one,two,three,four", wantErr: ErrInvalidFieldCount},
 		{field: "StrArray", value: "one,two", wantErr: ErrInvalidFieldCount},
+		{field: "StrArray", value: "", wantErr: ErrInvalidFieldCount},
 		{field: "StrMap", value: "a", wantErr: ErrInvalidFieldValue},
 		{field: "IntMap", value: "a:one", wantErr: ErrParseIntFailed},
 		{field: "IntMap", value: "a:1:2", wantErr: ErrParseIntFailed},

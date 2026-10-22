@@ -111,7 +111,8 @@ func TestConfigQueryResolverGet(t *testing.T) {
 
 // TestConfigSetURL verifies that SetURL reads the credentials, host, and port
 // from the URL authority and the other settings from the query, restoring plus
-// tags in addresses that query decoding turned into spaces.
+// tags in addresses that query decoding turned into spaces and dropping
+// recipient entries that are blank after trimming.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +180,11 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:     "blank recipient entries",
+			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com,%20,",
+			override: func(*Config) {},
+		},
+		{
 			name:   "display name with a plus-tagged address",
 			rawURL: "smtp://mail.example.com/?fromaddress=Ops%20Team%20%3Cops+alerts@example.com%3E&toaddresses=Jane%20Doe%20%3Cjane+x@example.com%3E",
 			override: func(c *Config) {
@@ -225,9 +231,9 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLErrors verifies that SetURL requires the sender, including
-// one that is blank after trimming, and the recipient addresses, and rejects
-// invalid query values.
+// TestConfigSetURLErrors verifies that SetURL requires the sender and the
+// recipient addresses, including ones that are blank after trimming, and
+// rejects invalid query values.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +248,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "port without a host", rawURL: "smtp://:587/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: ErrHostMissing},
 		{name: "no recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com", wantErr: ErrToAddressMissing},
 		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
+		{name: "blank recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=%20,", wantErr: ErrToAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{
 			name:    "unbracketed IPv6 host",

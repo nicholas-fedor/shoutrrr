@@ -85,6 +85,19 @@ type testStructBadDefault struct {
 	Value int `default:"NaN" key:"value"`
 }
 
+// testStructListDefaults is a service config with keyed slices and a keyed map
+// that have no default, so their default is the empty value.
+type testStructListDefaults struct {
+	standard.EnumlessConfig
+
+	// Strs is a keyed string slice.
+	Strs []string `key:"strs"`
+	// Props is a keyed slice of config prop structs.
+	Props []subPropStruct `key:"props"`
+	// Pairs is a keyed map of strings.
+	Pairs map[string]string `key:"pairs"`
+}
+
 // errInvalidProp is the error subPropStruct returns for a value without its
 // "@" prefix.
 var errInvalidProp = errors.New("invalid value")
@@ -222,5 +235,24 @@ func (t *testStructBadDefault) GetURL() *url.URL {
 // Returns:
 //   - error: always nil.
 func (t *testStructBadDefault) SetURL(*url.URL) error {
+	return nil
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructListDefaults) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructListDefaults) SetURL(*url.URL) error {
 	return nil
 }

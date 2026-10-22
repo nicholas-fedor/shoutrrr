@@ -464,8 +464,8 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 
 // TestSendErrors verifies that a send rejects invalid params, including
 // recipients that are not phone numbers, group IDs, or usernames, and a config
-// without recipients before any request, and reports error statuses and
-// transport errors.
+// or params without recipients before any request, and reports error statuses
+// and transport errors.
 func TestSendErrors(t *testing.T) {
 	t.Parallel()
 
@@ -480,7 +480,7 @@ func TestSendErrors(t *testing.T) {
 		{name: "invalid text mode param", params: &types.Params{"textmode": "markdown"}, wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid recipient param", params: &types.Params{"recipients": "alice"}, wantErr: ErrInvalidRecipient},
 		{name: "invalid to param", params: &types.Params{"to": testRecipient + ",group.AB!"}, wantErr: ErrInvalidRecipient},
-		{name: "empty recipients param", params: &types.Params{"recipients": ""}, wantErr: ErrInvalidRecipient},
+		{name: "empty recipients param", params: &types.Params{"recipients": ""}, wantErr: ErrNoRecipients},
 		{
 			name:    "no recipients",
 			config:  &Config{Host: "localhost", Port: 8080, Source: testSource, Recipients: []string{}},

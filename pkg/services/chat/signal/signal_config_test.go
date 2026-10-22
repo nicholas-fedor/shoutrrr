@@ -180,6 +180,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "invalid recipient", rawURL: testServiceURL + "/alice", wantErr: ErrInvalidRecipient},
 		{name: "empty username", rawURL: testServiceURL + "/u:", wantErr: ErrInvalidRecipient},
 		{name: "invalid recipient from the to param", rawURL: testServiceURL + "?to=alice", wantErr: ErrInvalidRecipient},
+		{name: "no recipients from the to param", rawURL: testServiceURL + "?to=", wantErr: ErrNoRecipients},
 		{name: "invalid recipient from the recipients param", rawURL: testServiceURL + "?recipients=%2B15559876543,alice", wantErr: ErrInvalidRecipient},
 		{name: "invalid source from the source param", rawURL: testServiceURL + "?source=alice", wantErr: ErrInvalidPhoneNumber},
 		{name: "unknown query key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
