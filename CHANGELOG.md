@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clear slice and map keys set from an empty value by @nicholas-fedor in [#1735](https://github.com/nicholas-fedor/shoutrrr/pull/1735)
 - Keep host credentials exact in ifttt, signalgrid, and pushbullet by @nicholas-fedor in [#1733](https://github.com/nicholas-fedor/shoutrrr/pull/1733)
 
+### Changed
+
+- Replace any with concrete types in slack and lark by @nicholas-fedor in [#1775](https://github.com/nicholas-fedor/shoutrrr/pull/1775)
+
 ### Tests
 
 - Fix the js and wasm tests and run them in ci by @nicholas-fedor in [#1773](https://github.com/nicholas-fedor/shoutrrr/pull/1773)
