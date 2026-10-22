@@ -1,81 +1,54 @@
 package e2e_test
 
 import (
-	"net/url"
 	"os"
+	"strings"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = ginkgo.Describe("ntfy E2E TLS Tests", func() {
-	ginkgo.When("running e2e tests against a real ntfy server", func() {
-		ginkgo.BeforeEach(func() {
-			if !isNtfyServerAvailable() {
-				ginkgo.Skip("ntfy server not available, skipping e2e tests")
-			}
-		})
+// TestNtfyTLS verifies that a message reaches a real ntfy server over HTTP
+// when SHOUTRRR_NTFY_DISABLE_TLS is set, and over HTTPS otherwise.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestNtfyTLS(t *testing.T) {
+	t.Run("HTTP when DisableTLS is set", func(t *testing.T) {
+		requireServer(t)
 
-		ginkgo.It("should send a message over HTTP when DisableTLS is set", func() {
-			disableTLS := os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS")
-			if disableTLS != "true" {
-				ginkgo.Skip("HTTP test skipped because DisableTLS is not set")
-			}
+		if os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS") != envValueTrue {
+			t.Skip("HTTP test skipped because DisableTLS is not set")
+		}
 
-			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		service := initializeService(t, buildServiceURL())
 
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		assert.True(t, service.Config.DisableTLS)
+		assert.True(t, strings.HasPrefix(service.Config.GetAPIURL(), "http://"), service.Config.GetAPIURL())
 
-			gomega.Expect(service.Config.DisableTLS).To(gomega.BeTrue())
-			gomega.Expect(service.Config.Scheme).To(gomega.Equal("http"))
+		message := uniqueMessage("E2E Test: HTTP message")
 
-			topic := service.Config.Topic
-			message := "E2E Test: HTTP message"
+		require.NoError(t, service.Send(message, nil))
 
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceived(topic, message)
-		})
-
-		ginkgo.It("should send a message over HTTPS by default", func() {
-			disableTLS := os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS")
-			if disableTLS == "true" {
-				ginkgo.Skip("HTTPS test skipped because DisableTLS is set")
-			}
-
-			serviceURLStr := buildServiceURL()
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &ntfy.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(service.Config.DisableTLS).To(gomega.BeFalse())
-			gomega.Expect(service.Config.Scheme).To(gomega.Equal("https"))
-
-			topic := service.Config.Topic
-			message := "E2E Test: HTTPS message"
-
-			err = service.Send(message, nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceived(topic, message)
-		})
+		verifyMessageReceived(t, service.Config.Topic, message)
 	})
 
-	ginkgo.When("no server is configured", func() {
-		ginkgo.It("should return the correct service ID", func() {
-			service := &ntfy.Service{}
-			gomega.Expect(service.GetID()).To(gomega.Equal("ntfy"))
-		})
+	t.Run("HTTPS by default", func(t *testing.T) {
+		requireServer(t)
+
+		if os.Getenv("SHOUTRRR_NTFY_DISABLE_TLS") == envValueTrue {
+			t.Skip("HTTPS test skipped because DisableTLS is set")
+		}
+
+		service := initializeService(t, buildServiceURL())
+
+		assert.False(t, service.Config.DisableTLS)
+		assert.True(t, strings.HasPrefix(service.Config.GetAPIURL(), "https://"), service.Config.GetAPIURL())
+
+		message := uniqueMessage("E2E Test: HTTPS message")
+
+		require.NoError(t, service.Send(message, nil))
+
+		verifyMessageReceived(t, service.Config.Topic, message)
 	})
-})
+}

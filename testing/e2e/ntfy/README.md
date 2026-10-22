@@ -130,23 +130,23 @@ Run all e2e tests:
 go test ./testing/e2e/ntfy/ -v
 ```
 
-Run specific test files:
+Run one group of tests:
 
 ```bash
 # Test basic functionality
-go test ./testing/e2e/ntfy/ -v -args -ginkgo.focus="basic"
+go test ./testing/e2e/ntfy/ -v -run TestNtfyBasic
 
 # Test configuration
-go test ./testing/e2e/ntfy/ -v -args -ginkgo.focus="config"
+go test ./testing/e2e/ntfy/ -v -run TestNtfyConfig
 
 # Test message features
-go test ./testing/e2e/ntfy/ -v -args -ginkgo.focus="message"
+go test ./testing/e2e/ntfy/ -v -run TestNtfyMessageFeatures
 
 # Test authentication
-go test ./testing/e2e/ntfy/ -v -args -ginkgo.focus="auth"
+go test ./testing/e2e/ntfy/ -v -run TestNtfyAuthentication
 
 # Test TLS
-go test ./testing/e2e/ntfy/ -v -args -ginkgo.focus="TLS"
+go test ./testing/e2e/ntfy/ -v -run TestNtfyTLS
 ```
 
 ### Test Behavior

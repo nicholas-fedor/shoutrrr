@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"bufio"
 	"context"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,46 +12,96 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/homeassistant"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
+// haNotification is a persistent notification as the Home Assistant
+// WebSocket API returns it.
 type haNotification struct {
 	Message        string `json:"message"`
 	NotificationID string `json:"notification_id"`
 	Title          string `json:"title"`
 }
 
-const defaultHTTPTimeout = 10 * time.Second
+// Timeouts for the requests the tests make to Home Assistant directly.
+const (
+	// defaultHTTPTimeout bounds the WebSocket handshake, reads, and writes.
+	defaultHTTPTimeout = 10 * time.Second
+	// availabilityTimeout bounds the API check that decides whether to skip.
+	availabilityTimeout = 2 * time.Second
+)
 
-func Test_HomeAssistant_E2E(t *testing.T) { //nolint:paralleltest // mutates process-wide env via loadEnvFile
+// TestMain loads the .env file in this directory, which setup.sh writes after
+// onboarding, before running the tests.
+//
+// Environment variables:
+//   - SHOUTRRR_HOMEASSISTANT_URL: the service URL with an access token, such as
+//     homeassistant://TOKEN@localhost:8123/?disabletls=yes
+func TestMain(m *testing.M) {
 	loadEnvFile(".env")
 
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Home Assistant E2E Tests")
+	os.Exit(m.Run())
 }
 
+// serviceURL returns the configured Home Assistant service URL.
+//
+// Returns:
+//   - string: the service URL, or "" when it is not set.
 func serviceURL() string {
 	return os.Getenv("SHOUTRRR_HOMEASSISTANT_URL")
 }
 
-func initializeService(urlStr string) *homeassistant.Service {
-	parsed, err := url.Parse(urlStr)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// requireHomeAssistant skips the test when Home Assistant is not configured or
+// not reachable.
+//
+// Parameters:
+//   - t: the test.
+func requireHomeAssistant(t *testing.T) {
+	t.Helper()
+
+	if !isHomeAssistantAvailable(t.Context()) {
+		t.Skip("Home Assistant is not available, skipping e2e tests")
+	}
+}
+
+// initializeService parses a service URL string, creates a
+// homeassistant.Service, and initializes it with a logger that writes to the
+// test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *homeassistant.Service: the initialized service.
+func initializeService(t *testing.T, rawURL string) *homeassistant.Service {
+	t.Helper()
+
+	parsed, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
 	service := &homeassistant.Service{}
-	err = service.Initialize(parsed, logger.New())
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, service.Initialize(parsed, log.New(t.Output(), "[Test] ", 0)))
 
 	return service
 }
 
-func withNid(rawURL, nid string) string {
+// withNid returns rawURL with its nid query parameter set.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//   - nid: the persistent notification ID.
+//
+// Returns:
+//   - string: the service URL with the notification ID.
+func withNid(t *testing.T, rawURL, nid string) string {
+	t.Helper()
+
 	parsed, err := url.Parse(rawURL)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, err)
 
 	query := parsed.Query()
 	query.Set("nid", nid)
@@ -59,7 +110,15 @@ func withNid(rawURL, nid string) string {
 	return parsed.String()
 }
 
-func isHomeAssistantAvailable() bool {
+// isHomeAssistantAvailable reports whether the configured token can reach the
+// Home Assistant API.
+//
+// Parameters:
+//   - ctx: cancellation for the API check.
+//
+// Returns:
+//   - bool: true when the API accepts the token.
+func isHomeAssistantAvailable(ctx context.Context) bool {
 	baseURL := serviceURL()
 	if baseURL == "" {
 		return false
@@ -70,20 +129,17 @@ func isHomeAssistantAvailable() bool {
 		return false
 	}
 
-	token := parsed.User.Username()
-	apiURL := "http://localhost:8123/api/"
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, availabilityTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8123/api/", http.NoBody)
 	if err != nil {
 		return false
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+parsed.User.Username())
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: availabilityTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -95,40 +151,56 @@ func isHomeAssistantAvailable() bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func fetchPersistentNotification(token, nid string) haNotification {
+// fetchPersistentNotification reads a persistent notification through the Home
+// Assistant WebSocket API.
+//
+// Parameters:
+//   - t: the test.
+//   - token: the access token.
+//   - nid: the persistent notification ID.
+//
+// Returns:
+//   - haNotification: the notification, which the test requires to exist.
+func fetchPersistentNotification(t *testing.T, token, nid string) haNotification {
+	t.Helper()
+
 	dialer := websocket.Dialer{HandshakeTimeout: defaultHTTPTimeout}
-	conn, _, err := dialer.Dial("ws://localhost:8123/api/websocket", nil)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	conn, resp, err := dialer.DialContext(t.Context(), "ws://localhost:8123/api/websocket", nil)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 
 	defer func() { _ = conn.Close() }()
 
-	gomega.Expect(conn.SetReadDeadline(time.Now().Add(defaultHTTPTimeout))).To(gomega.Succeed())
-	gomega.Expect(conn.SetWriteDeadline(time.Now().Add(defaultHTTPTimeout))).To(gomega.Succeed())
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(defaultHTTPTimeout)))
+	require.NoError(t, conn.SetWriteDeadline(time.Now().Add(defaultHTTPTimeout)))
 
 	var hello map[string]any
-	gomega.Expect(conn.ReadJSON(&hello)).To(gomega.Succeed())
-	gomega.Expect(hello["type"]).To(gomega.Equal("auth_required"))
+	require.NoError(t, conn.ReadJSON(&hello))
+	require.Equal(t, "auth_required", hello["type"])
 
-	gomega.Expect(conn.WriteJSON(map[string]string{
+	require.NoError(t, conn.WriteJSON(map[string]string{
 		"type":         "auth",
 		"access_token": token,
-	})).To(gomega.Succeed())
+	}))
 
 	var auth map[string]any
-	gomega.Expect(conn.ReadJSON(&auth)).To(gomega.Succeed())
-	gomega.Expect(auth["type"]).To(gomega.Equal("auth_ok"))
+	require.NoError(t, conn.ReadJSON(&auth))
+	require.Equal(t, "auth_ok", auth["type"])
 
-	gomega.Expect(conn.WriteJSON(map[string]any{
+	require.NoError(t, conn.WriteJSON(map[string]any{
 		"id":   1,
 		"type": "persistent_notification/get",
-	})).To(gomega.Succeed())
+	}))
 
 	var result struct {
 		Success bool             `json:"success"`
 		Result  []haNotification `json:"result"`
 	}
-	gomega.Expect(conn.ReadJSON(&result)).To(gomega.Succeed())
-	gomega.Expect(result.Success).To(gomega.BeTrue())
+	require.NoError(t, conn.ReadJSON(&result))
+	require.True(t, result.Success)
 
 	for _, notification := range result.Result {
 		if notification.NotificationID == nid {
@@ -136,19 +208,34 @@ func fetchPersistentNotification(token, nid string) haNotification {
 		}
 	}
 
-	gomega.Expect(result.Result).To(gomega.ContainElement(gomega.HaveField("NotificationID", nid)))
+	require.Failf(t, "notification not found", "no persistent notification with ID %q in %v", nid, result.Result)
 
 	return haNotification{}
 }
 
-func accessToken(rawURL string) string {
+// accessToken returns the access token in a service URL.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - string: the token, which is the URL's username.
+func accessToken(t *testing.T, rawURL string) string {
+	t.Helper()
+
 	parsed, err := url.Parse(rawURL)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	gomega.Expect(parsed.User).NotTo(gomega.BeNil())
+	require.NoError(t, err)
+	require.NotNil(t, parsed.User)
 
 	return parsed.User.Username()
 }
 
+// loadEnvFile sets the variables in a .env file that the environment does not
+// already set.
+//
+// Parameters:
+//   - filename: the .env file, which may be missing.
 func loadEnvFile(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {

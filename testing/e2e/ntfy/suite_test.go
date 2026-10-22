@@ -3,6 +3,8 @@ package e2e_test
 import (
 	"bufio"
 	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,42 +12,82 @@ import (
 	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
-// envValueTrue is the string value for boolean true in environment variables.
-const envValueTrue = "true"
+// Settings for the ntfy e2e tests.
+const (
+	// envValueTrue is the string value for boolean true in environment variables.
+	envValueTrue = "true"
+	// defaultServiceURL is the service URL used when SHOUTRRR_NTFY_URL is unset,
+	// matching the server that docker-compose.yaml starts.
+	defaultServiceURL = "ntfy://localhost:8080/shoutrrr-e2e-test"
+	// healthTimeout bounds the server health check.
+	healthTimeout = 2 * time.Second
+	// sendDelay spaces the tests out to respect ntfy's rate limits.
+	sendDelay = 500 * time.Millisecond
+)
 
-// Test_Ntfy_E2E runs the ntfy E2E test suite using Ginkgo.
-// These tests connect to a real ntfy server and verify actual behavior.
+// TestMain loads the .env file in this directory, if any, before running the
+// tests. These tests connect to a real ntfy server and verify actual behavior.
 //
 // Environment variables:
 //   - SHOUTRRR_NTFY_URL: ntfy server URL (default: ntfy://localhost:8080/shoutrrr-e2e-test)
 //   - SHOUTRRR_NTFY_USERNAME: Basic auth username (optional)
 //   - SHOUTRRR_NTFY_PASSWORD: Basic auth password (optional)
 //   - SHOUTRRR_NTFY_DISABLE_TLS: Set to "true" to use HTTP instead of HTTPS (optional)
-func Test_Ntfy_E2E(t *testing.T) { //nolint:paralleltest // mutates process-wide env via loadEnvFile
+func TestMain(m *testing.M) {
 	loadEnvFile(".env")
 
-	gomega.RegisterFailHandler(ginkgo.Fail)
+	os.Exit(m.Run())
+}
 
-	// Add delay between tests to respect ntfy rate limits
-	ginkgo.BeforeEach(func() {
-		time.Sleep(500 * time.Millisecond)
-	})
+// TestNtfyServiceID verifies the service ID, which needs no server.
+func TestNtfyServiceID(t *testing.T) {
+	t.Parallel()
 
-	ginkgo.RunSpecs(t, "ntfy E2E Tests")
+	service := &ntfy.Service{}
+	assert.Equal(t, "ntfy", service.GetID())
+}
+
+// requireServer skips the test when the ntfy server is not reachable, then
+// waits [sendDelay] to respect ntfy's rate limits.
+//
+// Parameters:
+//   - t: the test.
+func requireServer(t *testing.T) {
+	t.Helper()
+
+	if !isNtfyServerAvailable(t.Context()) {
+		t.Skip("ntfy server not available, skipping e2e tests")
+	}
+
+	time.Sleep(sendDelay)
+}
+
+// uniqueMessage appends a suffix that is unique to this send, so a message
+// the server cached from an earlier run cannot satisfy a poll.
+//
+// Parameters:
+//   - text: the message text.
+//
+// Returns:
+//   - string: the text with a unique suffix.
+func uniqueMessage(text string) string {
+	return fmt.Sprintf("%s %d", text, time.Now().UnixNano())
 }
 
 // buildServiceURL constructs the ntfy service URL from environment variables.
+//
+// Returns:
+//   - string: the service URL, with credentials and disabletls applied.
 func buildServiceURL() string {
 	baseURL := os.Getenv("SHOUTRRR_NTFY_URL")
 	if baseURL == "" {
-		baseURL = "ntfy://localhost:8080/shoutrrr-e2e-test"
+		baseURL = defaultServiceURL
 	}
 
 	serviceURL, err := url.Parse(baseURL)
@@ -80,6 +122,14 @@ func buildServiceURL() string {
 }
 
 // addQueryParam adds a query parameter to a URL string.
+//
+// Parameters:
+//   - rawURL: the URL.
+//   - key: the parameter name.
+//   - value: the parameter value.
+//
+// Returns:
+//   - string: the URL with the parameter set, or rawURL when it does not parse.
 func addQueryParam(rawURL, key, value string) string {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -93,19 +143,32 @@ func addQueryParam(rawURL, key, value string) string {
 	return serviceURL.String()
 }
 
-// initializeService parses a service URL string, creates an ntfy.Service, and initializes it.
-func initializeService(urlStr string) *ntfy.Service {
-	serviceURL, err := url.Parse(urlStr)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// initializeService parses a service URL string, creates an ntfy.Service, and
+// initializes it with a logger that writes to the test output.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - *ntfy.Service: the initialized service.
+func initializeService(t *testing.T, rawURL string) *ntfy.Service {
+	t.Helper()
+
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
 
 	service := &ntfy.Service{}
-	err = service.Initialize(serviceURL, logger.New())
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "[Test] ", 0)))
 
 	return service
 }
 
-// loadEnvFile loads environment variables from a .env file.
+// loadEnvFile sets the variables in a .env file that the environment does not
+// already set.
+//
+// Parameters:
+//   - filename: the .env file, which may be missing.
 func loadEnvFile(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -133,17 +196,17 @@ func loadEnvFile(filename string) {
 			}
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		return
-	}
 }
 
-// getNtfyBaseURL returns the base URL for the ntfy server using the SHOUTRRR_NTFY_URL environment variable.
+// getNtfyBaseURL returns the base URL for the ntfy server using the
+// SHOUTRRR_NTFY_URL environment variable.
+//
+// Returns:
+//   - string: the server's HTTP or HTTPS base URL.
 func getNtfyBaseURL() string {
 	baseURL := os.Getenv("SHOUTRRR_NTFY_URL")
 	if baseURL == "" {
-		baseURL = "ntfy://localhost:8080/shoutrrr-e2e-test"
+		baseURL = defaultServiceURL
 	}
 
 	parsed, err := url.Parse(baseURL)
@@ -160,18 +223,22 @@ func getNtfyBaseURL() string {
 }
 
 // isNtfyServerAvailable checks if the ntfy server is reachable.
-func isNtfyServerAvailable() bool {
-	baseURL := getNtfyBaseURL()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+//
+// Parameters:
+//   - ctx: cancellation for the health check.
+//
+// Returns:
+//   - bool: true when the server reports itself healthy.
+func isNtfyServerAvailable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v1/health", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getNtfyBaseURL()+"/v1/health", http.NoBody)
 	if err != nil {
 		return false
 	}
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: healthTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {

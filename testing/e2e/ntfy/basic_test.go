@@ -9,15 +9,16 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/ntfy"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// ntfyMessage is a message as the ntfy JSON poll API returns it.
 type ntfyMessage struct {
 	ID          string   `json:"id"`
 	Event       string   `json:"event"`
@@ -29,196 +30,154 @@ type ntfyMessage struct {
 	ContentType string   `json:"content_type"`
 }
 
+// defaultMessageTimeout bounds each send and each poll for a sent message.
 const defaultMessageTimeout = 5 * time.Second
 
-var _ = ginkgo.Describe("ntfy E2E Basic Tests", func() {
-	ginkgo.When("running e2e tests against a real ntfy server", func() {
-		ginkgo.BeforeEach(func() {
-			if !isNtfyServerAvailable() {
-				ginkgo.Skip("ntfy server not available, skipping e2e tests")
-			}
-		})
+// errMessageNotFound indicates that the poll response did not contain the
+// expected message.
+var errMessageNotFound = errors.New("message not found in response")
 
-		ginkgo.It("should send basic text content", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping basic text test")
-			}
+// TestNtfyBasic verifies that messages sent to a real ntfy server arrive with
+// their text, title, priority, tags, and Markdown content type, and that
+// params apply to one send only.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestNtfyBasic(t *testing.T) {
+	t.Run("basic text content", func(t *testing.T) {
+		requireServer(t)
 
-			service := initializeService(serviceURLStr)
+		service := initializeService(t, buildServiceURL())
 
-			message := "E2E Test: Basic text content notification"
+		message := uniqueMessage("E2E Test: Basic text content notification")
 
-			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
+		require.NoError(t, service.Send(message, nil))
 
-			verifyMessageReceived(service.Config.Topic, message)
-		})
-
-		ginkgo.It("should deliver a message sent with a caller's context", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping SendContext test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			// A unique suffix keeps cached messages from earlier runs from matching.
-			message := fmt.Sprintf("E2E Test: SendContext notification %d", time.Now().UnixNano())
-
-			ctx, cancel := context.WithTimeout(context.Background(), defaultMessageTimeout)
-			defer cancel()
-
-			gomega.Expect(service.SendContext(ctx, message, nil)).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceived(service.Config.Topic, message)
-		})
-
-		ginkgo.It("should apply params to one send only", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping per-send params test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			// A unique suffix keeps cached messages from earlier runs from matching.
-			run := time.Now().UnixNano()
-			withTitle := fmt.Sprintf("E2E Test: message with a title param %d", run)
-			withoutTitle := fmt.Sprintf("E2E Test: message sent after the title param %d", run)
-
-			gomega.Expect(service.Send(withTitle, &types.Params{"title": "Per-send title"})).
-				To(gomega.Succeed())
-			gomega.Expect(service.Send(withoutTitle, nil)).To(gomega.Succeed())
-
-			msg, err := pollForMessage(service.Config.Topic, withTitle)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(msg.Title).To(gomega.Equal("Per-send title"))
-
-			msg, err = pollForMessage(service.Config.Topic, withoutTitle)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(msg.Title).To(gomega.BeEmpty())
-		})
-
-		ginkgo.It("should send an empty message", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping empty message test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			gomega.Expect(service.Send("", nil)).NotTo(gomega.HaveOccurred())
-
-			ginkgo.GinkgoWriter.Write([]byte("Empty message sent successfully\n"))
-		})
-
-		ginkgo.It("should send a message with a title via params", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping title test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			topic := service.Config.Topic
-			message := "E2E Test: Message with title"
-			expectedTitle := "Test Title"
-
-			gomega.Expect(service.Send(message, &types.Params{
-				"title": expectedTitle,
-			})).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceivedWithTitle(topic, message, expectedTitle)
-		})
-
-		ginkgo.It("should send a message with priority via params", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping priority test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			topic := service.Config.Topic
-			message := "E2E Test: High priority message"
-
-			gomega.Expect(service.Send(message, &types.Params{
-				"priority": "5",
-			})).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceivedWithPriority(topic, message, 5)
-		})
-
-		ginkgo.It("should send a message with tags", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping tags test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			topic := service.Config.Topic
-			message := "E2E Test: Tagged message"
-
-			gomega.Expect(service.Send(message, &types.Params{
-				"tags": "warning,skull",
-			})).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceivedWithTags(topic, message, []string{"warning", "skull"})
-		})
-
-		ginkgo.It("should send a message with markdown", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping markdown test")
-			}
-
-			serviceURLStr += "&markdown=yes"
-			service := initializeService(serviceURLStr)
-
-			topic := service.Config.Topic
-			message := "E2E Test: **bold** and *italic* markdown"
-
-			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
-
-			msg, err := pollForMessage(topic, message)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
-			gomega.Expect(msg).NotTo(gomega.BeNil())
-			gomega.Expect(msg.Event).To(gomega.Equal("message"))
-			gomega.Expect(msg.Topic).To(gomega.ContainSubstring(topic))
-			gomega.Expect(msg.ContentType).To(gomega.Equal("text/markdown"), "received event should reflect Markdown Content-Type")
-		})
-
-		ginkgo.It("should send a message with special characters and unicode", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("ntfy server not configured, skipping unicode test")
-			}
-
-			service := initializeService(serviceURLStr)
-
-			topic := service.Config.Topic
-			message := "E2E Test: Special chars <>@#$% and unicode 世界 🌍"
-
-			gomega.Expect(service.Send(message, nil)).NotTo(gomega.HaveOccurred())
-
-			verifyMessageReceived(topic, message)
-		})
+		verifyMessageReceived(t, service.Config.Topic, message)
 	})
 
-	ginkgo.When("no server is configured", func() {
-		ginkgo.It("should return the correct service ID", func() {
-			service := &ntfy.Service{}
-			gomega.Expect(service.GetID()).To(gomega.Equal("ntfy"))
-		})
+	t.Run("message sent with a caller's context", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		message := uniqueMessage("E2E Test: SendContext notification")
+
+		ctx, cancel := context.WithTimeout(t.Context(), defaultMessageTimeout)
+		defer cancel()
+
+		require.NoError(t, service.SendContext(ctx, message, nil))
+
+		verifyMessageReceived(t, service.Config.Topic, message)
 	})
-})
 
-func pollForMessage(topic, expectedMessage string) (*ntfyMessage, error) {
-	baseURL := getNtfyBaseURL()
-	apiURL := fmt.Sprintf("%s/%s/json?poll=1&message=%s", baseURL, topic, url.QueryEscape(expectedMessage))
+	t.Run("params apply to one send only", func(t *testing.T) {
+		requireServer(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultMessageTimeout)
+		service := initializeService(t, buildServiceURL())
+
+		withTitle := uniqueMessage("E2E Test: message with a title param")
+		withoutTitle := uniqueMessage("E2E Test: message sent after the title param")
+
+		require.NoError(t, service.Send(withTitle, &types.Params{"title": "Per-send title"}))
+		require.NoError(t, service.Send(withoutTitle, nil))
+
+		msg, err := pollForMessage(t.Context(), service.Config.Topic, withTitle)
+		require.NoError(t, err)
+		assert.Equal(t, "Per-send title", msg.Title)
+
+		msg, err = pollForMessage(t.Context(), service.Config.Topic, withoutTitle)
+		require.NoError(t, err)
+		assert.Empty(t, msg.Title)
+	})
+
+	t.Run("empty message", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		require.NoError(t, service.Send("", nil))
+	})
+
+	t.Run("title via params", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		message := uniqueMessage("E2E Test: Message with title")
+
+		require.NoError(t, service.Send(message, &types.Params{"title": "Test Title"}))
+
+		msg := verifyMessageReceived(t, service.Config.Topic, message)
+		assert.Equal(t, "Test Title", msg.Title)
+	})
+
+	t.Run("priority via params", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		message := uniqueMessage("E2E Test: High priority message")
+
+		require.NoError(t, service.Send(message, &types.Params{"priority": "5"}))
+
+		msg := verifyMessageReceived(t, service.Config.Topic, message)
+		assert.Equal(t, 5, msg.Priority)
+	})
+
+	t.Run("tags", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		message := uniqueMessage("E2E Test: Tagged message")
+
+		require.NoError(t, service.Send(message, &types.Params{"tags": "warning,skull"}))
+
+		msg := verifyMessageReceived(t, service.Config.Topic, message)
+		assert.ElementsMatch(t, []string{"warning", "skull"}, msg.Tags)
+	})
+
+	t.Run("markdown", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL()+"&markdown=yes")
+
+		message := uniqueMessage("E2E Test: **bold** and *italic* markdown")
+
+		require.NoError(t, service.Send(message, nil))
+
+		msg := verifyMessageReceived(t, service.Config.Topic, message)
+		assert.Equal(t, "text/markdown", msg.ContentType, "received event should reflect Markdown Content-Type")
+	})
+
+	t.Run("special characters and unicode", func(t *testing.T) {
+		requireServer(t)
+
+		service := initializeService(t, buildServiceURL())
+
+		message := uniqueMessage("E2E Test: Special chars <>@#$% and unicode 世界 🌍")
+
+		require.NoError(t, service.Send(message, nil))
+
+		verifyMessageReceived(t, service.Config.Topic, message)
+	})
+}
+
+// pollForMessage fetches the cached messages of a topic and returns the one
+// with the expected text.
+//
+// Parameters:
+//   - ctx: cancellation for the poll.
+//   - topic: the topic the message was sent to.
+//   - expectedMessage: the message text.
+//
+// Returns:
+//   - *ntfyMessage: the message.
+//   - error: a request or decoding error, or [errMessageNotFound].
+func pollForMessage(ctx context.Context, topic, expectedMessage string) (*ntfyMessage, error) {
+	apiURL := fmt.Sprintf("%s/%s/json?poll=1&message=%s", getNtfyBaseURL(), topic, url.QueryEscape(expectedMessage))
+
+	ctx, cancel := context.WithTimeout(ctx, defaultMessageTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
@@ -244,8 +203,7 @@ func pollForMessage(topic, expectedMessage string) (*ntfyMessage, error) {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
-	lines := strings.SplitSeq(strings.TrimSpace(string(body)), "\n")
-	for line := range lines {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(body)), "\n") {
 		if line == "" {
 			continue
 		}
@@ -260,37 +218,27 @@ func pollForMessage(topic, expectedMessage string) (*ntfyMessage, error) {
 		}
 	}
 
-	return nil, errors.New("message not found in response")
+	return nil, errMessageNotFound
 }
 
-func verifyMessageReceived(topic, message string) {
-	msg, err := pollForMessage(topic, message)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
-	gomega.Expect(msg).NotTo(gomega.BeNil())
-	gomega.Expect(msg.Event).To(gomega.Equal("message"))
-	gomega.Expect(msg.Topic).To(gomega.ContainSubstring(topic))
-}
+// verifyMessageReceived requires the ntfy server to have received a message
+// event with the given text on the topic.
+//
+// Parameters:
+//   - t: the test.
+//   - topic: the topic the message was sent to.
+//   - message: the message text.
+//
+// Returns:
+//   - *ntfyMessage: the received message, for further checks.
+func verifyMessageReceived(t *testing.T, topic, message string) *ntfyMessage {
+	t.Helper()
 
-func verifyMessageReceivedWithTitle(topic, message, expectedTitle string) {
-	msg, err := pollForMessage(topic, message)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
-	gomega.Expect(msg).NotTo(gomega.BeNil())
-	gomega.Expect(msg.Event).To(gomega.Equal("message"))
-	gomega.Expect(msg.Title).To(gomega.Equal(expectedTitle))
-}
+	msg, err := pollForMessage(t.Context(), topic, message)
+	require.NoError(t, err, "message should be received by ntfy server")
+	require.NotNil(t, msg)
+	assert.Equal(t, "message", msg.Event)
+	assert.Contains(t, msg.Topic, topic)
 
-func verifyMessageReceivedWithPriority(topic, message string, expectedPriority int) {
-	msg, err := pollForMessage(topic, message)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
-	gomega.Expect(msg).NotTo(gomega.BeNil())
-	gomega.Expect(msg.Event).To(gomega.Equal("message"))
-	gomega.Expect(msg.Priority).To(gomega.Equal(expectedPriority))
-}
-
-func verifyMessageReceivedWithTags(topic, message string, expectedTags []string) {
-	msg, err := pollForMessage(topic, message)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "message should be received by ntfy server")
-	gomega.Expect(msg).NotTo(gomega.BeNil())
-	gomega.Expect(msg.Event).To(gomega.Equal("message"))
-	gomega.Expect(msg.Tags).To(gomega.ConsistOf(expectedTags))
+	return msg
 }

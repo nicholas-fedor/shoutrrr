@@ -51,8 +51,19 @@ func (in *inbox) close() {
 	}
 }
 
-func startInbox(serviceURL *url.URL) (*inbox, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// startInbox signs the probe account in to the server a service URL names,
+// joins the URL's room when it has one, and collects the message bodies the
+// probe receives.
+//
+// Parameters:
+//   - ctx: cancellation for the probe session, which also ends after 30 seconds.
+//   - serviceURL: the service URL whose server, TLS settings, and room the probe uses.
+//
+// Returns:
+//   - *inbox: the probe, which the caller closes.
+//   - error: a dial, session, presence, or room join error.
+func startInbox(ctx context.Context, serviceURL *url.URL) (*inbox, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
 	cfg := probeConfig(serviceURL)
 
