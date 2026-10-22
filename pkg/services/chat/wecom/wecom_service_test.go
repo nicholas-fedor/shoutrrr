@@ -2,7 +2,8 @@ package wecom
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -390,7 +391,7 @@ func TestSendInvalidJSONResponse(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	var syntaxErr *json.SyntaxError
+	var syntaxErr *jsontext.SyntacticError
 	require.ErrorAs(t, err, &syntaxErr)
 	assert.ErrorContains(t, err, "unmarshaling response")
 }

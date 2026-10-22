@@ -36,7 +36,7 @@ type EventPayload struct {
 // It includes a summary description, severity level, and the source of the event.
 type Payload struct {
 	// CustomDetails holds additional details about the event and the affected system.
-	CustomDetails any `json:"custom_details,omitempty"`
+	CustomDetails any `json:"custom_details,omitzero"`
 	// Summary is a brief description of the incident or event.
 	Summary string `json:"summary"`
 	// Severity indicates the urgency level of the event (e.g., "info", "warning", "error", "critical").

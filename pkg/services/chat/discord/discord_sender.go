@@ -3,7 +3,7 @@ package discord
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -141,7 +142,7 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 	writer := multipart.NewWriter(&body)
 
 	// Add payload as JSON
-	payloadBytes, err := json.Marshal(p.payload)
+	payloadBytes, err := json.Marshal(p.payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

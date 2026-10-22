@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -281,7 +282,7 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 		Scopes       []string `json:"scopes"`
 	}
 
-	if err := json.Unmarshal(jsonData, &providerConfig); err != nil {
+	if err := json.Unmarshal(jsonData, &providerConfig, jsonopts.Default); err != nil {
 		return nil, fmt.Errorf("%s: %w: %w", file, ErrUnmarshalFailed, err)
 	}
 

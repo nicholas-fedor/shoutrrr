@@ -1,9 +1,10 @@
 package ifttt
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -62,7 +63,7 @@ func createJSONToSend(config *Config, message string, params *types.Params) ([]b
 
 	payload.setValue(config.UseMessageAsValue, message)
 
-	jsonBytes, err := json.Marshal(payload)
+	jsonBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling IFTTT payload to JSON: %w", err)
 	}

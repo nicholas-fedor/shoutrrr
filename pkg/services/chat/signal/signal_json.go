@@ -4,11 +4,13 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"strconv"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // sendMessagePayload is the JSON body posted to POST /v2/send.
 type sendMessagePayload struct {
-	NotifySelf        *bool    `json:"notify_self,omitempty"`
+	NotifySelf        *bool    `json:"notify_self,omitzero"`
 	Message           string   `json:"message"`
 	Number            string   `json:"number"`
 	TextMode          string   `json:"text_mode,omitempty"`
@@ -28,7 +30,7 @@ type sendResult struct {
 	// Timestamp is the time the message was sent, or nil when the response has none.
 	Timestamp *timestamp `json:"timestamp"`
 	// Errors lists the recipients the send could not reach.
-	Errors *sendResultErrors `json:"errors,omitempty"`
+	Errors *sendResultErrors `json:"errors,omitzero"`
 }
 
 // sendResultErrors holds the failures of a send result.
@@ -65,7 +67,7 @@ func (ts *timestamp) UnmarshalJSON(data []byte) error {
 	text := string(data)
 
 	if len(data) > 0 && data[0] == '"' {
-		if err := json.Unmarshal(data, &text); err != nil {
+		if err := json.Unmarshal(data, &text, jsonopts.Default); err != nil {
 			return fmt.Errorf("decoding timestamp: %w", err)
 		}
 	}

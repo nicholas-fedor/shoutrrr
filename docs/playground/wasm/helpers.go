@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -158,22 +159,22 @@ func setFieldFromString(configValue reflect.Value, fieldName, value string) erro
 
 // marshalError serializes err as a JSON errorResult.
 //
-//nolint:errcheck,errchkjson // errorResult struct always marshals successfully.
+//nolint:errcheck // errorResult struct always marshals successfully.
 func marshalError(err error) string {
 	if err == nil {
 		return marshalErrorStr("unknown error")
 	}
 
-	data, _ := json.Marshal(errorResult{Error: err.Error()})
+	data, _ := json.Marshal(errorResult{Error: err.Error()}, jsonopts.Default)
 
 	return string(data)
 }
 
 // marshalErrorStr serializes msg as a JSON errorResult.
 //
-//nolint:errcheck,errchkjson // errorResult struct always marshals.
+//nolint:errcheck // errorResult struct always marshals.
 func marshalErrorStr(msg string) string {
-	data, _ := json.Marshal(errorResult{Error: msg})
+	data, _ := json.Marshal(errorResult{Error: msg}, jsonopts.Default)
 
 	return string(data)
 }

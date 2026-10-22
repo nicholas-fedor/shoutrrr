@@ -3,13 +3,14 @@ package bark
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -224,7 +225,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		URL:       config.URL,
 	}
 
-	requestBody, err := json.Marshal(request)
+	requestBody, err := json.Marshal(request, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling request to JSON: %w", err)
 	}
@@ -241,7 +242,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	httpResp, err := s.HTTPClient.Do(httpReq)
 	if err != nil {
 		if jsonErr, ok := errors.AsType[jsonclient.Error](err); ok {
-			if json.Unmarshal([]byte(jsonErr.Body), &response) == nil {
+			if json.Unmarshal([]byte(jsonErr.Body), &response, jsonopts.Default) == nil {
 				return &response
 			}
 		}
@@ -251,7 +252,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	defer func() { _ = httpResp.Body.Close() }()
 
-	if err := json.NewDecoder(httpResp.Body).Decode(&response); err != nil {
+	if err := json.UnmarshalRead(httpResp.Body, &response, jsonopts.Default); err != nil {
 		return fmt.Errorf("decoding response: %w", err)
 	}
 

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
@@ -59,7 +60,7 @@ func generateURLString(serviceName, configJSON string) string {
 	}
 
 	var values map[string]string
-	if err := json.Unmarshal([]byte(configJSON), &values); err != nil {
+	if err := json.Unmarshal([]byte(configJSON), &values, jsonopts.Default); err != nil {
 		return marshalError(err)
 	}
 

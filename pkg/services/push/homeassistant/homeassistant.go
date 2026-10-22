@@ -12,6 +12,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
@@ -182,7 +183,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 		return err
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling payload: %w", err)
 	}

@@ -3,13 +3,14 @@ package googlechat
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -81,7 +82,7 @@ func (s *Service) Send(message string, params *types.Params) error {
 func (s *Service) SendContext(ctx context.Context, message string, _ *types.Params) error {
 	config := s.Config
 
-	jsonBody, err := json.Marshal(JSON{Text: message})
+	jsonBody, err := json.Marshal(JSON{Text: message}, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling message to JSON: %w", err)
 	}

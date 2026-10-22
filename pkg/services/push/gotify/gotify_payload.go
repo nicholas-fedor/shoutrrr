@@ -1,9 +1,10 @@
 package gotify
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -42,7 +43,7 @@ func (b *DefaultPayloadBuilder) ParseExtras(
 		// Look for 'extras' key in parameters
 		if extrasStr, exists := (*params)["extras"]; exists && extrasStr != "" {
 			// Attempt to parse the JSON string into a map
-			if err := json.Unmarshal([]byte(extrasStr), &requestExtras); err != nil {
+			if err := json.Unmarshal([]byte(extrasStr), &requestExtras, jsonopts.Default); err != nil {
 				// Return error for parsing failure
 				return nil, fmt.Errorf("%w", ErrExtrasUnmarshalFailed)
 			}

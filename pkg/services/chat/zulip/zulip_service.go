@@ -2,7 +2,7 @@ package zulip
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -404,7 +405,7 @@ func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
 		return reg, false
 	}
 
-	if err := json.NewDecoder(res.Body).Decode(&reg); err != nil {
+	if err := json.UnmarshalRead(res.Body, &reg, jsonopts.Default); err != nil {
 		return reg, false
 	}
 

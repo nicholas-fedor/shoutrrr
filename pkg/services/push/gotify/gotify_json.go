@@ -1,8 +1,10 @@
 package gotify
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // MessageRequest is the actual payload being sent to the Gotify API.
@@ -14,7 +16,7 @@ type MessageRequest struct {
 	// Date is not sent.
 	//
 	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
-	Date *string `json:"date,omitempty"`
+	Date *string `json:"date,omitzero"`
 
 	Message  string `json:"message"`  // The main notification message text content
 	Title    string `json:"title"`    // Notification title displayed in the Gotify interface
@@ -64,7 +66,7 @@ func (r MessageRequest) MarshalJSON() ([]byte, error) {
 	// body is the JSON body of a message.
 	type body struct {
 		Extras   map[string]any `json:"extras"`
-		Priority *int           `json:"priority,omitempty"`
+		Priority *int           `json:"priority,omitzero"`
 		Message  string         `json:"message"`
 		Title    string         `json:"title"`
 	}
@@ -74,7 +76,7 @@ func (r MessageRequest) MarshalJSON() ([]byte, error) {
 		payload.Priority = nil
 	}
 
-	data, err := json.Marshal(payload)
+	data, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("encoding message: %w", err)
 	}

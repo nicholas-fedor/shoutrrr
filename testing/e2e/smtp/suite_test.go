@@ -2,7 +2,7 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 )
 
@@ -258,7 +259,7 @@ func fetchJSON(ctx context.Context, apiURL string, target any) error {
 		return fmt.Errorf("%w: %s from %s", errUnexpectedStatus, resp.Status, apiURL)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+	if err := json.UnmarshalRead(resp.Body, target, jsonopts.Default); err != nil {
 		return fmt.Errorf("decoding %s: %w", apiURL, err)
 	}
 

@@ -3,7 +3,7 @@ package generic
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -74,7 +75,7 @@ func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, er
 		maps.Copy(params, config.extraData)
 
 		// Marshal to JSON
-		jsonBytes, err := json.Marshal(params)
+		jsonBytes, err := json.Marshal(params, jsonopts.Default)
 		if err != nil {
 			return nil, fmt.Errorf("marshaling params to JSON: %w", err)
 		}

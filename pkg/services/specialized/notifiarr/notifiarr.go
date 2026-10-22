@@ -3,7 +3,7 @@ package notifiarr
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -171,7 +172,7 @@ func (s *Service) ParseChannelID(channelStr string) (int, error) {
 // ParseFields parses a JSON string into a slice of Field structs.
 func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
 	var fields []Field
-	if err := json.Unmarshal([]byte(fieldsStr), &fields); err != nil {
+	if err := json.Unmarshal([]byte(fieldsStr), &fields, jsonopts.Default); err != nil {
 		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
 	}
 
@@ -400,7 +401,7 @@ func (s *Service) createPayload(
 	}
 
 	// Marshal the notification to JSON
-	payloadBytes, err := json.Marshal(notification)
+	payloadBytes, err := json.Marshal(notification, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

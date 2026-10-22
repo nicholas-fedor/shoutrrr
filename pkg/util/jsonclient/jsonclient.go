@@ -5,12 +5,13 @@ package jsonclient
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -47,7 +48,6 @@ type Error struct {
 type client struct {
 	httpClient types.HTTPClient
 	headers    http.Header
-	indent     string
 }
 
 // ContentType defines the default MIME type for JSON requests.
@@ -133,7 +133,6 @@ func NewContextClient(httpClient types.HTTPClient) ContextClient {
 		headers: http.Header{
 			"Content-Type": []string{ContentType},
 		},
-		indent: "",
 	}
 }
 
@@ -162,7 +161,7 @@ func Post(url string, request, response any) error {
 // ErrorResponse checks if an error is a JSON error and unmarshals its body into the response.
 func (c *client) ErrorResponse(err error, response any) bool {
 	if errMsg, ok := errors.AsType[Error](err); ok {
-		return json.Unmarshal([]byte(errMsg.Body), response) == nil
+		return json.Unmarshal([]byte(errMsg.Body), response, jsonopts.Default) == nil
 	}
 
 	return false
@@ -252,7 +251,7 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 		// If the request is a string, pass it through without serializing
 		body = []byte(strReq)
 	} else {
-		body, err = json.MarshalIndent(request, "", c.indent)
+		body, err = json.Marshal(request, jsonopts.Default)
 		if err != nil {
 			return fmt.Errorf("marshaling request to JSON: %w", err)
 		}
@@ -291,7 +290,7 @@ func parseResponse(res *http.Response, response any) error {
 	}
 
 	if err == nil {
-		err = json.Unmarshal(body, response)
+		err = json.Unmarshal(body, response, jsonopts.Default)
 	}
 
 	if err != nil {

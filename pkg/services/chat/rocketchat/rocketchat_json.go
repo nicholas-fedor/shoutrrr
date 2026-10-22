@@ -1,9 +1,10 @@
 package rocketchat
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -41,7 +42,7 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 		}
 	}
 
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling Rocket.Chat payload to JSON: %w", err)
 	}

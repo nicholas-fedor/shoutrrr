@@ -116,7 +116,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		wantInErr string
 	}{
 		{name: "extras not JSON", rawURL: testServiceURL + "?extras=" + url.QueryEscape("{invalid"), wantErr: ErrExtrasParseFailed, wantInErr: "invalid character"},
-		{name: "extras not an object", rawURL: testServiceURL + "?extras=" + url.QueryEscape(`["a"]`), wantErr: ErrExtrasParseFailed, wantInErr: "cannot unmarshal array"},
+		{name: "extras not an object", rawURL: testServiceURL + "?extras=" + url.QueryEscape(`["a"]`), wantErr: ErrExtrasParseFailed, wantInErr: "unmarshal JSON array into Go map"},
 		{name: "missing host", rawURL: "gotify:///Aaa.bbb.ccc.ddd", wantErr: ErrHostMissing},
 		{name: "port without a host", rawURL: "gotify://:8080/Aaa.bbb.ccc.ddd", wantErr: ErrHostMissing},
 		{name: "token as an opaque path", rawURL: "gotify:/00", wantErr: ErrHostMissing},

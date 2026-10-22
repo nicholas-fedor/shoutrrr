@@ -3,12 +3,13 @@ package gotify
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
@@ -103,7 +104,7 @@ func (s *DefaultSender) SendRequestContext(
 		return err
 	}
 
-	err = json.Unmarshal(body, response)
+	err = json.Unmarshal(body, response, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrParseResponse, err)
 	}
@@ -153,7 +154,7 @@ func (s *DefaultSender) sendRequestWithHeaders(
 	request *MessageRequest,
 	headers http.Header,
 ) ([]byte, error) {
-	body, err := json.Marshal(request)
+	body, err := json.Marshal(request, jsonopts.Default)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMarshalRequest, err)
 	}
@@ -212,7 +213,7 @@ func (s *DefaultSender) setRequestHeaders(req *http.Request, headers http.Header
 //     error.
 func serverError(statusCode int, body []byte) error {
 	errorRes := &responseError{}
-	if json.Unmarshal(body, errorRes) == nil && errorRes.Name != "" {
+	if json.Unmarshal(body, errorRes, jsonopts.Default) == nil && errorRes.Name != "" {
 		if statusCode >= http.StatusInternalServerError {
 			return fmt.Errorf("server error (%d): %w", statusCode, errorRes)
 		}

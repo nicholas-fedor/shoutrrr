@@ -3,13 +3,14 @@ package slack
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -176,7 +177,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 // Returns:
 //   - error: the request error or the error the webhook reported.
 func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *MessagePayload) error {
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}

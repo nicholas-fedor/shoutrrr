@@ -2,7 +2,7 @@ package telegram
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -300,7 +300,7 @@ func TestSendUsesChatsFromParams(t *testing.T) {
 			ChatID string `json:"chat_id"`
 		}
 
-		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		if err := json.UnmarshalRead(req.Body, &payload); err != nil {
 			return nil, err
 		}
 

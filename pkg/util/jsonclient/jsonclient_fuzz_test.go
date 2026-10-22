@@ -1,7 +1,7 @@
 package jsonclient
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // fuzzResponse is the typed value FuzzParseResponse decodes response bodies
@@ -75,7 +77,7 @@ func FuzzParseResponse(f *testing.F) {
 
 		var want fuzzResponse
 
-		wantErr := json.Unmarshal([]byte(body), &want)
+		wantErr := json.Unmarshal([]byte(body), &want, jsonopts.Default)
 		if wantErr == nil {
 			require.NoError(t, err)
 			assert.Equal(t, want, got)

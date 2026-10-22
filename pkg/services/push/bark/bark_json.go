@@ -7,7 +7,7 @@ type PushPayload struct {
 	DeviceKey string `json:"device_key"`
 	Title     string `json:"title"`
 	Sound     string `json:"sound,omitempty"`
-	Badge     *int64 `json:"badge,omitempty"`
+	Badge     *int64 `json:"badge,omitzero"`
 	Icon      string `json:"icon,omitempty"`
 	Group     string `json:"group,omitempty"`
 	URL       string `json:"url,omitempty"`

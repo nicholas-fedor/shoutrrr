@@ -28,5 +28,5 @@ type adaptiveBlock struct {
 	Color  string `json:"color,omitempty"`
 	Weight string `json:"weight,omitempty"`
 	Size   string `json:"size,omitempty"`
-	Wrap   bool   `json:"wrap,omitempty"`
+	Wrap   bool   `json:"wrap,omitzero"`
 }

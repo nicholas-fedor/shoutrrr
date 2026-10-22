@@ -2,7 +2,7 @@ package discord
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -395,7 +396,7 @@ func (s *Service) sendPayload(
 		return s.doSendMultipart(ctx, payload, files, postURL)
 	}
 
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling payload to JSON: %w", err)
 	}

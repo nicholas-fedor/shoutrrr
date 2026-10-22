@@ -15,14 +15,14 @@ type MsgType string
 
 // Content holds the message content, supporting text or post formats.
 type Content struct {
-	Post *Post  `json:"post,omitempty"`
+	Post *Post  `json:"post,omitzero"`
 	Text string `json:"text,omitempty"`
 }
 
 // Post represents a rich post message with language-specific content.
 type Post struct {
-	Zh *Message `json:"zh_cn,omitempty"` // Chinese content
-	En *Message `json:"en_us,omitempty"` // English content
+	Zh *Message `json:"zh_cn,omitzero"` // Chinese content
+	En *Message `json:"en_us,omitzero"` // English content
 }
 
 // Message defines the structure of a post message.

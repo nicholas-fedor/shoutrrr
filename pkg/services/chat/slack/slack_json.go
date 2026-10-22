@@ -34,13 +34,13 @@ type attachment struct {
 	Color    string        `json:"color,omitempty"`
 	Footer   string        `json:"footer,omitempty"`
 	Fields   []legacyField `json:"fields,omitempty"`
-	Time     int           `json:"ts,omitempty"`
+	Time     int           `json:"ts,omitzero"`
 }
 
 type legacyField struct {
 	Title string `json:"title"`
 	Value string `json:"value"`
-	Short bool   `json:"short,omitempty"`
+	Short bool   `json:"short,omitzero"`
 }
 
 // APIResponse is the default generic response message sent from the API.

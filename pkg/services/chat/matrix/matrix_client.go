@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -154,7 +155,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError); err == nil {
+		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
 			return resError
 		}
 
@@ -165,7 +166,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 		)
 	}
 
-	if err = json.Unmarshal(body, response); err != nil {
+	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
 		return fmt.Errorf("unmarshaling GET response: %w", err)
 	}
 
@@ -192,7 +193,7 @@ func (c *client) buildURL(path string) string {
 
 // doSingleRequest performs a single HTTP request without retry logic.
 func (c *client) doSingleRequest(ctx context.Context, method, path string, request, response any) error {
-	body, err := json.Marshal(request)
+	body, err := json.Marshal(request, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling %s request: %w", method, err)
 	}
@@ -227,7 +228,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError); err == nil {
+		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
 			return resError
 		}
 
@@ -239,7 +240,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 		)
 	}
 
-	if err = json.Unmarshal(body, response); err != nil {
+	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
 		return fmt.Errorf("unmarshaling %s response: %w", method, err)
 	}
 
