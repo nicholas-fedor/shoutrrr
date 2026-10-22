@@ -70,6 +70,15 @@ jobs:
           go list ./... | grep -vE '/testing/e2e(/|$)' |
             xargs go test -v ${race} -coverpkg=./... -coverprofile coverage.out -covermode atomic
 
+      # The playground runs in the browser, so its tests run as js/wasm in Node.
+      # The wasm build is the same on every platform, so the Linux leg is enough.
+      - name: Run Playground Tests (js/wasm)
+        if: runner.os == 'Linux'
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: go test -v -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./docs/playground/wasm/
+
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

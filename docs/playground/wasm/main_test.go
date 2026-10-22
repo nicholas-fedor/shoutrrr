@@ -264,7 +264,9 @@ func TestJSBindings(t *testing.T) {
 			}
 		})
 
-		t.Run("returns rejected Promise for empty message", func(t *testing.T) {
+		// Whether an empty message is valid is up to the service, and the logger
+		// service accepts one, so the Promise resolves.
+		t.Run("resolves Promise for an empty message the service accepts", func(t *testing.T) {
 			t.Parallel()
 
 			args := []js.Value{js.ValueOf("logger://"), js.ValueOf("")}
@@ -273,25 +275,36 @@ func TestJSBindings(t *testing.T) {
 			require.True(t, ok, "expected js.Value result")
 			assert.Equal(t, "Promise", promise.Get("constructor").Get("name").String())
 
-			done := make(chan string, 1)
+			resolved := make(chan string, 1)
+			rejected := make(chan string, 1)
 
-			var catchHandler js.Func
+			var thenHandler, catchHandler js.Func
 
-			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
-				catchHandler.Release()
+			thenHandler = js.FuncOf(func(_ js.Value, thenArgs []js.Value) any {
+				thenHandler.Release()
 
-				done <- catchArgs[0].String()
+				resolved <- thenArgs[0].String()
 
 				return nil
 			})
 
-			promise.Call("catch", catchHandler)
+			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
+				catchHandler.Release()
+
+				rejected <- catchArgs[0].String()
+
+				return nil
+			})
+
+			promise.Call("then", thenHandler, catchHandler)
 
 			select {
-			case errMsg := <-done:
-				assert.Contains(t, errMsg, "error")
+			case result := <-resolved:
+				assert.JSONEq(t, `{"success":true}`, result)
+			case errMsg := <-rejected:
+				t.Fatalf("Promise rejected: %s", errMsg)
 			case <-time.After(5 * time.Second):
-				t.Fatal("timed out waiting for Promise rejection")
+				t.Fatal("timed out waiting for the Promise to resolve")
 			}
 		})
 	})

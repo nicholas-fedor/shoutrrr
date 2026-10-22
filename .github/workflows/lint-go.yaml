@@ -13,6 +13,7 @@ on:
       - go.mod
       - go.sum
       - shoutrrr.go
+      - docs/playground/wasm/**
       - build/golangci-lint/**
       - .github/workflows/lint-go.yaml
 
@@ -61,4 +62,14 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           args: --timeout=5m --config=build/golangci-lint/golangci.yaml --fix=false
+          only-new-issues: true
+
+      # Most playground files build only for js/wasm, so the step above skips them.
+      - name: Run golangci-lint on the Playground (js/wasm)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        env:
+          GOOS: js
+          GOARCH: wasm
+        with:
+          args: --timeout=5m --config=build/golangci-lint/golangci.yaml --fix=false ./docs/playground/wasm/...
           only-new-issues: true
