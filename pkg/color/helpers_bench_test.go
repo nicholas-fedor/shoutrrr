@@ -1,15 +1,17 @@
 package color
 
 import (
+	"io"
 	"testing"
 )
 
-// BenchmarkColorPrint benchmarks the Color.Print method for printing colored output.
+// BenchmarkColorPrint benchmarks the Color.Print method for printing colored
+// output. Print writes to the configured output, so it writes to io.Discard.
 func BenchmarkColorPrint(b *testing.B) {
 	cfg := &Config{
 		NoColor: false,
-		Output:  nil,
-		Error:   nil,
+		Output:  io.Discard,
+		Error:   io.Discard,
 	}
 
 	c := NewWithConfig(cfg, FgRed)

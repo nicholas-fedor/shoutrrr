@@ -153,6 +153,19 @@ tasks:
     cmds:
       - go test -count=1 -coverprofile=coverage-playground.out -covermode=atomic ./docs/playground/wasm/
 
+  bench:
+    desc: "Run the benchmarks with allocation counts"
+    # The package list leaves out the e2e suites, which need live services.
+    cmds:
+      - |
+        pkgs="$(go list ./...)" || exit 1
+        pkgs="$(printf '%s\n' "$pkgs" | grep -vE '/testing/e2e(/|$)')" || true
+        if [ -z "$pkgs" ]; then
+          echo "go list found no packages to benchmark"
+          exit 1
+        fi
+        go test -run '^$' -bench . -benchmem $pkgs
+
   mocks:
     desc: "Generate mocks with mockery"
     cmds:
