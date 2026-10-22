@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/setup-python action to v7.1.0 by @renovate[bot] in [#1747](https://github.com/nicholas-fedor/shoutrrr/pull/1747)
 - Update dependency python-dateutil to v3 by @renovate[bot] in [#1738](https://github.com/nicholas-fedor/shoutrrr/pull/1738)
 - Update alpine docker tag to v3.24.3 by @renovate[bot] in [#1737](https://github.com/nicholas-fedor/shoutrrr/pull/1737)
 
