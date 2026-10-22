@@ -214,7 +214,7 @@ gitdb==4.0.12 \
     --hash=sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571 \
     --hash=sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf
     # via gitpython
-GitPython==3.2.1 \
+gitpython==3.2.1 \
     --hash=sha256:0f1229ec5c057bdabdeeda8bda4f17bda679ab33dbccc00f24e6a480553c8613 \
     --hash=sha256:d66b0832aa8755c1a84892937282df0befb16c97e5a64aeebd68be9c5e323f53
     # via mkdocs-git-revision-date-localized-plugin
@@ -239,7 +239,7 @@ jinja2==3.1.6 \
 jsmin==3.0.1 \
     --hash=sha256:c0959a121ef94542e807a674142606f7e90214a2b3d1eb17300244bbb5cc2bfc
     # via mkdocs-minify-plugin
-Markdown==3.11.2 \
+markdown==3.11.2 \
     --hash=sha256:87bf5d90f2d2882e2c02fcda182c2800456b985bff38913867c49706481514b0 \
     --hash=sha256:f80390747a2a0ff2ba54da074ce4f862f72a6685f608cd2637b646a6d83993f5
     # via
@@ -572,10 +572,12 @@ smmap==5.0.3 \
     --hash=sha256:4d9debb8b99007ae47165abc08670bd74cb74b5227dda7f643eccc4e9eb5642c \
     --hash=sha256:c106e05d5a61449cf6ba9a1e650227ecfb141590d2a98412103ff35d89fc7b2f
     # via gitdb
-tzdata==2026.5 ; sys_platform == 'win32' \
+tzdata==2026.5 \
     --hash=sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7 \
     --hash=sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac
-    # via mkdocs-git-revision-date-localized-plugin
+    # via
+    #   mkdocs-git-revision-date-localized-plugin
+    #   python-dateutil
 urllib3==2.8.0 \
     --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
     --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
