@@ -33,6 +33,11 @@ var (
 	// The topic is mandatory for publishing messages and must be provided in the URL path.
 	ErrTopicRequired = errors.New("topic is required")
 
+	// ErrInvalidTopic is returned when the topic contains a wildcard (+ or #)
+	// or a null character, which an MQTT topic name must not contain, so a
+	// broker would reject every publish to it.
+	ErrInvalidTopic = errors.New("invalid topic: a topic name must not contain +, #, or a null character")
+
 	// ErrInvalidQoS is returned when a QoS value is outside the valid range (0-2).
 	// MQTT protocol only supports QoS levels 0, 1, and 2.
 	ErrInvalidQoS = errors.New("invalid QoS value: must be 0, 1, or 2")

@@ -1,14 +1,18 @@
 package e2e_test
 
 import (
+	"log"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/mqtt"
 )
 
 // TestMQTTTopics verifies that messages are published to a real MQTT broker on
-// single-level, nested, and escaped topics.
+// single-level, nested, and escaped topics, and that a wildcard topic is
+// rejected.
 //
 //nolint:paralleltest // Publishes to a live broker one message at a time.
 func TestMQTTTopics(t *testing.T) {
@@ -34,6 +38,21 @@ func TestMQTTTopics(t *testing.T) {
 			serviceURL.Path = topic.path
 
 			sendAndClose(t, serviceURL.String(), topic.message, nil)
+		})
+	}
+
+	// MQTT forbids wildcards in a topic name, so the URL is rejected before
+	// anything reaches the broker.
+	for _, path := range []string{"/sensors/+/temperature", "/home/#"} {
+		t.Run("wildcard topic "+path, func(t *testing.T) {
+			serviceURL, err := url.Parse(addCredentialsToURL(brokerURL(t)))
+			require.NoError(t, err)
+
+			serviceURL.Path = path
+
+			service := &mqtt.Service{}
+			err = service.Initialize(serviceURL, log.New(t.Output(), "[Test] ", 0))
+			require.ErrorIs(t, err, mqtt.ErrInvalidTopic)
 		})
 	}
 }
