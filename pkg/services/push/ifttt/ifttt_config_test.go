@@ -95,6 +95,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "webhook ID with a port", rawURL: "ifttt://SECRETid:8443/?events=event1", wantErr: util.ErrInvalidHost},
 		{name: "webhook ID in brackets", rawURL: "ifttt://[::1]/?events=event1", wantErr: util.ErrInvalidHost},
 		{name: "missing events", rawURL: "ifttt://dummyID", wantErr: ErrMissingEvents},
+		{name: "empty events", rawURL: "ifttt://dummyID/?events=", wantErr: ErrMissingEvents},
 		{name: "unknown prop", rawURL: "ifttt://dummyID/?events=event1&badquery=foo", wantErr: format.ErrInvalidConfigKey},
 		{name: "messagevalue not a number", rawURL: "ifttt://dummyID/?events=event1&messagevalue=abc", wantErr: format.ErrParseUintFailed},
 		{name: "messagevalue above 3", rawURL: "ifttt://dummyID/?events=event1&messagevalue=8", wantErr: ErrInvalidMessageValue},

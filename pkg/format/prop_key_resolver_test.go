@@ -221,6 +221,25 @@ func TestPropKeyResolverSetDefaultProps(t *testing.T) {
 	require.ErrorIs(t, badResolver.SetDefaultProps(bad), ErrParseIntFailed)
 }
 
+// TestPropKeyResolverSetDefaultPropsEmptyLists verifies that the empty default
+// of a keyed slice or map clears it, rather than leaving one empty item in a
+// slice or failing for a map.
+func TestPropKeyResolverSetDefaultPropsEmptyLists(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructListDefaults{
+		Strs:  []string{"one"},
+		Props: []subPropStruct{{Value: "two"}},
+		Pairs: map[string]string{"a": "1"},
+	}
+
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(nil))
+	assert.Nil(t, config.Strs)
+	assert.Nil(t, config.Props)
+	assert.Nil(t, config.Pairs)
+}
+
 // TestPropKeyResolverUpdateConfigFromParams verifies that params set the
 // matching keys on the given config or the resolver's own, that the first
 // invalid param is reported while the others still apply, and that nil params

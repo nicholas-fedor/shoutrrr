@@ -217,7 +217,7 @@ func setBoolField(configField reflect.Value, inputValue string) (bool, error) {
 // setMapField sets a map field from comma-separated key:value pairs.
 //
 // Each pair splits at its first colon, so keys cannot contain a colon while
-// values can.
+// values can. An empty value clears the map.
 //
 // Parameters:
 //   - configField: the field to set.
@@ -232,6 +232,12 @@ func setBoolField(configField reflect.Value, inputValue string) (bool, error) {
 func setMapField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	if field.Type.Key().Kind() != reflect.String {
 		return false, ErrUnsupportedFieldKey
+	}
+
+	if inputValue == "" {
+		configField.SetZero()
+
+		return true, nil
 	}
 
 	mapValue := reflect.MakeMap(field.Type)
@@ -268,7 +274,21 @@ func setStructField(configField reflect.Value, field *FieldInfo, inputValue stri
 	return true, nil
 }
 
-// setSliceOrArrayField handles slice or array field setting.
+// setSliceOrArrayField sets a slice or array field from its separated items.
+//
+// An empty value clears a slice, while an array still needs one item for each
+// element.
+//
+// Parameters:
+//   - configField: the field to set.
+//   - field: the field's info, with its type and item separator.
+//   - inputValue: the separated items.
+//
+// Returns:
+//   - bool: true when the field was set.
+//   - error: [ErrUnsupportedField] for items that are neither strings nor
+//     structs, [ErrInvalidFieldCount] for an array given the wrong number of
+//     items, or an item's parse error.
 func setSliceOrArrayField(
 	configField reflect.Value,
 	field *FieldInfo,
@@ -283,6 +303,12 @@ func setSliceOrArrayField(
 
 	if elemKind != reflect.Struct && elemKind != reflect.String {
 		return false, ErrUnsupportedField
+	}
+
+	if inputValue == "" && field.Type.Kind() == reflect.Slice {
+		configField.SetZero()
+
+		return true, nil
 	}
 
 	values := strings.Split(inputValue, string(field.ItemSeparator))

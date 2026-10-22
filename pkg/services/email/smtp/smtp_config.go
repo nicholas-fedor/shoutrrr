@@ -160,12 +160,18 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // URL query parsing turns plus signs into spaces, so this restores plus-tagged
 // addresses such as user+tag@example.com. Spaces around each address are list
-// separators and are removed. Display-name spaces, including those in mailbox
-// syntax like `Name <user@example.com>`, are left unchanged.
+// separators and are removed, and recipient entries left blank are dropped, so
+// a list without addresses is empty. Display-name spaces, including those in
+// mailbox syntax like `Name <user@example.com>`, are left unchanged.
 func (c *Config) restorePlusAddresses() {
 	c.FromAddress = restorePlusAddress(c.FromAddress)
 	for i, adr := range c.ToAddresses {
 		c.ToAddresses[i] = restorePlusAddress(adr)
+	}
+
+	c.ToAddresses = slices.DeleteFunc(c.ToAddresses, func(adr string) bool { return adr == "" })
+	if len(c.ToAddresses) == 0 {
+		c.ToAddresses = nil
 	}
 }
 

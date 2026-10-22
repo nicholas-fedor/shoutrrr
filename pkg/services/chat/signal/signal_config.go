@@ -213,7 +213,8 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 //
 // Returns:
 //   - error: a host, path, or query error, [ErrInvalidPhoneNumber] for an
-//     invalid source, or [ErrInvalidRecipient] for an invalid recipient
+//     invalid source, [ErrNoRecipients] when the query clears the recipients,
+//     or [ErrInvalidRecipient] for an invalid recipient
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.String() == "signal://dummy@dummy.com" {
 		c.Host = DefaultHost
@@ -249,6 +250,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// final values are validated once the query is applied.
 	if !isValidPhoneNumber(c.Source) {
 		return fmt.Errorf("%w: %s", ErrInvalidPhoneNumber, c.Source)
+	}
+
+	if len(c.Recipients) == 0 {
+		return ErrNoRecipients
 	}
 
 	return validateRecipients(c.Recipients)
