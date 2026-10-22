@@ -1,0 +1,41 @@
+# Mailpit for local SMTP E2E testing
+#
+# https://mailpit.axllent.org/docs/configuration/smtp/
+#
+# Usage:
+#   ./setup.sh
+#
+# Mailpit serves STARTTLS or implicit TLS on a port, not both, so the stack
+# runs two instances:
+#   mailpit      SMTP 1587 with optional STARTTLS, API 8025, requires the
+#                shoutrrr / testing account (PLAIN or LOGIN, also over plaintext)
+#   mailpit-tls  SMTP 1465 with implicit TLS, API 8026, accepts any credentials
+
+services:
+  mailpit:
+    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+    container_name: shoutrrr-smtp-mailpit
+    ports:
+      - "127.0.0.1:1587:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      - MP_SMTP_TLS_CERT=/certs/cert.pem
+      - MP_SMTP_TLS_KEY=/certs/key.pem
+      - MP_SMTP_AUTH=shoutrrr:testing
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    volumes:
+      - ./certs:/certs:ro
+
+  mailpit-tls:
+    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+    container_name: shoutrrr-smtp-mailpit-tls
+    ports:
+      - "127.0.0.1:1465:1025"
+      - "127.0.0.1:8026:8025"
+    environment:
+      - MP_SMTP_TLS_CERT=/certs/cert.pem
+      - MP_SMTP_TLS_KEY=/certs/key.pem
+      - MP_SMTP_REQUIRE_TLS=true
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+    volumes:
+      - ./certs:/certs:ro
