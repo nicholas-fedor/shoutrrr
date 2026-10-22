@@ -11,7 +11,11 @@ import (
 )
 
 func TestSend(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sendString", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name     string
 			url      string
@@ -23,6 +27,7 @@ func TestSend(t *testing.T) {
 				url:     "logger://",
 				message: "test message",
 				validate: func(t *testing.T, result string) {
+					t.Helper()
 					assert.Equal(t, `{"success":true}`, result)
 				},
 			},
@@ -31,7 +36,10 @@ func TestSend(t *testing.T) {
 				url:     "invalid://url",
 				message: "test message",
 				validate: func(t *testing.T, result string) {
+					t.Helper()
+
 					var errResp errorResult
+
 					err := json.Unmarshal([]byte(result), &errResp)
 					require.NoError(t, err)
 					assert.NotEmpty(t, errResp.Error)
@@ -41,6 +49,8 @@ func TestSend(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
 				result := sendString(tt.url, tt.message)
 				tt.validate(t, result)
 			})

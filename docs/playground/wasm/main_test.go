@@ -12,7 +12,11 @@ import (
 )
 
 func TestJSBindings(t *testing.T) {
+	t.Parallel()
+
 	t.Run("getServices", func(t *testing.T) {
+		t.Parallel()
+
 		result := getServices(js.Value{}, nil)
 		str, ok := result.(string)
 		require.True(t, ok, "expected string result")
@@ -20,7 +24,11 @@ func TestJSBindings(t *testing.T) {
 	})
 
 	t.Run("getConfigSchema", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("returns error when no args provided", func(t *testing.T) {
+			t.Parallel()
+
 			result := getConfigSchema(js.Value{}, nil)
 			str, ok := result.(string)
 			require.True(t, ok, "expected string result")
@@ -28,6 +36,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns schema for discord", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("discord")}
 			result := getConfigSchema(js.Value{}, args)
 			str, ok := result.(string)
@@ -37,6 +47,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns error for invalid service", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("nonexistent")}
 			result := getConfigSchema(js.Value{}, args)
 			str, ok := result.(string)
@@ -46,7 +58,11 @@ func TestJSBindings(t *testing.T) {
 	})
 
 	t.Run("parseURL", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("returns error when no args provided", func(t *testing.T) {
+			t.Parallel()
+
 			result := parseURL(js.Value{}, nil)
 			str, ok := result.(string)
 			require.True(t, ok, "expected string result")
@@ -54,6 +70,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("parses discord URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("discord://token@123456789")}
 			result := parseURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -63,6 +81,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("parses ntfy URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("ntfy://ntfy.sh/mytopic")}
 			result := parseURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -71,6 +91,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns error for invalid URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("not-a-valid-url")}
 			result := parseURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -80,7 +102,11 @@ func TestJSBindings(t *testing.T) {
 	})
 
 	t.Run("generateURL", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("returns error when insufficient args", func(t *testing.T) {
+			t.Parallel()
+
 			result := generateURL(js.Value{}, nil)
 			str, ok := result.(string)
 			require.True(t, ok, "expected string result")
@@ -88,6 +114,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("generates discord URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{
 				js.ValueOf("discord"),
 				js.ValueOf(`{"WebhookID":"123456789","Token":"mytoken"}`),
@@ -100,6 +128,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns error for invalid service", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{
 				js.ValueOf("nonexistent"),
 				js.ValueOf("{}"),
@@ -111,6 +141,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns error for invalid JSON", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{
 				js.ValueOf("discord"),
 				js.ValueOf("not-json"),
@@ -123,7 +155,11 @@ func TestJSBindings(t *testing.T) {
 	})
 
 	t.Run("validateURL", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("returns error when no args provided", func(t *testing.T) {
+			t.Parallel()
+
 			result := validateURL(js.Value{}, nil)
 			str, ok := result.(string)
 			require.True(t, ok, "expected string result")
@@ -131,6 +167,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("validates discord URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("discord://token@123456789")}
 			result := validateURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -139,6 +177,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("validates ntfy URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("ntfy://ntfy.sh/mytopic")}
 			result := validateURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -147,6 +187,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns error for invalid URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("not-valid")}
 			result := validateURL(js.Value{}, args)
 			str, ok := result.(string)
@@ -156,7 +198,11 @@ func TestJSBindings(t *testing.T) {
 	})
 
 	t.Run("send", func(t *testing.T) {
+		t.Parallel()
+
 		t.Run("returns rejected Promise for insufficient args", func(t *testing.T) {
+			t.Parallel()
+
 			result := send(js.Value{}, nil)
 			promise, ok := result.(js.Value)
 			require.True(t, ok, "expected js.Value result")
@@ -167,8 +213,10 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
+
 			catchHandler = js.FuncOf(func(_ js.Value, args []js.Value) any {
 				catchHandler.Release()
+
 				done <- args[0].String()
 
 				return nil
@@ -185,6 +233,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns rejected Promise for invalid URL", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("not-a-valid-url"), js.ValueOf("test message")}
 			result := send(js.Value{}, args)
 			promise, ok := result.(js.Value)
@@ -195,8 +245,10 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
+
 			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
 				catchHandler.Release()
+
 				done <- catchArgs[0].String()
 
 				return nil
@@ -213,6 +265,8 @@ func TestJSBindings(t *testing.T) {
 		})
 
 		t.Run("returns rejected Promise for empty message", func(t *testing.T) {
+			t.Parallel()
+
 			args := []js.Value{js.ValueOf("logger://"), js.ValueOf("")}
 			result := send(js.Value{}, args)
 			promise, ok := result.(js.Value)
@@ -222,8 +276,10 @@ func TestJSBindings(t *testing.T) {
 			done := make(chan string, 1)
 
 			var catchHandler js.Func
+
 			catchHandler = js.FuncOf(func(_ js.Value, catchArgs []js.Value) any {
 				catchHandler.Release()
+
 				done <- catchArgs[0].String()
 
 				return nil

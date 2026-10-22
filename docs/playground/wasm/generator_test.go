@@ -13,6 +13,8 @@ import (
 )
 
 func TestGenerateURLString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		service     string
@@ -79,10 +81,13 @@ func TestGenerateURLString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := generateURLString(tt.service, tt.configJSON)
 
 			if tt.wantErrResp {
 				var errResp errorResult
+
 				err := json.Unmarshal([]byte(result), &errResp)
 				require.NoError(t, err)
 				assert.NotEmpty(t, errResp.Error)
@@ -91,6 +96,7 @@ func TestGenerateURLString(t *testing.T) {
 			}
 
 			var parsed map[string]string
+
 			err := json.Unmarshal([]byte(result), &parsed)
 			require.NoError(t, err)
 
@@ -106,6 +112,8 @@ func TestGenerateURLString(t *testing.T) {
 }
 
 func TestGetServiceConfigFromService(t *testing.T) {
+	t.Parallel()
+
 	r := router.ServiceRouter{}
 	service, err := r.NewService("discord")
 	require.NoError(t, err)

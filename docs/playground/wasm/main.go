@@ -8,6 +8,9 @@ import (
 	"syscall/js"
 )
 
+// pairArgs is the number of arguments generateURL and send require.
+const pairArgs = 2
+
 // main registers JavaScript functions on the global object and blocks
 // to keep the WASM runtime alive. Each registered function delegates
 // to a pure logic function that has no syscall/js dependency.
@@ -47,7 +50,7 @@ func parseURL(_ js.Value, args []js.Value) any {
 
 // generateURL builds a Shoutrrr URL from args[0] (service) and args[1] (config JSON).
 func generateURL(_ js.Value, args []js.Value) any {
-	if len(args) < 2 {
+	if len(args) < pairArgs {
 		return marshalErrorStr("missing arguments: expected service name and config JSON")
 	}
 
@@ -66,7 +69,7 @@ func validateURL(_ js.Value, args []js.Value) any {
 // send returns a Promise that sends args[0] (URL) with args[1] (message).
 // The send runs in a goroutine to avoid blocking the JavaScript event loop.
 func send(_ js.Value, args []js.Value) any {
-	if len(args) < 2 {
+	if len(args) < pairArgs {
 		errJSON := marshalErrorStr("missing arguments: expected URL and message")
 
 		return js.Global().Get("Promise").Call("reject", js.ValueOf(errJSON))

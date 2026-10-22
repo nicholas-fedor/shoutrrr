@@ -475,9 +475,12 @@ linters:
       # This allows you to add specific signatures to the ignore list
       # while retaining the defaults or any items in 'ignore-sigs'.
       # Default: []
-      # extra-ignore-sigs:
-      #   - .CustomError(
-      #   - .SpecificWrap(
+      # The CLI's exit error constructors build the error a command returns, as
+      # errors.New does, so their results need no wrapping.
+      extra-ignore-sigs:
+        - shoutrrr/cmd.ConfigurationError(
+        - shoutrrr/cmd.InvalidUsage(
+        - shoutrrr/cmd.TaskUnavailable(
       # An array of strings that specify substrings of signatures to ignore.
       # If this set, it will override the default set of ignored signatures.
       # See https://github.com/tomarrell/wrapcheck#configuration for more information.
