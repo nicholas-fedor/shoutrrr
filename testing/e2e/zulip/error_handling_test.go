@@ -4,93 +4,64 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
-var _ = ginkgo.Describe("Zulip E2E Error Handling", func() {
-	ginkgo.When("the server is unreachable", func() {
-		ginkgo.It("should fail gracefully with a connection error", func() {
-			serviceURL, err := url.Parse("zulip://bot@example.com:secret-key@10.255.255.1:44399")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// Settings for the Zulip error handling tests.
+const (
+	// unreachableURL names a server at an address that does not answer.
+	unreachableURL = "zulip://bot@example.com:secret-key@10.255.255.1:44399"
+	// unreachableTimeout bounds the send to the unreachable server.
+	unreachableTimeout = 10 * time.Second
+)
 
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+// TestZulipErrorHandling verifies that sends fail for an unreachable server, a
+// canceled context, invalid credentials, and a stream that does not exist.
+//
+//nolint:paralleltest // Sends to a live server one message at a time.
+func TestZulipErrorHandling(t *testing.T) {
+	t.Run("unreachable server", func(t *testing.T) {
+		service := newService(t, unreachableURL)
 
-			sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
+		ctx, cancel := context.WithTimeout(t.Context(), unreachableTimeout)
+		defer cancel()
 
-			err = service.SendContext(sendCtx, "E2E Test: unreachable", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.Error(t, service.SendContext(ctx, "E2E Test: unreachable", nil))
 	})
 
-	ginkgo.When("sending with context cancellation", func() {
-		ginkgo.It("should abort when context is already canceled", func() {
-			serviceURL, err := url.Parse("zulip://bot@example.com:secret-key@10.255.255.1:44399")
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("already canceled context", func(t *testing.T) {
+		service := newService(t, unreachableURL)
 
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-
-			err = service.SendContext(ctx, "E2E Test: canceled", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.Error(t, service.SendContext(ctx, "E2E Test: canceled", nil))
 	})
 
-	ginkgo.When("sending with invalid credentials", func() {
-		ginkgo.It("should fail with authentication error from a valid server", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping auth error test")
-			}
+	t.Run("invalid credentials", func(t *testing.T) {
+		parsedURL, err := url.Parse(requireServiceURL(t))
+		require.NoError(t, err)
 
-			parsedURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		parsedURL.User = url.UserPassword("bot@example.com", "wrong-key-invalid-key")
 
-			parsedURL.User = url.UserPassword("bot@example.com", "wrong-key-invalid-key")
+		service := newService(t, parsedURL.String())
 
-			service := &zulip.Service{}
-			err = service.Initialize(parsedURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: invalid credentials", nil)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-			gomega.Expect(err.Error()).To(gomega.ContainSubstring("401"))
-		})
+		err = service.Send("E2E Test: invalid credentials", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "401")
 	})
 
-	ginkgo.When("sending with a non-existent stream", func() {
-		ginkgo.It("should fail with error for invalid stream", func() {
-			serviceURLStr := buildServiceURL()
-			if serviceURLStr == "" {
-				ginkgo.Skip("Zulip server not configured, skipping invalid stream test")
-			}
+	t.Run("stream that does not exist", func(t *testing.T) {
+		service := newService(t, requireServiceURL(t))
 
-			serviceURL, err := url.Parse(serviceURLStr)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &zulip.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			params := &types.Params{
-				"stream": "this-stream-definitely-does-not-exist-" + strings.Repeat("x", 20),
-			}
-
-			err = service.Send("E2E Test: invalid stream", params)
-			gomega.Expect(err).To(gomega.HaveOccurred())
-		})
+		require.Error(t, service.Send("E2E Test: invalid stream", &types.Params{
+			"stream": "this-stream-definitely-does-not-exist-" + strings.Repeat("x", 20),
+		}))
 	})
-})
+}

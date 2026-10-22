@@ -1,35 +1,12 @@
 package e2e_test
 
 import (
-	"net/url"
-	"os"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/signalgrid"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"testing"
 )
 
-var _ = ginkgo.Describe("Signalgrid E2E Basic Test", func() {
-	ginkgo.When("running e2e tests", func() {
-		ginkgo.It("should send a basic notification", func() {
-			envURL := os.Getenv("SHOUTRRR_SIGNALGRID_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_SIGNALGRID_URL not set, skipping basic test")
-
-				return
-			}
-
-			serviceURL, err := url.Parse(envURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			service := &signalgrid.Service{}
-			err = service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			err = service.Send("E2E Test: Basic Signalgrid notification", nil)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-	})
-})
+// TestSignalgridBasic verifies that a basic notification reaches Signalgrid.
+//
+//nolint:paralleltest // Sends to a live service one message at a time.
+func TestSignalgridBasic(t *testing.T) {
+	sendWithQuery(t, nil, "E2E Test: Basic Signalgrid notification")
+}

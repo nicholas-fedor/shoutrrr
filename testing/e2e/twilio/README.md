@@ -82,13 +82,13 @@ Run a specific test:
 
 ```bash
 # Basic SMS test
-go test ./testing/e2e/twilio/ -v -args -ginkgo.focus="Basic"
+go test ./testing/e2e/twilio/ -v -run TestTwilioBasic
 
 # Title test
-go test ./testing/e2e/twilio/ -v -args -ginkgo.focus="Title"
+go test ./testing/e2e/twilio/ -v -run TestTwilioTitle
 
 # Service ID test
-go test ./testing/e2e/twilio/ -v -args -ginkgo.focus="Service ID"
+go test ./testing/e2e/twilio/ -v -run TestTwilioServiceID
 ```
 
 ### Test Behavior

@@ -98,17 +98,17 @@ Run all e2e tests:
 go test ./testing/e2e/discord/ -v
 ```
 
-Run specific test files:
+Run one group of tests:
 
 ```bash
 # Test basic functionality
-go test ./testing/e2e/discord/ -v -args -ginkgo.focus="basic"
+go test ./testing/e2e/discord/ -v -run 'TestDiscordSend/basic'
 
 # Test embed features
-go test ./testing/e2e/discord/ -v -args -ginkgo.focus="embed"
+go test ./testing/e2e/discord/ -v -run 'TestDiscordSendItems/embed'
 
 # Test file attachments
-go test ./testing/e2e/discord/ -v -args -ginkgo.focus="file"
+go test ./testing/e2e/discord/ -v -run 'TestDiscordSendItems/file'
 ```
 
 ### Test Behavior
@@ -127,31 +127,16 @@ Successful test run will show messages appearing in your Discord channel. Each t
 ```bash
 testing/e2e/discord/
 ├── .env                          # Environment variables (not committed)
-├── suite_test.go                 # Test suite setup and configuration
-├── basic_test.go                 # Basic text message functionality
-├── complex_combination_test.go   # Complex embeds with all features
-├── embed_author_test.go          # Embed author information
-├── embed_colors_test.go          # Color customization
-├── embed_fields_test.go          # Custom fields
-├── embed_images_test.go          # Images and thumbnails
-├── embed_timestamp_test.go       # Timestamp handling
-├── file_attachment_test.go       # Single file attachments
-├── json_mode_test.go             # JSON mode functionality
-├── long_message_test.go          # Long message handling
-├── multiple_embeds_test.go       # Multiple embeds
-├── multiple_files_test.go        # Multiple file attachments
-├── special_characters_test.go    # Special character handling
-├── thread_test.go                # Thread functionality
-└── username_avatar_test.go       # Username/avatar customization
+├── suite_test.go                 # Test setup, configuration, and .env file loading
+├── send_test.go                  # Plain text messages
+├── send_items_test.go            # Rich embeds and file attachments
+└── thread_test.go                # Thread functionality
 ```
 
 ### Test Organization
 
-Each test file focuses on a specific feature category:
+Each test file covers one kind of send, with a subtest per feature:
 
-- **Basic Tests** (`basic_test.go`): Core message sending functionality
-- **Embed Tests** (`embed_*_test.go`): Rich embed features and formatting
-- **File Tests** (`file_*_test.go`): File attachment handling
+- **Send Tests** (`send_test.go`): Basic text, special characters, custom username and avatar, JSON mode, and long messages
+- **Send Items Tests** (`send_items_test.go`): Embed colors, timestamps, fields, images, author information, multiple embeds, file attachments, and all of these combined
 - **Thread Tests** (`thread_test.go`): Posting messages to existing threads
-- **Configuration Tests** (`username_avatar_test.go`, `json_mode_test.go`): Service configuration options
-- **Edge Case Tests** (`long_message_test.go`, `special_characters_test.go`): Boundary conditions

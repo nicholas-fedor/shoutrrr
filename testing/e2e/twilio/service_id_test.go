@@ -1,32 +1,15 @@
 package e2e_test
 
 import (
-	"net/url"
-	"os"
+	"testing"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("Twilio E2E Service ID Test", func() {
-	ginkgo.When("running e2e tests", func() {
-		ginkgo.It("should return the correct service identifier", func() {
-			envURL := os.Getenv("SHOUTRRR_TWILIO_URL")
-			if envURL == "" {
-				ginkgo.Skip("SHOUTRRR_TWILIO_URL not set, skipping service ID test")
+// TestTwilioServiceID verifies the service ID of a service initialized from
+// the configured URL.
+func TestTwilioServiceID(t *testing.T) {
+	t.Parallel()
 
-				return
-			}
-
-			serviceURL, _ := url.Parse(envURL)
-			service := &twilio.Service{}
-			err := service.Initialize(serviceURL, logger.New())
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			gomega.Expect(service.GetID()).To(gomega.Equal("twilio"))
-		})
-	})
-})
+	assert.Equal(t, "twilio", newService(t, nil).GetID())
+}
