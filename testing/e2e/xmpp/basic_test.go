@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"mellium.im/xmpp/stanza"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/xmpp"
 )
@@ -16,7 +18,8 @@ const receiveTimeout = 5 * time.Second
 
 // TestXMPP verifies that messages sent to a real XMPP server over STARTTLS,
 // implicit TLS, and plaintext reach a 1:1 recipient and open and
-// password-protected rooms, and that bad credentials fail the send.
+// password-protected rooms, and that a protected room without its password
+// and bad credentials fail the send.
 //
 //nolint:paralleltest // Sends to a live server one message at a time.
 func TestXMPP(t *testing.T) {
@@ -38,6 +41,27 @@ func TestXMPP(t *testing.T) {
 
 	t.Run("password-protected MUC", func(t *testing.T) {
 		sendAndReceive(t, envOrSkip(t, "SHOUTRRR_XMPP_MUC_PASSWORD_URL"), "E2E Test: protected MUC")
+	})
+
+	t.Run("password-protected MUC without its password", func(t *testing.T) {
+		serviceURL, err := url.Parse(envOrSkip(t, "SHOUTRRR_XMPP_MUC_PASSWORD_URL"))
+		require.NoError(t, err)
+
+		query := serviceURL.Query()
+		query.Del("roompassword")
+		serviceURL.RawQuery = query.Encode()
+
+		service := &xmpp.Service{}
+		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "[Test] ", 0)))
+
+		// The room requires its password, so the server refuses the join with a
+		// not-authorized error (XEP-0045), which a connection failure would not
+		// produce.
+		var stanzaErr stanza.Error
+
+		err = service.Send("E2E Test: protected MUC without its password", nil)
+		require.ErrorAs(t, err, &stanzaErr)
+		assert.Equal(t, stanza.NotAuthorized, stanzaErr.Condition, err.Error())
 	})
 
 	t.Run("bad credentials", func(t *testing.T) {
