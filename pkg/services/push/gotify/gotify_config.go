@@ -10,6 +10,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Gotify notification service.
@@ -150,8 +151,8 @@ func (c *Config) processQueryParameters(
 //
 // Returns:
 //   - error: [ErrHostMissing] for a URL without a host, [ErrInvalidToken] for a
-//     missing token or one in neither Gotify token format, or a query
-//     parameter error.
+//     missing token or one in neither Gotify token format, an error wrapping
+//     [util.ErrInvalidQuery] for a malformed query, or a query parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
@@ -182,8 +183,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return ErrInvalidToken
 	}
 
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
 	// Process query parameters to set remaining configuration fields
-	if err := c.processQueryParameters(resolver, serviceURL.Query()); err != nil {
+	if err := c.processQueryParameters(resolver, query); err != nil {
 		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 

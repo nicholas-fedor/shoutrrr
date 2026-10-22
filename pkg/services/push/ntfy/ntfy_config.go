@@ -146,9 +146,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: a host error such as [util.ErrInvalidHost], a query parameter
-//     error, [ErrTopicRequired] for a missing topic, or [ErrInvalidTopic] for
-//     an invalid topic name or an empty path segment.
+//   - error: a host error such as [util.ErrInvalidHost], a malformed query
+//     ([util.ErrInvalidQuery]) or query parameter error, [ErrTopicRequired]
+//     for a missing topic, or [ErrInvalidTopic] for an invalid topic name or
+//     an empty path segment.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -173,7 +174,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Token = ""
 
 	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
-	for key, vals := range serviceURL.Query() {
+
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}

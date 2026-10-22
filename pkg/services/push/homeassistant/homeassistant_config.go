@@ -237,8 +237,8 @@ func (c *Config) setPort(rawPort string) error {
 //
 // Returns:
 //   - An error if the host is not a hostname or a bracketed IPv6 address
-//     ([util.ErrInvalidHost]), a query parameter is invalid, or required fields
-//     are missing.
+//     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
+//     a query parameter is invalid, or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	isDummy := serviceURL.String() == dummyServiceURL
 
@@ -261,7 +261,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Path = normalizePath(serviceURL.Path)
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if len(vals) == 0 {
 			continue
 		}

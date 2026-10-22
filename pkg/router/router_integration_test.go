@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -528,6 +529,70 @@ func TestIntegrationMissingHost(t *testing.T) {
 			closeService(t, service)
 			require.Error(t, err)
 		})
+	}
+}
+
+// TestIntegrationMalformedQuery verifies that every service that reads its URL
+// query rejects a query pair with a malformed escape or a literal semicolon,
+// which url.URL.Query would drop without an error, including in the webhook URL
+// of a custom URL. ntfy reads a literal semicolon as part of the value, which
+// keeps its semicolon-separated actions working, so it accepts the semicolon.
+func TestIntegrationMalformedQuery(t *testing.T) {
+	t.Parallel()
+
+	// queryless lists the schemes that do not read their URL query.
+	queryless := []string{"logger", "rocketchat"}
+
+	// semicolonValueSchemes lists the schemes that read a literal semicolon as
+	// part of the value.
+	semicolonValueSchemes := []string{"ntfy"}
+
+	// pairs lists the malformed query pairs by name.
+	pairs := map[string]string{"escape": "title=%zz", "semicolon": "title=a;b"}
+
+	for pairName, pair := range pairs {
+		// rawURLs lists the service URLs to test by scheme: each fixture with the
+		// pair added to its query, and the custom URLs.
+		rawURLs := map[string]string{
+			"generic custom":   "generic+https://hooks.example.invalid/webhook?" + pair,
+			"notifiarr custom": "notifiarr+https://notifiarr.example.invalid/api?" + pair,
+		}
+
+		for _, fx := range fixtures {
+			if slices.Contains(queryless, fx.scheme) {
+				continue
+			}
+
+			serviceURL, err := url.Parse(fx.url)
+			require.NoError(t, err)
+
+			if serviceURL.RawQuery != "" {
+				serviceURL.RawQuery += "&"
+			}
+
+			serviceURL.RawQuery += pair
+			rawURLs[fx.scheme] = serviceURL.String()
+		}
+
+		for scheme, rawURL := range rawURLs {
+			t.Run(scheme+" "+pairName, func(t *testing.T) {
+				t.Parallel()
+
+				serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+				require.NoError(t, err)
+
+				service, err := serviceRouter.Locate(rawURL)
+				closeService(t, service)
+
+				if pairName == "semicolon" && slices.Contains(semicolonValueSchemes, scheme) {
+					require.NoError(t, err)
+
+					return
+				}
+
+				require.ErrorIs(t, err, util.ErrInvalidQuery)
+			})
+		}
 	}
 }
 

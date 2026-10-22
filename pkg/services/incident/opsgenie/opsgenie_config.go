@@ -96,7 +96,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - error: [util.ErrInvalidHost] for a host that is not a hostname or a
 //     bracketed IPv6 address, [util.ErrInvalidPort] for a port that is not a
 //     number, [ErrAPIKeyMissing] for a missing or empty API key,
-//     [ErrInvalidPort] for a port outside 1 to 65535, or a query prop error.
+//     [ErrInvalidPort] for a port outside 1 to 65535, an error wrapping
+//     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	host, port, err := util.SplitURLHost(serviceURL)
 	if err != nil {
@@ -131,7 +132,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Port = defaultPort
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf(
 				"setting query parameter %q to %q: %w",

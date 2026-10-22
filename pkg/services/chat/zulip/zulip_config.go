@@ -7,6 +7,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // MessageType indicates the type of Zulip message to send.
@@ -107,8 +108,9 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrMissingBotMail], [ErrMissingAPIKey], [ErrMissingHost], or a
-//     read_by_sender value that is not a boolean.
+//   - error: [ErrMissingBotMail], [ErrMissingAPIKey], [ErrMissingHost], a
+//     query wrapping [util.ErrInvalidQuery], or a read_by_sender value that is
+//     not a boolean.
 func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	var isSet bool
 
@@ -131,14 +133,19 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 		}
 	}
 
-	c.Stream = serviceURL.Query().Get("stream")
-	c.Topic = serviceURL.Query().Get("topic")
-	c.Title = serviceURL.Query().Get("title")
-	c.Type = MessageType(serviceURL.Query().Get("type"))
-	c.To = serviceURL.Query().Get("to")
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	c.Stream = query.Get("stream")
+	c.Topic = query.Get("topic")
+	c.Title = query.Get("title")
+	c.Type = MessageType(query.Get("type"))
+	c.To = query.Get("to")
 	c.ReadBySender = false
 
-	if raw := serviceURL.Query().Get("read_by_sender"); raw != "" {
+	if raw := query.Get("read_by_sender"); raw != "" {
 		value, ok := format.ParseBool(raw, false)
 		if !ok {
 			return fmt.Errorf("parsing read_by_sender %q: %w", raw, format.ErrInvalidBoolValue)

@@ -191,9 +191,15 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 //   - serviceURL: the URL containing query parameters
 //
 // Returns:
-//   - error: if parsing fails, nil otherwise
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, or
+//     a query parameter error
 func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}

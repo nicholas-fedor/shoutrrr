@@ -6,6 +6,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds settings for the Join notification service.
@@ -48,11 +49,26 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
+//     query prop error, or [ErrDevicesMissing] or [ErrAPIKeyMissing] when the
+//     devices or the API key are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.APIKey = password
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
 		}

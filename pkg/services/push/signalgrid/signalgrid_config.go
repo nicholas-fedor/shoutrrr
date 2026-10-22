@@ -89,8 +89,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - An error if the channel token has a colon or brackets
-//     ([util.ErrInvalidHost]), a query parameter is invalid, or required fields
-//     are missing.
+//     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
+//     a query parameter is invalid, or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	isDummy := serviceURL.String() == dummyServiceURL
 
@@ -108,7 +108,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Channel = serviceURL.Host
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if len(vals) == 0 {
 			continue
 		}

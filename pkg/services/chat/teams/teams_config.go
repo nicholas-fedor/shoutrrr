@@ -8,6 +8,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config represents the configuration for the Teams service.
@@ -45,12 +46,27 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// setURL updates the Config from the query of a URL using the provided
+// resolver, skipping empty values and unknown keys.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
+//     or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Color = ""
 	c.Title = ""
 	c.Host = ""
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if len(vals) > 0 && vals[0] != "" {
 			if err := resolver.Set(key, vals[0]); err != nil {
 				if errors.Is(err, format.ErrInvalidConfigKey) {

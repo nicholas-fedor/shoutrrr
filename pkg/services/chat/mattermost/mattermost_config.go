@@ -8,6 +8,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Config holds all configuration information for the Mattermost service.
@@ -102,7 +103,8 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 //
 // Returns:
 //   - error: [ErrHostMissing] for a URL without a host, a path error such as
-//     [ErrNotEnoughArguments], or a query parameter error.
+//     [ErrNotEnoughArguments], an error wrapping [util.ErrInvalidQuery] for a
+//     malformed query, or a query parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// A Mattermost server has no default host.
 	if serviceURL.Hostname() == "" {
@@ -116,7 +118,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range serviceURL.Query() {
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}
