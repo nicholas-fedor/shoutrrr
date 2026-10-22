@@ -99,9 +99,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	var err error
 	if config.Token.IsAPIToken() {
-		err = s.sendAPI(ctx, config, payload)
+		err = s.sendAPI(ctx, config, &payload)
 	} else {
-		err = s.sendWebhook(ctx, config, payload)
+		err = s.sendWebhook(ctx, config, &payload)
 	}
 
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 //
 // Returns:
 //   - error: the request error or the error the API reported.
-func (s *Service) sendAPI(ctx context.Context, config *Config, payload any) error {
+func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessagePayload) error {
 	response := APIResponse{}
 	jsonClient := jsonclient.NewContextClient(s.httpClientOrDefault())
 	jsonClient.Headers().Set("Authorization", config.Token.Authorization())
@@ -175,7 +175,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload any) erro
 //
 // Returns:
 //   - error: the request error or the error the webhook reported.
-func (s *Service) sendWebhook(ctx context.Context, config *Config, payload any) error {
+func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *MessagePayload) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)

@@ -21,8 +21,7 @@ func TestCreateJSONPayload(t *testing.T) {
 		Icon: "ghost", Channel: "C0123456789",
 	}
 
-	payload, ok := CreateJSONPayload(config, "One\nTwo").(MessagePayload)
-	require.True(t, ok)
+	payload := CreateJSONPayload(config, "One\nTwo")
 
 	assert.Equal(t, MessagePayload{
 		Text: "Alert", BotName: "testbot", ThreadTS: "1503435956.000247", Channel: "C0123456789", IconEmoji: "ghost",
@@ -31,8 +30,7 @@ func TestCreateJSONPayload(t *testing.T) {
 
 	config.Channel = "webhook"
 
-	payload, ok = CreateJSONPayload(config, "One").(MessagePayload)
-	require.True(t, ok)
+	payload = CreateJSONPayload(config, "One")
 	assert.Empty(t, payload.Channel)
 }
 
@@ -47,20 +45,17 @@ func TestCreateJSONPayloadLines(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("Line %d", i))
 	}
 
-	payload, ok := CreateJSONPayload(&Config{}, strings.Join(lines, "\n")).(MessagePayload)
-	require.True(t, ok)
+	payload := CreateJSONPayload(&Config{}, strings.Join(lines, "\n"))
 
 	require.Len(t, payload.Attachments, MaxAttachments)
 	assert.Equal(t, "Line 99", payload.Attachments[98].Text)
 	assert.Equal(t, strings.Join(lines[99:], "\n"),
 		payload.Attachments[MaxAttachments-1].Text)
 
-	payload, ok = CreateJSONPayload(&Config{}, "One\nTwo\n").(MessagePayload)
-	require.True(t, ok)
+	payload = CreateJSONPayload(&Config{}, "One\nTwo\n")
 	assert.Equal(t, []attachment{{Text: "One"}, {Text: "Two"}}, payload.Attachments)
 
-	payload, ok = CreateJSONPayload(&Config{}, "").(MessagePayload)
-	require.True(t, ok)
+	payload = CreateJSONPayload(&Config{}, "")
 	assert.Empty(t, payload.Attachments)
 }
 
