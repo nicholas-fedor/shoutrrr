@@ -9,12 +9,12 @@ import (
 type MessagePayload struct {
 	Text        string       `json:"text"`
 	BotName     string       `json:"username,omitempty"`
-	Blocks      []block      `json:"blocks,omitempty"`
-	Attachments []attachment `json:"attachments,omitempty"`
 	ThreadTS    string       `json:"thread_ts,omitempty"`
 	Channel     string       `json:"channel,omitempty"`
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	IconURL     string       `json:"icon_url,omitempty"`
+	Blocks      []block      `json:"blocks,omitempty"`
+	Attachments []attachment `json:"attachments,omitempty"`
 }
 
 type block struct {
@@ -32,8 +32,8 @@ type attachment struct {
 	Fallback string        `json:"fallback,omitempty"`
 	Text     string        `json:"text"`
 	Color    string        `json:"color,omitempty"`
-	Fields   []legacyField `json:"fields,omitempty"`
 	Footer   string        `json:"footer,omitempty"`
+	Fields   []legacyField `json:"fields,omitempty"`
 	Time     int           `json:"ts,omitempty"`
 }
 
@@ -45,12 +45,12 @@ type legacyField struct {
 
 // APIResponse is the default generic response message sent from the API.
 type APIResponse struct {
-	Ok       bool   `json:"ok"`
 	Error    string `json:"error"`
 	Warning  string `json:"warning"`
 	MetaData struct {
 		Warnings []string `json:"warnings"`
 	} `json:"response_metadata"`
+	Ok bool `json:"ok"`
 }
 
 // Constants for Slack API limits.

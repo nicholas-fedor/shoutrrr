@@ -17,15 +17,15 @@ import (
 
 // Generator facilitates Telegram-specific URL generation via user interaction.
 type Generator struct {
+	Reader     io.Reader
+	Writer     io.Writer
 	userDialog *generator.UserDialog
 	client     *Client
+	botName    string
 	chats      []string
 	chatNames  []string
 	chatTypes  []string
 	done       bool
-	botName    string
-	Reader     io.Reader
-	Writer     io.Writer
 }
 
 // UpdatesLimit defines the number of updates to retrieve per API call.

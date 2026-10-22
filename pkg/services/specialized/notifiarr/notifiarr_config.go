@@ -15,6 +15,9 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
+	// Custom query parameters from webhook URL
+	webhookQuery url.Values
+
 	// The API key for Notifiarr authentication
 	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true"`
 	// Optional name of the app/script for notifications
@@ -27,8 +30,6 @@ type Config struct {
 	Image string `desc:"Image URL for Discord notifications" key:"image" optional:""`
 	// Optional color for Discord notifications
 	Color string `desc:"Color for Discord notifications" key:"color" optional:""`
-	// Custom query parameters from webhook URL
-	webhookQuery url.Values
 }
 
 // Scheme identifies this service in configuration URLs.

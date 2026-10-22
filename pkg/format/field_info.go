@@ -12,18 +12,18 @@ import (
 
 // FieldInfo is the meta data about a config field.
 type FieldInfo struct {
-	Name          string
 	Type          reflect.Type
 	EnumFormatter types.EnumFormatter
+	Name          string
 	Description   string
 	DefaultValue  string
 	Template      string
-	Required      bool
 	URLParts      []URLPart
-	Title         bool
-	Base          int
 	Keys          []string
+	Base          int
 	ItemSeparator rune
+	Required      bool
+	Title         bool
 }
 
 // DefaultBase represents the default numeric base (decimal) for fields.

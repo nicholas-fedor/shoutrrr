@@ -12,9 +12,9 @@ import (
 // Config holds settings for the Join notification service.
 type Config struct {
 	APIKey  string   `url:"pass"`
-	Devices []string `desc:"Comma separated list of device IDs" key:"devices"`
 	Title   string   `desc:"If set creates a notification"      key:"title"   optional:""`
 	Icon    string   `desc:"Icon URL"                           key:"icon"    optional:""`
+	Devices []string `desc:"Comma separated list of device IDs" key:"devices"`
 }
 
 // Scheme identifies this service in configuration URLs.

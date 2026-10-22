@@ -18,16 +18,16 @@ import (
 
 // ServiceRouter is responsible for routing a message to a specific notification service using the notification URL.
 type ServiceRouter struct {
-	logger   types.StdLogger
-	services []types.Service
-	queue    []string
+	logger     types.StdLogger
+	httpClient types.HTTPClient
+	//nolint:containedctx // Intentional: router derives per-service timeout contexts from this base.
+	ctx         context.Context
+	dialContext types.DialContextFunc
+	services    []types.Service
+	queue       []string
 	// Timeout, when positive, is the exact fixed timeout for every service.
 	// Zero uses each service's own budget, with [DefaultTimeout] as the floor.
-	Timeout     time.Duration
-	httpClient  types.HTTPClient
-	dialContext types.DialContextFunc
-	//nolint:containedctx // Intentional: router derives per-service timeout contexts from this base.
-	ctx context.Context
+	Timeout time.Duration
 }
 
 // DefaultTimeout is the send budget used when a service does not report a longer one.

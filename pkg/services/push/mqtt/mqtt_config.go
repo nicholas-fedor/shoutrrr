@@ -19,10 +19,6 @@ type Config struct {
 	// Default: "localhost"
 	Host string `default:"localhost" desc:"MQTT broker hostname" url:"host"`
 
-	// Port is the MQTT broker port number.
-	// Default: 1883 (standard MQTT), 8883 (MQTT over TLS)
-	Port int `default:"1883" desc:"MQTT broker port" url:"port"`
-
 	// Topic is the MQTT topic path to publish messages to.
 	// This is a required field and must be provided in the URL path.
 	// Example: "notifications/alerts" for topic notifications/alerts
@@ -43,6 +39,14 @@ type Config struct {
 	// to the same broker.
 	// Default: "shoutrrr"
 	ClientID string `default:"shoutrrr" desc:"MQTT client identifier" key:"clientid"`
+
+	// scheme is the URL scheme the config was parsed from, mqtt or mqtts. It selects
+	// TLS for the connection and is kept by GetURL.
+	scheme string
+
+	// Port is the MQTT broker port number.
+	// Default: 1883 (standard MQTT), 8883 (MQTT over TLS)
+	Port int `default:"1883" desc:"MQTT broker port" url:"port"`
 
 	// QoS (Quality of Service) determines the message delivery guarantee level.
 	// See QoS constants for available levels and their semantics.
@@ -75,10 +79,6 @@ type Config struct {
 	// Only use for testing or with self-signed certificates in trusted environments.
 	// Default: false (verification enabled)
 	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
-
-	// scheme is the URL scheme the config was parsed from, mqtt or mqtts. It selects
-	// TLS for the connection and is kept by GetURL.
-	scheme string
 }
 
 // QoS represents the Quality of Service (QoS) level for MQTT message delivery.
@@ -88,14 +88,14 @@ type QoS int
 // qosVals holds the QoS enum value constants and formatter.
 // This struct enables type-safe QoS value handling with flexible parsing.
 type qosVals struct {
+	// Enum provides parsing and formatting for QoS values.
+	Enum types.EnumFormatter
 	// AtMostOnce is the fire-and-forget QoS level (0).
 	AtMostOnce QoS
 	// AtLeastOnce is the acknowledged delivery QoS level (1).
 	AtLeastOnce QoS
 	// ExactlyOnce is the guaranteed delivery QoS level (2).
 	ExactlyOnce QoS
-	// Enum provides parsing and formatting for QoS values.
-	Enum types.EnumFormatter
 }
 
 // Scheme identifies the URL scheme for MQTT service URLs.

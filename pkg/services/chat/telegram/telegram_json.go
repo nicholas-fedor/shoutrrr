@@ -9,54 +9,50 @@ import (
 
 // SendMessagePayload is the notification payload for the telegram notification service.
 type SendMessagePayload struct {
+	MessageThreadID     *int         `json:"message_thread_id,omitempty"`
+	ReplyMarkup         *replyMarkup `json:"reply_markup,omitempty"`
 	Text                string       `json:"text"`
 	ID                  string       `json:"chat_id"`
-	MessageThreadID     *int         `json:"message_thread_id,omitempty"`
 	ParseMode           string       `json:"parse_mode,omitempty"`
-	DisablePreview      bool         `json:"disable_web_page_preview"`
-	DisableNotification bool         `json:"disable_notification"`
-	ReplyMarkup         *replyMarkup `json:"reply_markup,omitempty"`
 	Entities            []entity     `json:"entities,omitempty"`
 	ReplyTo             int64        `json:"reply_to_message_id"`
 	MessageID           int64        `json:"message_id,omitempty"`
+	DisablePreview      bool         `json:"disable_web_page_preview"`
+	DisableNotification bool         `json:"disable_notification"`
 }
 
 // Message represents one chat message.
 type Message struct {
-	MessageID int64  `json:"message_id"`
-	Text      string `json:"text"`
 	From      *User  `json:"from"`
 	Chat      *Chat  `json:"chat"`
+	Text      string `json:"text"`
+	MessageID int64  `json:"message_id"`
 }
 
 type messageResponse struct {
-	OK     bool     `json:"ok"`
-	Result *Message `json:"result"`
+	Result      *Message `json:"result"`
+	Description string   `json:"description"`
 	// ErrorCode and Description describe the failure when OK is false.
-	ErrorCode   int    `json:"error_code"`
-	Description string `json:"description"`
+	ErrorCode int  `json:"error_code"`
+	OK        bool `json:"ok"`
 }
 
 type responseError struct {
-	OK          bool   `json:"ok"`
-	ErrorCode   int    `json:"error_code"`
 	Description string `json:"description"`
+	ErrorCode   int    `json:"error_code"`
+	OK          bool   `json:"ok"`
 }
 
 type userResponse struct {
-	OK     bool `json:"ok"`
-	Result User `json:"result"`
-	// ErrorCode and Description describe the failure when OK is false.
-	ErrorCode   int    `json:"error_code"`
 	Description string `json:"description"`
+	Result      User   `json:"result"`
+	// ErrorCode and Description describe the failure when OK is false.
+	ErrorCode int  `json:"error_code"`
+	OK        bool `json:"ok"`
 }
 
 // User contains information about a telegram user or bot.
 type User struct {
-	//	Unique identifier for this User or bot
-	ID int64 `json:"id"`
-	// True, if this User is a bot
-	IsBot bool `json:"is_bot"`
 	// User's or bot's first name
 	FirstName string `json:"first_name"`
 	//	Optional. User's or bot's last name
@@ -65,6 +61,10 @@ type User struct {
 	Username string `json:"username"`
 	// Optional. IETF language tag of the User's language
 	LanguageCode string `json:"language_code"`
+	//	Unique identifier for this User or bot
+	ID int64 `json:"id"`
+	// True, if this User is a bot
+	IsBot bool `json:"is_bot"`
 	// 	Optional. True, if the bot can be invited to groups. Returned only in getMe.
 	CanJoinGroups bool `json:"can_join_groups"`
 	// 	Optional. True, if privacy mode is disabled for the bot. Returned only in getMe.
@@ -74,39 +74,35 @@ type User struct {
 }
 
 type updatesRequest struct {
+	AllowedUpdates []string `json:"allowed_updates"`
 	Offset         int      `json:"offset"`
 	Limit          int      `json:"limit"`
 	Timeout        int      `json:"timeout"`
-	AllowedUpdates []string `json:"allowed_updates"`
 }
 
 type updatesResponse struct {
-	OK     bool     `json:"ok"`
-	Result []Update `json:"result"`
+	Description string   `json:"description"`
+	Result      []Update `json:"result"`
 	// ErrorCode and Description describe the failure when OK is false.
-	ErrorCode   int    `json:"error_code"`
-	Description string `json:"description"`
+	ErrorCode int  `json:"error_code"`
+	OK        bool `json:"ok"`
 }
 
 type inlineQuery struct {
 	// Unique identifier for this query
 	ID string `json:"id"`
-	// Sender
-	From User `json:"from"`
 	// Text of the query (up to 256 characters)
 	Query string `json:"query"`
 	// Offset of the results to be returned, can be controlled by the bot
 	Offset string `json:"offset"`
+	// Sender
+	From User `json:"from"`
 }
 
 type chosenInlineResult struct{}
 
 // Update contains state changes since the previous Update.
 type Update struct {
-	// 	The Update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This ID becomes especially handy if you're using Webhooks, since it allows
-	// you to ignore repeated updates or to restore the correct Update sequence, should they get out of order. If there are no new updates for at least a week, then identifier of the next Update will
-	// be chosen randomly instead of sequentially.
-	UpdateID int `json:"update_id"`
 	// 	Optional. New incoming Message of any kind — text, photo, sticker, etc.
 	Message *Message `json:"Message"`
 	// 	Optional. New version of a Message that is known to the bot and was edited
@@ -135,14 +131,18 @@ type Update struct {
 	// Poll_answer	PollAnswer `json:"poll_answer"`
 
 	ChatMemberUpdate *ChatMemberUpdate `json:"my_chat_member"`
+	// 	The Update's unique identifier. Update identifiers start from a certain positive number and increase sequentially. This ID becomes especially handy if you're using Webhooks, since it allows
+	// you to ignore repeated updates or to restore the correct Update sequence, should they get out of order. If there are no new updates for at least a week, then identifier of the next Update will
+	// be chosen randomly instead of sequentially.
+	UpdateID int `json:"update_id"`
 }
 
 // Chat represents a telegram conversation.
 type Chat struct {
-	ID       int64  `json:"id"`
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	Username string `json:"username"`
+	ID       int64  `json:"id"`
 }
 
 type inlineKey struct {
@@ -177,22 +177,22 @@ type ChatMemberUpdate struct {
 	Chat *Chat `json:"chat"`
 	// Performer of the action, which resulted in the change
 	From *User `json:"from"`
-	// Date the change was done in Unix time
-	Date int `json:"date"`
 	// Previous information about the chat member
 	OldChatMember *ChatMember `json:"old_chat_member"`
 	// New information about the chat member
 	NewChatMember *ChatMember `json:"new_chat_member"`
 	// Optional. Chat invite link, which was used by the user to join the chat; for joining by invite link events only.
 	// invite_link ChatInviteLink
+	// Date the change was done in Unix time
+	Date int `json:"date"`
 }
 
 // ChatMember represents the membership state for a user in a telegram chat.
 type ChatMember struct {
-	//	The member's status in the chat
-	Status string `json:"status"`
 	// Information about the user
 	User *User `json:"user"`
+	//	The member's status in the chat
+	Status string `json:"status"`
 }
 
 func (e *responseError) Error() string {

@@ -15,7 +15,6 @@ import (
 type Config struct {
 	IntegrationKey string `desc:"The PagerDuty API integration key"                                                      url:"path"`
 	Host           string `default:"events.pagerduty.com"                                                                desc:"The PagerDuty API host."                                                                      url:"host"`
-	Port           uint16 `default:"443"                                                                                 desc:"The PagerDuty API port."                                                                      url:"port"`
 	Severity       string `default:"error"                                                                               desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
 	Source         string `default:"default"                                                                             desc:"The unique location of the affected system, preferably a hostname or FQDN; required"          key:"source"`
 	Action         string `default:"trigger"                                                                             desc:"The type of event (trigger, acknowledge, or resolve)"                                         key:"action"`
@@ -24,6 +23,7 @@ type Config struct {
 	Contexts       string `desc:"Additional context links or images"                                                     key:"contexts"`
 	Client         string `desc:"The name of the monitoring client that is triggering this event"                        key:"client"`
 	ClientURL      string `desc:"The URL of the monitoring client that is triggering this event"                         key:"client_url"`
+	Port           uint16 `default:"443"                                                                                 desc:"The PagerDuty API port."                                                                      url:"port"`
 }
 
 const (

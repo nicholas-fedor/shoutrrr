@@ -25,9 +25,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // Constants for the Lark service configuration and limits.

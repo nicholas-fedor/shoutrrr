@@ -25,12 +25,13 @@ type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
 
+	// httpClient is the HTTP client used for REST API requests.
+	httpClient types.HTTPClient
+
 	// Config holds Home Assistant credentials and notification options.
 	Config *Config
 	// pkr resolves property keys for configuration updates from URL parameters.
 	pkr format.PropKeyResolver
-	// httpClient is the HTTP client used for REST API requests.
-	httpClient types.HTTPClient
 }
 
 // requestPayload is the JSON body posted to /api/services/{domain}/{service}.

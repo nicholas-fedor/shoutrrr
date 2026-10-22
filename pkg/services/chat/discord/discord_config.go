@@ -20,6 +20,7 @@ type Config struct {
 	Title      string `default:""    key:"title"`
 	Username   string `default:""    desc:"Override the webhook default username"                                                            key:"username"`
 	Avatar     string `default:""    desc:"Override the webhook default avatar with specified URL"                                           key:"avatar,avatarurl"`
+	ThreadID   string `default:""    desc:"The thread ID to send the message to"                                                             key:"thread_id"`
 	Color      uint   `base:"16"     default:"0x50D9ff"                                                                                      desc:"The color of the left border for plain messages"   key:"color"`
 	ColorError uint   `base:"16"     default:"0xd60510"                                                                                      desc:"The color of the left border for error messages"   key:"colorError"`
 	ColorWarn  uint   `base:"16"     default:"0xffc441"                                                                                      desc:"The color of the left border for warning messages" key:"colorWarn"`
@@ -27,7 +28,6 @@ type Config struct {
 	ColorDebug uint   `base:"16"     default:"0x7b00ab"                                                                                      desc:"The color of the left border for debug messages"   key:"colorDebug"`
 	SplitLines bool   `default:"Yes" desc:"Whether to send each line as a separate embedded item"                                            key:"splitLines"`
 	JSON       bool   `default:"No"  desc:"Whether to send the whole message as the JSON payload instead of using it as the 'content' field" key:"json"`
-	ThreadID   string `default:""    desc:"The thread ID to send the message to"                                                             key:"thread_id"`
 }
 
 // Scheme defines the protocol identifier for this service's configuration URL.

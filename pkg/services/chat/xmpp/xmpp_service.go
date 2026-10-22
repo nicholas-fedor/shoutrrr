@@ -20,12 +20,12 @@ type Service struct {
 
 	// Config holds the parsed XMPP service settings.
 	Config *Config
-	// pkr applies URL query keys and Send params onto Config.
-	pkr format.PropKeyResolver
 	// dialContext, when set, is used instead of [net.Dialer] for the TCP dial.
 	dialContext types.DialContextFunc
 	// newSession constructs the XMPP session after the TCP dial succeeds.
 	newSession SessionFactory
+	// pkr applies URL query keys and Send params onto Config.
+	pkr format.PropKeyResolver
 }
 
 // defaultTimeout bounds dial, session negotiation, and send.

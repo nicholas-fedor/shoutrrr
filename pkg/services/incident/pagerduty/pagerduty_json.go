@@ -4,6 +4,11 @@ package pagerduty
 //
 // See: https://developer.pagerduty.com/docs/events-api-v2-overview
 type EventPayload struct {
+	// Details is not sent.
+	//
+	// Deprecated: Use [Payload.CustomDetails]. The Events API v2 has no
+	// top-level details field.
+	Details any `json:"-"`
 	// Payload contains the core incident information including summary, severity, and source.
 	Payload Payload `json:"payload"`
 	// RoutingKey is the integration key used to route the event to the correct PagerDuty service.
@@ -12,11 +17,10 @@ type EventPayload struct {
 	EventAction string `json:"event_action"`
 	// DedupKey is a unique key used for incident deduplication. If not provided, PagerDuty will auto-generate one.
 	DedupKey string `json:"dedup_key,omitempty"`
-	// Details is not sent.
-	//
-	// Deprecated: Use [Payload.CustomDetails]. The Events API v2 has no
-	// top-level details field.
-	Details any `json:"-"`
+	// Client identifies the monitoring client or integration sending the event.
+	Client string `json:"client,omitempty"`
+	// ClientURL is a link to the monitoring client or integration dashboard.
+	ClientURL string `json:"client_url,omitempty"`
 	// Contexts is not sent.
 	//
 	// Deprecated: Use [EventPayload.Links] and [EventPayload.Images]. The Events
@@ -26,10 +30,6 @@ type EventPayload struct {
 	Links []Link `json:"links,omitempty"`
 	// Images are images attached to the incident.
 	Images []Image `json:"images,omitempty"`
-	// Client identifies the monitoring client or integration sending the event.
-	Client string `json:"client,omitempty"`
-	// ClientURL is a link to the monitoring client or integration dashboard.
-	ClientURL string `json:"client_url,omitempty"`
 }
 
 // Payload contains the core information about the incident or event being reported.

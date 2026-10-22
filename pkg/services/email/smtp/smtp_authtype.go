@@ -10,6 +10,8 @@ type authType int
 
 // authTypeVals holds named authentication methods and their enum formatter.
 type authTypeVals struct {
+	// Enum formats and parses authentication method values.
+	Enum types.EnumFormatter
 	// None disables SMTP authentication.
 	None authType
 	// Plain uses AUTH PLAIN.
@@ -22,8 +24,6 @@ type authTypeVals struct {
 	OAuth2 authType
 	// Login uses SASL LOGIN. See [newLoginAuth].
 	Login authType
-	// Enum formats and parses authentication method values.
-	Enum types.EnumFormatter
 }
 
 const (

@@ -38,9 +38,9 @@ type ContextClient interface {
 
 // Error contains additional HTTP/JSON details.
 type Error struct {
-	StatusCode int
-	Body       string
 	err        error
+	Body       string
+	StatusCode int
 }
 
 // client wraps an HTTP client for JSON operations.

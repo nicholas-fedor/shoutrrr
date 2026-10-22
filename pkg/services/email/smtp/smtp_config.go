@@ -23,32 +23,32 @@ type Config struct {
 	Username string `default:"" desc:"SMTP server username" url:"User"`
 	// Password is the SMTP server password, or an OAuth2 access token when Auth is [AuthOAuth2].
 	Password string `default:"" desc:"SMTP server password or hash (for OAuth2)" url:"Pass"`
-	// Port is the SMTP server port. Common values are 25, 465, 587, and 2525.
-	Port uint16 `default:"25" desc:"SMTP server port, common ones are 25, 465, 587 or 2525" url:"Port"`
 	// FromAddress is the sender e-mail address.
 	FromAddress string `desc:"E-mail address that the mail are sent from" key:"fromaddress,from"`
 	// FromName is the sender display name.
 	FromName string `desc:"Name of the sender" key:"fromname" optional:"yes"`
-	// ToAddresses is the list of recipient e-mail addresses.
-	ToAddresses []string `desc:"List of recipient e-mails" key:"toaddresses,to"`
 	// Subject is the e-mail subject. It is empty when omitted.
 	Subject string `default:"" desc:"The subject of the sent mail" key:"subject,title"`
+	// ClientHost is the hostname sent in the SMTP EHLO/HELO handshake.
+	ClientHost string `default:"localhost" desc:"SMTP client hostname" key:"clienthost"`
+	// ToAddresses is the list of recipient e-mail addresses.
+	ToAddresses []string `desc:"List of recipient e-mails" key:"toaddresses,to"`
 	// Auth is the SMTP authentication method. See [AuthTypes].
 	Auth authType `default:"Unknown" desc:"SMTP authentication method" key:"auth"`
 	// Encryption is the SMTP transport encryption method. See [EncMethods].
 	Encryption encMethod `default:"Auto" desc:"Encryption method" key:"encryption"`
+	// Timeout is the timeout for the SMTP connection and session.
+	Timeout time.Duration `default:"10s" desc:"Timeout for the SMTP connection and session" key:"timeout"`
+	// Port is the SMTP server port. Common values are 25, 465, 587, and 2525.
+	Port uint16 `default:"25" desc:"SMTP server port, common ones are 25, 465, 587 or 2525" url:"Port"`
 	// UseStartTLS controls whether STARTTLS is attempted on non-implicit-TLS connections.
 	UseStartTLS bool `default:"Yes" desc:"Whether to use StartTLS encryption" key:"usestarttls,starttls"`
 	// UseHTML sends the message as multipart/alternative with an HTML part when true.
 	UseHTML bool `default:"No" desc:"Whether the message being sent is in HTML" key:"usehtml"`
-	// ClientHost is the hostname sent in the SMTP EHLO/HELO handshake.
-	ClientHost string `default:"localhost" desc:"SMTP client hostname" key:"clienthost"`
 	// RequireStartTLS fails the send when STARTTLS is enabled but unsupported.
 	RequireStartTLS bool `default:"No" desc:"Fail if StartTLS is enabled but unsupported" key:"requirestarttls"`
 	// SkipTLSVerify skips TLS certificate verification when true.
 	SkipTLSVerify bool `default:"No" desc:"Whether to skip TLS certificate verification" key:"skiptlsverify"`
-	// Timeout is the timeout for the SMTP connection and session.
-	Timeout time.Duration `default:"10s" desc:"Timeout for the SMTP connection and session" key:"timeout"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

@@ -21,9 +21,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // Send params that override URL fields. The config resolver does not accept

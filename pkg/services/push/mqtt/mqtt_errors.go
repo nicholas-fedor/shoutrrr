@@ -9,10 +9,10 @@ import (
 // MQTT v5 reason codes >= 0x80 indicate failures, while codes < 0x80 indicate
 // success or non-fatal conditions that should be logged but not treated as errors.
 type PublishError struct {
-	// ReasonCode is the MQTT v5 reason code returned by the broker.
-	ReasonCode byte
 	// ReasonString is the optional human-readable reason description from the broker.
 	ReasonString string
+	// ReasonCode is the MQTT v5 reason code returned by the broker.
+	ReasonCode byte
 }
 
 // reasonCodeFailureThreshold is the threshold at which MQTT v5 reason codes

@@ -28,9 +28,10 @@ type defaultHTTPClient struct {
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.

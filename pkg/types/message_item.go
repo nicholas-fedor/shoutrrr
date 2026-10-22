@@ -16,11 +16,11 @@ type File struct {
 
 // MessageItem is an entry in a notification being sent by a service.
 type MessageItem struct {
-	Text      string
 	Timestamp time.Time
-	Level     MessageLevel
-	Fields    []Field
 	File      *File
+	Text      string
+	Fields    []Field
+	Level     MessageLevel
 }
 
 const (

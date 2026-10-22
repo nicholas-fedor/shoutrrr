@@ -19,10 +19,11 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
-	Client     *http.Client
 	httpClient types.HTTPClient
+
+	Config *Config
+	Client *http.Client
+	pkr    format.PropKeyResolver
 }
 
 // hookURL is the Pushover API endpoint for sending messages.

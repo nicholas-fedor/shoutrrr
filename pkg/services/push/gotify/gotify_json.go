@@ -9,15 +9,16 @@ import (
 // This struct represents the JSON request body sent to the Gotify message endpoint,
 // containing all notification data including message content, metadata, and custom extras.
 type MessageRequest struct {
-	Message  string         `json:"message"`  // The main notification message text content
-	Title    string         `json:"title"`    // Notification title displayed in the Gotify interface
-	Priority int            `json:"priority"` // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients
-	Extras   map[string]any `json:"extras"`   // Additional custom key-value pairs for extended functionality
+	Extras map[string]any `json:"extras"` // Additional custom key-value pairs for extended functionality
 
 	// Date is not sent.
 	//
 	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
 	Date *string `json:"date,omitempty"`
+
+	Message  string `json:"message"`  // The main notification message text content
+	Title    string `json:"title"`    // Notification title displayed in the Gotify interface
+	Priority int    `json:"priority"` // Priority level (-2-10) affecting notification behavior; negative values have special meanings in some clients
 
 	// omitPriority leaves the priority out of the JSON body, so Gotify applies
 	// the application's default priority.
@@ -28,13 +29,13 @@ type MessageRequest struct {
 // This struct captures the server's confirmation of message acceptance,
 // including the assigned ID and metadata about the created notification.
 type messageResponse struct {
+	Extras   map[string]any `json:"extras"`   // Echo of any extras sent with the message
 	Message  string         `json:"message"`  // Echo of the sent message content
 	Title    string         `json:"title"`    // Echo of the notification title
+	Date     string         `json:"date"`     // ISO 8601 timestamp of when the message was created
 	Priority int            `json:"priority"` // Echo of the priority level set
-	Extras   map[string]any `json:"extras"`   // Echo of any extras sent with the message
 	ID       uint64         `json:"id"`       // Unique identifier assigned by Gotify to this message
 	AppID    uint64         `json:"appid"`    // Application ID that sent the message
-	Date     string         `json:"date"`     // ISO 8601 timestamp of when the message was created
 }
 
 // responseError represents an error response from the Gotify API.
@@ -42,8 +43,8 @@ type messageResponse struct {
 // when a request fails, providing detailed error context.
 type responseError struct {
 	Name        string `json:"error"`            // Error name/type identifier
-	Code        uint64 `json:"errorCode"`        // Numeric error code for programmatic handling
 	Description string `json:"errorDescription"` // Human-readable error description
+	Code        uint64 `json:"errorCode"`        // Numeric error code for programmatic handling
 }
 
 // Error implements the error interface for responseError.

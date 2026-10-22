@@ -8,11 +8,11 @@ import (
 type parseMode int
 
 type parseModeVals struct {
+	Enum       types.EnumFormatter
 	None       parseMode
 	Markdown   parseMode
 	HTML       parseMode
 	MarkdownV2 parseMode
-	Enum       types.EnumFormatter
 }
 
 const (

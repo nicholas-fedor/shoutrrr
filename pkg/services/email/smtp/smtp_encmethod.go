@@ -10,6 +10,8 @@ type encMethod int
 
 // encMethodVals holds named encryption methods and their enum formatter.
 type encMethodVals struct {
+	// Enum formats and parses encryption method values.
+	Enum types.EnumFormatter
 	// None means no encryption.
 	None encMethod
 	// ExplicitTLS means that TLS is initiated with STARTTLS.
@@ -18,8 +20,6 @@ type encMethodVals struct {
 	ImplicitTLS encMethod
 	// Auto means implicit TLS on port [ImplicitTLSPort], otherwise explicit TLS when supported.
 	Auto encMethod
-	// Enum formats and parses encryption method values.
-	Enum types.EnumFormatter
 }
 
 const (

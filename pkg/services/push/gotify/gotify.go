@@ -20,11 +20,8 @@ import (
 type Service struct {
 	standard.Standard // Embeds the standard service functionality including logging
 
-	Config     *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
-	pkr        format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
-	mu         sync.Mutex             // Protects HTTP client initialization for thread safety
-	httpClient types.HTTPClient       // HTTP client instance configured with appropriate timeout and transport settings for API calls
-	client     jsonclient.Client      // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
+	httpClient types.HTTPClient  // HTTP client instance configured with appropriate timeout and transport settings for API calls
+	client     jsonclient.Client // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
 
 	// Interface dependencies (injected during initialization)
 	httpClientManager HTTPClientManager
@@ -32,6 +29,10 @@ type Service struct {
 	payloadBuilder    PayloadBuilder
 	validator         Validator
 	sender            contextSender
+
+	Config *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
+	pkr    format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
+	mu     sync.Mutex             // Protects HTTP client initialization for thread safety
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.

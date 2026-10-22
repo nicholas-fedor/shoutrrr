@@ -14,22 +14,20 @@ import (
 
 // Config holds configuration settings for color output.
 type Config struct {
+	// Output is the default io.Writer used by print functions for colorized output.
+	Output io.Writer
+	// Error is the default io.Writer used for error output with color support.
+	Error io.Writer
 	// NoColor controls whether color output is disabled.
 	// When true, all color formatting is stripped from output.
 	NoColor bool
-
-	// Output is the default io.Writer used by print functions for colorized output.
-	Output io.Writer
-
-	// Error is the default io.Writer used for error output with color support.
-	Error io.Writer
 }
 
 // Color represents a color with ANSI SGR parameters.
 type Color struct {
-	params  []Attribute
 	noColor *bool   // Instance-level override
 	config  *Config // Reference to config (can be shared)
+	params  []Attribute
 }
 
 // stdoutFd is the file descriptor for stdout, safely converted.

@@ -10,6 +10,8 @@ type notificationType int
 
 // notificationTypeVals holds the named severity values and their enum formatter.
 type notificationTypeVals struct {
+	// Enum formats and parses notification type values.
+	Enum types.EnumFormatter
 	// INFO is an informational event.
 	INFO notificationType
 	// WARN is a warning that may require attention.
@@ -18,8 +20,6 @@ type notificationTypeVals struct {
 	SUCCESS notificationType
 	// CRIT is a critical incident such as an outage.
 	CRIT notificationType
-	// Enum formats and parses notification type values.
-	Enum types.EnumFormatter
 }
 
 const (

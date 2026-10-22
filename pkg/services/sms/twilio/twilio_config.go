@@ -16,8 +16,8 @@ type Config struct {
 	AccountSID string   `desc:"Twilio Account SID"                           required:""               url:"user"`
 	AuthToken  string   `desc:"Twilio Auth Token"                            required:""               url:"password"`
 	FromNumber string   `desc:"Sender phone number or Messaging Service SID" required:""               url:"host"`
-	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:""               url:"path"`
 	Title      string   `default:""                                          desc:"Notification title" key:"title"    optional:""`
+	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:""               url:"path"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

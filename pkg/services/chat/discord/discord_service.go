@@ -21,10 +21,11 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
 	Sleeper    Sleeper
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 const (

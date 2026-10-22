@@ -19,10 +19,10 @@ type Service struct {
 
 	// Config holds SMTP server, authentication, and message options.
 	Config *Config
-	// propKeyResolver applies URL and send-parameter overrides to [Config].
-	propKeyResolver format.PropKeyResolver
 	// dialContext, if non-nil, is used for the SMTP TCP dial.
 	dialContext types.DialContextFunc
+	// propKeyResolver applies URL and send-parameter overrides to [Config].
+	propKeyResolver format.PropKeyResolver
 }
 
 const (

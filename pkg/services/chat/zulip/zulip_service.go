@@ -42,19 +42,20 @@ type registerResponse struct {
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
+
+	Config *Config
+	// limitsDone is closed when the limits request in flight ends, and is nil
+	// when no request is in flight.
+	limitsDone     chan struct{}
+	pkr            format.PropKeyResolver
+	contentMaxSize int
+	topicMaxLength int
 
 	// limitsMu guards limitsFetched, limitsDone, and the limits.
 	limitsMu sync.Mutex
-	// limitsDone is closed when the limits request in flight ends, and is nil
-	// when no request is in flight.
-	limitsDone chan struct{}
 	// limitsFetched is true once the server answered the limits request.
-	limitsFetched  bool
-	contentMaxSize int
-	topicMaxLength int
+	limitsFetched bool
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests to Zulip.

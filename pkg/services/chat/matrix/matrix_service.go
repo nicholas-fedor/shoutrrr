@@ -17,13 +17,14 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	client     *client
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+
+	Config *Config
+	client *client
 	// loginGate holds one token while a send runs the password login, so only one
 	// login runs at a time and waiting sends can give up when their context ends.
 	loginGate chan struct{}
+	pkr       format.PropKeyResolver
 	// loggedIn reports whether the client holds an access token from a password login.
 	loggedIn bool
 }

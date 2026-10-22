@@ -17,9 +17,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	HTTPClient HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.

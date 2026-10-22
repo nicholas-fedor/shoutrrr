@@ -10,11 +10,11 @@ import (
 
 // EnumFormatter is the helper methods for enum-like types.
 type EnumFormatter struct {
-	names       []string
-	firstOffset int
-	aliases     map[string]int
+	aliases map[string]int
 	// foldedAliases maps each lowercased alias to its value.
 	foldedAliases map[string]int
+	names         []string
+	firstOffset   int
 }
 
 // EnumInvalid is the constant value that an enum gets assigned when it could not be parsed.

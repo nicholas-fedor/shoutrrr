@@ -19,9 +19,10 @@ import (
 type Service struct {
 	standard.Standard
 
-	Config     *Config
-	pkr        format.PropKeyResolver
 	httpClient types.HTTPClient
+
+	Config *Config
+	pkr    format.PropKeyResolver
 }
 
 // apiURLFormat defines the IFTTT webhook URL template.

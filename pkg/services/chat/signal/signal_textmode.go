@@ -10,14 +10,14 @@ type textMode int
 
 // textModeVals holds named text mode values and their enum formatter.
 type textModeVals struct {
+	// Enum formats and parses text mode values.
+	Enum types.EnumFormatter
 	// None omits text_mode so the server default applies.
 	None textMode
 	// Normal sends text_mode=normal.
 	Normal textMode
 	// Styled sends text_mode=styled.
 	Styled textMode
-	// Enum formats and parses text mode values.
-	Enum types.EnumFormatter
 }
 
 const (

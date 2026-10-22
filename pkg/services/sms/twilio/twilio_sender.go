@@ -20,8 +20,8 @@ type HTTPClient interface {
 
 // apiErrorResponse represents an error response from the Twilio REST API.
 type apiErrorResponse struct {
-	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Code    int    `json:"code"`
 	Status  int    `json:"status"`
 }
 

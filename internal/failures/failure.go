@@ -11,9 +11,9 @@ type FailureID int
 // failure is the concrete implementation of the Failure interface.
 // It wraps an error with a message and an ID for categorization.
 type failure struct {
+	wrapped error     // Underlying error, if any, for chaining
 	message string    // Descriptive message for the error
 	id      FailureID // Unique identifier for this error type
-	wrapped error     // Underlying error, if any, for chaining
 }
 
 // Failure extends the error interface with an ID and methods for unwrapping and comparison.
@@ -26,8 +26,6 @@ type Failure interface {
 }
 
 // Ensure failure implements the error interface at compile time.
-//
-//nolint:errcheck // Compile-time type assertion, not an error check
 var _ error = (*failure)(nil)
 
 // Error returns the failure's message, appending the wrapped error's message if present.
