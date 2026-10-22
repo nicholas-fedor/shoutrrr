@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject service urls with a malformed query by @nicholas-fedor in [#1741](https://github.com/nicholas-fedor/shoutrrr/pull/1741)
 - Clear slice and map keys set from an empty value by @nicholas-fedor in [#1735](https://github.com/nicholas-fedor/shoutrrr/pull/1735)
 - Keep host credentials exact in ifttt, signalgrid, and pushbullet by @nicholas-fedor in [#1733](https://github.com/nicholas-fedor/shoutrrr/pull/1733)
 
