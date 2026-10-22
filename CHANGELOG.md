@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Move json encoding to encoding/json/v2 by @nicholas-fedor in [#1777](https://github.com/nicholas-fedor/shoutrrr/pull/1777)
 - Replace any with concrete types in slack and lark by @nicholas-fedor in [#1775](https://github.com/nicholas-fedor/shoutrrr/pull/1775)
 
 ### Tests
