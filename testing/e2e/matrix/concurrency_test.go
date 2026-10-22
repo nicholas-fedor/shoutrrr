@@ -2,216 +2,144 @@ package e2e_test
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
-	"github.com/nicholas-fedor/shoutrrr/testing/e2e/internal/logger"
 )
 
-var _ = ginkgo.Describe("Matrix Service E2E Concurrency", func() {
-	// TestE2EConcurrentSends tests that multiple messages can be sent concurrently.
-	ginkgo.Describe("Concurrent Sends", func() {
-		ginkgo.It("should send multiple messages concurrently", func() {
-			// Use shared service if available
-			err := getOrInitSharedService()
-			if err != nil {
-				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
-			}
+// TestMatrixConcurrency verifies that the shared service sends concurrent and
+// rapid sequential messages to a real Matrix server, that services initialize
+// concurrently, and that concurrent sends neither collide on transaction IDs
+// nor mostly fail under load.
+//
+//nolint:paralleltest // Sends to a live server, which rate-limits concurrent tests.
+func TestMatrixConcurrency(t *testing.T) {
+	t.Run("multiple messages concurrently", func(t *testing.T) {
+		service := getSharedService(t)
 
-			// Number of concurrent messages to send
-			concurrency := 5
-			errChan := make(chan error, concurrency)
+		const concurrency = 5
 
-			var wg sync.WaitGroup
+		errs := make(chan error, concurrency)
 
-			// Send multiple messages concurrently
-			for i := range concurrency {
-				wg.Add(1)
+		var wg sync.WaitGroup
 
-				go func(idx int) {
-					defer wg.Done()
+		for i := range concurrency {
+			wg.Go(func() {
+				errs <- service.Send(fmt.Sprintf("Concurrent message %d - %d", i, time.Now().UnixNano()), nil)
+			})
+		}
 
-					message := fmt.Sprintf("Concurrent message %d - %d", idx, time.Now().UnixNano())
+		wg.Wait()
+		close(errs)
 
-					err := sharedService.Send(message, nil)
-					errChan <- err
-				}(i)
-			}
+		for err := range errs {
+			assert.NoError(t, err, "every concurrent send must succeed")
+		}
+	})
 
-			// Wait for all goroutines to complete
-			wg.Wait()
-			close(errChan)
+	t.Run("rapid sequential sends", func(t *testing.T) {
+		service := getSharedService(t)
 
-			// Check all sends completed without errors
-			errCount := 0
+		for range 10 {
+			require.NoError(t, service.Send("Rapid send test message", nil))
 
-			for err := range errChan {
-				if err != nil {
-					errCount++
+			time.Sleep(100 * time.Millisecond)
+		}
+	})
+
+	t.Run("concurrent initialization", func(t *testing.T) {
+		parsedURL, err := url.Parse(requireServiceURL(t))
+		require.NoError(t, err)
+
+		const numServices = 3
+
+		var (
+			wg          sync.WaitGroup
+			initialized atomic.Int32
+		)
+
+		logger := log.New(t.Output(), "[Test] ", 0)
+
+		for range numServices {
+			wg.Go(func() {
+				service := &matrix.Service{}
+				if service.Initialize(parsedURL, logger) == nil {
+					initialized.Add(1)
 				}
-			}
+			})
+		}
 
-			// All sends must succeed
-			gomega.Expect(errCount).To(gomega.Equal(0),
-				"Expected all sends to succeed, but some failed")
-		})
+		wg.Wait()
 
-		ginkgo.It("should handle rapid sequential sends without race conditions", func() {
-			err := getOrInitSharedService()
-			if err != nil {
-				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
-			}
+		assert.Positive(t, initialized.Load(), "at least one service must initialize")
+	})
 
-			// Send messages in quick succession
-			// This tests that the service can handle rapid requests
-			numMessages := 10
-			for range numMessages {
-				err := sharedService.Send("Rapid send test message", nil)
-				// All messages must succeed
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	t.Run("unique transaction IDs for each message", func(t *testing.T) {
+		service := getSharedService(t)
 
-				// Small delay between messages
-				time.Sleep(100 * time.Millisecond)
-			}
-		})
+		// Concurrent sends with colliding transaction IDs would be deduplicated
+		// by the server, so every send succeeding shows the IDs are unique.
+		const numMessages = 5
 
-		ginkgo.It("should handle concurrent initialization safely", func() {
-			serviceURL := buildServiceURL()
-			if serviceURL == "" {
-				ginkgo.Skip("Matrix server not configured, skipping test")
-			}
+		var (
+			wg              sync.WaitGroup
+			successfulSends atomic.Int32
+		)
 
-			parsedURL, err := url.Parse(serviceURL)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		for i := range numMessages {
+			wg.Go(func() {
+				uniqueMsg := fmt.Sprintf("Race condition test - unique ID: %d-%d", i, time.Now().UnixNano())
+				if service.Send(uniqueMsg, nil) == nil {
+					successfulSends.Add(1)
+				}
+			})
+		}
 
-			// Create multiple services concurrently
-			numServices := 3
+		wg.Wait()
 
-			var wg sync.WaitGroup
+		assert.Equal(t, int32(numMessages), successfulSends.Load(), "every message must be sent")
+	})
 
-			serviceChan := make(chan *matrix.Service, numServices)
-			errChan := make(chan error, numServices)
+	t.Run("many goroutines sending concurrently", func(t *testing.T) {
+		service := getSharedService(t)
 
-			for range numServices {
+		const (
+			numGoroutines = 10
+			numIterations = 3
+		)
+
+		var (
+			wg         sync.WaitGroup
+			errorCount atomic.Int32
+		)
+
+		for iteration := range numIterations {
+			for i := range numGoroutines {
 				wg.Go(func() {
-					service := &matrix.Service{}
-
-					err := service.Initialize(parsedURL, logger.New())
-					serviceChan <- service
-
-					errChan <- err
+					message := fmt.Sprintf("Stress test - goroutine %d iteration %d", i, iteration)
+					if service.Send(message, nil) != nil {
+						errorCount.Add(1)
+					}
 				})
 			}
 
-			wg.Wait()
-			close(serviceChan)
-			close(errChan)
+			time.Sleep(200 * time.Millisecond)
+		}
 
-			// Collect results
-			var successCount int
+		wg.Wait()
 
-			for svc := range serviceChan {
-				if svc != nil {
-					successCount++
-				}
-			}
+		totalAttempts := numGoroutines * numIterations
+		successCount := totalAttempts - int(errorCount.Load())
 
-			// Some may succeed, some may fail due to session conflicts
-			// At least one should succeed
-			gomega.Expect(successCount).To(gomega.BeNumerically(">", 0),
-				"Expected at least one service to initialize successfully")
-		})
+		// Half the sends is a conservative floor under concurrent load.
+		assert.GreaterOrEqual(t, successCount, totalAttempts/2, "at least 50% of sends must succeed")
 	})
-
-	// TestE2ERaceConditionPrevention tests that transaction IDs prevent duplicate messages.
-	ginkgo.Describe("Race Condition Prevention", func() {
-		ginkgo.It("should generate unique transaction IDs for each message", func() {
-			// Test the transaction ID generation by looking at the internal behavior
-			// We verify that rapid sends don't result in duplicate transaction IDs
-			// which could cause message duplication on the Matrix server
-			err := getOrInitSharedService()
-			if err != nil {
-				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
-			}
-
-			// Track transaction IDs indirectly by checking for duplicates in error messages
-			// or by verifying all messages are delivered
-			numMessages := 5
-
-			var successfulSends atomic.Int32
-
-			// Send messages with unique identifiers
-			var wg sync.WaitGroup
-			for i := range numMessages {
-				wg.Add(1)
-
-				go func(idx int) {
-					defer wg.Done()
-					// Each message has a unique identifier in the content
-					uniqueMsg := fmt.Sprintf("Race condition test - unique ID: %d-%d", idx, time.Now().UnixNano())
-
-					err := sharedService.Send(uniqueMsg, nil)
-					if err == nil {
-						successfulSends.Add(1)
-					}
-				}(i)
-			}
-
-			wg.Wait()
-
-			// All messages should succeed
-			gomega.Expect(successfulSends.Load()).To(gomega.Equal(int32(numMessages)),
-				"Expected all messages to be sent successfully")
-		})
-
-		ginkgo.It("should handle multiple goroutines accessing service concurrently", func() {
-			// This is a stress test to ensure thread-safety
-			err := getOrInitSharedService()
-			if err != nil {
-				ginkgo.Skip(fmt.Sprintf("Cannot initialize shared service: %v", err))
-			}
-
-			numGoroutines := 10
-			numIterations := 3
-
-			var wg sync.WaitGroup
-
-			errorCount := &atomic.Int32{}
-
-			for iteration := range numIterations {
-				for i := range numGoroutines {
-					wg.Add(1)
-
-					go func(goroutineID, iterID int) {
-						defer wg.Done()
-
-						message := fmt.Sprintf("Stress test - goroutine %d iteration %d", goroutineID, iterID)
-
-						err := sharedService.Send(message, nil)
-						if err != nil {
-							errorCount.Add(1)
-						}
-					}(i, iteration)
-				}
-				// Small delay between iterations
-				time.Sleep(200 * time.Millisecond)
-			}
-
-			wg.Wait()
-
-			// Calculate success rate
-			totalAttempts := numGoroutines * numIterations
-			successCount := totalAttempts - int(errorCount.Load())
-
-			// At least 50% should succeed (conservative under concurrent load)
-			gomega.Expect(successCount).To(gomega.BeNumerically(">=", totalAttempts/2),
-				"Expected at least 50% success rate under concurrent load")
-		})
-	})
-})
+}

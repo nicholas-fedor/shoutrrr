@@ -249,23 +249,23 @@ Run all e2e tests:
 go test ./testing/e2e/mqtt/ -v
 ```
 
-Run specific test files:
+Run one group of tests:
 
 ```bash
 # Test basic functionality
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="basic"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTBasic
 
 # Test QoS levels
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="QoS"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTQoS
 
 # Test authentication
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="Authentication"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTAuthentication
 
 # Test TLS connections
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="TLS"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTTLS
 
 # Test topics
-go test ./testing/e2e/mqtt/ -v -args -ginkgo.focus="Topic"
+go test ./testing/e2e/mqtt/ -v -run TestMQTTTopics
 ```
 
 ### Test Behavior
