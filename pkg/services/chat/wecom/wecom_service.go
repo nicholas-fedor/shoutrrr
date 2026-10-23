@@ -21,26 +21,39 @@ import (
 
 // Service sends notifications to WeCom.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for the package default.
 	httpClient types.HTTPClient
 
+	// Config holds the webhook key and the mention lists.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // Constants for the WeCom service configuration and limits.
 const (
-	apiURL      = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=%s"
-	maxLength   = 4096 // Maximum message length in bytes
+	// apiURL is the webhook endpoint, formatted with the webhook key.
+	apiURL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=%s"
+	// maxLength is the most bytes a message can hold.
+	maxLength = 4096
+	// defaultTime bounds each request of the default client and is the send
+	// budget the router gives WeCom.
 	defaultTime = 30 * time.Second
 )
 
 // Error variables for the WeCom service.
 var (
+	// ErrLargeMessage indicates a message longer than [maxLength] bytes.
 	ErrLargeMessage = fmt.Errorf("message exceeds the max length of %d bytes", maxLength)
-	ErrSendFailed   = errors.New("failed to send notification to WeCom")
-	ErrKeyRequired  = errors.New("webhook key is required")
+	// ErrSendFailed indicates a failed request or an error the WeCom API
+	// reported.
+	ErrSendFailed = errors.New("failed to send notification to WeCom")
+	// ErrKeyRequired indicates a send whose params leave the webhook key
+	// empty.
+	ErrKeyRequired = errors.New("webhook key is required")
 )
 
 // httpClient is the fallback default client (used only when no custom client is set).
@@ -55,11 +68,22 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrEmptyKey] or
+//     [ErrInvalidKey].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -116,6 +140,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout returns the HTTP timeout used for a WeCom send.
+//
+// Returns:
+//   - time.Duration: [defaultTime], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultTime
 }
@@ -238,6 +265,10 @@ func (s *Service) handleResponse(resp *http.Response) error {
 }
 
 // httpClientOrDefault returns the custom client or the package default.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or the package default client
+//     with [defaultTime].
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient
@@ -247,6 +278,15 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 }
 
 // preparePayload constructs and marshals the request payload for the WeCom API.
+//
+// Parameters:
+//   - message: the message to send.
+//   - config: the configuration for this send, with the mention lists.
+//   - params: the send params.
+//
+// Returns:
+//   - []byte: the JSON payload.
+//   - error: the encoding error.
 func (s *Service) preparePayload(
 	message string,
 	config Config,

@@ -30,10 +30,14 @@ type failingReader struct{}
 
 // recordedRequest is a request a recording client received.
 type recordedRequest struct {
+	// header is the request's header.
 	header http.Header
+	// method is the request method.
 	method string
-	url    string
-	body   []byte
+	// url is the request URL.
+	url string
+	// body is the request body.
+	body []byte
 }
 
 // Service URLs and endpoints shared by the service tests.

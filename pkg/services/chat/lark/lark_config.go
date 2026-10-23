@@ -12,23 +12,37 @@ import (
 
 // Config represents the configuration for the Lark service.
 type Config struct {
+	// Host is the webhook host, open.larksuite.com for Lark or open.feishu.cn
+	// for Feishu.
 	Host string `default:"open.larksuite.com" desc:"Custom bot URL Host" url:"Host"`
-
-	Secret string `default:""              desc:"Custom bot secret" key:"secret" sensitive:"true"`
-	Path   string `desc:"Custom bot token" sensitive:"true"         url:"Path"`
-	Title  string `default:""              desc:"Message Title"     key:"title"`
-	Link   string `default:""              desc:"Optional link URL" key:"link"`
+	// Secret is the custom bot's signing secret. When set, each request is
+	// signed.
+	Secret string `default:"" desc:"Custom bot secret" key:"secret" sensitive:"true"`
+	// Path is the custom bot's webhook token, written as the path of the
+	// service URL.
+	Path string `desc:"Custom bot token" sensitive:"true" url:"Path"`
+	// Title makes the message a post with this title. Without one, the
+	// message is sent as text.
+	Title string `default:"" desc:"Message Title" key:"title"`
+	// Link is a URL added to a post as a "More Info" link.
+	Link string `default:"" desc:"Optional link URL" key:"link"`
 }
 
 // Scheme is the identifier for the Lark service protocol.
 const Scheme = "lark"
 
 // Enums returns a map of enum formatters (none for this service).
+//
+// Returns:
+//   - map[string]types.EnumFormatter: an empty map.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL constructs a URL from the Config fields.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -36,6 +50,13 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidHost] or
+//     [ErrNoPath].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -43,6 +64,12 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the bot token as its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Host:       c.Host,

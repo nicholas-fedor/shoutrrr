@@ -10,16 +10,22 @@ import (
 
 // jsonPayload represents the notification payload sent to the IFTTT webhook API.
 type jsonPayload struct {
+	// Value1 is the event's first value.
 	Value1 string `json:"value1"`
+	// Value2 is the event's second value.
 	Value2 string `json:"value2"`
+	// Value3 is the event's third value.
 	Value3 string `json:"value3"`
 }
 
-// ValueFieldOne represents the Value1 field in the IFTTT payload.
+// Value field numbers, as messagevalue and titlevalue select them.
 const (
-	ValueFieldOne   = 1 // Represents Value1 field
-	ValueFieldTwo   = 2 // Represents Value2 field
-	ValueFieldThree = 3 // Represents Value3 field
+	// ValueFieldOne represents the Value1 field in the IFTTT payload.
+	ValueFieldOne = 1
+	// ValueFieldTwo represents the Value2 field in the IFTTT payload.
+	ValueFieldTwo = 2
+	// ValueFieldThree represents the Value3 field in the IFTTT payload.
+	ValueFieldThree = 3
 )
 
 // createJSONToSend generates a JSON payload for the IFTTT webhook API.

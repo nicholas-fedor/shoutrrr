@@ -17,17 +17,32 @@ package opsgenie
 //		"details":     "key1:value1,key2:value2",
 //	})
 type AlertPayload struct {
-	Details     map[string]string `json:"details,omitempty"`
-	Message     string            `json:"message"`
-	Alias       string            `json:"alias,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Entity      string            `json:"entity,omitempty"`
-	Source      string            `json:"source,omitempty"`
-	Priority    string            `json:"priority,omitempty"`
-	User        string            `json:"user,omitempty"`
-	Note        string            `json:"note,omitempty"`
-	Responders  []Entity          `json:"responders,omitempty"`
-	VisibleTo   []Entity          `json:"visibleTo,omitempty"`
-	Actions     []string          `json:"actions,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
+	// Details holds custom properties of the alert.
+	Details map[string]string `json:"details,omitempty"`
+	// Message is the alert message, at most [MaxMessageLength] characters.
+	Message string `json:"message"`
+	// Alias is the client-defined identifier used to deduplicate alerts.
+	Alias string `json:"alias,omitempty"`
+	// Description is the alert's longer description.
+	Description string `json:"description,omitempty"`
+	// Entity names the domain of the alert's source.
+	Entity string `json:"entity,omitempty"`
+	// Source is the source of the alert.
+	Source string `json:"source,omitempty"`
+	// Priority is the alert priority, P1 to P5.
+	Priority string `json:"priority,omitempty"`
+	// User is the display name of the request owner.
+	User string `json:"user,omitempty"`
+	// Note is added to the alert when it is created.
+	Note string `json:"note,omitempty"`
+	// Responders lists the teams, users, escalations, and schedules the alert
+	// is routed to.
+	Responders []Entity `json:"responders,omitempty"`
+	// VisibleTo lists the teams and users that can see the alert without being
+	// notified.
+	VisibleTo []Entity `json:"visibleTo,omitempty"`
+	// Actions lists the custom actions available on the alert.
+	Actions []string `json:"actions,omitempty"`
+	// Tags lists the alert's tags.
+	Tags []string `json:"tags,omitempty"`
 }

@@ -21,19 +21,27 @@ import (
 
 // Service sends notifications to a pre-configured Slack channel or user.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil to use client.
 	httpClient types.HTTPClient
 
+	// Config holds the token, the channel, and the message options.
 	Config *Config
+	// client is the default HTTP client, with [defaultHTTPTimeout], built by
+	// Initialize.
 	client *http.Client
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// apiPostMessage is the Slack API endpoint for sending messages.
+// Settings for requests to the Slack API and webhooks.
 const (
-	apiPostMessage     = "https://slack.com/api/chat.postMessage"
-	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	// apiPostMessage is the Slack API endpoint for sending messages.
+	apiPostMessage = "https://slack.com/api/chat.postMessage"
+	// defaultHTTPTimeout is the default timeout for HTTP requests.
+	defaultHTTPTimeout = 10 * time.Second
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -45,11 +53,23 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// It builds the default HTTP client when the service has none.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -127,6 +147,10 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // httpClientOrDefault returns the injected client or the internal client.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or the default client from
+//     Initialize.
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient

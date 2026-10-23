@@ -33,6 +33,7 @@ type Service struct {
 	pkr format.PropKeyResolver
 }
 
+// Settings for requests to the Push API.
 const (
 	// apiURL is the Signalgrid Push API endpoint.
 	apiURL = "https://api.signalgrid.co/v1/push"

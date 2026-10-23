@@ -22,6 +22,7 @@ type notificationTypeVals struct {
 	CRIT notificationType
 }
 
+// Notification types, in [NotificationType] order.
 const (
 	// TypeINFO is an informational notification.
 	TypeINFO notificationType = iota

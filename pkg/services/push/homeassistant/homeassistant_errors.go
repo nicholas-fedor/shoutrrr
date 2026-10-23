@@ -2,6 +2,7 @@ package homeassistant
 
 import "errors"
 
+// Errors returned when reading the configuration or sending.
 var (
 	// ErrTokenMissing indicates that the long-lived access token is absent from the URL.
 	ErrTokenMissing = errors.New("homeassistant access token is missing")

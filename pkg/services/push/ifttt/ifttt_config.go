@@ -14,40 +14,73 @@ import (
 
 // Config holds settings for the IFTTT notification service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since IFTTT has no enum
+	// fields.
 	standard.EnumlessConfig
 
-	WebHookID         string   `required:"true" sensitive:"true"                                                      url:"host"`
-	Value1            string   `key:"value1"    optional:""`
-	Value2            string   `key:"value2"    optional:""`
-	Value3            string   `key:"value3"    optional:""`
-	Title             string   `default:""      desc:"Notification title, optionally set by the sender"               key:"title"`
-	Events            []string `key:"events"    required:"true"`
-	UseMessageAsValue uint8    `default:"2"     desc:"Sets the corresponding value field to the notification message" key:"messagevalue"`
-	UseTitleAsValue   uint8    `default:"0"     desc:"Sets the corresponding value field to the notification title"   key:"titlevalue"`
+	// WebHookID is the IFTTT webhook key, written as the host of the service
+	// URL.
+	WebHookID string `required:"true" sensitive:"true" url:"host"`
+	// Value1 is the payload's value1 field.
+	Value1 string `key:"value1" optional:""`
+	// Value2 is the payload's value2 field.
+	Value2 string `key:"value2" optional:""`
+	// Value3 is the payload's value3 field.
+	Value3 string `key:"value3" optional:""`
+	// Title is the notification title, sent in the value field that
+	// UseTitleAsValue selects.
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
+	// Events lists the webhook event names. A send triggers each one.
+	Events []string `key:"events" required:"true"`
+	// UseMessageAsValue selects the value field, 1 to 3, that carries the
+	// message.
+	UseMessageAsValue uint8 `default:"2" desc:"Sets the corresponding value field to the notification message" key:"messagevalue"`
+	// UseTitleAsValue selects the value field, 1 to 3, that carries the title,
+	// or 0 to send no title.
+	UseTitleAsValue uint8 `default:"0" desc:"Sets the corresponding value field to the notification title" key:"titlevalue"`
 }
 
+// Service identity and value field limits.
 const (
-	Scheme              = "ifttt" // Scheme identifies this service in configuration URLs.
-	DefaultMessageValue = 2       // Default value field (1-3) for the notification message
-	DisabledValue       = 0       // Value to disable title assignment
-	MinValueField       = 1       // Minimum valid value field (Value1)
-	MaxValueField       = 3       // Maximum valid value field (Value3)
-	MinLength           = 1       // Minimum length for required fields like Events and WebHookID
+	// Scheme identifies this service in configuration URLs.
+	Scheme = "ifttt"
+	// DefaultMessageValue is the default value field (1-3) for the
+	// notification message.
+	DefaultMessageValue = 2
+	// DisabledValue is the titlevalue that sends no title.
+	DisabledValue = 0
+	// MinValueField is the lowest value field number, for Value1.
+	MinValueField = 1
+	// MaxValueField is the highest value field number, for Value3.
+	MaxValueField = 3
+	// MinLength is the minimum length of required fields such as Events and
+	// WebHookID.
+	MinLength = 1
 )
 
+// Errors returned when reading the configuration or the send params.
 var (
+	// ErrInvalidMessageValue indicates a messagevalue outside 1 to 3.
 	ErrInvalidMessageValue = errors.New(
 		"invalid value for messagevalue: only values 1-3 are supported",
 	)
+	// ErrInvalidTitleValue indicates a titlevalue outside 0 to 3.
 	ErrInvalidTitleValue = errors.New(
 		"invalid value for titlevalue: only values 1-3 or 0 (for disabling) are supported",
 	)
+	// ErrTitleMessageConflict indicates a titlevalue that selects the same
+	// value field as messagevalue.
 	ErrTitleMessageConflict = errors.New("titlevalue cannot use the same number as messagevalue")
-	ErrMissingEvents        = errors.New("events missing from config URL")
-	ErrMissingWebhookID     = errors.New("webhook ID missing from config URL")
+	// ErrMissingEvents indicates a service URL without events.
+	ErrMissingEvents = errors.New("events missing from config URL")
+	// ErrMissingWebhookID indicates a service URL without the webhook key.
+	ErrMissingWebhookID = errors.New("webhook ID missing from config URL")
 )
 
 // GetURL generates a URL from the current configuration values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -55,12 +88,25 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrMissingEvents].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
 }
 
+// getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the webhook key as the host.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Host:     c.WebHookID,

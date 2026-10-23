@@ -24,6 +24,7 @@ type Config struct {
 	Critical bool `default:"No" desc:"Deliver as a critical alert" key:"critical"`
 }
 
+// Service identity.
 const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "signalgrid"

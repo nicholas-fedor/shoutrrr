@@ -13,8 +13,12 @@ import (
 
 // Config represents the configuration for the WeCom service.
 type Config struct {
-	Key                 string `desc:"Bot webhook key"                             key:"key"                   sensitive:"true"`
-	MentionedList       string `desc:"Users to mention (comma-separated)"          key:"mentioned_list"`
+	// Key is the bot's webhook key, written as the host of the service URL.
+	Key string `desc:"Bot webhook key" key:"key" sensitive:"true"`
+	// MentionedList is the comma-separated user IDs to mention.
+	MentionedList string `desc:"Users to mention (comma-separated)" key:"mentioned_list"`
+	// MentionedMobileList is the comma-separated mobile numbers of the users
+	// to mention.
 	MentionedMobileList string `desc:"Mobile numbers to mention (comma-separated)" key:"mentioned_mobile_list"`
 }
 
@@ -23,16 +27,25 @@ const Scheme = "wecom"
 
 // Error variables for the WeCom service.
 var (
-	ErrEmptyKey   = errors.New("WeCom webhook key cannot be empty")
+	// ErrEmptyKey indicates a service URL without a webhook key.
+	ErrEmptyKey = errors.New("WeCom webhook key cannot be empty")
+	// ErrInvalidKey indicates a webhook key with characters other than
+	// letters, digits, hyphens, and underscores.
 	ErrInvalidKey = errors.New("invalid WeCom webhook key format")
 )
 
 // Enums returns a map of enum formatters (none for this service).
+//
+// Returns:
+//   - map[string]types.EnumFormatter: an empty map.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL constructs a URL from the Config fields.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -40,6 +53,13 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrEmptyKey] or
+//     [ErrInvalidKey].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
