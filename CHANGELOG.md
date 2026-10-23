@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Mask sensitive values in verify output by @nicholas-fedor in [#1783](https://github.com/nicholas-fedor/shoutrrr/pull/1783)
+
 ### Fixed
 
 - Cap response body reads at 1 MiB by @nicholas-fedor in [#1781](https://github.com/nicholas-fedor/shoutrrr/pull/1781)
