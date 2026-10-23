@@ -24,6 +24,11 @@ type Sender interface {
 type DefaultSender struct{}
 
 // contextSender sends a request bounded by a context. [DefaultSender] implements it.
+//
+// It is unexported, so a generated mock of it could not be used outside this
+// package, and the directive below stops mockery from generating one.
+//
+//mockery:generate: false
 type contextSender interface {
 	SendRequestContext(
 		ctx context.Context,
