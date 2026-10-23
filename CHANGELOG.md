@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 390f5e6 by @renovate[bot] in [#1819](https://github.com/nicholas-fedor/shoutrrr/pull/1819)
 - Update securego/gosec action to v2.30.0 by @renovate[bot] in [#1811](https://github.com/nicholas-fedor/shoutrrr/pull/1811)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 407b89c by @renovate[bot] in [#1810](https://github.com/nicholas-fedor/shoutrrr/pull/1810)
 - Update dependency certifi to v2026.10.23 by @renovate[bot] in [#1805](https://github.com/nicholas-fedor/shoutrrr/pull/1805)
