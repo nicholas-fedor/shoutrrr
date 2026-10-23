@@ -2,6 +2,7 @@ package pushover
 
 import "errors"
 
+// Errors returned by the Pushover service.
 var (
 	// ErrSendFailed indicates a failure in sending the notification to a Pushover device.
 	ErrSendFailed = errors.New("failed to send notification to pushover device")
@@ -17,4 +18,7 @@ var (
 
 	// ErrEncryptionFailed indicates a failure while encrypting a Pushover field.
 	ErrEncryptionFailed = errors.New("encryption failed")
+
+	// ErrInvalidTimestamp indicates a timestamp that is not a positive Unix time.
+	ErrInvalidTimestamp = errors.New("timestamp must be a positive Unix time in seconds")
 )

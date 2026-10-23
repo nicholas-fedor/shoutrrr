@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -483,4 +484,64 @@ func TestSetHTTPClient(t *testing.T) {
 
 		assert.Nil(t, service.httpClient)
 	})
+}
+
+// TestSendTimestamp verifies that a timestamp from the service URL or the send
+// params is sent, with the params taking precedence, that 0 leaves it out, and
+// that end-to-end encryption sends it as is, since Pushover does not encrypt it.
+func TestSendTimestamp(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "pushover://:apptoken@usertoken"
+
+	tests := map[string]struct {
+		rawURL        string
+		params        *types.Params
+		wantTimestamp string
+		wantEncrypted string
+	}{
+		"not set":            {rawURL: rawURL, wantTimestamp: ""},
+		"zero":               {rawURL: rawURL + "?timestamp=0", wantTimestamp: ""},
+		"in the URL":         {rawURL: rawURL + "?timestamp=1331249662", wantTimestamp: "1331249662"},
+		"param":              {rawURL: rawURL, params: &types.Params{"timestamp": "1700000000"}, wantTimestamp: "1700000000"},
+		"param over the URL": {rawURL: rawURL + "?timestamp=1331249662", params: &types.Params{"timestamp": "1700000000"}, wantTimestamp: "1700000000"},
+		"with encryption":    {rawURL: rawURL + "?timestamp=1331249662&encryptionkey=" + testEncryptionKey, wantTimestamp: "1331249662", wantEncrypted: "1"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tc.params))
+
+			if tc.wantTimestamp == "" {
+				assert.NotContains(t, captured.form, "timestamp", "the timestamp should be left out")
+			} else {
+				assert.Equal(t, tc.wantTimestamp, captured.form.Get("timestamp"))
+			}
+
+			assert.Equal(t, tc.wantEncrypted, captured.form.Get("encrypted"))
+		})
+	}
+}
+
+// TestTimestampValidation verifies that a negative timestamp is rejected in the
+// service URL and in the send params, the latter before any request, and that
+// a timestamp that is not a number fails to parse.
+func TestTimestampValidation(t *testing.T) {
+	t.Parallel()
+
+	err := (&Service{}).Initialize(parseTestURL(t, "pushover://:apptoken@usertoken?timestamp=-1"), log.New(t.Output(), "", 0))
+	require.ErrorIs(t, err, ErrInvalidTimestamp)
+
+	service := newTestService(t, "pushover://:apptoken@usertoken")
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	require.ErrorIs(t, service.Send("Message", &types.Params{"timestamp": "-5"}), ErrInvalidTimestamp)
+	require.ErrorIs(t, service.Send("Message", &types.Params{"timestamp": "soon"}), strconv.ErrSyntax)
 }

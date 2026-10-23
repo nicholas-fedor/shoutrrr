@@ -183,7 +183,7 @@ func TestConfigQueryResolver(t *testing.T) {
 
 		assert.Empty(t, config.Enums())
 		assert.Equal(t,
-			[]string{"devices", "encryptionkey", "key", "priority", "title"},
+			[]string{"devices", "encryptionkey", "key", "priority", "timestamp", "title"},
 			format.GetConfigQueryResolver(config).QueryFields())
 	})
 }

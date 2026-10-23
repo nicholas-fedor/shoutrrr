@@ -26,6 +26,7 @@
 //   - priority: message priority (-2 to 1, default: 0)
 //   - title: notification title (optional, defaults to application name)
 //   - encryptionkey: 64-character hex AES-256 key for end-to-end encryption (optional, alias: key)
+//   - timestamp: Unix time in seconds to show instead of when Pushover received the message (optional)
 //
 // Priority levels:
 //   - -2: lowest - no sound, no notification, stored for later
