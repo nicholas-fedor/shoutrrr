@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cap response body reads at 1 MiB by @nicholas-fedor in [#1781](https://github.com/nicholas-fedor/shoutrrr/pull/1781)
 - Reject topics with wildcards or a null character by @nicholas-fedor in [#1755](https://github.com/nicholas-fedor/shoutrrr/pull/1755)
 - Reject service urls with a malformed query by @nicholas-fedor in [#1741](https://github.com/nicholas-fedor/shoutrrr/pull/1741)
 - Clear slice and map keys set from an empty value by @nicholas-fedor in [#1735](https://github.com/nicholas-fedor/shoutrrr/pull/1735)
