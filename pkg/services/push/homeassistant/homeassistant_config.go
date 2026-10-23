@@ -37,6 +37,7 @@ type Config struct {
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
+// Service identity and URL defaults.
 const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "homeassistant"

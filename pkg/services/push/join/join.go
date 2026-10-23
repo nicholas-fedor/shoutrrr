@@ -16,18 +16,26 @@ import (
 
 // Service sends notifications to Join devices.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the API key, the devices, and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
+// Settings for requests to the Join API.
 const (
 	// hookURL defines the Join API endpoint for sending push notifications.
-	hookURL        = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
-	contentType    = "text/plain"
+	hookURL = "https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush"
+	// contentType is the Content-Type header of the request. The request has
+	// an empty body and carries its fields in the query.
+	contentType = "text/plain"
+	// defaultTimeout bounds each request.
 	defaultTimeout = 10 * time.Second
 )
 
@@ -40,11 +48,22 @@ var (
 )
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrDevicesMissing] or
+//     [ErrAPIKeyMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}

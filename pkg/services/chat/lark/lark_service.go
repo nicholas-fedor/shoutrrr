@@ -24,35 +24,55 @@ import (
 
 // Service sends notifications to Lark.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for the package default.
 	httpClient types.HTTPClient
 
+	// Config holds the host, the bot token, and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // Constants for the Lark service configuration and limits.
 const (
-	apiFormat   = "https://%s/open-apis/bot/v2/hook/%s" // API endpoint format
-	maxLength   = 4096                                  // Maximum message length in bytes
-	defaultTime = 30 * time.Second                      // Default HTTP client timeout
+	// apiFormat is the webhook endpoint, formatted with the host and the bot
+	// token.
+	apiFormat = "https://%s/open-apis/bot/v2/hook/%s"
+	// maxLength is the most bytes a message can hold.
+	maxLength = 4096
+	// defaultTime bounds each request of the default client and is the send
+	// budget the router gives Lark.
+	defaultTime = 30 * time.Second
 )
 
+// Hosts the custom bot webhooks are served from.
 const (
-	larkHost   = "open.larksuite.com"
+	// larkHost is the host of Lark, the international service.
+	larkHost = "open.larksuite.com"
+	// feishuHost is the host of Feishu, the service in mainland China.
 	feishuHost = "open.feishu.cn"
 )
 
 // Error variables for the Lark service.
 var (
+	// ErrInvalidHost indicates a host other than [larkHost] or [feishuHost].
 	ErrInvalidHost = errors.New("invalid host, use 'open.larksuite.com' or 'open.feishu.cn'")
-	ErrNoPath      = errors.New(
+	// ErrNoPath indicates a service URL or send without the bot token.
+	ErrNoPath = errors.New(
 		"no path, path like 'xxx' in 'https://open.larksuite.com/open-apis/bot/v2/hook/xxx'",
 	)
-	ErrLargeMessage     = errors.New("message exceeds the max length")
-	ErrMissingHost      = errors.New("host is required but not specified in the configuration")
-	ErrSendFailed       = errors.New("failed to send notification to Lark")
+	// ErrLargeMessage indicates a message longer than [maxLength] bytes.
+	ErrLargeMessage = errors.New("message exceeds the max length")
+	// ErrMissingHost indicates a send whose configuration has no host.
+	ErrMissingHost = errors.New("host is required but not specified in the configuration")
+	// ErrSendFailed indicates a failed request, an error status, or an error
+	// code from the Lark API.
+	ErrSendFailed = errors.New("failed to send notification to Lark")
+	// ErrInvalidSignature indicates that the request signature could not be
+	// computed.
 	ErrInvalidSignature = errors.New("failed to generate valid signature")
 )
 
@@ -68,11 +88,22 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidHost] or
+//     [ErrNoPath].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -127,6 +158,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Lark send.
+//
+// Returns:
+//   - time.Duration: [defaultTime], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultTime
 }
@@ -170,6 +204,17 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string, pa
 }
 
 // genSign generates a signature for the request using the secret and timestamp.
+//
+// The signature is the HMAC-SHA256 of an empty message, keyed with the
+// timestamp and the secret joined by a newline, in base64.
+//
+// Parameters:
+//   - secret: the custom bot's signing secret.
+//   - timestamp: the request time, in Unix seconds.
+//
+// Returns:
+//   - string: the signature.
+//   - error: an error wrapping [ErrInvalidSignature].
 func (s *Service) genSign(secret string, timestamp int64) (string, error) {
 	stringToSign := fmt.Sprintf("%v\n%s", timestamp, secret)
 
@@ -182,6 +227,19 @@ func (s *Service) genSign(secret string, timestamp int64) (string, error) {
 }
 
 // getRequestBody constructs the request body for the Lark API, supporting rich content via params.
+//
+// Without a title the body is a text message. With one it is a post, with a
+// "More Info" link when the params set link. A secret adds the timestamp and
+// the signature.
+//
+// Parameters:
+//   - message: the message to send.
+//   - title: the post title, or empty for a text message.
+//   - secret: the signing secret, or empty for an unsigned request.
+//   - params: the send params, which may set link.
+//
+// Returns:
+//   - *RequestBody: the request body.
 func (s *Service) getRequestBody(
 	message, title, secret string,
 	params *types.Params,
@@ -269,6 +327,10 @@ func (s *Service) handleResponse(resp *http.Response) error {
 }
 
 // httpClientOrDefault returns the custom client or the package default.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or the package default client
+//     with [defaultTime].
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient
@@ -278,6 +340,15 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 }
 
 // preparePayload constructs and marshals the request payload for the Lark API.
+//
+// Parameters:
+//   - message: the message to send.
+//   - config: the configuration for this send, with the title and the secret.
+//   - params: the send params.
+//
+// Returns:
+//   - []byte: the JSON payload.
+//   - error: the encoding error.
 func (s *Service) preparePayload(
 	message string,
 	config *Config,

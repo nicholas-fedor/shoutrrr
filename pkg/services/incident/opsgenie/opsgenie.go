@@ -23,20 +23,28 @@ import (
 
 // Service provides OpsGenie as a notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the API key, the host, and the alert fields.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// alertEndpointPath is the OpsGenie API endpoint path for sending alerts.
+// Settings and limits of the Alert API.
 const (
-	alertEndpointPath  = "/v2/alerts"
-	MaxMessageLength   = 130              // MaxMessageLength is the maximum length of the alert message field in OpsGenie.
-	httpSuccessMax     = 299              // httpSuccessMax is the maximum HTTP status code for a successful response.
-	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	// alertEndpointPath is the OpsGenie API endpoint path for sending alerts.
+	alertEndpointPath = "/v2/alerts"
+	// MaxMessageLength is the maximum length of the alert message field in OpsGenie.
+	MaxMessageLength = 130
+	// httpSuccessMax is the maximum HTTP status code for a successful response.
+	httpSuccessMax = 299
+	// defaultHTTPTimeout is the default timeout for HTTP requests.
+	defaultHTTPTimeout = 10 * time.Second
 )
 
 // ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
@@ -61,11 +69,22 @@ var levelPriorities = map[types.MessageLevel]string{
 }
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrAPIKeyMissing] or
+//     [ErrInvalidPort].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}

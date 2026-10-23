@@ -17,23 +17,32 @@ import (
 
 // Service sends notifications to an IFTTT webhook.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the webhook key, the events, and the value fields.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// apiURLFormat defines the IFTTT webhook URL template.
+// Settings for requests to the IFTTT webhooks.
 const (
-	apiURLFormat   = "https://maker.ifttt.com/trigger/%s/with/key/%s"
+	// apiURLFormat is the webhook URL template, formatted with the event name
+	// and the webhook key.
+	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
+	// defaultTimeout bounds each request.
 	defaultTimeout = 10 * time.Second
 )
 
-// ErrSendFailed indicates a failure to send an IFTTT event notification.
+// Errors returned when sending.
 var (
-	ErrSendFailed       = errors.New("failed to send IFTTT event")
+	// ErrSendFailed indicates a failure to send an IFTTT event notification.
+	ErrSendFailed = errors.New("failed to send IFTTT event")
+	// ErrUnexpectedStatus indicates a non-success response status.
 	ErrUnexpectedStatus = errors.New("got unexpected response status code")
 )
 
@@ -46,11 +55,22 @@ var (
 )
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrMissingEvents] or
+//     [ErrMissingWebhookID].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -158,6 +178,12 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // createAPIURLForEvent builds an IFTTT webhook URL for a specific event.
+//
+// Parameters:
+//   - event: the event name.
+//
+// Returns:
+//   - string: the webhook URL, with the configured webhook key.
 func (s *Service) createAPIURLForEvent(event string) string {
 	return fmt.Sprintf(apiURLFormat, event, s.Config.WebHookID)
 }

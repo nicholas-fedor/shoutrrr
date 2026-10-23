@@ -2,6 +2,7 @@ package signalgrid
 
 import "errors"
 
+// Errors returned when reading the configuration or sending.
 var (
 	// ErrClientKeyMissing indicates that the Signalgrid client key is absent from the URL.
 	ErrClientKeyMissing = errors.New("signalgrid client key is missing")

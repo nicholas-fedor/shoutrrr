@@ -13,21 +13,39 @@ import (
 
 // Config holds all configuration information for the Mattermost service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Mattermost has no enum
+	// fields.
 	standard.EnumlessConfig
 
-	UserName   string `desc:"Override webhook user"    optional:""                                                              url:"user"`
-	Icon       string `default:""                      desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url" optional:""`
-	Title      string `default:""                      desc:"Notification title, optionally set by the sender"                  key:"title"`
-	Channel    string `desc:"Override webhook channel" optional:""                                                              url:"path2"`
-	Host       string `desc:"Mattermost server host"   url:"host,port"`
-	Token      string `desc:"Webhook token"            sensitive:"true"                                                         url:"path1"`
-	DisableTLS bool   `default:"No"                    key:"disabletls"`
+	// UserName overrides the webhook's user name. It is written as the
+	// userinfo of the service URL.
+	UserName string `desc:"Override webhook user" optional:"" url:"user"`
+	// Icon overrides the webhook's icon, as a URL when it starts with http://
+	// or https:// and as an emoji name otherwise.
+	Icon string `default:"" desc:"Use emoji or URL as icon (based on presence of http(s):// prefix)" key:"icon,icon_emoji,icon_url" optional:""`
+	// Title is prepended to the message on its own line.
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
+	// Channel overrides the webhook's channel. It is the second path segment.
+	Channel string `desc:"Override webhook channel" optional:"" url:"path2"`
+	// Host is the Mattermost server host, with an optional port.
+	Host string `desc:"Mattermost server host" url:"host,port"`
+	// Token is the incoming webhook token. It is the first path segment.
+	Token string `desc:"Webhook token" sensitive:"true" url:"path1"`
+	// DisableTLS sends the webhook request over HTTP instead of HTTPS.
+	DisableTLS bool `default:"No" key:"disabletls"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "mattermost"
 
 // CreateConfigFromURL creates a new Config instance from a URL representation.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - *Config: the configuration.
+//   - error: the error from reading the URL, such as [ErrHostMissing].
 func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	// Config has embedded EnumlessConfig and URL-tagged fields are set via SetURL
 	config := &Config{}
@@ -39,6 +57,9 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 }
 
 // GetURL returns a URL representation of the Config's current field values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -46,6 +67,12 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrHostMissing].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -53,6 +80,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the token and the channel, when set, as
+//     its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	paths := []string{"", c.Token, c.Channel}
 	if c.Channel == "" {
@@ -76,6 +110,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // parsePath extracts Token and Channel from the URL path and validates arguments.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: [ErrNotEnoughArguments] for a path without a token, except in the
+//     docs dummy URL.
 func (c *Config) parsePath(serviceURL *url.URL) error {
 	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
 	isDummy := serviceURL.String() == "mattermost://dummy@dummy.com"

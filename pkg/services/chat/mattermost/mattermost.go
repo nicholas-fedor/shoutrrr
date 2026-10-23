@@ -19,12 +19,17 @@ import (
 
 // Service sends notifications to a pre-configured Mattermost channel or user.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the HTTP client for webhook requests, set to the default
+	// client by Initialize.
 	httpClient types.HTTPClient
 
+	// Config holds the host, the webhook token, and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // Send params that override URL fields. The config resolver does not accept
@@ -48,6 +53,9 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
@@ -206,7 +214,14 @@ func configParams(params *types.Params) *types.Params {
 }
 
 // buildURL constructs the API URL for Mattermost based on the Config.
-// Returns a *url.URL that is valid by construction.
+//
+// Parameters:
+//   - config: the configuration with the host, the webhook token, and the TLS
+//     setting.
+//
+// Returns:
+//   - *url.URL: the webhook URL, http when TLS is disabled and https
+//     otherwise. It is valid by construction.
 func buildURL(config *Config) *url.URL {
 	scheme := "https"
 	if config.DisableTLS {

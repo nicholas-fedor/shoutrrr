@@ -38,12 +38,18 @@ type Service struct {
 
 // requestPayload is the JSON body posted to /api/services/{domain}/{service}.
 type requestPayload struct {
-	Message        string   `json:"message"`
-	Title          string   `json:"title,omitempty"`
-	NotificationID string   `json:"notification_id,omitempty"`
-	Targets        []string `json:"target,omitempty"`
+	// Message is the notification body.
+	Message string `json:"message"`
+	// Title is the notification title, left out when empty.
+	Title string `json:"title,omitempty"`
+	// NotificationID identifies a persistent notification, so a later one
+	// with the same ID replaces it.
+	NotificationID string `json:"notification_id,omitempty"`
+	// Targets lists the notify service targets, left out when empty.
+	Targets []string `json:"target,omitempty"`
 }
 
+// Settings for requests to the REST API.
 const (
 	// contentType is the JSON encoding required by the REST API.
 	contentType = "application/json"

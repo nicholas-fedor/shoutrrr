@@ -11,14 +11,25 @@ import (
 
 // JSON represents the payload structure for Mattermost notifications.
 type JSON struct {
-	Text      string `json:"text"`
-	UserName  string `json:"username,omitempty"`
-	Channel   string `json:"channel,omitempty"`
+	// Text is the message, with the title on its own line before it.
+	Text string `json:"text"`
+	// UserName overrides the webhook's user name, left out when empty.
+	UserName string `json:"username,omitempty"`
+	// Channel overrides the webhook's channel, left out when empty.
+	Channel string `json:"channel,omitempty"`
+	// IconEmoji overrides the webhook's icon with an emoji, left out when
+	// empty.
 	IconEmoji string `json:"icon_emoji,omitempty"`
-	IconURL   string `json:"icon_url,omitempty"`
+	// IconURL overrides the webhook's icon with an image URL, left out when
+	// empty.
+	IconURL string `json:"icon_url,omitempty"`
 }
 
 // SetIcon sets the appropriate icon field in the payload based on whether the input is a URL or not.
+//
+// Parameters:
+//   - icon: an http or https URL for [JSON.IconURL], an emoji name for
+//     [JSON.IconEmoji], or empty to clear both.
 func (j *JSON) SetIcon(icon string) {
 	j.IconURL = ""
 	j.IconEmoji = ""
@@ -34,6 +45,15 @@ func (j *JSON) SetIcon(icon string) {
 }
 
 // CreateJSONPayload generates a JSON payload for the Mattermost service.
+//
+// Parameters:
+//   - config: the configuration with the message options.
+//   - message: the message to send.
+//   - params: optional title, username, channel, and icon overrides.
+//
+// Returns:
+//   - []byte: the JSON payload.
+//   - error: the encoding error.
 func CreateJSONPayload(config *Config, message string, params *types.Params) ([]byte, error) {
 	// Extract title from params if provided, before building the text
 	title := config.Title
