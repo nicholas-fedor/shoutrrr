@@ -17,21 +17,32 @@ import (
 
 // Generator facilitates Telegram-specific URL generation via user interaction.
 type Generator struct {
-	Reader     io.Reader
-	Writer     io.Writer
+	// Reader supplies the user's answers, or os.Stdin when nil.
+	Reader io.Reader
+	// Writer receives the prompts and progress, or os.Stdout when nil.
+	Writer io.Writer
+	// userDialog asks the questions and reads the answers.
 	userDialog *generator.UserDialog
-	client     *Client
-	botName    string
-	chats      []string
-	chatNames  []string
-	chatTypes  []string
-	done       bool
+	// client calls the Bot API with the token the user entered.
+	client *Client
+	// botName is the bot's username, shown in the prompts.
+	botName string
+	// chats holds the IDs of the selected chats.
+	chats []string
+	// chatNames holds the display name of each selected chat.
+	chatNames []string
+	// chatTypes holds the type of each selected chat, such as private.
+	chatTypes []string
+	// done reports that the user has finished selecting chats.
+	done bool
 }
 
-// UpdatesLimit defines the number of updates to retrieve per API call.
+// Polling settings for the generator's getUpdates requests.
 const (
-	UpdatesLimit   = 10  // Number of updates to retrieve per call
-	UpdatesTimeout = 120 // Timeout in seconds for long polling
+	// UpdatesLimit is the most updates to retrieve per call.
+	UpdatesLimit = 10
+	// UpdatesTimeout is how many seconds each call long polls for updates.
+	UpdatesTimeout = 120
 	// pollTimeoutMargin is how long the generator's HTTP client waits beyond the
 	// long poll for Telegram to answer.
 	pollTimeoutMargin = 10 * time.Second
@@ -40,8 +51,9 @@ const (
 	generatorHTTPTimeout = UpdatesTimeout*time.Second + pollTimeoutMargin
 )
 
-// ErrNoChatsSelected indicates that no chats were selected during generation.
+// Errors returned by the generator.
 var (
+	// ErrNoChatsSelected indicates that no chats were selected during generation.
 	ErrNoChatsSelected = errors.New("no chats were selected")
 )
 
@@ -53,11 +65,13 @@ var (
 //
 // Parameters:
 //   - props: optional answers, such as the token, used instead of prompting.
+//     An apiurl property sets the Bot API server to talk to and to store in
+//     the configuration.
 //
 // Returns:
 //   - types.ServiceConfig: the Telegram configuration.
 //   - error: an error wrapping [generator.ErrInputClosed] when no token was read,
-//     a Telegram API error, or [ErrNoChatsSelected].
+//     [ErrInvalidAPIURL], a Telegram API error, or [ErrNoChatsSelected].
 func (g *Generator) Generate(
 	_ types.Service,
 	props map[string]string,
@@ -91,12 +105,19 @@ func (g *Generator) Generate(
 		return &Config{}, fmt.Errorf("reading the bot token: %w", err)
 	}
 
+	// An apiurl property selects a Bot API server other than api.telegram.org.
+	apiURL := props["apiurl"]
+	if err := validateAPIURL(apiURL); err != nil {
+		return &Config{}, err
+	}
+
 	userDialog.Writelnf("Fetching bot info...")
 
 	// Fetch the bot info with the default timeout, and switch to a client that
 	// outlasts the long poll only once polling starts.
 	g.client = &Client{
 		token:      token,
+		apiURL:     apiURL,
 		httpClient: nil,
 	}
 
@@ -220,12 +241,19 @@ func (g *Generator) Generate(
 		Notification: true,
 		Token:        token,
 		Chats:        g.chats,
+		APIURL:       apiURL,
 	}
 
 	return &config, nil
 }
 
-// addChat adds a chat to the generator's list if it’s not already present.
+// addChat adds a chat to the selected chats unless it is already selected.
+//
+// Parameters:
+//   - chat: the chat a message or member update came from.
+//
+// Returns:
+//   - string: a message for the user saying whether the chat was added.
 func (g *Generator) addChat(chat *Chat) string {
 	chatID := strconv.FormatInt(chat.ID, 10)
 	name := chat.Name()

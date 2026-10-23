@@ -15,18 +15,25 @@ import (
 
 // Service sends notifications to configured Telegram chats.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the token, the chats, and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// apiFormat defines the Telegram API endpoint template.
+// Settings for requests to the Bot API.
 const (
-	apiFormat          = "https://api.telegram.org/bot%s/%s"
-	maxlength          = 4096
+	// defaultAPIURL is the base URL of Telegram's own Bot API server.
+	defaultAPIURL = "https://api.telegram.org"
+	// maxlength is the most bytes a message can hold.
+	maxlength = 4096
+	// defaultHTTPTimeout bounds each request of the default client.
 	defaultHTTPTimeout = 10 * time.Second
 )
 
@@ -48,16 +55,29 @@ var (
 )
 
 // GetConfig returns the current configuration for the service.
+//
+// Returns:
+//   - *Config: the service's configuration.
 func (s *Service) GetConfig() *Config {
 	return s.Config
 }
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the scheme, telegram.
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL with the bot token and the chats.
+//   - logger: the logger for the service's output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -95,8 +115,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [ErrMessageTooLong], a params error, or the first send error,
-//     which matches ctx's error when ctx ends the request.
+//   - error: [ErrMessageTooLong], a params error, [ErrInvalidAPIURL] for an
+//     API URL set by the params, or the first send error, which matches ctx's
+//     error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if len(message) > maxlength {
 		return ErrMessageTooLong
@@ -105,6 +126,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := validateAPIURL(config.APIURL); err != nil {
+		return err
 	}
 
 	return s.sendMessageForChatIDs(ctx, message, &config)
@@ -147,6 +172,10 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // httpClientOrDefault returns the custom client or a default client.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or a new client with
+//     [defaultHTTPTimeout].
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient
@@ -186,7 +215,7 @@ func (s *Service) sendMessageForChatIDs(ctx context.Context, message string, con
 // Returns:
 //   - error: the Telegram API error or the request error.
 func (s *Service) sendMessageToAPI(ctx context.Context, message, chat string, config *Config) error {
-	client := &Client{token: config.Token, httpClient: s.httpClientOrDefault()}
+	client := &Client{token: config.Token, apiURL: config.APIURL, httpClient: s.httpClientOrDefault()}
 	payload := createSendMessagePayload(message, chat, config)
 	_, err := client.SendMessageContext(ctx, &payload)
 

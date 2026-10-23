@@ -71,3 +71,25 @@ When a title has been specified, it will be prepended to the message, but this i
 the `HTML` parse mode. Note that, if no parse mode is specified, the message will be escaped and sent using `HTML`.
 
 Since the markdown modes are really hard to escape correctly, it's recommended to stick to `HTML` parse mode.
+
+## Bot API server
+
+By default, Shoutrrr sends requests to Telegram's own Bot API server at `https://api.telegram.org`.
+The `apiurl` param points it at another server, such as a [self-hosted Bot API server](https://github.com/tdlib/telegram-bot-api) or a proxy where Telegram's domains are blocked.
+Requests go to the given base URL followed by `/bot<token>/<method>`, so a proxy can serve the API under a path.
+
+!!! example "Self-hosted Bot API server"
+    ```uri
+    telegram://token@telegram?chats=@channel&apiurl=http://localhost:8081
+    ```
+
+The URL must use `http` or `https` and have a host.
+It cannot hold userinfo, a query, or a fragment.
+The self-hosted server accepts only plain HTTP, so use `https` only behind a TLS proxy.
+
+To generate a URL for another server, pass the param to the generator:
+
+```bash
+shoutrrr generate telegram -g telegram -p apiurl=http://localhost:8081
+```
+

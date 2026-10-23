@@ -13,26 +13,46 @@ import (
 
 // Config holds settings for the Telegram notification service.
 type Config struct {
-	Token        string    `sensitive:"true"                                       url:"user"`
-	Title        string    `default:""                                             desc:"Notification title, optionally set by the sender"            key:"title"`
-	Chats        []string  `desc:"Chat IDs or Channel names (using @channel-name)" key:"chats,channels"`
-	ParseMode    parseMode `default:"None"                                         desc:"How the text Message should be parsed"                       key:"parsemode"`
-	Preview      bool      `default:"Yes"                                          desc:"If disabled, no web page preview will be displayed for URLs" key:"preview"`
-	Notification bool      `default:"Yes"                                          desc:"If disabled, sends Message silently"                         key:"notification"`
+	// Token is the bot token, written as the userinfo of the service URL.
+	Token string `sensitive:"true" url:"user"`
+	// Title is prepended to the message in bold. It needs the HTML parse mode,
+	// which a message without a parse mode switches to.
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
+	// APIURL is the base URL of the Bot API server, such as a self-hosted
+	// server or a proxy. Empty selects https://api.telegram.org.
+	APIURL string `desc:"Bot API server base URL (default: https://api.telegram.org)" key:"apiurl" optional:""`
+	// Chats lists the chat IDs or @channel names to send to. An entry written as
+	// <chat ID>:<thread ID> posts in that forum topic.
+	Chats []string `desc:"Chat IDs or Channel names (using @channel-name)" key:"chats,channels"`
+	// ParseMode is how Telegram formats the message.
+	ParseMode parseMode `default:"None" desc:"How the text Message should be parsed" key:"parsemode"`
+	// Preview shows link previews for URLs in the message.
+	Preview bool `default:"Yes" desc:"If disabled, no web page preview will be displayed for URLs" key:"preview"`
+	// Notification delivers the message with a sound.
+	Notification bool `default:"Yes" desc:"If disabled, sends Message silently" key:"notification"`
 }
 
-// Scheme identifies this service in configuration URLs.
+// Service identity.
 const (
+	// Scheme identifies this service in configuration URLs.
 	Scheme = "telegram"
 )
 
-// ErrInvalidToken indicates an invalid Telegram token format or content.
+// Errors returned when reading the configuration.
 var (
-	ErrInvalidToken      = errors.New("invalid telegram token")
+	// ErrInvalidToken indicates an invalid Telegram token format or content.
+	ErrInvalidToken = errors.New("invalid telegram token")
+	// ErrNoChannelsDefined indicates a service URL without chats.
 	ErrNoChannelsDefined = errors.New("no channels defined in config URL")
+	// ErrInvalidAPIURL indicates an API URL that is not an http or https URL
+	// with a host, or that carries userinfo, a query, or a fragment.
+	ErrInvalidAPIURL = errors.New("invalid telegram API URL")
 )
 
 // Enums returns the fields that use an EnumFormatter for their values.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: the parse mode formatter by field name.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"ParseMode": ParseModes.Enum,
@@ -40,6 +60,9 @@ func (c *Config) Enums() map[string]types.EnumFormatter {
 }
 
 // GetURL generates a URL from the current configuration values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -47,6 +70,12 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -84,8 +113,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: [ErrInvalidToken] for an invalid bot token, an error wrapping
-//     [util.ErrInvalidQuery] for a malformed query, a query prop error, or
-//     [ErrNoChannelsDefined] when no chats are set.
+//     [util.ErrInvalidQuery] for a malformed query, a query prop error,
+//     [ErrNoChannelsDefined] when no chats are set, or [ErrInvalidAPIURL].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 
@@ -113,7 +142,46 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	if err := validateAPIURL(c.APIURL); err != nil {
+		return err
+	}
+
 	c.Token = token
 
 	return nil
+}
+
+// validateAPIURL checks that an API URL is an http or https URL with a host
+// name, not only a port. The bot token and method are appended to its path, so
+// it cannot carry a query or a fragment, even an empty one, and credentials
+// belong in the token, not in userinfo.
+//
+// Parameters:
+//   - rawURL: the API URL, or empty for the default.
+//
+// Returns:
+//   - error: [ErrInvalidAPIURL] with the reason, or nil for a valid or empty URL.
+func validateAPIURL(rawURL string) error {
+	if rawURL == "" {
+		return nil
+	}
+
+	apiURL, err := url.Parse(rawURL)
+
+	switch {
+	case err != nil:
+		return fmt.Errorf("%w: the URL does not parse", ErrInvalidAPIURL)
+	case apiURL.Scheme != "http" && apiURL.Scheme != "https":
+		return fmt.Errorf("%w: the scheme must be http or https", ErrInvalidAPIURL)
+	case apiURL.Hostname() == "":
+		return fmt.Errorf("%w: the URL has no host", ErrInvalidAPIURL)
+	case apiURL.User != nil:
+		return fmt.Errorf("%w: the URL cannot hold userinfo", ErrInvalidAPIURL)
+	// An empty fragment leaves no trace in the parsed URL, so the raw URL is
+	// checked for its "#".
+	case apiURL.RawQuery != "" || apiURL.ForceQuery || strings.Contains(rawURL, "#"):
+		return fmt.Errorf("%w: the URL cannot hold a query or a fragment", ErrInvalidAPIURL)
+	default:
+		return nil
+	}
 }
