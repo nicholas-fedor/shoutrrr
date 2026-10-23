@@ -42,7 +42,7 @@ When neither the URL nor the send params set `priority`, the level picks the pri
 | Error   | 1 (high)   |
 
 High priority bypasses quiet hours, so only errors use it.
-A `priority` other than the default in the URL, or any `priority` in the send params, takes precedence over the level.
+A `priority` in the URL or the send params takes precedence over the level, even when it is set to the default.
 
 ## End-to-end encryption
 

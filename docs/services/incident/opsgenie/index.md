@@ -66,6 +66,21 @@ service.Send("An example alert message", &types.Params{
 
 See the [OpsGenie Alert API documentation](https://docs.opsgenie.com/docs/alert-api#create-alert) for the limits of each field.
 
+## Message level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set `priority`, the level picks it:
+
+| Level   | Priority           |
+|---------|--------------------|
+| Debug   | P5 (informational) |
+| Info    | P4 (low)           |
+| Warning | P3 (moderate)      |
+| Error   | P2 (high)          |
+
+P1 (critical) is left for alerts that configure it.
+A `priority` in the URL or the send params takes precedence over the level.
+
 ## Optional parameters
 
 You can optionally specify the parameters in the URL:

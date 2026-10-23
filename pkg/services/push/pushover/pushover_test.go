@@ -258,13 +258,14 @@ func TestSendLevelPriority(t *testing.T) {
 		params       *types.Params
 		wantPriority string
 	}{
-		"debug":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Debug"}, wantPriority: "-1"},
-		"info":                {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Info"}, wantPriority: "0"},
-		"warning":             {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Warning"}, wantPriority: "0"},
-		"error":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error"}, wantPriority: "1"},
-		"priority in the URL": {rawURL: "pushover://:apptoken@usertoken?priority=-2", params: &types.Params{"level": "Error"}, wantPriority: "-2"},
-		"priority param":      {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error", "priority": "0"}, wantPriority: "0"},
-		"unknown level":       {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "critical"}, wantPriority: "0"},
+		"debug":                       {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Debug"}, wantPriority: "-1"},
+		"info":                        {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Info"}, wantPriority: "0"},
+		"warning":                     {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Warning"}, wantPriority: "0"},
+		"error":                       {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error"}, wantPriority: "1"},
+		"priority in the URL":         {rawURL: "pushover://:apptoken@usertoken?priority=-2", params: &types.Params{"level": "Error"}, wantPriority: "-2"},
+		"default priority in the URL": {rawURL: "pushover://:apptoken@usertoken?priority=0", params: &types.Params{"level": "Error"}, wantPriority: "0"},
+		"priority param":              {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error", "priority": "0"}, wantPriority: "0"},
+		"unknown level":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "critical"}, wantPriority: "0"},
 	}
 
 	for name, tc := range tests {

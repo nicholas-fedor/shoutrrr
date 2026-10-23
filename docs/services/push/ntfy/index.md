@@ -75,7 +75,7 @@ When neither the URL nor the send params set `priority`, the level picks the pri
 | Warning | 4 (high)    |
 | Error   | 5 (max)     |
 
-A `priority` other than the default in the URL, or any `priority` in the send params, takes precedence over the level.
+A `priority` in the URL or the send params takes precedence over the level, even when it is set to the default.
 
 !!! note
     Action buttons require JSON formatting. See the [upstream documentation](https://docs.ntfy.sh/publish/#action-buttons) for detailed syntax.

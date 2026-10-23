@@ -428,15 +428,16 @@ func TestSendLevelPriority(t *testing.T) {
 		params       *types.Params
 		wantPriority string
 	}{
-		"debug":                 {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: "Low"},
-		"info":                  {rawURL: testServiceURL, params: &types.Params{"level": "Info"}, wantPriority: "Default"},
-		"warning":               {rawURL: testServiceURL, params: &types.Params{"level": "Warning"}, wantPriority: "High"},
-		"error":                 {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: "Max"},
-		"level in another case": {rawURL: testServiceURL, params: &types.Params{"level": "error"}, wantPriority: "Max"},
-		"priority in the URL":   {rawURL: testServiceURL + "?priority=low", params: &types.Params{"level": "Error"}, wantPriority: "Low"},
-		"priority param":        {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "default"}, wantPriority: "Default"},
-		"unknown level":         {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: "Default"},
-		"no level":              {rawURL: testServiceURL, params: &types.Params{"title": "Hello"}, wantPriority: "Default"},
+		"debug":                       {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: "Low"},
+		"info":                        {rawURL: testServiceURL, params: &types.Params{"level": "Info"}, wantPriority: "Default"},
+		"warning":                     {rawURL: testServiceURL, params: &types.Params{"level": "Warning"}, wantPriority: "High"},
+		"error":                       {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: "Max"},
+		"level in another case":       {rawURL: testServiceURL, params: &types.Params{"level": "error"}, wantPriority: "Max"},
+		"priority in the URL":         {rawURL: testServiceURL + "?priority=low", params: &types.Params{"level": "Error"}, wantPriority: "Low"},
+		"default priority in the URL": {rawURL: testServiceURL + "?priority=default", params: &types.Params{"level": "Error"}, wantPriority: "Default"},
+		"priority param":              {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "default"}, wantPriority: "Default"},
+		"unknown level":               {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: "Default"},
+		"no level":                    {rawURL: testServiceURL, params: &types.Params{"title": "Hello"}, wantPriority: "Default"},
 	}
 
 	for name, tc := range tests {

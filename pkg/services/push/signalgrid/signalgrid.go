@@ -50,6 +50,15 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
+// levelTypes maps each known message level to the Signalgrid type it is sent
+// with when the send keeps the default type.
+var levelTypes = map[types.MessageLevel]notificationType{
+	types.Debug:   TypeINFO,
+	types.Info:    TypeINFO,
+	types.Warning: TypeWARN,
+	types.Error:   TypeCRIT,
+}
+
 // GetID returns the service identifier.
 //
 // Returns:
@@ -119,6 +128,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	s.applyLevel(&config, params)
+
 	if err := s.send(ctx, message, &config); err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
@@ -137,6 +148,28 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	}
 
 	s.httpClient = client
+}
+
+// applyLevel sets the type of a notification from its level param, debug and
+// info to INFO, warning to WARN, and error to CRIT. A type set in the service
+// URL or the send params takes precedence.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	if params == nil {
+		return
+	}
+
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelType, mapped := levelTypes[level]; mapped && s.pkr.KeepsDefault(config, params, "type") {
+		config.Type = levelType
+	}
 }
 
 // send posts a notification to the Signalgrid Push API.

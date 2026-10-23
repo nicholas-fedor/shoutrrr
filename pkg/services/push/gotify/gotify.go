@@ -36,12 +36,32 @@ type Service struct {
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.
+// Gotify priorities that message levels map to, one from each band of the
+// Gotify Android app.
+const (
+	// priorityIconOnly shows only an icon in the notification bar.
+	priorityIconOnly = 2
+	// prioritySound adds a sound to the icon.
+	prioritySound = 5
+	// prioritySoundAndVibration adds a sound and vibration to the icon.
+	prioritySoundAndVibration = 8
+)
+
 var (
 	_ types.Service          = (*Service)(nil)
 	_ types.ContextSender    = (*Service)(nil)
 	_ types.HTTPClientSetter = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
+
+// levelPriorities maps message levels to the Gotify priority they are sent
+// with when neither the URL nor the send params set the priority. Info has no
+// entry, so the application's default priority applies.
+var levelPriorities = map[types.MessageLevel]int{
+	types.Debug:   priorityIconOnly,
+	types.Warning: prioritySound,
+	types.Error:   prioritySoundAndVibration,
+}
 
 // GetID returns the identifier for this service.
 func (s *Service) GetID() string {
@@ -219,6 +239,8 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 		}
 	}
 
+	applyLevel(&config, params)
+
 	// Validate priority is within valid range (-2 to 10)
 	if err := s.validator.ValidatePriority(config.Priority); err != nil {
 		return config, nil, fmt.Errorf("priority validation failed: %w", err)
@@ -307,4 +329,28 @@ func filterParams(params *types.Params) types.Params {
 	}
 
 	return filtered
+}
+
+// applyLevel sets the priority of a message from its level param when neither
+// the service URL nor the send params set it. Debug uses 2, which shows only an
+// icon, warning uses 5, which adds a sound, and error uses 8, which adds
+// vibration. Info leaves the application's default priority.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+func applyLevel(config *Config, params *types.Params) {
+	if params == nil || config.prioritySet {
+		return
+	}
+
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelPriority, mapped := levelPriorities[level]; mapped {
+		config.Priority = levelPriority
+		config.prioritySet = true
+	}
 }

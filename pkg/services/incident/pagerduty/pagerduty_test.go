@@ -2,6 +2,7 @@ package pagerduty
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log"
@@ -645,5 +646,51 @@ func TestValidateSeverityAndAction(t *testing.T) {
 
 	for _, action := range []string{"", "escalate", "Trigger"} {
 		require.ErrorIs(t, validateEventAction(action), errInvalidEventAction, action)
+	}
+}
+
+// TestSendLevelSeverity verifies that the level param sets the severity, debug
+// and info to info, warning to warning, and error to error, and that a
+// severity from the service URL or the send params, or an unknown level,
+// leaves it as it is.
+func TestSendLevelSeverity(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL       string
+		params       *types.Params
+		wantSeverity string
+	}{
+		"debug":               {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantSeverity: "info"},
+		"info":                {rawURL: testServiceURL, params: &types.Params{"level": "Info"}, wantSeverity: "info"},
+		"warning":             {rawURL: testServiceURL, params: &types.Params{"level": "Warning"}, wantSeverity: "warning"},
+		"error":               {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantSeverity: "error"},
+		"severity in the URL": {rawURL: testServiceURL + "?severity=critical", params: &types.Params{"level": "Info"}, wantSeverity: "critical"},
+		"default severity in the URL": {
+			rawURL: testServiceURL + "?severity=error", params: &types.Params{"level": "Debug"}, wantSeverity: "error",
+		},
+		"severity param": {rawURL: testServiceURL, params: &types.Params{"level": "Info", "severity": "error"}, wantSeverity: "error"},
+		"unknown level":  {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantSeverity: "error"},
+		"no params":      {rawURL: testServiceURL, params: nil, wantSeverity: "error"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Disk full", tc.params))
+
+			var event struct {
+				Payload struct {
+					Severity string `json:"severity"`
+				} `json:"payload"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(captured.body), &event))
+			assert.Equal(t, tc.wantSeverity, event.Payload.Severity)
+		})
 	}
 }
