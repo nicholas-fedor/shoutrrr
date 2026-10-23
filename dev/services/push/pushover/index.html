@@ -1883,6 +1883,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Optional parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message_level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message level
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2722,6 +2739,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Optional parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message_level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message level
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2805,6 +2839,37 @@
 <p class="admonition-title">Note</p>
 <p>Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.</p>
 </div>
+<h3 id="message_level">Message level<a class="headerlink" href="#message_level" title="Permanent link">&para;</a></h3>
+<p>A sender can set a message level with the <code>level</code> param, as <code>Params.SetLevel</code> does.
+When neither the URL nor the send params set <code>priority</code>, the level picks the priority:</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Debug</td>
+<td>-1 (low)</td>
+</tr>
+<tr>
+<td>Info</td>
+<td>0 (normal)</td>
+</tr>
+<tr>
+<td>Warning</td>
+<td>0 (normal)</td>
+</tr>
+<tr>
+<td>Error</td>
+<td>1 (high)</td>
+</tr>
+</tbody>
+</table>
+<p>High priority bypasses quiet hours, so only errors use it.
+A <code>priority</code> other than the default in the URL, or any <code>priority</code> in the send params, takes precedence over the level.</p>
 <h2 id="end-to-end_encryption">End-to-end encryption<a class="headerlink" href="#end-to-end_encryption" title="Permanent link">&para;</a></h2>
 <p>Pushover <a href="https://pushover.net/api#e2ee">end-to-end encryption</a> encrypts <code>message</code> and <code>title</code> on the client before they are sent.
 Generate a 256-bit key and configure the same value in the Pushover iOS or Android app:</p>
@@ -2840,7 +2905,7 @@ Desktop clients cannot decrypt end-to-end encrypted messages.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="August 18, 2026 12:18:45 UTC"><span class="timeago" datetime="2026-08-18T12:18:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 18, 2026 12:18:45 UTC">2026-08-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 05:50:49 UTC"><span class="timeago" datetime="2026-10-23T05:50:49+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 05:50:49 UTC">2026-10-23</span>
   </span>
 
     
