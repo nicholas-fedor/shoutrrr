@@ -107,9 +107,9 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "signalgrid", (&Service{}).GetID())
 }
 
-// TestInitialize verifies that Initialize applies the default props, builds an
-// HTTP client unless one is set, accepts the docs dummy URL, and rejects a URL
-// without a client key.
+// TestInitialize verifies that Initialize applies the default props, keeps an
+// injected client, accepts the docs dummy URL, and rejects a URL without a
+// client key.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +119,6 @@ func TestInitialize(t *testing.T) {
 		service := newTestService(t, "signalgrid://abc123@channel")
 
 		assert.Equal(t, &Config{ClientKey: "abc123", Channel: "channel", Type: TypeINFO}, service.Config)
-		assert.IsType(t, &http.Client{}, service.httpClient)
 	})
 
 	t.Run("keeps an injected client", func(t *testing.T) {
@@ -130,7 +129,7 @@ func TestInitialize(t *testing.T) {
 		service.SetHTTPClient(client)
 		require.NoError(t, service.Initialize(parseTestURL(t, "signalgrid://key@channel"), log.New(t.Output(), "", 0)))
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("docs dummy URL", func(t *testing.T) {
@@ -329,8 +328,22 @@ func TestSendDefaultClient(t *testing.T) {
 	assert.NotContains(t, err.Error(), "SECRETkey")
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// clears it for a nil *http.Client.
+// TestDefaultHTTPClient verifies that the default client has the send
+// timeout and sends through http.DefaultTransport, so it honors the proxy
+// environment variables.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "signalgrid://abc123@channel")
+
+	httpClient, ok := service.client.Client().(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Nil(t, httpClient.Transport)
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
+// client, and that a nil *http.Client restores the default client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -341,16 +354,17 @@ func TestSetHTTPClient(t *testing.T) {
 		service := &Service{}
 		service.SetHTTPClient(client)
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("nil *http.Client", func(t *testing.T) {
 		t.Parallel()
 
-		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service := &Service{}
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 		service.SetHTTPClient((*http.Client)(nil))
 
-		assert.Nil(t, service.httpClient)
+		assert.IsType(t, &http.Client{}, service.client.Client())
 	})
 }
 

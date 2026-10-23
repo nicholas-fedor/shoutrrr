@@ -288,6 +288,20 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
+// TestDefaultHTTPClient verifies that the default client has the send
+// timeout and sends through http.DefaultTransport, so it honors the proxy
+// environment variables.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+
+	httpClient, ok := service.client.Client().(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, defaultTimeout, httpClient.Timeout)
+	assert.Nil(t, httpClient.Transport)
+}
+
 // TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
 // clears it for a nil *http.Client.
 func TestSetHTTPClient(t *testing.T) {
@@ -300,15 +314,16 @@ func TestSetHTTPClient(t *testing.T) {
 		service := &Service{}
 		service.SetHTTPClient(client)
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("nil *http.Client", func(t *testing.T) {
 		t.Parallel()
 
-		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		service := &Service{}
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 		service.SetHTTPClient((*http.Client)(nil))
 
-		assert.Nil(t, service.httpClient)
+		assert.IsType(t, &http.Client{}, service.client.Client())
 	})
 }

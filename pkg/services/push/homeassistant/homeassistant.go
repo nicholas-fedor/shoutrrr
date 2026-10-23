@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -27,8 +27,9 @@ type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
 
-	// httpClient is the HTTP client used for REST API requests.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client for REST
+	// API requests.
+	client httpclient.Holder
 
 	// Config holds Home Assistant credentials and notification options.
 	Config *Config
@@ -75,6 +76,9 @@ func (s *Service) GetID() string {
 
 // Initialize configures the service with a URL and logger.
 //
+// The default HTTP client follows the TLS settings of the URL, so a previous
+// default client is dropped. A URL that skips TLS verification logs a warning.
+//
 // Parameters:
 //   - serviceURL: The Home Assistant service URL.
 //   - logger: Logger used for service output.
@@ -94,8 +98,10 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if s.httpClient == nil {
-		s.httpClient = s.newHTTPClient()
+	s.client.SetDefault(defaultHTTPTimeout, s.tlsConfig())
+
+	if s.Config.SkipTLSVerify {
+		s.Log("Warning: TLS verification is disabled, making connections insecure")
 	}
 
 	return nil
@@ -148,31 +154,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-}
-
-// newHTTPClient returns the default HTTP client for Home Assistant requests.
-//
-// The transport honors the proxy environment variables.
-//
-// Returns:
-//   - types.HTTPClient: a client with a 10s timeout, TLS 1.2 minimum, and optional skip-verify.
-func (s *Service) newHTTPClient() types.HTTPClient {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if s.Config != nil && s.Config.SkipTLSVerify {
-		tlsConfig.InsecureSkipVerify = true
-
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
-	return &http.Client{
-		Timeout:   defaultHTTPTimeout,
-		Transport: transport.New(tlsConfig),
-	}
+	s.client.Set(client)
 }
 
 // send posts a notification to the Home Assistant REST API.
@@ -212,12 +194,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 	req.Header.Set("Authorization", "Bearer "+config.Token)
 	req.Header.Set("User-Agent", meta.UserAgent())
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request: %w", redact.URLError(err))
 	}
@@ -283,4 +260,16 @@ func nonEmptyTargets(targets []string) []string {
 	return slices.DeleteFunc(slices.Clone(targets), func(target string) bool {
 		return target == ""
 	})
+}
+
+// tlsConfig returns the TLS settings of the default HTTP client: TLS 1.2 or
+// later, without certificate verification when the configuration skips it.
+//
+// Returns:
+//   - *tls.Config: the TLS settings.
+func (s *Service) tlsConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: s.Config.SkipTLSVerify,
+	}
 }

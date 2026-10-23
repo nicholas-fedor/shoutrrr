@@ -205,24 +205,24 @@ func TestServiceInitializeRejectsInvalidURLs(t *testing.T) {
 	}
 }
 
-// TestServiceHTTPClientSelection verifies that the service uses an injected
-// client and falls back to the package default when no client, a nil
-// interface, or a nil *http.Client is set.
-func TestServiceHTTPClientSelection(t *testing.T) {
+// TestSetHTTPClient verifies that the service uses an injected
+// client and falls back to a default client with the send timeout when no
+// client, a nil interface, or a nil *http.Client is set.
+func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
 	t.Run("custom client", func(t *testing.T) {
 		t.Parallel()
 
 		client := &http.Client{}
-		service := &Service{}
+		service := newTestService(t, fullURL)
 		service.SetHTTPClient(client)
 
-		assert.Same(t, client, service.httpClientOrDefault())
+		assert.Same(t, client, service.client.Client())
 	})
 
 	// tests lists ways of leaving the client unset, each of which selects the
-	// package default client.
+	// default client.
 	tests := []struct {
 		name  string
 		setup func(*Service)
@@ -242,10 +242,13 @@ func TestServiceHTTPClientSelection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{}
+			service := newTestService(t, fullURL)
 			tt.setup(service)
 
-			assert.Same(t, httpClient, service.httpClientOrDefault())
+			client, ok := service.client.Client().(*http.Client)
+			require.True(t, ok, "the default client should be an *http.Client")
+			assert.Equal(t, defaultTime, client.Timeout)
+			assert.Same(t, client, service.client.Client())
 		})
 	}
 }

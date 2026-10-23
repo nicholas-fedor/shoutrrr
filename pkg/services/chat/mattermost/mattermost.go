@@ -3,15 +3,14 @@ package mattermost
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -22,9 +21,9 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the HTTP client for webhook requests, set to the default
-	// client by Initialize.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client for webhook
+	// requests.
+	client httpclient.Holder
 
 	// Config holds the host, the webhook token, and the message options.
 	Config *Config
@@ -62,9 +61,6 @@ func (s *Service) GetID() string {
 
 // Initialize configures the service with a URL and logger.
 //
-// It builds the default HTTP client, whose transport honors the proxy
-// environment variables and enforces TLS 1.2 or later unless TLS is disabled.
-//
 // Parameters:
 //   - serviceURL: the Mattermost service URL.
 //   - logger: the logger for service output.
@@ -73,25 +69,11 @@ func (s *Service) GetID() string {
 //   - error: the error when the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	err := s.Config.setURL(&s.pkr, serviceURL)
-	if err != nil {
-		return err
-	}
-
-	var tlsConfig *tls.Config
-	if !s.Config.DisableTLS {
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false,            // Explicitly safe when TLS is enabled
-			MinVersion:         tls.VersionTLS12, // Enforce TLS 1.2 or higher
-		}
-	}
-
-	s.httpClient = &http.Client{Transport: transport.New(tlsConfig)}
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to Mattermost.
@@ -154,15 +136,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Transport: transport.New(&tls.Config{
-			InsecureSkipVerify: false,
-			MinVersion:         tls.VersionTLS12,
-		})}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", redact.URLError(err))
 	}
@@ -182,11 +156,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // configParams returns the send params the config resolver accepts as keys.

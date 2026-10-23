@@ -183,42 +183,55 @@ func TestInitialize(t *testing.T) {
 }
 
 // TestSetHTTPClient verifies which client a send uses after SetHTTPClient,
-// including the package default for a nil interface and a nil *http.Client.
+// including the default client for a nil interface and a nil *http.Client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	custom := mocks.NewMockHTTPClient(t)
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
 
-	// tests lists clients passed to SetHTTPClient with the client the service
-	// should then use.
-	tests := []struct {
+		custom := mocks.NewMockHTTPClient(t)
+		service := newTestService(t, nil, log.New(t.Output(), "", 0))
+		service.SetHTTPClient(custom)
+
+		assert.Same(t, custom, service.client.Client())
+	})
+
+	// nilClients lists the nil clients that restore the default client.
+	nilClients := []struct {
 		name   string
 		client types.HTTPClient
-		want   types.HTTPClient
 	}{
-		{name: "custom client", client: custom, want: custom},
-		{name: "nil interface", client: nil, want: httpClient},
-		{name: "nil *http.Client", client: (*http.Client)(nil), want: httpClient},
+		{name: "nil interface", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range nilClients {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{httpClient: custom}
+			service := newTestService(t, nil, log.New(t.Output(), "", 0))
+			defaultClient := service.client.Client()
+
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
-			assert.Same(t, tt.want, service.httpClientOrDefault())
+			assert.Same(t, defaultClient, service.client.Client())
 		})
 	}
 }
 
-// TestHTTPClientOrDefault verifies that a service without a custom client
-// uses the package default client.
-func TestHTTPClientOrDefault(t *testing.T) {
+// TestDefaultHTTPClient verifies that a service without a custom client uses
+// one default client with the send timeout.
+func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	assert.Same(t, httpClient, (&Service{}).httpClientOrDefault())
+	service := newTestService(t, nil, log.New(t.Output(), "", 0))
+
+	client, ok := service.client.Client().(*http.Client)
+	require.True(t, ok, "the default client should be an *http.Client")
+	assert.Equal(t, defaultTime, client.Timeout)
+	assert.Same(t, client, service.client.Client())
 }
 
 // TestSendSuccess verifies the request a successful send makes for plain

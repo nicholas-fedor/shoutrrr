@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -108,8 +109,8 @@ func TestGetID(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses the service URL, keeps an
-// injected client, builds a TLS 1.2 client otherwise, skips verification with
-// a warning when asked, and rejects a URL without a token.
+// injected client, leaves a TLS 1.2 default client otherwise, skips
+// verification with a warning when asked, and rejects a URL without a token.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -123,7 +124,7 @@ func TestInitialize(t *testing.T) {
 
 		assert.Equal(t, "s3cret", service.Config.Token)
 		assert.Equal(t, "ha.example.com", service.Config.Host)
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	// clientTests lists service URLs with the TLS settings of the client
@@ -146,8 +147,10 @@ func TestInitialize(t *testing.T) {
 			service := &Service{}
 			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
 
-			httpClient, ok := service.httpClient.(*http.Client)
-			require.True(t, ok, "client is a %T", service.httpClient)
+			defaultClient := service.client.Client()
+
+			httpClient, ok := defaultClient.(*http.Client)
+			require.True(t, ok, "client is a %T", defaultClient)
 			assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
 
 			httpTransport, ok := httpClient.Transport.(*http.Transport)
@@ -480,8 +483,8 @@ func TestSendDefaultClient(t *testing.T) {
 	assert.NotContains(t, err.Error(), "SECRETprefix")
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// clears it for a nil *http.Client.
+// TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
+// client, and that a nil *http.Client restores the default client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -489,18 +492,62 @@ func TestSetHTTPClient(t *testing.T) {
 		t.Parallel()
 
 		client := mocks.NewMockHTTPClient(t)
-		service := &Service{}
+		service := newTestService(t, "homeassistant://s3cret@ha.example.com")
 		service.SetHTTPClient(client)
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("nil *http.Client", func(t *testing.T) {
 		t.Parallel()
 
-		service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+		client := mocks.NewMockHTTPClient(t)
+		service := newTestService(t, "homeassistant://s3cret@ha.example.com")
+		service.SetHTTPClient(client)
 		service.SetHTTPClient((*http.Client)(nil))
 
-		assert.Nil(t, service.httpClient)
+		assert.IsType(t, &http.Client{}, service.client.Client())
+	})
+}
+
+// TestDefaultClientTLSSettings verifies that the default client follows the
+// configured TLS settings after a nil client restores it, and after Initialize
+// runs again with other settings. The server's certificate is self-signed, so
+// a send succeeds only when the default client skips verification.
+func TestDefaultClientTLSSettings(t *testing.T) {
+	t.Parallel()
+
+	newServer := func(t *testing.T) string {
+		t.Helper()
+
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		return strings.TrimPrefix(server.URL, "https://")
+	}
+
+	t.Run("nil client restores skiptlsverify", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "homeassistant://s3cret@"+newServer(t)+"?skiptlsverify=yes")
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		service.SetHTTPClient(nil)
+
+		require.NoError(t, service.Send("Message", nil))
+	})
+
+	t.Run("Initialize applies new TLS settings", func(t *testing.T) {
+		t.Parallel()
+
+		host := newServer(t)
+		service := newTestService(t, "homeassistant://s3cret@"+host)
+
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@"+host+"?skiptlsverify=yes"),
+			log.New(t.Output(), "", 0),
+		))
+		require.NoError(t, service.Send("Message", nil))
 	})
 }

@@ -2,7 +2,6 @@ package signalgrid
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,9 +10,9 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -24,8 +23,9 @@ type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
 
-	// httpClient is the HTTP client used for Push API requests.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client for Push
+	// API requests.
+	client httpclient.Holder
 
 	// Config holds Signalgrid credentials and notification options.
 	Config *Config
@@ -78,6 +78,7 @@ func (s *Service) GetID() string {
 //   - error: the error when default properties cannot be applied or the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -87,13 +88,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
-	}
-
-	if s.httpClient == nil {
-		s.httpClient = &http.Client{
-			Timeout:   defaultHTTPTimeout,
-			Transport: transport.New(&tls.Config{MinVersion: tls.VersionTLS12}),
-		}
 	}
 
 	return nil
@@ -144,11 +138,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // applyLevel sets the type of a notification from its level param, debug and
@@ -213,12 +203,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", meta.UserAgent())
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request: %w", redact.URLError(err))
 	}

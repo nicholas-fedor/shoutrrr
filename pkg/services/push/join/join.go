@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -19,8 +20,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the API key, the devices, and the message options.
 	Config *Config
@@ -66,6 +67,7 @@ func (s *Service) GetID() string {
 //     [ErrAPIKeyMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -127,11 +129,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // sendToDevices sends the message to the given devices through the Join API.
@@ -183,12 +181,7 @@ func (s *Service) sendToDevices(ctx context.Context, devices, message, title, ic
 
 	req.Header.Set("Content-Type", contentType)
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: defaultTimeout}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to Join: %w", redact.URLError(err))
 	}

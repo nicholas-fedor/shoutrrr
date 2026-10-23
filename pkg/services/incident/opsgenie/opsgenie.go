@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -26,8 +27,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the API key, the host, and the alert fields.
 	Config *Config
@@ -87,6 +88,7 @@ func (s *Service) GetID() string {
 //     [ErrInvalidPort].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -142,11 +144,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // applyLevel sets the priority of an alert from its level param, debug to P5,
@@ -285,12 +283,7 @@ func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payl
 	req.Header.Add("Authorization", "GenieKey "+apiKey)
 	req.Header.Add("Content-Type", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{}
-	}
-
-	resp, err := client.Do(req)
+	resp, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to OpsGenie: %w", redact.URLError(err))
 	}

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -20,8 +21,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the webhook key, the events, and the value fields.
 	Config *Config
@@ -73,6 +74,7 @@ func (s *Service) GetID() string {
 //     [ErrMissingWebhookID].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultTimeout, nil)
 	s.Config = &Config{
 		UseMessageAsValue: DefaultMessageValue,
 	}
@@ -170,11 +172,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // createAPIURLForEvent builds an IFTTT webhook URL for a specific event.
@@ -213,12 +211,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) er
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{Timeout: defaultTimeout}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request to IFTTT webhook: %w", redact.URLError(err))
 	}
