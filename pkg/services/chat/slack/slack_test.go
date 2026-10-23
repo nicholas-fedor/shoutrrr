@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -196,7 +197,8 @@ func TestSendWebhook(t *testing.T) {
 
 // TestSendWebhookErrors verifies that a webhook send fails with the error
 // code the webhook returns, the status of an empty error response, the
-// transport error without the webhook secret, or a body read error.
+// transport error without the webhook secret, or a body read error. An error
+// code in a body over [httpbody.MaxSize] is still reported.
 func TestSendWebhookErrors(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +213,13 @@ func TestSendWebhookErrors(t *testing.T) {
 		{name: "error code", status: http.StatusBadRequest, body: "invalid_payload", wantErr: ErrWebhookResponseFailure, wantText: "invalid_payload"},
 		{name: "error code with OK status", status: http.StatusOK, body: "no_text", wantErr: ErrWebhookResponseFailure, wantText: "no_text"},
 		{name: "empty error response", status: http.StatusInternalServerError, body: "", wantErr: ErrWebhookStatusFailure, wantText: "Internal Server Error"},
+		{
+			name:     "oversized error code",
+			status:   http.StatusBadRequest,
+			body:     "invalid_payload" + strings.Repeat(" ", httpbody.MaxSize),
+			wantErr:  ErrWebhookResponseFailure,
+			wantText: "invalid_payload",
+		},
 	}
 
 	for _, tt := range tests {

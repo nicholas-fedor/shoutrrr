@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -175,7 +176,8 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 //   - payload: the message payload.
 //
 // Returns:
-//   - error: the request error or the error the webhook reported.
+//   - error: the request error, or the error the webhook reported with up to
+//     [httpbody.MaxSize] bytes of its response.
 func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *MessagePayload) error {
 	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
@@ -206,8 +208,10 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 
 	defer func() { _ = res.Body.Close() }()
 
+	// An oversized body is never "ok", so its first bytes are reported as the
+	// webhook's error.
 	resBytes, err := httpbody.Read(res.Body, httpbody.MaxSize)
-	if err != nil {
+	if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 

@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 )
 
 // reply is one scripted answer of a scriptedHTTPClient.
@@ -225,7 +227,8 @@ func TestNewClient(t *testing.T) {
 
 // TestAPIRequestFailures verifies that GET and POST requests report transport
 // errors, Matrix API errors, error statuses without a Matrix error, invalid
-// JSON, and unreadable bodies.
+// JSON, and unreadable bodies. A body over [httpbody.MaxSize] still yields the
+// Matrix API error of an error status, and fails a success status as too large.
 func TestAPIRequestFailures(t *testing.T) {
 	t.Parallel()
 
@@ -247,6 +250,15 @@ func TestAPIRequestFailures(t *testing.T) {
 		{name: "error status without a Matrix error", reply: reply{status: http.StatusInternalServerError, body: "internal server error"}, wantErr: ErrUnexpectedStatus},
 		{name: "invalid JSON", reply: ok("not valid json"), wantText: "unmarshaling"},
 		{name: "unreadable body", reply: reply{status: http.StatusOK, rawBody: errorReadCloser{}}, wantText: "reading"},
+		{
+			name: "oversized Matrix API error",
+			reply: reply{
+				status: http.StatusBadRequest,
+				body:   `{"error":"invalid request","errcode":"M_INVALID_PARAM"}` + strings.Repeat(" ", httpbody.MaxSize),
+			},
+			wantMessage: "invalid request",
+		},
+		{name: "oversized success body", reply: ok(`{}` + strings.Repeat(" ", httpbody.MaxSize)), wantErr: httpbody.ErrTooLarge, wantText: "reading"},
 	}
 
 	// methods lists the request functions under test.

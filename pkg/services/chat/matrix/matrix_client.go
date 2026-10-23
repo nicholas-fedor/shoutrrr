@@ -131,8 +131,8 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 // Returns:
 //   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
 //     for an error status without one, or the request, read, or decoding error.
-//     Reading stops at [httpbody.MaxSize], and an oversized body wraps
-//     [httpbody.ErrTooLarge].
+//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
+//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) apiGet(ctx context.Context, path string, response any) error {
 	reqCtx, cancel := context.WithTimeout(
 		ctx,
@@ -159,11 +159,12 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err := httpbody.Read(res.Body, httpbody.MaxSize)
-	if err != nil {
-		return fmt.Errorf("reading GET response body: %w", err)
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
+		return fmt.Errorf("reading GET response body: %w", readErr)
 	}
 
+	// An error status is reported from the first bytes of an oversized body.
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
 		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
@@ -175,6 +176,10 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 			ErrUnexpectedStatus,
 			res.Status, err,
 		)
+	}
+
+	if readErr != nil {
+		return fmt.Errorf("reading GET response body: %w", readErr)
 	}
 
 	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
@@ -214,8 +219,8 @@ func (c *client) buildURL(path string) string {
 // Returns:
 //   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
 //     for an error status without one, or the request, read, or decoding error.
-//     Reading stops at [httpbody.MaxSize], and an oversized body wraps
-//     [httpbody.ErrTooLarge].
+//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
+//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) doSingleRequest(ctx context.Context, method, path string, request, response any) error {
 	body, err := json.Marshal(request, jsonopts.Default)
 	if err != nil {
@@ -245,11 +250,12 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err = httpbody.Read(res.Body, httpbody.MaxSize)
-	if err != nil {
-		return fmt.Errorf("reading %s response body: %w", method, err)
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
+		return fmt.Errorf("reading %s response body: %w", method, readErr)
 	}
 
+	// An error status is reported from the first bytes of an oversized body.
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
 		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
@@ -262,6 +268,10 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 			res.Status,
 			err,
 		)
+	}
+
+	if readErr != nil {
+		return fmt.Errorf("reading %s response body: %w", method, readErr)
 	}
 
 	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {

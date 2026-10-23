@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
@@ -72,8 +73,10 @@ func TestSendRequest(t *testing.T) {
 // TestSendRequestErrorResponses verifies the error for each failed response,
 // with the token in the query and in a header: the server's error, labeled as
 // a client or server error by status, when the body has one, the status
-// otherwise, and a parse error for a success body that is not JSON. The
-// service adds [ErrSendFailed], so the sender's errors leave it out.
+// otherwise, and a parse error for a success body that is not JSON. A body
+// over [httpbody.MaxSize] still yields the server's error, and fails a success
+// status as too large. The service adds [ErrSendFailed], so the sender's errors
+// leave it out.
 func TestSendRequestErrorResponses(t *testing.T) {
 	t.Parallel()
 
@@ -156,6 +159,21 @@ func TestSendRequestErrorResponses(t *testing.T) {
 			headers:  headerAuth,
 			response: cannedResponse{statusCode: http.StatusOK, body: "OK"},
 			wantErr:  ErrParseResponse,
+		},
+		{
+			name:    "oversized server error response with the token in a header",
+			headers: headerAuth,
+			response: cannedResponse{
+				statusCode: http.StatusInternalServerError,
+				body:       `{"error":"Internal Server Error","errorCode":500,"errorDescription":"database is locked"}` + strings.Repeat(" ", httpbody.MaxSize),
+			},
+			wantError: "server error (500): server responded with Internal Server Error (500): database is locked",
+		},
+		{
+			name:     "oversized success body with the token in a header",
+			headers:  headerAuth,
+			response: cannedResponse{statusCode: http.StatusOK, body: `{"id":1}` + strings.Repeat(" ", httpbody.MaxSize)},
+			wantErr:  httpbody.ErrTooLarge,
 		},
 	}
 
