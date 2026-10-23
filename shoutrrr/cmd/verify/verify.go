@@ -12,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 // init initializes the command flags for the verify command.
 func init() {
 	Cmd.Flags().StringArrayP("url", "u", []string{}, "The notification URL(s) to verify")
+	Cmd.Flags().BoolP("show-sensitive", "x", false, "Show sensitive values, such as tokens and passwords (default: masked)")
 
 	if err := Cmd.MarkFlagRequired("url"); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marking URL flag as required: %v\n", err)
@@ -40,6 +42,7 @@ func init() {
 
 // Run executes the verify command, validating the specified notification URL.
 // It locates the service, initializes it, and displays the parsed configuration.
+// The values of sensitive fields are masked unless --show-sensitive is set.
 //
 // Parameters:
 //   - cmd: The cobra command containing the parsed flags.
@@ -49,6 +52,13 @@ func Run(cmd *cobra.Command, _ []string) {
 	urls, err := cmd.Flags().GetStringArray("url")
 	if err != nil {
 		_, _ = fmt.Fprint(os.Stderr, "Error getting URL flags: ", err, "\n")
+
+		os.Exit(1)
+	}
+
+	showSensitive, err := cmd.Flags().GetBool("show-sensitive")
+	if err != nil {
+		_, _ = fmt.Fprint(os.Stderr, "Error getting show-sensitive flag: ", err, "\n")
 
 		os.Exit(1)
 	}
@@ -80,12 +90,24 @@ func Run(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	// Retrieve and display the service configuration.
-	config := format.GetServiceConfig(service)
-	configNode := format.GetConfigFormat(config)
-
 	cfg := color.DefaultConfig()
-	_, _ = fmt.Fprint(cfg.Output, format.ColorFormatTree(configNode, true))
+	_, _ = fmt.Fprint(cfg.Output, formatConfig(service, showSensitive))
+}
+
+// formatConfig renders the configuration of a located service.
+//
+// Parameters:
+//   - service: the located service.
+//   - showSensitive: whether to show the values of sensitive fields, which
+//     are masked otherwise.
+//
+// Returns:
+//   - string: the configuration tree with its values.
+func formatConfig(service types.Service, showSensitive bool) string {
+	configNode := format.GetConfigFormat(format.GetServiceConfig(service))
+	renderer := format.ConsoleTreeRenderer{WithValues: true, MaskSensitive: !showSensitive}
+
+	return renderer.RenderTree(configNode, "")
 }
 
 // sanitizeError removes sensitive details from an error message.

@@ -179,6 +179,7 @@ func (n *ContainerNode) updateArrayNode(arrayValue reflect.Value) {
 			Base:          0,
 			Keys:          nil,
 			ItemSeparator: 0,
+			Sensitive:     false,
 		}))
 	}
 }
@@ -247,6 +248,7 @@ func (n *ContainerNode) updateMapNode(mapValue reflect.Value) {
 			Base:          base,
 			Keys:          nil,
 			ItemSeparator: 0,
+			Sensitive:     false,
 		})
 		maxKeyLength = util.Max(len(key), maxKeyLength)
 	}
@@ -382,6 +384,7 @@ func getRootNode(value any) *ContainerNode {
 			Base:          0,
 			Keys:          nil,
 			ItemSeparator: 0,
+			Sensitive:     false,
 		},
 		Items:        nodeItems,
 		MaxKeyLength: maxKeyLength,
@@ -538,6 +541,7 @@ func getContainerValueString(fieldValue reflect.Value, fieldInfo *FieldInfo) str
 				Base:          fieldInfo.Base,
 				Keys:          nil,
 				ItemSeparator: 0,
+				Sensitive:     false,
 			}
 
 			if itemFieldInfo.Base == 0 {

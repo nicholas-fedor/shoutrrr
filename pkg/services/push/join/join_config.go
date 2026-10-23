@@ -11,7 +11,7 @@ import (
 
 // Config holds settings for the Join notification service.
 type Config struct {
-	APIKey  string   `url:"pass"`
+	APIKey  string   `sensitive:"true"                          url:"pass"`
 	Title   string   `desc:"If set creates a notification"      key:"title"   optional:""`
 	Icon    string   `desc:"Icon URL"                           key:"icon"    optional:""`
 	Devices []string `desc:"Comma separated list of device IDs" key:"devices"`

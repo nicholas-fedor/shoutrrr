@@ -13,7 +13,7 @@ import (
 // Config holds settings for the Signalgrid notification service.
 type Config struct {
 	// ClientKey is the Signalgrid client key used to authenticate Push API requests.
-	ClientKey string `desc:"Signalgrid client key" url:"user"`
+	ClientKey string `desc:"Signalgrid client key" sensitive:"true" url:"user"`
 	// Channel is the destination channel token.
 	Channel string `desc:"Signalgrid channel token" url:"host"`
 	// Title is an optional notification title. It is omitted from the API request when empty.

@@ -16,7 +16,7 @@ import (
 // Config holds settings for the Home Assistant notification service.
 type Config struct {
 	// Token is the long-lived access token sent as a Bearer credential.
-	Token string `desc:"Long-lived access token" url:"user"`
+	Token string `desc:"Long-lived access token" sensitive:"true" url:"user"`
 	// Host is the Home Assistant hostname.
 	Host string `desc:"Home Assistant hostname" url:"host"`
 	// Path is an optional reverse-proxy URL prefix.

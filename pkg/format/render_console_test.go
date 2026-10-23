@@ -102,6 +102,52 @@ func TestConsoleTreeRendererRenderTree(t *testing.T) {
 	assert.Empty(t, testRenderTree(types, &struct{}{}))
 }
 
+// TestConsoleTreeRendererMaskSensitive verifies that a masking renderer writes
+// [MaskedValue] for each sensitive field with a value, a container included,
+// keeps an empty sensitive field empty, and leaves other fields as they are.
+// Without masking, sensitive values are written as they are.
+func TestConsoleTreeRendererMaskSensitive(t *testing.T) {
+	t.Parallel()
+
+	config := &struct {
+		Empty   string            `sensitive:"true"`
+		Headers map[string]string `sensitive:"true"`
+		Name    string
+		Token   string `sensitive:"true"`
+	}{Headers: map[string]string{"Authorization": "Bearer hidden"}, Name: "visible", Token: "hidden"}
+	pad := strings.Repeat
+
+	masked := testRenderTree(ConsoleTreeRenderer{WithValues: true, MaskSensitive: true}, config)
+
+	assert.Equal(t,
+		"Empty   "+pad(" ", 30)+pad(" ", 60)+" <Required>\n"+
+			"Headers REDACTED"+pad(" ", 22)+pad(" ", 60)+" <Required>\n"+
+			"Name    visible"+pad(" ", 23)+pad(" ", 60)+" <Required>\n"+
+			"Token   REDACTED"+pad(" ", 22)+pad(" ", 60)+" <Required>\n",
+		masked,
+	)
+
+	plain := testRenderTree(ConsoleTreeRenderer{WithValues: true, MaskSensitive: false}, config)
+
+	assert.Contains(t, plain, "{ Authorization: Bearer hidden }")
+	assert.Contains(t, plain, "Token   hidden")
+	assert.NotContains(t, plain, MaskedValue)
+}
+
+// TestHasValue verifies that an empty value and a container without items
+// have no value to mask, and that any other node has one.
+func TestHasValue(t *testing.T) {
+	t.Parallel()
+
+	field := &FieldInfo{Type: reflect.TypeFor[string]()}
+
+	assert.False(t, hasValue(&ValueNode{FieldInfo: field, Value: ""}))
+	assert.True(t, hasValue(&ValueNode{FieldInfo: field, Value: "x"}))
+	assert.False(t, hasValue(&ContainerNode{FieldInfo: field}))
+	assert.True(t, hasValue(&ContainerNode{FieldInfo: field, Items: []Node{&ValueNode{FieldInfo: field, Value: "x"}}}))
+	assert.True(t, hasValue(&unknownNode{ValueNode{FieldInfo: field}}))
+}
+
 // TestConsoleTreeRendererWriteNodeValue verifies that values are written as
 // they are, slices in brackets, and maps in braces with their keys in order,
 // that a node of another type is written as "?", and that the returned width

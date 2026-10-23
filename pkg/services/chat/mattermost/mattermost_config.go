@@ -20,7 +20,7 @@ type Config struct {
 	Title      string `default:""                      desc:"Notification title, optionally set by the sender"                  key:"title"`
 	Channel    string `desc:"Override webhook channel" optional:""                                                              url:"path2"`
 	Host       string `desc:"Mattermost server host"   url:"host,port"`
-	Token      string `desc:"Webhook token"            url:"path1"`
+	Token      string `desc:"Webhook token"            sensitive:"true"                                                         url:"path1"`
 	DisableTLS bool   `default:"No"                    key:"disabletls"`
 }
 

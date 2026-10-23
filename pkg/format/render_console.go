@@ -11,7 +11,13 @@ import (
 // ConsoleTreeRenderer renders a ContainerNode tree into an ansi-colored console string.
 type ConsoleTreeRenderer struct {
 	WithValues bool
+	// MaskSensitive renders the value of each [FieldInfo.Sensitive] field as
+	// [MaskedValue] when it is set, so the output can be shared.
+	MaskSensitive bool
 }
+
+// MaskedValue replaces the value of a sensitive field in masked output.
+const MaskedValue = "REDACTED"
 
 // Constants for console rendering.
 const (
@@ -177,7 +183,22 @@ func (r ConsoleTreeRenderer) writeContainer(
 	return totalLen
 }
 
+// writeNodeValue writes the value of node, masked when it is a sensitive field
+// with a value and the renderer masks sensitive fields.
+//
+// Parameters:
+//   - stringBuilder: the output.
+//   - node: the node whose value is written.
+//
+// Returns:
+//   - int: the length of the written value without color codes.
 func (r ConsoleTreeRenderer) writeNodeValue(stringBuilder *strings.Builder, node Node) int {
+	if r.MaskSensitive && node.Field().Sensitive && hasValue(node) {
+		stringBuilder.WriteString(ColorizeToken(MaskedValue, StringToken))
+
+		return len(MaskedValue)
+	}
+
 	if contNode, isContainer := node.(*ContainerNode); isContainer {
 		return r.writeContainer(stringBuilder, contNode)
 	}
@@ -191,4 +212,22 @@ func (r ConsoleTreeRenderer) writeNodeValue(stringBuilder *strings.Builder, node
 	stringBuilder.WriteByte('?')
 
 	return 1
+}
+
+// hasValue reports whether node holds a value to mask.
+//
+// Parameters:
+//   - node: the node to check.
+//
+// Returns:
+//   - bool: false for an empty value or a container without items.
+func hasValue(node Node) bool {
+	switch n := node.(type) {
+	case *ValueNode:
+		return n.Value != ""
+	case *ContainerNode:
+		return len(n.Items) > 0
+	default:
+		return true
+	}
 }

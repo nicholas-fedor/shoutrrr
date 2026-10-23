@@ -16,7 +16,7 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	Token string `url:"host"`
+	Token string `sensitive:"true"                url:"host"`
 	Title string `default:"Shoutrrr notification" key:"title"`
 
 	Targets []string `url:"path"`

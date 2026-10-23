@@ -8,11 +8,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 )
 
 // TestRun_FlagRetrievalError tests the Run function with flag retrieval error.
@@ -56,6 +60,7 @@ func TestRun_UnknownService(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "unknownservice://test")
 
@@ -95,6 +100,7 @@ func TestRun_InvalidURLFormat(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "://invalid")
 
@@ -126,6 +132,7 @@ func TestRun_SubprocessErrorOutput(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		// Use an unknown service URL
 		_ = cmd.Flags().Set("url", "xyzservice://test")
@@ -224,6 +231,7 @@ func TestRun_CaptureStdout(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -260,6 +268,7 @@ func TestRun_IntegrationWithExitCodes_ValidURL(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -285,6 +294,7 @@ func TestRun_IntegrationWithExitCodes_InvalidURL(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "://badurl")
 
@@ -315,6 +325,7 @@ func TestRun_WithSimpleLoggerURL(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -347,6 +358,7 @@ func TestRun_WithLoggerURLWithPath(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "logger://test/path")
 
@@ -484,6 +496,7 @@ func TestRun_WithLoggerSchemeSucceeds(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "logger://")
 
@@ -508,6 +521,7 @@ func TestRun_WithUnknownSchemeFails(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		_ = cmd.Flags().Set("url", "unknown123://test")
 
@@ -537,6 +551,7 @@ func TestRun_MultipleURLs(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		cmd := &cobra.Command{Use: "verify"}
 		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
 
 		require.NoError(t, cmd.Flags().Set("url", "logger://"))
 		require.NoError(t, cmd.Flags().Set("url", "logger://test/path"))
@@ -566,4 +581,72 @@ func TestRun_MultipleURLs(t *testing.T) {
 	}
 
 	assert.Contains(t, output, "multiple --url values are not supported", "Error should indicate multiple URLs are not supported")
+}
+
+// TestRun_MasksSensitiveValues verifies that a verified config shows the value
+// of a sensitive field, such as a Telegram bot token, only with
+// --show-sensitive, and masks it otherwise.
+func TestRun_MasksSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	const token = "110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"
+
+	if os.Getenv("TEST_SUBPROCESS") == "1" {
+		cmd := &cobra.Command{Use: "verify"}
+		cmd.Flags().StringArrayP("url", "u", []string{}, "")
+		cmd.Flags().BoolP("show-sensitive", "x", false, "")
+
+		_ = cmd.Flags().Set("url", "telegram://"+token+"@telegram?chats=@channel")
+		_ = cmd.Flags().Set("show-sensitive", os.Getenv("TEST_SHOW_SENSITIVE"))
+
+		Run(cmd, []string{})
+
+		return
+	}
+
+	for _, show := range []bool{false, true} {
+		t.Run("show-sensitive="+strconv.FormatBool(show), func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestRun_MasksSensitiveValues$")
+
+			cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1", "TEST_SHOW_SENSITIVE="+strconv.FormatBool(show))
+
+			var stdoutBuf bytes.Buffer
+
+			cmd.Stdout = &stdoutBuf
+
+			require.NoError(t, cmd.Run())
+
+			stdout := stdoutBuf.String()
+			if show {
+				assert.Contains(t, stdout, token)
+				assert.NotContains(t, stdout, format.MaskedValue)
+			} else {
+				assert.NotContains(t, stdout, token)
+				assert.Contains(t, stdout, format.MaskedValue)
+			}
+		})
+	}
+}
+
+// TestFormatConfig verifies that a rendered config masks the value of a
+// sensitive field unless sensitive values are shown, and always shows the
+// other fields.
+func TestFormatConfig(t *testing.T) {
+	t.Parallel()
+
+	const token = "110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"
+
+	service, err := (&router.ServiceRouter{}).Locate("telegram://" + token + "@telegram?chats=@channel")
+	require.NoError(t, err)
+
+	masked := formatConfig(service, false)
+	assert.NotContains(t, masked, token)
+	assert.Contains(t, masked, format.MaskedValue)
+	assert.Contains(t, masked, "@channel")
+
+	shown := formatConfig(service, true)
+	assert.Contains(t, shown, token)
+	assert.NotContains(t, shown, format.MaskedValue)
 }

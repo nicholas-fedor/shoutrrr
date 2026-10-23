@@ -19,7 +19,7 @@ type Config struct {
 	webhookQuery url.Values
 
 	// The API key for Notifiarr authentication
-	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true"`
+	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true" sensitive:"true"`
 	// Optional name of the app/script for notifications
 	Name string `default:"Shoutrrr" desc:"Name of the app/script for notifications" key:"name" optional:""`
 	// Optional Discord channel ID for Discord notifications

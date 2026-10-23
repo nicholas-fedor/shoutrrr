@@ -94,7 +94,7 @@ func printDocs(docFormat string, services []string) cmd.ExitError {
 	// Select the appropriate renderer based on the requested format.
 	switch docFormat {
 	case "console":
-		renderer = format.ConsoleTreeRenderer{WithValues: false}
+		renderer = format.ConsoleTreeRenderer{WithValues: false, MaskSensitive: false}
 	case "markdown":
 		renderer = format.MarkdownTreeRenderer{
 			HeaderPrefix:      "### ",

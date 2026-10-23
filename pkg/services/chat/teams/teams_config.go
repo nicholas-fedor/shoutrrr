@@ -15,7 +15,7 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	Host  string `desc:"The full Power Automate workflow incoming webhook URL"                        key:"host"`
+	Host  string `desc:"The full Power Automate workflow incoming webhook URL"                        key:"host"  sensitive:"true"`
 	Title string `desc:"Title displayed as a bold header in the Adaptive Card"                        key:"title" optional:""`
 	Color string `desc:"Title text color (accent, good, warning, attention, dark, light, or default)" key:"color" optional:""`
 }

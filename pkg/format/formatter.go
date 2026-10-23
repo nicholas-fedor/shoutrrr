@@ -74,7 +74,7 @@ func GetServiceConfig(service types.Service) types.ServiceConfig {
 
 // ColorFormatTree generates a color-highlighted string representation of a node tree.
 func ColorFormatTree(rootNode *ContainerNode, withValues bool) string {
-	return ConsoleTreeRenderer{WithValues: withValues}.RenderTree(rootNode, "")
+	return ConsoleTreeRenderer{WithValues: withValues, MaskSensitive: false}.RenderTree(rootNode, "")
 }
 
 // GetServiceConfigFormat retrieves type and field information from a service's config.

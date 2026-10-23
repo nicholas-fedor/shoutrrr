@@ -16,7 +16,7 @@ type Config struct {
 
 	User string `desc:"Username or empty when using access token" optional:"" url:"user"`
 
-	Password   string   `desc:"Password or access token"                 url:"password"`
+	Password   string   `desc:"Password or access token"                 sensitive:"true" url:"password"`
 	Host       string   `url:"host"`
 	Title      string   `default:""                                      key:"title"`
 	Rooms      []string `desc:"Room aliases, or with ! prefix, room IDs" key:"rooms,room" optional:""`

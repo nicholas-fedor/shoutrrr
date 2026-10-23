@@ -13,7 +13,7 @@ import (
 
 // Config represents the configuration for the WeCom service.
 type Config struct {
-	Key                 string `desc:"Bot webhook key"                             key:"key"`
+	Key                 string `desc:"Bot webhook key"                             key:"key"                   sensitive:"true"`
 	MentionedList       string `desc:"Users to mention (comma-separated)"          key:"mentioned_list"`
 	MentionedMobileList string `desc:"Mobile numbers to mention (comma-separated)" key:"mentioned_mobile_list"`
 }
