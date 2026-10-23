@@ -169,3 +169,47 @@ func TestGeneratorStopsWithoutToken(t *testing.T) {
 	require.ErrorIs(t, err, generator.ErrInputClosed)
 	assert.Zero(t, httpmock.GetTotalCallCount())
 }
+
+// TestGeneratorUsesAPIURL verifies that an apiurl property sends the
+// generator's requests to that Bot API server and stores it in the generated
+// URL, and that an invalid one fails before any request.
+//
+//nolint:paralleltest // httpmock replaces the shared http.DefaultTransport.
+func TestGeneratorUsesAPIURL(t *testing.T) {
+	activateTelegramMock(t)
+
+	const apiBase = "http://localhost:8081/bot" + generatorToken + "/"
+
+	httpmock.RegisterResponder(http.MethodGet, apiBase+"getMe", botInfoResponder)
+	httpmock.RegisterResponder(http.MethodPost, apiBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
+		OK     bool
+		Result []Update
+	}{
+		OK: true,
+		Result: []Update{{
+			Message: &Message{
+				Text: "hi!",
+				From: &User{Username: `mockUser`},
+				Chat: &Chat{Type: `private`, ID: 667, Username: `mockUser`},
+			},
+		}},
+	}))
+
+	var output bytes.Buffer
+
+	props := map[string]string{"apiurl": "http://localhost:8081"}
+	config, err := newTestGenerator([]string{generatorToken, "no"}, &output).Generate(nil, props, nil)
+
+	require.NoError(t, err, "output:\n%s", output.String())
+	assert.Equal(
+		t,
+		`telegram://0:MockToken@telegram?apiurl=http%3A%2F%2Flocalhost%3A8081&chats=667&preview=No`,
+		config.GetURL().String(),
+	)
+
+	calls := httpmock.GetTotalCallCount()
+
+	_, err = newTestGenerator([]string{generatorToken}, &output).Generate(nil, map[string]string{"apiurl": "ftp://x"}, nil)
+	require.ErrorIs(t, err, ErrInvalidAPIURL)
+	assert.Equal(t, calls, httpmock.GetTotalCallCount(), "an invalid API URL must fail before any request")
+}

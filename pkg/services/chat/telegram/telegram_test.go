@@ -394,3 +394,84 @@ func TestServiceTimeout(t *testing.T) {
 		})
 	}
 }
+
+// TestSendUsesAPIURL verifies that a send posts to the configured Bot API
+// server, such as a self-hosted server on plain HTTP or a proxy under a path,
+// and to api.telegram.org when none is set. A trailing slash is ignored.
+func TestSendUsesAPIURL(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		query   string
+		params  *types.Params
+		wantURL string
+	}{
+		"default":          {wantURL: "https://api.telegram.org" + sendMessagePath},
+		"self-hosted":      {query: "&apiurl=http://localhost:8081", wantURL: "http://localhost:8081" + sendMessagePath},
+		"proxy under path": {query: "&apiurl=https://proxy.example.com/telegram/", wantURL: "https://proxy.example.com/telegram" + sendMessagePath},
+		"IPv6 host":        {query: "&apiurl=http://[::1]:8081", wantURL: "http://[::1]:8081" + sendMessagePath},
+		"API URL as param": {
+			params:  &types.Params{"apiurl": "https://tg.example.com"},
+			wantURL: "https://tg.example.com" + sendMessagePath,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var urls []string
+
+			service := newTestService(t, testServiceURL+tc.query)
+			service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				urls = append(urls, req.URL.String())
+
+				return newResponse(req, http.StatusOK, sendSuccessBody), nil
+			})})
+
+			require.NoError(t, service.Send("Message", tc.params))
+			assert.Equal(t, []string{tc.wantURL}, urls)
+		})
+	}
+}
+
+// TestAPIURLValidation verifies that an API URL must be an http or https URL
+// with a host and without userinfo, a query, or a fragment, both in the
+// service URL and in the send params, and that a rejected URL makes no request.
+func TestAPIURLValidation(t *testing.T) {
+	t.Parallel()
+
+	invalid := map[string]string{
+		"other scheme":   "ftp://tg.example.com",
+		"no host":        "https://",
+		"port only":      "http://:8081",
+		"no scheme":      "tg.example.com",
+		"userinfo":       "https://user:pass@tg.example.com",
+		"query":          "https://tg.example.com/?a=1",
+		"empty query":    "https://tg.example.com/?",
+		"fragment":       "https://tg.example.com/#top",
+		"empty fragment": "https://tg.example.com/#",
+		"does not parse": "https://tg.example.com:port",
+	}
+
+	for name, apiURL := range invalid {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&Service{}).Initialize(
+				parseURL(t, testServiceURL+"&apiurl="+url.QueryEscape(apiURL)),
+				log.New(t.Output(), "", 0),
+			)
+			require.ErrorIs(t, err, ErrInvalidAPIURL)
+
+			service := newTestService(t, testServiceURL)
+			service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Error("a send with an invalid API URL made a request")
+
+				return nil, errors.New("unexpected request")
+			})})
+
+			require.ErrorIs(t, service.Send("Message", &types.Params{"apiurl": apiURL}), ErrInvalidAPIURL)
+		})
+	}
+}

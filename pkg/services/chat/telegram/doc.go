@@ -19,6 +19,7 @@
 //   - Notification: Enable/disable notification sound (optional, default: true)
 //   - ParseMode: How to parse the message text (None, Markdown, HTML, MarkdownV2) (optional, default: None)
 //   - Title: Notification title prepended to messages (optional)
+//   - APIURL: Base URL of the Bot API server, such as a self-hosted one (optional, default: https://api.telegram.org)
 //
 // # Parse Modes
 //

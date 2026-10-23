@@ -1,10 +1,12 @@
 package telegram
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -13,16 +15,25 @@ import (
 
 // Client for Telegram API.
 type Client struct {
+	// httpClient sends the requests, or a default client with a timeout when nil.
 	httpClient types.HTTPClient
-	token      string
+	// token is the bot token, which is part of every request URL.
+	token string
+	// apiURL is the base URL of the Bot API server, or empty for
+	// https://api.telegram.org.
+	apiURL string
 }
 
 // GetBotInfo returns the bot User info.
+//
+// Returns:
+//   - *User: the bot's user, from getMe.
+//   - error: the Telegram API error or the request error.
 func (c *Client) GetBotInfo() (*User, error) {
 	response := &userResponse{}
 	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
 
-	if err := jc.Get(c.apiURL("getMe"), response); err != nil || !response.OK {
+	if err := jc.Get(c.endpointURL("getMe"), response); err != nil || !response.OK {
 		return nil, fmt.Errorf("getting bot info: %w", responseErr(err, response.ErrorCode, response.Description))
 	}
 
@@ -30,6 +41,18 @@ func (c *Client) GetBotInfo() (*User, error) {
 }
 
 // GetUpdates retrieves the latest updates.
+//
+// Parameters:
+//   - offset: the identifier of the first update to return. Earlier updates
+//     are confirmed and no longer returned.
+//   - limit: the most updates to return, from 1 to 100.
+//   - timeout: how many seconds to long poll, or 0 for none.
+//   - allowedUpdates: the update types to receive, or nil to keep the previous
+//     setting.
+//
+// Returns:
+//   - []Update: the updates.
+//   - error: the Telegram API error or the request error.
 func (c *Client) GetUpdates(
 	offset int,
 	limit int,
@@ -45,7 +68,7 @@ func (c *Client) GetUpdates(
 	response := &updatesResponse{}
 	jc := jsonclient.NewWithHTTPClient(c.httpClientOrDefault())
 
-	if err := jc.Post(c.apiURL("getUpdates"), request, response); err != nil || !response.OK {
+	if err := jc.Post(c.endpointURL("getUpdates"), request, response); err != nil || !response.OK {
 		return nil, fmt.Errorf("getting updates: %w", responseErr(err, response.ErrorCode, response.Description))
 	}
 
@@ -80,18 +103,32 @@ func (c *Client) SendMessageContext(ctx context.Context, message *SendMessagePay
 	response := &messageResponse{}
 	jc := jsonclient.NewContextClient(c.httpClientOrDefault())
 
-	if err := jc.PostContext(ctx, c.apiURL("sendMessage"), message, response); err != nil || !response.OK {
+	if err := jc.PostContext(ctx, c.endpointURL("sendMessage"), message, response); err != nil || !response.OK {
 		return nil, fmt.Errorf("sending message: %w", responseErr(err, response.ErrorCode, response.Description))
 	}
 
 	return response.Result, nil
 }
 
-func (c *Client) apiURL(endpoint string) string {
-	return fmt.Sprintf(apiFormat, c.token, endpoint)
+// endpointURL returns the URL of a Bot API method, which is the server's base
+// URL followed by /bot<token>/<method>.
+//
+// Parameters:
+//   - endpoint: the Bot API method, such as sendMessage.
+//
+// Returns:
+//   - string: the method's URL.
+func (c *Client) endpointURL(endpoint string) string {
+	base := strings.TrimSuffix(cmp.Or(c.apiURL, defaultAPIURL), "/")
+
+	return base + "/bot" + c.token + "/" + endpoint
 }
 
 // httpClientOrDefault returns the injected client or a default Client.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or a new client with
+//     [defaultHTTPTimeout].
 func (c *Client) httpClientOrDefault() types.HTTPClient {
 	if c.httpClient != nil {
 		return c.httpClient
