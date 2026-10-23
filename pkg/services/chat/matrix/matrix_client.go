@@ -123,8 +123,10 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 //   - ctx: bounds the request.
 //   - method: the HTTP method.
 //   - path: the API path.
-//   - request: the request body, encoded as JSON, or nil for none.
-//   - response: decodes the response body, or nil to discard it.
+//   - request: the value sent as the JSON request body. A nil value is sent as
+//     null.
+//   - response: the value the JSON response is decoded into. A nil value
+//     makes decoding a successful response fail.
 //
 // Returns:
 //   - error: the request error or the API's error, logged first when it is
@@ -566,8 +568,8 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 
 // sendToExplicitRooms sends a message to explicitly specified rooms and collects any errors.
 //
-// A room that is not an ID, one starting with !, is joined first to get its
-// ID.
+// A room that starts with ! is a room ID and is sent to as is. Any other room,
+// such as an alias, is joined first to get its ID.
 //
 // Parameters:
 //   - ctx: bounds the requests.

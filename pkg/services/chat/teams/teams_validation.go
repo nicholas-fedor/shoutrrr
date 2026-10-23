@@ -25,14 +25,16 @@ var workflowURLValidator = regexp.MustCompile(
 		`^https://[a-zA-Z0-9][a-zA-Z0-9.-]*\.environment\.api\.powerplatform\.com(:\d+)?/powerautomate/automations/direct/(?:[A-Za-z0-9-]+/)*workflows/`,
 )
 
-// ValidateWebhookURL ensures the webhook URL matches the Power Automate workflow pattern.
+// ValidateWebhookURL checks that the webhook URL starts with a Power Automate
+// workflow webhook prefix, the part up to and including "workflows/". It does
+// not check the rest of the URL.
 //
 // Parameters:
 //   - url: the webhook URL.
 //
 // Returns:
-//   - error: [ErrInvalidWebhookURL] for a URL that is not a Power Automate
-//     workflow webhook.
+//   - error: [ErrInvalidWebhookURL] for a URL that does not start with a
+//     Power Automate workflow webhook prefix.
 func ValidateWebhookURL(url string) error {
 	if !workflowURLValidator.MatchString(url) {
 		return fmt.Errorf("%w", ErrInvalidWebhookURL)

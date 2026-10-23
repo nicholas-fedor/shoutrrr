@@ -13,7 +13,9 @@ type PushRequest struct {
 	// Body is the push body, the message.
 	Body string `json:"body"`
 
-	// Email sends the push to the user with this e-mail address.
+	// Email sends the push to the Pushbullet user with this e-mail address.
+	// When the address has no Pushbullet user, Pushbullet sends an e-mail to
+	// it instead.
 	Email string `json:"email"`
 	// ChannelTag sends the push to the subscribers of the channel with this
 	// tag.
@@ -54,7 +56,8 @@ type PushResponse struct {
 	Modified float64 `json:"modified"`
 	// Active is false for a deleted push.
 	Active bool `json:"active"`
-	// Dismissed reports whether the push was dismissed.
+	// Dismissed reports whether a device dismissed the push, or a device was
+	// active when the push arrived.
 	Dismissed bool `json:"dismissed"`
 }
 
