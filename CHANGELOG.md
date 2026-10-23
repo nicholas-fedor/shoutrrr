@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Mask secrets in the URLs that send and generate print by @nicholas-fedor in [#1787](https://github.com/nicholas-fedor/shoutrrr/pull/1787)
 - Mask sensitive values in verify output by @nicholas-fedor in [#1783](https://github.com/nicholas-fedor/shoutrrr/pull/1783)
 
 ### Fixed
