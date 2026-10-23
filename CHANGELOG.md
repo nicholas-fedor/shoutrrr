@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Map the message level to Gotify, Signalgrid, Opsgenie, and PagerDuty severity by @nicholas-fedor in [#1799](https://github.com/nicholas-fedor/shoutrrr/pull/1799)
 - Map the message level to ntfy, Pushover, and Discord severity by @nicholas-fedor in [#1795](https://github.com/nicholas-fedor/shoutrrr/pull/1795)
 - Mask secrets in the URLs that send and generate print by @nicholas-fedor in [#1787](https://github.com/nicholas-fedor/shoutrrr/pull/1787)
 - Mask sensitive values in verify output by @nicholas-fedor in [#1783](https://github.com/nicholas-fedor/shoutrrr/pull/1783)
