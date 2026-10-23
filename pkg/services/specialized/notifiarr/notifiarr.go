@@ -137,14 +137,18 @@ func (s *Service) GetID() string {
 
 // GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
 //
+// A webhook URL without an API key converts without an error, to a service URL
+// with an empty host.
+//
 // Parameters:
 //   - serviceURL: the webhook URL, with or without the notifiarr+ scheme
 //     prefix.
 //
 // Returns:
 //   - *url.URL: the service URL.
-//   - error: the error from reading the webhook URL, such as
-//     [ErrAPIKeyMissing].
+//   - error: an error wrapping
+//     [github.com/nicholas-fedor/shoutrrr/pkg/util.ErrInvalidQuery] for a
+//     malformed query, or a query prop error.
 func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 	// Copy the URL to modify
 	webhookURL := *serviceURL
