@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 29bc952 by @renovate[bot] in [#1789](https://github.com/nicholas-fedor/shoutrrr/pull/1789)
 - Update binwiederhier/ntfy:latest docker digest to 98e6ba3 by @renovate[bot] in [#1785](https://github.com/nicholas-fedor/shoutrrr/pull/1785)
 - Update axllent/mailpit docker tag to v1.32.0 by @renovate[bot] in [#1779](https://github.com/nicholas-fedor/shoutrrr/pull/1779)
 - Clear the existing lint findings by @nicholas-fedor in [#1771](https://github.com/nicholas-fedor/shoutrrr/pull/1771)
