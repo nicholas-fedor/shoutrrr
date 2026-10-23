@@ -9,8 +9,10 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -25,18 +27,35 @@ type Generator struct{}
 
 // SMTP port constants.
 const (
-	DefaultSMTPPort       uint16 = 25  // Standard SMTP port without encryption
-	GmailSMTPPortStartTLS uint16 = 587 // Gmail SMTP port with STARTTLS
+	// DefaultSMTPPort is the standard SMTP port without encryption.
+	DefaultSMTPPort uint16 = 25
+	// GmailSMTPPortStartTLS is the Gmail SMTP port with STARTTLS.
+	GmailSMTPPortStartTLS uint16 = 587
 )
 
 // StateLength is the length in bytes for OAuth 2.0 state randomness (128 bits).
 const StateLength int = 16
 
-// Errors.
+// SMTP settings the generated configuration shares with the SMTP service's
+// defaults, so the generated URL works as the service would configure itself.
+const (
+	// smtpClientHost is the EHLO hostname.
+	smtpClientHost = "localhost"
+	// smtpTimeout is the session timeout.
+	smtpTimeout = 10 * time.Second
+)
+
+// Errors returned while generating the configuration.
 var (
-	ErrReadFileFailed      = errors.New("failed to read file")
-	ErrUnmarshalFailed     = errors.New("failed to unmarshal JSON")
-	ErrScanFailed          = errors.New("failed to scan input")
+	// ErrReadFileFailed indicates that a settings or credentials file could not
+	// be read.
+	ErrReadFileFailed = errors.New("failed to read file")
+	// ErrUnmarshalFailed indicates that a settings file is not valid JSON.
+	ErrUnmarshalFailed = errors.New("failed to unmarshal JSON")
+	// ErrScanFailed indicates that input ended before an answer was given.
+	ErrScanFailed = errors.New("failed to scan input")
+	// ErrTokenExchangeFailed indicates that the provider rejected the
+	// verification code or could not be reached.
 	ErrTokenExchangeFailed = errors.New("failed to exchange token")
 	// ErrCredentialsFileRequired indicates that the gmail provider was selected
 	// without a credentials file argument.
@@ -79,9 +98,51 @@ func (g *Generator) Generate(
 	return oauth2Generator()
 }
 
-// generateOauth2Config completes the OAuth2 flow and generates SMTP configuration.
-func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error) {
-	scanner := bufio.NewScanner(os.Stdin)
+// generateOauth2Config completes the OAuth2 flow on the terminal and generates
+// the SMTP configuration.
+//
+// Parameters:
+//   - conf: the provider's OAuth2 settings.
+//   - host: the SMTP server host.
+//   - opts: extra parameters for the authorization URL, such as Google's
+//     offline access.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+//   - error: an input or token exchange error.
+func generateOauth2Config(conf *oauth2.Config, host string, opts ...oauth2.AuthCodeOption) (*smtp.Config, error) {
+	return runOAuth2Flow(context.Background(), conf, host, os.Stdin, os.Stdout, opts...)
+}
+
+// runOAuth2Flow asks the user to authorize Shoutrrr, exchanges the code for
+// tokens, and generates the SMTP configuration.
+//
+// The configuration holds the refresh token and the client settings, so the
+// SMTP service can get a current access token for each send. A provider that
+// returns no refresh token leaves only the access token, used as the password
+// until it expires, and the user is warned.
+//
+// Parameters:
+//   - ctx: bounds the token exchange.
+//   - conf: the provider's OAuth2 settings.
+//   - host: the SMTP server host.
+//   - input: the user's answers: the verification code, then the sender.
+//   - output: receives the prompts and the warning.
+//   - opts: extra parameters for the authorization URL.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+//   - error: an input error wrapping [ErrScanFailed], or an error wrapping
+//     [ErrTokenExchangeFailed] and the provider's error.
+func runOAuth2Flow(
+	ctx context.Context,
+	conf *oauth2.Config,
+	host string,
+	input io.Reader,
+	output io.Writer,
+	opts ...oauth2.AuthCodeOption,
+) (*smtp.Config, error) {
+	scanner := bufio.NewScanner(input)
 
 	// Generate a random state value
 	stateBytes := make([]byte, StateLength)
@@ -92,17 +153,17 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 	state := base64.URLEncoding.EncodeToString(stateBytes)
 
 	if _, err := fmt.Fprintf(
-		os.Stdout,
+		output,
 		"Visit the following URL to authenticate:\n%s\n\n",
-		conf.AuthCodeURL(state),
+		conf.AuthCodeURL(state, opts...),
 	); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
+		return nil, fmt.Errorf("writing to output: %w", err)
 	}
 
 	var verCode string
 
-	if _, err := fmt.Fprint(os.Stdout, "Enter verification code: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
+	if _, err := fmt.Fprint(output, "Enter verification code: "); err != nil {
+		return nil, fmt.Errorf("writing to output: %w", err)
 	}
 
 	if scanner.Scan() {
@@ -111,17 +172,16 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 		return nil, fmt.Errorf("verification code: %w", ErrScanFailed)
 	}
 
-	ctx := context.Background()
-
 	token, err := conf.Exchange(ctx, verCode)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", verCode, ErrTokenExchangeFailed)
+		// The verification code is a credential, so the error leaves it out.
+		return nil, fmt.Errorf("%w: %w", ErrTokenExchangeFailed, err)
 	}
 
 	var sender string
 
-	if _, err := fmt.Fprint(os.Stdout, "Enter sender e-mail: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
+	if _, err := fmt.Fprint(output, "Enter sender e-mail: "); err != nil {
+		return nil, fmt.Errorf("writing to output: %w", err)
 	}
 
 	if scanner.Scan() {
@@ -130,13 +190,37 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 		return nil, fmt.Errorf("sender email: %w", ErrScanFailed)
 	}
 
+	if token.RefreshToken == "" {
+		if _, err := fmt.Fprintln(output, noRefreshTokenWarning(token)); err != nil {
+			return nil, fmt.Errorf("writing to output: %w", err)
+		}
+	}
+
+	return newSMTPConfig(conf, token, host, sender), nil
+}
+
+// newSMTPConfig builds the SMTP configuration for an authorized sender.
+//
+// With a refresh token, the configuration holds it with the client ID, client
+// secret, and token URL, and no password, since each send gets a current
+// access token. Without one, the access token is the password.
+//
+// Parameters:
+//   - conf: the provider's OAuth2 settings.
+//   - token: the tokens from the code exchange.
+//   - host: the SMTP server host.
+//   - sender: the sender's e-mail address.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+func newSMTPConfig(conf *oauth2.Config, token *oauth2.Token, host, sender string) *smtp.Config {
 	// Determine the appropriate port based on the host
 	port := DefaultSMTPPort
 	if host == "smtp.gmail.com" {
 		port = GmailSMTPPortStartTLS // Use 587 for Gmail with STARTTLS
 	}
 
-	svcConf := &smtp.Config{
+	config := &smtp.Config{
 		Host:        host,
 		Port:        port,
 		Username:    sender,
@@ -145,14 +229,47 @@ func generateOauth2Config(conf *oauth2.Config, host string) (*smtp.Config, error
 		FromName:    "Shoutrrr",
 		ToAddresses: []string{sender},
 		Auth:        smtp.AuthTypes.OAuth2,
+		Encryption:  smtp.EncMethods.Auto,
+		ClientHost:  smtpClientHost,
+		Timeout:     smtpTimeout,
 		UseStartTLS: true,
 		UseHTML:     true,
 	}
 
-	return svcConf, nil
+	if token.RefreshToken != "" {
+		config.Password = ""
+		config.ClientID = conf.ClientID
+		config.ClientSecret = conf.ClientSecret
+		config.RefreshToken = token.RefreshToken
+		config.TokenURL = conf.Endpoint.TokenURL
+	}
+
+	return config
+}
+
+// noRefreshTokenWarning returns the warning for a provider that returned no
+// refresh token, with the access token's expiry when known.
+//
+// Parameters:
+//   - token: the tokens from the code exchange.
+//
+// Returns:
+//   - string: the warning.
+func noRefreshTokenWarning(token *oauth2.Token) string {
+	warning := "Warning: the provider returned no refresh token, so the URL works only until the access token expires"
+	if !token.Expiry.IsZero() {
+		warning += " at " + token.Expiry.Format(time.RFC3339)
+	}
+
+	return warning + "."
 }
 
 // oauth2Generator generates OAuth2 configuration from user input.
+//
+// Returns:
+//   - *smtp.Config: the SMTP configuration.
+//   - error: an output error, an error wrapping [ErrScanFailed] when input
+//     ends early, or a token exchange error.
 func oauth2Generator() (*smtp.Config, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -272,14 +389,20 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 	}
 
 	var providerConfig struct {
+		// ClientID is the OAuth2 client ID.
 		ClientID string `json:"client_id"`
-
-		ClientSecret string   `json:"client_secret"`
-		RedirectURL  string   `json:"redirect_url"`
-		AuthURL      string   `json:"auth_url"`
-		TokenURL     string   `json:"token_url"`
-		Hostname     string   `json:"smtp_hostname"`
-		Scopes       []string `json:"scopes"`
+		// ClientSecret is the OAuth2 client secret.
+		ClientSecret string `json:"client_secret"`
+		// RedirectURL is where the provider sends the user after authorizing.
+		RedirectURL string `json:"redirect_url"`
+		// AuthURL is the provider's authorization endpoint.
+		AuthURL string `json:"auth_url"`
+		// TokenURL is the provider's token endpoint.
+		TokenURL string `json:"token_url"`
+		// Hostname is the SMTP server host.
+		Hostname string `json:"smtp_hostname"`
+		// Scopes are the OAuth2 scopes to request.
+		Scopes []string `json:"scopes"`
 	}
 
 	if err := json.Unmarshal(jsonData, &providerConfig, jsonopts.Default); err != nil {
@@ -322,5 +445,7 @@ func oauth2GeneratorGmail(credFile string) (*smtp.Config, error) {
 		return nil, fmt.Errorf("%s: %w", credFile, err)
 	}
 
-	return generateOauth2Config(conf, "smtp.gmail.com")
+	// Google returns a refresh token to web clients only with offline access,
+	// and again on a later grant only after the consent prompt.
+	return generateOauth2Config(conf, "smtp.gmail.com", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }

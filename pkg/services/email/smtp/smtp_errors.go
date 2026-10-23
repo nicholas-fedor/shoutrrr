@@ -2,6 +2,7 @@ package smtp
 
 import "errors"
 
+// Errors returned when reading the configuration, authenticating, or sending.
 var (
 	// ErrServerNoStartTLS is returned when STARTTLS is required but the server does not support it.
 	ErrServerNoStartTLS = errors.New("server does not support StartTLS")
@@ -14,6 +15,11 @@ var (
 
 	// ErrHostMissing is returned when the configuration URL omits the SMTP server host.
 	ErrHostMissing = errors.New("host missing from config URL")
+
+	// ErrInvalidOAuth2Refresh is returned when the OAuth2 refresh settings are
+	// incomplete, are set without OAuth2 authentication, or name a token URL
+	// that is not HTTPS or a loopback HTTP URL.
+	ErrInvalidOAuth2Refresh = errors.New("invalid OAuth2 refresh settings")
 
 	// errUnencryptedConnection is returned when authentication is attempted
 	// on a non-local server without TLS.

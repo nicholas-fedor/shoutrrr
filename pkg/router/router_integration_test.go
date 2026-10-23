@@ -309,6 +309,17 @@ var fixtures = []fixture{
 		secrets: []string{"SECRETsmtpPASSWORD"},
 	},
 	{
+		// OAuth2 with a refresh token makes a token request through the
+		// injected HTTP client before it dials the SMTP server.
+		scheme: "smtp",
+		url: "smtp://contract@mail.example.invalid:587/?fromAddress=from@example.invalid&toAddresses=to@example.invalid" +
+			"&auth=OAuth2&clientid=contract-client&clientsecret=SECRETsmtpCLIENTSECRET&refreshtoken=SECRETsmtpREFRESHTOKEN" +
+			"&tokenurl=https%3A%2F%2Foauth.example.invalid%2Ftoken",
+		kind:    netTCP,
+		secrets: []string{"SECRETsmtpCLIENTSECRET", "SECRETsmtpREFRESHTOKEN"},
+		body:    `{"access_token":"contract-access-token","token_type":"Bearer","expires_in":3600}`,
+	},
+	{
 		scheme: "teams",
 		url: "teams://?host=https%3A%2F%2Fprod-00.westus.logic.azure.com%3A443%2Fworkflows%2F00000000000000000000000000000000" +
 			"%2Ftriggers%2Fmanual%2Fpaths%2Finvoke%3Fapi-version%3D2016-06-01%26sp%3D%252Ftriggers%252Fmanual%252Frun" +

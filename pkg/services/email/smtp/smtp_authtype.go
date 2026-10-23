@@ -26,6 +26,7 @@ type authTypeVals struct {
 	Login authType
 }
 
+// Authentication methods, in [AuthTypes] order.
 const (
 	// AuthNone disables SMTP authentication.
 	AuthNone authType = iota

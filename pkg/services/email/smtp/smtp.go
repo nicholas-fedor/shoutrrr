@@ -3,7 +3,10 @@ package smtp
 import (
 	"context"
 	"net/url"
+	"sync"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -21,10 +24,24 @@ type Service struct {
 	Config *Config
 	// dialContext, if non-nil, is used for the SMTP TCP dial.
 	dialContext types.DialContextFunc
+	// httpClient, if non-nil, sends the OAuth2 token requests.
+	httpClient types.HTTPClient
+	// defaultHTTPClient sends the token requests when httpClient is nil. It is
+	// built on first use.
+	defaultHTTPClient types.HTTPClient
+	// tokens caches the OAuth2 access token of each set of refresh settings.
+	tokens map[tokenKey]*oauth2.Token
+	// refreshes holds the token request in flight for each set of refresh
+	// settings, which concurrent sends with those settings wait for.
+	refreshes map[tokenKey]*tokenRefresh
 	// propKeyResolver applies URL and send-parameter overrides to [Config].
 	propKeyResolver format.PropKeyResolver
+	// tokenMu guards httpClient, defaultHTTPClient, tokens, and refreshes. It
+	// is not held during token requests.
+	tokenMu sync.Mutex
 }
 
+// Service defaults.
 const (
 	// DefaultSMTPPort is the standard port for SMTP communication.
 	DefaultSMTPPort = 25
@@ -36,6 +53,7 @@ const (
 var (
 	_ types.Service           = (*Service)(nil)
 	_ types.DialContextSetter = (*Service)(nil)
+	_ types.HTTPClientSetter  = (*Service)(nil)
 	_ types.ContextSender     = (*Service)(nil)
 	_ types.ServiceTimeout    = (*Service)(nil)
 )
@@ -50,16 +68,18 @@ func (s *Service) GetID() string {
 
 // Initialize loads [Config] from serviceURL and sets logger for this [Service].
 //
-// It applies SMTP defaults, parses the configuration URL, and infers Auth as
-// [AuthPlain] when a username is present or [AuthNone] otherwise if
-// Auth is [AuthUnknown].
+// It applies SMTP defaults, parses the configuration URL, and infers Auth when
+// it is [AuthUnknown]: [AuthOAuth2] when a refresh token is set, [AuthPlain]
+// when a username is present, and [AuthNone] otherwise. It then checks the
+// OAuth2 refresh settings.
 //
 // Parameters:
 //   - serviceURL: The SMTP configuration URL.
 //   - logger: Logger used for service output ([types.StdLogger]).
 //
 // Returns:
-//   - An error if the configuration URL is invalid.
+//   - An error if the configuration URL is invalid, or [ErrInvalidOAuth2Refresh]
+//     for invalid refresh settings.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -81,11 +101,18 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 
 	if s.Config.Auth == AuthTypes.Unknown {
-		if s.Config.Username != "" {
+		switch {
+		case s.Config.usesTokenRefresh():
+			s.Config.Auth = AuthTypes.OAuth2
+		case s.Config.Username != "":
 			s.Config.Auth = AuthTypes.Plain
-		} else {
+		default:
 			s.Config.Auth = AuthTypes.None
 		}
+	}
+
+	if err := validateOAuth2Refresh(s.Config); err != nil {
+		return err
 	}
 
 	s.propKeyResolver = pkr
@@ -114,16 +141,26 @@ func (s *Service) Send(message string, params *types.Params) error {
 // bounds the connection and session, derived from ctx so caller cancellation
 // and deadlines propagate. Non-positive timeouts use [defaultTimeout].
 //
+// With a refresh token, a current OAuth2 access token is obtained before the
+// connection opens, within the same timeout, and used in place of the
+// password. A token the server rejects is dropped so the next send refreshes.
+//
 // Parameters:
 //   - ctx: Parent context for cancellation and deadlines.
 //   - message: The notification body sent as the email message.
 //   - params: Optional runtime overrides for configuration fields ([types.Params]).
 //
 // Returns:
-//   - An error if configuration updates, connection, or delivery fail.
+//   - An error if configuration updates, connection, or delivery fail, a
+//     [FailTokenRefresh] failure when no access token could be obtained, or
+//     [ErrInvalidOAuth2Refresh] for invalid refresh settings in params.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	config, err := s.sendConfig(params)
 	if err != nil {
+		return fail(FailApplySendParams, err)
+	}
+
+	if err := validateOAuth2Refresh(&config); err != nil {
 		return fail(FailApplySendParams, err)
 	}
 
@@ -136,6 +173,15 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		effectiveTimeout(config.Timeout),
 	)
 	defer cancel()
+
+	if config.usesTokenRefresh() {
+		accessToken, err := s.accessToken(ctx, &config)
+		if err != nil {
+			return err
+		}
+
+		config.Password = accessToken
+	}
 
 	client, err := dialClient(ctx, &config, s.dialContext)
 	if err != nil {

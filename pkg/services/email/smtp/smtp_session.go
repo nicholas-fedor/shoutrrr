@@ -21,12 +21,16 @@ type session struct {
 	closed bool
 }
 
+// Server reply matching.
 const (
 	// shortResponseErrorSubstring matches textproto short-response errors sometimes seen on QUIT.
 	shortResponseErrorSubstring = "short response"
 )
 
 // auth authenticates the SMTP client using the configured mechanism.
+//
+// When the server rejects a refreshed OAuth2 access token, the cached token is
+// dropped, so the next send gets a new one.
 //
 // Returns:
 //   - An error if authentication cannot be configured or the server rejects it.
@@ -38,6 +42,10 @@ func (s *session) auth() error {
 
 	if mechanism != nil {
 		if err := s.client.Auth(mechanism); err != nil {
+			if s.config.usesTokenRefresh() {
+				s.svc.forgetToken(s.config)
+			}
+
 			return fail(FailAuthenticating, err)
 		}
 	}
@@ -100,6 +108,9 @@ func (s *session) deliver(message, boundary string) []error {
 //
 // When [Config.ClientHost] is "auto", the local hostname is used, falling back to
 // localhost if it cannot be determined.
+//
+// Returns:
+//   - string: the EHLO hostname.
 func (s *session) ehloName() string {
 	if s.config.ClientHost != "auto" {
 		return s.config.ClientHost
