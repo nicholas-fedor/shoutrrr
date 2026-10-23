@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -24,14 +25,11 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil to use client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the token, the channel, and the message options.
 	Config *Config
-	// client is the default HTTP client, with [defaultHTTPTimeout], built by
-	// Initialize.
-	client *http.Client
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
 }
@@ -62,8 +60,6 @@ func (s *Service) GetID() string {
 
 // Initialize configures the service with a URL and logger.
 //
-// It builds the default HTTP client when the service has none.
-//
 // Parameters:
 //   - serviceURL: the service URL.
 //   - logger: the logger for service output.
@@ -72,14 +68,10 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	if s.client == nil {
-		s.client = &http.Client{
-			Timeout: defaultHTTPTimeout,
-		}
-	}
 
 	return s.Config.setURL(&s.pkr, serviceURL)
 }
@@ -139,24 +131,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-}
-
-// httpClientOrDefault returns the injected client or the internal client.
-//
-// Returns:
-//   - types.HTTPClient: the injected client, or the default client from
-//     Initialize.
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return s.client
+	s.client.Set(client)
 }
 
 // sendAPI sends a notification using the Slack API.
@@ -170,7 +145,7 @@ func (s *Service) httpClientOrDefault() types.HTTPClient {
 //   - error: the request error or the error the API reported.
 func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessagePayload) error {
 	response := APIResponse{}
-	jsonClient := jsonclient.NewContextClient(s.httpClientOrDefault())
+	jsonClient := jsonclient.NewContextClient(s.client.Client())
 	jsonClient.Headers().Set("Authorization", config.Token.Authorization())
 
 	if err := jsonClient.PostContext(ctx, apiPostMessage, payload, &response); err != nil {
@@ -223,7 +198,7 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 
 	req.Header.Set("Content-Type", jsonclient.ContentType)
 
-	client := s.httpClientOrDefault()
+	client := s.client.Client()
 
 	res, err := client.Do(req)
 	if err != nil {

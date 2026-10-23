@@ -122,7 +122,7 @@ func TestGetID(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses the URL into the config and
-// gives the service a default client with a timeout.
+// that the service's default client has a timeout.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -135,8 +135,10 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, "C0123456789", service.Config.Channel)
 	assert.Equal(t, "Alert", service.Config.Title)
 	assert.Equal(t, "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N", service.Config.Token.String())
-	require.NotNil(t, service.client)
-	assert.Equal(t, defaultHTTPTimeout, service.client.Timeout)
+
+	client, ok := service.client.Client().(*http.Client)
+	require.True(t, ok, "the default client should be an *http.Client")
+	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 }
 
 // TestInitializeErrors verifies that a token with a part that is too short or
@@ -428,14 +430,16 @@ func TestSetHTTPClient(t *testing.T) {
 
 	client := mocks.NewMockHTTPClient(t)
 	service := newTestService(t, testWebhookServiceURL, client, io.Discard)
-	assert.Same(t, client, service.httpClientOrDefault())
+	assert.Same(t, client, service.client.Client())
 
 	service.SetHTTPClient(nil)
-	assert.Same(t, service.client, service.httpClientOrDefault())
+
+	defaultClient := service.client.Client()
+	assert.IsType(t, &http.Client{}, defaultClient)
 
 	service.SetHTTPClient(client)
 	service.SetHTTPClient((*http.Client)(nil))
-	assert.Same(t, service.client, service.httpClientOrDefault())
+	assert.Same(t, defaultClient, service.client.Client())
 }
 
 // Read fails with errTransport.

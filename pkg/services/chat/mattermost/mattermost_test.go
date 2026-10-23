@@ -182,7 +182,6 @@ func TestInitialize(t *testing.T) {
 			Token:      "token",
 			DisableTLS: true,
 		}, service.Config)
-		assert.IsType(t, &http.Client{}, service.httpClient)
 	})
 
 	t.Run("missing token", func(t *testing.T) {
@@ -361,8 +360,8 @@ func TestSendContextErrors(t *testing.T) {
 }
 
 // TestSendDefaultClient verifies that a send reaches a plain HTTP server
-// through the client Initialize builds, and through the default client that a
-// nil *http.Client selects.
+// through the default client, both when no client was set and when a nil
+// *http.Client restores it.
 func TestSendDefaultClient(t *testing.T) {
 	t.Parallel()
 
@@ -371,7 +370,7 @@ func TestSendDefaultClient(t *testing.T) {
 		configure func(*Service)
 		name      string
 	}{
-		{name: "client built by Initialize"},
+		{name: "no client set"},
 		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
 	}
 
@@ -407,7 +406,35 @@ func TestSetHTTPClient(t *testing.T) {
 	service := &Service{}
 	service.SetHTTPClient(client)
 
-	assert.Same(t, client, service.httpClient)
+	assert.Same(t, client, service.client.Client())
+}
+
+// TestDefaultHTTPClient verifies that the default client has the send
+// timeout and sends through http.DefaultTransport, so it honors the proxy
+// environment variables.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "mattermost://mattermost.example.com/token")
+
+	httpClient, ok := service.client.Client().(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Nil(t, httpClient.Transport)
+}
+
+// TestSetHTTPClientBeforeInitialize verifies that a client injected before
+// Initialize is the one sends use.
+func TestSetHTTPClientBeforeInitialize(t *testing.T) {
+	t.Parallel()
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, "mattermost://mattermost.example.com/token"), log.New(t.Output(), "", 0)))
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.Equal(t, http.MethodPost, captured.method)
 }
 
 // TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -27,8 +28,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for the package default.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the host, the bot token, and the message options.
 	Config *Config
@@ -76,9 +77,6 @@ var (
 	ErrInvalidSignature = errors.New("failed to generate valid signature")
 )
 
-// httpClient is the fallback default client (used only when no custom client is set).
-var httpClient = &http.Client{Timeout: defaultTime}
-
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
@@ -106,6 +104,7 @@ func (s *Service) GetID() string {
 //     [ErrNoPath].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultTime, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -171,11 +170,7 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // doSend sends the notification to Lark using the configured API URL.
@@ -326,19 +321,6 @@ func (s *Service) handleResponse(resp *http.Response) error {
 	return nil
 }
 
-// httpClientOrDefault returns the custom client or the package default.
-//
-// Returns:
-//   - types.HTTPClient: the injected client, or the package default client
-//     with [defaultTime].
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return httpClient
-}
-
 // preparePayload constructs and marshals the request payload for the Lark API.
 //
 // Parameters:
@@ -386,7 +368,7 @@ func (s *Service) sendRequest(ctx context.Context, postURL string, payload []byt
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := s.httpClientOrDefault()
+	client := s.client.Client()
 
 	resp, err := client.Do(req)
 	if err != nil {

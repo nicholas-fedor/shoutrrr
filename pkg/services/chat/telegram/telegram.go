@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -18,8 +18,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the token, the chats, and the message options.
 	Config *Config
@@ -80,6 +80,7 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{
 		Preview:      true,
 		Notification: true,
@@ -164,24 +165,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-}
-
-// httpClientOrDefault returns the custom client or a default client.
-//
-// Returns:
-//   - types.HTTPClient: the injected client, or a new client with
-//     [defaultHTTPTimeout].
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return &http.Client{Timeout: defaultHTTPTimeout}
+	s.client.Set(client)
 }
 
 // sendMessageForChatIDs sends the message to every chat in config, which includes
@@ -215,7 +199,7 @@ func (s *Service) sendMessageForChatIDs(ctx context.Context, message string, con
 // Returns:
 //   - error: the Telegram API error or the request error.
 func (s *Service) sendMessageToAPI(ctx context.Context, message, chat string, config *Config) error {
-	client := &Client{token: config.Token, apiURL: config.APIURL, httpClient: s.httpClientOrDefault()}
+	client := &Client{token: config.Token, apiURL: config.APIURL, httpClient: s.client.Client()}
 	payload := createSendMessagePayload(message, chat, config)
 	_, err := client.SendMessageContext(ctx, &payload)
 

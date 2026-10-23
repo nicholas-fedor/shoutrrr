@@ -343,15 +343,15 @@ func TestSendContextCanceled(t *testing.T) {
 	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 }
 
-// TestHTTPClientOrDefault verifies that the service uses an injected client,
-// and otherwise a default client with the send timeout.
-func TestHTTPClientOrDefault(t *testing.T) {
+// TestSetHTTPClient verifies that the service uses an injected client, and
+// otherwise a default client with the send timeout.
+func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
 	t.Run("default", func(t *testing.T) {
 		t.Parallel()
 
-		client, ok := newTestService(t, testServiceURL).httpClientOrDefault().(*http.Client)
+		client, ok := newTestService(t, testServiceURL).client.Client().(*http.Client)
 		require.True(t, ok, "the default client should be an *http.Client")
 		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 	})
@@ -363,7 +363,7 @@ func TestHTTPClientOrDefault(t *testing.T) {
 		service := newTestService(t, testServiceURL)
 		service.SetHTTPClient(injected)
 
-		assert.Same(t, injected, service.httpClientOrDefault())
+		assert.Same(t, injected, service.client.Client())
 	})
 }
 
