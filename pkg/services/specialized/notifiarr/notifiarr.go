@@ -22,19 +22,26 @@ import (
 
 // Service implements a Notifiarr notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the API key and the Discord options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // presenceFlags holds boolean flags indicating presence of Discord fields.
 type presenceFlags struct {
+	// channel through mentions each report whether a send sets that Discord
+	// field.
 	channel, color, thumbnail, image, title, icon, content, description, footer, fields, mentions bool
 }
 
+// API endpoint and mention types.
 const (
 	// APIBaseURL is the base URL for Notifiarr API.
 	APIBaseURL = "https://notifiarr.com/api/v1/notification/passthrough"
@@ -84,6 +91,9 @@ var (
 )
 
 // HasAny returns true if any of the boolean fields are true, false otherwise.
+//
+// Returns:
+//   - bool: true when a send sets any Discord field.
 func (pf presenceFlags) HasAny() bool {
 	return pf.channel || pf.color || pf.thumbnail || pf.image || pf.title || pf.icon ||
 		pf.content ||
@@ -94,6 +104,13 @@ func (pf presenceFlags) HasAny() bool {
 }
 
 // ExtractPingIDs extracts user and role IDs from mention strings.
+//
+// Parameters:
+//   - mentions: the mentions, such as <@123> for a user and <@&456> for a role.
+//
+// Returns:
+//   - []int: the user IDs.
+//   - []int: the role IDs.
 func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
 	var pingUsers, pingRoles []int
 
@@ -111,11 +128,27 @@ func (s *Service) ExtractPingIDs(mentions []string) ([]int, []int) {
 }
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
+//
+// A webhook URL without an API key converts without an error, to a service URL
+// with an empty host.
+//
+// Parameters:
+//   - serviceURL: the webhook URL, with or without the notifiarr+ scheme
+//     prefix.
+//
+// Returns:
+//   - *url.URL: the service URL.
+//   - error: an error wrapping
+//     [github.com/nicholas-fedor/shoutrrr/pkg/util.ErrInvalidQuery] for a
+//     malformed query, or a query prop error.
 func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 	// Copy the URL to modify
 	webhookURL := *serviceURL
@@ -136,6 +169,14 @@ func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from applying the default props or reading the URL,
+//     such as [ErrAPIKeyMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
@@ -189,6 +230,13 @@ func (s *Service) ParseChannelID(channelStr string) (int, error) {
 }
 
 // ParseFields parses a JSON string into a slice of Field structs.
+//
+// Parameters:
+//   - fieldsStr: the fields as a JSON array.
+//
+// Returns:
+//   - []Field: the fields.
+//   - error: the decoding error.
 func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
 	var fields []Field
 	if err := json.Unmarshal([]byte(fieldsStr), &fields, jsonopts.Default); err != nil {
@@ -199,6 +247,13 @@ func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
 }
 
 // ParseMentions extracts Discord user and role mentions from the message content.
+//
+// Parameters:
+//   - message: the message.
+//
+// Returns:
+//   - []string: the mentions in order, with user mentions written as <@ID>
+//     and role mentions as <@&ID>.
 func (s *Service) ParseMentions(message string) []string {
 	var mentions []string
 
@@ -294,11 +349,18 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Notifiarr send.
+//
+// Returns:
+//   - time.Duration: [requestTimeout], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return requestTimeout
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client,
+// including a nil *http.Client, selects the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {
 		s.httpClient = nil
@@ -316,6 +378,18 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // buildDiscordPayload constructs the Discord payload if any fields are present.
+//
+// Parameters:
+//   - flags: the Discord fields the send sets.
+//   - message: the message, used as the description.
+//   - params: the send params, with the title, icon, content, footer, and
+//     fields.
+//   - config: the configuration with the channel, color, and images.
+//
+// Returns:
+//   - *DiscordPayload: the Discord payload.
+//   - error: [ErrNoDiscordFields] when the send sets none, or an error from
+//     reading the channel ID or the fields.
 func (s *Service) buildDiscordPayload(
 	flags presenceFlags,
 	message string,
@@ -396,6 +470,15 @@ func (s *Service) buildDiscordPayload(
 }
 
 // createPayload creates the JSON payload for Notifiarr API.
+//
+// Parameters:
+//   - message: the message.
+//   - params: the send params.
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - []byte: the JSON payload.
+//   - error: a Discord payload or encoding error.
 func (s *Service) createPayload(
 	message string,
 	params types.Params,
@@ -492,6 +575,14 @@ func (s *Service) doSend(ctx context.Context, payload []byte) error {
 }
 
 // ParseMention parses a single mention string and returns the type (0=none, 1=user, 2=role) and ID if valid.
+//
+// Parameters:
+//   - mention: the mention, such as <@123>, <@!123>, or <@&456>.
+//
+// Returns:
+//   - int: [MentionTypeUser], [MentionTypeRole], or [MentionTypeNone] for an
+//     invalid mention.
+//   - int: the user or role ID, or 0 for an invalid mention.
 func ParseMention(mention string) (int, int) {
 	if !strings.HasPrefix(mention, "<@") || !strings.HasSuffix(mention, ">") {
 		return MentionTypeNone, 0
@@ -516,6 +607,13 @@ func ParseMention(mention string) (int, int) {
 }
 
 // ParseUpdateFlag parses the update parameter from params.
+//
+// Parameters:
+//   - params: the send params.
+//
+// Returns:
+//   - *bool: true or false for an update param of "true" or "false", or nil
+//     otherwise.
 func ParseUpdateFlag(params types.Params) *bool {
 	if updateStr, exists := params["update"]; exists && updateStr != "" {
 		switch updateStr {
@@ -530,6 +628,14 @@ func ParseUpdateFlag(params types.Params) *bool {
 }
 
 // buildNotificationData creates the notification data structure.
+//
+// Parameters:
+//   - updatePtr: the update flag, or nil to leave it out.
+//   - config: the configuration with the app name.
+//   - params: the send params, whose id param becomes the event ID.
+//
+// Returns:
+//   - NotificationData: the notification metadata.
 func buildNotificationData(updatePtr *bool, config *Config, params types.Params) NotificationData {
 	return NotificationData{
 		Update: updatePtr,
@@ -539,6 +645,15 @@ func buildNotificationData(updatePtr *bool, config *Config, params types.Params)
 }
 
 // checkPresenceFlags determines which Discord fields are present.
+//
+// Parameters:
+//   - message: the message.
+//   - params: the send params.
+//   - config: the configuration for this send.
+//   - service: the service, which finds the mentions in the message.
+//
+// Returns:
+//   - presenceFlags: the Discord fields the send sets.
 func checkPresenceFlags(
 	message string,
 	params types.Params,

@@ -15,12 +15,18 @@ import (
 
 // Service sends notifications to Signal recipients via signal-cli-rest-api.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected client, or the default client Initialize
+	// builds for the URL's skiptlsverify setting.
 	httpClient types.HTTPClient
 
+	// Config holds the server, the credentials, the source and recipients,
+	// and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 	// injectedHTTPClient is true when SetHTTPClient supplied the client.
 	injectedHTTPClient bool
 }

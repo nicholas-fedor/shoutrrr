@@ -14,21 +14,40 @@ import (
 
 // Config holds settings for the Signal notification service.
 type Config struct {
-	Host          string   `default:"localhost"                                                     desc:"Signal REST API server hostname or IP"                           key:"host"`
-	User          string   `desc:"Username for HTTP Basic Auth"                                     key:"user"                                                             optional:""`
-	Password      string   `desc:"Password for HTTP Basic Auth"                                     key:"password"                                                         optional:""              sensitive:"true"`
-	Token         string   `desc:"API token for Bearer authentication"                              key:"token,apikey"                                                     optional:""              sensitive:"true"`
-	Source        string   `desc:"Source phone number (with country code)"                          key:"source"`
-	Title         string   `desc:"Optional title prepended to the message body"                     key:"title"                                                            optional:""`
-	Attachments   string   `desc:"Comma-separated raw base64 attachments; a data: value is one URI" key:"attachments"                                                      optional:""`
-	Recipients    []string `desc:"Recipient phone numbers, group IDs, or u: usernames"              key:"recipients,to"`
-	Port          int      `default:"8080"                                                          desc:"Signal REST API server port"                                     key:"port"`
-	TextMode      textMode `default:"None"                                                          desc:"Message text mode (None omits text_mode; Styled enables markup)" key:"textmode,text_mode"`
-	DisableTLS    bool     `default:"No"                                                            desc:"Disable TLS for Signal REST API connection"                      key:"disabletls"`
-	SkipTLSVerify bool     `default:"No"                                                            desc:"Skip TLS certificate verification"                               key:"skiptlsverify"`
-	NotifySelf    bool     `default:"Yes"                                                           desc:"Notify the sender's devices. When No, sends notify_self=false."  key:"notifyself"`
+	// Host is the signal-cli-rest-api server host.
+	Host string `default:"localhost" desc:"Signal REST API server hostname or IP" key:"host"`
+	// User is the username for HTTP Basic authentication, such as for a
+	// reverse proxy in front of the server.
+	User string `desc:"Username for HTTP Basic Auth" key:"user" optional:""`
+	// Password is the password for HTTP Basic authentication.
+	Password string `desc:"Password for HTTP Basic Auth" key:"password" optional:"" sensitive:"true"`
+	// Token is the API token for Bearer authentication. It takes precedence
+	// over User and Password.
+	Token string `desc:"API token for Bearer authentication" key:"token,apikey" optional:"" sensitive:"true"`
+	// Source is the registered phone number the messages are sent from, with
+	// its country code.
+	Source string `desc:"Source phone number (with country code)" key:"source"`
+	// Title is prepended to the message body.
+	Title string `desc:"Optional title prepended to the message body" key:"title" optional:""`
+	// Attachments holds comma-separated raw base64 attachments. A data: URI
+	// value is one attachment.
+	Attachments string `desc:"Comma-separated raw base64 attachments; a data: value is one URI" key:"attachments" optional:""`
+	// Recipients lists the phone numbers, group IDs, and u: usernames to send
+	// to.
+	Recipients []string `desc:"Recipient phone numbers, group IDs, or u: usernames" key:"recipients,to"`
+	// Port is the signal-cli-rest-api server port.
+	Port int `default:"8080" desc:"Signal REST API server port" key:"port"`
+	// TextMode is the message text mode. None leaves the server default.
+	TextMode textMode `default:"None" desc:"Message text mode (None omits text_mode; Styled enables markup)" key:"textmode,text_mode"`
+	// DisableTLS connects to the server over HTTP instead of HTTPS.
+	DisableTLS bool `default:"No" desc:"Disable TLS for Signal REST API connection" key:"disabletls"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
+	// NotifySelf notifies the sender's own linked devices of the message.
+	NotifySelf bool `default:"Yes" desc:"Notify the sender's devices. When No, sends notify_self=false." key:"notifyself"`
 }
 
+// Service identity and URL defaults.
 const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "signal"

@@ -15,6 +15,7 @@ import (
 // deadlineConn records the deadline set on a connection, failing with err
 // when it is set.
 type deadlineConn struct {
+	// Conn is the wrapped connection.
 	net.Conn
 
 	// deadline is the last deadline set.

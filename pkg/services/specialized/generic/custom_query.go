@@ -7,13 +7,21 @@ import (
 
 // Constants for character values and offsets used in header normalization and query parsing.
 const (
-	ExtraPrefixChar      = '$'       // Prefix for extra data in query parameters
-	HeaderPrefixChar     = '@'       // Prefix for header values in query parameters
-	CaseOffset           = 'a' - 'A' // Offset between lowercase and uppercase letters
-	UppercaseA           = 'A'       // ASCII value for uppercase A
-	UppercaseZ           = 'Z'       // ASCII value for uppercase Z
-	DashChar             = '-'       // Dash character for header formatting
-	HeaderCapacityFactor = 2         // Estimated capacity multiplier for header string builder
+	// ExtraPrefixChar is the prefix for extra data in query parameters.
+	ExtraPrefixChar = '$'
+	// HeaderPrefixChar is the prefix for header values in query parameters.
+	HeaderPrefixChar = '@'
+	// CaseOffset is the offset between lowercase and uppercase letters.
+	CaseOffset = 'a' - 'A'
+	// UppercaseA is the ASCII value for uppercase A.
+	UppercaseA = 'A'
+	// UppercaseZ is the ASCII value for uppercase Z.
+	UppercaseZ = 'Z'
+	// DashChar is the dash character for header formatting.
+	DashChar = '-'
+	// HeaderCapacityFactor is the estimated capacity multiplier for the header
+	// string builder.
+	HeaderCapacityFactor = 2
 )
 
 // normalizedHeaderKey converts a header key from a URL to HTTP header format.
@@ -61,6 +69,11 @@ func normalizedHeaderKey(key string) string {
 }
 
 // appendCustomQueryValues adds headers and extra data to URL query parameters with prefixes.
+//
+// Parameters:
+//   - query: the query to add to.
+//   - headers: the custom headers, added with the @ prefix.
+//   - extraData: the extra data, added with the $ prefix.
 func appendCustomQueryValues(
 	query url.Values,
 	headers map[string]string,
@@ -78,6 +91,13 @@ func appendCustomQueryValues(
 }
 
 // stripCustomQueryValues extracts headers and extra data from query parameters and removes them from the query.
+//
+// Parameters:
+//   - query: the query, from which the @ and $ keys are removed.
+//
+// Returns:
+//   - map[string]string: the custom headers, with keys in HTTP header format.
+//   - map[string]string: the extra data.
 func stripCustomQueryValues(query url.Values) (map[string]string, map[string]string) {
 	// Map for extracted headers
 	headers := make(map[string]string)

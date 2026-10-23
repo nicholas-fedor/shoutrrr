@@ -20,6 +20,7 @@ type textModeVals struct {
 	Styled textMode
 }
 
+// Text modes, in [TextModes] order.
 const (
 	// TextModeNone omits the JSON text_mode field.
 	TextModeNone textMode = iota

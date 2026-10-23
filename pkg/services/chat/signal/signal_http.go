@@ -22,8 +22,11 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Settings for requests to the REST API.
 const (
-	contentType        = "application/json"
+	// contentType is the JSON encoding the REST API takes.
+	contentType = "application/json"
+	// defaultHTTPTimeout bounds each request of the default client.
 	defaultHTTPTimeout = 30 * time.Second
 	// maxErrorBodySize caps how much of a plain error body goes into an error.
 	maxErrorBodySize = 4 * 1024

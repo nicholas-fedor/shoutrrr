@@ -10,18 +10,30 @@ import (
 
 // sendMessagePayload is the JSON body posted to POST /v2/send.
 type sendMessagePayload struct {
-	NotifySelf        *bool    `json:"notify_self,omitzero"`
-	Message           string   `json:"message"`
-	Number            string   `json:"number"`
-	TextMode          string   `json:"text_mode,omitempty"`
-	Recipients        []string `json:"recipients"`
+	// NotifySelf is false to keep the sender's own devices from being
+	// notified, and left out otherwise.
+	NotifySelf *bool `json:"notify_self,omitzero"`
+	// Message is the message body, with the title before it.
+	Message string `json:"message"`
+	// Number is the source phone number.
+	Number string `json:"number"`
+	// TextMode is normal or styled, left out for the server default.
+	TextMode string `json:"text_mode,omitempty"`
+	// Recipients lists the phone numbers, group IDs, and usernames to send to.
+	Recipients []string `json:"recipients"`
+	// Base64Attachments holds the attachments as base64 or data: URIs, left
+	// out when empty.
 	Base64Attachments []string `json:"base64_attachments,omitempty"`
 }
 
 // sendErrorResponse is the error body from a failed send.
 type sendErrorResponse struct {
-	Error           string   `json:"error"`
-	Account         string   `json:"account,omitempty"`
+	// Error describes the failure.
+	Error string `json:"error"`
+	// Account is the account the failure concerns, left out when none.
+	Account string `json:"account,omitempty"`
+	// ChallengeTokens lists the tokens of the challenges, such as a captcha,
+	// that Signal requires before more messages are sent.
 	ChallengeTokens []string `json:"challenge_tokens,omitempty"`
 }
 

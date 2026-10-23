@@ -12,30 +12,49 @@ import (
 
 // Config holds settings for the generic notification service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since the generic service
+	// has no enum fields.
 	standard.EnumlessConfig
 
-	// The webhook URL to send notifications to
+	// webhookURL is the webhook URL to send notifications to.
 	webhookURL *url.URL
-	// Custom HTTP headers to include in requests
+	// headers holds the custom HTTP headers to include in requests.
 	headers map[string]string
-	// Additional data to include in JSON payloads
-	extraData     map[string]string
-	ContentType   string `default:"application/json"                                desc:"The default value of the Content-Type header (dynamically set based on payload format)" key:"contenttype"`
-	Template      string `desc:"The template used for creating the request payload" key:"template"                                                                                optional:""`
-	Title         string `default:""                                                key:"title"`
-	TitleKey      string `default:"title"                                           desc:"The key that will be used for the title value"                                          key:"titlekey"`
-	MessageKey    string `default:"message"                                         desc:"The key that will be used for the message value"                                        key:"messagekey"`
-	RequestMethod string `default:"POST"                                            key:"method"`
-	DisableTLS    bool   `default:"No"                                              key:"disabletls"`
+	// extraData holds the additional data to include in JSON payloads.
+	extraData map[string]string
+	// ContentType is the Content-Type header of the request.
+	ContentType string `default:"application/json" desc:"The default value of the Content-Type header (dynamically set based on payload format)" key:"contenttype"`
+	// Template names the payload template: empty to send the message as is,
+	// JSON for a JSON object, or a template loaded into the service.
+	Template string `desc:"The template used for creating the request payload" key:"template" optional:""`
+	// Title is the notification title, sent under TitleKey.
+	Title string `default:"" key:"title"`
+	// TitleKey is the payload key of the title.
+	TitleKey string `default:"title" desc:"The key that will be used for the title value" key:"titlekey"`
+	// MessageKey is the payload key of the message.
+	MessageKey string `default:"message" desc:"The key that will be used for the message value" key:"messagekey"`
+	// RequestMethod is the HTTP method of the request.
+	RequestMethod string `default:"POST" key:"method"`
+	// DisableTLS sends the request over HTTP instead of HTTPS.
+	DisableTLS bool `default:"No" key:"disabletls"`
 }
 
-// Scheme identifies this service in configuration URLs.
+// Service identity and webhook defaults.
 const (
-	Scheme               = "generic"
+	// Scheme identifies this service in configuration URLs.
+	Scheme = "generic"
+	// DefaultWebhookScheme is the webhook scheme unless TLS is disabled.
 	DefaultWebhookScheme = "https"
 )
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
+//
+// It panics if a default prop cannot be applied, which only a broken struct
+// tag can cause.
+//
+// Returns:
+//   - *Config: the config with its defaults.
+//   - format.PropKeyResolver: the resolver bound to the config.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	// Initialize empty config
 	config := &Config{}
@@ -94,6 +113,9 @@ func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver,
 }
 
 // GetURL generates a URL from the current configuration values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	// Create resolver for this config
 	resolver := format.NewPropKeyResolver(c)
@@ -138,6 +160,12 @@ func (c *Config) MaskedURL() *url.URL {
 }
 
 // SetURL updates the configuration from a service URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrHostMissing].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	// Create resolver for this config
 	resolver := format.NewPropKeyResolver(c)
@@ -147,6 +175,10 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // WebhookURL returns the configured webhook URL, adjusted for TLS settings.
+//
+// Returns:
+//   - *url.URL: a copy of the webhook URL with the http scheme when TLS is
+//     disabled and https otherwise.
 func (c *Config) WebhookURL() *url.URL {
 	// Copy the URL to modify
 	webhookURL := *c.webhookURL
@@ -162,6 +194,13 @@ func (c *Config) WebhookURL() *url.URL {
 }
 
 // getURL generates a service URL from the configuration using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the config props into the query.
+//
+// Returns:
+//   - *url.URL: the service URL, with the webhook query, the config props, and
+//     the custom headers and extra data in its query.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Copy webhook URL
 	serviceURL := *c.webhookURL

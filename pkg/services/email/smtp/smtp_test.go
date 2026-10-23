@@ -60,6 +60,7 @@ type fakeSMTP struct {
 
 // countingConn counts the client's closes of a connection.
 type countingConn struct {
+	// Conn is the wrapped connection.
 	net.Conn
 
 	// closes is incremented on every Close.

@@ -13,19 +13,36 @@ import (
 
 // Config holds the configuration for the PagerDuty service.
 type Config struct {
-	IntegrationKey string `desc:"The PagerDuty API integration key"                                                      sensitive:"true"                                                                                    url:"path"`
-	Host           string `default:"events.pagerduty.com"                                                                desc:"The PagerDuty API host."                                                                      url:"host"`
-	Severity       string `default:"error"                                                                               desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
-	Source         string `default:"default"                                                                             desc:"The unique location of the affected system, preferably a hostname or FQDN; required"          key:"source"`
-	Action         string `default:"trigger"                                                                             desc:"The type of event (trigger, acknowledge, or resolve)"                                         key:"action"`
-	DedupKey       string `desc:"A unique key used for incident deduplication"                                           key:"dedup_key"`
-	Details        string `desc:"Additional details about the incident (JSON string that will be parsed into an object)" key:"details"`
-	Contexts       string `desc:"Additional context links or images"                                                     key:"contexts"`
-	Client         string `desc:"The name of the monitoring client that is triggering this event"                        key:"client"`
-	ClientURL      string `desc:"The URL of the monitoring client that is triggering this event"                         key:"client_url"`
-	Port           uint16 `default:"443"                                                                                 desc:"The PagerDuty API port."                                                                      url:"port"`
+	// IntegrationKey is the integration's routing key, written as the path of
+	// the service URL.
+	IntegrationKey string `desc:"The PagerDuty API integration key" sensitive:"true" url:"path"`
+	// Host is the Events API host.
+	Host string `default:"events.pagerduty.com" desc:"The PagerDuty API host." url:"host"`
+	// Severity is the event severity: critical, error, warning, or info.
+	// When neither the URL nor the send sets it, the level param chooses it.
+	Severity string `default:"error" desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
+	// Source is the location of the affected system, preferably a hostname or
+	// FQDN.
+	Source string `default:"default" desc:"The unique location of the affected system, preferably a hostname or FQDN; required" key:"source"`
+	// Action is the event type: trigger, acknowledge, or resolve.
+	Action string `default:"trigger" desc:"The type of event (trigger, acknowledge, or resolve)" key:"action"`
+	// DedupKey identifies the alert, so later events with the same key update
+	// or resolve it.
+	DedupKey string `desc:"A unique key used for incident deduplication" key:"dedup_key"`
+	// Details is a JSON object of custom details about the event.
+	Details string `desc:"Additional details about the incident (JSON string that will be parsed into an object)" key:"details"`
+	// Contexts lists links and images for the event, as a JSON array or as
+	// comma-separated type:value entries.
+	Contexts string `desc:"Additional context links or images" key:"contexts"`
+	// Client is the name of the monitoring client that triggers the event.
+	Client string `desc:"The name of the monitoring client that is triggering this event" key:"client"`
+	// ClientURL is the URL of the monitoring client that triggers the event.
+	ClientURL string `desc:"The URL of the monitoring client that is triggering this event" key:"client_url"`
+	// Port is the Events API port.
+	Port uint16 `default:"443" desc:"The PagerDuty API port." url:"port"`
 }
 
+// Service identity, URL defaults, and the integration key format.
 const (
 	// Scheme is the identifying part of this service's configuration URL.
 	Scheme = "pagerduty"
@@ -38,11 +55,17 @@ const (
 )
 
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: an empty map.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{}
 }
 
 // GetURL returns a URL representation of the Config's current field values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -50,6 +73,13 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL representation of its field values.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as a missing or invalid
+//     integration key.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 

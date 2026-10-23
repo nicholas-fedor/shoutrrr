@@ -18,12 +18,17 @@ import (
 
 // Service implements a Google Chat notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	Config     *Config
+	// Config holds the webhook host, path, key, and token.
+	Config *Config
+	// httpClient is the HTTP client for webhook requests, the injected one or
+	// a default client with [defaultHTTPTimeout].
 	httpClient types.HTTPClient
 }
 
+// defaultHTTPTimeout bounds each request of the default client.
 const defaultHTTPTimeout = 10 * time.Second
 
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
@@ -38,11 +43,24 @@ var (
 )
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// It builds the default HTTP client when the service has none.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrMissingKey] or
+//     [ErrMissingToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -118,6 +136,9 @@ func (s *Service) SendContext(ctx context.Context, message string, _ *types.Para
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil
@@ -131,6 +152,12 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // getAPIURL constructs the service URL for Google Chat notifications.
+//
+// Parameters:
+//   - config: the configuration with the webhook host, path, key, and token.
+//
+// Returns:
+//   - *url.URL: the https webhook URL, with the key and token in its query.
 func getAPIURL(config *Config) *url.URL {
 	query := url.Values{}
 	query.Set("key", config.Key)
