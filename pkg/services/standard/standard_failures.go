@@ -7,6 +7,12 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 )
 
+// failureLike is the failure that [IsTestSetupFailure] inspects.
+//
+// It is unexported, so a generated mock of it could not be used outside this
+// package, and the directive below stops mockery from generating one.
+//
+//mockery:generate: false
 type failureLike interface {
 	failures.Failure
 }

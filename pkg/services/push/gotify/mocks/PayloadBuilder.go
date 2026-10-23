@@ -16,10 +16,19 @@ func NewMockPayloadBuilder(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *MockPayloadBuilder {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &MockPayloadBuilder{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -95,8 +104,8 @@ func (_c *MockPayloadBuilder_ParseExtras_Call) Run(run func(params *types.Params
 	return _c
 }
 
-func (_c *MockPayloadBuilder_ParseExtras_Call) Return(stringToV map[string]any, err error) *MockPayloadBuilder_ParseExtras_Call {
-	_c.Call.Return(stringToV, err)
+func (_c *MockPayloadBuilder_ParseExtras_Call) Return(stringToAnyMoqParam map[string]any, err error) *MockPayloadBuilder_ParseExtras_Call {
+	_c.Call.Return(stringToAnyMoqParam, err)
 	return _c
 }
 
