@@ -7,6 +7,7 @@ import (
 
 // URLBuilder handles URL construction for Gotify API endpoints.
 type URLBuilder interface {
+	// BuildURL returns the message endpoint URL for config.
 	BuildURL(config *Config) (string, error)
 }
 

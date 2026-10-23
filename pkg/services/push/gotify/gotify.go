@@ -18,24 +18,35 @@ import (
 // to Gotify servers. It manages HTTP client configuration, TLS settings, authentication,
 // and payload construction for reliable message delivery.
 type Service struct {
-	standard.Standard // Embeds the standard service functionality including logging
+	// Standard provides logging and the other shared service functionality.
+	standard.Standard
 
-	httpClient types.HTTPClient  // HTTP client instance configured with appropriate timeout and transport settings for API calls
-	client     jsonclient.Client // JSON client wrapper that handles JSON request/response marshaling and HTTP communication
+	// httpClient is the HTTP client for API calls: an injected client, or the
+	// default client with the configured timeout and TLS settings.
+	httpClient types.HTTPClient
+	// client is the JSON client built on httpClient.
+	client jsonclient.Client
 
-	// Interface dependencies (injected during initialization)
+	// httpClientManager builds the default HTTP client. It and the builders
+	// below are set by Initialize.
 	httpClientManager HTTPClientManager
-	urlBuilder        URLBuilder
-	payloadBuilder    PayloadBuilder
-	validator         Validator
-	sender            contextSender
+	// urlBuilder builds the message endpoint URL.
+	urlBuilder URLBuilder
+	// payloadBuilder builds the request body and parses the extras.
+	payloadBuilder PayloadBuilder
+	// validator checks the message, priority, date, and token.
+	validator Validator
+	// sender sends the request and checks the response.
+	sender contextSender
 
-	Config *Config                // Holds the configuration settings for the Gotify service, including host, token, and other parameters
-	pkr    format.PropKeyResolver // Property key resolver used to update configuration from URL parameters dynamically
-	mu     sync.Mutex             // Protects HTTP client initialization for thread safety
+	// Config holds the server, the token, and the message options.
+	Config *Config
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
+	// mu guards httpClient and client.
+	mu sync.Mutex
 }
 
-// Compile-time checks that Service implements the interfaces the router relies on.
 // Gotify priorities that message levels map to, one from each band of the
 // Gotify Android app.
 const (
@@ -47,6 +58,7 @@ const (
 	prioritySoundAndVibration = 8
 )
 
+// Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
 	_ types.ContextSender    = (*Service)(nil)
@@ -64,6 +76,9 @@ var levelPriorities = map[types.MessageLevel]int{
 }
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
@@ -152,6 +167,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
+// A nil client, including a nil *http.Client, makes the next send build the
+// default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -175,6 +195,17 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // buildRequest constructs the URL, payload, and headers for the HTTP request.
+//
+// Parameters:
+//   - message: the message.
+//   - config: the configuration for this send.
+//   - extras: the extras to send.
+//
+// Returns:
+//   - string: the message endpoint URL.
+//   - *MessageRequest: the request body.
+//   - http.Header: the token header for header authentication, or nil.
+//   - error: [ErrInvalidToken], or the error from building the URL.
 func (s *Service) buildRequest(
 	message string,
 	config *Config,
@@ -315,6 +346,12 @@ func (s *Service) validateInputs(message string, _ *types.Params) error {
 }
 
 // filterParams filters out 'extras' parameters from the given params.
+//
+// Parameters:
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - types.Params: a copy of params without extras.
 func filterParams(params *types.Params) types.Params {
 	if params == nil {
 		return types.Params{}

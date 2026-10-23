@@ -13,10 +13,15 @@ import (
 
 // Config represents the configuration for the Teams service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Teams has no enum
+	// fields.
 	standard.EnumlessConfig
 
-	Host  string `desc:"The full Power Automate workflow incoming webhook URL"                        key:"host"  sensitive:"true"`
-	Title string `desc:"Title displayed as a bold header in the Adaptive Card"                        key:"title" optional:""`
+	// Host is the full Power Automate workflow webhook URL.
+	Host string `desc:"The full Power Automate workflow incoming webhook URL" key:"host" sensitive:"true"`
+	// Title is shown as a bold header above the message in the card.
+	Title string `desc:"Title displayed as a bold header in the Adaptive Card" key:"title" optional:""`
+	// Color is the title's text color.
 	Color string `desc:"Title text color (accent, good, warning, attention, dark, light, or default)" key:"color" optional:""`
 }
 
@@ -24,6 +29,9 @@ type Config struct {
 const Scheme = "teams"
 
 // GetURL constructs a URL from the Config fields.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -31,12 +39,27 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the Config from a URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
+//     or a query prop error. The webhook URL is validated when sending.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
 }
 
+// getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the webhook URL in its host query
+//     parameter.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		Scheme:     Scheme,

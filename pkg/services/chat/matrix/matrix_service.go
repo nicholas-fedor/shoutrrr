@@ -15,16 +15,21 @@ import (
 
 // Service sends notifications via the Matrix protocol.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the homeserver, the credentials, and the rooms.
 	Config *Config
+	// client is the Matrix API client Initialize builds.
 	client *client
 	// loginGate holds one token while a send runs the password login, so only one
 	// login runs at a time and waiting sends can give up when their context ends.
 	loginGate chan struct{}
-	pkr       format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 	// loggedIn reports whether the client holds an access token from a password login.
 	loggedIn bool
 }
@@ -54,6 +59,9 @@ var (
 )
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
@@ -61,6 +69,14 @@ func (s *Service) GetID() string {
 // Initialize configures the service with a URL and logger. It performs no network
 // I/O: a password login runs on the first send, through the HTTP client and
 // context in effect at that time.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrMissingCredentials]
+//     or [ErrMissingHost].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{
@@ -212,6 +228,9 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 // SetHTTPClient sets a custom HTTP client for the service (propagated to internal client).
 // A nil client restores the default client. An access token from an earlier login
 // stays valid.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil
@@ -260,6 +279,13 @@ func (s *Service) ensureLogin(ctx context.Context) error {
 
 // createMessage creates the full message body by prepending the title if provided.
 // Format: If title is "Alert" and message is "Hello", output is "Alert\n\nHello".
+//
+// Parameters:
+//   - message: the message.
+//   - title: the title, trimmed of spaces, or empty for none.
+//
+// Returns:
+//   - string: the message body.
 func createMessage(message, title string) string {
 	trimmedTitle := strings.TrimSpace(title)
 	if trimmedTitle == "" {

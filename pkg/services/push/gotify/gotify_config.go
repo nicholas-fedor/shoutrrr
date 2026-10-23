@@ -19,36 +19,56 @@ import (
 // with a Gotify server, including connection details, authentication credentials,
 // notification defaults, and additional metadata.
 type Config struct {
-	standard.EnumlessConfig // Embeds standard configuration functionality without enum handling
+	// EnumlessConfig provides the empty enum set, since Gotify has no enum
+	// fields.
+	standard.EnumlessConfig
 
-	Extras map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
+	// Extras holds the custom key-value pairs sent with each message, parsed
+	// from JSON.
+	Extras map[string]any
 
-	Token string `desc:"Application token"                     required:"" sensitive:"true" url:"path2"` // Gotify application token for authentication (gtfya. token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
-	Host  string `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`              // Gotify server hostname and optional port number
-	Path  string `desc:"Server subpath"                        optional:"" url:"path1"`                  // Optional subpath for Gotify installation (e.g., "/gotify")
-	Title string `default:"Shoutrrr notification"              key:"title"`                              // Default notification title when none provided
+	// Token is the application token: a gtfya. token from Gotify 3.0 or
+	// later, or a 15-character token starting with A from earlier versions.
+	Token string `desc:"Application token" required:"" sensitive:"true" url:"path2"`
+	// Host is the server host, with an optional port.
+	Host string `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`
+	// Path is the subpath of a Gotify installation, such as /gotify.
+	Path string `desc:"Server subpath" optional:"" url:"path1"`
+	// Title is the message title.
+	Title string `default:"Shoutrrr notification" key:"title"`
 
 	// Date is accepted in URLs and params but not sent.
 	//
 	// Deprecated: Gotify stamps each message with the server time, so a date has no effect.
 	Date string `default:"" desc:"Deprecated: not sent, because Gotify sets the date of each message" key:"date"`
 
-	Priority           int  `default:"0"  key:"priority"`                                            // Notification priority level (-2 to 10, where higher numbers are more important; negative values have special meanings in some clients)
-	DisableTLS         bool `default:"No" key:"disabletls"`                                          // Disable TLS in URL scheme only (use HTTP instead of HTTPS)
-	InsecureSkipVerify bool `default:"No" key:"insecureskipverify"`                                  // Skip TLS certificate verification (insecure, use with caution)
-	UseHeader          bool `default:"No" desc:"Enable header-based authentication" key:"useheader"` // Send token in X-Gotify-Key header instead of URL query parameter
+	// Priority is the message priority, from -2 to 10, higher being more
+	// important. It is sent only when the URL or the send sets it, or the
+	// level param chooses it.
+	Priority int `default:"0" key:"priority"`
+	// DisableTLS sends the request over HTTP instead of HTTPS.
+	DisableTLS bool `default:"No" key:"disabletls"`
+	// InsecureSkipVerify skips verification of the server's TLS certificate.
+	InsecureSkipVerify bool `default:"No" key:"insecureskipverify"`
+	// UseHeader sends the token in the X-Gotify-Key header instead of the
+	// URL query.
+	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
 
 	// prioritySet is true when the URL or the send params set the priority, so
 	// a priority of 0 is sent instead of leaving the application default.
 	prioritySet bool
 }
 
-// Scheme identifies this service in configuration URLs.
+// Service identity.
 const (
+	// Scheme identifies this service in configuration URLs.
 	Scheme = "gotify"
 )
 
 // GetURL returns a URL representation of the current configuration.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -56,6 +76,12 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL representation.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 

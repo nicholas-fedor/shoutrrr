@@ -24,22 +24,29 @@ import (
 
 // HTTPClient defines the interface for HTTP operations.
 type HTTPClient interface {
+	// Do sends req and returns its response.
 	Do(req *http.Request) (*http.Response, error)
 }
 
 // client manages interactions with the Matrix API.
 type client struct {
-	logger      types.StdLogger
-	httpClient  HTTPClient
+	// logger receives the client's progress messages.
+	logger types.StdLogger
+	// httpClient sends the API requests.
+	httpClient HTTPClient
+	// accessToken authenticates the requests after login, or is empty before.
 	accessToken string
-	apiURL      url.URL
+	// apiURL is the homeserver's base URL.
+	apiURL url.URL
 }
 
 // DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
 type DefaultHTTPClient struct {
+	// client sends the requests.
 	client *http.Client
 }
 
+// Client settings, protocol values, and ID generation parameters.
 const (
 	// schemeHTTPS is the URL scheme for HTTPS.
 	schemeHTTPS = "https"
@@ -88,11 +95,19 @@ const (
 
 	// opaqueIDCharset is the character set allowed by the Matrix Opaque Identifier Grammar.
 	// Reference: https://spec.matrix.org/v1.18/appendices/#opaque-identifiers
-	opaqueIDCharset    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	opaqueIDCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	// opaqueIDCharsetLen is the number of characters in opaqueIDCharset.
 	opaqueIDCharsetLen = byte(len(opaqueIDCharset))
 )
 
 // Do performs the HTTP request.
+//
+// Parameters:
+//   - req: the request.
+//
+// Returns:
+//   - *http.Response: the response.
+//   - error: the client's error, with its URL redacted.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -103,6 +118,17 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 // apiDo performs an HTTP request to the Matrix API.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - method: the HTTP method.
+//   - path: the API path.
+//   - request: the request body, encoded as JSON, or nil for none.
+//   - response: decodes the response body, or nil to discard it.
+//
+// Returns:
+//   - error: the request error or the API's error, logged first when it is
+//     a rate limit error.
 func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
 	err := c.doSingleRequest(ctx, method, path, request, response)
 	if err == nil {
@@ -190,16 +216,40 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 }
 
 // apiPost performs a POST request to the Matrix API with the provided context.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - path: the API path.
+//   - request: the request body, encoded as JSON.
+//   - response: decodes the response body.
+//
+// Returns:
+//   - error: the request error or the API's error.
 func (c *client) apiPost(ctx context.Context, path string, request, response any) error {
 	return c.apiDo(ctx, http.MethodPost, path, request, response)
 }
 
 // apiPut performs a PUT request to the Matrix API with the provided context.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - path: the API path.
+//   - request: the request body, encoded as JSON.
+//   - response: decodes the response body.
+//
+// Returns:
+//   - error: the request error or the API's error.
 func (c *client) apiPut(ctx context.Context, path string, request, response any) error {
 	return c.apiDo(ctx, http.MethodPut, path, request, response)
 }
 
 // buildURL returns a copy of the base API URL with the specified path set.
+//
+// Parameters:
+//   - path: the API path.
+//
+// Returns:
+//   - string: the request URL.
 func (c *client) buildURL(path string) string {
 	u := c.apiURL
 	u.Path = path
@@ -282,6 +332,13 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 }
 
 // getJoinedRooms retrieves the list of rooms the client has joined.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//
+// Returns:
+//   - []string: the IDs of the joined rooms.
+//   - error: the request error or the API's error.
 func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 	response := apiResJoinedRooms{}
 
@@ -294,6 +351,14 @@ func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 }
 
 // joinRoom joins a specified room and returns its ID.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - room: the room alias or ID.
+//
+// Returns:
+//   - string: the room ID.
+//   - error: the request error or the API's error.
 func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	resRoom := apiResRoom{}
 
@@ -311,11 +376,27 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 }
 
 // logf logs a formatted message using the client's logger.
+//
+// Parameters:
+//   - format: the message format.
+//   - v: the format arguments.
 func (c *client) logf(format string, v ...any) {
 	c.logger.Printf(format, v...)
 }
 
 // login authenticates the client using a username and password.
+//
+// It asks the homeserver for its login flows and uses the password flow when
+// a user is set, or the token flow with password as the token when none is.
+//
+// Parameters:
+//   - ctx: bounds the requests.
+//   - user: the user name, or empty for a token login.
+//   - password: the password, or the login token when user is empty.
+//
+// Returns:
+//   - error: the request error, the API's error, or [ErrUnsupportedLoginFlows]
+//     when the homeserver offers no flow that fits.
 func (c *client) login(ctx context.Context, user, password string) error {
 	c.apiURL.RawQuery = ""
 
@@ -351,6 +432,14 @@ func (c *client) login(ctx context.Context, user, password string) error {
 }
 
 // loginPassword performs a password-based login to the Matrix server.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - user: the user name or full Matrix ID.
+//   - password: the password.
+//
+// Returns:
+//   - error: the request error or the API's error.
 func (c *client) loginPassword(ctx context.Context, user, password string) error {
 	response := apiResLogin{}
 
@@ -389,6 +478,13 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 }
 
 // loginToken performs a token-based login to the Matrix server.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - token: the login token.
+//
+// Returns:
+//   - error: the request error or the API's error.
 func (c *client) loginToken(ctx context.Context, token string) error {
 	response := apiResLogin{}
 
@@ -428,6 +524,15 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 }
 
 // sendMessage sends a message to the specified rooms or all joined rooms if none are specified.
+//
+// Parameters:
+//   - ctx: bounds the requests.
+//   - message: the message.
+//   - rooms: the room aliases or IDs, or none for all joined rooms.
+//
+// Returns:
+//   - []error: one error for each room the message could not reach, or for a
+//     failed lookup of the joined rooms.
 func (c *client) sendMessage(ctx context.Context, message string, rooms []string) []error {
 	if len(rooms) >= minSliceLength {
 		return c.sendToExplicitRooms(ctx, rooms, message)
@@ -437,6 +542,14 @@ func (c *client) sendMessage(ctx context.Context, message string, rooms []string
 }
 
 // sendMessageToRoom sends a message to a specific room using PUT method with transaction ID.
+//
+// Parameters:
+//   - ctx: bounds the request.
+//   - message: the message.
+//   - roomID: the room ID.
+//
+// Returns:
+//   - error: the request error or the API's error.
 func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) error {
 	resEvent := apiResEvent{}
 	txnID := generateTransactionID()
@@ -452,6 +565,18 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 }
 
 // sendToExplicitRooms sends a message to explicitly specified rooms and collects any errors.
+//
+// A room that is not an ID, one starting with !, is joined first to get its
+// ID.
+//
+// Parameters:
+//   - ctx: bounds the requests.
+//   - rooms: the room aliases or IDs.
+//   - message: the message.
+//
+// Returns:
+//   - []error: one error for each room that is empty or that the message
+//     could not reach.
 func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, message string) []error {
 	var errs []error
 
@@ -492,6 +617,14 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 }
 
 // sendToJoinedRooms sends a message to all joined rooms and collects any errors.
+//
+// Parameters:
+//   - ctx: bounds the requests.
+//   - message: the message.
+//
+// Returns:
+//   - []error: one error for each room the message could not reach, or one
+//     for a failed lookup of the joined rooms.
 func (c *client) sendToJoinedRooms(ctx context.Context, message string) []error {
 	var errs []error
 
@@ -515,6 +648,9 @@ func (c *client) sendToJoinedRooms(ctx context.Context, message string) []error 
 }
 
 // setAuthorizationHeader sets the Authorization header with Bearer token if access token is available.
+//
+// Parameters:
+//   - req: the request.
 func (c *client) setAuthorizationHeader(req *http.Request) {
 	if c.accessToken != "" {
 		req.Header.Set(authorizationHeader, bearerPrefix+c.accessToken)
@@ -522,11 +658,20 @@ func (c *client) setAuthorizationHeader(req *http.Request) {
 }
 
 // useToken sets the access token for the client.
+//
+// Parameters:
+//   - token: the access token.
 func (c *client) useToken(token string) {
 	c.accessToken = token
 }
 
 // isRateLimitedError checks if the error is a rate limiting error.
+//
+// Parameters:
+//   - err: the error, or nil.
+//
+// Returns:
+//   - bool: true when err wraps a Matrix M_LIMIT_EXCEEDED error.
 func isRateLimitedError(err error) bool {
 	if err == nil {
 		return false
@@ -541,6 +686,9 @@ func isRateLimitedError(err error) bool {
 
 // generateTransactionID generates a unique transaction ID using a timestamp
 // and random bytes to ensure uniqueness across requests.
+//
+// Returns:
+//   - string: the transaction ID.
 func generateTransactionID() string {
 	now := time.Now().UnixNano()
 	randBytes := make([]byte, transactionIDRandLen)
@@ -566,6 +714,13 @@ func generateTransactionID() string {
 //
 // The host is normalized to exclude default ports (443 for HTTPS, 80 for HTTP)
 // to prevent device churn when ports are omitted or explicitly included.
+//
+// Parameters:
+//   - user: the user name, or empty for a token login.
+//   - host: the homeserver host, with an optional port.
+//
+// Returns:
+//   - string: the device ID.
 func generateDeviceID(user, host string) string {
 	// Normalize host by removing default ports to prevent device churn.
 	// url.Host may include a port (e.g., "matrix.example.com:443"), but we want
@@ -594,6 +749,12 @@ func generateDeviceID(user, host string) string {
 // normalizeHostForDeviceID normalizes a host string by removing default ports.
 // This prevents device churn when the port is omitted or explicitly included
 // in the URL (e.g., "matrix.example.com:443" vs "matrix.example.com").
+//
+// Parameters:
+//   - host: the host, with an optional port.
+//
+// Returns:
+//   - string: the host without a default port.
 func normalizeHostForDeviceID(host string) string {
 	// Check for explicit port using net.SplitHostPort.
 	// If no port is present, return the host as-is.
@@ -614,6 +775,14 @@ func normalizeHostForDeviceID(host string) string {
 }
 
 // newClient creates a new Matrix client with the specified host and TLS settings.
+//
+// Parameters:
+//   - host: the homeserver host, with an optional port.
+//   - disableTLS: connect over HTTP instead of HTTPS.
+//   - logger: receives the client's progress messages.
+//
+// Returns:
+//   - *client: the client, not yet logged in.
 //
 //nolint:exhaustruct_v5 // Intentional partial initialization
 func newClient(host string, disableTLS bool, logger types.StdLogger) *client {

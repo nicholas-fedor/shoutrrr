@@ -13,12 +13,16 @@ type DefaultPayloadBuilder struct{}
 
 // PayloadBuilder handles request payload construction and extras parsing.
 type PayloadBuilder interface {
+	// PrepareRequest builds the request body for message with config's title
+	// and priority and the given extras.
 	PrepareRequest(
 		message string,
 		config *Config,
 		extras map[string]any,
 		date string,
 	) *MessageRequest
+	// ParseExtras returns the extras param parsed as a JSON object, or the
+	// configured extras when the params set none.
 	ParseExtras(params *types.Params, config *Config) (map[string]any, error)
 }
 

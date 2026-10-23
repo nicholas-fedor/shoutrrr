@@ -34,6 +34,7 @@ type capturedRequest struct {
 
 // closeTracker is a response body that records whether it was closed.
 type closeTracker struct {
+	// Reader supplies the body's content.
 	io.Reader
 
 	// closed reports whether Close was called.

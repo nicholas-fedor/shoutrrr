@@ -26,6 +26,13 @@ var workflowURLValidator = regexp.MustCompile(
 )
 
 // ValidateWebhookURL ensures the webhook URL matches the Power Automate workflow pattern.
+//
+// Parameters:
+//   - url: the webhook URL.
+//
+// Returns:
+//   - error: [ErrInvalidWebhookURL] for a URL that is not a Power Automate
+//     workflow webhook.
 func ValidateWebhookURL(url string) error {
 	if !workflowURLValidator.MatchString(url) {
 		return fmt.Errorf("%w", ErrInvalidWebhookURL)

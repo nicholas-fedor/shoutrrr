@@ -11,13 +11,19 @@ type DefaultValidator struct{}
 
 // Validator handles input validation for the Gotify service.
 type Validator interface {
+	// ValidateMessage rejects an empty message.
 	ValidateMessage(message string) error
+	// ValidateServiceInitialized rejects a send before Initialize.
 	ValidateServiceInitialized(config *Config) error
+	// ValidatePriority rejects a priority outside -2 to 10.
 	ValidatePriority(priority int) error
+	// ValidateDate converts a date to RFC 3339, or rejects one it cannot read.
 	ValidateDate(date string) (string, error)
+	// ValidateToken reports whether a token has a Gotify token format.
 	ValidateToken(token string) bool
 }
 
+// Token formats.
 const (
 	// TokenLength defines the expected length of a legacy Gotify token.
 	//
@@ -49,6 +55,13 @@ const (
 // Unix timestamp (seconds), and basic date-time formats.
 // Returns the converted date string in RFC3339 format and nil error on success,
 // or empty string and an error if all parsing attempts fail.
+//
+// Parameters:
+//   - date: the date, or empty for none.
+//
+// Returns:
+//   - string: the date in RFC 3339 and UTC, or empty for an empty date.
+//   - error: [ErrInvalidDate] for a date in no accepted format.
 func (v *DefaultValidator) ValidateDate(date string) (string, error) {
 	if date == "" {
 		return "", nil
@@ -80,6 +93,12 @@ func (v *DefaultValidator) ValidateDate(date string) (string, error) {
 }
 
 // ValidateMessage checks if the message is not empty.
+//
+// Parameters:
+//   - message: the message.
+//
+// Returns:
+//   - error: [ErrEmptyMessage] for an empty message.
 func (v *DefaultValidator) ValidateMessage(message string) error {
 	if message == "" {
 		return ErrEmptyMessage
@@ -89,6 +108,12 @@ func (v *DefaultValidator) ValidateMessage(message string) error {
 }
 
 // ValidatePriority checks if the priority is within the valid range (-2 to 10).
+//
+// Parameters:
+//   - priority: the priority.
+//
+// Returns:
+//   - error: [ErrInvalidPriority] for a priority outside the range.
 func (v *DefaultValidator) ValidatePriority(priority int) error {
 	if priority < -2 || priority > 10 {
 		return ErrInvalidPriority
@@ -98,6 +123,12 @@ func (v *DefaultValidator) ValidatePriority(priority int) error {
 }
 
 // ValidateServiceInitialized checks if the service configuration is initialized.
+//
+// Parameters:
+//   - config: the service configuration, nil before Initialize.
+//
+// Returns:
+//   - error: [ErrServiceNotInitialized] for a nil configuration.
 func (v *DefaultValidator) ValidateServiceInitialized(config *Config) error {
 	if config == nil {
 		return ErrServiceNotInitialized
@@ -122,6 +153,12 @@ func (v *DefaultValidator) ValidateServiceInitialized(config *Config) error {
 //
 // NOTE(nicholas-fedor): Remove legacy token validation once Gotify 3.0.0+ is
 // the minimum supported version.
+//
+// Parameters:
+//   - token: the token.
+//
+// Returns:
+//   - bool: true for a token in either format.
 func (v *DefaultValidator) ValidateToken(token string) bool {
 	if token == "" {
 		return false
