@@ -10,7 +10,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -133,14 +132,7 @@ func validateOAuth2Refresh(config *Config) error {
 // Parameters:
 //   - client: the HTTP client to use for token requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.tokenMu.Lock()
-	defer s.tokenMu.Unlock()
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // accessToken returns a current OAuth2 access token for config.
@@ -273,26 +265,15 @@ func (s *Service) forgetToken(config *Config) {
 	}
 }
 
-// tokenHTTPClient returns the *http.Client for token requests. The caller
-// holds tokenMu.
+// tokenHTTPClient returns the *http.Client for token requests.
 //
-// The injected client is used through [clientTransport]. Without one, the
-// service builds a proxy-aware client with redacted transport errors once and
-// reuses it. The send's context bounds every request.
+// It sends through the injected client, or the default client, by way of
+// [clientTransport]. The send's context bounds every request.
 //
 // Returns:
 //   - *http.Client: the client for token requests.
 func (s *Service) tokenHTTPClient() *http.Client {
-	client := s.httpClient
-	if client == nil {
-		if s.defaultHTTPClient == nil {
-			s.defaultHTTPClient = redact.HTTPClient(&http.Client{Transport: transport.New(nil)})
-		}
-
-		client = s.defaultHTTPClient
-	}
-
-	return &http.Client{Transport: clientTransport{client: client}}
+	return &http.Client{Transport: clientTransport{client: s.client.Client()}}
 }
 
 // requestToken requests an access token from config's token URL with
@@ -307,7 +288,8 @@ func (s *Service) tokenHTTPClient() *http.Client {
 // Returns:
 //   - *oauth2.Token: the new token. It keeps refreshToken when the provider
 //     returns no new one.
-//   - error: a [FailTokenRefresh] failure wrapping the request's error.
+//   - error: a [FailTokenRefresh] failure wrapping the request's error, with
+//     the token URL reduced to its scheme and host.
 func requestToken(
 	ctx context.Context,
 	client *http.Client,
@@ -333,7 +315,9 @@ func requestToken(
 		ExpiresIn:    0,
 	}).Token()
 	if err != nil {
-		return nil, fail(FailTokenRefresh, err)
+		// The client's transport error names the token URL, whose path may
+		// identify the account, such as a Microsoft tenant.
+		return nil, fail(FailTokenRefresh, redact.URLError(err))
 	}
 
 	return token, nil

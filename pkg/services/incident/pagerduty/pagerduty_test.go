@@ -133,8 +133,8 @@ func TestInitialize(t *testing.T) {
 			Action:         "trigger",
 		}, service.Config)
 
-		client, ok := service.httpClient.(*http.Client)
-		require.True(t, ok, "client is a %T", service.httpClient)
+		client, ok := service.client.Client().(*http.Client)
+		require.True(t, ok, "client is a %T", service.client.Client())
 		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 	})
 
@@ -155,7 +155,7 @@ func TestInitialize(t *testing.T) {
 		service.SetHTTPClient(client)
 		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("invalid integration key", func(t *testing.T) {
@@ -441,8 +441,7 @@ func TestSendErrorResponses(t *testing.T) {
 }
 
 // TestSendContextErrors verifies that a send wraps a transport error without
-// the endpoint path, fails without a client, and stops when the caller's
-// context is canceled.
+// the endpoint path and stops when the caller's context is canceled.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -460,15 +459,6 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, errTransport)
 		assert.NotContains(t, err.Error(), "/v2/enqueue")
-	})
-
-	t.Run("no client", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, testServiceURL)
-		service.httpClient = nil
-
-		require.ErrorIs(t, service.SendContext(t.Context(), "message", nil), errServiceNotInitialized)
 	})
 
 	t.Run("canceled context", func(t *testing.T) {
@@ -533,17 +523,18 @@ func TestSetHTTPClient(t *testing.T) {
 			t.Parallel()
 
 			client := tt.client(t)
-			service := &Service{}
+			service := newTestService(t, testServiceURL)
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(client)
 
 			if !tt.wantDefault {
-				assert.Same(t, client, service.httpClient)
+				assert.Same(t, client, service.client.Client())
 
 				return
 			}
 
-			defaultClient, ok := service.httpClient.(*http.Client)
-			require.True(t, ok, "client is a %T", service.httpClient)
+			defaultClient, ok := service.client.Client().(*http.Client)
+			require.True(t, ok, "client is a %T", service.client.Client())
 			assert.Equal(t, defaultHTTPTimeout, defaultClient.Timeout)
 		})
 	}

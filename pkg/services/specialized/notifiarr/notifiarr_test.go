@@ -425,44 +425,57 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// clears it for nil and a nil *http.Client.
+// TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
+// client, and that a nil client or a nil *http.Client restores the default.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists constructors for the clients to set, which build any mock
-	// with the subtest's t, and whether the stored client should be cleared.
-	tests := []struct {
-		client    func(t *testing.T) types.HTTPClient
-		name      string
-		wantClear bool
-	}{
-		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
-			t.Helper()
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
 
-			return mocks.NewMockHTTPClient(t)
-		}},
-		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
-		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+		client := mocks.NewMockHTTPClient(t)
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.client.Client())
+	})
+
+	// nilClients lists the nil clients that restore the default client.
+	nilClients := []struct {
+		name   string
+		client types.HTTPClient
+	}{
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range nilClients {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := tt.client(t)
-			service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
-			service.SetHTTPClient(client)
+			service := newTestService(t, testServiceURL)
+			defaultClient := service.client.Client()
 
-			if tt.wantClear {
-				assert.Nil(t, service.httpClient)
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(tt.client)
 
-				return
-			}
-
-			assert.Same(t, client, service.httpClient)
+			assert.Same(t, defaultClient, service.client.Client())
 		})
 	}
+}
+
+// TestDefaultHTTPClient verifies the default client's timeout, and that it
+// sends through http.DefaultTransport, so it honors the proxy environment
+// variables.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+
+	httpClient, ok := service.client.Client().(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, requestTimeout, httpClient.Timeout)
+	assert.Nil(t, httpClient.Transport)
 }
 
 // TestParseChannelID verifies that a numeric channel parses, including a

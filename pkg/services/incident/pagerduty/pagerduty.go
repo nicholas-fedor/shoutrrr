@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -26,9 +27,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the HTTP client for Events API requests, the injected one
-	// or a default client with [defaultHTTPTimeout].
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the integration key, the host, and the event fields.
 	Config *Config
@@ -79,8 +79,6 @@ func (s *Service) GetID() string {
 
 // Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
 //
-// It builds the default HTTP client when the service has none.
-//
 // Parameters:
 //   - serviceURL: the service URL.
 //   - logger: the logger for service output.
@@ -89,6 +87,7 @@ func (s *Service) GetID() string {
 //   - error: the error from applying the default props or reading the URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -96,18 +95,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
-		return err
-	}
-
-	if s.httpClient == nil {
-		// Initialize HTTP client with timeout
-		s.httpClient = &http.Client{
-			Timeout: defaultHTTPTimeout,
-		}
-	}
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to PagerDuty without a deadline of its own.
@@ -185,17 +173,7 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-
-		return
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // applyLevel sets the severity of an event from its level param, debug and
@@ -342,13 +320,8 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 	// Set the Content-Type header to application/json
 	req.Header.Add("Content-Type", "application/json")
 
-	// Use the custom HTTP client
-	if s.httpClient == nil {
-		return errServiceNotInitialized
-	}
-
 	// Send the HTTP request to PagerDuty
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send notification to PagerDuty: %w", redact.URLError(err))
 	}

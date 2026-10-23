@@ -55,6 +55,10 @@ type blockingTokenEndpoint struct {
 	requests int
 }
 
+// failingTokenClient is an injected HTTP client whose token requests fail with
+// a transport error that names the full token URL, as net/http's do.
+type failingTokenClient struct{}
+
 // testRefreshURL is a service URL that refreshes its access token from the
 // fake token endpoint and authenticates with XOAUTH2.
 const testRefreshURL = "smtp://user@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no" +
@@ -404,23 +408,24 @@ func TestSendConcurrentRefresh(t *testing.T) {
 	assert.Len(t, endpoint.requests(), 1)
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a client and clears it
-// for nil and for a nil *http.Client.
+// TestSetHTTPClient verifies that SetHTTPClient makes token requests use a
+// custom client, and that nil and a nil *http.Client restore the default.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
 	service := &Service{}
+	defaultClient := service.client.Client()
 	endpoint := newFakeTokenEndpoint(grant("token", "3600", ""))
 
 	service.SetHTTPClient(endpoint)
-	assert.Same(t, endpoint, service.httpClient)
+	assert.Same(t, endpoint, service.client.Client())
 
 	service.SetHTTPClient((*http.Client)(nil))
-	assert.Nil(t, service.httpClient)
+	assert.Same(t, defaultClient, service.client.Client())
 
 	service.SetHTTPClient(endpoint)
 	service.SetHTTPClient(nil)
-	assert.Nil(t, service.httpClient)
+	assert.Same(t, defaultClient, service.client.Client())
 }
 
 // TestSendDefaultTokenClient verifies that without an injected client the
@@ -443,14 +448,14 @@ func TestSendDefaultTokenClient(t *testing.T) {
 	service := newTestService(t, rawURL, server)
 
 	require.NoError(t, service.Send("Hello", nil))
-	require.NotNil(t, service.defaultHTTPClient)
 
-	client := service.defaultHTTPClient
+	client := service.client.Client()
+	assert.IsType(t, &http.Client{}, client)
 
 	// The token expires within the oauth2 package's early-expiry window, so
 	// the second send refreshes it again through the same client.
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Same(t, client, service.defaultHTTPClient)
+	assert.Same(t, client, service.client.Client())
 	assert.Equal(t, int32(2), requests.Load())
 	assert.Contains(t, server.received(), xoauth2Line("default-token"))
 }
@@ -698,5 +703,62 @@ func TestAccessTokenInFlight(t *testing.T) {
 			close(endpoint.release)
 			synctest.Wait()
 		})
+	})
+}
+
+// Do fails the request with a *url.Error carrying its full URL.
+//
+// Parameters:
+//   - req: the token request.
+//
+// Returns:
+//   - *http.Response: always nil.
+//   - error: a *url.Error with the request URL.
+func (failingTokenClient) Do(req *http.Request) (*http.Response, error) {
+	return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: io.ErrUnexpectedEOF}
+}
+
+// TestSendRedactsTokenURL verifies that a failed token request reports the
+// token endpoint by its scheme and host alone, through the default client and
+// through a client injected without the router, so a secret in the token
+// URL's path stays out of the error.
+func TestSendRedactsTokenURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("injected client", func(t *testing.T) {
+		t.Parallel()
+
+		rawURL := strings.Replace(testRefreshURL, "%2Ftoken", "%2FSECRETtenant%2Ftoken", 1)
+		service := newRefreshingService(t, rawURL, newFakeSMTP("AUTH XOAUTH2"), failingTokenClient{})
+
+		err := service.Send("Hello", nil)
+
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.NotContains(t, err.Error(), "SECRETtenant")
+		assert.Contains(t, err.Error(), "oauth.example.com")
+	})
+
+	t.Run("default client", func(t *testing.T) {
+		t.Parallel()
+
+		// The token server drops every connection, so the request fails in
+		// the transport.
+		tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			conn, _, err := http.NewResponseController(w).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+		}))
+		t.Cleanup(tokenServer.Close)
+
+		tokenURL := url.QueryEscape(tokenServer.URL + "/SECRETtenant/token")
+		rawURL := strings.Replace(testRefreshURL, "https%3A%2F%2Foauth.example.com%2Ftoken", tokenURL, 1)
+		service := newTestService(t, rawURL, newFakeSMTP("AUTH XOAUTH2"))
+
+		err := service.Send("Hello", nil)
+
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "SECRETtenant")
+		assert.Contains(t, err.Error(), strings.TrimPrefix(tokenServer.URL, "http://"))
 	})
 }

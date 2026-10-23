@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -25,8 +26,8 @@ type Service struct {
 	// functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the webhook URL, the custom headers and extra data, and
 	// the payload options.
@@ -158,6 +159,9 @@ func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
+	// The default client has no timeout of its own, because the send context
+	// bounds each request, so a longer router budget is not cut short.
+	s.client.SetDefault(0, nil)
 
 	// Get default config and property key resolver
 	config, pkr := DefaultConfig()
@@ -233,19 +237,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if client == nil {
-		s.httpClient = nil
-
-		return
-	}
-
-	if c, ok := client.(*http.Client); ok && c == nil {
-		s.httpClient = nil
-
-		return
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // doSend executes the HTTP request to send a notification to the webhook.
@@ -290,13 +282,8 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 		req.Header.Set(key, value)
 	}
 
-	client := s.httpClient
-	if client == nil {
-		client = newDefaultHTTPClient()
-	}
-
 	// Send the HTTP request
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
@@ -344,14 +331,4 @@ func createSendParams(config *Config, params types.Params, message string) types
 	sendParams[config.MessageKey] = message
 
 	return sendParams
-}
-
-// newDefaultHTTPClient returns the client used when none is injected. It uses
-// [http.DefaultTransport], so it honors the proxy environment variables. It has
-// no timeout of its own, because the send context bounds each request.
-//
-// Returns:
-//   - *http.Client: a client without a timeout.
-func newDefaultHTTPClient() *http.Client {
-	return &http.Client{}
 }
