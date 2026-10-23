@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/login-action action to v4.7.0 by @renovate[bot] in [#1806](https://github.com/nicholas-fedor/shoutrrr/pull/1806)
 - Update alpine:3.24.3 docker digest to be26560 by @renovate[bot] in [#1797](https://github.com/nicholas-fedor/shoutrrr/pull/1797)
 - Regenerate mocks with mockery 3.8.1 by @nicholas-fedor in [#1793](https://github.com/nicholas-fedor/shoutrrr/pull/1793)
 - Update binwiederhier/ntfy:latest docker digest to 29bc952 by @renovate[bot] in [#1789](https://github.com/nicholas-fedor/shoutrrr/pull/1789)
