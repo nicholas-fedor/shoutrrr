@@ -13,6 +13,7 @@ import (
 	"fmt"
 )
 
+// encryptionKeySize is the size of an AES-256 key in bytes.
 const encryptionKeySize = 32
 
 // parseEncryptionKey decodes a 64-character hex AES-256 key.

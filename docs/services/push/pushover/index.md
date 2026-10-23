@@ -29,6 +29,15 @@ _pushover://shoutrrr:__`token`__@__`userKey`__/?devices=__`device`__&title=Custo
 !!! note
     Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.
 
+### Message time
+
+Pushover shows and orders messages by the time its servers received them, so messages sent close together can appear out of order.
+The `timestamp` param sets the time to show instead, as a Unix time in seconds, such as the time the event happened.
+It is usually set for each send, as in `params["timestamp"] = strconv.FormatInt(time.Now().Unix(), 10)`, but the URL can also set it.
+
+The timestamp must not be negative, and `0` leaves the time to Pushover.
+End-to-end encryption does not cover it, so it is always sent as is.
+
 ### Message level
 
 A sender can set a message level with the `level` param, as `Params.SetLevel` does.

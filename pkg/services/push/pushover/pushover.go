@@ -17,20 +17,28 @@ import (
 
 // Service provides the Pushover notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil to use Client.
 	httpClient types.HTTPClient
 
+	// Config holds the keys, the devices, and the message options.
 	Config *Config
+	// Client is the default HTTP client, with [defaultHTTPTimeout].
 	Client *http.Client
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// hookURL is the Pushover API endpoint for sending messages.
+// Settings for requests to the Pushover Message API.
 const (
-	hookURL            = "https://api.pushover.net/1/messages.json"
-	contentType        = "application/x-www-form-urlencoded"
-	defaultHTTPTimeout = 10 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
+	// hookURL is the Pushover API endpoint for sending messages.
+	hookURL = "https://api.pushover.net/1/messages.json"
+	// contentType is the form encoding the Message API takes.
+	contentType = "application/x-www-form-urlencoded"
+	// defaultHTTPTimeout bounds each request of the default client.
+	defaultHTTPTimeout = 10 * time.Second
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -51,11 +59,21 @@ var levelPriorities = map[types.MessageLevel]int8{
 }
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the scheme, pushover.
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL with the token and the user key.
+//   - logger: the logger for the service's output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrUserMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -83,7 +101,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params, encryption key, or send error.
+//   - error: the params, encryption key, or send error, or [ErrInvalidTimestamp]
+//     for a negative timestamp.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -97,8 +116,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params, encryption key, or send error. A request error matches
-//     ctx's error when ctx ends the request.
+//   - error: the params, encryption key, or send error, or [ErrInvalidTimestamp]
+//     for a negative timestamp. A request error matches ctx's error when ctx
+//     ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
@@ -112,6 +132,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	if _, err := parseEncryptionKey(config.EncryptionKey); err != nil {
 		return err
+	}
+
+	if config.Timestamp < 0 {
+		return ErrInvalidTimestamp
 	}
 
 	device := strings.Join(config.Devices, ",")
@@ -159,6 +183,9 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 }
 
 // httpClientOrDefault returns the custom client or the default Client.
+//
+// Returns:
+//   - types.HTTPClient: the injected client, or Client.
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient
@@ -215,6 +242,11 @@ func (s *Service) sendToDevice(ctx context.Context, device, message string, conf
 
 	if config.Priority >= -2 && config.Priority <= 1 {
 		data.Set("priority", strconv.FormatInt(int64(config.Priority), 10))
+	}
+
+	// The timestamp is not one of the fields that end-to-end encryption covers.
+	if config.Timestamp > 0 {
+		data.Set("timestamp", strconv.FormatInt(config.Timestamp, 10))
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
