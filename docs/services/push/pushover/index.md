@@ -29,6 +29,21 @@ _pushover://shoutrrr:__`token`__@__`userKey`__/?devices=__`device`__&title=Custo
 !!! note
     Only supply priority values between -1 and 1, since 2 requires additional parameters that are not supported yet.
 
+### Message level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set `priority`, the level picks the priority:
+
+| Level   | Priority   |
+|---------|------------|
+| Debug   | -1 (low)   |
+| Info    | 0 (normal) |
+| Warning | 0 (normal) |
+| Error   | 1 (high)   |
+
+High priority bypasses quiet hours, so only errors use it.
+A `priority` other than the default in the URL, or any `priority` in the send params, takes precedence over the level.
+
 ## End-to-end encryption
 
 Pushover [end-to-end encryption](https://pushover.net/api#e2ee) encrypts `message` and `title` on the client before they are sent.

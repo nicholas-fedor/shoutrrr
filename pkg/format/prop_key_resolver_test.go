@@ -184,6 +184,52 @@ func TestPropKeyResolverIsDefault(t *testing.T) {
 	assert.False(t, unbound.IsDefault("retries", "3"))
 }
 
+// TestPropKeyResolverKeepsDefault verifies that a property keeps its default
+// only when the config holds the default value and the params do not set the
+// property under any of its keys, in any case, even to the default value.
+func TestPropKeyResolverKeepsDefault(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&spelledDefaultsConfig{})
+
+	tests := map[string]struct {
+		config *spelledDefaultsConfig
+		params *types.Params
+		key    string
+		want   bool
+	}{
+		"default without params": {
+			config: &spelledDefaultsConfig{Retries: 3}, params: nil, key: "retries", want: true,
+		},
+		"default with params for another key": {
+			config: &spelledDefaultsConfig{Retries: 3}, params: &types.Params{"name": "x"}, key: "retries", want: true,
+		},
+		"configured value": {
+			config: &spelledDefaultsConfig{Retries: 5}, params: nil, key: "retries", want: false,
+		},
+		"param set to the default": {
+			config: &spelledDefaultsConfig{Retries: 3}, params: &types.Params{"retries": "3"}, key: "retries", want: false,
+		},
+		"param key in another case": {
+			config: &spelledDefaultsConfig{Retries: 3}, params: &types.Params{"RETRIES": "3"}, key: "retries", want: false,
+		},
+		"param under an alias": {
+			config: &spelledDefaultsConfig{}, params: &types.Params{"in": ""}, key: "delay", want: false,
+		},
+		"unknown key": {
+			config: &spelledDefaultsConfig{}, params: nil, key: "unknown", want: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, resolver.KeepsDefault(tc.config, tc.params, tc.key))
+		})
+	}
+}
+
 // TestPropKeyResolverKeyIsPrimary verifies that only the first key of a field
 // is its primary key, in any case.
 func TestPropKeyResolverKeyIsPrimary(t *testing.T) {

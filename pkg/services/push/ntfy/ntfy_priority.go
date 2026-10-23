@@ -51,6 +51,15 @@ var Priority = &priorityVals{
 	),
 }
 
+// levelPriorities maps each known message level to the ntfy priority it is
+// sent with when the send keeps the default priority.
+var levelPriorities = map[types.MessageLevel]priority{
+	types.Debug:   PriorityLow,
+	types.Info:    PriorityDefault,
+	types.Warning: PriorityHigh,
+	types.Error:   PriorityMax,
+}
+
 func (p priority) String() string {
 	return Priority.Enum.Print(int(p))
 }

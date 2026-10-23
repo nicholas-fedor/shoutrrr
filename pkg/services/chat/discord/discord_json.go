@@ -159,23 +159,7 @@ func CreatePayloadFromItems(
 		return WebhookPayload{}, ErrEmptyMessage
 	}
 
-	// Check if we can use content field for plain text messages
-	// Only if no special embed fields are present and no files
-	hasFiles := false
-
-	for _, item := range items {
-		if item.File != nil {
-			hasFiles = true
-
-			break
-		}
-	}
-
-	if len(items) == 1 && title == "" && items[0].Level == types.Unknown &&
-		items[0].Timestamp.IsZero() &&
-		!hasEmbedFields(items[0].Fields) &&
-		!hasFiles &&
-		utf8.RuneCountInString(items[0].Text) <= ChunkSize {
+	if sendsAsContent(items, title) {
 		if items[0].Text == "" {
 			return WebhookPayload{}, ErrEmptyMessage
 		}
@@ -186,6 +170,30 @@ func CreatePayloadFromItems(
 	}
 
 	return createEmbedPayload(items, title, colors), nil
+}
+
+// sendsAsContent reports whether items go out as plain message content rather
+// than embeds. That holds for a single item of at most [ChunkSize] runes,
+// without a title, a level, a timestamp, embed fields, or a file.
+//
+// Parameters:
+//   - items: the message items.
+//   - title: the title of the first embed.
+//
+// Returns:
+//   - bool: whether the items are sent as the message content.
+func sendsAsContent(items []types.MessageItem, title string) bool {
+	if len(items) != 1 || title != "" {
+		return false
+	}
+
+	item := items[0]
+
+	return item.Level == types.Unknown &&
+		item.Timestamp.IsZero() &&
+		!hasEmbedFields(item.Fields) &&
+		item.File == nil &&
+		utf8.RuneCountInString(item.Text) <= ChunkSize
 }
 
 // createEmbedPayload creates a webhook payload with an embed for each item, at

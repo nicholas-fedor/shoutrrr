@@ -33,6 +33,9 @@
 //   - 0: normal (default) - normal notification behavior
 //   - 1: high - bypasses quiet hours, plays sound
 //
+// A send with a level param and the default priority uses the priority for its
+// level: debug -1, info and warning 0, and error 1.
+//
 // # Templates
 //
 // Pushover does not use templates in the Shoutrrr sense, but supports notification

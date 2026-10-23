@@ -246,6 +246,42 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendLevelPriority verifies that the level param sets the priority, debug
+// to low (-1), info and warning to normal (0), and error to high (1), and that
+// a priority from the service URL or the send params, or an unknown level,
+// leaves the priority as it is.
+func TestSendLevelPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL       string
+		params       *types.Params
+		wantPriority string
+	}{
+		"debug":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Debug"}, wantPriority: "-1"},
+		"info":                {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Info"}, wantPriority: "0"},
+		"warning":             {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Warning"}, wantPriority: "0"},
+		"error":               {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error"}, wantPriority: "1"},
+		"priority in the URL": {rawURL: "pushover://:apptoken@usertoken?priority=-2", params: &types.Params{"level": "Error"}, wantPriority: "-2"},
+		"priority param":      {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "Error", "priority": "0"}, wantPriority: "0"},
+		"unknown level":       {rawURL: "pushover://:apptoken@usertoken", params: &types.Params{"level": "critical"}, wantPriority: "0"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tc.params))
+
+			assert.Equal(t, tc.wantPriority, captured.form.Get("priority"))
+		})
+	}
+}
+
 // TestSendEncrypted verifies that with an encryption key the message and
 // title are sent encrypted with the documented scheme and marked with
 // encrypted=1, and that an encryption key param applies to one send.

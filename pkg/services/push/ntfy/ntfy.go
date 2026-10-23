@@ -112,6 +112,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	s.applyLevel(&config, params)
+
 	// Execute the API request to send the notification
 	if err := s.sendAPI(ctx, &config, message); err != nil {
 		return fmt.Errorf("failed to send ntfy notification: %w", err)
@@ -143,6 +145,28 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	}
 
 	s.setDefaultHTTPClient()
+}
+
+// applyLevel sets the priority of a send from its level param, debug to low,
+// info to default, warning to high, and error to max. A priority set in the
+// service URL or the send params takes precedence.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	if params == nil {
+		return
+	}
+
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelPriority, mapped := levelPriorities[level]; mapped && s.pkr.KeepsDefault(config, params, "priority") {
+		config.Priority = levelPriority
+	}
 }
 
 // newAPIClient returns the JSON client for one send, so every send has its own
