@@ -9,6 +9,80 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// TestPartitionMessageLimits verifies that limits leaving no room for a chunk,
+// such as a chunk count, chunk size, or total size below 1, yield no chunks and
+// count every rune as omitted, and that a search distance longer than the chunk
+// size searches only within the chunk.
+func TestPartitionMessageLimits(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		limits      types.MessageLimit
+		distance    int
+		wantTexts   []string
+		wantOmitted int
+	}{
+		"distance longer than the chunk size": {
+			limits:      types.MessageLimit{ChunkSize: 3, TotalChunkSize: 100, ChunkCount: 10},
+			distance:    10,
+			wantTexts:   []string{"abc", "def", "gh", "ij"},
+			wantOmitted: 0,
+		},
+		"zero chunk count": {
+			limits:      types.MessageLimit{ChunkSize: 3, TotalChunkSize: 100, ChunkCount: 0},
+			distance:    2,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+		"negative chunk count": {
+			limits:      types.MessageLimit{ChunkSize: 3, TotalChunkSize: 100, ChunkCount: -1},
+			distance:    2,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+		"zero chunk size": {
+			limits:      types.MessageLimit{ChunkSize: 0, TotalChunkSize: 100, ChunkCount: 10},
+			distance:    0,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+		"negative chunk size": {
+			limits:      types.MessageLimit{ChunkSize: -3, TotalChunkSize: 100, ChunkCount: 10},
+			distance:    0,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+		"zero total size": {
+			limits:      types.MessageLimit{ChunkSize: 3, TotalChunkSize: 0, ChunkCount: 10},
+			distance:    2,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+		"negative total size": {
+			limits:      types.MessageLimit{ChunkSize: 3, TotalChunkSize: -5, ChunkCount: 10},
+			distance:    2,
+			wantTexts:   []string{},
+			wantOmitted: 11,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			items, omitted := PartitionMessage("abcdefgh ij", tc.limits, tc.distance)
+
+			texts := make([]string, 0, len(items))
+			for _, item := range items {
+				texts = append(texts, item.Text)
+			}
+
+			assert.Equal(t, tc.wantTexts, texts)
+			assert.Equal(t, tc.wantOmitted, omitted)
+		})
+	}
+}
+
 func TestPartitionMessage(t *testing.T) {
 	t.Parallel()
 

@@ -75,12 +75,10 @@ func FuzzMessageItemsFromLines(f *testing.F) {
 // FuzzPartitionMessage checks that partitioning keeps every chunk within its
 // limits, never emits an empty chunk or invalid UTF-8, and only drops a single
 // space or newline at each split, so the chunks, their separators, and the
-// omitted runes rebuild the input. The seed corpus covers ASCII with and without
-// whitespace, multi-byte text, newlines, and input longer than the total size.
-//
-// The limits stay positive and the search distance within the chunk size, as for
-// every caller. The backward search for whitespace reads before the chunk at
-// larger distances, and a total size of zero yields an empty chunk.
+// omitted runes rebuild the input. Limits that leave no room for a chunk yield
+// no chunks and omit every rune. The seed corpus covers ASCII with and without
+// whitespace, multi-byte text, newlines, input longer than the total size, a
+// search distance longer than the chunk size, and limits of zero.
 func FuzzPartitionMessage(f *testing.F) {
 	for _, seed := range []string{
 		"",
@@ -91,17 +89,26 @@ func FuzzPartitionMessage(f *testing.F) {
 		"line one\nline two\nline three\n\n\nline four",
 	} {
 		f.Add(seed, 10, 50, 4, 5)
+		f.Add(seed, 3, 50, 4, 20)
+		f.Add(seed, 0, 0, 0, 0)
 	}
 
 	f.Fuzz(func(t *testing.T, input string, chunkSize, totalSize, chunkCount, distance int) {
-		if chunkSize < 1 || chunkSize > 200 || totalSize < 1 || totalSize > 2000 ||
-			chunkCount < 1 || chunkCount > 20 || distance < 0 || distance > chunkSize ||
+		if chunkSize < -5 || chunkSize > 200 || totalSize < -5 || totalSize > 2000 ||
+			chunkCount < -5 || chunkCount > 20 || distance < -5 || distance > 400 ||
 			!utf8.ValidString(input) {
 			t.Skip()
 		}
 
 		limits := types.MessageLimit{ChunkSize: chunkSize, TotalChunkSize: totalSize, ChunkCount: chunkCount}
 		items, omitted := PartitionMessage(input, limits, distance)
+
+		if chunkSize < 1 || totalSize < 1 || chunkCount < 1 {
+			require.Empty(t, items, "limits without room yielded chunks")
+			require.Equal(t, utf8.RuneCountInString(input), omitted, "limits without room must omit every rune")
+
+			return
+		}
 
 		require.LessOrEqual(t, len(items), chunkCount, "too many chunks")
 

@@ -158,12 +158,31 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // ParseChannelID parses the channel string to an integer.
+//
+// The string must hold only decimal digits, so a sign or text around the
+// digits is rejected. A Discord channel ID needs a 64-bit int, so on 32-bit
+// platforms it is rejected as out of range.
+//
+// Parameters:
+//   - channelStr: the channel ID from the config.
+//
+// Returns:
+//   - int: the channel ID.
+//   - error: [ErrInvalidChannelID] with the reason, such as invalid syntax or
+//     a value out of range, when the string is not a channel ID.
 func (s *Service) ParseChannelID(channelStr string) (int, error) {
-	var channelID int
+	if channelStr == "" || strings.ContainsFunc(channelStr, func(r rune) bool { return r < '0' || r > '9' }) {
+		return 0, fmt.Errorf("invalid channel ID format '%s': %w: %w", channelStr, ErrInvalidChannelID, strconv.ErrSyntax)
+	}
 
-	_, err := fmt.Sscanf(channelStr, "%d", &channelID)
+	channelID, err := strconv.Atoi(channelStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid channel ID format '%s': %w", channelStr, ErrInvalidChannelID)
+		reason := err
+		if numErr, ok := errors.AsType[*strconv.NumError](err); ok {
+			reason = numErr.Err
+		}
+
+		return 0, fmt.Errorf("invalid channel ID format '%s': %w: %w", channelStr, ErrInvalidChannelID, reason)
 	}
 
 	return channelID, nil

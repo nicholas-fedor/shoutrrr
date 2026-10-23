@@ -14,7 +14,10 @@ const ellipsis = " [...]"
 //
 // The function attempts to split at word boundaries (spaces or newlines) to improve
 // readability. It searches backwards up to distance runes from the chunk boundary
-// to find a suitable split point.
+// to find a suitable split point, and never further than the chunk's own start.
+//
+// Limits that leave no room for a chunk, a chunk count, chunk size, or total
+// size below 1, yield no chunks and count every rune as omitted.
 //
 // Parameters:
 //   - input: The string to partition into chunks.
@@ -29,16 +32,18 @@ func PartitionMessage(
 	limits types.MessageLimit,
 	distance int,
 ) ([]types.MessageItem, int) {
-	items := make([]types.MessageItem, 0, limits.ChunkCount-1)
 	runes := []rune(input)
+
+	if input == "" || limits.ChunkCount < 1 || limits.ChunkSize < 1 || limits.TotalChunkSize < 1 {
+		return []types.MessageItem{}, len(runes)
+	}
+
+	items := make([]types.MessageItem, 0, limits.ChunkCount-1)
 	chunkOffset := 0
 	maxTotal := Min(len(runes), limits.TotalChunkSize)
 	maxCount := limits.ChunkCount - 1
-
-	if input == "" {
-		// Return an empty slice for empty input.
-		return items, 0
-	}
+	// A search longer than the chunk would read before the chunk's start.
+	distance = Min(distance, limits.ChunkSize)
 
 	for range maxCount {
 		// Default chunkEnd is the maximum chunk size from current offset.

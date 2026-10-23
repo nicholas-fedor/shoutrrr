@@ -12,7 +12,8 @@ func SupportedSchemas() []string {
 	return router.SupportedSchemas()
 }
 
-// SupportsSchema reports whether schema is supported by this build.
+// SupportsSchema reports whether schema is supported by this build, matching
+// the schema in any case.
 //
 // Parameters:
 //   - schema: the service schema to check.
