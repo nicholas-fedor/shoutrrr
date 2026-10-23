@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -464,20 +466,29 @@ func TestSetHTTPClient(t *testing.T) {
 }
 
 // TestParseChannelID verifies that a numeric channel parses, including a
-// 64-bit Discord snowflake, and that other values are rejected.
+// 64-bit Discord snowflake, which a 32-bit platform rejects as out of range,
+// and that other values, such as digits with text around them, are rejected.
 func TestParseChannelID(t *testing.T) {
 	t.Parallel()
 
 	service := &Service{}
 
-	for input, want := range map[string]int{"123456789": 123456789, "735481457153277994": 735481457153277994} {
+	for input, want := range map[string]int64{"123456789": 123456789, "735481457153277994": 735481457153277994} {
 		channelID, err := service.ParseChannelID(input)
 
+		if want > math.MaxInt {
+			require.ErrorIs(t, err, ErrInvalidChannelID, input)
+			require.ErrorIs(t, err, strconv.ErrRange, input)
+
+			continue
+		}
+
 		require.NoError(t, err, input)
-		assert.Equal(t, want, channelID, input)
+		assert.Equal(t, want, int64(channelID), input)
 	}
 
-	for _, input := range []string{"", "general"} {
+	// Sscanf would read the leading digits of these and ignore the rest.
+	for _, input := range []string{"", "general", "123abc", " 123", "123 456", "12.5"} {
 		_, err := service.ParseChannelID(input)
 
 		require.ErrorIs(t, err, ErrInvalidChannelID, input)
