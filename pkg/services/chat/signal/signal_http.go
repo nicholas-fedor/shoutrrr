@@ -5,8 +5,8 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -24,9 +25,6 @@ import (
 const (
 	contentType        = "application/json"
 	defaultHTTPTimeout = 30 * time.Second
-	// maxResponseBodySize caps how much of a /v2/send body is read. It holds
-	// the failed recipients of a send to a full Signal group.
-	maxResponseBodySize = 1 << 20
 	// maxErrorBodySize caps how much of a plain error body goes into an error.
 	maxErrorBodySize = 4 * 1024
 )
@@ -217,8 +215,10 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 
 	accepted := resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
-	if err != nil {
+	body, err := httpbody.Read(resp.Body, httpbody.MaxSize)
+
+	truncated := errors.Is(err, httpbody.ErrTooLarge)
+	if err != nil && !truncated {
 		if accepted {
 			s.Logf("Warning: failed to read response body, so the recipient results were not checked: %v", err)
 
@@ -228,11 +228,6 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 		return fmt.Errorf("reading response body: %w", err)
 	}
 
-	truncated := len(body) > maxResponseBodySize
-	if truncated {
-		body = body[:maxResponseBodySize]
-	}
-
 	if !accepted {
 		return formatSendError(resp.StatusCode, body, truncated)
 	}
@@ -240,7 +235,7 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	// The API accepted the message, but a cut body cannot be read for the
 	// per-recipient results.
 	if truncated {
-		s.Logf("Warning: response exceeds %d bytes, so the recipient results were not checked", maxResponseBodySize)
+		s.Logf("Warning: response exceeds %d bytes, so the recipient results were not checked", httpbody.MaxSize)
 
 		return nil
 	}

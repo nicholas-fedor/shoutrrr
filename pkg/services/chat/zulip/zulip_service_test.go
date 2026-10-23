@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/zulip/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -477,7 +478,7 @@ func TestSendServerLimits(t *testing.T) {
 // TestSendDefaultLimits verifies that the default limits of 60 topic
 // characters and 10000 message characters apply when the register request
 // fails or its response has no usable limits, and that each send repeats a
-// failed register request.
+// failed register request. A response over [httpbody.MaxSize] counts as failed.
 func TestSendDefaultLimits(t *testing.T) {
 	t.Parallel()
 
@@ -495,6 +496,14 @@ func TestSendDefaultLimits(t *testing.T) {
 		},
 		{name: "transport error", response: cannedResponse{err: errTransport}, wantRegisters: 4},
 		{name: "not JSON", response: cannedResponse{statusCode: http.StatusOK, body: "<html>"}, wantRegisters: 4},
+		{
+			name: "body too large",
+			response: cannedResponse{
+				statusCode: http.StatusOK,
+				body:       `{"result":"success","max_message_length":5,"max_topic_length":5}` + strings.Repeat(" ", httpbody.MaxSize),
+			},
+			wantRegisters: 4,
+		},
 		{name: "no limits", response: cannedResponse{statusCode: http.StatusOK, body: `{"result":"success","msg":""}`}, wantRegisters: 1},
 		{
 			name:          "zero limits",

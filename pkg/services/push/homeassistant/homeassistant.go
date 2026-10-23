@@ -5,13 +5,14 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -217,8 +218,8 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 
 	defer func() { _ = res.Body.Close() }()
 
-	responseBody, err := io.ReadAll(res.Body)
-	if err != nil {
+	responseBody, err := httpbody.Read(res.Body, httpbody.MaxSize)
+	if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 		return fmt.Errorf("reading response body: %w", err)
 	}
 

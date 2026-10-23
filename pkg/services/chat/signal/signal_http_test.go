@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -280,7 +281,7 @@ func TestSendLargeResponse(t *testing.T) {
 		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
 
 		body := failures(12000)
-		require.Greater(t, len(body), maxResponseBodySize)
+		require.Greater(t, len(body), httpbody.MaxSize)
 
 		client, _ := newRecordingClient(t, cannedResponse{statusCode: http.StatusCreated, body: body})
 		service.SetHTTPClient(client)

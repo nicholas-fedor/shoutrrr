@@ -9,12 +9,12 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -231,12 +231,20 @@ func (s *Service) getRequestBody(
 }
 
 // handleResponse processes the API response and checks for errors.
+//
+// Parameters:
+//   - resp: the API response. At most [httpbody.MaxSize] bytes of its body are read.
+//
+// Returns:
+//   - error: [ErrSendFailed] for an error status or a nonzero code, or the
+//     error from reading or decoding the body, which wraps [httpbody.ErrTooLarge]
+//     for an oversized body.
 func (s *Service) handleResponse(resp *http.Response) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: unexpected status %s", ErrSendFailed, resp.Status)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := httpbody.Read(resp.Body, httpbody.MaxSize)
 	if err != nil {
 		return fmt.Errorf("reading response body: %w", err)
 	}

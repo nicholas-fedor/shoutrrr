@@ -8,9 +8,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -282,11 +282,25 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 }
 
 // parseResponse parses the HTTP response and unmarshals it into the provided object.
+//
+// Parameters:
+//   - res: the response. At most [httpbody.MaxSize] bytes of its body are read.
+//   - response: the value the JSON body is decoded into.
+//
+// Returns:
+//   - error: an [Error] holding the body read. It wraps [ErrUnexpectedStatus]
+//     for an error status. It also wraps the read error, which is
+//     [httpbody.ErrTooLarge] for a body larger than [httpbody.MaxSize], on any
+//     status. Otherwise it wraps the decoding error.
 func parseResponse(res *http.Response, response any) error {
-	body, err := io.ReadAll(res.Body)
+	body, err := httpbody.Read(res.Body, httpbody.MaxSize)
 
 	if res.StatusCode >= HTTPClientErrorThreshold {
-		err = fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
+		if err != nil {
+			err = fmt.Errorf("%w: %v: %w", ErrUnexpectedStatus, res.Status, err)
+		} else {
+			err = fmt.Errorf("%w: %v", ErrUnexpectedStatus, res.Status)
+		}
 	}
 
 	if err == nil {

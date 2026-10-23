@@ -9,13 +9,13 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -122,6 +122,17 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 }
 
 // apiGet performs a GET request to the Matrix API with the provided context.
+//
+// Parameters:
+//   - ctx: cancellation for the request, further bounded by the client's timeout.
+//   - path: the API path to request.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
+//     for an error status without one, or the request, read, or decoding error.
+//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
+//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) apiGet(ctx context.Context, path string, response any) error {
 	reqCtx, cancel := context.WithTimeout(
 		ctx,
@@ -148,11 +159,12 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("reading GET response body: %w", err)
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
+		return fmt.Errorf("reading GET response body: %w", readErr)
 	}
 
+	// An error status is reported from the first bytes of an oversized body.
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
 		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
@@ -164,6 +176,10 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 			ErrUnexpectedStatus,
 			res.Status, err,
 		)
+	}
+
+	if readErr != nil {
+		return fmt.Errorf("reading GET response body: %w", readErr)
 	}
 
 	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
@@ -192,6 +208,19 @@ func (c *client) buildURL(path string) string {
 }
 
 // doSingleRequest performs a single HTTP request without retry logic.
+//
+// Parameters:
+//   - ctx: cancellation for the request, further bounded by the client's timeout.
+//   - method: the HTTP method.
+//   - path: the API path to request.
+//   - request: the value sent as the JSON request body.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
+//     for an error status without one, or the request, read, or decoding error.
+//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
+//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) doSingleRequest(ctx context.Context, method, path string, request, response any) error {
 	body, err := json.Marshal(request, jsonopts.Default)
 	if err != nil {
@@ -221,11 +250,12 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err = io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("reading %s response body: %w", method, err)
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
+		return fmt.Errorf("reading %s response body: %w", method, readErr)
 	}
 
+	// An error status is reported from the first bytes of an oversized body.
 	if res.StatusCode >= httpClientErrorStatus {
 		resError := &apiResError{}
 		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
@@ -238,6 +268,10 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 			res.Status,
 			err,
 		)
+	}
+
+	if readErr != nil {
+		return fmt.Errorf("reading %s response body: %w", method, readErr)
 	}
 
 	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {

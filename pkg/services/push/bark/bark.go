@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -252,7 +253,12 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	defer func() { _ = httpResp.Body.Close() }()
 
-	if err := json.UnmarshalRead(httpResp.Body, &response, jsonopts.Default); err != nil {
+	body, err := httpbody.Read(httpResp.Body, httpbody.MaxSize)
+	if err != nil {
+		return fmt.Errorf("reading response: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &response, jsonopts.Default); err != nil {
 		return fmt.Errorf("decoding response: %w", err)
 	}
 

@@ -6,9 +6,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -146,7 +146,9 @@ func (s *DefaultSender) handleResponseError(res *http.Response, body []byte) err
 //
 // Returns:
 //   - []byte: the response body.
-//   - error: the marshaling, request, or response error.
+//   - error: the marshaling, request, or response error. An error status is
+//     reported before a body larger than [httpbody.MaxSize], which is
+//     [ErrReadResponse] wrapping [httpbody.ErrTooLarge].
 func (s *DefaultSender) sendRequestWithHeaders(
 	ctx context.Context,
 	client types.HTTPClient,
@@ -178,13 +180,18 @@ func (s *DefaultSender) sendRequestWithHeaders(
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err = io.ReadAll(res.Body)
-	if err != nil {
+	body, err = httpbody.Read(res.Body, httpbody.MaxSize)
+	if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}
 
-	if err := s.handleResponseError(res, body); err != nil {
-		return nil, err
+	// An error status is reported from the first bytes of an oversized body.
+	if statusErr := s.handleResponseError(res, body); statusErr != nil {
+		return nil, statusErr
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}
 
 	return body, nil

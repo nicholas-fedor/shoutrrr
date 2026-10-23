@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -72,6 +74,21 @@ type syncBuffer struct {
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+// httpClientFunc adapts a function to [types.HTTPClient].
+type httpClientFunc func(*http.Request) (*http.Response, error)
+
+// spaceReader is an endless source of spaces, which JSON decoders skip as
+// whitespace, so only the amount read tells an oversized body apart.
+type spaceReader struct{}
+
+// countedBody is a response body that records how many bytes were read from it.
+type countedBody struct {
+	// r is the body's content.
+	r io.Reader
+	// read is the number of bytes read so far.
+	read *atomic.Int64
+}
 
 // contextMarker keys a value on the caller's context, so a check can tell whether
 // that context reached a request or dial.
@@ -140,6 +157,10 @@ const (
 
 // cancelAfter is when the context check cancels the caller's context.
 const cancelAfter = time.Second
+
+// oversizedBodySize is the size of the response bodies served by
+// TestIntegrationResponseBodyLimit, far past [httpbody.MaxSize].
+const oversizedBodySize = 8 * httpbody.MaxSize
 
 // fixtures covers every scheme returned by router.SupportedSchemas.
 // Configurable hosts use the reserved .invalid TLD.
@@ -591,6 +612,93 @@ func TestIntegrationMalformedQuery(t *testing.T) {
 				}
 
 				require.ErrorIs(t, err, util.ErrInvalidQuery)
+			})
+		}
+	}
+}
+
+// TestIntegrationResponseBodyLimit verifies that no HTTP service reads more of
+// a response body than [httpbody.MaxSize] plus the one byte that detects an
+// oversized body. Every response carries the fixture's body followed by spaces
+// up to [oversizedBodySize]. The check runs with the fixture's status and with
+// an error status, because some services read the body only on an error. A
+// send that gets the error status must still fail.
+func TestIntegrationResponseBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, fx := range fixtures {
+		if fx.kind != netHTTP {
+			continue
+		}
+
+		for _, status := range []int{cmp.Or(fx.status, http.StatusOK), http.StatusInternalServerError} {
+			t.Run(fmt.Sprintf("%s %d", fx.scheme, status), func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu      sync.Mutex
+					counts  []*atomic.Int64
+					sendErr error
+				)
+
+				client := httpClientFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Body != nil {
+						_, _ = io.Copy(io.Discard, req.Body)
+						_ = req.Body.Close()
+					}
+
+					read := &atomic.Int64{}
+
+					mu.Lock()
+
+					counts = append(counts, read)
+
+					mu.Unlock()
+
+					content := io.MultiReader(
+						strings.NewReader(cmp.Or(fx.body, "{}")),
+						io.LimitReader(spaceReader{}, oversizedBodySize),
+					)
+
+					return &http.Response{
+						StatusCode: status,
+						Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       io.NopCloser(&countedBody{r: content, read: read}),
+						Request:    req,
+					}, nil
+				})
+
+				// Services that retry an error status wait between attempts, so the
+				// send runs on synctest's fake clock.
+				synctest.Test(t, func(t *testing.T) {
+					serviceRouter, err := router.NewWithOptions(
+						log.New(io.Discard, "", 0),
+						types.SenderOptions{HTTPClient: client},
+					)
+					require.NoError(t, err)
+
+					service, err := serviceRouter.Locate(fx.url)
+					require.NoError(t, err)
+
+					defer closeService(t, service)
+
+					sendErr = service.Send("contract message", nil)
+				})
+
+				// A capped read must not turn a failed request into a success.
+				if status >= http.StatusBadRequest {
+					require.Error(t, sendErr, "the send succeeded despite status %d", status)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				require.NotEmpty(t, counts, "the service made no request")
+
+				for i, read := range counts {
+					assert.LessOrEqual(t, read.Load(), int64(httpbody.MaxSize)+1, "response %d", i)
+				}
 			})
 		}
 	}
@@ -1292,3 +1400,44 @@ func (b *syncBuffer) Write(p []byte) (int, error) {
 }
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// Do calls f with the request.
+//
+// Parameters:
+//   - req: the request to send.
+//
+// Returns:
+//   - *http.Response: f's response.
+//   - error: f's error.
+func (f httpClientFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+// Read fills p with spaces.
+//
+// Parameters:
+//   - p: the buffer to fill.
+//
+// Returns:
+//   - int: the length of p.
+//   - error: always nil.
+func (spaceReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = ' '
+	}
+
+	return len(p), nil
+}
+
+// Read reads from the body's content and counts the bytes.
+//
+// Parameters:
+//   - p: the buffer to read into.
+//
+// Returns:
+//   - int: the number of bytes read.
+//   - error: the content's error, such as [io.EOF] at its end.
+func (b *countedBody) Read(p []byte) (int, error) {
+	n, err := b.r.Read(p)
+	b.read.Add(int64(n))
+
+	return n, err
+}

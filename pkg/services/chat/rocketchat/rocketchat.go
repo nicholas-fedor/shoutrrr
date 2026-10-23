@@ -3,12 +3,13 @@ package rocketchat
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -135,8 +136,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
+		resBody, err := httpbody.Read(res.Body, httpbody.MaxSize)
+		if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 			return fmt.Errorf(
 				"%w: %d",
 				ErrNotificationFailed,

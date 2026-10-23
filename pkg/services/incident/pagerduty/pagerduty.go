@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -252,6 +253,16 @@ func (s *Service) newEventPayload(
 }
 
 // sendAlert sends an alert payload to the specified PagerDuty endpoint URL.
+//
+// Parameters:
+//   - ctx: cancellation for the request.
+//   - endpoint: the PagerDuty events URL.
+//   - payload: the event to send.
+//
+// Returns:
+//   - error: [errPagerDutyNotificationFailed] for a status outside 2xx, with the
+//     message from up to [httpbody.MaxSize] bytes of the body, or the
+//     encoding or request error.
 func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *EventPayload) error {
 	// Marshal the payload into JSON format
 	jsonBody, err := json.Marshal(payload, jsonopts.Default)
@@ -293,8 +304,8 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 		// Parse error response body for better error reporting
 		errorMsg := fmt.Sprintf("HTTP %d", resp.StatusCode)
 		if resp.Body != nil {
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err == nil && len(bodyBytes) > 0 {
+			bodyBytes, err := httpbody.Read(resp.Body, httpbody.MaxSize)
+			if (err == nil || errors.Is(err, httpbody.ErrTooLarge)) && len(bodyBytes) > 0 {
 				// Try to parse as PagerDuty error response
 				var errorResponse struct {
 					Status  string   `json:"status"`

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -248,9 +249,10 @@ func TestSendItems(t *testing.T) {
 }
 
 // TestSendServerErrors verifies how a send reports a response the Bark server
-// rejects: the server's message as an *APIResponse, ErrUnexpectedStatus when
-// the response has no message, and a decoding error for a body that is not
-// JSON.
+// rejects. The server's message comes back as an *APIResponse, and a response
+// without a message as ErrUnexpectedStatus. A body that is not JSON gives a
+// decoding error, and a body over [httpbody.MaxSize] gives
+// [httpbody.ErrTooLarge].
 func TestSendServerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +295,19 @@ func TestSendServerErrors(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "decoding response")
+	})
+
+	t.Run("body too large", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		body := `{"code":200,"message":"success"}` + strings.Repeat(" ", httpbody.MaxSize)
+		client, _ := newRespondingClient(t, http.StatusOK, body)
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, httpbody.ErrTooLarge)
 	})
 }
 
