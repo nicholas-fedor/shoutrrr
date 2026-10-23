@@ -416,6 +416,46 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendLevelPriority verifies that the level param sets the priority, debug
+// to low, info to default, warning to high, and error to max, and that a
+// priority from the service URL or the send params, or an unknown level,
+// leaves the priority as it is.
+func TestSendLevelPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL       string
+		params       *types.Params
+		wantPriority string
+	}{
+		"debug":                 {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: "Low"},
+		"info":                  {rawURL: testServiceURL, params: &types.Params{"level": "Info"}, wantPriority: "Default"},
+		"warning":               {rawURL: testServiceURL, params: &types.Params{"level": "Warning"}, wantPriority: "High"},
+		"error":                 {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: "Max"},
+		"level in another case": {rawURL: testServiceURL, params: &types.Params{"level": "error"}, wantPriority: "Max"},
+		"priority in the URL":   {rawURL: testServiceURL + "?priority=low", params: &types.Params{"level": "Error"}, wantPriority: "Low"},
+		"priority param":        {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "default"}, wantPriority: "Default"},
+		"unknown level":         {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: "Default"},
+		"no level":              {rawURL: testServiceURL, params: &types.Params{"title": "Hello"}, wantPriority: "Default"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRecordingClient(t, published)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Hello", tc.params))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, tc.wantPriority, requests[0].header.Get("Priority"))
+		})
+	}
+}
+
 // TestSendLogs verifies that a send logs whether the request succeeded.
 func TestSendLogs(t *testing.T) {
 	t.Parallel()

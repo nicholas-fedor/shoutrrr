@@ -3,9 +3,11 @@ package discord
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -154,6 +156,84 @@ func TestSendRequestCount(t *testing.T) {
 			require.NoError(t, service.Send(tt.message, &types.Params{}))
 		})
 	}
+}
+
+// TestSendLevelColor verifies that the level param colors the embed of a plain
+// message with the color configured for that level, and that a plain color
+// from the service URL or the send params, or an unknown level, keeps the
+// plain color. Each send has a title, so it goes out as an embed. A short
+// message without a title goes out as plain content and has no embed to color.
+func TestSendLevelColor(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		query     string
+		params    types.Params
+		wantColor uint
+	}{
+		"debug":                  {params: types.Params{"level": "Debug"}, wantColor: 0x7b00ab},
+		"info":                   {params: types.Params{"level": "Info"}, wantColor: 0x2488ff},
+		"warning":                {params: types.Params{"level": "Warning"}, wantColor: 0xffc441},
+		"error":                  {params: types.Params{"level": "Error"}, wantColor: 0xd60510},
+		"configured level color": {query: "?colorError=0x00ff00", params: types.Params{"level": "Error"}, wantColor: 0x00ff00},
+		"color in the URL":       {query: "?color=0x123456", params: types.Params{"level": "Error"}, wantColor: 0x123456},
+		"color param":            {params: types.Params{"level": "Error", "color": "0x50d9ff"}, wantColor: 0x50d9ff},
+		"unknown level":          {params: types.Params{"level": "critical"}, wantColor: 0x50d9ff},
+		"no level":               {params: types.Params{}, wantColor: 0x50d9ff},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			params := types.Params{"title": "Alert"}
+			maps.Copy(params, tc.params)
+
+			payload := sendPlainForTest(t, tc.query, params)
+
+			require.Len(t, payload.Embeds, 1)
+			assert.Equal(t, tc.wantColor, payload.Embeds[0].Color)
+		})
+	}
+
+	t.Run("plain content keeps its form", func(t *testing.T) {
+		t.Parallel()
+
+		payload := sendPlainForTest(t, "", types.Params{"level": "Error"})
+
+		assert.Equal(t, "Message", payload.Content)
+		assert.Empty(t, payload.Embeds)
+	})
+}
+
+// sendPlainForTest sends the plain message "Message" through a service built
+// from a webhook URL with the given query, and returns the payload it sent.
+//
+// Parameters:
+//   - t: the test.
+//   - query: the service URL query, such as "?color=0x123456", or empty.
+//   - params: the send params.
+//
+// Returns:
+//   - WebhookPayload: the decoded payload of the single request.
+func sendPlainForTest(t *testing.T, query string, params types.Params) WebhookPayload {
+	t.Helper()
+
+	client, recorder := newAcceptingClient(t, 1)
+
+	serviceURL, err := url.Parse("discord://test-token@123456789" + query)
+	require.NoError(t, err)
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Message", &params))
+
+	var payload WebhookPayload
+	require.NoError(t, json.Unmarshal([]byte(recorder.requests[0].body), &payload))
+
+	return payload
 }
 
 // TestSendFailures verifies that an empty message is rejected without a

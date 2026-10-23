@@ -122,7 +122,17 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		}
 
 		batches := createItemsFromPlain(message, config.SplitLines, config.Title)
+		level := s.plainLevel(&config, params)
+
 		for _, batch := range batches {
+			// A batch sent as plain content has no embed to color, so it keeps
+			// its form.
+			if level != types.Unknown && !sendsAsContent(batch, config.Title) {
+				for i := range batch {
+					batch[i].Level = level
+				}
+			}
+
 			if err := s.sendItems(ctx, batch, params); err != nil {
 				s.Log(err)
 
@@ -245,6 +255,32 @@ func (s *Service) doSendMultipart(
 	}
 
 	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+}
+
+// plainLevel returns the level that colors the embeds of a plain message. A
+// send with a level param uses the color configured for that level, such as
+// colorError, unless the service URL or the send params set the plain color.
+// A message short enough to go out as plain content has no embed, so the
+// level leaves it as it is.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - types.MessageLevel: the level of the send, or [types.Unknown] to use the
+//     plain color.
+func (s *Service) plainLevel(config *Config, params *types.Params) types.MessageLevel {
+	if params == nil {
+		return types.Unknown
+	}
+
+	level, ok := params.Level()
+	if !ok || !s.pkr.KeepsDefault(config, params, "color") {
+		return types.Unknown
+	}
+
+	return level
 }
 
 // sendConfig returns a copy of the service config with params applied.

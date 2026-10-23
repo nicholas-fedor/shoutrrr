@@ -127,6 +127,42 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 	return err == nil && formatted == value
 }
 
+// KeepsDefault reports whether a send keeps the default value of the property
+// tagged with key. That holds when params do not set the property under any of
+// its keys and config holds the property's default value.
+//
+// A service uses it to fill a property from another source, such as mapping
+// the message level to a priority, only when neither the service URL nor the
+// send asked for a value of its own.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+//   - key: the property key, matched case-insensitively.
+//
+// Returns:
+//   - bool: whether the property keeps its default, or false for an unknown key.
+func (pkr *PropKeyResolver) KeepsDefault(config types.ServiceConfig, params *types.Params, key string) bool {
+	field, found := pkr.keyFields[strings.ToLower(key)]
+	if !found {
+		return false
+	}
+
+	if params != nil {
+		for paramKey := range *params {
+			if paramField, isField := pkr.keyFields[strings.ToLower(paramKey)]; isField && paramField.Name == field.Name {
+				return false
+			}
+		}
+	}
+
+	bound := pkr.Bind(config)
+
+	value, err := bound.Get(key)
+
+	return err == nil && bound.IsDefault(key, value)
+}
+
 // KeyIsPrimary returns whether the key is the primary (and not an alias).
 //
 // Parameters:

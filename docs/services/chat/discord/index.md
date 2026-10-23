@@ -43,6 +43,13 @@ For simple text messages without embeds, Shoutrrr now uses Discord's `content` f
 
     This sends a plain text message using the `content` field instead of an embed.
 
+## Message Level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+Embeds then use the color configured for that level with `colorDebug`, `colorInfo`, `colorWarn`, or `colorError`.
+A `color` other than the default in the URL, or any `color` in the send params, takes precedence over the level.
+A short message without a title is sent as plain content, which has no embed to color, so the level leaves it as it is.
+
 ## Message Chunking
 
 ### Discord API Constraints

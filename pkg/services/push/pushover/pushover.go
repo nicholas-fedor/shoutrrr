@@ -41,6 +41,15 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
+// levelPriorities maps each known message level to the Pushover priority it is
+// sent with when the send keeps the default priority.
+var levelPriorities = map[types.MessageLevel]int8{
+	types.Debug:   -1,
+	types.Info:    0,
+	types.Warning: 0,
+	types.Error:   1,
+}
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme
@@ -99,6 +108,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	s.applyLevel(config, params)
+
 	if _, err := parseEncryptionKey(config.EncryptionKey); err != nil {
 		return err
 	}
@@ -122,6 +133,29 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	}
 
 	s.httpClient = client
+}
+
+// applyLevel sets the priority of a send from its level param, debug to low
+// (-1), info and warning to normal (0), and error to high (1), which bypasses
+// quiet hours. Emergency priority needs retry settings, so no level maps to it.
+// A priority set in the service URL or the send params takes precedence.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	if params == nil {
+		return
+	}
+
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelPriority, mapped := levelPriorities[level]; mapped && s.pkr.KeepsDefault(config, params, "priority") {
+		config.Priority = levelPriority
+	}
 }
 
 // httpClientOrDefault returns the custom client or the default Client.

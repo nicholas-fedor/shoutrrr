@@ -63,6 +63,20 @@ Commonly used parameters can be added as query parameters to customize notificat
     ntfy://ntfy.sh/alerts?priority=5&tags=warning,fire&title=System+Alert
     ```
 
+### Message Level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set `priority`, the level picks the priority:
+
+| Level   | Priority    |
+|---------|-------------|
+| Debug   | 2 (low)     |
+| Info    | 3 (default) |
+| Warning | 4 (high)    |
+| Error   | 5 (max)     |
+
+A `priority` other than the default in the URL, or any `priority` in the send params, takes precedence over the level.
+
 !!! note
     Action buttons require JSON formatting. See the [upstream documentation](https://docs.ntfy.sh/publish/#action-buttons) for detailed syntax.
 

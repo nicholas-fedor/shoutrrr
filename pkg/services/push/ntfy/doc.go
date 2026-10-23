@@ -25,7 +25,9 @@
 //
 //   - token: access token for Bearer auth (e.g., "tk_..."), takes precedence over user and password
 //   - title: notification title
-//   - priority: message priority (1=min, 2=low, 3=default, 4=high, 5=max/urgent)
+//   - priority: message priority (1=min, 2=low, 3=default, 4=high, 5=max/urgent).
+//     A send with a level param and the default priority uses low for debug,
+//     default for info, high for warning, and max for error.
 //   - tags: comma-separated list of tags (may map to emojis)
 //   - actions: semicolon-separated list of user action buttons
 //   - click: URL to open when notification is clicked
