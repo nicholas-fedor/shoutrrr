@@ -23,20 +23,31 @@ import (
 
 // Service provides PagerDuty as a notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the HTTP client for Events API requests, the injected one
+	// or a default client with [defaultHTTPTimeout].
 	httpClient types.HTTPClient
 
+	// Config holds the integration key, the host, and the event fields.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
+// Settings and limits of the Events API v2.
 const (
-	eventEndpointPath  = "/v2/enqueue"
-	defaultHTTPTimeout = 30 * time.Second // defaultHTTPTimeout is the default timeout for HTTP requests.
-	maxMessageLength   = 1024             // maxMessageLength is the maximum permitted length of the summary property.
+	// eventEndpointPath is the Events API v2 endpoint path for sending events.
+	eventEndpointPath = "/v2/enqueue"
+	// defaultHTTPTimeout is the default timeout for HTTP requests.
+	defaultHTTPTimeout = 30 * time.Second
+	// maxMessageLength is the maximum permitted length of the summary property.
+	maxMessageLength = 1024
 
-	contextTypeLink  = "link"
+	// contextTypeLink is the context type of a link.
+	contextTypeLink = "link"
+	// contextTypeImage is the context type of an image.
 	contextTypeImage = "image"
 )
 
@@ -59,11 +70,23 @@ var levelSeverities = map[types.MessageLevel]string{
 }
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+//
+// It builds the default HTTP client when the service has none.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from applying the default props or reading the URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -148,6 +171,9 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 }
 
 // ServiceTimeout returns the HTTP timeout used for a PagerDuty send.
+//
+// Returns:
+//   - time.Duration: [defaultHTTPTimeout], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
@@ -365,6 +391,10 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 	return nil
 }
 
+// setDefaults applies the default props to the service config.
+//
+// Returns:
+//   - error: the error from applying a default prop.
 func (s *Service) setDefaults() error {
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("failed to set default props: %w", err)
@@ -379,6 +409,14 @@ func (s *Service) setDefaults() error {
 // Legacy format supports:
 // - "link:http://example.com" -> {Type: "link", Href: "http://example.com"}
 // - "image:http://example.com/img.png" -> {Type: "image", Src: "http://example.com/img.png"}.
+//
+// Parameters:
+//   - contextsStr: the contexts, as a JSON array or in the legacy format.
+//
+// Returns:
+//   - []PagerDutyContext: the contexts, or nil for an empty string.
+//   - error: a format error, such as [errInvalidContextType] for a JSON entry
+//     or [errInvalidContextFormat] for a legacy entry.
 func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 	if contextsStr == "" {
 		return nil, nil
@@ -494,6 +532,13 @@ func linksAndImages(contexts []PagerDutyContext) ([]Link, []Image) {
 }
 
 // validateSeverity checks if the provided severity is one of the allowed values.
+//
+// Parameters:
+//   - severity: the severity to check.
+//
+// Returns:
+//   - error: [errInvalidSeverity] for a value other than critical, error,
+//     warning, or info.
 func validateSeverity(severity string) error {
 	validSeverities := map[string]bool{
 		"critical": true,
@@ -510,6 +555,13 @@ func validateSeverity(severity string) error {
 }
 
 // validateEventAction checks if the provided event action is one of the allowed values.
+//
+// Parameters:
+//   - action: the event action to check.
+//
+// Returns:
+//   - error: [errInvalidEventAction] for a value other than trigger,
+//     acknowledge, or resolve.
 func validateEventAction(action string) error {
 	validActions := map[string]bool{
 		"trigger":     true,

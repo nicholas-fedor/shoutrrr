@@ -13,33 +13,40 @@ import (
 
 // Config holds settings for the Notifiarr notification service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Notifiarr has no enum
+	// fields.
 	standard.EnumlessConfig
 
-	// Custom query parameters from webhook URL
+	// webhookQuery holds the custom query parameters from the webhook URL.
 	webhookQuery url.Values
 
-	// The API key for Notifiarr authentication
+	// APIKey is the API key for Notifiarr authentication.
 	APIKey string `desc:"The Notifiarr API key" key:"apikey" required:"true" sensitive:"true"`
-	// Optional name of the app/script for notifications
+	// Name is the name of the app or script the notifications come from.
 	Name string `default:"Shoutrrr" desc:"Name of the app/script for notifications" key:"name" optional:""`
-	// Optional Discord channel ID for Discord notifications
+	// Channel is the Discord channel ID for Discord notifications.
 	Channel string `desc:"Discord channel ID for notifications" key:"channel" optional:""`
-	// Optional thumbnail URL for Discord notifications
+	// Thumbnail is the thumbnail URL for Discord notifications.
 	Thumbnail string `desc:"Thumbnail URL for Discord notifications" key:"thumbnail" optional:""`
-	// Optional image URL for Discord notifications
+	// Image is the image URL for Discord notifications.
 	Image string `desc:"Image URL for Discord notifications" key:"image" optional:""`
-	// Optional color for Discord notifications
+	// Color is the embed color for Discord notifications.
 	Color string `desc:"Color for Discord notifications" key:"color" optional:""`
 }
 
-// Scheme identifies this service in configuration URLs.
+// Service identity and webhook URL parsing.
 const (
+	// Scheme identifies this service in configuration URLs.
 	Scheme = "notifiarr"
 	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
 	expectedPartsAfterSplit = 2
 )
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
+//
+// Returns:
+//   - *Config: the config with its defaults.
+//   - format.PropKeyResolver: the resolver bound to the config.
 func DefaultConfig() (*Config, format.PropKeyResolver) {
 	config := &Config{}
 	pkr := format.NewPropKeyResolver(config)
@@ -95,6 +102,9 @@ func ConfigFromWebhookURL(webhookURL *url.URL) (*Config, format.PropKeyResolver,
 }
 
 // GetURL generates a URL from the current configuration values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -102,6 +112,12 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a service URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrAPIKeyMissing].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -109,6 +125,13 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL generates a service URL from the configuration using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the config props into the query.
+//
+// Returns:
+//   - *url.URL: the service URL, with the API key as the host and the
+//     webhook query and config props, without the API key, in its query.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	var query url.Values
 	if c.webhookQuery == nil {

@@ -12,15 +12,23 @@ import (
 
 // Config holds the configuration for the Google Chat service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Google Chat has no
+	// enum fields.
 	standard.EnumlessConfig
 
-	Host  string `default:"chat.googleapis.com"`
-	Path  string
+	// Host is the webhook host.
+	Host string `default:"chat.googleapis.com"`
+	// Path is the webhook path, such as /v1/spaces/SPACE/messages.
+	Path string
+	// Token is the webhook's token query parameter.
 	Token string `sensitive:"true"`
-	Key   string `sensitive:"true"`
+	// Key is the webhook's key query parameter.
+	Key string `sensitive:"true"`
 }
 
+// Service identity and URL defaults.
 const (
+	// Scheme identifies this service in configuration URLs.
 	Scheme = "googlechat"
 	// DefaultHost is the Google Chat API host a URL without a host uses.
 	DefaultHost = "chat.googleapis.com"
@@ -28,11 +36,16 @@ const (
 
 // Static error definitions.
 var (
-	ErrMissingKey   = errors.New("missing field 'key'")
+	// ErrMissingKey indicates a service URL without the webhook key.
+	ErrMissingKey = errors.New("missing field 'key'")
+	// ErrMissingToken indicates a service URL without the webhook token.
 	ErrMissingToken = errors.New("missing field 'token'")
 )
 
 // GetURL returns the URL representation of the configuration.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -40,6 +53,13 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // SetURL updates the configuration from a URL.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrMissingKey] or
+//     [ErrMissingToken].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -47,6 +67,12 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs the URL from the configuration using the provided resolver.
+//
+// Parameters:
+//   - types.ConfigQueryResolver: unused.
+//
+// Returns:
+//   - *url.URL: the service URL, with the key and token in its query.
 func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 	query := url.Values{}
 	query.Set("key", c.Key)

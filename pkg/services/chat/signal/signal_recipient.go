@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Recipient formats.
 const (
 	// usernamePrefix marks a Signal username recipient.
 	usernamePrefix = "u:"

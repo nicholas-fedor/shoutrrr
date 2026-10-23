@@ -21,16 +21,23 @@ import (
 
 // Service implements a generic notification service for custom webhooks.
 type Service struct {
+	// Standard provides logging, templates, and the other shared service
+	// functionality.
 	standard.Standard
 
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
 
+	// Config holds the webhook URL, the custom headers and extra data, and
+	// the payload options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// JSONTemplate identifies the JSON format for webhook payloads.
+// Payload template names and send settings.
 const (
+	// JSONTemplate identifies the JSON format for webhook payloads.
 	JSONTemplate = "JSON"
 	// defaultSendTimeout bounds a direct Send, matching the send budget the router
 	// gives the service by default.
@@ -59,11 +66,27 @@ var (
 )
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // GetPayload prepares the request payload based on the configured template.
+//
+// Without a template the payload is the message. The JSON template encodes the
+// params and the extra data as a JSON object. Any other template name is a
+// template loaded into the service, executed with the params.
+//
+// Parameters:
+//   - config: the configuration for this send, with the template name.
+//   - params: the send params, with the message under the message key.
+//
+// Returns:
+//   - io.Reader: the payload.
+//   - error: an encoding error, [ErrTemplateNotLoaded], or the template's
+//     error.
 func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, error) {
 	switch config.Template {
 	case "":
@@ -99,6 +122,13 @@ func (s *Service) GetPayload(config *Config, params types.Params) (io.Reader, er
 }
 
 // GetServiceURLFromCustom converts a custom webhook URL into a standard service URL.
+//
+// Parameters:
+//   - customURL: the webhook URL, with or without the generic+ scheme prefix.
+//
+// Returns:
+//   - *url.URL: the service URL.
+//   - error: the error from reading the webhook URL's query.
 func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 	// Copy the URL to modify
 	webhookURL := *customURL
@@ -118,6 +148,13 @@ func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrHostMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
@@ -190,7 +227,11 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	return nil
 }
 
-// SetHTTPClient sets a custom HTTP client for the service.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client,
+// including a nil *http.Client, selects the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if client == nil {
 		s.httpClient = nil
@@ -278,6 +319,14 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 }
 
 // createSendParams constructs parameters for sending a notification.
+//
+// Parameters:
+//   - config: the configuration with the title and message keys.
+//   - params: the send params, whose title param moves to the title key.
+//   - message: the message, set under the message key.
+//
+// Returns:
+//   - types.Params: the params for the payload.
 func createSendParams(config *Config, params types.Params, message string) types.Params {
 	// Initialize new params map
 	sendParams := types.Params{}

@@ -2,6 +2,7 @@ package pagerduty
 
 import "errors"
 
+// Errors returned when reading the configuration or sending.
 var (
 	// errInvalidIntegrationKey is returned when the integration key format is invalid.
 	errInvalidIntegrationKey = errors.New(
