@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -24,11 +25,9 @@ type Service struct {
 	Config *Config
 	// dialContext, if non-nil, is used for the SMTP TCP dial.
 	dialContext types.DialContextFunc
-	// httpClient, if non-nil, sends the OAuth2 token requests.
-	httpClient types.HTTPClient
-	// defaultHTTPClient sends the token requests when httpClient is nil. It is
-	// built on first use.
-	defaultHTTPClient types.HTTPClient
+	// client holds the injected HTTP client and the default client for OAuth2
+	// token requests.
+	client httpclient.Holder
 	// tokens caches the OAuth2 access token of each set of refresh settings.
 	tokens map[tokenKey]*oauth2.Token
 	// refreshes holds the token request in flight for each set of refresh
@@ -36,8 +35,8 @@ type Service struct {
 	refreshes map[tokenKey]*tokenRefresh
 	// propKeyResolver applies URL and send-parameter overrides to [Config].
 	propKeyResolver format.PropKeyResolver
-	// tokenMu guards httpClient, defaultHTTPClient, tokens, and refreshes. It
-	// is not held during token requests.
+	// tokenMu guards tokens and refreshes. It is not held during token
+	// requests.
 	tokenMu sync.Mutex
 }
 
@@ -82,6 +81,9 @@ func (s *Service) GetID() string {
 //     for invalid refresh settings.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	// The default client has no timeout of its own, because the send's
+	// timeout bounds each token request.
+	s.client.SetDefault(0, nil)
 	s.Config = &Config{
 		Port:        DefaultSMTPPort,
 		ToAddresses: nil,

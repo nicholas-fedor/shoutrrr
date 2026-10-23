@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -23,9 +24,8 @@ type Service struct {
 
 	// Config holds the webhook host, path, key, and token.
 	Config *Config
-	// httpClient is the HTTP client for webhook requests, the injected one or
-	// a default client with [defaultHTTPTimeout].
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 }
 
 // defaultHTTPTimeout bounds each request of the default client.
@@ -52,8 +52,6 @@ func (s *Service) GetID() string {
 
 // Initialize configures the service with a URL and logger.
 //
-// It builds the default HTTP client when the service has none.
-//
 // Parameters:
 //   - serviceURL: the service URL.
 //   - logger: the logger for service output.
@@ -63,12 +61,9 @@ func (s *Service) GetID() string {
 //     [ErrMissingToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	s.Config = &Config{}
-
-	if s.httpClient == nil {
-		s.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
 
 	return s.Config.SetURL(serviceURL)
 }
@@ -120,7 +115,7 @@ func (s *Service) SendContext(ctx context.Context, message string, _ *types.Para
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending notification to Google Chat: %w", redact.URLError(err))
 	}
@@ -140,15 +135,7 @@ func (s *Service) SendContext(ctx context.Context, message string, _ *types.Para
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // getAPIURL constructs the service URL for Google Chat notifications.

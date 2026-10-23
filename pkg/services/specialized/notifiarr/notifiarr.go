@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -25,8 +26,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the API key and the Discord options.
 	Config *Config
@@ -180,6 +181,7 @@ func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
+	s.client.SetDefault(requestTimeout, nil)
 	// Initialize service config
 	s.Config = &Config{}
 	// Initialize property key resolver
@@ -362,19 +364,7 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if client == nil {
-		s.httpClient = nil
-
-		return
-	}
-
-	if c, ok := client.(*http.Client); ok && c == nil {
-		s.httpClient = nil
-
-		return
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
 }
 
 // buildDiscordPayload constructs the Discord payload if any fields are present.
@@ -542,12 +532,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = &http.Client{}
-	}
-
-	res, err := client.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}

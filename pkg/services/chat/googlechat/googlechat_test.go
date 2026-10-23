@@ -142,7 +142,7 @@ func TestServiceInitialize(t *testing.T) {
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
 		assert.Equal(t, &Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}, service.Config)
-		assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.httpClient)
+		assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.client.Client())
 	})
 
 	t.Run("injected client", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestServiceInitialize(t *testing.T) {
 		service.SetHTTPClient(client)
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	t.Run("invalid config", func(t *testing.T) {
@@ -258,10 +258,8 @@ func TestServiceSendContextCanceled(t *testing.T) {
 func TestServiceSendInvalidURL(t *testing.T) {
 	t.Parallel()
 
-	service := &Service{
-		Config:     &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"},
-		httpClient: mocks.NewMockHTTPClient(t),
-	}
+	service := &Service{Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}}
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
 	err := service.SendContext(t.Context(), "Message", nil)
 
@@ -271,9 +269,9 @@ func TestServiceSendInvalidURL(t *testing.T) {
 	assert.ErrorContains(t, err, "creating HTTP request")
 }
 
-// TestServiceSetHTTPClient verifies that SetHTTPClient installs a custom client
-// and restores the default client for a nil or typed-nil client.
-func TestServiceSetHTTPClient(t *testing.T) {
+// TestSetHTTPClient verifies that SetHTTPClient installs a custom client and
+// restores the default client for a nil or typed-nil client.
+func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
 	t.Run("custom client", func(t *testing.T) {
@@ -283,7 +281,7 @@ func TestServiceSetHTTPClient(t *testing.T) {
 		service := &Service{}
 		service.SetHTTPClient(client)
 
-		assert.Same(t, client, service.httpClient)
+		assert.Same(t, client, service.client.Client())
 	})
 
 	// nilClients lists clients that SetHTTPClient replaces with the default.
@@ -299,10 +297,10 @@ func TestServiceSetHTTPClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{httpClient: mocks.NewMockHTTPClient(t)}
+			service := newTestService(t, mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
-			assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.httpClient)
+			assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.client.Client())
 		})
 	}
 }
@@ -312,11 +310,9 @@ func TestServiceSetHTTPClient(t *testing.T) {
 func TestServiceSendRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
 
-	service := &Service{
-		Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "SECRETkey", Token: "SECRETtoken"},
-		// The mock has no expectations, so a request fails the test.
-		httpClient: mocks.NewMockHTTPClient(t),
-	}
+	service := &Service{Config: &Config{Host: "bad host", Path: "/v1/spaces/FOO/messages", Key: "SECRETkey", Token: "SECRETtoken"}}
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
 	err := service.Send("message", nil)
 
