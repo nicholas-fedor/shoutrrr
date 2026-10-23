@@ -4,7 +4,6 @@ package generate
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -12,9 +11,9 @@ import (
 
 	internalUtil "github.com/nicholas-fedor/shoutrrr/internal/util"
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/generators"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -23,9 +22,6 @@ import (
 // Deprecated: generate accepts the service, the generator, and any arguments for
 // the generator, so it has no maximum.
 const MaximumNArgs = 2
-
-// redactedStr represents the placeholder string for masked text values.
-const redactedStr = "REDACTED"
 
 var (
 	// ErrNoServiceSpecified indicates that no service was provided for URL generation.
@@ -205,13 +201,23 @@ func Run(cmd *cobra.Command, args []string) {
 
 	_, _ = fmt.Fprint(cfg.Output, "\n")
 
-	maskedURL := maskSensitiveURL(serviceSchema, serviceConfig.GetURL().String())
+	_, _ = fmt.Fprint(os.Stdout, "URL: ", displayURL(serviceConfig, showSensitive), "\n")
+}
 
+// displayURL returns the URL of a generated config for display.
+//
+// Parameters:
+//   - config: the generated config.
+//   - showSensitive: whether to show secrets, which are masked otherwise.
+//
+// Returns:
+//   - string: the config URL, with its secrets masked unless showSensitive is set.
+func displayURL(config types.ServiceConfig, showSensitive bool) string {
 	if showSensitive {
-		_, _ = fmt.Fprint(os.Stdout, "URL: ", serviceConfig.GetURL().String(), "\n")
-	} else {
-		_, _ = fmt.Fprint(os.Stdout, "URL: ", maskedURL, "\n")
+		return config.GetURL().String()
 	}
+
+	return format.MaskedURL(config).String()
 }
 
 // applySources fills the service and generator flags from positional arguments
@@ -236,107 +242,4 @@ func applySources(cmd *cobra.Command, args []string) ([]string, error) {
 	}
 
 	return generatorArgs, nil
-}
-
-// maskSensitiveURL masks sensitive parts of a Shoutrrr URL based on the service schema.
-//
-// Parameters:
-//   - serviceSchema: The service type (e.g., "discord", "smtp", "pushover").
-//   - urlStr: The URL string to mask.
-//
-// Returns:
-//   - string: The URL with sensitive information masked.
-func maskSensitiveURL(serviceSchema, urlStr string) string {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		// Return original URL if parsing fails.
-		return urlStr
-	}
-
-	switch serviceSchema {
-	case "discord", "slack", "teams":
-		maskUser(parsedURL, redactedStr)
-	case "smtp":
-		maskSMTPUser(parsedURL)
-	case "pushover":
-		maskPushoverQuery(parsedURL)
-	case "gotify":
-		maskGotifyQuery(parsedURL)
-	case "signalgrid":
-		maskSignalgrid(parsedURL)
-	default:
-		maskGeneric(parsedURL)
-	}
-
-	return parsedURL.String()
-}
-
-// maskUser redacts the username in a URL with a placeholder.
-//
-// Parameters:
-//   - parsedURL: The URL to modify.
-//   - placeholder: The replacement string for the username.
-func maskUser(parsedURL *url.URL, placeholder string) {
-	if parsedURL.User != nil {
-		parsedURL.User = url.User(placeholder)
-	}
-}
-
-// maskSMTPUser redacts the password in an SMTP URL, preserving the username.
-//
-// Parameters:
-//   - parsedURL: The SMTP URL to modify.
-func maskSMTPUser(parsedURL *url.URL) {
-	if parsedURL.User != nil {
-		parsedURL.User = url.UserPassword(parsedURL.User.Username(), redactedStr)
-	}
-}
-
-// maskPushoverQuery redacts the API token in URL userinfo and sensitive query
-// parameters in a Pushover URL.
-//
-// Parameters:
-//   - parsedURL: The Pushover URL to modify.
-func maskPushoverQuery(parsedURL *url.URL) {
-	pushover.MaskURL(parsedURL)
-}
-
-// maskGotifyQuery redacts the token query parameter in a Gotify URL.
-//
-// Parameters:
-//   - parsedURL: The Gotify URL to modify.
-func maskGotifyQuery(parsedURL *url.URL) {
-	queryParams := parsedURL.Query()
-	if queryParams.Get("token") != "" {
-		queryParams.Set("token", redactedStr)
-	}
-
-	parsedURL.RawQuery = queryParams.Encode()
-}
-
-// maskSignalgrid redacts the client key in userinfo and the channel token in the host.
-//
-// Parameters:
-//   - parsedURL: The Signalgrid URL to modify.
-func maskSignalgrid(parsedURL *url.URL) {
-	maskUser(parsedURL, redactedStr)
-
-	if parsedURL.Host != "" {
-		parsedURL.Host = redactedStr
-	}
-}
-
-// maskGeneric redacts userinfo and all query parameters for unrecognized services.
-//
-// Parameters:
-//   - parsedURL: The URL to modify.
-func maskGeneric(parsedURL *url.URL) {
-	maskUser(parsedURL, redactedStr)
-
-	queryParams := parsedURL.Query()
-	for key := range queryParams {
-		queryParams.Set(key, redactedStr)
-	}
-
-	parsedURL.RawQuery = queryParams.Encode()
 }

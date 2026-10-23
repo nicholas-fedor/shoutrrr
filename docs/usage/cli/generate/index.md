@@ -118,7 +118,7 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     Selected chats:
       -100123456789 (private) User
 
-    URL: telegram://REDACTED@telegram?chats=REDACTED
+    URL: telegram://REDACTED@telegram?chats=-100123456789
     ```
 
     Sensitive values are masked by default. Add `-x` to show the full URL.

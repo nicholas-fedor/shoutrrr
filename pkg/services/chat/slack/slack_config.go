@@ -35,6 +35,21 @@ func (c *Config) GetURL() *url.URL {
 	return c.getURL(&resolver)
 }
 
+// MaskedURL returns the config URL with the secret part of the token replaced
+// by [format.MaskedValue]. The token type stays, so the URL still shows whether
+// the token is a bot token or a webhook.
+//
+// Returns:
+//   - *url.URL: the config URL with the token masked.
+func (c *Config) MaskedURL() *url.URL {
+	serviceURL := c.GetURL()
+	if serviceURL.User != nil {
+		serviceURL.User = url.UserPassword(serviceURL.User.Username(), format.MaskedValue)
+	}
+
+	return serviceURL
+}
+
 // SetURL updates a ServiceConfig from a URL representation of it's field values.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)

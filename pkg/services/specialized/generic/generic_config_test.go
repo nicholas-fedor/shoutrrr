@@ -191,3 +191,40 @@ func TestConfigSetURLMissingHost(t *testing.T) {
 		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), ErrHostMissing, rawURL)
 	}
 }
+
+// TestConfigMaskedURL verifies that the masked URL replaces the userinfo, a
+// path other than the root, and the values of the webhook query, custom
+// headers, and extra data, keeps the host and the config props, and leaves
+// the config unchanged.
+func TestConfigMaskedURL(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL string
+		want   string
+	}{
+		"every part": {
+			rawURL: "generic://user:pass@hooks.example.com/services/T00/B00/XXXX?token=abc&@Authorization=Bearer%20x&$apikey=k&title=Hello",
+			want:   "generic://REDACTED@hooks.example.com/REDACTED?%24apikey=REDACTED&%40Authorization=REDACTED&title=Hello&token=REDACTED",
+		},
+		"root path without secrets": {
+			rawURL: "generic://hooks.example.com/?title=Hello",
+			want:   "generic://hooks.example.com/?title=Hello",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			config, _ := DefaultConfig()
+			require.NoError(t, config.SetURL(parseTestURL(t, tc.rawURL)))
+
+			before := config.GetURL().String()
+
+			assert.Equal(t, tc.want, config.MaskedURL().String())
+			assert.Equal(t, tc.want, format.MaskedURL(config).String())
+			assert.Equal(t, before, config.GetURL().String(), "masking must not change the config")
+		})
+	}
+}
