@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move json encoding to encoding/json/v2 by @nicholas-fedor in [#1777](https://github.com/nicholas-fedor/shoutrrr/pull/1777)
 - Replace any with concrete types in slack and lark by @nicholas-fedor in [#1775](https://github.com/nicholas-fedor/shoutrrr/pull/1775)
 
+### Documentation
+
+- Document every declaration in nine HTTP services by @nicholas-fedor in [#1813](https://github.com/nicholas-fedor/shoutrrr/pull/1813)
+
 ### Tests
 
 - Fix the js and wasm tests and run them in ci by @nicholas-fedor in [#1773](https://github.com/nicholas-fedor/shoutrrr/pull/1773)
