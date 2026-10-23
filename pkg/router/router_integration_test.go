@@ -294,8 +294,8 @@ var fixtures = []fixture{
 	},
 	{
 		scheme:  "signalgrid",
-		url:     "signalgrid://SECRETsignalgridKEY@channel",
-		secrets: []string{"SECRETsignalgridKEY"},
+		url:     "signalgrid://SECRETsignalgridKEY@SECRETsignalgridCHANNEL",
+		secrets: []string{"SECRETsignalgridKEY", "SECRETsignalgridCHANNEL"},
 	},
 	{
 		scheme:  "slack",
