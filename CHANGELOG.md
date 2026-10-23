@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Harden scheme lookup, channel ID parsing, and message partitioning by @nicholas-fedor in [#1791](https://github.com/nicholas-fedor/shoutrrr/pull/1791)
 - Cap response body reads at 1 MiB by @nicholas-fedor in [#1781](https://github.com/nicholas-fedor/shoutrrr/pull/1781)
 - Reject topics with wildcards or a null character by @nicholas-fedor in [#1755](https://github.com/nicholas-fedor/shoutrrr/pull/1755)
 - Reject service urls with a malformed query by @nicholas-fedor in [#1741](https://github.com/nicholas-fedor/shoutrrr/pull/1741)
