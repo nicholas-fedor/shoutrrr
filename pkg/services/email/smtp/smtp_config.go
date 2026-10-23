@@ -22,7 +22,7 @@ type Config struct {
 	// Username is the SMTP server username.
 	Username string `default:"" desc:"SMTP server username" url:"User"`
 	// Password is the SMTP server password, or an OAuth2 access token when Auth is [AuthOAuth2].
-	Password string `default:"" desc:"SMTP server password or hash (for OAuth2)" sensitive:"true" url:"Pass"`
+	Password string `default:"" desc:"SMTP server password, or the OAuth2 access token" sensitive:"true" url:"Pass"`
 	// FromAddress is the sender e-mail address.
 	FromAddress string `desc:"E-mail address that the mail are sent from" key:"fromaddress,from"`
 	// FromName is the sender display name.
@@ -31,6 +31,17 @@ type Config struct {
 	Subject string `default:"" desc:"The subject of the sent mail" key:"subject,title"`
 	// ClientHost is the hostname sent in the SMTP EHLO/HELO handshake.
 	ClientHost string `default:"localhost" desc:"SMTP client hostname" key:"clienthost"`
+	// ClientID is the OAuth2 client ID used to refresh the access token.
+	ClientID string `desc:"OAuth2 client ID, for refreshing the access token" key:"clientid" optional:""`
+	// ClientSecret is the OAuth2 client secret used to refresh the access
+	// token. Some providers do not need one.
+	ClientSecret string `desc:"OAuth2 client secret, for refreshing the access token" key:"clientsecret" optional:"" sensitive:"true"`
+	// RefreshToken is the OAuth2 refresh token. When it is set, each send
+	// gets a current access token from TokenURL, and Password is not used.
+	RefreshToken string `desc:"OAuth2 refresh token, for refreshing the access token" key:"refreshtoken" optional:"" sensitive:"true"`
+	// TokenURL is the provider's OAuth2 token endpoint, such as
+	// https://oauth2.googleapis.com/token.
+	TokenURL string `desc:"OAuth2 token endpoint, for refreshing the access token" key:"tokenurl" optional:""`
 	// ToAddresses is the list of recipient e-mail addresses.
 	ToAddresses []string `desc:"List of recipient e-mails" key:"toaddresses,to"`
 	// Auth is the SMTP authentication method. See [AuthTypes].
@@ -103,7 +114,8 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
-// [Config.RequireStartTLS] and [Config.SkipTLSVerify] are included only when true.
+// [Config.RequireStartTLS] and [Config.SkipTLSVerify] are included only when
+// true, and the OAuth2 refresh settings only when set.
 //
 // Parameters:
 //   - resolver: Resolver used to serialize configuration query keys.
@@ -140,6 +152,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		}
 
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
+	}
+	// Include the OAuth2 refresh settings only when set, in a fixed order.
+	for _, prop := range [][2]string{
+		{"clientid", c.ClientID},
+		{"clientsecret", c.ClientSecret},
+		{"refreshtoken", c.RefreshToken},
+		{"tokenurl", c.TokenURL},
+	} {
+		if prop[1] != "" {
+			queryParts = append(queryParts, fmt.Sprintf("%s=%s", prop[0], url.QueryEscape(prop[1])))
+		}
 	}
 	// Only include requirestarttls if explicitly set to true.
 	if c.RequireStartTLS {

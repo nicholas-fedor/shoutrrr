@@ -22,6 +22,7 @@ type encMethodVals struct {
 	Auto encMethod
 }
 
+// Encryption methods, in [EncMethods] order.
 const (
 	// EncNone represents no encryption.
 	EncNone encMethod = iota

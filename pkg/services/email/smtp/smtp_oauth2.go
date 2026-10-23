@@ -18,9 +18,10 @@ type oauth2Auth struct {
 
 // newOAuth2Auth returns an [smtp.Auth] that implements SASL XOAUTH2 authentication.
 //
-// The password is treated as a static OAuth2 access token. Token refresh is not
-// supported. A 334 challenge is answered with an empty continuation so the
-// server can send 535 on failure. See
+// The access token is used as given. With a refresh token in the
+// configuration, [Service.SendContext] obtains a current one before the
+// session starts. A 334 challenge is answered with an empty continuation so
+// the server can send 535 on failure. See
 // https://developers.google.com/gmail/imap/xoauth2-protocol.
 //
 // Credentials are sent only when the connection uses TLS or the server name is

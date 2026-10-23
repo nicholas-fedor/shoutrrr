@@ -6,7 +6,7 @@ It talks to any RFC 5321 server (Gmail, Microsoft 365, self-hosted Postfix, and 
 ## URL Format
 
 !!! info ""
-    smtp://__`username`__:__`password`__@__`host`__:__`port`__/?fromaddress=__`fromAddress`__&toaddresses=__`recipient1`__[,__`recipient2`__,...]&subject=__`subject`__&auth=__`auth`__&encryption=__`encryption`__&useStartTLS=__`yes/no`__&useHTML=__`yes/no`__&clientHost=__`hostname`__&requirestarttls=__`yes/no`__&skiptlsverify=__`yes/no`__&timeout=__`duration`__
+    smtp://__`username`__:__`password`__@__`host`__:__`port`__/?fromaddress=__`fromAddress`__&toaddresses=__`recipient1`__[,__`recipient2`__,...]&subject=__`subject`__&auth=__`auth`__&encryption=__`encryption`__&useStartTLS=__`yes/no`__&useHTML=__`yes/no`__&clientHost=__`hostname`__&requirestarttls=__`yes/no`__&skiptlsverify=__`yes/no`__&timeout=__`duration`__&clientid=__`clientID`__&clientsecret=__`clientSecret`__&refreshtoken=__`refreshToken`__&tokenurl=__`tokenURL`__
 
 --8<-- "docs/services/email/smtp/config.md"
 
@@ -49,7 +49,7 @@ Common ports:
 - `Username` and `Password` are the SMTP credentials.
 - Both default to empty.
 - Leave them empty for servers that allow unauthenticated relay.
-- For `auth=OAuth2`, put the access token in the password field.
+- For `auth=OAuth2`, put the access token in the password field, or leave it empty and set the [refresh settings](#oauth2-token-refresh).
 
 !!! Example "No credentials"
 
@@ -102,14 +102,14 @@ Common ports:
 
 `auth` selects the SMTP AUTH method. Default: `Unknown`.
 
-| Value     | Behavior                                                                       |
-|-----------|--------------------------------------------------------------------------------|
-| `None`    | No AUTH                                                                        |
-| `Plain`   | AUTH PLAIN (username and password)                                             |
-| `Login`   | AUTH LOGIN, for servers that do not support PLAIN                              |
-| `CRAMMD5` | AUTH CRAM-MD5                                                                  |
-| `OAuth2`  | SASL XOAUTH2 with a __static__ access token in the password field (no refresh) |
-| `Unknown` | If a username is set, treated as `Plain`; otherwise `None`                     |
+| Value     | Behavior                                                                              |
+|-----------|---------------------------------------------------------------------------------------|
+| `None`    | No AUTH                                                                               |
+| `Plain`   | AUTH PLAIN (username and password)                                                    |
+| `Login`   | AUTH LOGIN, for servers that do not support PLAIN                                     |
+| `CRAMMD5` | AUTH CRAM-MD5                                                                         |
+| `OAuth2`  | SASL XOAUTH2 with the access token in the password field, or one from a refresh token |
+| `Unknown` | `OAuth2` if a refresh token is set, `Plain` if a username is set, otherwise `None`    |
 
 `Plain`, `Login`, and `OAuth2` refuse to send credentials on an unencrypted connection unless the server name is `localhost`, `127.0.0.1`, or `::1`.
 
@@ -125,8 +125,41 @@ Common ports:
     smtp://user:ya29.token@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&requirestarttls=yes
     ```
 
-    The token is not refreshed.
-    Supply a current access token for each send.
+    The access token is used as is.
+    It expires after about an hour, so set the [refresh settings](#oauth2-token-refresh) for a URL that keeps working.
+
+### OAuth2 Token Refresh
+
+With a refresh token, Shoutrrr gets a current access token from the provider's token endpoint before it connects to the SMTP server.
+
+- `refreshtoken` is the OAuth2 refresh token.
+- `clientid` is the OAuth2 client ID.
+- `clientsecret` is the OAuth2 client secret, which public clients leave empty.
+- `tokenurl` is the provider's token endpoint.
+- The token URL must use HTTPS, except for HTTP to `localhost`, `127.0.0.1`, or `::1`.
+- Setting a refresh token selects `auth=OAuth2` by default.
+- Any other `auth` value with refresh settings is an error.
+- The password is ignored when a refresh token is set.
+- An access token is reused until it expires.
+- When the server rejects an access token, the next send gets a new one.
+- When the provider returns a new refresh token, later refreshes by the same service use it.
+- The URL keeps the original refresh token.
+
+The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these settings for you.
+
+| Provider      | Token URL                                                      | Notes                                                                                                                                                                         |
+|---------------|----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Gmail         | `https://oauth2.googleapis.com/token`                          | Use the scope `https://mail.google.com/`. A project whose consent screen is in testing gets refresh tokens that expire after 7 days.                                          |
+| Microsoft 365 | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` | Add the `offline_access` scope next to `https://outlook.office.com/SMTP.Send` to get a refresh token. Refresh tokens expire after 90 days, so generate a new URL before then. |
+
+!!! Example "OAuth2 with a refresh token"
+
+    ```uri
+    smtp://alerts%40example.com@smtp.gmail.com:587/?fromaddress=alerts@example.com&toaddresses=ops@example.com&auth=OAuth2&clientid=1234.apps.googleusercontent.com&clientsecret=secret&refreshtoken=1%2F%2F0abc&tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken&requirestarttls=yes
+    ```
+
+    Shoutrrr refreshes the access token as needed.
+    When writing the URL by hand, percent-encode the values, as the example does.
 
 ### Encryption
 

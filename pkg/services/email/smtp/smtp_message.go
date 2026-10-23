@@ -15,6 +15,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// Message content types, template IDs, and boundary settings.
 const (
 	// contentHTML is the Content-Type for HTML message parts.
 	contentHTML = "text/html; charset=\"UTF-8\""
@@ -231,6 +232,10 @@ func isNotFoldingSpace(r rune) bool {
 }
 
 // generateBoundary returns a random multipart boundary token.
+//
+// Returns:
+//   - string: the token, in hex.
+//   - error: an error from the random source.
 func generateBoundary() (string, error) {
 	b := make([]byte, boundaryByteLen)
 	if _, err := rand.Read(b); err != nil {

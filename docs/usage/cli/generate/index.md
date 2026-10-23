@@ -40,7 +40,10 @@ The default generator that dynamically prompts for service configuration fields.
 Specialized generator for OAuth2 authentication in SMTP services.
 
 - Supports JSON credential files (specified as a positional argument after the service and generator) or interactive prompts for details like Client ID, Client Secret, and Auth URL. The `gmail` provider requires a credentials file.
-- Generates an authentication URL and exchanges verification codes for access tokens.
+- Generates an authentication URL and exchanges the verification code for tokens.
+- Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service [gets a current access token](../../../services/email/smtp/index.md#oauth2-token-refresh) for each send.
+- Requests offline access with the consent prompt from Google with the `gmail` provider, so Google can return a refresh token.
+- Falls back to the access token as the password when the provider returns no refresh token, and warns that the URL stops working when that token expires.
 - Configures Gmail-specific defaults (port 587, STARTTLS, sender email as `FromAddress` and `ToAddresses`).
 
 !!! Example
@@ -169,6 +172,6 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     ```
 
     ```text
-    URL: smtp://user%40example.com:REDACTED@smtp.gmail.com:587/?auth=OAuth2&fromaddress=user@example.com&toaddresses=user@example.com&fromname=Shoutrrr&usehtml=true&usestarttls=true
+    URL: smtp://user%40example.com@smtp.gmail.com:587/?auth=OAuth2&clienthost=localhost&encryption=Auto&fromaddress=user%40example.com&fromname=Shoutrrr&subject=&toaddresses=user%40example.com&usehtml=Yes&usestarttls=Yes&timeout=10s&clientid=1234.apps.googleusercontent.com&clientsecret=REDACTED&refreshtoken=REDACTED&tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken
     ```
 <!-- markdownlint-restore -->
