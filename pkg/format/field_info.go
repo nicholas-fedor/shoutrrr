@@ -24,6 +24,9 @@ type FieldInfo struct {
 	ItemSeparator rune
 	Required      bool
 	Title         bool
+	// Sensitive reports that the field holds a secret, such as a token or a
+	// password, from its `sensitive:"true"` tag.
+	Sensitive bool
 }
 
 // DefaultBase represents the default numeric base (decimal) for fields.
@@ -84,6 +87,10 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 
 		if _, ok := fieldDef.Tag.Lookup("title"); ok {
 			info.Title = true
+		}
+
+		if tag, ok := fieldDef.Tag.Lookup("sensitive"); ok {
+			info.Sensitive = tag == "true"
 		}
 
 		if tag, ok := fieldDef.Tag.Lookup("url"); ok {

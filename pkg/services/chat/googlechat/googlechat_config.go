@@ -16,8 +16,8 @@ type Config struct {
 
 	Host  string `default:"chat.googleapis.com"`
 	Path  string
-	Token string
-	Key   string
+	Token string `sensitive:"true"`
+	Key   string `sensitive:"true"`
 }
 
 const (

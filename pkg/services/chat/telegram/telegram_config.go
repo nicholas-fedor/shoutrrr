@@ -13,7 +13,7 @@ import (
 
 // Config holds settings for the Telegram notification service.
 type Config struct {
-	Token        string    `url:"user"`
+	Token        string    `sensitive:"true"                                       url:"user"`
 	Title        string    `default:""                                             desc:"Notification title, optionally set by the sender"            key:"title"`
 	Chats        []string  `desc:"Chat IDs or Channel names (using @channel-name)" key:"chats,channels"`
 	ParseMode    parseMode `default:"None"                                         desc:"How the text Message should be parsed"                       key:"parsemode"`

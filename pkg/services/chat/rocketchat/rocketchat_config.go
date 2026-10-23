@@ -20,11 +20,11 @@ type Config struct {
 	// Port is the Rocket.Chat server port (optional).
 	Port string `url:"port"`
 	// TokenA is the first part of the webhook token (required).
-	TokenA string `url:"path1"`
+	TokenA string `sensitive:"true" url:"path1"`
 	// Channel is the target channel or user (optional, can include # for channels or @ for users).
 	Channel string `url:"path3"`
 	// TokenB is the second part of the webhook token (required).
-	TokenB string `url:"path2"`
+	TokenB string `sensitive:"true" url:"path2"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

@@ -23,10 +23,10 @@ type Config struct {
 
 	Extras map[string]any // Additional extras parsed from JSON - custom key-value pairs sent with notifications
 
-	Token string `desc:"Application token"                     required:"" url:"path2"`     // Gotify application token for authentication (gtfya. token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
-	Host  string `desc:"Server hostname (and optionally port)" required:"" url:"host,port"` // Gotify server hostname and optional port number
-	Path  string `desc:"Server subpath"                        optional:"" url:"path1"`     // Optional subpath for Gotify installation (e.g., "/gotify")
-	Title string `default:"Shoutrrr notification"              key:"title"`                 // Default notification title when none provided
+	Token string `desc:"Application token"                     required:"" sensitive:"true" url:"path2"` // Gotify application token for authentication (gtfya. token from Gotify 3.0 or later, or 15 chars starting with 'A' from earlier versions)
+	Host  string `desc:"Server hostname (and optionally port)" required:"" url:"host,port"`              // Gotify server hostname and optional port number
+	Path  string `desc:"Server subpath"                        optional:"" url:"path1"`                  // Optional subpath for Gotify installation (e.g., "/gotify")
+	Title string `default:"Shoutrrr notification"              key:"title"`                              // Default notification title when none provided
 
 	// Date is accepted in URLs and params but not sent.
 	//

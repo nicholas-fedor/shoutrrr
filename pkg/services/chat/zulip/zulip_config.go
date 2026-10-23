@@ -18,7 +18,7 @@ type Config struct {
 	standard.EnumlessConfig
 
 	BotMail      string      `desc:"Bot e-mail address"                         url:"user"`
-	BotKey       string      `desc:"API key"                                    url:"pass"`
+	BotKey       string      `desc:"API key"                                    sensitive:"true"                           url:"pass"`
 	Host         string      `desc:"API server hostname (with optional port)"   url:"host"`
 	Type         MessageType `desc:"Message type (channel or direct)"           key:"type"                                 optional:""`
 	Stream       string      `desc:"Target stream name"                         key:"stream"                               optional:""`

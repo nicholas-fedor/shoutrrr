@@ -60,6 +60,25 @@ func TestGetStructFieldInfo(t *testing.T) {
 	assert.Equal(t, want, fields)
 }
 
+// TestGetStructFieldInfoSensitive verifies that only a `sensitive:"true"` tag
+// marks a field as sensitive.
+func TestGetStructFieldInfoSensitive(t *testing.T) {
+	t.Parallel()
+
+	config := struct {
+		Secret    string `sensitive:"true"`
+		NotSecret string `sensitive:"false"`
+		Plain     string
+	}{}
+
+	sensitive := map[string]bool{}
+	for _, field := range getStructFieldInfo(reflect.TypeOf(config), nil) {
+		sensitive[field.Name] = field.Sensitive
+	}
+
+	assert.Equal(t, map[string]bool{"Secret": true, "NotSecret": false, "Plain": false}, sensitive)
+}
+
 // TestFieldInfoIsEnum verifies that a field is an enum when it has an enum
 // formatter and an int type.
 func TestFieldInfoIsEnum(t *testing.T) {

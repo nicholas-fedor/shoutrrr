@@ -14,9 +14,9 @@ import (
 // Config for the Twilio SMS notification service.
 type Config struct {
 	AccountSID string   `desc:"Twilio Account SID"                           required:""               url:"user"`
-	AuthToken  string   `desc:"Twilio Auth Token"                            required:""               url:"password"`
+	AuthToken  string   `desc:"Twilio Auth Token"                            required:""               sensitive:"true" url:"password"`
 	FromNumber string   `desc:"Sender phone number or Messaging Service SID" required:""               url:"host"`
-	Title      string   `default:""                                          desc:"Notification title" key:"title"    optional:""`
+	Title      string   `default:""                                          desc:"Notification title" key:"title"      optional:""`
 	ToNumbers  []string `desc:"Recipient phone number(s)"                    required:""               url:"path"`
 }
 

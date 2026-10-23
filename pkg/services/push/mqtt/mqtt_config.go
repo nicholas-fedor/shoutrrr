@@ -31,7 +31,7 @@ type Config struct {
 	// Password for MQTT broker authentication.
 	// Optional: Leave empty for anonymous connections or username-only auth.
 
-	Password string `desc:"Auth password" optional:"" url:"password"`
+	Password string `desc:"Auth password" optional:"" sensitive:"true" url:"password"`
 
 	// ClientID is the unique identifier for this MQTT client connection.
 	// The broker uses this to identify the client across sessions and for

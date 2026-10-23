@@ -294,8 +294,8 @@ var fixtures = []fixture{
 	},
 	{
 		scheme:  "signalgrid",
-		url:     "signalgrid://SECRETsignalgridKEY@channel",
-		secrets: []string{"SECRETsignalgridKEY"},
+		url:     "signalgrid://SECRETsignalgridKEY@SECRETsignalgridCHANNEL",
+		secrets: []string{"SECRETsignalgridKEY", "SECRETsignalgridCHANNEL"},
 	},
 	{
 		scheme:  "slack",
@@ -701,6 +701,46 @@ func TestIntegrationResponseBodyLimit(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestIntegrationMaskedConfig verifies that rendering a service's config with
+// [format.ConsoleTreeRenderer.MaskSensitive], as the CLI's verify command does,
+// shows none of the fixture's secrets, and that each secret is still shown
+// without masking. A secret that survives masking is held by a field without a
+// `sensitive:"true"` tag.
+func TestIntegrationMaskedConfig(t *testing.T) {
+	t.Parallel()
+
+	for _, fx := range fixtures {
+		if len(fx.secrets) == 0 {
+			continue
+		}
+
+		t.Run(fx.scheme, func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(fx.url)
+			require.NoError(t, err)
+			closeService(t, service)
+
+			node := format.GetConfigFormat(format.GetServiceConfig(service))
+			masked := format.ConsoleTreeRenderer{WithValues: true, MaskSensitive: true}.RenderTree(node, "")
+			plain := format.ConsoleTreeRenderer{WithValues: true, MaskSensitive: false}.RenderTree(node, "")
+
+			for _, secret := range fx.secrets {
+				assert.NotContains(t, masked, secret, "the masked config shows a secret")
+
+				// Secrets held outside the config tree, such as generic's custom
+				// headers, never appear in it.
+				if fx.scheme != "generic" {
+					assert.Contains(t, plain, secret, "the unmasked config hides a secret")
+				}
+			}
+		})
 	}
 }
 

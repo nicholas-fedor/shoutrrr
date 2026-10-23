@@ -11,10 +11,10 @@ import (
 
 // Config for the Pushover notification service.
 type Config struct {
-	Token         string   `desc:"API Token/Key"                                                  url:"pass"`
-	User          string   `desc:"User Key"                                                       url:"host"`
+	Token         string   `desc:"API Token/Key"                                                  sensitive:"true"        url:"pass"`
+	User          string   `desc:"User Key"                                                       sensitive:"true"        url:"host"`
 	Title         string   `key:"title"                                                           optional:""`
-	EncryptionKey string   `desc:"256-bit AES key as 64 hex characters for end-to-end encryption" key:"encryptionkey,key" optional:""`
+	EncryptionKey string   `desc:"256-bit AES key as 64 hex characters for end-to-end encryption" key:"encryptionkey,key" optional:"" sensitive:"true"`
 	Devices       []string `key:"devices"                                                         optional:""`
 	Priority      int8     `default:"0"                                                           key:"priority"`
 }

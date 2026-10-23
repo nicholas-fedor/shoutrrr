@@ -41,7 +41,7 @@ variable. The variable name is `SHOUTRRR_` followed by the flag name in upper ca
 | `SHOUTRRR_SERVICE`        | `--service`        | `generate`                  |
 | `SHOUTRRR_GENERATOR`      | `--generator`      | `generate`                  |
 | `SHOUTRRR_PROPERTY`       | `--property`       | `generate`                  |
-| `SHOUTRRR_SHOW_SENSITIVE` | `--show-sensitive` | `generate`                  |
+| `SHOUTRRR_SHOW_SENSITIVE` | `--show-sensitive` | `generate`, `verify`        |
 
 - A flag or positional argument takes precedence over its environment variable, and an empty variable counts as unset.
 - Positional arguments fill only flags that were not given on the command line.

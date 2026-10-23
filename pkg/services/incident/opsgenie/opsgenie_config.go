@@ -15,7 +15,7 @@ import (
 // Config holds the configuration for the OpsGenie service.
 type Config struct {
 	Details     map[string]string `desc:"Map of key-value pairs to use as custom properties of the alert"                                        key:"details"                                                            optional:"true"`
-	APIKey      string            `desc:"The OpsGenie API key"                                                                                   url:"path"`
+	APIKey      string            `desc:"The OpsGenie API key"                                                                                   sensitive:"true"                                                         url:"path"`
 	Host        string            `default:"api.opsgenie.com"                                                                                    desc:"The OpsGenie API host. Use 'api.eu.opsgenie.com' for EU instances" url:"host"`
 	Alias       string            `desc:"Client-defined identifier of the alert"                                                                 key:"alias"                                                              optional:"true"`
 	Description string            `desc:"Description field of the alert"                                                                         key:"description"                                                        optional:"true"`

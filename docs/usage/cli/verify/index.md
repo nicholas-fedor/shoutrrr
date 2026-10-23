@@ -10,10 +10,11 @@ The `verify` command checks the validity of a notification service URL.
 shoutrrr verify [FLAGS] [URL]
 ```
 
-| Flag                     | Description                                           |
-|--------------------------|-------------------------------------------------------|
-| `-h, --help`             | Displays help for the `verify` command.                |
-| `-u, --url stringArray`  | Specifies the notification service URL to verify.      |
+| Flag                     | Description                                                                                                                |
+|--------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `-h, --help`             | Displays help for the `verify` command.                                                                                    |
+| `-u, --url stringArray`  | Specifies the notification service URL to verify.                                                                          |
+| `-x, --show-sensitive`   | Displays sensitive values (e.g., tokens, passwords) in the configuration. By default, they are masked with `REDACTED`. |
 
 !!! Note
     Exactly one URL is required. It can be given with `--url`, as a positional argument, or with the `SHOUTRRR_URL` environment variable. Giving it both with `--url` and as an argument is an error, and either takes precedence over the environment variable. The command validates the URL format and service configuration, reporting errors for issues like unknown services or invalid URL formats.
@@ -33,9 +34,11 @@ shoutrrr verify [FLAGS] [URL]
     ```
 
     ```text title="Expected Output"
-    Token: abc123
+    Token: REDACTED
     WebhookID: 123456789
     ```
+
+    Add `--show-sensitive` to display the token.
 
 ### Verify an Invalid URL
 

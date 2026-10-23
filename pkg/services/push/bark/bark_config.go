@@ -19,7 +19,7 @@ type Config struct {
 	Title     string `default:""                      desc:"Notification title, optionally set by the sender"           key:"title"`
 	Host      string `desc:"Server hostname and port" url:"host"`
 	Path      string `default:"/"                     desc:"Server path"                                                url:"path"`
-	DeviceKey string `desc:"The key for each device"  url:"password"`
+	DeviceKey string `desc:"The key for each device"  sensitive:"true"                                                  url:"password"`
 	Scheme    string `default:"https"                 desc:"Server protocol, http or https"                             key:"scheme"`
 	Sound     string `default:""                      desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
 	Icon      string `default:""                      desc:"An url to the icon, available only on iOS 15 or later"      key:"icon"`

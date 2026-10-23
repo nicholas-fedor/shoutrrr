@@ -13,7 +13,7 @@ import (
 
 // Config holds the configuration for the PagerDuty service.
 type Config struct {
-	IntegrationKey string `desc:"The PagerDuty API integration key"                                                      url:"path"`
+	IntegrationKey string `desc:"The PagerDuty API integration key"                                                      sensitive:"true"                                                                                    url:"path"`
 	Host           string `default:"events.pagerduty.com"                                                                desc:"The PagerDuty API host."                                                                      url:"host"`
 	Severity       string `default:"error"                                                                               desc:"The perceived severity of the status the event (critical, error, warning, or info); required" key:"severity"`
 	Source         string `default:"default"                                                                             desc:"The unique location of the affected system, preferably a hostname or FQDN; required"          key:"source"`

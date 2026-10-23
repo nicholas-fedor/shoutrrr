@@ -16,7 +16,7 @@ import (
 type Config struct {
 	standard.EnumlessConfig
 
-	WebHookID         string   `required:"true" url:"host"`
+	WebHookID         string   `required:"true" sensitive:"true"                                                      url:"host"`
 	Value1            string   `key:"value1"    optional:""`
 	Value2            string   `key:"value2"    optional:""`
 	Value3            string   `key:"value3"    optional:""`

@@ -14,8 +14,8 @@ import (
 type Config struct {
 	Host string `default:"open.larksuite.com" desc:"Custom bot URL Host" url:"Host"`
 
-	Secret string `default:""              desc:"Custom bot secret" key:"secret"`
-	Path   string `desc:"Custom bot token" url:"Path"`
+	Secret string `default:""              desc:"Custom bot secret" key:"secret" sensitive:"true"`
+	Path   string `desc:"Custom bot token" sensitive:"true"         url:"Path"`
 	Title  string `default:""              desc:"Message Title"     key:"title"`
 	Link   string `default:""              desc:"Optional link URL" key:"link"`
 }

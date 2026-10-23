@@ -22,7 +22,7 @@ type Config struct {
 	// Username is the SMTP server username.
 	Username string `default:"" desc:"SMTP server username" url:"User"`
 	// Password is the SMTP server password, or an OAuth2 access token when Auth is [AuthOAuth2].
-	Password string `default:"" desc:"SMTP server password or hash (for OAuth2)" url:"Pass"`
+	Password string `default:"" desc:"SMTP server password or hash (for OAuth2)" sensitive:"true" url:"Pass"`
 	// FromAddress is the sender e-mail address.
 	FromAddress string `desc:"E-mail address that the mail are sent from" key:"fromaddress,from"`
 	// FromName is the sender display name.
