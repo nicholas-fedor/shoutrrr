@@ -2938,7 +2938,7 @@
 </tr>
 <tr>
 <td><code>-v, --verbose</code></td>
-<td>Enables verbose output, logging URLs, message, and title to stderr.</td>
+<td>Enables verbose output, logging masked URLs, message, and title to stderr.</td>
 </tr>
 </tbody>
 </table>
@@ -2961,6 +2961,7 @@
 <h3 id="verbose">Verbose<a class="headerlink" href="#verbose" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Enables detailed logging: lists URLs (with indentation for multiples), truncated message (up to 100 characters with ellipsis), title if provided, and "Notification sent" upon success.</li>
+<li>Each URL is shown as its service's config URL, with secrets such as tokens and passwords replaced by <code>REDACTED</code>.</li>
 </ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <!-- markdownlint-disable -->
@@ -2985,7 +2986,7 @@
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Send Command with Verbose Output</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello, Discord!"</span><span class="w"> </span>--verbose
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URLs: discord://abc123@123456789
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URLs: discord://REDACTED@123456789
 Message: Hello, Discord!
 Notification sent
 </code></pre></div>
@@ -3013,8 +3014,8 @@ Notification sent
 <p class="admonition-title">Example</p>
 <div class="highlight"><span class="filename">Send Command with Verbose and Multiple URLs</span><pre><span></span><code>shoutrrr<span class="w"> </span>send<span class="w"> </span>--url<span class="w"> </span><span class="s2">"discord://abc123@123456789"</span><span class="w"> </span>--url<span class="w"> </span><span class="s2">"slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook"</span><span class="w"> </span>--message<span class="w"> </span><span class="s2">"Hello!"</span><span class="w"> </span>--verbose
 </code></pre></div>
-<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URLs: discord://abc123@123456789
-      slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook
+<div class="highlight"><span class="filename">Expected Output</span><pre><span></span><code>URLs: discord://REDACTED@123456789
+      slack://hook:REDACTED@webhook
 Message: Hello!
 Notification sent
 Notification sent
@@ -3043,7 +3044,7 @@ Notification sent
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 10, 2026 15:54:51 UTC"><span class="timeago" datetime="2026-10-10T15:54:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 10, 2026 15:54:51 UTC">2026-10-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 04:04:05 UTC"><span class="timeago" datetime="2026-10-23T04:04:05+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 04:04:05 UTC">2026-10-23</span>
   </span>
 
     
