@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Refresh OAuth2 access tokens from a refresh token by @nicholas-fedor in [#1809](https://github.com/nicholas-fedor/shoutrrr/pull/1809)
 - Send a message timestamp by @nicholas-fedor in [#1803](https://github.com/nicholas-fedor/shoutrrr/pull/1803)
 - Send through a configurable Bot API server by @nicholas-fedor in [#1801](https://github.com/nicholas-fedor/shoutrrr/pull/1801)
 - Map the message level to Gotify, Signalgrid, Opsgenie, and PagerDuty severity by @nicholas-fedor in [#1799](https://github.com/nicholas-fedor/shoutrrr/pull/1799)
@@ -43,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency certifi to v2026.10.23 by @renovate[bot] in [#1805](https://github.com/nicholas-fedor/shoutrrr/pull/1805)
 - Update docker/login-action action to v4.7.0 by @renovate[bot] in [#1806](https://github.com/nicholas-fedor/shoutrrr/pull/1806)
 - Update alpine:3.24.3 docker digest to be26560 by @renovate[bot] in [#1797](https://github.com/nicholas-fedor/shoutrrr/pull/1797)
 - Regenerate mocks with mockery 3.8.1 by @nicholas-fedor in [#1793](https://github.com/nicholas-fedor/shoutrrr/pull/1793)
