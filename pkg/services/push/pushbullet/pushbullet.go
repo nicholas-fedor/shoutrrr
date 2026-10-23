@@ -16,16 +16,23 @@ import (
 
 // Service providing Pushbullet as a notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	client     jsonclient.ContextClient
+	// client is the JSON client the requests go through, built on
+	// httpClient.
+	client jsonclient.ContextClient
+	// httpClient is the injected HTTP client, or nil for a default client.
 	httpClient types.HTTPClient
-	Config     *Config
-	pkr        format.PropKeyResolver
+	// Config holds the access token, the title, and the targets.
+	Config *Config
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
-// Constants.
+// Settings for requests to the Pushbullet API.
 const (
+	// pushesEndpoint is the API endpoint for creating pushes.
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
 	// defaultHTTPTimeout is the timeout of the HTTP client used when none is injected.
 	defaultHTTPTimeout = 10 * time.Second
@@ -33,10 +40,16 @@ const (
 
 // Static errors for push validation.
 var (
+	// ErrUnexpectedResponseType indicates a created push that is not a note.
 	ErrUnexpectedResponseType = errors.New("unexpected response type, expected note")
-	ErrResponseBodyMismatch   = errors.New("response body mismatch")
-	ErrResponseTitleMismatch  = errors.New("response title mismatch")
-	ErrPushNotActive          = errors.New("push notification is not active")
+	// ErrResponseBodyMismatch indicates a created push whose body differs
+	// from the message.
+	ErrResponseBodyMismatch = errors.New("response body mismatch")
+	// ErrResponseTitleMismatch indicates a created push whose title differs
+	// from the one sent.
+	ErrResponseTitleMismatch = errors.New("response title mismatch")
+	// ErrPushNotActive indicates a created push that is already inactive.
+	ErrPushNotActive = errors.New("push notification is not active")
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -48,11 +61,21 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrTokenIncorrectSize].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -134,6 +157,9 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil

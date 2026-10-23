@@ -15,27 +15,54 @@ import (
 
 // Config holds the configuration for the Ntfy service.
 type Config struct {
-	Title                  string   `default:""                                                                                              desc:"Message title"                                                                     key:"title"`
-	Host                   string   `default:"ntfy.sh"                                                                                       desc:"Server hostname and port"                                                          url:"host"`
-	Topic                  string   `desc:"Target topic name"                                                                                required:""                                                                              url:"path"`
-	Password               string   `desc:"Auth password"                                                                                    optional:""                                                                              sensitive:"true"             url:"password"`
-	Username               string   `desc:"Auth username"                                                                                    optional:""                                                                              url:"user"`
-	Token                  string   `desc:"Access token for Bearer auth, takes precedence over username and password"                        key:"token"                                                                              optional:""                  sensitive:"true"`
-	Scheme                 string   `default:"https"                                                                                         desc:"Server protocol, http or https"                                                    key:"scheme"`
-	Click                  string   `desc:"Website opened when notification is clicked"                                                      key:"click"                                                                              optional:""`
-	Attach                 string   `desc:"URL of an attachment, see attach via URL"                                                         key:"attach"                                                                             optional:""`
-	Filename               string   `desc:"File name of the attachment"                                                                      key:"filename"                                                                           optional:""`
-	Delay                  string   `desc:"Timestamp or duration for delayed delivery, see https://docs.ntfy.sh/publish/#scheduled-delivery" key:"delay,at,in"                                                                        optional:""`
-	Email                  string   `desc:"E-mail address for e-mail notifications"                                                          key:"email"                                                                              optional:""`
-	Icon                   string   `desc:"URL to use as notification icon"                                                                  key:"icon"                                                                               optional:""`
-	Tags                   []string `desc:"List of tags that may or not map to emojis"                                                       key:"tags"                                                                               optional:""`
-	Actions                []string `desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons"   key:"actions"                                                                            optional:""                  sep:";"`
-	Priority               priority `default:"default"                                                                                       desc:"Message priority with 1=min, 3=default and 5=max"                                  key:"priority"`
-	Markdown               bool     `default:"no"                                                                                            desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting" key:"markdown"`
-	Cache                  bool     `default:"yes"                                                                                           desc:"Cache messages"                                                                    key:"cache"`
-	Firebase               bool     `default:"yes"                                                                                           desc:"Send to firebase"                                                                  key:"firebase"`
-	DisableTLSVerification bool     `default:"no"                                                                                            desc:"Disable TLS certificate verification"                                              key:"disabletlsverification"`
-	DisableTLS             bool     `default:"no"                                                                                            desc:"Disable TLS entirely (force HTTP scheme)"                                          key:"disabletls"`
+	// Title is the message title.
+	Title string `default:"" desc:"Message title" key:"title"`
+	// Host is the ntfy server host, with an optional port.
+	Host string `default:"ntfy.sh" desc:"Server hostname and port" url:"host"`
+	// Topic is the topic to publish to, written as the path of the service
+	// URL.
+	Topic string `desc:"Target topic name" required:"" url:"path"`
+	// Password is the password for HTTP Basic authentication.
+	Password string `desc:"Auth password" optional:"" sensitive:"true" url:"password"`
+	// Username is the username for HTTP Basic authentication.
+	Username string `desc:"Auth username" optional:"" url:"user"`
+	// Token is the access token for Bearer authentication. It takes
+	// precedence over Username and Password.
+	Token string `desc:"Access token for Bearer auth, takes precedence over username and password" key:"token" optional:"" sensitive:"true"`
+	// Scheme is the server's protocol, http or https.
+	Scheme string `default:"https" desc:"Server protocol, http or https" key:"scheme"`
+	// Click is the URL opened when the notification is tapped.
+	Click string `desc:"Website opened when notification is clicked" key:"click" optional:""`
+	// Attach is the URL of a file to attach.
+	Attach string `desc:"URL of an attachment, see attach via URL" key:"attach" optional:""`
+	// Filename is the attachment's file name.
+	Filename string `desc:"File name of the attachment" key:"filename" optional:""`
+	// Delay schedules delivery for a timestamp or after a duration.
+	Delay string `desc:"Timestamp or duration for delayed delivery, see https://docs.ntfy.sh/publish/#scheduled-delivery" key:"delay,at,in" optional:""`
+	// Email forwards the notification to this e-mail address.
+	Email string `desc:"E-mail address for e-mail notifications" key:"email" optional:""`
+	// Icon is the URL of the notification icon.
+	Icon string `desc:"URL to use as notification icon" key:"icon" optional:""`
+	// Tags lists the message tags. Tags that match an emoji short code show
+	// as that emoji.
+	Tags []string `desc:"List of tags that may or not map to emojis" key:"tags" optional:""`
+	// Actions lists the action buttons, separated by semicolons.
+	Actions []string `desc:"Custom user action buttons for notifications, see https://docs.ntfy.sh/publish/#action-buttons" key:"actions" optional:"" sep:";"`
+	// Priority is the message priority, from Min to Max. When neither the URL
+	// nor the send sets it, the level param chooses it.
+	Priority priority `default:"default" desc:"Message priority with 1=min, 3=default and 5=max" key:"priority"`
+	// Markdown renders the message as Markdown.
+	Markdown bool `default:"no" desc:"Enable Markdown formatting, see https://docs.ntfy.sh/publish/#markdown-formatting" key:"markdown"`
+	// Cache keeps the message on the server for clients that connect later.
+	Cache bool `default:"yes" desc:"Cache messages" key:"cache"`
+	// Firebase forwards the message to Firebase Cloud Messaging for Android
+	// clients.
+	Firebase bool `default:"yes" desc:"Send to firebase" key:"firebase"`
+	// DisableTLSVerification skips verification of the server's TLS
+	// certificate.
+	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
+	// DisableTLS publishes over HTTP whatever Scheme says.
+	DisableTLS bool `default:"no" desc:"Disable TLS entirely (force HTTP scheme)" key:"disabletls"`
 }
 
 // Identifiers and defaults for this service's configuration URL.
@@ -59,6 +86,9 @@ var (
 )
 
 // Enums returns the fields that use an EnumFormatter for their values.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: the priority formatter by field name.
 func (*Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"Priority": Priority.Enum,
@@ -91,6 +121,9 @@ func (c *Config) GetAPIURL() string {
 }
 
 // GetURL returns a URL representation of the Config's current field values.
+//
+// Returns:
+//   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -98,11 +131,21 @@ func (c *Config) GetURL() *url.URL {
 }
 
 // QueryFields returns the list of query parameter names for the Config struct.
+//
+// Returns:
+//   - []string: the query keys.
 func (c *Config) QueryFields() []string {
 	return format.GetConfigQueryResolver(c).QueryFields()
 }
 
 // SetURL updates the Config from a URL representation of its field values.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: the error from reading the URL, such as [ErrTopicRequired] or
+//     [ErrInvalidTopic].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -110,6 +153,12 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the topic as its path.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	path := c.Topic
 	if !strings.HasPrefix(c.Topic, "/") {

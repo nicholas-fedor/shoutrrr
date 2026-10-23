@@ -11,13 +11,16 @@ import (
 
 // HTTPClientManager handles HTTP client creation and configuration.
 type HTTPClientManager interface {
+	// CreateTransport builds the transport for config's TLS settings.
 	CreateTransport(config *Config) *http.Transport
+	// CreateClient builds a client that sends through transport.
 	CreateClient(transport *http.Transport) *http.Client
 }
 
 // DefaultHTTPClientManager provides the default implementation of HTTPClientManager.
 type DefaultHTTPClientManager struct{}
 
+// Default client settings.
 const (
 	// HTTPTimeout defines the HTTP client timeout in seconds.
 	HTTPTimeout = 10
@@ -46,7 +49,6 @@ func (m *DefaultHTTPClientManager) CreateClient(httpTransport *http.Transport) *
 //
 // Returns:
 //   - *http.Transport: the transport for the default HTTP client.
-
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
 	return transport.New(&tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -59,6 +61,10 @@ func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transpo
 // This method ensures that the transport, HTTP client, JSON client,
 // and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
 // This function is called by the Service and modifies its fields.
+//
+// Parameters:
+//   - service: the service whose clients to build when either is missing.
+//   - manager: builds the transport and the HTTP client.
 func initClient(service *Service, manager HTTPClientManager) {
 	service.mu.Lock()
 	defer service.mu.Unlock()

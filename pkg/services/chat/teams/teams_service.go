@@ -22,17 +22,23 @@ type HTTPClient = types.HTTPClient
 
 // defaultHTTPClient implements HTTPClient using http.Client with a timeout.
 type defaultHTTPClient struct {
+	// client sends the requests.
 	client types.HTTPClient
 }
 
 // Service sends notifications to Microsoft Teams via Power Automate workflow webhooks.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient sends the webhook requests: an injected client, or the
+	// default client with [defaultHTTPTimeout].
 	httpClient HTTPClient
 
+	// Config holds the webhook URL and the card options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.
@@ -50,6 +56,13 @@ var (
 )
 
 // Do performs the HTTP request.
+//
+// Parameters:
+//   - req: the request.
+//
+// Returns:
+//   - *http.Response: the response.
+//   - error: the client's error, with its URL redacted.
 func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -60,11 +73,24 @@ func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// It installs the default HTTP client, replacing a client set before.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from applying the default props or reading the URL.
+//     The webhook URL is validated when sending.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -119,6 +145,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout returns the HTTP timeout used for a Teams send.
+//
+// Returns:
+//   - time.Duration: [defaultHTTPTimeout], whatever the params.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
@@ -150,6 +179,13 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // colorToEnum maps user-provided color values to valid Adaptive Card TextBlock.color enum values.
+//
+// Parameters:
+//   - color: the configured color, in any case, such as red, warning, or
+//     accent.
+//
+// Returns:
+//   - string: the Adaptive Card color, or "default" for an unknown color.
 func colorToEnum(color string) string {
 	switch strings.ToLower(color) {
 	case "red", "attention", "danger":

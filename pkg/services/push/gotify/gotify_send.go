@@ -17,6 +17,8 @@ import (
 
 // Sender handles HTTP request execution and response processing.
 type Sender interface {
+	// SendRequest posts request to url through client with the given headers
+	// and checks the response.
 	SendRequest(client types.HTTPClient, url string, request *MessageRequest, headers http.Header) error
 }
 
@@ -30,6 +32,8 @@ type DefaultSender struct{}
 //
 //mockery:generate: false
 type contextSender interface {
+	// SendRequestContext posts request to url through client, bounded by ctx,
+	// with the given headers, and checks the response.
 	SendRequestContext(
 		ctx context.Context,
 		client types.HTTPClient,
@@ -203,6 +207,10 @@ func (s *DefaultSender) sendRequestWithHeaders(
 }
 
 // setRequestHeaders sets the Content-Type and custom headers on the HTTP request.
+//
+// Parameters:
+//   - req: the request.
+//   - headers: the headers to add, such as the token header.
 func (s *DefaultSender) setRequestHeaders(req *http.Request, headers http.Header) {
 	req.Header.Set("Content-Type", "application/json")
 

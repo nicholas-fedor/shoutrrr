@@ -5,24 +5,38 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
+// priority is an ntfy message priority, from 1 for min to 5 for max.
 type priority int
 
+// priorityVals holds the priority values and their formatter.
 type priorityVals struct {
-	Enum    types.EnumFormatter
-	Min     priority
-	Low     priority
+	// Enum reads and prints the priority names.
+	Enum types.EnumFormatter
+	// Min is the lowest priority, shown silently under other notifications.
+	Min priority
+	// Low is shown silently, only once the notification drawer is opened.
+	Low priority
+	// Default is shown with a short vibration and the default sound.
 	Default priority
-	High    priority
-	Max     priority
+	// High is shown with a long vibration burst and a pop-over notification.
+	High priority
+	// Max is the highest priority, shown with very long vibration bursts and
+	// a pop-over notification.
+	Max priority
 }
 
 // Priority levels as constants.
 const (
-	PriorityMin     priority = 1
-	PriorityLow     priority = 2
+	// PriorityMin is priority 1.
+	PriorityMin priority = 1
+	// PriorityLow is priority 2.
+	PriorityLow priority = 2
+	// PriorityDefault is priority 3.
 	PriorityDefault priority = 3
-	PriorityHigh    priority = 4
-	PriorityMax     priority = 5
+	// PriorityHigh is priority 4.
+	PriorityHigh priority = 4
+	// PriorityMax is priority 5, also called urgent.
+	PriorityMax priority = 5
 )
 
 // Priority defines the notification priority levels.
@@ -60,6 +74,10 @@ var levelPriorities = map[types.MessageLevel]priority{
 	types.Error:   PriorityMax,
 }
 
+// String returns the priority's name.
+//
+// Returns:
+//   - string: the name, such as Default.
 func (p priority) String() string {
 	return Priority.Enum.Print(int(p))
 }

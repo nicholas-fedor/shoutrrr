@@ -21,15 +21,21 @@ import (
 
 // Service sends notifications to ntfy.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// httpClient is the client for sends whose certificate verification
+	// setting matches the config: an injected client, or the default client.
 	httpClient types.HTTPClient
 
+	// Config holds the server, the topic, the credentials, and the message
+	// options.
 	Config *Config
 	// otherClient is the default client for sends whose certificate verification
 	// setting differs from the stored config, built on first use.
 	otherClient *http.Client
-	pkr         format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 	// otherClientMu guards otherClient.
 	otherClientMu sync.Mutex
 	// defaultClient reports whether httpClient was built by the service rather than
@@ -49,11 +55,25 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Unless a client is injected, it builds the default HTTP client for the URL's
+// certificate verification setting, with a warning when verification is off.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
+//
+// Returns:
+//   - error: the error from applying the default props or reading the URL,
+//     such as [ErrTopicRequired] or [ErrInvalidTopic].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -125,6 +145,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client, which Initialize builds when the service is not yet configured
 // and rebuilds whenever it applies a new config.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil
@@ -309,6 +332,11 @@ func (s *Service) setDefaultHTTPClient() {
 }
 
 // addHeaderIfNotEmpty adds a header to the request if the value is non-empty.
+//
+// Parameters:
+//   - headers: the request headers.
+//   - key: the header name.
+//   - value: the header value, which is skipped when empty.
 func addHeaderIfNotEmpty(headers *http.Header, key, value string) {
 	if value != "" {
 		headers.Add(key, value)
