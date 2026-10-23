@@ -1,13 +1,13 @@
 package generate
 
 import (
-	"net/url"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/pushover"
 )
 
@@ -134,388 +134,27 @@ func newTestCommand() *cobra.Command {
 	return cmd
 }
 
-// Test_maskSensitiveURL tests the maskSensitiveURL function with various service schemas.
-func Test_maskSensitiveURL(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		serviceSchema string
-		urlStr        string
-		want          string
-	}{
-		{
-			name:          "discord service masks user",
-			serviceSchema: "discord",
-			urlStr:        "https://token@discord.com/api/webhooks/123",
-			want:          "https://REDACTED@discord.com/api/webhooks/123",
-		},
-		{
-			name:          "slack service masks user",
-			serviceSchema: "slack",
-			urlStr:        "https://token@slack.com/services/123",
-			want:          "https://REDACTED@slack.com/services/123",
-		},
-		{
-			name:          "teams service masks user",
-			serviceSchema: "teams",
-			urlStr:        "https://token@teams.com/webhook",
-			want:          "https://REDACTED@teams.com/webhook",
-		},
-		{
-			name:          "smtp service masks password",
-			serviceSchema: "smtp",
-			urlStr:        "smtp://user:pass@host:587",
-			want:          "smtp://user:REDACTED@host:587",
-		},
-		{
-			name:          "pushover service masks token and user",
-			serviceSchema: "pushover",
-			urlStr:        "pushover://pushover.net?token=abc&user=def",
-			want:          "pushover://pushover.net?token=REDACTED&user=REDACTED",
-		},
-		{
-			name:          "pushover service masks userinfo token and encryption key",
-			serviceSchema: "pushover",
-			urlStr:        "pushover://Token:secret-api-token@userkey/?encryptionkey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-			want:          "pushover://Token:REDACTED@userkey/?encryptionkey=REDACTED",
-		},
-		{
-			name:          "gotify service masks token",
-			serviceSchema: "gotify",
-			urlStr:        "gotify://gotify.net?token=secret",
-			want:          "gotify://gotify.net?token=REDACTED",
-		},
-		{
-			name:          "signalgrid service masks user and host",
-			serviceSchema: "signalgrid",
-			urlStr:        "signalgrid://ClientKey@ChannelToken?title=Alert",
-			want:          "signalgrid://REDACTED@REDACTED?title=Alert",
-		},
-		{
-			name:          "generic service masks user and query params",
-			serviceSchema: "unknown",
-			urlStr:        "https://user:pass@host?a=1&b=2",
-			want:          "https://REDACTED@host?a=REDACTED&b=REDACTED",
-		},
-		{
-			name:          "invalid URL returns original",
-			serviceSchema: "discord",
-			urlStr:        "://invalid",
-			want:          "://invalid",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := maskSensitiveURL(tt.serviceSchema, tt.urlStr)
-			assert.Equal(t, tt.want, got, "maskSensitiveURL() returned unexpected value")
-		})
-	}
-}
-
-// Test_maskSensitiveURL_pushoverGeneratePath verifies that the default generate
-// path redacts both Config.Token and Config.EncryptionKey.
-func Test_maskSensitiveURL_pushoverGeneratePath(t *testing.T) {
+// Test_displayURL verifies that a generated URL masks each secret, here the
+// Pushover token, user key, and encryption key, unless secrets are shown.
+func Test_displayURL(t *testing.T) {
 	t.Parallel()
 
 	cfg := &pushover.Config{
 		Token:         "secret-api-token",
-		User:          "userkey",
+		User:          "secret-user-key",
 		EncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
+	secrets := []string{cfg.Token, cfg.User, cfg.EncryptionKey}
 
-	masked := maskSensitiveURL(pushover.Scheme, cfg.GetURL().String())
-
-	assert.NotContains(t, masked, cfg.Token, "API token must not appear in the masked URL")
-	assert.NotContains(t, masked, cfg.EncryptionKey, "encryption key must not appear in the masked URL")
-	assert.Contains(t, masked, redactedStr, "masked URL should contain the redaction placeholder")
-}
-
-// Test_maskUser tests the maskUser function.
-func Test_maskUser(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		urlStr      string
-		placeholder string
-		wantUser    string
-	}{
-		{
-			name:        "masks user with placeholder",
-			urlStr:      "https://token@host/path",
-			placeholder: redactedStr,
-			wantUser:    redactedStr,
-		},
-		{
-			name:        "empty user remains nil",
-			urlStr:      "https://host/path",
-			placeholder: redactedStr,
-			wantUser:    "",
-		},
+	masked := displayURL(cfg, false)
+	for _, secret := range secrets {
+		assert.NotContains(t, masked, secret)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	assert.Contains(t, masked, format.MaskedValue)
 
-			parsedURL, err := url.Parse(tt.urlStr)
-			require.NoError(t, err, "failed to parse URL")
-
-			maskUser(parsedURL, tt.placeholder)
-
-			if tt.wantUser == "" {
-				assert.Nil(t, parsedURL.User, "user should be nil")
-			} else {
-				assert.Equal(t, tt.wantUser, parsedURL.User.Username(), "user mismatch")
-			}
-		})
-	}
-}
-
-// Test_maskSMTPUser tests the maskSMTPUser function.
-func Test_maskSMTPUser(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		urlStr   string
-		wantUser string
-		wantPass string
-	}{
-		{
-			name:     "masks password preserving username",
-			urlStr:   "smtp://user:pass@host:587",
-			wantUser: "user",
-			wantPass: redactedStr,
-		},
-		{
-			name:     "user without password gets redacted password",
-			urlStr:   "smtp://user@host:587",
-			wantUser: "user",
-			wantPass: redactedStr,
-		},
-		{
-			name:     "nil user remains nil",
-			urlStr:   "smtp://host:587",
-			wantUser: "",
-			wantPass: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			parsedURL, err := url.Parse(tt.urlStr)
-			require.NoError(t, err, "failed to parse URL")
-
-			maskSMTPUser(parsedURL)
-
-			if tt.wantUser == "" {
-				assert.Nil(t, parsedURL.User, "user should be nil")
-			} else {
-				assert.Equal(t, tt.wantUser, parsedURL.User.Username(), "username mismatch")
-
-				pass, hasPass := parsedURL.User.Password()
-				if tt.wantPass != "" {
-					assert.True(t, hasPass, "password should be set")
-					assert.Equal(t, tt.wantPass, pass, "password mismatch")
-				}
-			}
-		})
-	}
-}
-
-// Test_maskPushoverQuery tests the maskPushoverQuery function.
-func Test_maskPushoverQuery(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		urlStr       string
-		wantTok      string
-		wantUser     string
-		wantKey      string
-		wantKeyParam string
-		wantPass     string
-	}{
-		{
-			name:     "masks token and user",
-			urlStr:   "pushover://?token=abc&user=def",
-			wantTok:  redactedStr,
-			wantUser: redactedStr,
-		},
-		{
-			name:     "masks only token",
-			urlStr:   "pushover://?token=abc",
-			wantTok:  redactedStr,
-			wantUser: "",
-		},
-		{
-			name:     "leaves other params unchanged",
-			urlStr:   "pushover://?other=value",
-			wantTok:  "",
-			wantUser: "",
-		},
-		{
-			name:         "masks encryptionkey query parameter",
-			urlStr:       "pushover://?encryptionkey=secret-hex-key",
-			wantKey:      redactedStr,
-			wantKeyParam: "encryptionkey",
-		},
-		{
-			name:         "masks key alias query parameter",
-			urlStr:       "pushover://?key=secret-hex-key",
-			wantKey:      redactedStr,
-			wantKeyParam: "key",
-		},
-		{
-			name:     "masks API token in URL userinfo",
-			urlStr:   "pushover://Token:secret-api-token@userkey/",
-			wantPass: redactedStr,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			parsedURL, err := url.Parse(tt.urlStr)
-			require.NoError(t, err, "failed to parse URL")
-
-			maskPushoverQuery(parsedURL)
-
-			query := parsedURL.Query()
-			if tt.wantTok != "" {
-				assert.Equal(t, tt.wantTok, query.Get("token"), "token mismatch")
-			}
-
-			if tt.wantUser != "" {
-				assert.Equal(t, tt.wantUser, query.Get("user"), "user mismatch")
-			}
-
-			if tt.wantKeyParam != "" {
-				require.True(t, query.Has(tt.wantKeyParam), "expected %s to be present", tt.wantKeyParam)
-				assert.Equal(t, tt.wantKey, query.Get(tt.wantKeyParam), tt.wantKeyParam+" mismatch")
-			}
-
-			if tt.wantPass != "" {
-				pass, hasPass := parsedURL.User.Password()
-				assert.True(t, hasPass, "password should be set")
-				assert.Equal(t, tt.wantPass, pass, "userinfo token mismatch")
-			}
-
-			if tt.wantTok == "" && tt.wantUser == "" && tt.wantKey == "" && tt.wantPass == "" {
-				// Verify other params are unchanged
-				assert.Equal(t, "value", query.Get("other"), "other param should be unchanged")
-			}
-		})
-	}
-}
-
-// Test_maskGotifyQuery tests the maskGotifyQuery function.
-func Test_maskGotifyQuery(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		urlStr  string
-		wantTok string
-	}{
-		{
-			name:    "masks token",
-			urlStr:  "gotify://?token=secret",
-			wantTok: redactedStr,
-		},
-		{
-			name:    "leaves other params unchanged",
-			urlStr:  "gotify://?other=value",
-			wantTok: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			parsedURL, err := url.Parse(tt.urlStr)
-			require.NoError(t, err, "failed to parse URL")
-
-			maskGotifyQuery(parsedURL)
-
-			query := parsedURL.Query()
-			if tt.wantTok != "" {
-				assert.Equal(t, tt.wantTok, query.Get("token"), "token mismatch")
-			} else {
-				// Verify other params are unchanged
-				assert.Equal(t, "value", query.Get("other"), "other param should be unchanged")
-			}
-		})
-	}
-}
-
-// Test_maskGeneric tests the maskGeneric function.
-func Test_maskGeneric(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		urlStr       string
-		wantUser     string
-		wantParams   map[string]string
-		wantQueryLen int
-	}{
-		{
-			name:     "masks user and all query params",
-			urlStr:   "https://user:pass@host?a=1&b=2",
-			wantUser: redactedStr,
-			wantParams: map[string]string{
-				"a": redactedStr,
-				"b": redactedStr,
-			},
-			wantQueryLen: 2,
-		},
-		{
-			name:     "masks only user when no query params",
-			urlStr:   "https://user:pass@host",
-			wantUser: redactedStr,
-		},
-		{
-			name:         "nil user with query params",
-			urlStr:       "https://host?a=1",
-			wantUser:     "",
-			wantParams:   map[string]string{"a": redactedStr},
-			wantQueryLen: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			parsedURL, err := url.Parse(tt.urlStr)
-			require.NoError(t, err, "failed to parse URL")
-
-			maskGeneric(parsedURL)
-
-			if tt.wantUser != "" {
-				assert.Equal(t, tt.wantUser, parsedURL.User.Username(), "user mismatch")
-			} else if parsedURL.User != nil {
-				t.Errorf("expected nil user, got %v", parsedURL.User)
-			}
-
-			query := parsedURL.Query()
-			if tt.wantParams != nil {
-				assert.Len(t, query, tt.wantQueryLen, "query param count mismatch")
-
-				for key, wantVal := range tt.wantParams {
-					assert.Equal(t, wantVal, query.Get(key), "param %s mismatch", key)
-				}
-			}
-		})
+	shown := displayURL(cfg, true)
+	for _, secret := range secrets {
+		assert.Contains(t, shown, secret)
 	}
 }

@@ -54,11 +54,21 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that builds the query from the config props.
+//
+// Returns:
+//   - *url.URL: the service URL, with the bot ID and secret of the token as its
+//     userinfo. A token without a colon, such as a masked one, is the username.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	tokenParts := strings.Split(c.Token, ":")
+	user := url.User(c.Token)
+	if botID, secret, found := strings.Cut(c.Token, ":"); found {
+		user = url.UserPassword(botID, secret)
+	}
 
 	return &url.URL{
-		User:       url.UserPassword(tokenParts[0], tokenParts[1]),
+		User:       user,
 		Host:       Scheme,
 		Scheme:     Scheme,
 		ForceQuery: true,

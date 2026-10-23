@@ -744,6 +744,45 @@ func TestIntegrationMaskedConfig(t *testing.T) {
 	}
 }
 
+// TestIntegrationMaskedURL verifies that [format.MaskedURL], which the CLI uses
+// to print URLs, holds none of a fixture's secrets while the unmasked config
+// URL holds each of them, and that the masked URL parses with the scheme of
+// the config URL.
+func TestIntegrationMaskedURL(t *testing.T) {
+	t.Parallel()
+
+	for _, fx := range fixtures {
+		if len(fx.secrets) == 0 {
+			continue
+		}
+
+		t.Run(fx.scheme, func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(fx.url)
+			require.NoError(t, err)
+			closeService(t, service)
+
+			config := format.GetServiceConfig(service)
+			masked := format.MaskedURL(config).String()
+			plainURL := config.GetURL()
+			plain := plainURL.String()
+
+			for _, secret := range fx.secrets {
+				assert.NotContains(t, masked, secret, "the masked URL holds a secret")
+				assert.Contains(t, plain, url.QueryEscape(secret), "the config URL drops a secret")
+			}
+
+			parsed, err := url.Parse(masked)
+			require.NoError(t, err)
+			assert.Equal(t, plainURL.Scheme, parsed.Scheme)
+		})
+	}
+}
+
 // fixtureURLFor returns the contract fixture URL for scheme.
 //
 // Parameters:

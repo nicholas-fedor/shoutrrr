@@ -167,3 +167,36 @@ func TestCreateConfigFromURL(t *testing.T) {
 	_, err = CreateConfigFromURL(parseURL(t, "slack://AAAAAAAA"))
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
+
+// TestConfigMaskedURL verifies that the masked URL replaces the secret part
+// of a bot token or a webhook token and keeps the token type and the other
+// fields.
+func TestConfigMaskedURL(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL string
+		want   string
+	}{
+		"bot token": {
+			rawURL: "slack://xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N@C0123456789?botname=bot",
+			want:   "slack://xoxb:REDACTED@C0123456789?botname=bot",
+		},
+		"webhook token": {
+			rawURL: "slack://hook:WNA3PBYV6-F20DUQND3RQ-Webc4MAvoacrpPakR8wB50cnp@poplar",
+			want:   "slack://hook:REDACTED@poplar",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseURL(t, tc.rawURL)))
+
+			assert.Equal(t, tc.want, config.MaskedURL().String())
+			assert.Equal(t, tc.want, format.MaskedURL(config).String())
+		})
+	}
+}

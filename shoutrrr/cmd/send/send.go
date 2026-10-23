@@ -13,6 +13,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/dedupe"
 	internalUtil "github.com/nicholas-fedor/shoutrrr/internal/util"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -81,10 +82,10 @@ func Run(cmd *cobra.Command, _ []string) error {
 // logf prints a formatted message to stderr.
 //
 // Parameters:
-//   - format: The format string.
+//   - template: The format string.
 //   - a: Variadic arguments for the format string.
-func logf(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", a...)
+func logf(template string, a ...any) {
+	fmt.Fprintf(os.Stderr, template+"\n", a...)
 }
 
 // run executes the core send logic.
@@ -146,7 +147,7 @@ func run(cmd *cobra.Command) error {
 	if verbose {
 		urlsPrefix := "URLs:"
 		for i, url := range urls {
-			logf("%s %s", urlsPrefix, url)
+			logf("%s %s", urlsPrefix, maskedURL(url))
 
 			if i == 0 {
 				// Only display "URLs:" prefix for first line, replace with indentation for subsequent lines.
@@ -208,4 +209,26 @@ func run(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// maskedURL returns a service URL with its secrets replaced by
+// [format.MaskedValue], for verbose output.
+//
+// Parameters:
+//   - rawURL: the service URL as given.
+//
+// Returns:
+//   - string: the masked URL, or [format.MaskedValue] alone for a URL that
+//     names no service or does not parse, which the send then reports.
+func maskedURL(rawURL string) string {
+	service, err := (&router.ServiceRouter{}).Locate(rawURL)
+	if err != nil {
+		return format.MaskedValue
+	}
+
+	if closer, ok := service.(io.Closer); ok {
+		defer func() { _ = closer.Close() }()
+	}
+
+	return format.MaskedURL(format.GetServiceConfig(service)).String()
 }

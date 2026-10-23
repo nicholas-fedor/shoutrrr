@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/mqtttest"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	cli "github.com/nicholas-fedor/shoutrrr/shoutrrr/cmd"
 )
 
@@ -402,8 +403,10 @@ func Test_run(t *testing.T) {
 			wantErr: false,
 			verifyOutput: func(t *testing.T, output string) {
 				t.Helper()
-				assert.Contains(t, output, "logger://first", "Output should contain first URL")
-				assert.Contains(t, output, "logger://second", "Output should contain second URL")
+				// Verbose output lists each URL as its service's config URL, which
+				// for the logger is the bare scheme.
+				assert.Equal(t, 2, strings.Count(output, "logger://"), "Output should list both URLs")
+				assert.Equal(t, 2, strings.Count(output, "Notification sent"), "Both URLs should be sent to")
 			},
 		},
 		{
@@ -614,4 +617,26 @@ func TestRunWaitsForEverySend(t *testing.T) {
 	require.ErrorAs(t, err, &exitErr)
 	assert.Equal(t, cli.ExUnavailable, exitErr.ExitCode, "the failed send must still fail the command")
 	assert.True(t, answered.Load(), "run must wait for the slower send before returning")
+}
+
+// Test_maskedURL verifies that verbose output shows a service URL without its
+// secrets, here a Telegram bot token and an MQTT password, while keeping the
+// rest of it, and shows only the placeholder for a URL that names no service.
+func Test_maskedURL(t *testing.T) {
+	t.Parallel()
+
+	const token = "110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"
+
+	masked := maskedURL("telegram://" + token + "@telegram?chats=@channel")
+
+	assert.NotContains(t, masked, token)
+	assert.Contains(t, masked, format.MaskedValue)
+	assert.Contains(t, masked, "chats=%40channel")
+
+	assert.Equal(t, format.MaskedValue, maskedURL("unknown://"+token))
+
+	// MQTT services hold a connection manager, which maskedURL closes.
+	mqttURL := maskedURL("mqtt://user:SECRETmqtt@localhost:1883/topic")
+	assert.NotContains(t, mqttURL, "SECRETmqtt")
+	assert.Contains(t, mqttURL, "user:"+format.MaskedValue+"@localhost:1883")
 }

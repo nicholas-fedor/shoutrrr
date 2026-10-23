@@ -102,6 +102,41 @@ func (c *Config) GetURL() *url.URL {
 	return c.getURL(&resolver)
 }
 
+// MaskedURL returns the config URL with every part that can carry a secret
+// replaced by [format.MaskedValue]. A webhook can carry credentials in any part
+// of its URL, so the userinfo, a path other than the root, and the values of
+// the webhook query, custom headers, and extra data are masked. The host and
+// the config props stay.
+//
+// Returns:
+//   - *url.URL: the masked config URL.
+func (c *Config) MaskedURL() *url.URL {
+	webhookURL := *c.webhookURL
+
+	if webhookURL.User != nil {
+		webhookURL.User = url.User(format.MaskedValue)
+	}
+
+	if webhookURL.Path != "" && webhookURL.Path != "/" {
+		webhookURL.Path = "/" + format.MaskedValue
+		webhookURL.RawPath = ""
+	}
+
+	query := webhookURL.Query()
+	for key := range query {
+		query.Set(key, format.MaskedValue)
+	}
+
+	webhookURL.RawQuery = query.Encode()
+
+	masked := *c
+	masked.webhookURL = &webhookURL
+	masked.headers = maskedValues(c.headers)
+	masked.extraData = maskedValues(c.extraData)
+
+	return masked.GetURL()
+}
+
 // SetURL updates the configuration from a service URL.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	// Create resolver for this config
@@ -186,4 +221,21 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.extraData = extraData
 
 	return nil
+}
+
+// maskedValues returns a copy of values with each value replaced by
+// [format.MaskedValue].
+//
+// Parameters:
+//   - values: the values to mask, such as the custom headers.
+//
+// Returns:
+//   - map[string]string: the same keys with masked values.
+func maskedValues(values map[string]string) map[string]string {
+	masked := make(map[string]string, len(values))
+	for key := range values {
+		masked[key] = format.MaskedValue
+	}
+
+	return masked
 }
