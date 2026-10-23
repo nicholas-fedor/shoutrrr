@@ -15,12 +15,15 @@ import (
 )
 
 // tokenKey identifies the access token cached for one set of refresh settings,
-// so a send with other settings never uses another account's token.
+// so a send with other settings never uses a token refreshed with other
+// credentials.
 type tokenKey struct {
 	// tokenURL is the provider's token endpoint.
 	tokenURL string
 	// clientID is the OAuth2 client ID.
 	clientID string
+	// clientSecret is the OAuth2 client secret.
+	clientSecret string
 	// refreshToken is the refresh token from the configuration.
 	refreshToken string
 }
@@ -56,6 +59,19 @@ type tokenRefresh struct {
 //   - error: the client's error.
 func (t clientTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.client.Do(req)
+}
+
+// tokenKey returns the key of the access token cached for c's refresh settings.
+//
+// Returns:
+//   - tokenKey: the cache key.
+func (c *Config) tokenKey() tokenKey {
+	return tokenKey{
+		tokenURL:     c.TokenURL,
+		clientID:     c.ClientID,
+		clientSecret: c.ClientSecret,
+		refreshToken: c.RefreshToken,
+	}
 }
 
 // usesTokenRefresh reports whether a send gets its access token by refreshing.
@@ -148,7 +164,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - error: a [FailTokenRefresh] failure wrapping the token request's error,
 //     or ctx's error while waiting.
 func (s *Service) accessToken(ctx context.Context, config *Config) (string, error) {
-	key := tokenKey{tokenURL: config.TokenURL, clientID: config.ClientID, refreshToken: config.RefreshToken}
+	key := config.tokenKey()
 
 	for {
 		s.tokenMu.Lock()
@@ -225,23 +241,26 @@ func (s *Service) accessToken(ctx context.Context, config *Config) (string, erro
 	}
 }
 
-// forgetToken drops the access token cached for config's refresh settings, so
-// the next send refreshes it. A send calls it when the server rejects the
-// token, such as one revoked early or cached without an expiry.
+// forgetToken drops the rejected access token cached for config's refresh
+// settings, so the next send refreshes it. A send calls it when the server
+// rejects the token, such as one revoked early or cached without an expiry.
 //
-// The cached refresh token is kept for that refresh, since a provider that
-// rotates refresh tokens and detects reuse may revoke the original.
+// Only the token the send used, held in config's password, is dropped. A newer
+// token that another send cached since is kept. The cached refresh token is
+// kept for the next refresh, since a provider that rotates refresh tokens and
+// detects reuse may revoke the original.
 //
 // Parameters:
-//   - config: the configuration whose cached token to drop.
+//   - config: the configuration of the rejected send, with the access token
+//     it used as its password.
 func (s *Service) forgetToken(config *Config) {
-	key := tokenKey{tokenURL: config.TokenURL, clientID: config.ClientID, refreshToken: config.RefreshToken}
+	key := config.tokenKey()
 
 	s.tokenMu.Lock()
 	defer s.tokenMu.Unlock()
 
 	cached := s.tokens[key]
-	if cached == nil {
+	if cached == nil || cached.AccessToken != config.Password {
 		return
 	}
 

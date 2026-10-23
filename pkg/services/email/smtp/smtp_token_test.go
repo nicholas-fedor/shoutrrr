@@ -13,9 +13,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -261,7 +263,8 @@ func TestSendRefreshesAccessToken(t *testing.T) {
 
 // TestSendCachesAccessToken verifies that a token is reused until it expires,
 // that an expired one is refreshed with the latest refresh token the provider
-// returned, and that a send with other refresh settings gets its own token.
+// returned, and that a send with other refresh settings, including only another
+// client secret, gets its own token.
 func TestSendCachesAccessToken(t *testing.T) {
 	t.Parallel()
 
@@ -307,6 +310,18 @@ func TestSendCachesAccessToken(t *testing.T) {
 		requests := endpoint.requests()
 		require.Len(t, requests, 2)
 		assert.Equal(t, "other", requests[1].Get("refresh_token"))
+	})
+
+	t.Run("other client secret", func(t *testing.T) {
+		t.Parallel()
+
+		endpoint := newFakeTokenEndpoint(grant("token-1", "3600", ""), grant("token-2", "3600", ""))
+		service := newRefreshingService(t, testRefreshURL, newFakeSMTP("AUTH XOAUTH2"), endpoint)
+
+		require.NoError(t, service.Send("one", nil))
+		require.NoError(t, service.Send("two", &types.Params{"clientsecret": "other"}))
+
+		assert.Len(t, endpoint.requests(), 2)
 	})
 }
 
@@ -438,6 +453,28 @@ func TestSendDefaultTokenClient(t *testing.T) {
 	assert.Same(t, client, service.defaultHTTPClient)
 	assert.Equal(t, int32(2), requests.Load())
 	assert.Contains(t, server.received(), xoauth2Line("default-token"))
+}
+
+// TestForgetTokenKeepsNewerToken verifies that a send rejected for an older
+// access token does not drop the newer one another send cached since.
+func TestForgetTokenKeepsNewerToken(t *testing.T) {
+	t.Parallel()
+
+	config := refreshConfig("refresh")
+	service := &Service{tokens: map[tokenKey]*oauth2.Token{
+		config.tokenKey(): {AccessToken: "newer", RefreshToken: "refresh", Expiry: time.Now().Add(time.Hour)},
+	}}
+
+	config.Password = "older"
+	service.forgetToken(config)
+
+	assert.Equal(t, "newer", service.tokens[config.tokenKey()].AccessToken)
+
+	config.Password = "newer"
+	service.forgetToken(config)
+
+	assert.Empty(t, service.tokens[config.tokenKey()].AccessToken)
+	assert.Equal(t, "refresh", service.tokens[config.tokenKey()].RefreshToken)
 }
 
 // TestForgetTokenWithoutCache verifies that forgetting a token that was never
