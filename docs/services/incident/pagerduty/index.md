@@ -117,6 +117,19 @@ The PagerDuty service supports the following parameters to customize incident cr
 - **`error`**: Actual problems affecting system operation
 - **`critical`**: Urgent issues requiring immediate response
 
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set `severity`, the level picks it:
+
+| Level   | Severity  |
+|---------|-----------|
+| Debug   | `info`    |
+| Info    | `info`    |
+| Warning | `warning` |
+| Error   | `error`   |
+
+`critical` is left for events that configure it.
+A `severity` in the URL or the send params takes precedence over the level, even when it is set to the default.
+
 #### Event Action Items
 
 - **`trigger`**: Creates a new incident or updates an existing one

@@ -86,6 +86,20 @@ Higher priority notifications typically appear more prominently and may bypass q
 When neither the URL nor the send params set a priority, Shoutrrr leaves it out of the message, and Gotify applies the application's default priority.
 A priority set explicitly is always sent, including 0.
 
+#### Message Level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set a priority, the level picks one from the bands of the Gotify Android app:
+
+| Level   | Priority                | Android notification       |
+|---------|-------------------------|----------------------------|
+| Debug   | 2                       | Icon only                  |
+| Info    | The application default |                            |
+| Warning | 5                       | Icon and sound             |
+| Error   | 8                       | Icon, sound, and vibration |
+
+A priority set in the URL or the send params, including 0, takes precedence over the level.
+
 ### Custom Title
 
 The `title` parameter allows you to set a custom title for your notification. If not specified, Shoutrrr uses the default title "Shoutrrr notification". Titles should be concise and descriptive to help users quickly identify the notification's purpose.

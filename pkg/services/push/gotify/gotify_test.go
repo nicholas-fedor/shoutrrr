@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -823,4 +824,54 @@ func (m *fixedTransportManager) CreateTransport(*Config) *http.Transport {
 //   - error: the builder's error.
 func (b failingURLBuilder) BuildURL(*Config) (string, error) {
 	return "", b.err
+}
+
+// TestSendLevelPriority verifies that the level param sets the priority, debug
+// to 2, warning to 5, and error to 8, that info leaves the priority out so the
+// application's default applies, and that a priority from the service URL or
+// the send params, even 0, or an unknown level, leaves the priority as it is.
+func TestSendLevelPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		rawURL       string
+		params       *types.Params
+		wantPriority any
+	}{
+		"debug":               {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: float64(2)},
+		"info":                {rawURL: testServiceURL, params: &types.Params{"level": "Info"}, wantPriority: nil},
+		"warning":             {rawURL: testServiceURL, params: &types.Params{"level": "Warning"}, wantPriority: float64(5)},
+		"error":               {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: float64(8)},
+		"priority in the URL": {rawURL: testServiceURL + "?priority=0", params: &types.Params{"level": "Error"}, wantPriority: float64(0)},
+		"priority param":      {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "3"}, wantPriority: float64(3)},
+		"unknown level":       {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
+		"no params":           {rawURL: testServiceURL, params: nil, wantPriority: nil},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRecordingClient(t, sent)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Hello", tc.params))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal([]byte(requests[0].body), &body))
+
+			priority, found := body["priority"]
+			if tc.wantPriority == nil {
+				assert.False(t, found, "the priority should be left out, got %v", priority)
+
+				return
+			}
+
+			assert.Equal(t, tc.wantPriority, priority)
+		})
+	}
 }

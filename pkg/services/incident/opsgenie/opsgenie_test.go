@@ -2,6 +2,7 @@ package opsgenie
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log"
@@ -520,4 +521,44 @@ func TestSetHTTPClient(t *testing.T) {
 
 		assert.Nil(t, service.httpClient)
 	})
+}
+
+// TestSendLevelPriority verifies that the level param sets the priority, debug
+// to P5, info to P4, warning to P3, and error to P2, and that a priority from
+// the service URL or the send params, or an unknown level, leaves it as it is.
+func TestSendLevelPriority(t *testing.T) {
+	t.Parallel()
+
+	rawURL := "opsgenie://api.opsgenie.com/" + testAPIKey
+
+	tests := map[string]struct {
+		rawURL       string
+		params       *types.Params
+		wantPriority any
+	}{
+		"debug":               {rawURL: rawURL, params: &types.Params{"level": "Debug"}, wantPriority: "P5"},
+		"info":                {rawURL: rawURL, params: &types.Params{"level": "Info"}, wantPriority: "P4"},
+		"warning":             {rawURL: rawURL, params: &types.Params{"level": "Warning"}, wantPriority: "P3"},
+		"error":               {rawURL: rawURL, params: &types.Params{"level": "Error"}, wantPriority: "P2"},
+		"priority in the URL": {rawURL: rawURL + "?priority=P1", params: &types.Params{"level": "Debug"}, wantPriority: "P1"},
+		"priority param":      {rawURL: rawURL, params: &types.Params{"level": "Error", "priority": "P4"}, wantPriority: "P4"},
+		"unknown level":       {rawURL: rawURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
+		"no params":           {rawURL: rawURL, params: nil, wantPriority: nil},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Disk full", tc.params))
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal([]byte(captured.body), &body))
+			assert.Equal(t, tc.wantPriority, body["priority"])
+		})
+	}
 }

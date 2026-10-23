@@ -74,7 +74,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return fmt.Errorf("setting default properties: %w", err)
 	}
 
-	if err := s.Config.SetURL(serviceURL); err != nil {
+	// The service's resolver applies the URL, so it records the props the URL
+	// sets explicitly.
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return fmt.Errorf("setting config URL: %w", err)
 	}
 

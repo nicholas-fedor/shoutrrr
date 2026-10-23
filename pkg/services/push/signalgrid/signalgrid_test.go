@@ -353,3 +353,42 @@ func TestSetHTTPClient(t *testing.T) {
 		assert.Nil(t, service.httpClient)
 	})
 }
+
+// TestSendLevelType verifies that the level param sets the type, debug and
+// info to INFO, warning to WARN, and error to CRIT, and that a type from the
+// service URL or the send params, or an unknown level, leaves it as it is.
+func TestSendLevelType(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "signalgrid://clientkey@channeltoken"
+
+	tests := map[string]struct {
+		rawURL   string
+		params   *types.Params
+		wantType string
+	}{
+		"debug":                   {rawURL: rawURL, params: &types.Params{"level": "Debug"}, wantType: "INFO"},
+		"info":                    {rawURL: rawURL, params: &types.Params{"level": "Info"}, wantType: "INFO"},
+		"warning":                 {rawURL: rawURL, params: &types.Params{"level": "Warning"}, wantType: "WARN"},
+		"error":                   {rawURL: rawURL, params: &types.Params{"level": "Error"}, wantType: "CRIT"},
+		"type in the URL":         {rawURL: rawURL + "?type=SUCCESS", params: &types.Params{"level": "Error"}, wantType: "SUCCESS"},
+		"default type in the URL": {rawURL: rawURL + "?type=INFO", params: &types.Params{"level": "Error"}, wantType: "INFO"},
+		"type param":              {rawURL: rawURL, params: &types.Params{"level": "Error", "type": "INFO"}, wantType: "INFO"},
+		"unknown level":           {rawURL: rawURL, params: &types.Params{"level": "critical"}, wantType: "INFO"},
+		"no params":               {rawURL: rawURL, params: nil, wantType: "INFO"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tc.rawURL)
+			client, captured := newRespondingClient(t, "200 OK", http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Host unreachable", tc.params))
+
+			assert.Equal(t, tc.wantType, captured.form.Get("type"))
+		})
+	}
+}

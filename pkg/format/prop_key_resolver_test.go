@@ -185,8 +185,9 @@ func TestPropKeyResolverIsDefault(t *testing.T) {
 }
 
 // TestPropKeyResolverKeepsDefault verifies that a property keeps its default
-// only when the config holds the default value and the params do not set the
-// property under any of its keys, in any case, even to the default value.
+// only when the config holds the default value and neither Set nor the params
+// set the property under any of its keys, in any case, even to the default
+// value.
 func TestPropKeyResolverKeepsDefault(t *testing.T) {
 	t.Parallel()
 
@@ -228,6 +229,19 @@ func TestPropKeyResolverKeepsDefault(t *testing.T) {
 			assert.Equal(t, tc.want, resolver.KeepsDefault(tc.config, tc.params, tc.key))
 		})
 	}
+
+	// A property that Set sets, as a service URL query does, is explicitly
+	// configured even when its value is the default.
+	t.Run("set to the default through Set", func(t *testing.T) {
+		t.Parallel()
+
+		config := &spelledDefaultsConfig{}
+		urlResolver := NewPropKeyResolver(config)
+		require.NoError(t, urlResolver.Set("RETRIES", "3"))
+
+		assert.False(t, urlResolver.KeepsDefault(config, nil, "retries"))
+		assert.True(t, urlResolver.KeepsDefault(&spelledDefaultsConfig{Enabled: true}, nil, "enabled"))
+	})
 }
 
 // TestPropKeyResolverKeyIsPrimary verifies that only the first key of a field

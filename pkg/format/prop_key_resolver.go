@@ -14,6 +14,9 @@ import (
 type PropKeyResolver struct {
 	confValue reflect.Value
 	keyFields map[string]*FieldInfo
+	// setFields holds the names of the fields that Set has set, such as from a
+	// service URL query, so KeepsDefault treats them as explicitly configured.
+	setFields map[string]bool
 	keys      []string
 }
 
@@ -55,6 +58,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	return PropKeyResolver{
 		keyFields: keyFields,
 		confValue: confValue,
+		setFields: map[string]bool{},
 		keys:      keys,
 	}
 }
@@ -128,8 +132,10 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 }
 
 // KeepsDefault reports whether a send keeps the default value of the property
-// tagged with key. That holds when params do not set the property under any of
-// its keys and config holds the property's default value.
+// tagged with key. That holds when neither [PropKeyResolver.Set], as used for
+// the service URL query, nor params set the property under any of its keys,
+// and config holds the property's default value. A property set to its default
+// value explicitly is therefore not kept as a default.
 //
 // A service uses it to fill a property from another source, such as mapping
 // the message level to a priority, only when neither the service URL nor the
@@ -144,7 +150,7 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 //   - bool: whether the property keeps its default, or false for an unknown key.
 func (pkr *PropKeyResolver) KeepsDefault(config types.ServiceConfig, params *types.Params, key string) bool {
 	field, found := pkr.keyFields[strings.ToLower(key)]
-	if !found {
+	if !found || pkr.setFields[field.Name] {
 		return false
 	}
 
@@ -184,8 +190,28 @@ func (pkr *PropKeyResolver) QueryFields() []string {
 }
 
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
+// It records the property as explicitly set, which [PropKeyResolver.KeepsDefault] reads.
+//
+// Parameters:
+//   - key: the property key, matched case-insensitively.
+//   - value: the formatted property value.
+//
+// Returns:
+//   - error: [ErrInvalidConfigKey] for an unknown key, or the value's parse error.
 func (pkr *PropKeyResolver) Set(key, value string) error {
-	return pkr.set(pkr.confValue, key, value)
+	if err := pkr.set(pkr.confValue, key, value); err != nil {
+		return err
+	}
+
+	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
+		if pkr.setFields == nil {
+			pkr.setFields = map[string]bool{}
+		}
+
+		pkr.setFields[field.Name] = true
+	}
+
+	return nil
 }
 
 // SetDefaultProps mutates the provided config, setting the tagged fields with their default values.

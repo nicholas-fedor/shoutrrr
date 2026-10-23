@@ -48,6 +48,16 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
+// levelSeverities maps each known message level to the PagerDuty severity it
+// is sent with when the send keeps the default severity. Critical is left for
+// events configured as critical.
+var levelSeverities = map[types.MessageLevel]string{
+	types.Debug:   "info",
+	types.Info:    "info",
+	types.Warning: "warning",
+	types.Error:   "error",
+}
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme
@@ -162,6 +172,24 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
 }
 
+// applyLevel sets the severity of an event from its level param, debug and
+// info to info, warning to warning, and error to error. A severity set in the
+// service URL or the send params takes precedence.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, which are never nil here.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if severity, mapped := levelSeverities[level]; mapped && s.pkr.KeepsDefault(config, params, "severity") {
+		config.Severity = severity
+	}
+}
+
 // newEventPayload builds an Events API v2 event from the message, the config,
 // and the send params, which apply to this event only.
 //
@@ -190,6 +218,8 @@ func (s *Service) newEventPayload(
 	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return EventPayload{}, fmt.Errorf("failed to update config from params: %w", err)
 	}
+
+	s.applyLevel(&payloadFields, params)
 
 	// Validate severity
 	if err := validateSeverity(payloadFields.Severity); err != nil {

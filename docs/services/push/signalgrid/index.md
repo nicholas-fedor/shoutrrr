@@ -28,6 +28,21 @@ Upstream docs: <https://docs.signalgrid.co/api/push-api/>
 
 `type=CRIT` does **not** enable critical delivery. Set `critical=Yes` separately.
 
+### Message level
+
+A sender can set a message level with the `level` param, as `Params.SetLevel` does.
+When neither the URL nor the send params set `type`, the level picks it:
+
+| Level   | Type   |
+|---------|--------|
+| Debug   | `INFO` |
+| Info    | `INFO` |
+| Warning | `WARN` |
+| Error   | `CRIT` |
+
+A `type` in the URL or the send params takes precedence over the level, even when it is set to the default.
+The level never enables critical delivery.
+
 !!! example "Critical outage alert"
     ```uri
     signalgrid://CLIENT_KEY@CHANNEL?title=Server+Down&type=CRIT&critical=Yes

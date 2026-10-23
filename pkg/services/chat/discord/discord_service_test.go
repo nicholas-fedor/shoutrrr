@@ -171,15 +171,16 @@ func TestSendLevelColor(t *testing.T) {
 		params    types.Params
 		wantColor uint
 	}{
-		"debug":                  {params: types.Params{"level": "Debug"}, wantColor: 0x7b00ab},
-		"info":                   {params: types.Params{"level": "Info"}, wantColor: 0x2488ff},
-		"warning":                {params: types.Params{"level": "Warning"}, wantColor: 0xffc441},
-		"error":                  {params: types.Params{"level": "Error"}, wantColor: 0xd60510},
-		"configured level color": {query: "?colorError=0x00ff00", params: types.Params{"level": "Error"}, wantColor: 0x00ff00},
-		"color in the URL":       {query: "?color=0x123456", params: types.Params{"level": "Error"}, wantColor: 0x123456},
-		"color param":            {params: types.Params{"level": "Error", "color": "0x50d9ff"}, wantColor: 0x50d9ff},
-		"unknown level":          {params: types.Params{"level": "critical"}, wantColor: 0x50d9ff},
-		"no level":               {params: types.Params{}, wantColor: 0x50d9ff},
+		"debug":                    {params: types.Params{"level": "Debug"}, wantColor: 0x7b00ab},
+		"info":                     {params: types.Params{"level": "Info"}, wantColor: 0x2488ff},
+		"warning":                  {params: types.Params{"level": "Warning"}, wantColor: 0xffc441},
+		"error":                    {params: types.Params{"level": "Error"}, wantColor: 0xd60510},
+		"configured level color":   {query: "?colorError=0x00ff00", params: types.Params{"level": "Error"}, wantColor: 0x00ff00},
+		"color in the URL":         {query: "?color=0x123456", params: types.Params{"level": "Error"}, wantColor: 0x123456},
+		"default color in the URL": {query: "?color=0x50d9ff", params: types.Params{"level": "Error"}, wantColor: 0x50d9ff},
+		"color param":              {params: types.Params{"level": "Error", "color": "0x50d9ff"}, wantColor: 0x50d9ff},
+		"unknown level":            {params: types.Params{"level": "critical"}, wantColor: 0x50d9ff},
+		"no level":                 {params: types.Params{}, wantColor: 0x50d9ff},
 	}
 
 	for name, tc := range tests {

@@ -50,6 +50,16 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
+// levelPriorities maps each known message level to the Opsgenie priority it is
+// sent with when the send keeps the default priority. P1 is left for alerts
+// configured as critical.
+var levelPriorities = map[types.MessageLevel]string{
+	types.Debug:   "P5",
+	types.Info:    "P4",
+	types.Warning: "P3",
+	types.Error:   "P2",
+}
+
 // GetID returns the service identifier.
 func (s *Service) GetID() string {
 	return Scheme
@@ -120,6 +130,24 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient = client
 }
 
+// applyLevel sets the priority of an alert from its level param, debug to P5,
+// info to P4, warning to P3, and error to P2. A priority set in the service URL
+// or the send params takes precedence.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, which are never nil here.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelPriority, mapped := levelPriorities[level]; mapped && s.pkr.KeepsDefault(config, params, "priority") {
+		config.Priority = levelPriority
+	}
+}
+
 // newAlertPayload creates a new alert payload for OpsGenie based on the message and parameters.
 //
 // The title, or the message when there is no title, becomes the alert
@@ -148,6 +176,8 @@ func (s *Service) newAlertPayload(
 	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
 		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
 	}
+
+	s.applyLevel(&payloadFields, params)
 
 	// The Alert API accepts only teams and users in visibleTo, while responders
 	// may also be escalations and schedules.
