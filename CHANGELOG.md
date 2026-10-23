@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Send a message timestamp by @nicholas-fedor in [#1803](https://github.com/nicholas-fedor/shoutrrr/pull/1803)
 - Send through a configurable Bot API server by @nicholas-fedor in [#1801](https://github.com/nicholas-fedor/shoutrrr/pull/1801)
 - Map the message level to Gotify, Signalgrid, Opsgenie, and PagerDuty severity by @nicholas-fedor in [#1799](https://github.com/nicholas-fedor/shoutrrr/pull/1799)
 - Map the message level to ntfy, Pushover, and Discord severity by @nicholas-fedor in [#1795](https://github.com/nicholas-fedor/shoutrrr/pull/1795)
