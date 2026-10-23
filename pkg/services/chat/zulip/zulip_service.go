@@ -3,8 +3,8 @@ package zulip
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -320,6 +321,15 @@ func (s *Service) currentLimits() (contentMax, topicMax int) { //nolint:nonamedr
 }
 
 // doSend sends the notification to Zulip using the configured API URL.
+//
+// Parameters:
+//   - ctx: cancellation for the request.
+//   - config: the configuration for this send.
+//   - message: the message to send.
+//
+// Returns:
+//   - error: [ErrResponseStatusFailure] for a status other than 200, with up to
+//     [maxErrorBodySize] bytes of the body, or the request error.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	apiURL := s.getAPIURL(config)
 
@@ -345,12 +355,13 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(io.LimitReader(res.Body, maxErrorBodySize+1))
-		if readErr == nil && len(body) > 0 {
+		body, readErr := httpbody.Read(res.Body, maxErrorBodySize)
+
+		truncated := errors.Is(readErr, httpbody.ErrTooLarge)
+		if (readErr == nil || truncated) && len(body) > 0 {
 			trunc := ""
 
-			if len(body) > maxErrorBodySize {
-				body = body[:maxErrorBodySize]
+			if truncated {
 				trunc = " [truncated]"
 			}
 
@@ -405,7 +416,12 @@ func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
 		return reg, false
 	}
 
-	if err := json.UnmarshalRead(res.Body, &reg, jsonopts.Default); err != nil {
+	body, err := httpbody.Read(res.Body, httpbody.MaxSize)
+	if err != nil {
+		return reg, false
+	}
+
+	if err := json.Unmarshal(body, &reg, jsonopts.Default); err != nil {
 		return reg, false
 	}
 

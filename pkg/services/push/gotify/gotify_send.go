@@ -6,9 +6,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -178,7 +178,7 @@ func (s *DefaultSender) sendRequestWithHeaders(
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, err = io.ReadAll(res.Body)
+	body, err = httpbody.Read(res.Body, httpbody.MaxSize)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}

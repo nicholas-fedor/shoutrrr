@@ -6,13 +6,13 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -249,8 +249,8 @@ func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payl
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode > httpSuccessMax {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
+		body, err := httpbody.Read(resp.Body, httpbody.MaxSize)
+		if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 			return fmt.Errorf(
 				"%w: %d, cannot read body: %w",
 				ErrUnexpectedStatus,

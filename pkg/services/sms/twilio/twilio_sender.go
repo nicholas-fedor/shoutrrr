@@ -3,13 +3,14 @@ package twilio
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 )
@@ -101,9 +102,16 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 }
 
 // parseAPIError reads the Twilio API error response body and returns a descriptive error.
+//
+// Parameters:
+//   - res: the error response. At most [httpbody.MaxSize] bytes of its body are read.
+//
+// Returns:
+//   - error: [ErrSendFailed] with the Twilio message and code, or with the
+//     status when the body holds no Twilio error.
 func parseAPIError(res *http.Response) error {
-	respBody, err := io.ReadAll(res.Body)
-	if err != nil {
+	respBody, err := httpbody.Read(res.Body, httpbody.MaxSize)
+	if err != nil && !errors.Is(err, httpbody.ErrTooLarge) {
 		return fmt.Errorf("%w: response status %q (failed to read body)", ErrSendFailed, res.Status)
 	}
 

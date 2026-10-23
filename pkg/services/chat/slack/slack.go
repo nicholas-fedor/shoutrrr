@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -206,7 +206,7 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 
 	defer func() { _ = res.Body.Close() }()
 
-	resBytes, err := io.ReadAll(res.Body)
+	resBytes, err := httpbody.Read(res.Body, httpbody.MaxSize)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}

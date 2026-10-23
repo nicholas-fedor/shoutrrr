@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -276,6 +277,38 @@ func TestSendAcceptsCreated(t *testing.T) {
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("created", nil))
+}
+
+// TestSendOversizedBody verifies that a response body over [httpbody.MaxSize]
+// does not change the outcome of a send. A success status still succeeds. An
+// error status still fails, and the error carries only the first
+// [httpbody.MaxSize] bytes of the body.
+func TestSendOversizedBody(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "homeassistant://s3cret@ha.example.com")
+		client, _ := newRespondingClient(t, "200 OK", http.StatusOK, "[]"+strings.Repeat(" ", httpbody.MaxSize))
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send("oversized", nil))
+	})
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "homeassistant://s3cret@ha.example.com")
+		body := strings.Repeat("#", httpbody.MaxSize+10)
+		client, _ := newRespondingClient(t, "500 Internal Server Error", http.StatusInternalServerError, body)
+		service.SetHTTPClient(client)
+
+		err := service.Send("oversized", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Equal(t, httpbody.MaxSize, strings.Count(err.Error(), "#"))
+	})
 }
 
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of

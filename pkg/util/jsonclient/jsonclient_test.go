@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient/mocks"
 )
@@ -715,6 +717,45 @@ func TestParseResponse_InvalidJSON(t *testing.T) {
 	var jsonErr Error
 	require.ErrorAs(t, err, &jsonErr, "Error should be jsonclient.Error")
 	assert.Equal(t, http.StatusOK, jsonErr.StatusCode, "StatusCode should be 200")
+}
+
+// TestParseResponse_TooLarge verifies that a response whose body is larger
+// than [httpbody.MaxSize] fails with an [Error] that wraps
+// [httpbody.ErrTooLarge] and holds the first [httpbody.MaxSize] bytes, even
+// though the body is valid JSON. An error status also wraps
+// [ErrUnexpectedStatus].
+func TestParseResponse_TooLarge(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest, http.StatusInternalServerError} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			t.Parallel()
+
+			res := &http.Response{
+				StatusCode: status,
+				Status:     strconv.Itoa(status) + " " + http.StatusText(status),
+				Body:       io.NopCloser(strings.NewReader(`{"ok":true}` + strings.Repeat(" ", httpbody.MaxSize))),
+			}
+
+			var result map[string]bool
+
+			err := parseResponse(res, &result)
+
+			require.ErrorIs(t, err, httpbody.ErrTooLarge)
+
+			if status >= HTTPClientErrorThreshold {
+				require.ErrorIs(t, err, ErrUnexpectedStatus)
+			} else {
+				require.NotErrorIs(t, err, ErrUnexpectedStatus)
+			}
+
+			jsonErr, ok := errors.AsType[Error](err)
+			require.True(t, ok, "error %v is not a jsonclient.Error", err)
+			assert.Equal(t, status, jsonErr.StatusCode)
+			assert.Len(t, jsonErr.Body, httpbody.MaxSize)
+			assert.Nil(t, result, "an oversized body must not be decoded")
+		})
+	}
 }
 
 // TestParseResponse_EmptyBody tests response parsing with empty body.
