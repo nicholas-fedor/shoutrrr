@@ -62,6 +62,7 @@ type fakeZulip struct {
 // doneSignalContext is a context that reports the first call to Done, which
 // shows that a send has reached a wait on the context.
 type doneSignalContext struct {
+	// Context is the wrapped context, which answers every method call.
 	context.Context //nolint:containedctx // The wrapper embeds the context to observe calls to Done.
 
 	// called is closed on the first call to Done.

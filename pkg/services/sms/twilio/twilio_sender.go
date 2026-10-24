@@ -17,24 +17,46 @@ import (
 
 // HTTPClient defines the interface for making HTTP requests.
 type HTTPClient interface {
+	// Do sends an HTTP request and returns the server's response.
+	//
+	// Parameters:
+	//   - req: the request to send.
+	//
+	// Returns:
+	//   - *http.Response: the server's response.
+	//   - error: the request failure, or nil on success.
 	Do(req *http.Request) (*http.Response, error)
 }
 
 // apiErrorResponse represents an error response from the Twilio REST API.
 type apiErrorResponse struct {
+	// Message is the Twilio description of the error.
 	Message string `json:"message"`
-	Code    int    `json:"code"`
-	Status  int    `json:"status"`
+	// Code is the Twilio error code.
+	Code int `json:"code"`
+	// Status is the HTTP status code of the response.
+	Status int `json:"status"`
 }
 
+// Settings for requests to the Twilio REST API.
 const (
-	apiBaseURL         = "https://api.twilio.com/2010-04-01/Accounts"
-	contentType        = "application/x-www-form-urlencoded"
+	// apiBaseURL is the accounts endpoint of the API. A message request adds
+	// the account SID and Messages.json to it.
+	apiBaseURL = "https://api.twilio.com/2010-04-01/Accounts"
+	// contentType is the content type of the URL-encoded form request body.
+	contentType = "application/x-www-form-urlencoded"
+	// defaultHTTPTimeout bounds each request, and is the timeout of the
+	// default client.
 	defaultHTTPTimeout = 10 * time.Second
-	msgServicePrefix   = "MG"
+	// msgServicePrefix starts a Messaging Service SID. A sender with this
+	// prefix is sent as MessagingServiceSid instead of From.
+	msgServicePrefix = "MG"
 )
 
 // DefaultHTTPClient returns a new HTTP client with a default timeout.
+//
+// Returns:
+//   - HTTPClient: an [http.Client] with a timeout of [defaultHTTPTimeout].
 func DefaultHTTPClient() HTTPClient {
 	return &http.Client{
 		Timeout: defaultHTTPTimeout,

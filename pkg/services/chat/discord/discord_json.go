@@ -10,58 +10,97 @@ import (
 
 // WebhookPayload is the webhook endpoint payload.
 type WebhookPayload struct {
-	Content     string       `json:"content,omitempty"`
-	Embeds      []embedItem  `json:"embeds,omitempty"`
-	Username    string       `json:"username,omitempty"`
-	AvatarURL   string       `json:"avatar_url,omitempty"`
+	// Content is the plain message text, used when the message has no embeds.
+	Content string `json:"content,omitempty"`
+	// Embeds holds an embed for each message item, at most [MaxEmbeds].
+	Embeds []embedItem `json:"embeds,omitempty"`
+	// Username replaces the webhook's default username when set.
+	Username string `json:"username,omitempty"`
+	// AvatarURL replaces the webhook's default avatar when set.
+	AvatarURL string `json:"avatar_url,omitempty"`
+	// Attachments describes the files sent with the payload, in the order of
+	// the multipart file parts.
 	Attachments []attachment `json:"attachments,omitempty"`
 }
 
-// JSON is the actual notification payload.
+// embedItem is one embed in a webhook payload, built from a message item.
 type embedItem struct {
-	Footer    *embedFooter    `json:"footer,omitzero"`
-	Author    *embedAuthor    `json:"author,omitzero"`
-	Image     *embedImage     `json:"image,omitzero"`
+	// Footer holds the item's message level as its text, or is nil for an
+	// item without a level.
+	Footer *embedFooter `json:"footer,omitzero"`
+	// Author is set from the embed_author_* fields of the item.
+	Author *embedAuthor `json:"author,omitzero"`
+	// Image is set from the embed_image_url field of the item.
+	Image *embedImage `json:"image,omitzero"`
+	// Thumbnail is set from the embed_thumbnail_url field of the item.
 	Thumbnail *embedThumbnail `json:"thumbnail,omitzero"`
-	Title     string          `json:"title,omitempty"`
-	Content   string          `json:"description,omitempty"`
-	URL       string          `json:"url,omitempty"`
-	Timestamp string          `json:"timestamp,omitempty"`
-	Fields    []embedField    `json:"fields,omitempty"`
-	Color     uint            `json:"color,omitzero"`
+	// Title is the embed title. Only the first embed of a payload has one.
+	Title string `json:"title,omitempty"`
+	// Content is the item text, sent as the embed description.
+	Content string `json:"description,omitempty"`
+	// URL is the embed URL. The service does not set it.
+	URL string `json:"url,omitempty"`
+	// Timestamp is the item timestamp in RFC 3339 format, in UTC.
+	Timestamp string `json:"timestamp,omitempty"`
+	// Fields holds the item fields other than the author, image, and
+	// thumbnail keys.
+	Fields []embedField `json:"fields,omitempty"`
+	// Color is the color for the item's message level.
+	Color uint `json:"color,omitzero"`
 }
 
+// embedFooter is the footer of an embed.
 type embedFooter struct {
-	Text    string `json:"text"`
+	// Text is the footer text.
+	Text string `json:"text"`
+	// IconURL is the URL of the footer icon. The service does not set it.
 	IconURL string `json:"icon_url,omitempty"`
 }
 
+// embedAuthor is the author of an embed.
 type embedAuthor struct {
-	Name    string `json:"name,omitempty"`
-	URL     string `json:"url,omitempty"`
+	// Name is the author name.
+	Name string `json:"name,omitempty"`
+	// URL is the author URL.
+	URL string `json:"url,omitempty"`
+	// IconURL is the URL of the author icon.
 	IconURL string `json:"icon_url,omitempty"`
 }
 
+// embedImage is the image of an embed.
 type embedImage struct {
+	// URL is the image URL.
 	URL string `json:"url,omitempty"`
 }
 
+// embedThumbnail is the thumbnail of an embed.
 type embedThumbnail struct {
+	// URL is the thumbnail URL.
 	URL string `json:"url,omitempty"`
 }
 
+// embedField is a name and value pair in an embed.
 type embedField struct {
-	Name   string `json:"name"`
-	Value  string `json:"value"`
-	Inline bool   `json:"inline,omitzero"`
+	// Name is the field name.
+	Name string `json:"name"`
+	// Value is the field value.
+	Value string `json:"value"`
+	// Inline marks the field as inline. The service leaves it false.
+	Inline bool `json:"inline,omitzero"`
 }
 
+// attachment describes a file sent with a multipart payload.
 type attachment struct {
+	// Filename is the name of the file.
 	Filename string `json:"filename"`
-	ID       int    `json:"id"`
+	// ID is the index of the file among the payload's files, from zero.
+	ID int `json:"id"`
 }
 
+// Payload limits.
 const (
+	// MaxEmbeds is the most embeds a payload holds. Further items go in
+	// further payloads.
 	MaxEmbeds = 10
 )
 
@@ -84,11 +123,32 @@ const (
 )
 
 // hasEmbedFields checks if the fields contain any fields that should trigger embed processing.
+//
+// Parameters:
+//   - fields: the item fields.
+//
+// Returns:
+//   - bool: whether there are any fields.
 func hasEmbedFields(fields []types.Field) bool {
 	return len(fields) > 0
 }
 
 // processEmbedFields processes MessageItem fields into embed components.
+// These keys set the embed's author, image, and thumbnail:
+//   - embed_author_name, embed_author_url, embed_author_icon_url: the author.
+//   - embed_image_url: the image.
+//   - embed_thumbnail_url: the thumbnail.
+//
+// Every other field becomes an embed field.
+//
+// Parameters:
+//   - fields: the item fields.
+//
+// Returns:
+//   - *embedAuthor: the author, or nil without author fields.
+//   - *embedImage: the image, or nil without an image field.
+//   - *embedThumbnail: the thumbnail, or nil without a thumbnail field.
+//   - []embedField: the other fields, in order.
 func processEmbedFields(
 	fields []types.Field,
 ) (*embedAuthor, *embedImage, *embedThumbnail, []embedField) {

@@ -11,6 +11,8 @@ import (
 
 // Config holds the configuration for the Rocket.Chat service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Rocket.Chat has no
+	// enum fields.
 	standard.EnumlessConfig
 
 	// UserName is the username to display for the message (optional).

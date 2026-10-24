@@ -10,14 +10,18 @@ import (
 
 // JSON represents the payload structure for the Rocket.Chat service.
 type JSON struct {
-	Text     string `json:"text"`
+	// Text is the message text.
+	Text string `json:"text"`
+	// UserName is the name the message is posted under. Empty omits it.
 	UserName string `json:"username,omitempty"`
-	Channel  string `json:"channel,omitempty"`
+	// Channel is the channel or user that receives the message. Empty omits
+	// it.
+	Channel string `json:"channel,omitempty"`
 }
 
 // CreateJSONPayload generates a JSON payload compatible with the Rocket.Chat webhook API.
 //
-// Params:
+// Parameters:
 //   - config: The Rocket.Chat configuration containing user and channel settings
 //   - message: The message text to include in the payload
 //   - params: Optional parameters that can override config values (username, channel)
