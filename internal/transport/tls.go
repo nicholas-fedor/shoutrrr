@@ -2,17 +2,6 @@ package transport
 
 import "crypto/tls"
 
-// Logger receives the warning that TLS certificate verification is off.
-// The standard service logger implements it.
-type Logger interface {
-	// Log writes v to the service's logger.
-	Log(v ...any)
-}
-
-// insecureWarning is the message logged when a connection skips TLS
-// certificate verification.
-const insecureWarning = "Warning: TLS verification is disabled, making connections insecure"
-
 // TLSConfig returns TLS settings that verify the server's certificate and
 // require TLS 1.2 or later.
 //
@@ -31,7 +20,7 @@ func TLSConfig(serverName string) *tls.Config {
 
 // InsecureTLSConfig returns TLS settings that skip verifying the server's
 // certificate and require TLS 1.2 or later. A service uses them only when the
-// user asks to skip verification, and logs [WarnInsecure] when it does.
+// user asks to skip verification, and warns about it through internal/logging.
 //
 // Parameters:
 //   - serverName: the host name to send in the handshake. HTTP clients pass "".
@@ -43,13 +32,4 @@ func InsecureTLSConfig(serverName string) *tls.Config {
 	config.InsecureSkipVerify = true
 
 	return config
-}
-
-// WarnInsecure logs that TLS certificate verification is off, so connections
-// can be intercepted.
-//
-// Parameters:
-//   - logger: the service's logger.
-func WarnInsecure(logger Logger) {
-	logger.Log(insecureWarning)
 }

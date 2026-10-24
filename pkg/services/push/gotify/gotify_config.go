@@ -3,7 +3,6 @@ package gotify
 import (
 	"encoding/json/v2"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 
@@ -35,7 +34,7 @@ type Config struct {
 	// Path is the subpath of a Gotify installation, such as /gotify.
 	Path string `desc:"Server subpath" optional:"" url:"path1"`
 	// Title is the message title.
-	Title string `default:"Shoutrrr notification" key:"title"`
+	Title string `default:"Shoutrrr notification" desc:"Notification title" key:"title"`
 
 	// Date is accepted in URLs and params but not sent.
 	//
@@ -45,11 +44,16 @@ type Config struct {
 	// Priority is the message priority, from -2 to 10, higher being more
 	// important. It is sent only when the URL or the send sets it, or the
 	// level param chooses it.
-	Priority int `default:"0" key:"priority"`
+	Priority int `default:"0" desc:"Message priority, from -2 to 10" key:"priority"`
 	// DisableTLS sends the request over HTTP instead of HTTPS.
-	DisableTLS bool `default:"No" key:"disabletls"`
-	// InsecureSkipVerify skips verification of the server's TLS certificate.
-	InsecureSkipVerify bool `default:"No" key:"insecureskipverify"`
+	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"No" deprecatedkeys:"insecureskipverify" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
+	// InsecureSkipVerify is the old name of SkipTLSVerify. When SkipTLSVerify
+	// is off, setting it skips verification too.
+	//
+	// Deprecated: Use [Config.SkipTLSVerify], which the skiptlsverify key sets.
+	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`
 	// UseHeader sends the token in the X-Gotify-Key header instead of the
 	// URL query.
 	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
@@ -65,14 +69,22 @@ const (
 	Scheme = "gotify"
 )
 
-// GetURL returns a URL representation of the current configuration.
+// GetURL returns a URL representation of the current configuration. A value
+// set through a deprecated field is written under its replacement's key.
+//
+// Extras that cannot be written as JSON, such as a channel, are left out of
+// the URL. A send with those extras fails with the JSON error, so the problem
+// still surfaces.
 //
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(c)
+	synced := *c
 
-	return c.getURL(&resolver)
+	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
+	resolver := format.NewPropKeyResolver(&synced)
+
+	return synced.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
@@ -102,12 +114,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 	// Handle extras serialization if present
 	if c.Extras != nil {
-		// Marshal extras map to JSON string
+		// Extras that cannot be written as JSON, such as a channel, are left
+		// out of the URL.
 		extrasJSON, err := json.Marshal(c.Extras, jsonopts.Default)
-		if err != nil {
-			// Skip adding extras when Extras cannot be serialized
-			log.Printf("Failed to marshal Extras %v: %v, skipping extras", c.Extras, err)
-		} else {
+		if err == nil {
 			// Append extras to query string with proper URL encoding
 			if query != "" {
 				query += "&"

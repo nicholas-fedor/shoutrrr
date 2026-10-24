@@ -11,12 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
-// TestCreateTransport verifies that the default transport requires TLS 1.2,
-// skips certificate verification when TLS is disabled or verification is
-// turned off, and honors the proxy environment variables.
+// TestCreateTransport verifies that the deprecated manager's transport
+// requires TLS 1.2 and honors the proxy environment variables. It skips
+// certificate verification only when SkipTLSVerify or the deprecated
+// InsecureSkipVerify is set, not when TLS is disabled.
 func TestCreateTransport(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +29,9 @@ func TestCreateTransport(t *testing.T) {
 		wantInsecure bool
 	}{
 		{name: "verifies certificates"},
-		{name: "TLS disabled", config: Config{DisableTLS: true}, wantInsecure: true},
-		{name: "verification turned off", config: Config{InsecureSkipVerify: true}, wantInsecure: true},
+		{name: "TLS disabled", config: Config{DisableTLS: true}, wantInsecure: false},
+		{name: "verification turned off", config: Config{SkipTLSVerify: true}, wantInsecure: true},
+		{name: "deprecated field", config: Config{InsecureSkipVerify: true}, wantInsecure: true},
 	}
 
 	for _, tt := range tests {
@@ -58,32 +60,27 @@ func TestCreateClient(t *testing.T) {
 	assert.Equal(t, 10*time.Second, client.Timeout)
 }
 
-// TestDefaultHTTPClient verifies that Initialize sets up a default client with
-// a 10 second timeout and the URL's TLS settings, logs a warning for each
-// insecure TLS setting, and keeps a client injected before it.
+// TestDefaultHTTPClient verifies that Initialize leaves the default client
+// without a timeout of its own, sending through http.DefaultTransport, and
+// keeps a client injected before it. Initialize warns only when the URL uses a
+// deprecated key. The first send that disables TLS or skips verification warns
+// about it instead.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists service URLs with the warnings each should log and whether
-	// the default client should skip certificate verification.
+	// tests lists service URLs with the warnings Initialize should log.
 	tests := []struct {
-		name         string
-		rawURL       string
-		wantLog      string
-		wantInsecure bool
+		name    string
+		rawURL  string
+		wantLog string
 	}{
 		{name: "secure", rawURL: testServiceURL},
+		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes"},
+		{name: "verification turned off", rawURL: testServiceURL + "?skiptlsverify=yes"},
 		{
-			name:         "TLS disabled",
-			rawURL:       testServiceURL + "?disabletls=yes",
-			wantLog:      "Warning: TLS is disabled, using insecure HTTP connections\n",
-			wantInsecure: true,
-		},
-		{
-			name:         "verification turned off",
-			rawURL:       testServiceURL + "?insecureskipverify=yes",
-			wantLog:      "Warning: TLS certificate verification is disabled\n",
-			wantInsecure: true,
+			name:    "deprecated key",
+			rawURL:  testServiceURL + "?insecureskipverify=yes",
+			wantLog: `Warning: key "insecureskipverify" is deprecated, use "skiptlsverify" instead` + "\n",
 		},
 	}
 
@@ -98,13 +95,8 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 			client, ok := service.client.Client().(*http.Client)
 			require.True(t, ok, "default client is %T", service.client.Client())
-			assert.Equal(t, 10*time.Second, client.Timeout)
-
-			httpTransport, ok := client.Transport.(*http.Transport)
-			require.True(t, ok, "transport is %T", client.Transport)
-			require.NotNil(t, httpTransport.TLSClientConfig)
-			assert.Equal(t, uint16(tls.VersionTLS12), httpTransport.TLSClientConfig.MinVersion)
-			assert.Equal(t, tt.wantInsecure, httpTransport.TLSClientConfig.InsecureSkipVerify)
+			assert.Zero(t, client.Timeout)
+			assert.Nil(t, client.Transport, "the default client should send through http.DefaultTransport")
 			assert.Equal(t, tt.wantLog, logs.String())
 		})
 	}
@@ -112,7 +104,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 	t.Run("keeps a client injected before Initialize", func(t *testing.T) {
 		t.Parallel()
 
-		custom := typesmocks.NewMockHTTPClient(t)
+		custom := mockTypes.NewMockHTTPClient(t)
 		service := &Service{}
 		service.SetHTTPClient(custom)
 		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))

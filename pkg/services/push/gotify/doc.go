@@ -27,7 +27,8 @@
 //   - priority: message priority (-2 to 10, where higher numbers indicate higher priority; negative values have special meanings in some clients).
 //     When unset, the priority is left out and Gotify applies the application's default priority.
 //   - disabletls: set to "yes" to disable TLS (use HTTP instead of HTTPS)
-//   - insecureskipverify: set to "yes" to skip TLS certificate verification (insecure, use with caution)
+//   - skiptlsverify: set to "yes" to skip TLS certificate verification (insecure, use with caution).
+//     The deprecated insecureskipverify key sets it too.
 //   - useheader: set to "yes" to send token in X-Gotify-Key header instead of URL query parameter
 //   - date: deprecated and not sent, because Gotify stamps each message with the server time
 //   - extras: JSON string containing additional key-value pairs to include in the notification
@@ -140,7 +141,7 @@
 // - Use header-based authentication (useheader=yes) to avoid exposing tokens in server logs
 // - Consider token entropy - Gotify tokens are application-specific and should be treated as secrets
 // - Be cautious with disabletls=yes - only use in trusted environments as it disables TLS (uses HTTP)
-// - Be cautious with insecureskipverify=yes - only use in trusted environments as it disables certificate verification
+// - Be cautious with skiptlsverify=yes - only use in trusted environments as it disables certificate verification
 // - Validate extras JSON content to prevent injection of malicious data
 // - Use appropriate priority levels - high priority notifications should be reserved for critical events
 // - Consider message content - avoid sending sensitive information in notification messages
@@ -152,10 +153,11 @@
 // - Application tokens from earlier Gotify versions are exactly 15 characters long, start with 'A', and use only a-z, A-Z, 0-9, ., -, _
 // - Message content cannot be empty
 // - Priority can be set to a value between -2 and 10, where -2 is the lowest and 10 is the highest priority. Negative values have special meanings in some clients.
-// - The date parameter is deprecated and not sent, because Gotify stamps each message with the server time. A warning is logged when it is set
+// - The date parameter is deprecated and not sent, because Gotify stamps each message with the server time. A warning is logged the first time it is set
 // - Extras field accepts valid JSON objects for custom data
-// - HTTP client timeout is set to 10 seconds for API requests
-// - TLS can be disabled entirely (disabletls=yes) or certificate verification can be skipped (insecureskipverify=yes), both are not recommended for production use
+// - A send without a deadline is bounded by the 10 second send budget
+// - TLS can be disabled entirely (disabletls=yes) or certificate verification can be skipped (skiptlsverify=yes). Neither is recommended for production use
+// - Disabling TLS does not skip certificate verification, so a redirect to HTTPS still verifies the certificate
 // - Header authentication sends token in X-Gotify-Key header and cleans up after each request
 // - Server response includes message ID, app ID, and timestamp upon successful delivery
 // - Failed requests return structured error responses with error codes and descriptions

@@ -68,11 +68,21 @@ func TestConfigSetURL(t *testing.T) {
 		{name: "documentation dummy URL", rawURL: "gotify://dummy@dummy.com", want: Config{Host: "dummy.com"}},
 		{
 			name:   "query settings",
-			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&insecureskipverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
+			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&skiptlsverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
 			want: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
-				DisableTLS: true, InsecureSkipVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
+				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
 			},
+		},
+		{
+			name:   "deprecated key",
+			rawURL: testServiceURL + "?insecureskipverify=yes",
+			want:   Config{Host: testHost, Token: testToken, SkipTLSVerify: true},
+		},
+		{
+			name:   "replacement key wins over the deprecated key",
+			rawURL: testServiceURL + "?insecureskipverify=yes&skiptlsverify=no",
+			want:   Config{Host: testHost, Token: testToken},
 		},
 		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
 		{
@@ -170,11 +180,11 @@ func TestConfigGetURL(t *testing.T) {
 			name: "every setting",
 			config: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
-				DisableTLS: true, InsecureSkipVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
+				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
 				Extras:      map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
 				prioritySet: true,
 			},
-			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&insecureskipverify=Yes&priority=5&title=Backup&useheader=Yes" +
+			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=Yes" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
 		},
 	}
@@ -191,6 +201,25 @@ func TestConfigGetURL(t *testing.T) {
 			assert.Equal(t, tt.config, *roundTrip)
 		})
 	}
+}
+
+// TestConfigGetURLDeprecatedField verifies that a config built with the old
+// InsecureSkipVerify field, as programs that build the config themselves do,
+// writes skiptlsverify to its URL. The config is not changed, and the URL
+// reads back with SkipTLSVerify set.
+func TestConfigGetURLDeprecatedField(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{Host: testHost, Path: "/gotify", DisableTLS: true, InsecureSkipVerify: true, Token: testToken}
+
+	serviceURL := config.GetURL()
+	assert.Equal(t, "gotify://"+testHost+"/gotify/"+testToken+"?disabletls=Yes&skiptlsverify=Yes&title=", serviceURL.String())
+	assert.Equal(t, &Config{Host: testHost, Path: "/gotify", DisableTLS: true, InsecureSkipVerify: true, Token: testToken}, config)
+
+	roundTrip := &Config{}
+	require.NoError(t, roundTrip.SetURL(serviceURL))
+	assert.True(t, roundTrip.SkipTLSVerify)
+	assert.False(t, roundTrip.InsecureSkipVerify)
 }
 
 // TestConfigGetURLSubpath verifies that GetURL separates a subpath without a
@@ -227,6 +256,6 @@ func TestConfigQueryResolver(t *testing.T) {
 
 	assert.Empty(t, config.Enums())
 	assert.Equal(t,
-		[]string{"date", "disabletls", "insecureskipverify", "priority", "title", "useheader"},
+		[]string{"date", "disabletls", "insecureskipverify", "priority", "skiptlsverify", "title", "useheader"},
 		format.GetConfigQueryResolver(config).QueryFields())
 }

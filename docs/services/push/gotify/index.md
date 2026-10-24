@@ -57,19 +57,27 @@ The `disabletls` parameter can be set to `yes` to disable TLS entirely, forcing 
 - Internal Gotify servers with custom CA certificates
 - Testing with local Gotify instances
 
+Disabling TLS does not skip certificate verification. If the server redirects to HTTPS, its certificate is still verified unless `skiptlsverify` is also set. Shoutrrr logs a warning the first time it sends without TLS.
+
 !!! danger "Security Risk"
     Disabling TLS makes all communication unencrypted and vulnerable to interception. Only use this option in trusted, isolated networks.
 
 ### Skip TLS Certificate Verification
 
-The `insecureskipverify` parameter can be set to `yes` to skip TLS certificate verification while still using HTTPS. This maintains encrypted communication but bypasses certificate validation. This is useful for:
+The `skiptlsverify` parameter can be set to `yes`, in the URL or in the send params, to skip TLS certificate verification while still using HTTPS. This maintains encrypted communication but bypasses certificate validation. This is useful for:
 
 - Self-signed certificates in development environments
 - Internal Gotify servers with custom CA certificates
 - Testing with certificates that don't match the hostname
 
+Shoutrrr logs a warning the first time it sends without verifying the certificate. It logs no warning when the program using Shoutrrr supplies its own HTTP client, because that client's TLS settings apply.
+
 !!! danger "Security Risk"
     Skipping certificate verification makes connections vulnerable to man-in-the-middle attacks. Only use this option when you trust the network path to the server.
+
+!!! Warning "Deprecated"
+    The `insecureskipverify` parameter is deprecated in favor of `skiptlsverify`.
+    It still works and logs a warning the first time it is used, and `skiptlsverify` takes precedence when both are set. In Go, the `Config.InsecureSkipVerify` field is likewise deprecated in favor of `Config.SkipTLSVerify`.
 
 ### Priority Levels
 
@@ -108,7 +116,7 @@ The `title` parameter allows you to set a custom title for your notification. If
 
 !!! Warning "Deprecated"
     The `date` parameter is deprecated and has no effect.
-    Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts `date` in URLs and params for compatibility but does not send it, and logs a warning when it is set.
+    Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts `date` in URLs and params for compatibility but does not send it, and logs a warning the first time it is set.
 
 ### Use Header Authentication
 
@@ -185,7 +193,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 !!! Example "With TLS certificate verification skipped"
     ```uri
-    gotify://gotify.example.com/AzyoeNS.D4iJLVa?insecureskipverify=yes
+    gotify://gotify.example.com/AzyoeNS.D4iJLVa?skiptlsverify=yes
     ```
 
 ## Security Considerations
@@ -199,7 +207,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 ### Network Security
 
 - Always use HTTPS (default) for production deployments
-- Only disable TLS (`disabletls=yes`) or skip certificate verification (`insecureskipverify=yes`) in trusted development environments
+- Only disable TLS (`disabletls=yes`) or skip certificate verification (`skiptlsverify=yes`) in trusted development environments
 - Consider using Gotify behind a reverse proxy with additional authentication layers
 
 ### Token Management
@@ -250,7 +258,7 @@ Priority values must be integers between -2 and 10 inclusive. Values outside thi
 
 **Solutions:**
 
-- For self-signed certificates, use `insecureskipverify=yes` to skip verification while maintaining HTTPS
+- For self-signed certificates, use `skiptlsverify=yes` to skip verification while maintaining HTTPS
 - For development/testing with HTTP, use `disabletls=yes` to disable TLS entirely
 - Install proper certificates on the Gotify server
 - Verify the certificate is valid and not expired

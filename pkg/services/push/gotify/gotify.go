@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -21,9 +21,11 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// client holds the injected HTTP client and the default client, which has
-	// the configured timeout and TLS settings.
+	// client holds the injected HTTP client and the default clients. A send
+	// that skips certificate verification uses the insecure default client.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// urlBuilder builds the message endpoint URL. It and the builders below
 	// are set by Initialize.
@@ -78,8 +80,9 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-// This method sets up the entire service infrastructure including configuration parsing,
-// HTTP client creation with appropriate TLS settings, and logging capabilities.
+// It parses the URL and warns once about each deprecated key the URL uses.
+// It performs no network I/O.
+//
 // Parameters:
 //   - serviceURL: The URL containing Gotify server configuration (host, token, path, etc.)
 //   - logger: Logger instance for recording service operations and warnings
@@ -94,31 +97,23 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		Title: "Shoutrrr notification", // Default notification title used when none specified
 	}
 
-	// Create a property key resolver to handle dynamic configuration updates from parameters
+	// The resolver parses the URL and applies the params of each send. It
+	// records the deprecated keys the URL uses.
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.warnings.Reset()
 
 	// Parse the configuration URL to extract host, token, path, and other settings
-	err := s.Config.SetURL(serviceURL)
-	if err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return fmt.Errorf("failed to set URL: %w", err)
 	}
+
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
 
 	// Inject default implementations for interfaces
 	s.urlBuilder = &DefaultURLBuilder{}
 	s.payloadBuilder = &DefaultPayloadBuilder{}
 	s.validator = &DefaultValidator{}
 	s.sender = &DefaultSender{}
-
-	// The default HTTP client follows the TLS settings of the URL.
-	s.client.SetDefault(HTTPTimeout*time.Second, newTLSConfig(s.Config))
-
-	if s.Config.DisableTLS {
-		s.Log("Warning: TLS is disabled, using insecure HTTP connections")
-	}
-
-	if s.Config.InsecureSkipVerify {
-		s.Log("Warning: TLS certificate verification is disabled")
-	}
 
 	return nil // Return success
 }
@@ -139,6 +134,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Gotify.
 //
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
+//
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the notification message content to send, which cannot be empty.
@@ -148,6 +146,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the validation, config, or send error. A request error matches
 //     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	if err := s.validateInputs(message, params); err != nil {
 		return fmt.Errorf("input validation failed: %w", err)
 	}
@@ -162,7 +163,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 
-	return s.sendRequest(ctx, postURL, request, headers)
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
+
+	return s.sendRequest(ctx, s.sendClient(&config), postURL, request, headers)
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
@@ -218,6 +224,10 @@ func (s *Service) buildRequest(
 // processConfig handles configuration processing including parameter updates, validation, and extras parsing.
 // A priority the params set is sent even when it is 0. A date is ignored, because Gotify sets it.
 //
+// Deprecated config fields move into their replacements before the params
+// apply, so a param can still turn an option off. Each deprecated field, param
+// key, and the date is warned about once.
+//
 // Parameters:
 //   - params: the send params.
 //
@@ -229,8 +239,16 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 	// Get reference to current configuration
 	config := *s.Config
 
+	deprecatedFields, err := format.SyncDeprecatedFields(&config)
+	if err != nil {
+		return config, nil, fmt.Errorf("failed to sync deprecated config fields: %w", err)
+	}
+
+	s.warnings.DeprecatedFields(s, deprecatedFields)
+
 	// Filter out 'extras' parameter as it's handled separately from other config updates
 	filteredParams := filterParams(params)
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(&filteredParams))
 
 	// Update configuration with filtered parameters (title, priority, etc.)
 	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
@@ -251,7 +269,9 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 	}
 
 	if config.Date != "" {
-		s.Log("Warning: ignoring the date param, because Gotify sets the date of each message")
+		s.warnings.Do("date", func() {
+			s.Log("Warning: ignoring the date param, because Gotify sets the date of each message")
+		})
 	}
 
 	// Parse extras from parameters or fall back to config extras
@@ -265,10 +285,33 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 	return config, extras, nil
 }
 
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
+//
+// Parameters:
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(config *Config) types.HTTPClient {
+	if !config.SkipTLSVerify {
+		return s.client.Client()
+	}
+
+	if !s.client.Injected() {
+		s.warnings.Insecure(s)
+	}
+
+	return s.client.InsecureClient()
+}
+
 // sendRequest executes the HTTP POST request to the Gotify API endpoint.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
+//   - client: the HTTP client to send through.
 //   - postURL: the complete API endpoint URL to send the request to.
 //   - request: the JSON payload to send in the request body.
 //   - headers: optional headers to set on the request.
@@ -277,13 +320,14 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 //   - error: [ErrSendFailed] wrapping the request error or the error the server reported.
 func (s *Service) sendRequest(
 	ctx context.Context,
+	client types.HTTPClient,
 	postURL string,
 	request *MessageRequest,
 	headers http.Header,
 ) error {
 	if err := s.sender.SendRequestContext(
 		ctx,
-		s.client.Client(),
+		client,
 		postURL,
 		request,
 		headers,

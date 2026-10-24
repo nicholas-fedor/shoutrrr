@@ -7,20 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// recordingLogger records what is logged through it.
-type recordingLogger struct {
-	// lines holds each Log call's arguments.
-	lines [][]any
-}
-
-// Log records v.
-//
-// Parameters:
-//   - v: the values to log.
-func (l *recordingLogger) Log(v ...any) {
-	l.lines = append(l.lines, v)
-}
-
 // TestTLSConfig verifies that both helpers require TLS 1.2 and set the server
 // name. Only the insecure settings skip verification. Each call returns new
 // settings.
@@ -49,15 +35,4 @@ func TestTLSConfig(t *testing.T) {
 			assert.NotSame(t, config, tt.build("mail.example.com"))
 		})
 	}
-}
-
-// TestWarnInsecure verifies that the warning is logged once with the shared
-// text.
-func TestWarnInsecure(t *testing.T) {
-	t.Parallel()
-
-	logger := &recordingLogger{}
-	WarnInsecure(logger)
-
-	assert.Equal(t, [][]any{{insecureWarning}}, logger.lines)
 }
