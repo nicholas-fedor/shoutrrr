@@ -199,6 +199,11 @@ func TestConfigSetURL(t *testing.T) {
 			want:   defaultConfig(func(c *Config) { c.Scheme, c.DisableTLS = "http", true }),
 		},
 		{
+			name:   "disabletls wins over the deprecated scheme",
+			rawURL: testServiceURL + "?scheme=http&disabletls=no",
+			want:   defaultConfig(func(*Config) {}),
+		},
+		{
 			name:   "deprecated https scheme",
 			rawURL: testServiceURL + "?scheme=HTTPS",
 			want:   defaultConfig(func(c *Config) { c.Scheme = "HTTPS" }),
@@ -426,6 +431,7 @@ func TestConfigReadAfterParse(t *testing.T) {
 		{name: "defaults", rawURL: testServiceURL, wantScheme: "https"},
 		{name: "http scheme", rawURL: testServiceURL + "?scheme=http", wantScheme: "http", wantDisableTLS: true},
 		{name: "disabletls", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "https", wantDisableTLS: true},
+		{name: "disabletls over an http scheme", rawURL: testServiceURL + "?scheme=http&DisableTLS=no", wantScheme: "https"},
 	}
 
 	for _, tt := range tests {

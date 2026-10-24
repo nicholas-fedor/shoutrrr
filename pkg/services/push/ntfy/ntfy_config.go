@@ -292,8 +292,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	disableTLS := c.DisableTLS
+
 	if err := c.applyScheme(); err != nil {
 		return err
+	}
+
+	// disabletls replaces scheme, so it wins when the query sets both. The
+	// scheme resets, so a send that applies the stored scheme keeps the choice.
+	if hasQueryKey(query, "disabletls") {
+		c.DisableTLS = disableTLS
+		c.Scheme = schemeHTTPS
 	}
 
 	if serviceURL.String() != "ntfy://dummy@dummy.com" {
@@ -307,6 +316,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	return nil
+}
+
+// hasQueryKey reports whether query sets key, matched case-insensitively as
+// the config keys are.
+//
+// Parameters:
+//   - query: the URL query.
+//   - key: the key in lower case.
+//
+// Returns:
+//   - bool: whether the query holds the key.
+func hasQueryKey(query url.Values, key string) bool {
+	for queryKey := range query {
+		if strings.EqualFold(queryKey, key) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isValidTopicPath reports whether topicPath is a topic name, optionally after

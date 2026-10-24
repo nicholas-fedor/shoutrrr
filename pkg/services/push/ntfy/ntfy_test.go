@@ -231,6 +231,13 @@ func TestInitialize(t *testing.T) {
 			wantLog:    `Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead` + "\n",
 		},
 		{
+			name:       "disabletls over the deprecated scheme",
+			rawURL:     testServiceURL + "?scheme=http&disabletls=no",
+			wantScheme: "https",
+			wantAPIURL: testEndpoint,
+			wantLog:    `Warning: key "scheme" is deprecated, use "disabletls" instead` + "\n",
+		},
+		{
 			name:       "deprecated scheme",
 			rawURL:     testServiceURL + "?scheme=http",
 			wantScheme: "http",
@@ -862,6 +869,7 @@ func TestSendSchemePrecedence(t *testing.T) {
 			wantURL: testEndpoint,
 		},
 		{name: "stored scheme", rawURL: testServiceURL + "?scheme=http", wantURL: "http://ntfy.sh/" + testTopic},
+		{name: "stored disabletls over a stored scheme", rawURL: testServiceURL + "?scheme=http&disabletls=no", wantURL: testEndpoint},
 		{
 			name:    "scheme param",
 			rawURL:  testServiceURL,
