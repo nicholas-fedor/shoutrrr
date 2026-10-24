@@ -435,7 +435,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"bark":  {"Bark selects HTTP through a scheme key", failNonStandardKey},
 		"mqtt":  {"MQTT names the verification option disabletlsverification", failNonStandardKey},
 		"mqtts": {"MQTT names the verification option disabletlsverification", failNonStandardKey},
-		"ntfy":  {"ntfy names the verification option disabletlsverification and selects HTTP through a scheme key", failNonStandardKey},
 	},
 	checkKeyDescriptions: {
 		"discord":    {"Discord's title key has no description", failMissingDescription},
@@ -455,7 +454,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"matrix":     {"Matrix bounds each request by 10s, below its reported budget", failBudget},
 		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
 		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
-		"ntfy":       {"ntfy bounds requests with its client timeout instead of a context deadline", failBudget},
 		"pagerduty":  {"PagerDuty bounds requests with its client timeout instead of a context deadline", failBudget},
 		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
 		"telegram":   {"Telegram bounds requests with its client timeout instead of a context deadline", failBudget},
@@ -469,20 +467,15 @@ var allowlist = map[string]map[string]knownFailure{
 		"mattermost":    {"Mattermost logs no warning when TLS is disabled", failWarningCount},
 		"mqtt":          {"MQTT logs no warning when TLS is disabled", failWarningCount},
 		"mqtts":         {"MQTT logs no warning when TLS is disabled", failWarningCount},
-		"ntfy":          {"ntfy logs no warning when TLS is disabled", failWarningCount},
 		"signal":        {"Signal logs no warning when TLS is disabled", failWarningCount},
 		"xmpp":          {"XMPP logs no warning when TLS is disabled", failWarningCount},
 	},
-	checkSkipTLSVerifyURL: {
-		"ntfy": {"ntfy names the verification option disabletlsverification", failSkipIgnored},
-	},
+	checkSkipTLSVerifyURL: {},
 	checkSkipTLSVerifyParams: {
 		"homeassistant": {"Home Assistant applies skiptlsverify only from the URL", failSkipIgnored},
-		"ntfy":          {"ntfy names the verification option disabletlsverification", failSkipIgnored},
 	},
 	checkInsecureWarning: {
 		"homeassistant": {"Home Assistant logs its own warning text, in Initialize", failWarningCount},
-		"ntfy":          {"ntfy names the verification option disabletlsverification", failInit},
 		"signal":        {"Signal logs its own warning text, when it builds its client", failWarningCount},
 	},
 }
@@ -1499,7 +1492,8 @@ func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
 }
 
 // runStandardKeyNames verifies that every config key naming a TLS option is
-// one of [standardKeys].
+// one of [standardKeys]. A key whose description starts with "Deprecated:",
+// as the docs show it, is kept only for compatibility and is not checked.
 //
 // Parameters:
 //   - t: the test for this case.
@@ -1518,6 +1512,10 @@ func runStandardKeyNames(t *testing.T, fx *fixture) failure {
 	var keys []string
 
 	for _, item := range format.GetConfigFormat(config).Items {
+		if strings.HasPrefix(item.Field().Description, "Deprecated:") {
+			continue
+		}
+
 		for _, key := range item.Field().Keys {
 			if standardKeyPattern.MatchString(key) && !slices.Contains(standardKeys, key) {
 				keys = append(keys, key)

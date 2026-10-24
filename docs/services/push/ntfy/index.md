@@ -84,12 +84,17 @@ A `priority` in the URL or the send params takes precedence over the level, even
 
 Ntfy supports two TLS-related configuration options to handle different security scenarios:
 
-- **`DisableTLSVerification`**: When set to `true`, disables TLS certificate verification. This allows connections to servers with self-signed or invalid certificates, but still uses the HTTPS protocol. Use this option when you trust the server but the certificate cannot be verified by standard means.
+- **`skiptlsverify`**: When set to `yes`, skips TLS certificate verification. This allows connections to servers with self-signed or invalid certificates, but still uses the HTTPS protocol. Use this option when you trust the server but the certificate cannot be verified by standard means.
 
-- **`DisableTLS`**: When set to `true`, disables TLS entirely and forces the use of the HTTP scheme instead of HTTPS. This makes the connection unencrypted and should only be used in secure, trusted environments or for testing purposes.
+- **`disabletls`**: When set to `yes`, disables TLS entirely and forces the use of the HTTP scheme instead of HTTPS. This makes the connection unencrypted and should only be used in secure, trusted environments or for testing purposes.
 
-Both options can also be passed as send params (`disabletls` and `disabletlsverification`), which apply to that send only.
-A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `disabletlsverification` does not change it.
+Both options can also be passed as send params, which apply to that send only.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send skips certificate verification through its own client, and the first time a send goes out without TLS.
+
+!!! warning "Deprecated"
+    The `disabletlsverification` parameter is deprecated in favor of `skiptlsverify`, and the `scheme` parameter in favor of `disabletls`.
+    Both still work and log a warning the first time they are used. A `scheme` of `http` turns TLS off, and any value other than `http` or `https` is rejected. In Go, the `Config.DisableTLSVerification` and `Config.Scheme` fields are deprecated in favor of `Config.SkipTLSVerify` and `Config.DisableTLS`.
 
 !!! warning
     Using either of these options reduces the security of your connection. `DisableTLS` is particularly insecure as it transmits data in plain text. Only use these options when necessary and in controlled environments.

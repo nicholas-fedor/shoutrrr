@@ -178,10 +178,35 @@ func TestConfigSetURL(t *testing.T) {
 		},
 		{
 			name:   "delivery switches",
-			rawURL: testServiceURL + "?markdown=yes&cache=no&firebase=no&disabletlsverification=yes&disabletls=yes&scheme=http",
+			rawURL: testServiceURL + "?markdown=yes&cache=no&firebase=no&skiptlsverify=yes&disabletls=yes",
 			want: defaultConfig(func(c *Config) {
-				c.Markdown, c.Cache, c.Firebase, c.DisableTLSVerification, c.DisableTLS, c.Scheme = true, false, false, true, true, "http"
+				c.Markdown, c.Cache, c.Firebase, c.SkipTLSVerify, c.DisableTLS = true, false, false, true, true
 			}),
+		},
+		{
+			name:   "deprecated verification key",
+			rawURL: testServiceURL + "?disabletlsverification=yes",
+			want:   defaultConfig(func(c *Config) { c.SkipTLSVerify = true }),
+		},
+		{
+			name:   "replacement key wins over the deprecated key",
+			rawURL: testServiceURL + "?disabletlsverification=yes&skiptlsverify=no",
+			want:   defaultConfig(func(*Config) {}),
+		},
+		{
+			name:   "deprecated http scheme turns TLS off and is kept",
+			rawURL: testServiceURL + "?scheme=http",
+			want:   defaultConfig(func(c *Config) { c.Scheme, c.DisableTLS = "http", true }),
+		},
+		{
+			name:   "disabletls wins over the deprecated scheme",
+			rawURL: testServiceURL + "?scheme=http&disabletls=no",
+			want:   defaultConfig(func(*Config) {}),
+		},
+		{
+			name:   "deprecated https scheme",
+			rawURL: testServiceURL + "?scheme=HTTPS",
+			want:   defaultConfig(func(c *Config) { c.Scheme = "HTTPS" }),
 		},
 		{name: "at alias", rawURL: testServiceURL + "?at=tomorrow,%2010am", want: defaultConfig(func(c *Config) { c.Delay = "tomorrow, 10am" })},
 		{name: "in alias", rawURL: testServiceURL + "?in=10m", want: defaultConfig(func(c *Config) { c.Delay = "10m" })},
@@ -235,6 +260,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "unknown key", rawURL: testServiceURL + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid priority", rawURL: testServiceURL + "?priority=extreme", wantErr: format.ErrInvalidEnumValue},
 		{name: "invalid bool", rawURL: testServiceURL + "?cache=maybe", wantErr: format.ErrInvalidBoolValue},
+		{name: "invalid scheme", rawURL: testServiceURL + "?scheme=ftp", wantErr: ErrInvalidScheme},
 	}
 
 	for _, tt := range tests {
@@ -300,12 +326,12 @@ func TestConfigGetURL(t *testing.T) {
 				c.Actions = []string{"view, Open, https://example.com", "http, Ping, https://example.com/ping"}
 				c.Click, c.Attach, c.Filename, c.Delay = "https://example.com", "https://example.com/log.txt", "log.txt", "30m"
 				c.Email, c.Icon, c.Markdown, c.Cache, c.Firebase = "ops@example.com", "https://example.com/icon.png", true, false, false
-				c.DisableTLSVerification = true
+				c.SkipTLSVerify = true
 			}),
 			wantUser: "user:pass",
 			wantQuery: url.Values{
 				"actions": {"view, Open, https://example.com;http, Ping, https://example.com/ping"}, "attach": {"https://example.com/log.txt"},
-				"cache": {"No"}, "click": {"https://example.com"}, "delay": {"30m"}, "disabletlsverification": {"Yes"},
+				"cache": {"No"}, "click": {"https://example.com"}, "delay": {"30m"}, "skiptlsverify": {"Yes"},
 				"email": {"ops@example.com"}, "filename": {"log.txt"}, "firebase": {"No"}, "icon": {"https://example.com/icon.png"},
 				"markdown": {"Yes"}, "priority": {"Max"}, "tags": {"warning,skull"}, "title": {"Backup"}, "token": {testToken},
 			},
@@ -332,6 +358,95 @@ func TestConfigGetURL(t *testing.T) {
 	}
 }
 
+// TestConfigGetURLDeprecated verifies that GetURL writes a value set through
+// a deprecated field under its replacement's key, and an http scheme as
+// disabletls, without changing the config. An invalid scheme is kept, so
+// reading the URL reports it.
+func TestConfigGetURLDeprecated(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantQuery url.Values
+		config    Config
+	}{
+		{
+			name:      "deprecated verification field",
+			config:    defaultConfig(func(c *Config) { c.DisableTLSVerification = true }),
+			wantQuery: url.Values{"skiptlsverify": {"Yes"}},
+		},
+		{
+			name:      "http scheme",
+			config:    defaultConfig(func(c *Config) { c.Scheme = "http" }),
+			wantQuery: url.Values{"disabletls": {"Yes"}},
+		},
+		{
+			name:      "uppercase https scheme",
+			config:    defaultConfig(func(c *Config) { c.Scheme = "HTTPS" }),
+			wantQuery: url.Values{},
+		},
+		{
+			name:      "invalid scheme",
+			config:    defaultConfig(func(c *Config) { c.Scheme = "ftp" }),
+			wantQuery: url.Values{"scheme": {"ftp"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			original := tt.config
+
+			assert.Equal(t, tt.wantQuery, tt.config.GetURL().Query())
+			assert.Equal(t, original, tt.config)
+		})
+	}
+}
+
+// TestConfigSetURLKeepsCallerURL verifies that reading a URL whose query has
+// a literal semicolon leaves the caller's URL as it was.
+func TestConfigSetURLKeepsCallerURL(t *testing.T) {
+	t.Parallel()
+
+	serviceURL := parseTestURL(t, testServiceURL+"?actions=view, Open, https://example.com; http, Ping, https://example.com/ping")
+	rawQuery := serviceURL.RawQuery
+
+	require.NoError(t, newDefaultConfig(t).SetURL(serviceURL))
+	assert.Equal(t, rawQuery, serviceURL.RawQuery)
+}
+
+// TestConfigReadAfterParse verifies the fields that a program reading the
+// parsed config sees, as programs that build their own requests from it do.
+// An http scheme keeps Scheme as written and sets DisableTLS too.
+func TestConfigReadAfterParse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		rawURL         string
+		wantScheme     string
+		wantDisableTLS bool
+	}{
+		{name: "defaults", rawURL: testServiceURL, wantScheme: "https"},
+		{name: "http scheme", rawURL: testServiceURL + "?scheme=http", wantScheme: "http", wantDisableTLS: true},
+		{name: "disabletls", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "https", wantDisableTLS: true},
+		{name: "disabletls over an http scheme", rawURL: testServiceURL + "?scheme=http&DisableTLS=no", wantScheme: "https"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := newDefaultConfig(t)
+			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
+
+			assert.Equal(t, tt.wantScheme, config.Scheme)
+			assert.Equal(t, tt.wantDisableTLS, config.DisableTLS)
+		})
+	}
+}
+
 // TestConfigQueryResolver verifies the config's query keys and that priority
 // is its only enum.
 func TestConfigQueryResolver(t *testing.T) {
@@ -344,6 +459,6 @@ func TestConfigQueryResolver(t *testing.T) {
 	assert.Same(t, Priority.Enum, enums["Priority"])
 	assert.Equal(t, []string{
 		"actions", "at", "attach", "cache", "click", "delay", "disabletls", "disabletlsverification", "email", "filename",
-		"firebase", "icon", "in", "markdown", "priority", "scheme", "tags", "title", "token",
+		"firebase", "icon", "in", "markdown", "priority", "scheme", "skiptlsverify", "tags", "title", "token",
 	}, config.QueryFields())
 }

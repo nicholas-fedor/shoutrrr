@@ -39,7 +39,11 @@
 //   - markdown: enable Markdown formatting
 //   - cache: whether to cache messages (default: yes)
 //   - firebase: whether to send via Firebase (default: yes)
-//   - disabletls: set to "yes" to disable TLS verification
+//   - disabletls: set to "yes" to publish over HTTP instead of HTTPS
+//   - skiptlsverify: set to "yes" to skip TLS certificate verification.
+//     The deprecated disabletlsverification key sets it too.
+//   - scheme: deprecated. Use disabletls instead. A value of http turns TLS
+//     off, and any value other than http or https is rejected
 //
 // # Templates
 //
@@ -140,6 +144,7 @@
 // # Security Considerations
 //
 // - Use HTTPS whenever possible (default behavior)
+// - Skipping certificate verification or disabling TLS logs a warning the first time a send does it
 // - Store credentials securely, not in URLs if possible
 // - Consider topic names as passwords - use unique, hard-to-guess names
 // - Be cautious with attachment URLs - ensure they are from trusted sources
@@ -154,6 +159,7 @@
 // - Attachments are referenced by URL, not uploaded directly
 // - Actions are limited to view, broadcast, and http types
 // - Delayed delivery minimum is 10 seconds, maximum is 3 days
+// - A send without a deadline is bounded by the 10 second send budget
 // - Messages may be cached on the server for up to 12 hours after delivery
 // - Firebase notifications may not work in all regions or for all clients
 // - Some features (like actions) are client-dependent and may not work on all platforms

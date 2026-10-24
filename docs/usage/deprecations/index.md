@@ -17,6 +17,8 @@ When a URL or the send params hold both a deprecated query key and its replaceme
 | `date` query key | Gotify | None. Gotify stamps each message with the server time, so the key has no effect. | v0.22.1 |
 | `hangouts://` scheme | Google Chat | `googlechat://` | Inherited from containrrr/shoutrrr |
 | `insecureskipverify` query key | Gotify | `skiptlsverify` | Unreleased |
+| `disabletlsverification` query key | ntfy | `skiptlsverify` | Unreleased |
+| `scheme` query key | ntfy | `disabletls`. A `scheme` of `http` turns TLS off. | Unreleased |
 
 ## Go Package
 
@@ -55,3 +57,6 @@ A replacement set to its zero value, such as `false` or an empty string, counts 
 | `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | Unreleased |
 | `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | Unreleased |
 | `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
+| `Config.DisableTLSVerification` | `pkg/services/push/ntfy` | `Config.SkipTLSVerify` | Unreleased |
+| `Config.Scheme` | `pkg/services/push/ntfy` | `Config.DisableTLS` | Unreleased |
+| `HTTPTimeout` | `pkg/services/push/ntfy` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
