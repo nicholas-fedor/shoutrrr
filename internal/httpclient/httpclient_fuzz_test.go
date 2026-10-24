@@ -19,6 +19,9 @@ type holderModel struct {
 	// built is the default client Client returned since the last SetDefault,
 	// or nil before Client builds one.
 	built types.HTTPClient
+	// insecure is the default client InsecureClient returned since the last
+	// SetDefault, or nil before InsecureClient builds one.
+	insecure types.HTTPClient
 	// tlsConfig is the TLS settings of the last SetDefault call.
 	tlsConfig *tls.Config
 	// timeout is the timeout of the last SetDefault call.
@@ -34,22 +37,27 @@ const (
 	// opSetDefault calls SetDefault with the timeout that bits 2 and 3 select
 	// and the TLS settings that bits 4 and 5 select.
 	opSetDefault
-	// opClientAgain also calls Client, so reads are as common as writes.
-	opClientAgain
+	// opInsecureClient calls InsecureClient and checks the result against the
+	// model, so reads are as common as writes.
+	opInsecureClient
 )
 
 // fuzzTimeouts are the timeouts opSetDefault chooses from.
 var fuzzTimeouts = [...]time.Duration{0, time.Second, 10 * time.Second, 30 * time.Second}
 
-// FuzzHolder runs a sequence of Set, SetDefault, and Client calls on a Holder
-// and checks every Client result against a model of the expected state:
+// FuzzHolder runs a sequence of Set, SetDefault, Client, and InsecureClient
+// calls on a Holder and checks every result against a model of the expected
+// state:
 //
-//   - An injected client is returned whatever the default settings are.
+//   - An injected client is returned by both getters whatever the default
+//     settings are, and Injected reports it.
 //   - A nil client, or a nil *http.Client, clears the injected client.
 //   - The default client has the timeout of the last SetDefault call, and
 //     sends through http.DefaultTransport without TLS settings or through a
 //     transport with exactly those settings.
-//   - The default client is built once and reused until the next SetDefault
+//   - The insecure default client has the same timeout and skips certificate
+//     verification, whatever TLS settings SetDefault was given.
+//   - Each default client is built once and reused until the next SetDefault
 //     call, even across Set calls.
 //
 // Each input byte is one call: the low two bits pick the operation, and the
@@ -66,11 +74,12 @@ func FuzzHolder(f *testing.F) {
 
 	for _, seed := range [][]byte{
 		{},
-		{opClient, opClientAgain},
+		{opClient, opInsecureClient, opInsecureClient},
 		{set(2), opClient, set(0), opClient},
 		{opClient, set(3), opClient, set(1), opClient},
 		{setDefault(2, 0), opClient, setDefault(1, 2), opClient, opClient},
 		{opClient, setDefault(3, 3), set(2), opClient, set(0), opClient},
+		{setDefault(1, 2), opInsecureClient, set(2), opInsecureClient, setDefault(2, 3), set(0), opInsecureClient},
 		{set(2), setDefault(2, 2), opClient, set(1), opClient, setDefault(0, 0), opClient},
 	} {
 		f.Add(seed)
@@ -96,10 +105,14 @@ func FuzzHolder(f *testing.F) {
 				timeout, tlsConfig := fuzzTimeouts[op>>2&3], tlsConfigs[op>>4&3]
 				holder.SetDefault(timeout, tlsConfig)
 
-				model.timeout, model.tlsConfig, model.built = timeout, tlsConfig, nil
+				model.timeout, model.tlsConfig, model.built, model.insecure = timeout, tlsConfig, nil, nil
+			case opInsecureClient:
+				checkInsecureClient(t, i, holder.InsecureClient(), &model)
 			default:
 				checkClient(t, i, holder.Client(), &model)
 			}
+
+			require.Equal(t, model.injected != nil, holder.Injected(), "step %d: Injected", i)
 		}
 	})
 }
@@ -140,4 +153,40 @@ func checkClient(t *testing.T, step int, got types.HTTPClient, model *holderMode
 	}
 
 	model.built = got
+}
+
+// checkInsecureClient checks an InsecureClient result against the model and
+// records a newly built insecure default client in it.
+//
+// Parameters:
+//   - t: the test.
+//   - step: the index of the call in the input, for failure messages.
+//   - got: the client that InsecureClient returned.
+//   - model: the expected state, updated when got is a new insecure client.
+func checkInsecureClient(t *testing.T, step int, got types.HTTPClient, model *holderModel) {
+	t.Helper()
+
+	if model.injected != nil {
+		require.Same(t, model.injected, got, "step %d: InsecureClient should return the injected client", step)
+
+		return
+	}
+
+	if model.insecure != nil {
+		require.Same(t, model.insecure, got, "step %d: InsecureClient should reuse the insecure client", step)
+
+		return
+	}
+
+	client, ok := got.(*http.Client)
+	require.True(t, ok, "step %d: the insecure client is a %T", step, got)
+	assert.Equal(t, model.timeout, client.Timeout, "step %d: insecure client timeout", step)
+
+	httpTransport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "step %d: the insecure transport is a %T", step, client.Transport)
+	require.NotNil(t, httpTransport.TLSClientConfig, "step %d: insecure TLS settings", step)
+	assert.True(t, httpTransport.TLSClientConfig.InsecureSkipVerify, "step %d: verification should be skipped", step)
+	assert.Equal(t, uint16(tls.VersionTLS12), httpTransport.TLSClientConfig.MinVersion, "step %d: minimum TLS version", step)
+
+	model.insecure = got
 }

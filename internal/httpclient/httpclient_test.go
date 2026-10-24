@@ -151,6 +151,81 @@ func TestHolderSetDefault(t *testing.T) {
 	})
 }
 
+// TestHolderInsecureClient verifies which client InsecureClient returns. It
+// returns the injected client when one is set. Otherwise it returns one
+// default client that skips verification, separate from the verifying default.
+// SetDefault rebuilds it with the new timeout.
+func TestHolderInsecureClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("insecure default built once and reused", func(t *testing.T) {
+		t.Parallel()
+
+		var holder Holder
+
+		holder.SetDefault(time.Second, &tls.Config{MinVersion: tls.VersionTLS13})
+
+		first := requireHTTPClient(t, holder.InsecureClient())
+		assert.Same(t, first, holder.InsecureClient())
+		assert.NotSame(t, holder.Client(), first)
+		assert.Equal(t, time.Second, first.Timeout)
+
+		httpTransport, ok := first.Transport.(*http.Transport)
+		require.True(t, ok, "transport is a %T", first.Transport)
+		assert.True(t, httpTransport.TLSClientConfig.InsecureSkipVerify)
+		assert.Equal(t, uint16(tls.VersionTLS12), httpTransport.TLSClientConfig.MinVersion)
+	})
+
+	t.Run("injected client preferred", func(t *testing.T) {
+		t.Parallel()
+
+		var holder Holder
+
+		injected := &http.Client{}
+		holder.Set(injected)
+
+		assert.Same(t, injected, holder.InsecureClient())
+	})
+
+	t.Run("new settings rebuild the insecure default", func(t *testing.T) {
+		t.Parallel()
+
+		var holder Holder
+
+		first := holder.InsecureClient()
+
+		holder.Set(&http.Client{})
+		holder.Set(nil)
+		assert.Same(t, first, holder.InsecureClient(), "Set should keep the insecure default")
+
+		holder.SetDefault(2*time.Second, nil)
+		second := requireHTTPClient(t, holder.InsecureClient())
+
+		assert.NotSame(t, first, second)
+		assert.Equal(t, 2*time.Second, second.Timeout)
+	})
+}
+
+// TestHolderInjected verifies that Injected reports a client stored by Set
+// and treats a nil client of any kind as none.
+func TestHolderInjected(t *testing.T) {
+	t.Parallel()
+
+	var holder Holder
+
+	assert.False(t, holder.Injected())
+
+	holder.Set(&http.Client{})
+	assert.True(t, holder.Injected())
+
+	holder.Set((*http.Client)(nil))
+	assert.False(t, holder.Injected())
+
+	holder.Set(&http.Client{})
+	holder.Set(nil)
+	assert.False(t, holder.Injected())
+}
+
 // TestHolderConcurrentClient verifies that concurrent Client calls share one
 // default client, so concurrent sends never build their own.
 func TestHolderConcurrentClient(t *testing.T) {
@@ -174,8 +249,8 @@ func TestHolderConcurrentClient(t *testing.T) {
 	}
 }
 
-// TestHolderConcurrentUse verifies that Set, SetDefault, and Client can run
-// at the same time, which the race detector checks, and that every Client
+// TestHolderConcurrentUse verifies that every Holder method can run at the
+// same time, which the race detector checks. Every Client and InsecureClient
 // result is the injected client or a default built from settings that some
 // SetDefault call used.
 func TestHolderConcurrentUse(t *testing.T) {
@@ -194,17 +269,21 @@ func TestHolderConcurrentUse(t *testing.T) {
 	injected := &http.Client{}
 	timeouts := []time.Duration{time.Second, 2 * time.Second}
 	results := make([][]types.HTTPClient, goroutines)
+	insecureResults := make([][]types.HTTPClient, goroutines)
 
 	for g := range goroutines {
 		wg.Go(func() {
 			for i := range iterations {
-				switch (g + i) % 4 {
+				switch (g + i) % 5 {
 				case 0:
 					holder.Set(injected)
 				case 1:
 					holder.Set(nil)
 				case 2:
 					holder.SetDefault(timeouts[i%len(timeouts)], nil)
+				case 3:
+					insecureResults[g] = append(insecureResults[g], holder.InsecureClient())
+					holder.Injected()
 				default:
 					results[g] = append(results[g], holder.Client())
 				}
@@ -214,8 +293,8 @@ func TestHolderConcurrentUse(t *testing.T) {
 
 	wg.Wait()
 
-	for _, clients := range results {
-		for _, client := range clients {
+	for g := range goroutines {
+		for _, client := range results[g] {
 			if client == injected {
 				continue
 			}
@@ -223,6 +302,16 @@ func TestHolderConcurrentUse(t *testing.T) {
 			httpClient := requireHTTPClient(t, client)
 			assert.Contains(t, append(timeouts, 0), httpClient.Timeout)
 			assert.Nil(t, httpClient.Transport)
+		}
+
+		for _, client := range insecureResults[g] {
+			if client == injected {
+				continue
+			}
+
+			httpClient := requireHTTPClient(t, client)
+			assert.Contains(t, append(timeouts, 0), httpClient.Timeout)
+			assert.NotNil(t, httpClient.Transport)
 		}
 	}
 }
