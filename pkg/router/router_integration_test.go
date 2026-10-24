@@ -459,20 +459,10 @@ var allowlist = map[string]map[string]knownFailure{
 		"zulip":      {"Zulip's limits lookup carries no deadline", failBudget},
 	},
 	checkPlaintextWarning: {
-		"generic":       {"Generic logs no warning when TLS is disabled", failWarningCount},
-		"homeassistant": {"Home Assistant logs no warning when TLS is disabled", failWarningCount},
-		"matrix":        {"Matrix logs no warning when TLS is disabled", failWarningCount},
-		"mattermost":    {"Mattermost logs no warning when TLS is disabled", failWarningCount},
-		"signal":        {"Signal logs no warning when TLS is disabled", failWarningCount},
-		"xmpp":          {"XMPP logs no warning when TLS is disabled", failWarningCount},
-	},
-	checkSkipTLSVerifyURL: {},
-	checkSkipTLSVerifyParams: {
-		"homeassistant": {"Home Assistant applies skiptlsverify only from the URL", failSkipIgnored},
-	},
-	checkInsecureWarning: {
-		"homeassistant": {"Home Assistant logs its own warning text, in Initialize", failWarningCount},
-		"signal":        {"Signal logs its own warning text, when it builds its client", failWarningCount},
+		"generic":    {"Generic logs no warning when TLS is disabled", failWarningCount},
+		"matrix":     {"Matrix logs no warning when TLS is disabled", failWarningCount},
+		"mattermost": {"Mattermost logs no warning when TLS is disabled", failWarningCount},
+		"xmpp":       {"XMPP logs no warning when TLS is disabled", failWarningCount},
 	},
 }
 

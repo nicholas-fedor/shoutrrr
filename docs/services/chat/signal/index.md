@@ -55,6 +55,8 @@ Recipients set with the `recipients` (or `to`) query or send param are comma-sep
 - Use `signal://` for HTTPS (default, recommended)
 - Use `signal://...?disabletls=yes` for HTTP (insecure, for local testing only)
 - Use `skiptlsverify=yes` to skip certificate-chain trust and hostname validation (expired, untrusted, and hostname-mismatched certificates). TLS 1.2 remains the minimum.
+- Both options also work as send params.
+- Shoutrrr logs a warning the first time a send skips certificate verification through its own client, and the first time a send goes out over HTTP.
 
 ## Examples
 

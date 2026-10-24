@@ -54,6 +54,9 @@ When the port is omitted, HTTPS uses port `443` and HTTP (`disabletls=yes`) uses
 - __`disabletls`__: Use HTTP instead of HTTPS.
 - __`skiptlsverify`__: Skip TLS certificate verification. Use only with self-signed certificates.
 
+Both TLS parameters work in the URL and in send params.
+Shoutrrr logs a warning the first time a send skips certificate verification through its own client, and the first time a send goes out over HTTP.
+
 The request is `POST /api/services/{domain}/{service}` with `Authorization: Bearer <token>` and a JSON body containing `message` plus any optional fields above.
 
 Webhook triggers that fire automations are not part of this service. Those endpoints do not use a long-lived access token.

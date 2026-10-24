@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,6 +21,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
@@ -50,16 +51,15 @@ func TestBuildAPIURL(t *testing.T) {
 }
 
 // TestCreateRequest verifies that createRequest builds a JSON POST with the
-// User-Agent and authentication headers, bounded by the request timeout.
+// User-Agent and authentication headers, on the send's context.
 func TestCreateRequest(t *testing.T) {
 	t.Parallel()
 
 	config := &Config{Host: "localhost", Port: 8080, Token: "SECRETtoken"}
 	payload := &sendMessagePayload{Message: "Hello", Number: testSource, Recipients: []string{testRecipient}}
 
-	req, cancel, err := (&Service{}).createRequest(t.Context(), config, payload)
+	req, err := (&Service{}).createRequest(t.Context(), config, payload)
 	require.NoError(t, err)
-	t.Cleanup(cancel)
 
 	assert.Equal(t, http.MethodPost, req.Method)
 	assert.Equal(t, testEndpoint, req.URL.String())
@@ -67,9 +67,7 @@ func TestCreateRequest(t *testing.T) {
 	assert.Equal(t, meta.UserAgent(), req.Header.Get("User-Agent"))
 	assert.Equal(t, "Bearer SECRETtoken", req.Header.Get("Authorization"))
 
-	deadline, ok := req.Context().Deadline()
-	require.True(t, ok, "request has no deadline")
-	assert.WithinDuration(t, deadline, time.Now().Add(defaultHTTPTimeout), time.Second)
+	assert.Equal(t, t.Context(), req.Context())
 
 	body, err := io.ReadAll(req.Body)
 	require.NoError(t, err)
@@ -466,104 +464,73 @@ func TestFormatSendError(t *testing.T) {
 	}
 }
 
-// TestHTTPClientFor verifies that a custom client serves every send, and that
-// otherwise the stored default client serves sends whose skiptlsverify
-// matches the stored config, with a new default client for the others.
-func TestHTTPClientFor(t *testing.T) {
-	t.Parallel()
-
-	t.Run("custom client", func(t *testing.T) {
-		t.Parallel()
-
-		client := mocks.NewMockHTTPClient(t)
-		service := &Service{Config: &Config{}}
-		service.SetHTTPClient(client)
-
-		assert.Same(t, client, service.httpClientFor(&Config{SkipTLSVerify: true}))
-	})
-
-	// tests lists stored and per-send skiptlsverify values with whether the
-	// stored default client should serve the send.
-	tests := []struct {
-		name       string
-		storedSkip bool
-		sendSkip   bool
-		wantStored bool
-	}{
-		{name: "both verify", wantStored: true},
-		{name: "both skip", storedSkip: true, sendSkip: true, wantStored: true},
-		{name: "send skips", sendSkip: true},
-		{name: "send verifies", storedSkip: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			service := &Service{Config: &Config{SkipTLSVerify: tt.storedSkip}}
-			service.SetLogger(log.New(t.Output(), "", 0))
-
-			stored := service.newHTTPClient(tt.storedSkip)
-			service.httpClient = stored
-
-			client := service.httpClientFor(&Config{SkipTLSVerify: tt.sendSkip})
-
-			if tt.wantStored {
-				assert.Same(t, stored, client)
-
-				return
-			}
-
-			assert.NotSame(t, stored, client)
-			assertSkipsVerify(t, client, tt.sendSkip)
-		})
-	}
-
-	t.Run("no stored client", func(t *testing.T) {
-		t.Parallel()
-
-		service := &Service{}
-		service.SetLogger(log.New(t.Output(), "", 0))
-
-		assertSkipsVerify(t, service.httpClientFor(nil), false)
-		assertSkipsVerify(t, service.httpClientFor(&Config{SkipTLSVerify: true}), true)
-	})
-}
-
-// TestNewHTTPClient verifies that the default client logs a warning when it
-// skips certificate verification.
-func TestNewHTTPClient(t *testing.T) {
+// TestSendClient verifies that sends that verify certificates use the default
+// client, and that sends that skip it share the insecure default client, even
+// when they run concurrently. The first insecure send logs the shared warning
+// once. An injected client is used for both and never warned about.
+func TestSendClient(t *testing.T) {
 	t.Parallel()
 
 	var logs bytes.Buffer
 
-	service := &Service{}
+	service := &Service{Config: &Config{}}
 	service.SetLogger(log.New(&logs, "", 0))
 
-	assertSkipsVerify(t, service.newHTTPClient(false), false)
-	assert.Empty(t, logs.String())
+	assertDefaultClient(t, service.sendClient(&Config{}), false)
 
-	assertSkipsVerify(t, service.newHTTPClient(true), true)
-	assert.Equal(t, "Warning: TLS verification is disabled, making connections insecure\n", logs.String())
+	clients := make([]types.HTTPClient, 8)
+
+	var wg sync.WaitGroup
+	for i := range clients {
+		wg.Go(func() { clients[i] = service.sendClient(&Config{SkipTLSVerify: true}) })
+	}
+
+	wg.Wait()
+
+	for _, client := range clients {
+		assert.Same(t, clients[0], client)
+	}
+
+	assertDefaultClient(t, clients[0], true)
+	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+
+	var injectedLogs bytes.Buffer
+
+	injected := &Service{Config: &Config{}}
+	injected.SetLogger(log.New(&injectedLogs, "", 0))
+
+	custom := mocks.NewMockHTTPClient(t)
+	injected.SetHTTPClient(custom)
+	assert.Same(t, custom, injected.sendClient(&Config{SkipTLSVerify: true}))
+	assert.Empty(t, injectedLogs.String())
 }
 
-// assertSkipsVerify asserts that client is a default client with the request
-// timeout, TLS 1.2 or later, and the given certificate verification setting.
+// assertDefaultClient asserts that client is a default client without a
+// timeout of its own. The default client sends through http.DefaultTransport,
+// and the insecure one through a proxy-aware transport that requires TLS 1.2
+// and skips certificate verification.
 //
 // Parameters:
 //   - t: the test.
 //   - client: the client to check.
 //   - wantSkip: whether the client should skip certificate verification.
-func assertSkipsVerify(t *testing.T, client any, wantSkip bool) {
+func assertDefaultClient(t *testing.T, client any, wantSkip bool) {
 	t.Helper()
 
 	httpClient, ok := client.(*http.Client)
 	require.True(t, ok, "client is %T", client)
-	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
+
+	if !wantSkip {
+		assert.Nil(t, httpClient.Transport, "the default client should send through http.DefaultTransport")
+
+		return
+	}
 
 	transport, ok := httpClient.Transport.(*http.Transport)
 	require.True(t, ok, "transport is %T", httpClient.Transport)
 	require.NotNil(t, transport.TLSClientConfig)
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
-	assert.Equal(t, wantSkip, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.NotNil(t, transport.Proxy)
 }

@@ -654,7 +654,7 @@ func TestSetHTTPClient(t *testing.T) {
 
 			service.SetHTTPClient(tt.client)
 			assertDefaultClient(t, service.client.Client(), false)
-			assertDefaultClient(t, service.client.InsecureClient(), true)
+			assertDefaultClient(t, service.client.InsecureClient(nil), true)
 		})
 	}
 

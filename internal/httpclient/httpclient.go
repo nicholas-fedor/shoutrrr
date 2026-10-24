@@ -53,42 +53,43 @@ func (h *Holder) Client() types.HTTPClient {
 	return h.fallback
 }
 
-// Injected reports whether a caller injected a client, so a service can skip
-// warnings about default client settings that the injected client does not
-// use.
-//
-// Returns:
-//   - bool: whether Set stored a client that is not nil.
-func (h *Holder) Injected() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	return h.injected != nil
-}
-
 // InsecureClient returns the client to send through when the user turned off
 // TLS certificate verification.
 //
 // Without an injected client, it returns a default client that skips
-// verification. It builds that client with the SetDefault timeout on first use
-// and reuses it after that. An injected client is returned unchanged, because
-// its owner controls its TLS settings.
+// verification and calls warn, so the service can log the warning once. It
+// builds that client with the SetDefault timeout on first use and reuses it
+// after that. An injected client is returned unchanged, without calling warn,
+// because its owner controls its TLS settings.
+//
+// Parameters:
+//   - warn: called, outside the holder's lock, when the insecure default
+//     client is returned. It may be nil.
 //
 // Returns:
 //   - types.HTTPClient: the injected client, or the insecure default client.
-func (h *Holder) InsecureClient() types.HTTPClient {
+func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	if h.injected != nil {
-		return h.injected
+		injected := h.injected
+		h.mu.Unlock()
+
+		return injected
 	}
 
 	if h.insecure == nil {
 		h.insecure = newDefault(h.timeout, transport.InsecureTLSConfig(""))
 	}
 
-	return h.insecure
+	insecure := h.insecure
+	h.mu.Unlock()
+
+	if warn != nil {
+		warn()
+	}
+
+	return insecure
 }
 
 // Set stores the client to send through. A nil client, including a nil

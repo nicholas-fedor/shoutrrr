@@ -300,11 +300,7 @@ func (s *Service) sendClient(config *Config) types.HTTPClient {
 		return s.client.Client()
 	}
 
-	if !s.client.Injected() {
-		s.warnings.Insecure(s)
-	}
-
-	return s.client.InsecureClient()
+	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
 }
 
 // sendRequest executes the HTTP POST request to the Gotify API endpoint.

@@ -165,8 +165,8 @@ func TestHolderInsecureClient(t *testing.T) {
 
 		holder.SetDefault(time.Second, &tls.Config{MinVersion: tls.VersionTLS13})
 
-		first := requireHTTPClient(t, holder.InsecureClient())
-		assert.Same(t, first, holder.InsecureClient())
+		first := requireHTTPClient(t, holder.InsecureClient(nil))
+		assert.Same(t, first, holder.InsecureClient(nil))
 		assert.NotSame(t, holder.Client(), first)
 		assert.Equal(t, time.Second, first.Timeout)
 
@@ -184,7 +184,7 @@ func TestHolderInsecureClient(t *testing.T) {
 		injected := &http.Client{}
 		holder.Set(injected)
 
-		assert.Same(t, injected, holder.InsecureClient())
+		assert.Same(t, injected, holder.InsecureClient(nil))
 	})
 
 	t.Run("new settings rebuild the insecure default", func(t *testing.T) {
@@ -192,38 +192,44 @@ func TestHolderInsecureClient(t *testing.T) {
 
 		var holder Holder
 
-		first := holder.InsecureClient()
+		first := holder.InsecureClient(nil)
 
 		holder.Set(&http.Client{})
 		holder.Set(nil)
-		assert.Same(t, first, holder.InsecureClient(), "Set should keep the insecure default")
+		assert.Same(t, first, holder.InsecureClient(nil), "Set should keep the insecure default")
 
 		holder.SetDefault(2*time.Second, nil)
-		second := requireHTTPClient(t, holder.InsecureClient())
+		second := requireHTTPClient(t, holder.InsecureClient(nil))
 
 		assert.NotSame(t, first, second)
 		assert.Equal(t, 2*time.Second, second.Timeout)
 	})
 }
 
-// TestHolderInjected verifies that Injected reports a client stored by Set
-// and treats a nil client of any kind as none.
-func TestHolderInjected(t *testing.T) {
+// TestHolderInsecureClientWarns verifies that InsecureClient calls the
+// warning callback each time it returns the insecure default client, and never
+// for an injected client.
+func TestHolderInsecureClientWarns(t *testing.T) {
 	t.Parallel()
 
-	var holder Holder
+	var (
+		holder Holder
+		warned int
+	)
 
-	assert.False(t, holder.Injected())
+	warn := func() { warned++ }
+
+	holder.InsecureClient(warn)
+	holder.InsecureClient(warn)
+	assert.Equal(t, 2, warned)
 
 	holder.Set(&http.Client{})
-	assert.True(t, holder.Injected())
+	holder.InsecureClient(warn)
+	assert.Equal(t, 2, warned, "an injected client must not warn")
 
 	holder.Set((*http.Client)(nil))
-	assert.False(t, holder.Injected())
-
-	holder.Set(&http.Client{})
-	holder.Set(nil)
-	assert.False(t, holder.Injected())
+	holder.InsecureClient(warn)
+	assert.Equal(t, 3, warned)
 }
 
 // TestHolderConcurrentClient verifies that concurrent Client calls share one
@@ -282,8 +288,7 @@ func TestHolderConcurrentUse(t *testing.T) {
 				case 2:
 					holder.SetDefault(timeouts[i%len(timeouts)], nil)
 				case 3:
-					insecureResults[g] = append(insecureResults[g], holder.InsecureClient())
-					holder.Injected()
+					insecureResults[g] = append(insecureResults[g], holder.InsecureClient(func() {}))
 				default:
 					results[g] = append(results[g], holder.Client())
 				}

@@ -13,5 +13,10 @@
 // URL format: signal://[user:pass@]host:port/source_phone/recipient1/recipient2
 // URL format: signal://host:port/source_phone/recipient1?token=apikey&textmode=styled
 //
+// disabletls=yes sends over HTTP, and skiptlsverify=yes skips certificate
+// verification. Both work in the URL and in send params, and the first send
+// that uses either logs a warning. A send is bounded by its context, or by a
+// budget of 30 seconds per recipient batch when the context has no deadline.
+//
 // For setup instructions and API server options, see the service documentation.
 package signal

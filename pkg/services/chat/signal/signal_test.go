@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -157,24 +158,14 @@ func TestInitialize(t *testing.T) {
 		NotifySelf: true,
 	}, service.Config)
 
-	// tests lists URLs with whether the default client should skip
-	// certificate verification.
-	tests := []struct {
-		name         string
-		rawURL       string
-		wantInsecure bool
-	}{
-		{name: "verifies certificates by default", rawURL: testServiceURL},
-		{name: "skiptlsverify", rawURL: testServiceURL + "?skiptlsverify=yes", wantInsecure: true},
-	}
+	// Initialize logs nothing for skiptlsverify. The first send that skips
+	// verification warns about it.
+	var logs bytes.Buffer
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assertSkipsVerify(t, newTestService(t, tt.rawURL).httpClient, tt.wantInsecure)
-		})
-	}
+	skipping := &Service{}
+	require.NoError(t, skipping.Initialize(parseTestURL(t, testServiceURL+"?skiptlsverify=yes"), log.New(&logs, "", 0)))
+	assert.Empty(t, logs.String())
+	assertDefaultClient(t, skipping.client.Client(), false)
 }
 
 // TestInitializeErrors verifies that Initialize reports an invalid service
@@ -199,7 +190,7 @@ func TestInitializeKeepsCustomClient(t *testing.T) {
 	service.SetHTTPClient(client)
 	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
 
-	assert.Same(t, client, service.httpClient)
+	assert.Same(t, client, service.client.Client())
 	require.NoError(t, service.Send("Hello", nil))
 	assert.Len(t, *captured, 1)
 }
@@ -668,9 +659,10 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
-// TestSendDefaultClientTLS verifies the default client against a loopback TLS
-// server with a self-signed certificate: the send fails certificate
-// verification unless skiptlsverify is set in the URL or the send params.
+// TestSendDefaultClientTLS verifies the default clients against a loopback TLS
+// server with a self-signed certificate. The send fails certificate
+// verification unless skiptlsverify is set in the URL or the send params,
+// including by a second Initialize.
 func TestSendDefaultClientTLS(t *testing.T) {
 	t.Parallel()
 
@@ -691,7 +683,7 @@ func TestSendDefaultClientTLS(t *testing.T) {
 	server.StartTLS()
 	t.Cleanup(server.Close)
 	// The certificate check fails before any request reaches the server.
-	t.Cleanup(func() { assert.Equal(t, int32(2), requests.Load()) })
+	t.Cleanup(func() { assert.Equal(t, int32(3), requests.Load()) })
 
 	rawURL := "signal://" + server.Listener.Addr().String() + "/" + testSource + "/" + testRecipient
 
@@ -719,6 +711,17 @@ func TestSendDefaultClientTLS(t *testing.T) {
 
 		require.NoError(t, service.SendContext(t.Context(), "Hello", &types.Params{"skiptlsverify": "yes"}))
 	})
+
+	// A second Initialize that turns skiptlsverify on applies to the next
+	// send, with no client left over from the first configuration.
+	t.Run("skiptlsverify after initializing again", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, rawURL)
+		require.NoError(t, service.Initialize(parseTestURL(t, rawURL+"?skiptlsverify=yes"), log.New(t.Output(), "", 0)))
+
+		require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
+	})
 }
 
 // TestSendUsesCustomClientDialer verifies that a custom *http.Client's
@@ -738,9 +741,10 @@ func TestSendUsesCustomClientDialer(t *testing.T) {
 	require.ErrorIs(t, service.SendContext(t.Context(), "Hello", nil), errBlocked)
 }
 
-// TestServiceTimeout verifies that the router budget is one request timeout
-// per recipient batch, counting recipients set by params, with the stored
-// recipients when a param is invalid and one timeout before Initialize.
+// TestServiceTimeout verifies that the send budget is one batch budget per
+// recipient batch, counting recipients set by params. The stored recipients
+// count when a param is invalid, and one batch budget applies before
+// Initialize.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -773,14 +777,14 @@ func TestServiceTimeout(t *testing.T) {
 
 			service := newTestService(t, tt.rawURL)
 
-			assert.Equal(t, defaultHTTPTimeout*time.Duration(tt.want), service.ServiceTimeout(tt.params))
+			assert.Equal(t, batchBudget*time.Duration(tt.want), service.ServiceTimeout(tt.params))
 		})
 	}
 
 	t.Run("before Initialize", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, defaultHTTPTimeout, (&Service{}).ServiceTimeout(nil))
+		assert.Equal(t, batchBudget, (&Service{}).ServiceTimeout(nil))
 	})
 
 	t.Run("no recipients", func(t *testing.T) {
@@ -789,49 +793,81 @@ func TestServiceTimeout(t *testing.T) {
 		service := newTestService(t, testServiceURL)
 		service.Config.Recipients = nil
 
-		assert.Equal(t, defaultHTTPTimeout, service.ServiceTimeout(nil))
+		assert.Equal(t, batchBudget, service.ServiceTimeout(nil))
 	})
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client as
-// injected, and clears it for nil and a nil *http.Client so sends use the
-// default client.
+// TestSendPlaintextWarning verifies that the first send over HTTP logs the
+// shared warning, later sends do not, and initializing the service again lets
+// it appear again. An injected client gets the warning too, because the URL
+// decides the scheme.
+func TestSendPlaintextWarning(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	client, _ := newRecordingClient(t, accepted, accepted, accepted)
+	rawURL := testServiceURL + "?disabletls=yes"
+
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+
+	require.NoError(t, service.Send("Hello", nil))
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, []string{"Warning: sending without TLS"}, warningLines(logs.String()))
+
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, []string{"Warning: sending without TLS", "Warning: sending without TLS"}, warningLines(logs.String()))
+}
+
+// warningLines returns the logged lines that are warnings, leaving out the
+// log of each message sent.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "Warning: ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
+}
+
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client, and
+// that nil and a nil *http.Client restore the default client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists constructors for the clients to set, which build any mock
-	// with the subtest's t, and whether the stored client should be cleared.
+	// tests lists the clients that restore the default.
 	tests := []struct {
-		client    func(t *testing.T) types.HTTPClient
-		name      string
-		wantClear bool
+		client types.HTTPClient
+		name   string
 	}{
-		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
-			t.Helper()
-
-			return mocks.NewMockHTTPClient(t)
-		}},
-		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
-		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := tt.client(t)
-			service := &Service{httpClient: mocks.NewMockHTTPClient(t), injectedHTTPClient: true}
-			service.SetHTTPClient(client)
+			service := &Service{}
 
-			if tt.wantClear {
-				assert.Nil(t, service.httpClient)
-				assert.False(t, service.injectedHTTPClient)
+			custom := mocks.NewMockHTTPClient(t)
+			service.SetHTTPClient(custom)
+			assert.Same(t, custom, service.client.Client())
 
-				return
-			}
-
-			assert.Same(t, client, service.httpClient)
-			assert.True(t, service.injectedHTTPClient)
+			service.SetHTTPClient(tt.client)
+			assertDefaultClient(t, service.client.Client(), false)
 		})
 	}
 }
