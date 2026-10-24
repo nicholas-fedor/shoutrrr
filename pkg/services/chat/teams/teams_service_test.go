@@ -184,66 +184,59 @@ func TestServiceInitialize(t *testing.T) {
 	require.NotNil(t, service.Config)
 	assert.Equal(t, Config{Host: testWorkflowURL, Title: "Alert", Color: "red"}, *service.Config)
 
-	client, ok := service.httpClient.(*defaultHTTPClient)
+	client, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-
-	httpClient, ok := client.client.(*http.Client)
-	require.True(t, ok)
-	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+	assert.Nil(t, client.Transport)
 }
 
-// TestServiceSetHTTPClient verifies which client SetHTTPClient installs for
-// nil, *http.Client, and custom clients.
-func TestServiceSetHTTPClient(t *testing.T) {
+// TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
+// client, including an *http.Client, and that a nil client or a nil
+// *http.Client restores the default.
+func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	custom := &http.Client{}
-
-	// tests lists clients passed to SetHTTPClient with the inner *http.Client
-	// that the installed default wrapper should hold. A nil want means the
-	// wrapper holds a new client with the default timeout.
-	tests := []struct {
+	// clients lists custom clients, which sends use as they are.
+	clients := []struct {
 		name   string
 		client types.HTTPClient
-		want   *http.Client
 	}{
-		{name: "nil selects the default client", client: nil},
-		{name: "nil *http.Client selects the default client", client: (*http.Client)(nil)},
-		{name: "*http.Client is wrapped", client: custom, want: custom},
+		{name: "*http.Client", client: &http.Client{}},
+		{name: "custom client", client: mocks.NewMockHTTPClient(t)},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range clients {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{}
-			service.SetHTTPClient(tt.client)
+			service := newTestService(t, testServiceURL, tt.client)
 
-			wrapper, ok := service.httpClient.(*defaultHTTPClient)
-			require.True(t, ok)
-
-			inner, ok := wrapper.client.(*http.Client)
-			require.True(t, ok)
-
-			if tt.want != nil {
-				assert.Same(t, tt.want, inner)
-
-				return
-			}
-
-			assert.Equal(t, defaultHTTPTimeout, inner.Timeout)
+			assert.Same(t, tt.client, service.client.Client())
 		})
 	}
 
-	t.Run("custom client is installed as is", func(t *testing.T) {
-		t.Parallel()
+	// nilClients lists the nil clients that restore the default client.
+	nilClients := []struct {
+		name   string
+		client types.HTTPClient
+	}{
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
 
-		client := mocks.NewMockHTTPClient(t)
-		service := &Service{}
-		service.SetHTTPClient(client)
+	for _, tt := range nilClients {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		assert.Same(t, client, service.httpClient)
-	})
+			service := newTestService(t, testServiceURL, nil)
+			defaultClient := service.client.Client()
+
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(tt.client)
+
+			assert.Same(t, defaultClient, service.client.Client())
+		})
+	}
 }
 
 // TestServiceSendStatus verifies that Send accepts 200 OK and 202 Accepted,
@@ -565,4 +558,18 @@ func TestServiceSendRedactsUnparsableWebhookURL(t *testing.T) {
 	_, isURLErr := errors.AsType[*url.Error](err)
 	require.True(t, isURLErr, "error %v does not wrap a *url.Error", err)
 	assert.NotContains(t, err.Error(), "SECRETsig")
+}
+
+// TestSetHTTPClientBeforeInitialize verifies that a client injected before
+// Initialize is the one sends use.
+func TestSetHTTPClientBeforeInitialize(t *testing.T) {
+	t.Parallel()
+
+	client, captured := newCapturingClient(t)
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(mustParseURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+
+	require.NoError(t, service.Send("Message", nil))
+	assert.Equal(t, http.MethodPost, captured.method)
 }

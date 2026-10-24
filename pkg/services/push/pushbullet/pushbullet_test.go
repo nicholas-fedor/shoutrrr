@@ -155,7 +155,10 @@ func TestInitialize(t *testing.T) {
 		service := newTestService(t, "pushbullet://"+testToken+"/device")
 
 		assert.Equal(t, &Config{Token: testToken, Targets: []string{"device"}, Title: "Shoutrrr notification"}, service.Config)
-		assert.Equal(t, testToken, service.client.Headers().Get("Access-Token"))
+
+		client, ok := service.client.Client().(*http.Client)
+		require.True(t, ok)
+		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
 	})
 
 	t.Run("short token", func(t *testing.T) {
@@ -439,8 +442,9 @@ func TestServiceTimeout(t *testing.T) {
 	}
 }
 
-// TestSetHTTPClient verifies that every client SetHTTPClient installs carries
-// the access token, including the default client that nil restores.
+// TestSetHTTPClient verifies that sends use the client SetHTTPClient installs,
+// or the default client that nil restores, and that the API client built on
+// either carries the access token.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -464,12 +468,12 @@ func TestSetHTTPClient(t *testing.T) {
 			service.SetHTTPClient(tt.client)
 
 			if tt.wantCustom {
-				assert.Same(t, tt.client, service.httpClient)
+				assert.Same(t, tt.client, service.client.Client())
 			} else {
-				assert.Nil(t, service.httpClient)
+				assert.IsType(t, &http.Client{}, service.client.Client())
 			}
 
-			assert.Equal(t, testToken, service.client.Headers().Get("Access-Token"))
+			assert.Equal(t, testToken, service.newJSONClient().Headers().Get("Access-Token"))
 		})
 	}
 }

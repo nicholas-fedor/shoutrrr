@@ -3,11 +3,11 @@ package matrix
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -18,8 +18,9 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// httpClient holds the injected HTTP client and the default client, which
+	// the API client sends through.
+	httpClient httpclient.Holder
 
 	// Config holds the homeserver, the credentials, and the rooms.
 	Config *Config
@@ -79,6 +80,7 @@ func (s *Service) GetID() string {
 //     or [ErrMissingHost].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.httpClient.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{
 		EnumlessConfig: standard.EnumlessConfig{},
 		User:           "",
@@ -104,8 +106,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return nil
 	}
 
-	s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger)
-	s.client.httpClient = adaptHTTPClient(s.httpClient)
+	s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger, &s.httpClient)
 
 	if s.Config.User == "" {
 		s.client.useToken(s.Config.Password)
@@ -225,21 +226,14 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	return defaultHTTPTimeout * time.Duration(requests)
 }
 
-// SetHTTPClient sets a custom HTTP client for the service (propagated to internal client).
-// A nil client restores the default client. An access token from an earlier login
-// stays valid.
+// SetHTTPClient sets a custom HTTP client for the service, which the API client
+// then sends through. A nil client, including a nil *http.Client, restores the
+// default client. An access token from an earlier login stays valid.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-	if s.client != nil {
-		s.client.httpClient = adaptHTTPClient(client)
-	}
+	s.httpClient.Set(client)
 }
 
 // ensureLogin logs in with the configured user and password once, on the first

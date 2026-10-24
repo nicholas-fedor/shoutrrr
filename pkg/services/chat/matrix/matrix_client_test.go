@@ -17,7 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 )
+
+// failingTransport is a transport whose requests fail with err.
+type failingTransport struct {
+	// err is the error every request fails with.
+	err error
+}
 
 // reply is one scripted answer of a scriptedHTTPClient.
 type reply struct {
@@ -182,9 +189,12 @@ func newScriptedClient(t *testing.T, replies ...reply) (*client, *scriptedHTTPCl
 		}
 	})
 
+	holder := &httpclient.Holder{}
+	holder.Set(httpClient)
+
 	return &client{
 		apiURL:     url.URL{Scheme: "https", Host: "matrix.example.com"},
-		httpClient: httpClient,
+		httpClient: holder,
 		logger:     log.New(t.Output(), "", 0),
 	}, httpClient
 }
@@ -216,13 +226,13 @@ func loginRequest(t *testing.T, httpClient *scriptedHTTPClient) apiReqLogin {
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
-	secure := newClient("matrix.example.com", false, nil)
+	secure := newClient("matrix.example.com", false, nil, &httpclient.Holder{})
 	require.NotNil(t, secure)
 	assert.Equal(t, "https", secure.apiURL.Scheme)
 	assert.Equal(t, "matrix.example.com", secure.apiURL.Host)
 	assert.NotNil(t, secure.logger)
 
-	assert.Equal(t, "http", newClient("matrix.example.com", true, nil).apiURL.Scheme)
+	assert.Equal(t, "http", newClient("matrix.example.com", true, nil, &httpclient.Holder{}).apiURL.Scheme)
 }
 
 // TestAPIRequestFailures verifies that GET and POST requests report transport
@@ -811,4 +821,32 @@ func TestCreateMessage(t *testing.T) {
 			assert.Equal(t, tt.want, createMessage(tt.message, tt.title))
 		})
 	}
+}
+
+// RoundTrip fails the request with the transport's error.
+//
+// Returns:
+//   - *http.Response: always nil.
+//   - error: the transport's error.
+func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, f.err
+}
+
+// TestDefaultHTTPClientDo verifies that the deprecated DefaultHTTPClient
+// still sends through its client and redacts the URL in a transport error.
+func TestDefaultHTTPClientDo(t *testing.T) {
+	t.Parallel()
+
+	errTransport := errors.New("transport failure")
+	client := &DefaultHTTPClient{client: &http.Client{Transport: failingTransport{err: errTransport}}}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://matrix.example.com/SECRETpath", http.NoBody)
+	require.NoError(t, err)
+
+	res, err := client.Do(req)
+
+	require.ErrorIs(t, err, errTransport)
+	assert.Nil(t, res)
+	assert.NotContains(t, err.Error(), "SECRETpath")
+	assert.Contains(t, err.Error(), "matrix.example.com")
 }

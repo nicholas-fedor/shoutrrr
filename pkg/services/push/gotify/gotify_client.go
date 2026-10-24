@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 // HTTPClientManager handles HTTP client creation and configuration.
+//
+// Deprecated: The service builds its default client from its TLS settings and
+// does not use an HTTPClientManager. Inject a client with
+// [Service.SetHTTPClient] instead.
 type HTTPClientManager interface {
 	// CreateTransport builds the transport for config's TLS settings.
 	CreateTransport(config *Config) *http.Transport
@@ -18,6 +21,10 @@ type HTTPClientManager interface {
 }
 
 // DefaultHTTPClientManager provides the default implementation of HTTPClientManager.
+//
+// Deprecated: The service builds its default client from its TLS settings and
+// does not use an HTTPClientManager. Inject a client with
+// [Service.SetHTTPClient] instead.
 type DefaultHTTPClientManager struct{}
 
 // Default client settings.
@@ -50,36 +57,21 @@ func (m *DefaultHTTPClientManager) CreateClient(httpTransport *http.Transport) *
 // Returns:
 //   - *http.Transport: the transport for the default HTTP client.
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
-	return transport.New(&tls.Config{
-		MinVersion: tls.VersionTLS12,
-		InsecureSkipVerify: config.DisableTLS ||
-			config.InsecureSkipVerify,
-	})
+	return transport.New(newTLSConfig(config))
 }
 
-// initClient initializes the HTTP client and related components.
-// This method ensures that the transport, HTTP client, JSON client,
-// and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
-// This function is called by the Service and modifies its fields.
+// newTLSConfig returns the TLS settings of the default HTTP client: TLS 1.2 or
+// later, without certificate verification when config disables TLS or
+// verification.
 //
 // Parameters:
-//   - service: the service whose clients to build when either is missing.
-//   - manager: builds the transport and the HTTP client.
-func initClient(service *Service, manager HTTPClientManager) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-
-	if service.httpClient == nil || service.client == nil {
-		httpTransport := manager.CreateTransport(service.Config)
-		service.httpClient = manager.CreateClient(httpTransport)
-
-		service.client = jsonclient.NewWithHTTPClient(service.httpClient)
-		if service.Config.DisableTLS {
-			service.Log("Warning: TLS is disabled, using insecure HTTP connections")
-		}
-
-		if service.Config.InsecureSkipVerify {
-			service.Log("Warning: TLS certificate verification is disabled")
-		}
+//   - config: the service configuration with the TLS settings.
+//
+// Returns:
+//   - *tls.Config: the TLS settings.
+func newTLSConfig(config *Config) *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: config.DisableTLS || config.InsecureSkipVerify,
 	}
 }
