@@ -23,6 +23,8 @@
 //   - skiptlsverify: skip TLS certificate verification. Default No.
 //
 // When the port is omitted, HTTPS uses 443 and HTTP (disabletls=yes) uses 8123.
+// Both TLS options work in the URL and in send params, and the first send that
+// uses either logs a warning.
 //
 // # Example
 //

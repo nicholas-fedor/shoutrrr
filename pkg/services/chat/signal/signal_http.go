@@ -3,7 +3,6 @@ package signal
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -18,7 +17,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -26,8 +24,8 @@ import (
 const (
 	// contentType is the JSON encoding the REST API takes.
 	contentType = "application/json"
-	// defaultHTTPTimeout bounds each request of the default client.
-	defaultHTTPTimeout = 30 * time.Second
+	// batchBudget is the part of the send budget each recipient batch adds.
+	batchBudget = 30 * time.Second
 	// maxErrorBodySize caps how much of a plain error body goes into an error.
 	maxErrorBodySize = 4 * 1024
 )
@@ -55,30 +53,24 @@ func (s *Service) buildAPIURL(config *Config) string {
 // createRequest builds the HTTP request for the Signal API.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - config: the service configuration.
 //   - payload: the payload to send (passed as pointer for efficiency).
 //
 // Returns:
 //   - *http.Request: the constructed HTTP request.
-//   - context.CancelFunc: a function to cancel the request context.
 //   - error: a marshaling or request creation error.
 func (s *Service) createRequest(
 	ctx context.Context,
 	config *Config,
 	payload *sendMessagePayload,
-) (*http.Request, context.CancelFunc, error) {
+) (*http.Request, error) {
 	apiURL := s.buildAPIURL(config)
 
 	jsonData, err := json.Marshal(payload, jsonopts.Default)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshaling payload to JSON: %w", err)
+		return nil, fmt.Errorf("marshaling payload to JSON: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -87,38 +79,14 @@ func (s *Service) createRequest(
 		bytes.NewReader(jsonData),
 	)
 	if err != nil {
-		cancel()
-
-		return nil, nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
+		return nil, fmt.Errorf("creating HTTP request: %w", redact.URLError(err))
 	}
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", meta.UserAgent())
 	s.setAuthentication(req, config)
 
-	return req, cancel, nil
-}
-
-// newHTTPClient returns the default HTTP client for Signal requests.
-//
-// Parameters:
-//   - skipTLSVerify: when true, skip certificate-chain and hostname verification
-//
-// Returns:
-//   - types.HTTPClient: a client with a 30s timeout, TLS 1.2 minimum, and optional
-//     skip-verify, whose transport honors the proxy environment variables.
-func (s *Service) newHTTPClient(skipTLSVerify bool) types.HTTPClient {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if skipTLSVerify {
-		tlsConfig.InsecureSkipVerify = true
-
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
-	return &http.Client{
-		Timeout:   defaultHTTPTimeout,
-		Transport: transport.New(tlsConfig),
-	}
+	return req, nil
 }
 
 // handleSendResults logs the timestamp of each send result in a successful
@@ -207,9 +175,7 @@ func parseSendResults(body []byte) ([]sendResult, error) {
 //     fails to read or exceeds [maxResponseBodySize] is logged without
 //     checking its recipient results.
 func (s *Service) sendRequest(req *http.Request, config *Config) error {
-	client := s.httpClientFor(config)
-
-	resp, err := client.Do(req)
+	resp, err := s.sendClient(config).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
@@ -246,27 +212,22 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	return s.handleSendResults(body)
 }
 
-// httpClientFor returns the client for this send.
-// An injected client is used as-is. The default client matches config.SkipTLSVerify.
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
 //
 // Parameters:
-//   - config: the per-send configuration
+//   - config: the config for this send.
 //
 // Returns:
-//   - types.HTTPClient: the client used for this request
-func (s *Service) httpClientFor(config *Config) types.HTTPClient {
-	if s.injectedHTTPClient && s.httpClient != nil {
-		return s.httpClient
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(config *Config) types.HTTPClient {
+	if !config.SkipTLSVerify {
+		return s.client.Client()
 	}
 
-	skip := config != nil && config.SkipTLSVerify
-	initializedSkip := s.Config != nil && s.Config.SkipTLSVerify
-
-	if s.httpClient != nil && skip == initializedSkip {
-		return s.httpClient
-	}
-
-	return s.newHTTPClient(skip)
+	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
 }
 
 // setAuthentication configures HTTP authentication headers on the request.

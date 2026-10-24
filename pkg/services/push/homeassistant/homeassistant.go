@@ -3,18 +3,17 @@ package homeassistant
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -27,9 +26,11 @@ type Service struct {
 	// Standard provides base service functionality including logging.
 	standard.Standard
 
-	// client holds the injected HTTP client and the default client for REST
-	// API requests.
+	// client holds the injected HTTP client and the default clients. A send
+	// that skips certificate verification uses the insecure default client.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds Home Assistant credentials and notification options.
 	Config *Config
@@ -50,13 +51,8 @@ type requestPayload struct {
 	Targets []string `json:"target,omitempty"`
 }
 
-// Settings for requests to the REST API.
-const (
-	// contentType is the JSON encoding required by the REST API.
-	contentType = "application/json"
-	// defaultHTTPTimeout is the timeout applied to REST API requests.
-	defaultHTTPTimeout = 10 * time.Second
-)
+// contentType is the JSON encoding required by the REST API.
+const contentType = "application/json"
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -74,10 +70,8 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
-//
-// The default HTTP client follows the TLS settings of the URL, so a previous
-// default client is dropped. A URL that skips TLS verification logs a warning.
+// Initialize configures the service with a URL and logger. It performs no
+// network I/O.
 //
 // Parameters:
 //   - serviceURL: The Home Assistant service URL.
@@ -89,22 +83,13 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.warnings.Reset()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default props: %w", err)
 	}
 
-	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
-		return err
-	}
-
-	s.client.SetDefault(defaultHTTPTimeout, s.tlsConfig())
-
-	if s.Config.SkipTLSVerify {
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to Home Assistant.
@@ -123,6 +108,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Home Assistant.
 //
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
+//
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: The notification body.
@@ -136,9 +124,17 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrMessageEmpty
 	}
 
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
 	}
 
 	if err := s.send(ctx, message, &config); err != nil {
@@ -160,7 +156,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // send posts a notification to the Home Assistant REST API.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: The notification body sent as the JSON field message.
 //   - config: The resolved configuration used to build the URL and payload.
 //
@@ -177,9 +173,6 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 		return fmt.Errorf("marshaling payload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -194,7 +187,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 	req.Header.Set("Authorization", "Bearer "+config.Token)
 	req.Header.Set("User-Agent", meta.UserAgent())
 
-	res, err := s.client.Client().Do(req)
+	res, err := s.sendClient(config).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request: %w", redact.URLError(err))
 	}
@@ -262,14 +255,20 @@ func nonEmptyTargets(targets []string) []string {
 	})
 }
 
-// tlsConfig returns the TLS settings of the default HTTP client: TLS 1.2 or
-// later, without certificate verification when the configuration skips it.
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
+//
+// Parameters:
+//   - config: the config for this send.
 //
 // Returns:
-//   - *tls.Config: the TLS settings.
-func (s *Service) tlsConfig() *tls.Config {
-	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: s.Config.SkipTLSVerify,
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(config *Config) types.HTTPClient {
+	if !config.SkipTLSVerify {
+		return s.client.Client()
 	}
+
+	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
 }

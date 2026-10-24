@@ -127,40 +127,26 @@ func TestInitialize(t *testing.T) {
 		assert.Same(t, client, service.client.Client())
 	})
 
-	// clientTests lists service URLs with the TLS settings of the client
-	// Initialize should build.
-	clientTests := []struct {
-		name           string
-		rawURL         string
-		wantSkipVerify bool
-	}{
-		{name: "verified TLS", rawURL: "homeassistant://s3cret@ha.example.com"},
-		{name: "skiptlsverify", rawURL: "homeassistant://s3cret@ha.example.com?skiptlsverify=yes", wantSkipVerify: true},
-	}
+	// Initialize logs nothing for skiptlsverify and leaves the default client
+	// without a timeout of its own, sending through http.DefaultTransport. The
+	// first send that skips verification uses the insecure client and warns.
+	t.Run("skiptlsverify", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tt := range clientTests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		var logs bytes.Buffer
 
-			var logs bytes.Buffer
+		service := &Service{}
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@ha.example.com?skiptlsverify=yes"),
+			log.New(&logs, "", 0),
+		))
 
-			service := &Service{}
-			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
-
-			defaultClient := service.client.Client()
-
-			httpClient, ok := defaultClient.(*http.Client)
-			require.True(t, ok, "client is a %T", defaultClient)
-			assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
-
-			httpTransport, ok := httpClient.Transport.(*http.Transport)
-			require.True(t, ok, "transport is a %T", httpClient.Transport)
-			require.NotNil(t, httpTransport.TLSClientConfig)
-			assert.Equal(t, uint16(tls.VersionTLS12), httpTransport.TLSClientConfig.MinVersion)
-			assert.Equal(t, tt.wantSkipVerify, httpTransport.TLSClientConfig.InsecureSkipVerify)
-			assert.Equal(t, tt.wantSkipVerify, strings.Contains(logs.String(), "TLS verification is disabled"))
-		})
-	}
+		httpClient, ok := service.client.Client().(*http.Client)
+		require.True(t, ok, "client is a %T", service.client.Client())
+		assert.Zero(t, httpClient.Timeout)
+		assert.Nil(t, httpClient.Transport)
+		assert.Empty(t, logs.String())
+	})
 
 	t.Run("docs dummy URL", func(t *testing.T) {
 		t.Parallel()
@@ -510,10 +496,10 @@ func TestSetHTTPClient(t *testing.T) {
 	})
 }
 
-// TestDefaultClientTLSSettings verifies that the default client follows the
-// configured TLS settings after a nil client restores it, and after Initialize
-// runs again with other settings. The server's certificate is self-signed, so
-// a send succeeds only when the default client skips verification.
+// TestDefaultClientTLSSettings verifies that the default clients follow the
+// TLS settings of each send. The server's certificate is self-signed, so a
+// send succeeds only when it skips verification, which the URL, the params,
+// a second Initialize, or a nil client that restores the default can ask for.
 func TestDefaultClientTLSSettings(t *testing.T) {
 	t.Parallel()
 
@@ -527,6 +513,23 @@ func TestDefaultClientTLSSettings(t *testing.T) {
 
 		return strings.TrimPrefix(server.URL, "https://")
 	}
+
+	t.Run("verifies the certificate", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "homeassistant://s3cret@"+newServer(t))
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Message", nil))
+		assert.True(t, isCertErr, "error is not a certificate verification error")
+	})
+
+	t.Run("skiptlsverify param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "homeassistant://s3cret@"+newServer(t))
+
+		require.NoError(t, service.Send("Message", &types.Params{"skiptlsverify": "yes"}))
+	})
 
 	t.Run("nil client restores skiptlsverify", func(t *testing.T) {
 		t.Parallel()
@@ -549,5 +552,80 @@ func TestDefaultClientTLSSettings(t *testing.T) {
 			log.New(t.Output(), "", 0),
 		))
 		require.NoError(t, service.Send("Message", nil))
+	})
+}
+
+// TestSendWarnings verifies that the insecure and plaintext warnings are each
+// logged once over two sends, until the service is initialized again. The
+// insecure warning is never logged for an injected client.
+func TestSendWarnings(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	host := strings.TrimPrefix(server.URL, "https://")
+
+	t.Run("insecure", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@"+host+"?skiptlsverify=yes"),
+			log.New(&logs, "", 0),
+		))
+
+		require.NoError(t, service.Send("Message", nil))
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+	})
+
+	t.Run("insecure with an injected client", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@"+host+"?skiptlsverify=yes"),
+			log.New(&logs, "", 0),
+		))
+		service.SetHTTPClient(server.Client())
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Empty(t, logs.String())
+	})
+
+	t.Run("plaintext", func(t *testing.T) {
+		t.Parallel()
+
+		plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(plain.Close)
+
+		var logs bytes.Buffer
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@"+strings.TrimPrefix(plain.URL, "http://")+"?disabletls=yes"),
+			log.New(&logs, "", 0),
+		))
+
+		require.NoError(t, service.Send("Message", nil))
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, "Warning: sending without TLS\n", logs.String())
+
+		// Initializing the service again lets the warning appear again.
+		require.NoError(t, service.Initialize(
+			parseTestURL(t, "homeassistant://s3cret@"+strings.TrimPrefix(plain.URL, "http://")+"?disabletls=yes"),
+			log.New(&logs, "", 0),
+		))
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, "Warning: sending without TLS\nWarning: sending without TLS\n", logs.String())
 	})
 }

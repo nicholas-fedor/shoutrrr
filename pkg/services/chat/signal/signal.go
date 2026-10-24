@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -18,17 +19,17 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected client, or the default client Initialize
-	// builds for the URL's skiptlsverify setting.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default clients. A send
+	// that skips certificate verification uses the insecure default client.
+	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the server, the credentials, the source and recipients,
 	// and the message options.
 	Config *Config
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
-	// injectedHTTPClient is true when SetHTTPClient supplied the client.
-	injectedHTTPClient bool
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -47,7 +48,8 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It performs no
+// network I/O.
 //
 // Parameters:
 //   - serviceURL: the configuration URL for the Signal service
@@ -59,20 +61,13 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.warnings.Reset()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default props: %w", err)
 	}
 
-	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
-		return err
-	}
-
-	if s.httpClient == nil {
-		s.httpClient = s.newHTTPClient(s.Config.SkipTLSVerify)
-	}
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send delivers a notification message to Signal recipients.
@@ -92,9 +87,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Signal recipients.
 //
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
+//
 // Parameters:
-//   - ctx: cancellation and deadline for the requests, each further bounded by
-//     [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the requests.
 //   - message: the text message to send.
 //   - params: optional configuration overrides including title and attachments.
 //
@@ -103,17 +100,24 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     failed requests. A request error matches ctx's error when ctx ends the
 //     request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
+
 	return s.sendMessage(ctx, message, &config)
 }
 
-// ServiceTimeout reports the send budget the router gives Signal. A send makes
-// one request per recipient batch, one after another, each bounded by
-// [defaultHTTPTimeout].
+// ServiceTimeout reports Signal's send budget. A send makes one request per
+// recipient batch, one after another, and each batch adds [batchBudget].
 //
 // Parameters:
 //   - params: optional overrides for configuration fields, which may set the
@@ -121,11 +125,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //     recipients set the budget.
 //
 // Returns:
-//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of recipient
-//     batches, and at least [defaultHTTPTimeout].
+//   - time.Duration: [batchBudget] multiplied by the number of recipient
+//     batches, and at least [batchBudget].
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
-		return defaultHTTPTimeout
+		return batchBudget
 	}
 
 	config := *s.Config
@@ -133,7 +137,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		config = *s.Config
 	}
 
-	return defaultHTTPTimeout * time.Duration(max(1, len(batchRecipients(config.Recipients))))
+	return batchBudget * time.Duration(max(1, len(batchRecipients(config.Recipients))))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
@@ -142,12 +146,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-	s.injectedHTTPClient = client != nil
+	s.client.Set(client)
 }
 
 // sendMessage sends a message to all configured recipients.
@@ -191,22 +190,14 @@ func (s *Service) sendMessage(ctx context.Context, message string, config *Confi
 
 		payload := createPayload(message, &batchConfig)
 
-		req, cancel, err := s.createRequest(ctx, &batchConfig, &payload)
+		req, err := s.createRequest(ctx, &batchConfig, &payload)
 		if err != nil {
-			if cancel != nil {
-				cancel()
-			}
-
 			errs = append(errs, err)
 
 			continue
 		}
 
-		err = s.sendRequest(req, &batchConfig)
-
-		cancel()
-
-		if err != nil {
+		if err := s.sendRequest(req, &batchConfig); err != nil {
 			errs = append(errs, err)
 		}
 	}

@@ -277,11 +277,7 @@ func (s *Service) sendClient(config *Config) types.HTTPClient {
 		return s.client.Client()
 	}
 
-	if !s.client.Injected() {
-		s.warnings.Insecure(s)
-	}
-
-	return s.client.InsecureClient()
+	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
 }
 
 // sendConfig returns the config for one send. Deprecated config fields and

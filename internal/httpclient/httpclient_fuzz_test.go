@@ -50,7 +50,8 @@ var fuzzTimeouts = [...]time.Duration{0, time.Second, 10 * time.Second, 30 * tim
 // state:
 //
 //   - An injected client is returned by both getters whatever the default
-//     settings are, and Injected reports it.
+//     settings are, and InsecureClient calls its warning callback only when
+//     it returns the insecure default client.
 //   - A nil client, or a nil *http.Client, clears the injected client.
 //   - The default client has the timeout of the last SetDefault call, and
 //     sends through http.DefaultTransport without TLS settings or through a
@@ -107,12 +108,12 @@ func FuzzHolder(f *testing.F) {
 
 				model.timeout, model.tlsConfig, model.built, model.insecure = timeout, tlsConfig, nil, nil
 			case opInsecureClient:
-				checkInsecureClient(t, i, holder.InsecureClient(), &model)
+				warned := false
+				got := holder.InsecureClient(func() { warned = true })
+				checkInsecureClient(t, i, got, warned, &model)
 			default:
 				checkClient(t, i, holder.Client(), &model)
 			}
-
-			require.Equal(t, model.injected != nil, holder.Injected(), "step %d: Injected", i)
 		}
 	})
 }
@@ -155,22 +156,26 @@ func checkClient(t *testing.T, step int, got types.HTTPClient, model *holderMode
 	model.built = got
 }
 
-// checkInsecureClient checks an InsecureClient result against the model and
-// records a newly built insecure default client in it.
+// checkInsecureClient checks an InsecureClient result and its warning
+// against the model, and records a newly built insecure default client in it.
 //
 // Parameters:
 //   - t: the test.
 //   - step: the index of the call in the input, for failure messages.
 //   - got: the client that InsecureClient returned.
+//   - warned: whether InsecureClient called its warning callback.
 //   - model: the expected state, updated when got is a new insecure client.
-func checkInsecureClient(t *testing.T, step int, got types.HTTPClient, model *holderModel) {
+func checkInsecureClient(t *testing.T, step int, got types.HTTPClient, warned bool, model *holderModel) {
 	t.Helper()
 
 	if model.injected != nil {
 		require.Same(t, model.injected, got, "step %d: InsecureClient should return the injected client", step)
+		require.False(t, warned, "step %d: an injected client must not warn", step)
 
 		return
 	}
+
+	require.True(t, warned, "step %d: the insecure default client should warn", step)
 
 	if model.insecure != nil {
 		require.Same(t, model.insecure, got, "step %d: InsecureClient should reuse the insecure client", step)
