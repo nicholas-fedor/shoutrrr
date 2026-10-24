@@ -141,13 +141,13 @@ func TestSendBudget(t *testing.T) {
 		takesCtx bool
 	}{
 		{name: "Send", send: func(_ context.Context, service *Service) error {
-			return service.Send("Hello", nil)
+			return service.Send("Hello", nil) //nolint:contextcheck // The test covers the entry point that takes no context.
 		}},
 		{name: "SendContext", takesCtx: true, send: func(ctx context.Context, service *Service) error {
 			return service.SendContext(ctx, "Hello", nil)
 		}},
 		{name: "SendItems", send: func(_ context.Context, service *Service) error {
-			return service.SendItems(items, nil)
+			return service.SendItems(items, nil) //nolint:contextcheck // The test covers the entry point that takes no context.
 		}},
 		{name: "SendItemsContext", takesCtx: true, send: func(ctx context.Context, service *Service) error {
 			return service.SendItemsContext(ctx, items, nil)
