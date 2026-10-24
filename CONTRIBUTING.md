@@ -225,8 +225,10 @@ Every service follows the same rules, so services behave alike for users and for
 
 ### Enforcement
 
-- The contract checks in `pkg/router/router_integration_test.go` enforce these rules for every registered service.
-- A service that does not meet a rule yet is listed in that file's allowlist with the reason.
+- The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
+- The checks for skipping certificate verification and for the insecure warning run only against Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
+- Review covers the rules without a check, such as building TLS settings with the shared helpers, exporting no client types, and warning about old names.
+- A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 
 ## Testing Architecture
@@ -236,7 +238,7 @@ Given the prevalence of LLM's for generating code, it is expected that testing f
 - Unit testing: white-box testing that resides in the corresponding package, makes no calls to actual services, and uses the Testify testing framework.
 - Integration testing: black-box testing that resides in the service package as `<service>_integration_test.go`, uses the corresponding `<service>_test` package, names its tests with a `TestIntegration` prefix, makes no outbound calls to external/actual services and instead uses mocking, as needed, and uses the Testify testing framework.
   Run one service's integration tests with `task test:integration -- <service>`, or every integration test with `task test:integration`.
-  The cross-service suites are `pkg/router/router_integration_test.go`, which checks every registered service against the shared contract and the rules in [Writing a Service](#writing-a-service), and `pkg/services/services_integration_test.go`, which checks that the services' default clients honor the proxy environment.
+  The cross-service suites are `pkg/router/router_integration_test.go`, which checks every registered service against the shared contract and the checked rules in [Writing a Service](#writing-a-service), and `pkg/services/services_integration_test.go`, which checks that the services' default clients honor the proxy environment.
 - E2E testing: black-box testing that resides within the `/testing/e2e/<service>` directory, uses the `e2e_test` package, performs outbound calls to the corresponding service, and uses the Testify testing framework.
 
 Use the pre-existing implementations, such as for Discord and Matrix, as a guide to help with this process.
