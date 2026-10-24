@@ -2,17 +2,15 @@ package ntfy
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -24,27 +22,33 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the client for sends whose certificate verification
-	// setting matches the config: an injected client, or the default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default clients. A send
+	// that skips certificate verification uses the insecure default client.
+	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the server, the topic, the credentials, and the message
 	// options.
 	Config *Config
-	// otherClient is the default client for sends whose certificate verification
-	// setting differs from the stored config, built on first use.
-	otherClient *http.Client
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
-	// otherClientMu guards otherClient.
-	otherClientMu sync.Mutex
-	// defaultClient reports whether httpClient was built by the service rather than
-	// supplied through SetHTTPClient, so Initialize rebuilds it for the new config.
-	defaultClient bool
 }
 
-// HTTPTimeout defines the HTTP client timeout in seconds.
+// HTTPTimeout is a request timeout in seconds.
+//
+// Deprecated: A send is bounded by the budget that [Service.ServiceTimeout]
+// reports, so the service does not use HTTPTimeout.
 const HTTPTimeout = 10
+
+// Deprecations of the scheme. Its replacement is another field, which the
+// format package's deprecation tags cannot describe.
+var (
+	// schemeKey is the deprecated scheme key and its replacement.
+	schemeKey = format.Deprecation{Name: "scheme", Replacement: "disabletls"}
+	// schemeField is the deprecated Scheme field and its replacement.
+	schemeField = format.Deprecation{Name: "Scheme", Replacement: "DisableTLS"}
+)
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -64,8 +68,8 @@ func (s *Service) GetID() string {
 
 // Initialize configures the service with a URL and logger.
 //
-// Unless a client is injected, it builds the default HTTP client for the URL's
-// certificate verification setting, with a warning when verification is off.
+// It warns once about each deprecated key the URL uses. It performs no network
+// I/O.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -73,27 +77,27 @@ func (s *Service) GetID() string {
 //
 // Returns:
 //   - error: the error from applying the default props or reading the URL,
-//     such as [ErrTopicRequired] or [ErrInvalidTopic].
+//     such as [ErrTopicRequired], [ErrInvalidTopic], or [ErrInvalidScheme].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.warnings.Reset()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default props: %w", err)
 	}
 
-	err := s.Config.setURL(&s.pkr, serviceURL)
-	if err != nil {
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
 	}
 
-	if s.httpClient == nil || s.defaultClient {
-		s.setDefaultHTTPClient()
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
 
-		if s.Config.DisableTLSVerification {
-			s.Log("Warning: TLS verification is disabled, making connections insecure")
-		}
+	// The resolver records the keys the URL set, so a scheme the URL set
+	// does not keep its default.
+	if !s.pkr.KeepsDefault(s.Config, nil, "scheme") {
+		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
 	}
 
 	return nil
@@ -114,7 +118,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to ntfy. Params apply to this send only,
-// including disabletls and disabletlsverification.
+// including disabletls and skiptlsverify. A context without a deadline is
+// bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -125,14 +130,18 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the params error, the ntfy API error, or the request error, which
 //     matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	config := *s.Config
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
-	// Update this send's config with runtime parameters
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return err
 	}
 
-	s.applyLevel(&config, params)
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
 
 	// Execute the API request to send the notification
 	if err := s.sendAPI(ctx, &config, message); err != nil {
@@ -142,32 +151,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return nil
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client restores
-// the default client, which Initialize builds when the service is not yet configured
-// and rebuilds whenever it applies a new config.
+// SetHTTPClient sets a custom HTTP client for the service. A nil client,
+// including a nil *http.Client, restores the default client.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client != nil {
-		s.httpClient = client
-		s.defaultClient = false
-
-		return
-	}
-
-	if s.Config == nil {
-		s.httpClient = nil
-		s.defaultClient = true
-
-		return
-	}
-
-	s.setDefaultHTTPClient()
+	s.client.Set(client)
 }
 
 // applyLevel sets the priority of a send from its level param, debug to low,
@@ -201,25 +191,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 // Returns:
 //   - jsonclient.ContextClient: a new client over the send's HTTP client.
 func (s *Service) newAPIClient(config *Config) jsonclient.ContextClient {
-	return jsonclient.NewContextClient(s.sendHTTPClient(config))
-}
-
-// newDefaultHTTPClient builds the client used when none is injected. It enforces
-// TLS 1.2 or later and skips certificate verification only when asked to.
-//
-// Parameters:
-//   - skipVerify: whether to skip certificate verification.
-//
-// Returns:
-//   - *http.Client: the default client.
-func (s *Service) newDefaultHTTPClient(skipVerify bool) *http.Client {
-	return &http.Client{
-		Timeout: HTTPTimeout * time.Second,
-		Transport: transport.New(&tls.Config{
-			InsecureSkipVerify: skipVerify,
-			MinVersion:         tls.VersionTLS12,
-		}),
-	}
+	return jsonclient.NewContextClient(s.sendClient(config))
 }
 
 // sendAPI sends a notification to the ntfy API.
@@ -277,7 +249,6 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	// Send the HTTP request
 	if err := client.PostContext(ctx, config.GetAPIURL(), request, &response); err != nil {
-		s.Logf("NTFY API request failed with error: %v", err)
 		// Attempt to parse structured error response from API
 		if client.ErrorResponse(err, &response) {
 			return &response
@@ -291,44 +262,92 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	return nil
 }
 
-// sendHTTPClient returns the HTTP client for one send. A custom client is used
-// as is. The default client serves sends with the stored certificate
-// verification setting, and sends that change it share another default client,
-// built on first use.
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
 //
 // Parameters:
-//   - config: the configuration for this send.
+//   - config: the config for this send.
 //
 // Returns:
-//   - types.HTTPClient: the client for the send.
-func (s *Service) sendHTTPClient(config *Config) types.HTTPClient {
-	if !s.defaultClient || config.DisableTLSVerification == s.Config.DisableTLSVerification {
-		return s.httpClient
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(config *Config) types.HTTPClient {
+	if !config.SkipTLSVerify {
+		return s.client.Client()
 	}
 
-	s.otherClientMu.Lock()
-	defer s.otherClientMu.Unlock()
-
-	if s.otherClient == nil {
-		if config.DisableTLSVerification {
-			s.Log("Warning: TLS verification is disabled, making connections insecure")
-		}
-
-		s.otherClient = s.newDefaultHTTPClient(config.DisableTLSVerification)
+	if !s.client.Injected() {
+		s.warnings.Insecure(s)
 	}
 
-	return s.otherClient
+	return s.client.InsecureClient()
 }
 
-// setDefaultHTTPClient builds the default client for the stored config and
-// drops the default client for the other certificate verification setting.
-func (s *Service) setDefaultHTTPClient() {
-	s.httpClient = s.newDefaultHTTPClient(s.Config.DisableTLSVerification)
-	s.defaultClient = true
+// sendConfig returns the config for one send. Deprecated config fields and
+// the stored scheme move into their replacements before the params apply, so
+// a param can still turn an option off. A scheme param applies only when the
+// params do not set disabletls. Each deprecated field and param key is warned
+// about once.
+//
+// Parameters:
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - Config: the config for this send.
+//   - error: a params error, or [ErrInvalidScheme].
+func (s *Service) sendConfig(params *types.Params) (Config, error) {
+	config := *s.Config
 
-	s.otherClientMu.Lock()
-	s.otherClient = nil
-	s.otherClientMu.Unlock()
+	deprecatedFields, err := format.SyncDeprecatedFields(&config)
+	if err != nil {
+		return config, fmt.Errorf("syncing deprecated config fields: %w", err)
+	}
+
+	s.warnings.DeprecatedFields(s, deprecatedFields)
+
+	// A URL with an http scheme turns TLS off as it is read, so an http scheme
+	// with TLS on was set on the deprecated field directly.
+	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
+		s.warnings.DeprecatedFields(s, []format.Deprecation{schemeField})
+	}
+
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(params))
+
+	if hasParam(params, schemeKey.Name) {
+		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+	}
+
+	// The stored scheme turns TLS off before the params apply, so a disabletls
+	// param can turn it back on. DisableTLS alone then decides the protocol.
+	if err := config.applyScheme(); err != nil {
+		return config, err
+	}
+
+	config.Scheme = schemeHTTPS
+
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return config, fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if hasParam(params, schemeKey.Name) {
+		disableTLS := config.DisableTLS
+
+		if err := config.applyScheme(); err != nil {
+			return config, err
+		}
+
+		// disabletls replaces scheme, so it wins when the params set both.
+		if hasParam(params, schemeKey.Replacement) {
+			config.DisableTLS = disableTLS
+		}
+
+		config.Scheme = schemeHTTPS
+	}
+
+	s.applyLevel(&config, params)
+
+	return config, nil
 }
 
 // addHeaderIfNotEmpty adds a header to the request if the value is non-empty.
@@ -341,4 +360,26 @@ func addHeaderIfNotEmpty(headers *http.Header, key, value string) {
 	if value != "" {
 		headers.Add(key, value)
 	}
+}
+
+// hasParam reports whether params set key, matched case-insensitively.
+//
+// Parameters:
+//   - params: the send params, or nil.
+//   - key: the param key in lower case.
+//
+// Returns:
+//   - bool: whether params hold the key.
+func hasParam(params *types.Params, key string) bool {
+	if params == nil {
+		return false
+	}
+
+	for paramKey := range *params {
+		if strings.EqualFold(paramKey, key) {
+			return true
+		}
+	}
+
+	return false
 }

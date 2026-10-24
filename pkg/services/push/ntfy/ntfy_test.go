@@ -17,7 +17,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -161,25 +160,33 @@ func requestHeader(extra ...string) http.Header {
 	return header
 }
 
-// assertSkipsVerify asserts that client is a default client with the request
-// timeout, TLS 1.2 or later, and the given certificate verification setting.
+// assertDefaultClient asserts that client is a default client without a
+// timeout of its own. The default client sends through http.DefaultTransport,
+// and the insecure one through a proxy-aware transport that requires TLS 1.2
+// and skips certificate verification.
 //
 // Parameters:
 //   - t: the test.
 //   - client: the client to check.
 //   - wantSkip: whether the client should skip certificate verification.
-func assertSkipsVerify(t *testing.T, client types.HTTPClient, wantSkip bool) {
+func assertDefaultClient(t *testing.T, client types.HTTPClient, wantSkip bool) {
 	t.Helper()
 
 	httpClient, ok := client.(*http.Client)
 	require.True(t, ok, "client is %T", client)
-	assert.Equal(t, 10*time.Second, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
+
+	if !wantSkip {
+		assert.Nil(t, httpClient.Transport, "the default client should send through http.DefaultTransport")
+
+		return
+	}
 
 	transport, ok := httpClient.Transport.(*http.Transport)
 	require.True(t, ok, "transport is %T", httpClient.Transport)
 	require.NotNil(t, transport.TLSClientConfig)
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
-	assert.Equal(t, wantSkip, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.NotNil(t, transport.Proxy)
 }
 
@@ -199,29 +206,36 @@ func TestServiceTimeout(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses the service URL over the
-// defaults, keeping the configured scheme while TLS disabled sends over HTTP,
-// and builds the default client, warning when it skips certificate
-// verification.
+// defaults, and that it warns only about the deprecated keys the URL uses. An
+// http scheme is kept as written and turns TLS off.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
-	// tests lists URLs with the scheme, certificate verification, and log
-	// each should produce.
+	// tests lists URLs with the scheme, publish URL, and log each should
+	// produce.
 	tests := []struct {
 		name       string
 		rawURL     string
+		wantScheme string
 		wantAPIURL string
 		wantLog    string
-		wantSkip   bool
 	}{
-		{name: "defaults", rawURL: testServiceURL, wantAPIURL: testEndpoint},
-		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes", wantAPIURL: "http://ntfy.sh/" + testTopic},
+		{name: "defaults", rawURL: testServiceURL, wantScheme: "https", wantAPIURL: testEndpoint},
+		{name: "TLS disabled", rawURL: testServiceURL + "?disabletls=yes", wantScheme: "https", wantAPIURL: "http://ntfy.sh/" + testTopic},
+		{name: "verification skipped", rawURL: testServiceURL + "?skiptlsverify=yes", wantScheme: "https", wantAPIURL: testEndpoint},
 		{
-			name:       "verification disabled",
+			name:       "deprecated verification key",
 			rawURL:     testServiceURL + "?disabletlsverification=yes",
+			wantScheme: "https",
 			wantAPIURL: testEndpoint,
-			wantSkip:   true,
-			wantLog:    "Warning: TLS verification is disabled, making connections insecure\n",
+			wantLog:    `Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead` + "\n",
+		},
+		{
+			name:       "deprecated scheme",
+			rawURL:     testServiceURL + "?scheme=http",
+			wantScheme: "http",
+			wantAPIURL: "http://ntfy.sh/" + testTopic,
+			wantLog:    `Warning: key "scheme" is deprecated, use "disabletls" instead` + "\n",
 		},
 	}
 
@@ -234,9 +248,9 @@ func TestInitialize(t *testing.T) {
 			service := &Service{}
 			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
 
-			assert.Equal(t, "https", service.Config.Scheme)
+			assert.Equal(t, tt.wantScheme, service.Config.Scheme)
 			assert.Equal(t, tt.wantAPIURL, service.Config.GetAPIURL())
-			assertSkipsVerify(t, service.httpClient, tt.wantSkip)
+			assertDefaultClient(t, service.client.Client(), false)
 			assert.Equal(t, tt.wantLog, logs.String())
 		})
 	}
@@ -248,50 +262,28 @@ func TestInitialize(t *testing.T) {
 
 		require.ErrorIs(t, err, ErrTopicRequired)
 	})
+
+	t.Run("invalid scheme", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, testServiceURL+"?scheme=ftp"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrInvalidScheme)
+	})
 }
 
-// TestInitializeClients verifies which client survives a second Initialize: a
-// custom client is kept, while the service's own default client, including
-// one restored by setting a nil client, is rebuilt for the new config.
-func TestInitializeClients(t *testing.T) {
+// TestInitializeKeepsCustomClient verifies that a custom client set before
+// the first Initialize is kept across a second one.
+func TestInitializeKeepsCustomClient(t *testing.T) {
 	t.Parallel()
 
-	reinitialize := func(t *testing.T, service *Service) {
-		t.Helper()
-		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"?disabletlsverification=yes"), log.New(t.Output(), "", 0)))
-	}
+	client := mocks.NewMockHTTPClient(t)
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"?skiptlsverify=yes"), log.New(t.Output(), "", 0)))
 
-	t.Run("custom client", func(t *testing.T) {
-		t.Parallel()
-
-		client := mocks.NewMockHTTPClient(t)
-		service := &Service{}
-		service.SetHTTPClient(client)
-		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
-		reinitialize(t, service)
-
-		assert.Same(t, client, service.httpClient)
-	})
-
-	t.Run("default client", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, testServiceURL)
-		reinitialize(t, service)
-
-		assertSkipsVerify(t, service.httpClient, true)
-	})
-
-	t.Run("restored default client", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, testServiceURL)
-		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-		service.SetHTTPClient(nil)
-		reinitialize(t, service)
-
-		assertSkipsVerify(t, service.httpClient, true)
-	})
+	assert.Same(t, client, service.client.Client())
 }
 
 // TestSend verifies the request a send makes: a POST of the message to the
@@ -457,7 +449,8 @@ func TestSendLevelPriority(t *testing.T) {
 	}
 }
 
-// TestSendLogs verifies that a send logs whether the request succeeded.
+// TestSendLogs verifies that a send logs a request that succeeded, and
+// reports a failed request through its error only.
 func TestSendLogs(t *testing.T) {
 	t.Parallel()
 
@@ -471,7 +464,7 @@ func TestSendLogs(t *testing.T) {
 
 	require.NoError(t, service.Send("Hello", nil))
 	require.Error(t, service.Send("Hello", nil))
-	assert.Equal(t, "NTFY API request succeeded\nNTFY API request failed with error: got unexpected HTTP status: 403 Forbidden\n", logs.String())
+	assert.Equal(t, "NTFY API request succeeded\n", logs.String())
 }
 
 // TestSendErrors verifies that a send reports ntfy's error response, other
@@ -627,47 +620,34 @@ func TestSendContextCancellation(t *testing.T) {
 	require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// restores the default client for nil and a nil *http.Client, honoring the
-// config's certificate verification, or leaves the client to Initialize
-// before the service is configured.
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client, and
+// that nil and a nil *http.Client restore the default client, before and
+// after Initialize.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists constructors for the clients to set, which build any mock
-	// with the subtest's t, and whether the default client should be stored.
+	// tests lists the clients that restore the default.
 	tests := []struct {
-		client      func(t *testing.T) types.HTTPClient
-		name        string
-		wantDefault bool
+		client types.HTTPClient
+		name   string
 	}{
-		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
-			t.Helper()
-
-			return mocks.NewMockHTTPClient(t)
-		}},
-		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantDefault: true},
-		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantDefault: true},
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := tt.client(t)
-			service := newTestService(t, testServiceURL+"?disabletlsverification=yes")
-			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-			service.SetHTTPClient(client)
+			service := newTestService(t, testServiceURL+"?skiptlsverify=yes")
 
-			assert.Equal(t, tt.wantDefault, service.defaultClient)
+			custom := mocks.NewMockHTTPClient(t)
+			service.SetHTTPClient(custom)
+			assert.Same(t, custom, service.client.Client())
 
-			if tt.wantDefault {
-				assertSkipsVerify(t, service.httpClient, true)
-
-				return
-			}
-
-			assert.Same(t, client, service.httpClient)
+			service.SetHTTPClient(tt.client)
+			assertDefaultClient(t, service.client.Client(), false)
+			assertDefaultClient(t, service.client.InsecureClient(), true)
 		})
 	}
 
@@ -677,11 +657,8 @@ func TestSetHTTPClient(t *testing.T) {
 		service := &Service{}
 		service.SetHTTPClient(nil)
 
-		assert.Nil(t, service.httpClient)
-		assert.True(t, service.defaultClient)
-
 		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
-		assertSkipsVerify(t, service.httpClient, false)
+		assertDefaultClient(t, service.client.Client(), false)
 	})
 }
 
@@ -744,9 +721,12 @@ func newNtfyServer(t *testing.T, useTLS bool) (*httptest.Server, *atomic.Int32) 
 	return server, &accepted
 }
 
-// TestSendDefaultClientLoopback verifies the default client against loopback
-// servers: plain HTTP with TLS disabled, and HTTPS with a self-signed
-// certificate, which fails verification unless disabletlsverification is set.
+// TestSendDefaultClientLoopback verifies the default clients against loopback
+// servers.
+//
+//   - Plain HTTP works with TLS disabled, or with the deprecated http scheme.
+//   - HTTPS with a self-signed certificate fails verification, unless the URL,
+//     the deprecated key, the params, or the deprecated field skip it.
 func TestSendDefaultClientLoopback(t *testing.T) {
 	t.Parallel()
 
@@ -755,8 +735,17 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 
 		server, accepted := newNtfyServer(t, false)
 
-		require.NoError(t, newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletls=yes").Send("Hello", nil))
-		assert.Equal(t, int32(1), accepted.Load())
+		rawURL := "ntfy://" + server.Listener.Addr().String() + "/" + testTopic
+
+		require.NoError(t, newTestService(t, rawURL+"?disabletls=yes").Send("Hello", nil))
+		require.NoError(t, newTestService(t, rawURL+"?scheme=http").Send("Hello", nil))
+		require.NoError(t, newTestService(t, rawURL).Send("Hello", &types.Params{"scheme": "http"}))
+
+		deprecatedField := newTestService(t, rawURL)
+		deprecatedField.Config.Scheme = "http"
+		require.NoError(t, deprecatedField.Send("Hello", nil))
+
+		assert.Equal(t, int32(4), accepted.Load())
 	})
 
 	t.Run("self-signed HTTPS", func(t *testing.T) {
@@ -768,15 +757,21 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
 		assert.True(t, isCertErr, "error is not a certificate verification error")
 
+		require.NoError(t, newTestService(t, rawURL+"?skiptlsverify=yes").Send("Hello", nil))
 		require.NoError(t, newTestService(t, rawURL+"?disabletlsverification=yes").Send("Hello", nil))
-		assert.Equal(t, int32(1), accepted.Load())
+
+		deprecatedField := newTestService(t, rawURL)
+		deprecatedField.Config.DisableTLSVerification = true
+		require.NoError(t, deprecatedField.Send("Hello", nil))
+
+		assert.Equal(t, int32(3), accepted.Load())
 	})
 }
 
-// TestSendTLSParams verifies that the disabletls and disabletlsverification
-// send params apply to one send: disabletls sends over HTTP, and
-// disabletlsverification skips certificate verification for that send, with a
-// warning, while sends without the param keep the stored setting.
+// TestSendTLSParams verifies that the disabletls and skiptlsverify send
+// params apply to one send. disabletls sends over HTTP, and skiptlsverify
+// skips certificate verification for that send, while sends without the param
+// keep the stored setting. A custom client is used unchanged.
 func TestSendTLSParams(t *testing.T) {
 	t.Parallel()
 
@@ -791,31 +786,26 @@ func TestSendTLSParams(t *testing.T) {
 		assert.Equal(t, int32(1), accepted.Load())
 	})
 
-	t.Run("disabletlsverification", func(t *testing.T) {
+	t.Run("skiptlsverify", func(t *testing.T) {
 		t.Parallel()
 
-		var logs bytes.Buffer
-
 		server, accepted := newNtfyServer(t, true)
-		service := &Service{}
-		require.NoError(t, service.Initialize(parseTestURL(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic), log.New(&logs, "", 0)))
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic)
 
-		require.NoError(t, service.Send("Hello", &types.Params{"disabletlsverification": "yes"}))
+		require.NoError(t, service.Send("Hello", &types.Params{"skiptlsverify": "yes"}))
 
 		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Hello", nil))
 		assert.True(t, isCertErr, "error is not a certificate verification error")
 		assert.Equal(t, int32(1), accepted.Load())
-		assert.True(t, strings.HasPrefix(logs.String(), "Warning: TLS verification is disabled, making connections insecure\n"), logs.String())
-		assertSkipsVerify(t, service.httpClient, false)
 	})
 
-	t.Run("disabletlsverification turned back on", func(t *testing.T) {
+	t.Run("skiptlsverify turned back on", func(t *testing.T) {
 		t.Parallel()
 
 		server, accepted := newNtfyServer(t, true)
-		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletlsverification=yes")
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?skiptlsverify=yes")
 
-		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Hello", &types.Params{"disabletlsverification": "no"}))
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](service.Send("Hello", &types.Params{"skiptlsverify": "no"}))
 		assert.True(t, isCertErr, "error is not a certificate verification error")
 		require.NoError(t, service.Send("Hello", nil))
 		assert.Equal(t, int32(1), accepted.Load())
@@ -825,11 +815,19 @@ func TestSendTLSParams(t *testing.T) {
 		t.Parallel()
 
 		server, accepted := newNtfyServer(t, true)
-		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletls=yes&disabletlsverification=yes")
+		service := newTestService(t, "ntfy://"+server.Listener.Addr().String()+"/"+testTopic+"?disabletls=yes&skiptlsverify=yes")
 
 		require.NoError(t, service.Send("Hello", &types.Params{"disabletls": "no"}))
 		require.Error(t, service.Send("Hello", nil))
 		assert.Equal(t, int32(1), accepted.Load())
+	})
+
+	t.Run("invalid scheme param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+
+		require.ErrorIs(t, service.Send("Hello", &types.Params{"scheme": "ftp"}), ErrInvalidScheme)
 	})
 
 	t.Run("custom client", func(t *testing.T) {
@@ -839,16 +837,67 @@ func TestSendTLSParams(t *testing.T) {
 		client, captured := newRecordingClient(t, published)
 		service.SetHTTPClient(client)
 
-		require.NoError(t, service.Send("Hello", &types.Params{"disabletlsverification": "yes"}))
+		require.NoError(t, service.Send("Hello", &types.Params{"skiptlsverify": "yes"}))
 		assert.Len(t, captured(), 1)
 	})
 }
 
-// TestSendHTTPClient verifies that sends with the stored certificate
-// verification setting share the default client, that sends that change it
-// share one other default client, built once with one warning, even when
-// they run concurrently, and that rebuilding the default client drops it.
-func TestSendHTTPClient(t *testing.T) {
+// TestSendSchemePrecedence verifies that disabletls decides the protocol of a
+// send over the deprecated scheme. A disabletls param overrides a stored http
+// scheme, a scheme param applies when the params do not set disabletls, and
+// disabletls wins when the params set both.
+func TestSendSchemePrecedence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		params  *types.Params
+		name    string
+		rawURL  string
+		wantURL string
+	}{
+		{
+			name:    "disabletls param overrides the stored scheme",
+			rawURL:  testServiceURL + "?scheme=http",
+			params:  &types.Params{"disabletls": "no"},
+			wantURL: testEndpoint,
+		},
+		{name: "stored scheme", rawURL: testServiceURL + "?scheme=http", wantURL: "http://ntfy.sh/" + testTopic},
+		{
+			name:    "scheme param",
+			rawURL:  testServiceURL,
+			params:  &types.Params{"scheme": "http"},
+			wantURL: "http://ntfy.sh/" + testTopic,
+		},
+		{
+			name:    "disabletls param wins over a scheme param",
+			rawURL:  testServiceURL,
+			params:  &types.Params{"scheme": "http", "disabletls": "no"},
+			wantURL: testEndpoint,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRecordingClient(t, published)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Hello", tt.params))
+
+			requests := captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, tt.wantURL, requests[0].url)
+		})
+	}
+}
+
+// TestSendClient verifies that sends that verify certificates use the default
+// client, and that sends that skip it share the insecure default client, even
+// when they run concurrently. The first insecure send logs the shared warning
+// once. An injected client is used for both and never warned about.
+func TestSendClient(t *testing.T) {
 	t.Parallel()
 
 	var logs bytes.Buffer
@@ -856,17 +905,16 @@ func TestSendHTTPClient(t *testing.T) {
 	service := &Service{}
 	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
 
-	stored := service.sendHTTPClient(service.Config)
-	assert.Same(t, service.httpClient, stored)
+	assert.Same(t, service.client.Client(), service.sendClient(service.Config))
 
 	insecure := *service.Config
-	insecure.DisableTLSVerification = true
+	insecure.SkipTLSVerify = true
 
 	clients := make([]types.HTTPClient, 8)
 
 	var wg sync.WaitGroup
 	for i := range clients {
-		wg.Go(func() { clients[i] = service.sendHTTPClient(&insecure) })
+		wg.Go(func() { clients[i] = service.sendClient(&insecure) })
 	}
 
 	wg.Wait()
@@ -875,12 +923,72 @@ func TestSendHTTPClient(t *testing.T) {
 		assert.Same(t, clients[0], client)
 	}
 
-	assert.NotSame(t, stored, clients[0])
-	assertSkipsVerify(t, clients[0], true)
-	assert.Equal(t, "Warning: TLS verification is disabled, making connections insecure\n", logs.String())
+	assertDefaultClient(t, clients[0], true)
+	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
 
-	service.SetHTTPClient(nil)
-	assert.NotSame(t, clients[0], service.sendHTTPClient(&insecure))
+	var injectedLogs bytes.Buffer
+
+	injected := &Service{}
+	require.NoError(t, injected.Initialize(parseTestURL(t, testServiceURL), log.New(&injectedLogs, "", 0)))
+
+	custom := mocks.NewMockHTTPClient(t)
+	injected.SetHTTPClient(custom)
+	assert.Same(t, custom, injected.sendClient(&insecure))
+	assert.Empty(t, injectedLogs.String())
+}
+
+// TestSendWarnings verifies that the plaintext warning, the deprecated param
+// keys, and the deprecated fields are each warned about once over two sends,
+// and appear again after the service is initialized again.
+func TestSendWarnings(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	client, _ := newRecordingClient(t, published, published, published)
+	service.SetHTTPClient(client)
+	service.Config.DisableTLSVerification = true
+	service.Config.Scheme = "http"
+
+	params := &types.Params{"disabletlsverification": "yes", "scheme": "http"}
+	require.NoError(t, service.Send("Hello", params))
+	require.NoError(t, service.Send("Hello", params))
+
+	want := []string{
+		"Warning: config field DisableTLSVerification is deprecated, use SkipTLSVerify instead",
+		"Warning: config field Scheme is deprecated, use DisableTLS instead",
+		`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
+		`Warning: key "scheme" is deprecated, use "disabletls" instead`,
+		"Warning: sending without TLS",
+	}
+	assert.Equal(t, want, warningLines(logs.String()))
+
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"?disabletls=yes"), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, slices.Concat(want, []string{"Warning: sending without TLS"}), warningLines(logs.String()))
+}
+
+// warningLines returns the logged lines that are warnings, leaving out the
+// log of each request that succeeded.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "Warning: ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
 }
 
 // TestAddHeaderIfNotEmpty verifies that a header is added only for a

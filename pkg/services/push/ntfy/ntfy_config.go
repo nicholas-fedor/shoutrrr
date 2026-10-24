@@ -29,8 +29,11 @@ type Config struct {
 	// Token is the access token for Bearer authentication. It takes
 	// precedence over Username and Password.
 	Token string `desc:"Access token for Bearer auth, takes precedence over username and password" key:"token" optional:"" sensitive:"true"`
-	// Scheme is the server's protocol, http or https.
-	Scheme string `default:"https" desc:"Server protocol, http or https" key:"scheme"`
+	// Scheme is the server's protocol, http or https. A URL or params that set
+	// it to http turn TLS off, and GetURL writes that as disabletls.
+	//
+	// Deprecated: Use [Config.DisableTLS], which the disabletls key sets.
+	Scheme string `default:"https" desc:"Deprecated: use disabletls. Server protocol, http or https" key:"scheme"`
 	// Click is the URL opened when the notification is tapped.
 	Click string `desc:"Website opened when notification is clicked" key:"click" optional:""`
 	// Attach is the URL of a file to attach.
@@ -58,11 +61,15 @@ type Config struct {
 	// Firebase forwards the message to Firebase Cloud Messaging for Android
 	// clients.
 	Firebase bool `default:"yes" desc:"Send to firebase" key:"firebase"`
-	// DisableTLSVerification skips verification of the server's TLS
-	// certificate.
-	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"no" deprecatedkeys:"disabletlsverification" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
+	// DisableTLSVerification is the old name of SkipTLSVerify. When
+	// SkipTLSVerify is off, setting it skips verification too.
+	//
+	// Deprecated: Use [Config.SkipTLSVerify], which the skiptlsverify key sets.
+	DisableTLSVerification bool `deprecated:"SkipTLSVerify"`
 	// DisableTLS publishes over HTTP whatever Scheme says.
-	DisableTLS bool `default:"no" desc:"Disable TLS entirely (force HTTP scheme)" key:"disabletls"`
+	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 }
 
 // Identifiers and defaults for this service's configuration URL.
@@ -71,6 +78,14 @@ const (
 	Scheme = "ntfy"
 	// DefaultHost is the public ntfy server a URL without a host uses.
 	DefaultHost = "ntfy.sh"
+)
+
+// Protocols that the deprecated scheme accepts.
+const (
+	// schemeHTTP publishes over plain HTTP.
+	schemeHTTP = "http"
+	// schemeHTTPS publishes over HTTPS, the default.
+	schemeHTTPS = "https"
 )
 
 // topicNamePattern matches the topic names ntfy accepts.
@@ -83,6 +98,8 @@ var (
 	// ErrInvalidTopic indicates a topic name that ntfy does not accept, or a
 	// path with an empty segment.
 	ErrInvalidTopic = errors.New("invalid topic: use up to 64 letters, digits, underscores, and dashes")
+	// ErrInvalidScheme indicates a scheme other than http or https.
+	ErrInvalidScheme = errors.New("invalid scheme: use http or https, or disabletls instead")
 )
 
 // Enums returns the fields that use an EnumFormatter for their values.
@@ -108,7 +125,7 @@ func (c *Config) GetAPIURL() string {
 
 	scheme := c.Scheme
 	if c.DisableTLS {
-		scheme = "http"
+		scheme = schemeHTTP
 	}
 
 	apiURL := url.URL{
@@ -121,13 +138,19 @@ func (c *Config) GetAPIURL() string {
 }
 
 // GetURL returns a URL representation of the Config's current field values.
+// A value set through a deprecated field is written under its replacement's
+// key, and an http scheme is written as disabletls.
 //
 // Returns:
 //   - *url.URL: the service URL.
 func (c *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(c)
+	synced := *c
 
-	return c.getURL(&resolver)
+	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
+	synced.normalizeScheme()
+	resolver := format.NewPropKeyResolver(&synced)
+
+	return synced.getURL(&resolver)
 }
 
 // QueryFields returns the list of query parameter names for the Config struct.
@@ -150,6 +173,23 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
+}
+
+// applyScheme checks the deprecated Scheme and turns TLS off when it is http,
+// so DisableTLS alone decides the protocol. An empty Scheme counts as https.
+//
+// Returns:
+//   - error: [ErrInvalidScheme] for a scheme other than http or https.
+func (c *Config) applyScheme() error {
+	switch strings.ToLower(c.Scheme) {
+	case schemeHTTP:
+		c.DisableTLS = true
+	case schemeHTTPS, "":
+	default:
+		return fmt.Errorf("%w: %q", ErrInvalidScheme, c.Scheme)
+	}
+
+	return nil
 }
 
 // getURL constructs a URL from the Config's fields using the provided resolver.
@@ -183,6 +223,20 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return result
 }
 
+// normalizeScheme writes an http scheme as DisableTLS and resets the scheme to
+// its default, so a config URL carries disabletls instead of the deprecated
+// scheme key. An invalid scheme is kept, so reading the URL reports it.
+func (c *Config) normalizeScheme() {
+	switch strings.ToLower(c.Scheme) {
+	case schemeHTTP:
+		c.DisableTLS = true
+		c.Scheme = schemeHTTPS
+	case schemeHTTPS, "":
+		c.Scheme = schemeHTTPS
+	default:
+	}
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 //
 // A URL without a host uses [DefaultHost], keeping any port. The topic is the
@@ -196,9 +250,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: a host error such as [util.ErrInvalidHost], a malformed query
-//     ([util.ErrInvalidQuery]) or query parameter error, [ErrTopicRequired]
-//     for a missing topic, or [ErrInvalidTopic] for an invalid topic name or
-//     an empty path segment.
+//     ([util.ErrInvalidQuery]) or query parameter error, [ErrInvalidScheme],
+//     [ErrTopicRequired] for a missing topic, or [ErrInvalidTopic] for an
+//     invalid topic name or an empty path segment.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		password, _ := serviceURL.User.Password()
@@ -222,9 +276,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 	c.Token = ""
 
-	serviceURL.RawQuery = strings.ReplaceAll(serviceURL.RawQuery, ";", "%3b")
+	// A literal semicolon in the query is a value, such as between actions.
+	// The query is read from a copy, so the caller's URL is not changed.
+	queryURL := *serviceURL
+	queryURL.RawQuery = strings.ReplaceAll(queryURL.RawQuery, ";", "%3b")
 
-	query, err := util.ParseURLQuery(serviceURL)
+	query, err := util.ParseURLQuery(&queryURL)
 	if err != nil {
 		return err
 	}
@@ -233,6 +290,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		if err := resolver.Set(key, vals[0]); err != nil {
 			return fmt.Errorf("setting query parameter %q: %w", key, err)
 		}
+	}
+
+	if err := c.applyScheme(); err != nil {
+		return err
 	}
 
 	if serviceURL.String() != "ntfy://dummy@dummy.com" {

@@ -223,6 +223,8 @@ Every service follows the same rules, so services behave alike for users and for
 
 - Keep a renamed key's old name in a `deprecatedkeys` tag.
 - Keep a renamed field's old field, with a `deprecated` tag that names its replacement.
+- Keep an old key whose value maps onto another field, such as ntfy's `scheme`, with a `desc` that starts with "Deprecated:".
+  Map its value onto the replacement when the URL or params are read.
 - Warn with `Once.DeprecatedKeys` or `Once.DeprecatedFields` when an old name is used.
 - List the old name on the [deprecations page](docs/usage/deprecations/index.md).
 
