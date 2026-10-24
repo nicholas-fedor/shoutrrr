@@ -149,7 +149,8 @@ func (r MarkdownTreeRenderer) RenderTree(root *ContainerNode, scheme string) str
 	return stringBuilder.String()
 }
 
-// writeFieldExtras writes additional field information including aliases and possible enum values.
+// writeFieldExtras writes additional field information including aliases, deprecated keys,
+// and possible enum values.
 //
 // Parameters:
 //   - stringBuilder: The string builder to append the formatted output to.
@@ -172,6 +173,13 @@ func (MarkdownTreeRenderer) writeFieldExtras(stringBuilder *strings.Builder, fie
 			stringBuilder.WriteString(key)
 		}
 
+		stringBuilder.WriteString("`\n")
+	}
+
+	// Output deprecated keys, which still work but should be replaced by the field's key.
+	if len(field.DeprecatedKeys) > 0 {
+		stringBuilder.WriteString("  Deprecated: `")
+		stringBuilder.WriteString(strings.Join(field.DeprecatedKeys, "`, `"))
 		stringBuilder.WriteString("`\n")
 	}
 

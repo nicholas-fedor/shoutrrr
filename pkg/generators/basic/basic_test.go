@@ -13,6 +13,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -36,6 +39,17 @@ type mockServiceNilConfig struct {
 
 // mockServiceWithoutConfig is a test service without a Config field.
 type mockServiceWithoutConfig struct{}
+
+// deprecatedFieldConfig has a deprecated field that the generator must not
+// prompt for. Its embedded config provides the service config methods.
+type deprecatedFieldConfig struct {
+	mockConfig
+
+	// Name is the field that replaces OldName.
+	Name string `key:"name"`
+	// OldName is deprecated, and would be required if it were prompted for.
+	OldName string `deprecated:"Name"`
+}
 
 func (m *mockConfig) Enums() map[string]types.EnumFormatter {
 	return nil
@@ -347,6 +361,19 @@ func TestGenerator_promptUserForFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGenerator_promptUserForFieldsSkipsDeprecated verifies that the
+// generator prompts only for the field that replaces a deprecated one.
+func TestGenerator_promptUserForFieldsSkipsDeprecated(t *testing.T) {
+	t.Parallel()
+
+	config := &deprecatedFieldConfig{}
+	scanner := bufio.NewScanner(strings.NewReader("example\n"))
+
+	require.NoError(t, (&Generator{}).promptUserForFields(reflect.ValueOf(config), map[string]string{}, scanner))
+	assert.Equal(t, "example", config.Name)
+	assert.Empty(t, config.OldName)
 }
 
 func TestGenerator_getInputValue(t *testing.T) {

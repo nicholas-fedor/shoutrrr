@@ -60,6 +60,24 @@ func TestGetStructFieldInfo(t *testing.T) {
 	assert.Equal(t, want, fields)
 }
 
+// TestGetStructFieldInfoDeprecated verifies that deprecated keys are read in
+// lower case. Fields marked deprecated are left out, so no docs, generator, or
+// masked URL lists them.
+func TestGetStructFieldInfoDeprecated(t *testing.T) {
+	t.Parallel()
+
+	fields := getStructFieldInfo(reflect.TypeFor[deprecatedConfig](), nil)
+
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
+		names = append(names, field.Name)
+	}
+
+	assert.Equal(t, []string{"SkipVerify", "Token", "Pin"}, names)
+	assert.Equal(t, []string{"insecure", "noverify"}, fields[0].DeprecatedKeys)
+	assert.Nil(t, fields[1].DeprecatedKeys)
+}
+
 // TestGetStructFieldInfoSensitive verifies that only a `sensitive:"true"` tag
 // marks a field as sensitive.
 func TestGetStructFieldInfoSensitive(t *testing.T) {

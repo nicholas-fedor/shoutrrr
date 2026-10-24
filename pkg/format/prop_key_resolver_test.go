@@ -2,6 +2,7 @@ package format
 
 import (
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -349,6 +350,127 @@ func TestPropKeyResolverReservedParams(t *testing.T) {
 	err := resolver.UpdateConfigFromParams(nil, &types.Params{types.TitleKey: "title", "titel": "typo"})
 	require.ErrorIs(t, err, ErrInvalidConfigKey)
 	require.ErrorContains(t, err, "titel")
+}
+
+// TestPropKeyResolverDeprecatedKeySet verifies that a deprecated key sets its
+// field in any case and is reported. It is listed among the query fields but
+// is never primary, so a URL never contains it.
+func TestPropKeyResolverDeprecatedKeySet(t *testing.T) {
+	t.Parallel()
+
+	config := &deprecatedConfig{}
+	resolver := NewPropKeyResolver(config)
+
+	assert.Equal(t, []string{"insecure", "noverify", "pin", "skipverify", "token"}, resolver.QueryFields())
+	assert.False(t, resolver.KeyIsPrimary("insecure"))
+	assert.False(t, resolver.KeyIsPrimary("NoVerify"))
+	assert.True(t, resolver.KeyIsPrimary("skipverify"))
+	assert.Empty(t, resolver.DeprecatedKeys())
+
+	require.NoError(t, resolver.Set("NOVERIFY", "yes"))
+	require.NoError(t, resolver.Set("insecure", "yes"))
+	assert.True(t, config.SkipVerify)
+	assert.Equal(t, []Deprecation{
+		{Name: "insecure", Replacement: "skipverify"},
+		{Name: "noverify", Replacement: "skipverify"},
+	}, resolver.DeprecatedKeys())
+	assert.Equal(t, "skipverify=Yes", BuildQuery(&resolver))
+	assert.False(t, resolver.KeepsDefault(config, nil, "skipverify"))
+}
+
+// TestPropKeyResolverDeprecatedKeyOrder verifies that a key that is not
+// deprecated wins over a deprecated key for the same field in either order.
+// The value of a deprecated key that loses is still checked.
+func TestPropKeyResolverDeprecatedKeyOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		{name: "deprecated key first", keys: []string{"insecure", "skipverify"}},
+		{name: "replacement key first", keys: []string{"skipverify", "insecure"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &deprecatedConfig{}
+			resolver := NewPropKeyResolver(config)
+			values := map[string]string{"insecure": "yes", "skipverify": "no"}
+
+			for _, key := range tt.keys {
+				require.NoError(t, resolver.Set(key, values[key]))
+			}
+
+			assert.False(t, config.SkipVerify)
+			assert.Equal(t, []Deprecation{{Name: "insecure", Replacement: "skipverify"}}, resolver.DeprecatedKeys())
+			require.ErrorIs(t, resolver.Set("insecure", "maybe"), ErrInvalidBoolValue)
+			assert.False(t, config.SkipVerify)
+		})
+	}
+}
+
+// TestPropKeyResolverDeprecatedParams verifies how params with deprecated
+// keys are handled.
+//
+//   - They are reported in lower case without changing the resolver.
+//   - They set their field.
+//   - A replacement key in the same params wins.
+func TestPropKeyResolverDeprecatedParams(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&deprecatedConfig{})
+
+	assert.Empty(t, resolver.DeprecatedParams(nil))
+	assert.Equal(t, []Deprecation{
+		{Name: "insecure", Replacement: "skipverify"},
+		{Name: "noverify", Replacement: "skipverify"},
+	}, resolver.DeprecatedParams(&types.Params{"Insecure": "yes", "noverify": "yes", "skipverify": "no", "token": "x"}))
+	assert.Empty(t, resolver.DeprecatedKeys(), "params should not be recorded as set")
+
+	deprecatedOnly := &deprecatedConfig{}
+	require.NoError(t, resolver.UpdateConfigFromParams(deprecatedOnly, &types.Params{"Insecure": "yes"}))
+	assert.True(t, deprecatedOnly.SkipVerify)
+	assert.False(t, resolver.KeepsDefault(deprecatedOnly, &types.Params{"Insecure": "yes"}, "skipverify"))
+
+	both := &deprecatedConfig{}
+	require.NoError(t, resolver.UpdateConfigFromParams(both, &types.Params{"insecure": "yes", "SkipVerify": "no"}))
+	assert.False(t, both.SkipVerify)
+}
+
+// TestPropKeyResolverDeprecatedParamsConcurrent verifies that concurrent sends
+// can check and apply deprecated params with one resolver. Run it with -race.
+func TestPropKeyResolverDeprecatedParamsConcurrent(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewPropKeyResolver(&deprecatedConfig{})
+	params := &types.Params{"insecure": "yes", "token": "x"}
+
+	const sends = 8
+
+	var wg sync.WaitGroup
+
+	configs := make([]*deprecatedConfig, sends)
+	reported := make([][]Deprecation, sends)
+	errs := make([]error, sends)
+
+	for i := range sends {
+		wg.Go(func() {
+			configs[i] = &deprecatedConfig{}
+			reported[i] = resolver.DeprecatedParams(params)
+			errs[i] = resolver.UpdateConfigFromParams(configs[i], params)
+		})
+	}
+
+	wg.Wait()
+
+	for i := range sends {
+		require.NoError(t, errs[i])
+		assert.Len(t, reported[i], 1)
+		assert.True(t, configs[i].SkipVerify)
+	}
 }
 
 // GetURL returns an empty URL. The resolver tests do not use it.

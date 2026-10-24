@@ -76,6 +76,14 @@ func TestConsoleTreeRendererRenderTree(t *testing.T) {
 				"Query " + pad(" ", 30) + pad(" ", 60) + " <Required>\n",
 		},
 		{
+			name:     "deprecated keys and fields",
+			renderer: types,
+			config:   &deprecatedConfig{},
+			want: "Pin        int" + pad(" ", 13) + pad(" ", 60) + " <Default: 0>\n" +
+				"SkipVerify bool" + pad(" ", 12) + "Skip verification" + pad(" ", 43) + " <Default: No> <Deprecated: insecure, noverify>\n" +
+				"Token      string" + pad(" ", 10) + pad(" ", 60) + "\n",
+		},
+		{
 			name:     "enum value",
 			renderer: values,
 			config:   &testEnummer{Choice: 1},

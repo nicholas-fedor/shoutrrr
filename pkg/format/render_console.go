@@ -120,6 +120,20 @@ func (r ConsoleTreeRenderer) RenderTree(root *ContainerNode, _ string) string {
 			stringBuilder.WriteString(">")
 		}
 
+		if len(field.DeprecatedKeys) > 0 {
+			stringBuilder.WriteString(" <Deprecated: ")
+
+			for i, key := range field.DeprecatedKeys {
+				if i > 0 {
+					stringBuilder.WriteString(", ")
+				}
+
+				stringBuilder.WriteString(ColorizeString(key))
+			}
+
+			stringBuilder.WriteString(">")
+		}
+
 		if field.EnumFormatter != nil {
 			stringBuilder.WriteString(ColorizeContainer(" ["))
 

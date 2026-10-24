@@ -20,10 +20,14 @@ type FieldInfo struct {
 	Template      string
 	URLParts      []URLPart
 	Keys          []string
-	Base          int
-	ItemSeparator rune
-	Required      bool
-	Title         bool
+	// DeprecatedKeys are the keys from the field's `deprecatedkeys` tag. They
+	// set the field like Keys. A URL never contains them, and the resolver
+	// reports each one used so the service can warn about it.
+	DeprecatedKeys []string
+	Base           int
+	ItemSeparator  rune
+	Required       bool
+	Title          bool
 	// Sensitive reports that the field holds a secret, such as a token or a
 	// password, from its `sensitive:"true"` tag.
 	Sensitive bool
@@ -52,6 +56,12 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 
 		if isHiddenField(&fieldDef) {
 			// This is an embedded or private field, which should not be part of the Config output
+			continue
+		}
+
+		if _, deprecated := fieldDef.Tag.Lookup(deprecatedFieldTag); deprecated {
+			// A deprecated field is only read by SyncDeprecatedFields, so it is
+			// left out of the docs, the generators, and the masked URL.
 			continue
 		}
 
@@ -100,6 +110,10 @@ func getStructFieldInfo(structType reflect.Type, enums map[string]types.EnumForm
 		if tag, ok := fieldDef.Tag.Lookup("key"); ok {
 			tag := strings.ToLower(tag)
 			info.Keys = strings.Split(tag, ",")
+		}
+
+		if tag, ok := fieldDef.Tag.Lookup(deprecatedKeysTag); ok {
+			info.DeprecatedKeys = strings.Split(strings.ToLower(tag), ",")
 		}
 
 		if tag, ok := fieldDef.Tag.Lookup("sep"); ok {

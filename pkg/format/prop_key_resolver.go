@@ -1,9 +1,12 @@
 package format
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -17,7 +20,14 @@ type PropKeyResolver struct {
 	// setFields holds the names of the fields that Set has set, such as from a
 	// service URL query, so KeepsDefault treats them as explicitly configured.
 	setFields map[string]bool
-	keys      []string
+	// deprecatedKeys maps each deprecated key to the primary key of its field.
+	deprecatedKeys map[string]string
+	// usedDeprecatedKeys holds the deprecated keys that Set has received.
+	usedDeprecatedKeys map[string]bool
+	// primarySetFields holds the names of the fields that Set has set through
+	// a key that is not deprecated, so a deprecated key no longer overrides them.
+	primarySetFields map[string]bool
+	keys             []string
 }
 
 var (
@@ -31,6 +41,7 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	items := configNode.Items
 
 	keyFields := make(map[string]*FieldInfo, len(items))
+	deprecatedKeys := map[string]string{}
 	keys := make([]string, 0, len(items))
 
 	for _, item := range items {
@@ -46,6 +57,14 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 				keyFields[key] = &field
 			}
 		}
+
+		for _, key := range field.DeprecatedKeys {
+			if key != "" {
+				keys = append(keys, key)
+				keyFields[key] = &field
+				deprecatedKeys[key] = field.Keys[0]
+			}
+		}
 	}
 
 	sort.Strings(keys)
@@ -56,10 +75,13 @@ func NewPropKeyResolver(config types.ServiceConfig) PropKeyResolver {
 	}
 
 	return PropKeyResolver{
-		keyFields: keyFields,
-		confValue: confValue,
-		setFields: map[string]bool{},
-		keys:      keys,
+		keyFields:          keyFields,
+		confValue:          confValue,
+		setFields:          map[string]bool{},
+		deprecatedKeys:     deprecatedKeys,
+		usedDeprecatedKeys: map[string]bool{},
+		primarySetFields:   map[string]bool{},
+		keys:               keys,
 	}
 }
 
@@ -84,6 +106,54 @@ func (pkr *PropKeyResolver) Bind(config types.ServiceConfig) PropKeyResolver {
 	bound.confValue = configValue(config)
 
 	return bound
+}
+
+// DeprecatedKeys reports the deprecated keys that [PropKeyResolver.Set] has
+// received, so the service can warn about them. They usually come from the
+// service URL query.
+//
+// Returns:
+//   - []Deprecation: the deprecated keys in lower case with their primary
+//     keys, sorted by key.
+func (pkr *PropKeyResolver) DeprecatedKeys() []Deprecation {
+	used := make([]Deprecation, 0, len(pkr.usedDeprecatedKeys))
+
+	for _, key := range slices.Sorted(maps.Keys(pkr.usedDeprecatedKeys)) {
+		used = append(used, Deprecation{Name: key, Replacement: pkr.deprecatedKeys[key]})
+	}
+
+	return used
+}
+
+// DeprecatedParams reports the deprecated keys among params. It only reads the
+// resolver, so concurrent sends can call it.
+//
+// Parameters:
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - []Deprecation: the deprecated keys in lower case with their primary
+//     keys, sorted by key.
+func (pkr *PropKeyResolver) DeprecatedParams(params *types.Params) []Deprecation {
+	if params == nil {
+		return []Deprecation{}
+	}
+
+	used := map[string]bool{}
+
+	for key := range *params {
+		if key = strings.ToLower(key); pkr.deprecatedKeys[key] != "" {
+			used[key] = true
+		}
+	}
+
+	deprecations := make([]Deprecation, 0, len(used))
+
+	for _, key := range slices.Sorted(maps.Keys(used)) {
+		deprecations = append(deprecations, Deprecation{Name: key, Replacement: pkr.deprecatedKeys[key]})
+	}
+
+	return deprecations
 }
 
 // Get returns the value of a config property tagged with the corresponding key.
@@ -169,7 +239,8 @@ func (pkr *PropKeyResolver) KeepsDefault(config types.ServiceConfig, params *typ
 	return err == nil && bound.IsDefault(key, value)
 }
 
-// KeyIsPrimary returns whether the key is the primary (and not an alias).
+// KeyIsPrimary returns whether the key is the primary (and not an alias or a
+// deprecated key).
 //
 // Parameters:
 //   - key: the property key, matched case-insensitively.
@@ -192,6 +263,11 @@ func (pkr *PropKeyResolver) QueryFields() []string {
 // Set sets the value of its bound struct's property, tagged with the corresponding key.
 // It records the property as explicitly set, which [PropKeyResolver.KeepsDefault] reads.
 //
+// A deprecated key is recorded for [PropKeyResolver.DeprecatedKeys]. It sets
+// the property unless a key that is not deprecated already set it, so the
+// replacement key wins whatever the order of the URL query. Its value is
+// checked either way.
+//
 // Parameters:
 //   - key: the property key, matched case-insensitively.
 //   - value: the formatted property value.
@@ -199,16 +275,22 @@ func (pkr *PropKeyResolver) QueryFields() []string {
 // Returns:
 //   - error: [ErrInvalidConfigKey] for an unknown key, or the value's parse error.
 func (pkr *PropKeyResolver) Set(key, value string) error {
-	if err := pkr.set(pkr.confValue, key, value); err != nil {
+	key = strings.ToLower(key)
+	field, found := pkr.keyFields[key]
+	_, deprecated := pkr.deprecatedKeys[key]
+
+	target := pkr.confValue
+	if found && deprecated && pkr.primarySetFields[field.Name] {
+		// The value is still parsed, into a scratch config, to report errors.
+		target = reflect.New(pkr.confValue.Type()).Elem()
+	}
+
+	if err := pkr.set(target, key, value); err != nil {
 		return err
 	}
 
-	if field, found := pkr.keyFields[strings.ToLower(key)]; found {
-		if pkr.setFields == nil {
-			pkr.setFields = map[string]bool{}
-		}
-
-		pkr.setFields[field.Name] = true
+	if found {
+		pkr.recordSet(key, field.Name, deprecated)
 	}
 
 	return nil
@@ -236,6 +318,8 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 // The reserved params set by [types.Params] helpers (title, message and level) are
 // applied when the config declares them and skipped otherwise, so every service
 // accepts them. Any other param without a matching key is an error.
+// Params are applied in key order, with deprecated keys first, so a
+// replacement key wins when params hold both.
 // The error returned is the first error that occurred; subsequent errors are discarded.
 func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	config types.ServiceConfig,
@@ -245,15 +329,22 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 
 	confValue := pkr.configValueOrInternal(config)
 
-	if params != nil {
-		for key, val := range *params {
-			if pkr.isUndeclaredReserved(key) {
-				continue
-			}
+	if params == nil {
+		return nil
+	}
 
-			if err := pkr.set(confValue, key, val); err != nil && firstError == nil {
-				firstError = err
-			}
+	// Deprecated keys go first, so a replacement key in the same params wins.
+	keys := slices.SortedFunc(maps.Keys(*params), func(a, b string) int {
+		return cmp.Or(cmp.Compare(pkr.deprecatedOrder(a), pkr.deprecatedOrder(b)), strings.Compare(a, b))
+	})
+
+	for _, key := range keys {
+		if pkr.isUndeclaredReserved(key) {
+			continue
+		}
+
+		if err := pkr.set(confValue, key, (*params)[key]); err != nil && firstError == nil {
+			firstError = err
 		}
 	}
 
@@ -267,6 +358,21 @@ func (pkr *PropKeyResolver) configValueOrInternal(config types.ServiceConfig) re
 	}
 
 	return pkr.confValue
+}
+
+// deprecatedOrder sorts deprecated keys before the other keys.
+//
+// Parameters:
+//   - key: the param key, matched case-insensitively.
+//
+// Returns:
+//   - int: 0 for a deprecated key and 1 for any other key.
+func (pkr *PropKeyResolver) deprecatedOrder(key string) int {
+	if _, deprecated := pkr.deprecatedKeys[strings.ToLower(key)]; deprecated {
+		return 0
+	}
+
+	return 1
 }
 
 // isUndeclaredReserved reports whether key is a reserved param that the config does
@@ -289,6 +395,37 @@ func (pkr *PropKeyResolver) isUndeclaredReserved(key string) bool {
 	default:
 		return false
 	}
+}
+
+// recordSet records a property set by [PropKeyResolver.Set], allocating the
+// maps of a zero-value resolver.
+//
+// Parameters:
+//   - key: the property key in lower case.
+//   - fieldName: the name of the field the key sets.
+//   - deprecated: whether key is a deprecated key.
+func (pkr *PropKeyResolver) recordSet(key, fieldName string, deprecated bool) {
+	if pkr.setFields == nil {
+		pkr.setFields = map[string]bool{}
+	}
+
+	pkr.setFields[fieldName] = true
+
+	if !deprecated {
+		if pkr.primarySetFields == nil {
+			pkr.primarySetFields = map[string]bool{}
+		}
+
+		pkr.primarySetFields[fieldName] = true
+
+		return
+	}
+
+	if pkr.usedDeprecatedKeys == nil {
+		pkr.usedDeprecatedKeys = map[string]bool{}
+	}
+
+	pkr.usedDeprecatedKeys[key] = true
 }
 
 // set sets the value of a target struct tagged with the corresponding key.
