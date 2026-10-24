@@ -3529,19 +3529,20 @@
   Default: <em>empty</em></p>
 </li>
 <li>
-<p><strong>disabletls</strong>
+<p><strong>disabletls</strong> - Send over HTTP instead of HTTPS
   Default: ❌ <code>No</code></p>
 </li>
 <li>
-<p><strong>insecureskipverify</strong>
-  Default: ❌ <code>No</code></p>
-</li>
-<li>
-<p><strong>priority</strong>
+<p><strong>priority</strong> - Message priority, from -2 to 10
   Default: <code>0</code></p>
 </li>
 <li>
-<p><strong>title</strong>
+<p><strong>skiptlsverify</strong> - Skip TLS certificate verification
+  Default: ❌ <code>No</code>
+  Deprecated: <code>insecureskipverify</code></p>
+</li>
+<li>
+<p><strong>title</strong> - Notification title
   Default: <code>Shoutrrr notification</code></p>
 </li>
 <li>
@@ -3586,20 +3587,27 @@ They can contain uppercase and lowercase letters, numbers, and the special chara
 <li>Internal Gotify servers with custom CA certificates</li>
 <li>Testing with local Gotify instances</li>
 </ul>
+<p>Disabling TLS does not skip certificate verification. If the server redirects to HTTPS, its certificate is still verified unless <code>skiptlsverify</code> is also set. Shoutrrr logs a warning the first time it sends without TLS.</p>
 <div class="admonition danger">
 <p class="admonition-title">Security Risk</p>
 <p>Disabling TLS makes all communication unencrypted and vulnerable to interception. Only use this option in trusted, isolated networks.</p>
 </div>
 <h3 id="skip_tls_certificate_verification">Skip TLS Certificate Verification<a class="headerlink" href="#skip_tls_certificate_verification" title="Permanent link">&para;</a></h3>
-<p>The <code>insecureskipverify</code> parameter can be set to <code>yes</code> to skip TLS certificate verification while still using HTTPS. This maintains encrypted communication but bypasses certificate validation. This is useful for:</p>
+<p>The <code>skiptlsverify</code> parameter can be set to <code>yes</code>, in the URL or in the send params, to skip TLS certificate verification while still using HTTPS. This maintains encrypted communication but bypasses certificate validation. This is useful for:</p>
 <ul>
 <li>Self-signed certificates in development environments</li>
 <li>Internal Gotify servers with custom CA certificates</li>
 <li>Testing with certificates that don't match the hostname</li>
 </ul>
+<p>Shoutrrr logs a warning the first time it sends without verifying the certificate. It logs no warning when the program using Shoutrrr supplies its own HTTP client, because that client's TLS settings apply.</p>
 <div class="admonition danger">
 <p class="admonition-title">Security Risk</p>
 <p>Skipping certificate verification makes connections vulnerable to man-in-the-middle attacks. Only use this option when you trust the network path to the server.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Deprecated</p>
+<p>The <code>insecureskipverify</code> parameter is deprecated in favor of <code>skiptlsverify</code>.
+It still works and logs a warning the first time it is used, and <code>skiptlsverify</code> takes precedence when both are set. In Go, the <code>Config.InsecureSkipVerify</code> field is likewise deprecated in favor of <code>Config.SkipTLSVerify</code>.</p>
 </div>
 <h3 id="priority_levels">Priority Levels<a class="headerlink" href="#priority_levels" title="Permanent link">&para;</a></h3>
 <p>Gotify supports priority levels to control how notifications are displayed and handled:</p>
@@ -3654,7 +3662,7 @@ When neither the URL nor the send params set a priority, the level picks one fro
 <div class="admonition warning">
 <p class="admonition-title">Deprecated</p>
 <p>The <code>date</code> parameter is deprecated and has no effect.
-Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts <code>date</code> in URLs and params for compatibility but does not send it, and logs a warning when it is set.</p>
+Gotify stamps each message with the server time when it receives it, so Shoutrrr accepts <code>date</code> in URLs and params for compatibility but does not send it, and logs a warning the first time it is set.</p>
 </div>
 <h3 id="use_header_authentication">Use Header Authentication<a class="headerlink" href="#use_header_authentication" title="Permanent link">&para;</a></h3>
 <p>By default, the Gotify token is sent as a query parameter in the URL (<code>?token=...</code>). The <code>useheader</code> parameter set to <code>yes</code> removes the token from the URL entirely and sends it in the <code>X-Gotify-Key</code> HTTP header instead, which provides better security since:</p>
@@ -3720,7 +3728,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 </div>
 <div class="admonition example">
 <p class="admonition-title">With TLS certificate verification skipped</p>
-<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?insecureskipverify=yes
+<div class="highlight"><pre><span></span><code>gotify://gotify.example.com/AzyoeNS.D4iJLVa?skiptlsverify=yes
 </code></pre></div>
 </div>
 <h2 id="security_considerations">Security Considerations<a class="headerlink" href="#security_considerations" title="Permanent link">&para;</a></h2>
@@ -3733,7 +3741,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <h3 id="network_security">Network Security<a class="headerlink" href="#network_security" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Always use HTTPS (default) for production deployments</li>
-<li>Only disable TLS (<code>disabletls=yes</code>) or skip certificate verification (<code>insecureskipverify=yes</code>) in trusted development environments</li>
+<li>Only disable TLS (<code>disabletls=yes</code>) or skip certificate verification (<code>skiptlsverify=yes</code>) in trusted development environments</li>
 <li>Consider using Gotify behind a reverse proxy with additional authentication layers</li>
 </ul>
 <h3 id="token_management">Token Management<a class="headerlink" href="#token_management" title="Permanent link">&para;</a></h3>
@@ -3776,7 +3784,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
 <p><strong>Error</strong>: TLS certificate verification failed</p>
 <p><strong>Solutions:</strong></p>
 <ul>
-<li>For self-signed certificates, use <code>insecureskipverify=yes</code> to skip verification while maintaining HTTPS</li>
+<li>For self-signed certificates, use <code>skiptlsverify=yes</code> to skip verification while maintaining HTTPS</li>
 <li>For development/testing with HTTP, use <code>disabletls=yes</code> to disable TLS entirely</li>
 <li>Install proper certificates on the Gotify server</li>
 <li>Verify the certificate is valid and not expired</li>
@@ -3869,7 +3877,7 @@ Gotify stamps each message with the server time when it receives it, so Shoutrrr
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 07:46:47 UTC"><span class="timeago" datetime="2026-10-23T07:46:47+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 07:46:47 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 24, 2026 07:11:01 UTC"><span class="timeago" datetime="2026-10-24T07:11:01+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 24, 2026 07:11:01 UTC">2026-10-24</span>
   </span>
 
     
