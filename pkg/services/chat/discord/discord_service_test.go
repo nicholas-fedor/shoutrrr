@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
@@ -113,7 +115,7 @@ func newFailingClient(t *testing.T, err error) *mocks.MockHTTPClient {
 //
 // Returns:
 //   - *Service: the service.
-func newTestService(t *testing.T, client HTTPClient) *Service {
+func newTestService(t *testing.T, client types.HTTPClient) *Service {
 	t.Helper()
 
 	config := &Config{WebhookID: "123456789", Token: "test-token"}
@@ -121,6 +123,68 @@ func newTestService(t *testing.T, client HTTPClient) *Service {
 	service.SetLogger(log.New(t.Output(), "", 0))
 
 	return service
+}
+
+// TestSendBudget verifies that every send entry bounds a send without a
+// caller deadline by [maxRetryTimeout], the budget that ServiceTimeout
+// reports, and keeps a caller's deadline as it is.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	items := []types.MessageItem{{Text: "Hello"}}
+
+	// sends lists the send entries, with whether they take the caller's
+	// context.
+	sends := []struct {
+		name     string
+		send     func(ctx context.Context, service *Service) error
+		takesCtx bool
+	}{
+		{name: "Send", send: func(_ context.Context, service *Service) error {
+			return service.Send("Hello", nil) //nolint:contextcheck // The test covers the entry point that takes no context.
+		}},
+		{name: "SendContext", takesCtx: true, send: func(ctx context.Context, service *Service) error {
+			return service.SendContext(ctx, "Hello", nil)
+		}},
+		{name: "SendItems", send: func(_ context.Context, service *Service) error {
+			return service.SendItems(items, nil) //nolint:contextcheck // The test covers the entry point that takes no context.
+		}},
+		{name: "SendItemsContext", takesCtx: true, send: func(ctx context.Context, service *Service) error {
+			return service.SendItemsContext(ctx, items, nil)
+		}},
+	}
+
+	for _, tt := range sends {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var deadline time.Time
+
+				client := mocks.NewMockHTTPClient(t)
+				client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+					deadline, _ = req.Context().Deadline()
+
+					return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Request: req}, nil
+				})
+
+				start := time.Now()
+
+				require.NoError(t, tt.send(t.Context(), newTestService(t, client)))
+				assert.Equal(t, start.Add(maxRetryTimeout), deadline, "a send without a deadline gets the budget")
+
+				if !tt.takesCtx {
+					return
+				}
+
+				ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+				defer cancel()
+
+				require.NoError(t, tt.send(ctx, newTestService(t, client)))
+				assert.Equal(t, start.Add(time.Hour), deadline, "the caller's deadline applies")
+			})
+		})
+	}
 }
 
 // TestSendRequestCount verifies how many requests a send makes for plain,
@@ -536,7 +600,8 @@ func TestCreateItemsFromPlainTitleLimit(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize reads the URL, applies the defaults,
-// and creates an HTTP client, and that it rejects an incomplete URL.
+// and sets the default sleeper without filling the deprecated client field,
+// and that it rejects an incomplete URL.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -552,7 +617,18 @@ func TestInitialize(t *testing.T) {
 		assert.Equal(t, "TestBot", service.Config.Username)
 		assert.Equal(t, uint(0x50d9ff), service.Config.Color, "the default color applies")
 		assert.True(t, service.Config.SplitLines, "lines split by default")
-		assert.NotNil(t, service.HTTPClient)
+		assert.Equal(t, RealSleeper{}, service.Sleeper)
+		assert.Nil(t, service.HTTPClient, "Initialize leaves the deprecated client field unset")
+	})
+
+	t.Run("keeps a sleeper", func(t *testing.T) {
+		t.Parallel()
+
+		sleeper := mocks.NewMockSleeper(t)
+		service := &Service{Sleeper: sleeper}
+		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@webhook"), log.New(t.Output(), "", 0)))
+
+		assert.Same(t, sleeper, service.Sleeper)
 	})
 
 	t.Run("incomplete URL", func(t *testing.T) {

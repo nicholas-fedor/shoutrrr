@@ -12,7 +12,6 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,17 +23,12 @@ import (
 )
 
 // HTTPClient defines the interface for HTTP operations.
-type HTTPClient interface {
-	// Do sends an HTTP request.
-	//
-	// Parameters:
-	//   - req: the request to send.
-	//
-	// Returns:
-	//   - *http.Response: the response.
-	//   - error: the transport failure.
-	Do(req *http.Request) (*http.Response, error)
-}
+//
+// Deprecated: The service takes a [types.HTTPClient], which HTTPClient is an
+// alias of. Use [types.HTTPClient].
+//
+//go:fix inline
+type HTTPClient = types.HTTPClient
 
 // Sleeper defines the interface for sleep operations.
 type Sleeper interface {
@@ -48,10 +42,15 @@ type Sleeper interface {
 // RealSleeper is the default implementation using time.Sleep.
 type RealSleeper struct{}
 
-// DefaultHTTPClient is the default implementation, using its own
-// [http.Client] with a timeout.
+// DefaultHTTPClient is an HTTP client that sends through an [http.Client]
+// with a timeout. The zero value is ready to use.
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 type DefaultHTTPClient struct {
-	// client sends the requests, with [defaultHTTPTimeout] as its timeout.
+	// client sends the requests, with [defaultHTTPTimeout] as its timeout, or
+	// is nil to send through a new client with that timeout.
 	client *http.Client
 }
 
@@ -85,7 +84,7 @@ type MultipartRequestPreparer struct {
 
 // HTTP settings for requests to Discord.
 const (
-	// defaultHTTPTimeout is the default timeout for HTTP requests to Discord.
+	// defaultHTTPTimeout is the timeout of [DefaultHTTPClient].
 	defaultHTTPTimeout = 30 * time.Second
 
 	// serverErrorStatusCode is the HTTP status code for server errors (5xx).
@@ -142,6 +141,10 @@ func (RealSleeper) SleepContext(ctx context.Context, d time.Duration) error {
 //
 // Returns:
 //   - *DefaultHTTPClient: a client with [defaultHTTPTimeout] as its timeout.
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -159,7 +162,12 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 //   - *http.Response: the response.
 //   - error: the transport failure, with the request URL redacted.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+	client := &http.Client{Timeout: defaultHTTPTimeout}
+	if c != nil && c.client != nil {
+		client = c.client
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
@@ -250,9 +258,9 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 
 // isTransientError checks if an error is transient and should be retried.
 // A canceled context is not transient, and a passed deadline is. A
-// [net.Error] is transient when it reports a timeout or a temporary failure.
-// Any other error is transient when its text mentions a refused or reset
-// connection.
+// [net.Error] that reports a timeout or a temporary failure is transient.
+// Any other error, including a [net.Error] that reports neither, is transient
+// when its text mentions a refused or reset connection.
 //
 // Parameters:
 //   - err: the transport error, or nil.
@@ -272,13 +280,9 @@ func isTransientError(err error) bool {
 		return true
 	}
 
-	if netErr, ok := errors.AsType[net.Error](err); ok {
-		return netErr.Timeout() ||
-			netErr.Temporary() //nolint:staticcheck // Temporary is deprecated but still used for compatibility
-	}
-
-	if urlErr, ok := errors.AsType[*url.Error](err); ok {
-		return isTransientError(urlErr.Err)
+	if netErr, ok := errors.AsType[net.Error](err); ok &&
+		(netErr.Timeout() || netErr.Temporary()) { //nolint:staticcheck // Temporary is deprecated but still used for compatibility
+		return true
 	}
 
 	errStr := err.Error()
@@ -305,14 +309,14 @@ func isTransientError(err error) bool {
 //     failure creating a request or waiting.
 func executeWithTransportRetry(
 	ctx context.Context,
-	httpClient HTTPClient,
+	httpClient types.HTTPClient,
 	bodyBytes []byte,
 	req *http.Request,
 	sleeper Sleeper,
 ) (*http.Response, error) {
 	const maxTransportRetries = 3
 
-	for transportAttempt := 0; transportAttempt <= maxTransportRetries; transportAttempt++ {
+	for transportAttempt := 0; ; transportAttempt++ {
 		newReq, err := http.NewRequestWithContext(
 			ctx,
 			req.Method,
@@ -347,8 +351,6 @@ func executeWithTransportRetry(
 
 		return res, nil
 	}
-
-	return nil, fmt.Errorf("making HTTP POST request: %w", ErrMaxRetries)
 }
 
 // handleServerError handles 5xx server errors with retry logic.
@@ -425,7 +427,7 @@ func sendWithRetry(
 	ctx context.Context,
 	preparer RequestPreparer,
 	requestURL string,
-	httpClient HTTPClient,
+	httpClient types.HTTPClient,
 	sleeper Sleeper,
 ) error {
 	startTime := time.Now()

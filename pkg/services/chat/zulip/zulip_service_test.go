@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -208,7 +209,8 @@ func TestServiceTimeout(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses the service URL, starts with
-// the default limits, and creates the default client unless one was set.
+// the default limits, leaves the deprecated client field unset, and keeps a
+// client that was set.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -219,9 +221,7 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, 10000, service.contentMaxSize)
 	assert.Equal(t, 60, service.topicMaxLength)
 
-	client, ok := service.HTTPClient.(*DefaultHTTPClient)
-	require.True(t, ok, "default client is %T", service.HTTPClient)
-	assert.Equal(t, defaultHTTPTimeout, client.client.Timeout)
+	assert.Nil(t, service.HTTPClient, "Initialize leaves the deprecated client field unset")
 
 	t.Run("keeps a custom client", func(t *testing.T) {
 		t.Parallel()
@@ -229,7 +229,7 @@ func TestInitialize(t *testing.T) {
 		custom := mocks.NewMockHTTPClient(t)
 		service := newTestService(t, testServiceURL, custom)
 
-		assert.Same(t, custom, service.HTTPClient)
+		assert.Same(t, custom, service.client.Prefer(service.HTTPClient))
 	})
 
 	t.Run("invalid URL", func(t *testing.T) {
@@ -397,6 +397,75 @@ func TestSendFetchesLimitsOnce(t *testing.T) {
 
 	assert.Len(t, fake.registers, 1)
 	assert.Len(t, fake.messages, 2)
+}
+
+// TestSendBudget verifies the deadlines of a send's requests. Without a
+// caller deadline the send is bounded by its budget, and with one the
+// caller's deadline applies. The limits lookup is capped at
+// [registerTimeout] either way, and the message request gets the rest.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the caller deadlines with the message request deadline to
+	// expect, both measured from the start of the send.
+	tests := []struct {
+		name           string
+		callerDeadline time.Duration
+		wantMessage    time.Duration
+	}{
+		{name: "no caller deadline", wantMessage: registerTimeout + defaultHTTPTimeout},
+		{name: "caller deadline", callerDeadline: time.Hour, wantMessage: time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				client, fake := newFakeClient(t, defaultLimits, sent)
+				service := newTestService(t, testServiceURL, client)
+
+				ctx := t.Context()
+
+				if tt.callerDeadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tt.callerDeadline)
+					defer cancel()
+				}
+
+				start := time.Now()
+
+				require.NoError(t, service.SendContext(ctx, "Hello", nil))
+
+				require.Len(t, fake.registers, 1)
+				require.Len(t, fake.messages, 1)
+				assert.Equal(t, start.Add(registerTimeout), fake.registers[0].deadline)
+				assert.Equal(t, start.Add(tt.wantMessage), fake.messages[0].deadline)
+			})
+		})
+	}
+}
+
+// TestInitializeRefetchesLimits verifies that Initialize drops the limits of
+// the previous server, so the next send fetches them again.
+func TestInitializeRefetchesLimits(t *testing.T) {
+	t.Parallel()
+
+	client, fake := newFakeClientWithRegisters(t, []cannedResponse{
+		{statusCode: http.StatusOK, body: `{"result":"success","max_message_length":20000,"max_topic_length":60}`},
+		{statusCode: http.StatusOK, body: `{"result":"success","max_message_length":5000,"max_topic_length":60}`},
+	}, sent)
+	service := newTestService(t, testServiceURL, client)
+
+	require.NoError(t, service.Send("Hello", nil))
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+
+	err := service.Send(strings.Repeat("a", 6000), nil)
+
+	require.ErrorIs(t, err, ErrMessageTooLong)
+	assert.Len(t, fake.registers, 2)
+	assert.Len(t, fake.messages, 1)
 }
 
 // TestSendServerLimits verifies that the topic and message limits come from
@@ -938,10 +1007,24 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 	assert.True(t, strings.HasPrefix(err.Error(), "performing HTTP request: "), err.Error())
 	assert.NotContains(t, err.Error(), "SECRETbot")
 	assert.NotContains(t, err.Error(), testBotKey)
+
+	t.Run("zero value", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL.String(), http.NoBody)
+		require.NoError(t, err)
+
+		_, err = (&DefaultHTTPClient{}).Do(req)
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// restores the default client for nil and a nil *http.Client.
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client in
+// place of the deprecated client field, and restores the default client for
+// nil and a nil *http.Client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -970,13 +1053,15 @@ func TestSetHTTPClient(t *testing.T) {
 			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
 			service.SetHTTPClient(client)
 
+			assert.Nil(t, service.HTTPClient, "SetHTTPClient clears the deprecated client field")
+
 			if tt.wantDefault {
-				assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
+				assert.IsType(t, &http.Client{}, service.client.Prefer(service.HTTPClient))
 
 				return
 			}
 
-			assert.Same(t, client, service.HTTPClient)
+			assert.Same(t, client, service.client.Prefer(service.HTTPClient))
 		})
 	}
 }

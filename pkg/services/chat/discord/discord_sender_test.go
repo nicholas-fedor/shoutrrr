@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -183,6 +184,19 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 		_, err = client.Do(req)
 		require.ErrorIs(t, err, errNetwork)
 		assert.Contains(t, err.Error(), "performing HTTP request")
+	})
+
+	t.Run("zero value", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com", http.NoBody)
+		require.NoError(t, err)
+
+		_, err = (&DefaultHTTPClient{}).Do(req)
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }
 
@@ -592,6 +606,21 @@ func TestIsTransientError(t *testing.T) {
 		{name: "connection refused", err: errors.New("dial tcp 127.0.0.1:8080: connect: connection refused"), expected: true},
 		{name: "connection reset", err: errors.New("read tcp 127.0.0.1:8080: connection reset by peer"), expected: true},
 		{name: "wrapped transient error", err: &url.Error{Op: "Get", URL: "http://example.com", Err: context.DeadlineExceeded}, expected: true},
+		{
+			name: "refused dial in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused"),
+			}},
+			expected: true,
+		},
+		{
+			name: "reset read in a request error",
+			err: &url.Error{Op: "Post", URL: "http://example.com", Err: &net.OpError{
+				Op: "read", Net: "tcp", Err: errors.New("connection reset by peer"),
+			}},
+			expected: true,
+		},
+		{name: "other request error", err: &url.Error{Op: "Post", URL: "http://example.com", Err: errors.New("bad gateway")}, expected: false},
 		{name: "generic error", err: errors.New("some other error"), expected: false},
 		{name: "nil error", err: nil, expected: false},
 	}

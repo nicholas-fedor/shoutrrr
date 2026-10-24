@@ -194,6 +194,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Send every request through that client, including token and API requests.
 - Restore the default client when `SetHTTPClient` receives nil.
 - Export no client fields, client interfaces, or client constructors.
+- Mark an existing exported client field deprecated instead of removing it.
+  Clear it in `SetHTTPClient`, and send through `Holder.Prefer` with it, so whichever of the two the caller set last carries the sends.
 
 ### TLS
 
@@ -218,6 +220,7 @@ Every service follows the same rules, so services behave alike for users and for
 - Run each send under `httpclient.BoundContext`, with the budget the service reports through `ServiceTimeout`.
 - Keep a caller's deadline as it is.
 - Add no timeouts to the requests within a send.
+  An optional request whose failure the send survives, such as Zulip's limits lookup, may have a shorter deadline, so a slow answer leaves the rest of the budget to the send.
 
 ### Renamed Options
 

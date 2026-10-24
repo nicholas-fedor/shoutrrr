@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -23,11 +23,19 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// HTTPClient sends the webhook requests. Initialize sets the default
-	// client when none is set.
-	HTTPClient HTTPClient
-	// Sleeper waits between retries. Initialize sets it to [RealSleeper].
+	// HTTPClient sends the webhook requests when set. [Service.SetHTTPClient]
+	// clears it, so whichever of the two the caller set last carries the
+	// sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
+	HTTPClient types.HTTPClient
+	// Sleeper waits between retries. Initialize sets it to [RealSleeper] when
+	// it is nil.
 	Sleeper Sleeper
+
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
 
 	// Config holds the webhook and the message options.
 	Config *Config
@@ -75,7 +83,7 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-// It keeps an HTTP client that is already set.
+// It keeps an HTTP client and a sleeper that are already set.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -89,11 +97,10 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	if s.HTTPClient == nil {
-		s.HTTPClient = NewDefaultHTTPClient()
-	}
 
-	s.Sleeper = RealSleeper{} // Default sleeper
+	if s.Sleeper == nil {
+		s.Sleeper = RealSleeper{}
+	}
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -121,7 +128,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Discord. The router calls it
-// with its send deadline.
+// with its send deadline. A context without a deadline is bounded by the
+// budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds each request and its retries.
@@ -134,6 +142,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if message == "" {
 		return ErrEmptyMessage
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	var firstErr error
 
@@ -195,7 +206,8 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 
 // SendItemsContext delivers message items with enhanced metadata and formatting to
 // Discord, including embeds, fields, timestamps and file attachments. The router
-// calls it for rich messages, with its send deadline.
+// calls it for rich messages, with its send deadline. A context without a
+// deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
@@ -223,21 +235,15 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
-// the default client.
+// the default client. It clears the deprecated HTTPClient field, so the sends
+// use this client until that field is set again.
 //
 // Parameters:
 //   - client: the HTTP client, or nil for the default client. A nil
 //     *http.Client also counts as nil.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		client = NewDefaultHTTPClient()
-	}
-
-	s.HTTPClient = client
+	s.client.Set(client)
+	s.HTTPClient = nil
 }
 
 // doSend executes an HTTP POST request to deliver the payload to Discord.
@@ -256,7 +262,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) er
 
 	preparer := &JSONRequestPreparer{payload: payload}
 
-	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+	return sendWithRetry(ctx, preparer, postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
 }
 
 // doSendMultipart executes an HTTP POST request with multipart/form-data to deliver
@@ -285,7 +291,7 @@ func (s *Service) doSendMultipart(
 		files:   files,
 	}
 
-	return sendWithRetry(ctx, preparer, postURL, s.HTTPClient, s.Sleeper)
+	return sendWithRetry(ctx, preparer, postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
 }
 
 // plainLevel returns the level that colors the embeds of a plain message. A
@@ -358,7 +364,9 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 // [Service.sendItems] sends them. Otherwise every batch is sent as embeds, so a
 // batch of one plain item matches the others and gets the embed length limit.
 // A failed batch does not stop the batches after it, and failures other than
-// the first are logged. Once ctx ends, the remaining batches are not sent.
+// the first are logged. Once ctx ends, the remaining batches are not sent. A
+// context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds the requests and their retries.
@@ -370,6 +378,9 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //     ctx ended before every batch was sent and no batch failed, or nil when
 //     every batch is sent.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config, err := s.sendConfig(params)
 	if err != nil {
 		return err

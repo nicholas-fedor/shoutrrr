@@ -23,7 +23,7 @@ type Config struct {
 	Token string `sensitive:"true" url:"user"`
 	// Title is the title of the first embed in each request. A message with a
 	// title is always sent as embeds.
-	Title string `default:"" key:"title"`
+	Title string `default:"" desc:"The title of the first embedded item" key:"title"`
 	// Username replaces the webhook's default username when set.
 	Username string `default:"" desc:"Override the webhook default username" key:"username"`
 	// Avatar is the URL of an avatar that replaces the webhook's default
