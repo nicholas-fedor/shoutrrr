@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ghcr.io/home-assistant/home-assistant:stable docker digest to 23f4dfb by @renovate[bot] in [#1848](https://github.com/nicholas-fedor/shoutrrr/pull/1848)
 - Update binwiederhier/ntfy:latest docker digest to 901e145 by @renovate[bot] in [#1845](https://github.com/nicholas-fedor/shoutrrr/pull/1845)
 - Update dependency mkdocs-material to v9.8.0 by @renovate[bot] in [#1839](https://github.com/nicholas-fedor/shoutrrr/pull/1839)
 - Update matrixdotorg/synapse:latest docker digest to 390f5e6 by @renovate[bot] in [#1819](https://github.com/nicholas-fedor/shoutrrr/pull/1819)
