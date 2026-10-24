@@ -3,6 +3,7 @@ package matrix
 import (
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -336,4 +337,19 @@ func TestServiceTimeout(t *testing.T) {
 			assert.Equal(t, defaultHTTPTimeout*time.Duration(tt.want), service.ServiceTimeout(tt.params))
 		})
 	}
+}
+
+// TestDefaultHTTPClient verifies that the default client has the request
+// timeout and sends through http.DefaultTransport, so it honors the proxy
+// environment variables.
+func TestDefaultHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, "matrix://user:pass@matrix.example.com"), log.New(t.Output(), "", 0)))
+
+	httpClient, ok := service.httpClient.Client().(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Nil(t, httpClient.Transport)
 }

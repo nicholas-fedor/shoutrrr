@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -19,11 +19,8 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// client is the JSON client the requests go through, built on
-	// httpClient.
-	client jsonclient.ContextClient
-	// httpClient is the injected HTTP client, or nil for a default client.
-	httpClient types.HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 	// Config holds the access token, the title, and the targets.
 	Config *Config
 	// pkr reads and writes the config props by their query keys.
@@ -78,19 +75,14 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrTokenIncorrectSize].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	s.Config = &Config{
 		Title: "Shoutrrr notification", // Explicitly set default
 	}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
-		return err
-	}
-
-	s.client = s.newJSONClient()
-
-	return nil
+	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
 // Send a push notification via Pushbullet.
@@ -161,12 +153,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-	s.client = s.newJSONClient()
+	s.client.Set(client)
 }
 
 // doSend sends a push notification to a specific target and validates the response.
@@ -183,10 +170,12 @@ func (s *Service) doSend(ctx context.Context, config *Config, target, message st
 	push := NewNotePush(message, config.Title)
 	push.SetTarget(target)
 
+	client := s.newJSONClient()
+
 	response := PushResponse{}
-	if err := s.client.PostContext(ctx, pushesEndpoint, push, &response); err != nil {
+	if err := client.PostContext(ctx, pushesEndpoint, push, &response); err != nil {
 		errorResponse := &ResponseError{}
-		if s.client.ErrorResponse(err, errorResponse) {
+		if client.ErrorResponse(err, errorResponse) {
 			return fmt.Errorf("API error: %w", errorResponse)
 		}
 
@@ -223,19 +212,14 @@ func (s *Service) doSend(ctx context.Context, config *Config, target, message st
 	return nil
 }
 
-// newJSONClient builds the API client from the injected or default HTTP client.
-// It sets the access token on every client it builds, so replacing the HTTP client
-// keeps requests authenticated.
+// newJSONClient builds the API client from the injected or default HTTP client,
+// with the access token set, so every request is authenticated whichever HTTP
+// client it goes through.
 //
 // Returns:
 //   - jsonclient.ContextClient: the API client.
 func (s *Service) newJSONClient() jsonclient.ContextClient {
-	httpClient := s.httpClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-
-	client := jsonclient.NewContextClient(httpClient)
+	client := jsonclient.NewContextClient(s.client.Client())
 	if s.Config != nil {
 		client.Headers().Set("Access-Token", s.Config.Token)
 	}

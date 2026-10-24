@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
+	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 // Service implements a Gotify notification service that handles sending push notifications
@@ -21,16 +21,12 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the HTTP client for API calls: an injected client, or the
-	// default client with the configured timeout and TLS settings.
-	httpClient types.HTTPClient
-	// client is the JSON client built on httpClient.
-	client jsonclient.Client
+	// client holds the injected HTTP client and the default client, which has
+	// the configured timeout and TLS settings.
+	client httpclient.Holder
 
-	// httpClientManager builds the default HTTP client. It and the builders
-	// below are set by Initialize.
-	httpClientManager HTTPClientManager
-	// urlBuilder builds the message endpoint URL.
+	// urlBuilder builds the message endpoint URL. It and the builders below
+	// are set by Initialize.
 	urlBuilder URLBuilder
 	// payloadBuilder builds the request body and parses the extras.
 	payloadBuilder PayloadBuilder
@@ -43,8 +39,6 @@ type Service struct {
 	Config *Config
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
-	// mu guards httpClient and client.
-	mu sync.Mutex
 }
 
 // Gotify priorities that message levels map to, one from each band of the
@@ -110,14 +104,21 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 
 	// Inject default implementations for interfaces
-	s.httpClientManager = &DefaultHTTPClientManager{}
 	s.urlBuilder = &DefaultURLBuilder{}
 	s.payloadBuilder = &DefaultPayloadBuilder{}
 	s.validator = &DefaultValidator{}
 	s.sender = &DefaultSender{}
 
-	// Initialize HTTP client and related components in a thread-safe manner
-	s.initClient()
+	// The default HTTP client follows the TLS settings of the URL.
+	s.client.SetDefault(HTTPTimeout*time.Second, newTLSConfig(s.Config))
+
+	if s.Config.DisableTLS {
+		s.Log("Warning: TLS is disabled, using insecure HTTP connections")
+	}
+
+	if s.Config.InsecureSkipVerify {
+		s.Log("Warning: TLS certificate verification is disabled")
+	}
 
 	return nil // Return success
 }
@@ -151,8 +152,6 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("input validation failed: %w", err)
 	}
 
-	s.initClient()
-
 	config, extras, err := s.processConfig(params)
 	if err != nil {
 		return fmt.Errorf("failed to process config: %w", err)
@@ -167,31 +166,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
-// A nil client, including a nil *http.Client, makes the next send build the
-// default client.
+// A nil client, including a nil *http.Client, restores the default client.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if client == nil {
-		s.httpClient = nil
-		s.client = nil
-
-		return
-	}
-
-	if c, ok := client.(*http.Client); ok && c == nil {
-		s.httpClient = nil
-		s.client = nil
-
-		return
-	}
-
-	s.httpClient = client
-	s.client = jsonclient.NewWithHTTPClient(client)
+	s.client.Set(client)
 }
 
 // buildRequest constructs the URL, payload, and headers for the HTTP request.
@@ -233,13 +213,6 @@ func (s *Service) buildRequest(
 	}
 
 	return postURL, request, headers, nil
-}
-
-// initClient initializes the HTTP client and related components.
-// This method ensures that the transport, HTTP client, JSON client,
-// and TLS warning logging are performed when needed, allowing re-initialization if the client becomes nil.
-func (s *Service) initClient() {
-	initClient(s, s.httpClientManager)
 }
 
 // processConfig handles configuration processing including parameter updates, validation, and extras parsing.
@@ -310,7 +283,7 @@ func (s *Service) sendRequest(
 ) error {
 	if err := s.sender.SendRequestContext(
 		ctx,
-		s.httpClient,
+		s.client.Client(),
 		postURL,
 		request,
 		headers,
@@ -330,7 +303,7 @@ func (s *Service) sendRequest(
 //   - error: [ErrServiceNotInitialized] when Initialize has not succeeded, or
 //     a message validation error.
 func (s *Service) validateInputs(message string, _ *types.Params) error {
-	if s.validator == nil || s.httpClientManager == nil {
+	if s.validator == nil {
 		return ErrServiceNotInitialized
 	}
 

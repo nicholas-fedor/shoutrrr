@@ -58,28 +58,32 @@ func TestCreateClient(t *testing.T) {
 	assert.Equal(t, 10*time.Second, client.Timeout)
 }
 
-// TestInitClient verifies that initClient creates the default client with a
-// warning for each insecure TLS setting, and keeps a client that is already
-// set.
-func TestInitClient(t *testing.T) {
+// TestDefaultHTTPClient verifies that Initialize sets up a default client with
+// a 10 second timeout and the URL's TLS settings, logs a warning for each
+// insecure TLS setting, and keeps a client injected before it.
+func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists configs with the warnings each should log.
+	// tests lists service URLs with the warnings each should log and whether
+	// the default client should skip certificate verification.
 	tests := []struct {
-		name    string
-		wantLog string
-		config  Config
+		name         string
+		rawURL       string
+		wantLog      string
+		wantInsecure bool
 	}{
-		{name: "secure"},
+		{name: "secure", rawURL: testServiceURL},
 		{
-			name:    "TLS disabled",
-			config:  Config{DisableTLS: true},
-			wantLog: "Warning: TLS is disabled, using insecure HTTP connections\n",
+			name:         "TLS disabled",
+			rawURL:       testServiceURL + "?disabletls=yes",
+			wantLog:      "Warning: TLS is disabled, using insecure HTTP connections\n",
+			wantInsecure: true,
 		},
 		{
-			name:    "verification turned off",
-			config:  Config{InsecureSkipVerify: true},
-			wantLog: "Warning: TLS certificate verification is disabled\n",
+			name:         "verification turned off",
+			rawURL:       testServiceURL + "?insecureskipverify=yes",
+			wantLog:      "Warning: TLS certificate verification is disabled\n",
+			wantInsecure: true,
 		},
 	}
 
@@ -89,33 +93,30 @@ func TestInitClient(t *testing.T) {
 
 			var logs bytes.Buffer
 
-			service := &Service{Config: &tt.config}
-			service.SetLogger(log.New(&logs, "", 0))
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
 
-			initClient(service, &DefaultHTTPClientManager{})
-
-			client, ok := service.httpClient.(*http.Client)
-			require.True(t, ok, "default client is %T", service.httpClient)
+			client, ok := service.client.Client().(*http.Client)
+			require.True(t, ok, "default client is %T", service.client.Client())
 			assert.Equal(t, 10*time.Second, client.Timeout)
-			assert.NotNil(t, service.client)
-			assert.Equal(t, tt.wantLog, logs.String())
 
-			initClient(service, &DefaultHTTPClientManager{})
-
-			assert.Same(t, client, service.httpClient)
+			httpTransport, ok := client.Transport.(*http.Transport)
+			require.True(t, ok, "transport is %T", client.Transport)
+			require.NotNil(t, httpTransport.TLSClientConfig)
+			assert.Equal(t, uint16(tls.VersionTLS12), httpTransport.TLSClientConfig.MinVersion)
+			assert.Equal(t, tt.wantInsecure, httpTransport.TLSClientConfig.InsecureSkipVerify)
 			assert.Equal(t, tt.wantLog, logs.String())
 		})
 	}
 
-	t.Run("keeps a custom client", func(t *testing.T) {
+	t.Run("keeps a client injected before Initialize", func(t *testing.T) {
 		t.Parallel()
 
 		custom := typesmocks.NewMockHTTPClient(t)
-		service := &Service{Config: &Config{}}
+		service := &Service{}
 		service.SetHTTPClient(custom)
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
 
-		initClient(service, &DefaultHTTPClientManager{})
-
-		assert.Same(t, custom, service.httpClient)
+		assert.Same(t, custom, service.client.Client())
 	})
 }

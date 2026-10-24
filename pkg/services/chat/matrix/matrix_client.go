@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -23,6 +24,9 @@ import (
 )
 
 // HTTPClient defines the interface for HTTP operations.
+//
+// Deprecated: The service takes a [types.HTTPClient], which has the same
+// method. Use [types.HTTPClient].
 type HTTPClient interface {
 	// Do sends req and returns its response.
 	Do(req *http.Request) (*http.Response, error)
@@ -32,8 +36,9 @@ type HTTPClient interface {
 type client struct {
 	// logger receives the client's progress messages.
 	logger types.StdLogger
-	// httpClient sends the API requests.
-	httpClient HTTPClient
+	// httpClient holds the service's HTTP client, which sends the API
+	// requests.
+	httpClient *httpclient.Holder
 	// accessToken authenticates the requests after login, or is empty before.
 	accessToken string
 	// apiURL is the homeserver's base URL.
@@ -41,6 +46,10 @@ type client struct {
 }
 
 // DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+//
+// Deprecated: The service builds its own default client and redacts the
+// errors of every client. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 type DefaultHTTPClient struct {
 	// client sends the requests.
 	client *http.Client
@@ -180,7 +189,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	c.setAuthorizationHeader(req)
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.httpClient.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
 	}
@@ -295,7 +304,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 	req.Header.Set("Content-Type", contentType)
 	c.setAuthorizationHeader(req)
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.httpClient.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
 	}
@@ -782,19 +791,20 @@ func normalizeHostForDeviceID(host string) string {
 //   - host: the homeserver host, with an optional port.
 //   - disableTLS: connect over HTTP instead of HTTPS.
 //   - logger: receives the client's progress messages.
+//   - httpClient: holds the HTTP client the API requests go through.
 //
 // Returns:
 //   - *client: the client, not yet logged in.
 //
 //nolint:exhaustruct_v5 // Intentional partial initialization
-func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
+func newClient(host string, disableTLS bool, logger types.StdLogger, httpClient *httpclient.Holder) *client {
 	client := &client{
 		logger: logger,
 		apiURL: url.URL{
 			Host:   host,
 			Scheme: schemeHTTPS,
 		},
-		httpClient: newDefaultHTTPClient(),
+		httpClient: httpClient,
 	}
 
 	if client.logger == nil {
@@ -808,36 +818,4 @@ func newClient(host string, disableTLS bool, logger types.StdLogger) *client {
 	client.logger.Printf("Using server: %v\n", client.apiURL.String())
 
 	return client
-}
-
-// newDefaultHTTPClient returns the client used when none is injected.
-//
-// Returns:
-//   - *DefaultHTTPClient: a client with the default timeout.
-func newDefaultHTTPClient() *DefaultHTTPClient {
-	return &DefaultHTTPClient{client: &http.Client{Timeout: defaultHTTPTimeout}}
-}
-
-// adaptHTTPClient prepares an injected client for the Matrix client. An
-// *http.Client is wrapped so its transport errors are redacted, and a nil client
-// is replaced with the default client.
-//
-// Parameters:
-//   - httpClient: the injected client, which may be nil.
-//
-// Returns:
-//   - HTTPClient: the client the Matrix client uses.
-func adaptHTTPClient(httpClient types.HTTPClient) HTTPClient {
-	switch c := httpClient.(type) {
-	case nil:
-		return newDefaultHTTPClient()
-	case *http.Client:
-		if c == nil {
-			return newDefaultHTTPClient()
-		}
-
-		return &DefaultHTTPClient{client: c}
-	default:
-		return httpClient
-	}
 }

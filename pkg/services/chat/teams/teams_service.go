@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -18,22 +19,20 @@ import (
 )
 
 // HTTPClient defines the interface for HTTP operations.
+//
+// Deprecated: The service takes a [types.HTTPClient], which HTTPClient is an
+// alias of. Use [types.HTTPClient].
+//
+//go:fix inline
 type HTTPClient = types.HTTPClient
-
-// defaultHTTPClient implements HTTPClient using http.Client with a timeout.
-type defaultHTTPClient struct {
-	// client sends the requests.
-	client types.HTTPClient
-}
 
 // Service sends notifications to Microsoft Teams via Power Automate workflow webhooks.
 type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient sends the webhook requests: an injected client, or the
-	// default client with [defaultHTTPTimeout].
-	httpClient HTTPClient
+	// client holds the injected HTTP client and the default client.
+	client httpclient.Holder
 
 	// Config holds the webhook URL and the card options.
 	Config *Config
@@ -55,23 +54,6 @@ var (
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
 
-// Do performs the HTTP request.
-//
-// Parameters:
-//   - req: the request.
-//
-// Returns:
-//   - *http.Response: the response.
-//   - error: the client's error, with its URL redacted.
-func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
-	}
-
-	return resp, nil
-}
-
 // GetID returns the service identifier.
 //
 // Returns:
@@ -81,8 +63,6 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger.
-//
-// It installs the default HTTP client, replacing a client set before.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -96,9 +76,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.httpClient = &defaultHTTPClient{
-		client: &http.Client{Timeout: defaultHTTPTimeout},
-	}
+	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -158,24 +136,7 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		s.httpClient = &defaultHTTPClient{
-			client: &http.Client{Timeout: defaultHTTPTimeout},
-		}
-
-		return
-	}
-
-	switch c := client.(type) {
-	case *http.Client:
-		s.httpClient = &defaultHTTPClient{client: c}
-	case HTTPClient:
-		s.httpClient = c
-	}
+	s.client.Set(client)
 }
 
 // colorToEnum maps user-provided color values to valid Adaptive Card TextBlock.color enum values.
@@ -319,7 +280,7 @@ func (s *Service) postJSON(ctx context.Context, serviceURL string, payload []byt
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := s.httpClient.Do(req)
+	res, err := s.client.Client().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}

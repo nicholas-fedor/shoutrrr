@@ -55,13 +55,6 @@ type cannedResponse struct {
 	statusCode int
 }
 
-// fixedTransportManager creates default clients that send through a fixed
-// transport.
-type fixedTransportManager struct {
-	// transport is the transport every client sends through.
-	transport *http.Transport
-}
-
 // failingURLBuilder fails to build every message endpoint.
 type failingURLBuilder struct {
 	// err is the error BuildURL returns.
@@ -181,12 +174,11 @@ func TestInitialize(t *testing.T) {
 	service := newTestService(t, testServiceURL+"?priority=3")
 
 	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, prioritySet: true}, service.Config)
-	assert.IsType(t, &DefaultHTTPClientManager{}, service.httpClientManager)
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)
 	assert.IsType(t, &DefaultSender{}, service.sender)
-	assert.IsType(t, &http.Client{}, service.httpClient)
+	assert.IsType(t, &http.Client{}, service.client.Client())
 
 	err := (&Service{}).Initialize(parseTestURL(t, testServiceURL+"?extras=%7Binvalid"), log.New(t.Output(), "", 0))
 	require.ErrorIs(t, err, ErrExtrasParseFailed)
@@ -581,45 +573,41 @@ func TestSendConcurrently(t *testing.T) {
 	assert.Len(t, captured(), sends)
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// clears it for nil and a nil *http.Client, so the next send creates the
-// default client.
+// TestSetHTTPClient verifies that SetHTTPClient makes sends use a custom
+// client, and that a nil client or a nil *http.Client restores the default.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	// tests lists constructors for the clients to set, which build any mock
-	// with the subtest's t, and whether the stored client should be cleared.
-	tests := []struct {
-		client    func(t *testing.T) types.HTTPClient
-		name      string
-		wantClear bool
-	}{
-		{name: "custom client", client: func(t *testing.T) types.HTTPClient {
-			t.Helper()
+	t.Run("custom client", func(t *testing.T) {
+		t.Parallel()
 
-			return typesmocks.NewMockHTTPClient(t)
-		}},
-		{name: "nil", client: func(*testing.T) types.HTTPClient { return nil }, wantClear: true},
-		{name: "nil *http.Client", client: func(*testing.T) types.HTTPClient { return (*http.Client)(nil) }, wantClear: true},
+		client := typesmocks.NewMockHTTPClient(t)
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(client)
+
+		assert.Same(t, client, service.client.Client())
+	})
+
+	// nilClients lists the nil clients that restore the default client.
+	nilClients := []struct {
+		name   string
+		client types.HTTPClient
+	}{
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range nilClients {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := tt.client(t)
 			service := newTestService(t, testServiceURL)
-			service.SetHTTPClient(client)
+			defaultClient := service.client.Client()
 
-			if tt.wantClear {
-				assert.Nil(t, service.httpClient)
-				assert.Nil(t, service.client)
+			service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(tt.client)
 
-				return
-			}
-
-			assert.Same(t, client, service.httpClient)
-			assert.NotNil(t, service.client)
+			assert.Same(t, defaultClient, service.client.Client())
 		})
 	}
 }
@@ -752,13 +740,19 @@ func TestSendTimeout(t *testing.T) {
 			_ = clientConn.Close()
 		})
 
+		// The default client, with its timeout, sends through a transport
+		// that dials the pipe.
 		service := newTestService(t, "gotify://"+testHost+"/"+testToken)
-		service.httpClientManager = &fixedTransportManager{transport: &http.Transport{
+		defaultClient, ok := service.client.Client().(*http.Client)
+		require.True(t, ok)
+
+		client := *defaultClient
+		client.Transport = &http.Transport{
 			DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
 				return clientConn, nil
 			},
-		}}
-		service.SetHTTPClient(nil)
+		}
+		service.SetHTTPClient(&client)
 
 		// The server reads the request and never answers.
 		go func() { _, _ = http.ReadRequest(bufio.NewReader(serverConn)) }()
@@ -796,25 +790,6 @@ func TestFilterParams(t *testing.T) {
 	assert.Equal(t, types.Params{"title": "Backup", "priority": "5"}, filterParams(&params))
 	assert.Equal(t, types.Params{"title": "Backup", "extras": "{}", "priority": "5"}, params)
 	assert.Equal(t, types.Params{}, filterParams(nil))
-}
-
-// CreateClient returns a default client that sends through httpTransport.
-//
-// Parameters:
-//   - httpTransport: the transport for the client.
-//
-// Returns:
-//   - *http.Client: the client.
-func (m *fixedTransportManager) CreateClient(httpTransport *http.Transport) *http.Client {
-	return (&DefaultHTTPClientManager{}).CreateClient(httpTransport)
-}
-
-// CreateTransport returns the fixed transport.
-//
-// Returns:
-//   - *http.Transport: the transport.
-func (m *fixedTransportManager) CreateTransport(*Config) *http.Transport {
-	return m.transport
 }
 
 // BuildURL returns the builder's error.
