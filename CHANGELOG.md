@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support deprecated config keys and fields by @nicholas-fedor in [#1827](https://github.com/nicholas-fedor/shoutrrr/pull/1827)
 - Refresh OAuth2 access tokens from a refresh token by @nicholas-fedor in [#1809](https://github.com/nicholas-fedor/shoutrrr/pull/1809)
 - Send a message timestamp by @nicholas-fedor in [#1803](https://github.com/nicholas-fedor/shoutrrr/pull/1803)
 - Send through a configurable Bot API server by @nicholas-fedor in [#1801](https://github.com/nicholas-fedor/shoutrrr/pull/1801)
