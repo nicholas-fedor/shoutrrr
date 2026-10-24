@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add shared TLS, insecure client, and send budget helpers by @nicholas-fedor in [#1829](https://github.com/nicholas-fedor/shoutrrr/pull/1829)
 - Hold the HTTP clients of four services in the shared holder by @nicholas-fedor in [#1825](https://github.com/nicholas-fedor/shoutrrr/pull/1825)
 - Hold the HTTP clients of five services in the shared holder by @nicholas-fedor in [#1821](https://github.com/nicholas-fedor/shoutrrr/pull/1821)
 - Hold HTTP clients in a shared holder by @nicholas-fedor in [#1815](https://github.com/nicholas-fedor/shoutrrr/pull/1815)
