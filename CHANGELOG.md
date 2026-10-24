@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the skiptlsverify key and follow the service rules by @nicholas-fedor in [#1835](https://github.com/nicholas-fedor/shoutrrr/pull/1835)
 - Add the skiptlsverify key and follow the service rules by @nicholas-fedor in [#1833](https://github.com/nicholas-fedor/shoutrrr/pull/1833)
 - Support deprecated config keys and fields by @nicholas-fedor in [#1827](https://github.com/nicholas-fedor/shoutrrr/pull/1827)
 - Refresh OAuth2 access tokens from a refresh token by @nicholas-fedor in [#1809](https://github.com/nicholas-fedor/shoutrrr/pull/1809)
