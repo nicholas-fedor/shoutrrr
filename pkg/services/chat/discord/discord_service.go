@@ -20,23 +20,37 @@ import (
 
 // Service implements a Discord notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// HTTPClient sends the webhook requests. Initialize sets the default
+	// client when none is set.
 	HTTPClient HTTPClient
-	Sleeper    Sleeper
+	// Sleeper waits between retries. Initialize sets it to [RealSleeper].
+	Sleeper Sleeper
 
+	// Config holds the webhook and the message options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
+// Message limits and the webhook endpoint.
 const (
-	ChunkSize      = 2000 // Maximum size of a single message chunk
-	TotalChunkSize = 6000 // Maximum total size of all chunks
-	ChunkCount     = 10   // Maximum number of chunks allowed
-	MaxSearchRunes = 100  // Maximum number of runes to search for split position
-	HooksBaseURL   = "https://discord.com/api/webhooks"
+	// ChunkSize is the maximum size of a single message chunk.
+	ChunkSize = 2000
+	// TotalChunkSize is the maximum total size of all chunks.
+	TotalChunkSize = 6000
+	// ChunkCount is the maximum number of chunks allowed.
+	ChunkCount = 10
+	// MaxSearchRunes is the maximum number of runes to search for a split
+	// position.
+	MaxSearchRunes = 100
+	// HooksBaseURL is the base URL of the webhook endpoints.
+	HooksBaseURL = "https://discord.com/api/webhooks"
 )
 
+// limits are the chunk limits for splitting a plain message into items.
 var limits = types.MessageLimit{
 	ChunkSize:      ChunkSize,
 	TotalChunkSize: TotalChunkSize,
@@ -53,11 +67,22 @@ var (
 )
 
 // GetID provides the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+// It keeps an HTTP client that is already set.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for the service.
+//
+// Returns:
+//   - error: the failure setting the default props or reading the URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -199,6 +224,10 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
+//
+// Parameters:
+//   - client: the HTTP client, or nil for the default client. A nil
+//     *http.Client also counts as nil.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil
@@ -485,6 +514,13 @@ func batchItems(items []types.MessageItem, title string, colors [types.MessageLe
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.
+//
+// Parameters:
+//   - plain: the message text.
+//   - splitLines: whether to send each line as its own embed.
+//
+// Returns:
+//   - [][]types.MessageItem: the message items, grouped by request.
 func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 	return createItemsFromPlain(plain, splitLines, "")
 }
@@ -528,6 +564,21 @@ func createItemsFromPlain(plain string, splitLines bool, title string) [][]types
 }
 
 // validateDiscordWebhookURL validates the Discord webhook URL for security and correctness.
+// It checks these in order:
+//   - The URL is not empty.
+//   - It parses as a request URI.
+//   - Its scheme is https.
+//   - Its host is discord.com.
+//   - Its path starts with /api/webhooks/.
+//   - Exactly two non-empty segments, the webhook ID and the token, follow
+//     [HooksBaseURL].
+//
+// Parameters:
+//   - postURL: the webhook URL.
+//
+// Returns:
+//   - error: the error of the first failed check, such as [ErrInvalidHost], or
+//     nil for a valid URL.
 func validateDiscordWebhookURL(postURL string) error {
 	if postURL == "" {
 		return ErrEmptyURL

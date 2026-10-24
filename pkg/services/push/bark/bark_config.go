@@ -14,20 +14,36 @@ import (
 
 // Config holds configuration settings for the Bark service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since Bark has no enum
+	// fields.
 	standard.EnumlessConfig
 
-	Title     string `default:""                      desc:"Notification title, optionally set by the sender"           key:"title"`
-	Host      string `desc:"Server hostname and port" url:"host"`
-	Path      string `default:"/"                     desc:"Server path"                                                url:"path"`
-	DeviceKey string `desc:"The key for each device"  sensitive:"true"                                                  url:"password"`
-	Scheme    string `default:"https"                 desc:"Server protocol, http or https"                             key:"scheme"`
-	Sound     string `default:""                      desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
-	Icon      string `default:""                      desc:"An url to the icon, available only on iOS 15 or later"      key:"icon"`
-	Group     string `default:""                      desc:"The group of the notification"                              key:"group"`
-	URL       string `default:""                      desc:"Url that will jump when click notification"                 key:"url"`
-	Category  string `default:""                      desc:"Reserved field, no use yet"                                 key:"category"`
-	Copy      string `default:""                      desc:"The value to be copied"                                     key:"copy"`
-	Badge     int64  `default:"0"                     desc:"The number displayed next to App icon"                      key:"badge"`
+	// Title is the notification title.
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
+	// Host is the server host, with an optional port.
+	Host string `desc:"Server hostname and port" url:"host"`
+	// Path is the server path that the API endpoints are appended to.
+	Path string `default:"/" desc:"Server path" url:"path"`
+	// DeviceKey is the key of the device that receives the notifications.
+	// It is the password of the service URL.
+	DeviceKey string `desc:"The key for each device" sensitive:"true" url:"password"`
+	// Scheme is the protocol used to reach the server, http or https.
+	Scheme string `default:"https" desc:"Server protocol, http or https" key:"scheme"`
+	// Sound is the name of the notification sound.
+	Sound string `default:"" desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
+	// Icon is the URL of the notification icon, shown on iOS 15 or later.
+	Icon string `default:"" desc:"An url to the icon, available only on iOS 15 or later" key:"icon"`
+	// Group is the group of the notification.
+	Group string `default:"" desc:"The group of the notification" key:"group"`
+	// URL is the URL to open when the notification is tapped.
+	URL string `default:"" desc:"Url that will jump when click notification" key:"url"`
+	// Category is a field that Bark reserves for future use.
+	Category string `default:"" desc:"Reserved field, no use yet" key:"category"`
+	// Copy is the text to copy to the clipboard when the notification is
+	// tapped.
+	Copy string `default:"" desc:"The value to be copied" key:"copy"`
+	// Badge is the number displayed next to the app icon.
+	Badge int64 `default:"0" desc:"The number displayed next to App icon" key:"badge"`
 }
 
 // Scheme is the URL scheme identifier for the Bark service.

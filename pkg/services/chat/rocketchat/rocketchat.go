@@ -19,11 +19,16 @@ import (
 // Service sends notifications to a pre-configured Rocket.Chat channel or user.
 // It implements the types.Service interface for Rocket.Chat integration.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
 	// Config holds the Rocket.Chat service configuration.
-	Config     *Config
-	Client     *http.Client
+	Config *Config
+	// Client sends the requests when no custom client is set. When it is nil,
+	// Initialize creates one that times out after [defaultHTTPTimeout].
+	Client *http.Client
+	// httpClient is the custom client set by [Service.SetHTTPClient]. When set,
+	// it sends the requests in place of Client.
 	httpClient types.HTTPClient
 }
 
@@ -39,13 +44,16 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
 //
-// Params:
+// Parameters:
 //   - serviceURL: The configuration URL containing Rocket.Chat connection details
 //   - logger: The logger to use for this service
 //
@@ -174,6 +182,9 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // httpClientOrDefault returns the custom client or the internal Client.
+//
+// Returns:
+//   - types.HTTPClient: the custom client when one is set, or Client.
 func (s *Service) httpClientOrDefault() types.HTTPClient {
 	if s.httpClient != nil {
 		return s.httpClient

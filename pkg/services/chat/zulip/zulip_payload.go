@@ -150,6 +150,13 @@ func validateDirectRecipients(recipients []string) error {
 }
 
 // parseRecipients splits a comma-separated list of user IDs or email addresses.
+//
+// Parameters:
+//   - s: the comma-separated recipients.
+//
+// Returns:
+//   - []string: the recipients with surrounding spaces trimmed. Empty entries
+//     are dropped.
 func parseRecipients(s string) []string {
 	parts := strings.Split(s, ",")
 
@@ -165,6 +172,12 @@ func parseRecipients(s string) []string {
 }
 
 // ValidateMessageType returns an error if the message type is not supported.
+//
+// Parameters:
+//   - t: the message type. Empty selects a channel message.
+//
+// Returns:
+//   - error: [ErrInvalidMessageType] naming the type, or nil.
 func ValidateMessageType(t MessageType) error {
 	switch t {
 	case MessageTypeChannel, MessageTypeDirect, "":

@@ -25,38 +25,65 @@ import (
 
 // HTTPClient defines the interface for HTTP operations.
 type HTTPClient interface {
+	// Do sends an HTTP request.
+	//
+	// Parameters:
+	//   - req: the request to send.
+	//
+	// Returns:
+	//   - *http.Response: the response.
+	//   - error: the transport failure.
 	Do(req *http.Request) (*http.Response, error)
 }
 
 // Sleeper defines the interface for sleep operations.
 type Sleeper interface {
+	// Sleep waits for d.
+	//
+	// Parameters:
+	//   - d: how long to wait.
 	Sleep(d time.Duration)
 }
 
 // RealSleeper is the default implementation using time.Sleep.
 type RealSleeper struct{}
 
-// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+// DefaultHTTPClient is the default implementation, using its own
+// [http.Client] with a timeout.
 type DefaultHTTPClient struct {
+	// client sends the requests, with [defaultHTTPTimeout] as its timeout.
 	client *http.Client
 }
 
 // RequestPreparer defines the interface for preparing HTTP requests.
 type RequestPreparer interface {
+	// PrepareRequest creates a POST request to requestURL.
+	//
+	// Parameters:
+	//   - ctx: the context of the request.
+	//   - requestURL: the webhook URL.
+	//
+	// Returns:
+	//   - *http.Request: the request.
+	//   - error: the failure building the request.
 	PrepareRequest(ctx context.Context, requestURL string) (*http.Request, error)
 }
 
 // JSONRequestPreparer prepares JSON requests.
 type JSONRequestPreparer struct {
+	// payload is the JSON request body.
 	payload []byte
 }
 
 // MultipartRequestPreparer prepares multipart/form-data requests.
 type MultipartRequestPreparer struct {
+	// payload is sent as JSON in the payload_json form field.
 	payload *WebhookPayload
-	files   []types.File
+	// files are sent as the files[n] form parts, in order.
+	files []types.File
 }
 
+// HTTP settings for requests to Discord.
 const (
 	// defaultHTTPTimeout is the default timeout for HTTP requests to Discord.
 	defaultHTTPTimeout = 30 * time.Second
@@ -65,14 +92,28 @@ const (
 	serverErrorStatusCode = 500
 )
 
+// Retry limits and backoff for sends.
 const (
-	maxRetries      = 5
-	baseBackoff     = time.Second
-	maxBackoff      = 64 * time.Second
+	// maxRetries is the most retries after the first attempt for a send that
+	// gets a rate limit or server error response.
+	maxRetries = 5
+	// baseBackoff is the wait before the first retry.
+	baseBackoff = time.Second
+	// maxBackoff caps the wait between retries.
+	maxBackoff = 64 * time.Second
+	// maxRetryTimeout limits how long a send keeps retrying. It is checked
+	// before each attempt and before each wait for a rate limit or server
+	// error. It does not cut short a request in flight or the transport
+	// retries within an attempt.
 	maxRetryTimeout = 5 * time.Minute
-	backoffBase     = 2
+	// backoffBase is the factor by which the wait grows with each retry.
+	backoffBase = 2
 )
 
+// Sleep waits for d with [time.Sleep].
+//
+// Parameters:
+//   - d: how long to wait.
 func (RealSleeper) Sleep(d time.Duration) {
 	time.Sleep(d)
 }
@@ -98,6 +139,9 @@ func (RealSleeper) SleepContext(ctx context.Context, d time.Duration) error {
 }
 
 // NewDefaultHTTPClient creates a new default HTTP client with a reasonable timeout.
+//
+// Returns:
+//   - *DefaultHTTPClient: a client with [defaultHTTPTimeout] as its timeout.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -107,6 +151,13 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 }
 
 // Do performs the HTTP request.
+//
+// Parameters:
+//   - req: the request to send.
+//
+// Returns:
+//   - *http.Response: the response.
+//   - error: the transport failure, with the request URL redacted.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -117,6 +168,14 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 // PrepareRequest creates a JSON POST request.
+//
+// Parameters:
+//   - ctx: the context of the request.
+//   - requestURL: the webhook URL.
+//
+// Returns:
+//   - *http.Request: the request, with the payload as its body.
+//   - error: the failure creating the request, with the URL redacted.
 func (p *JSONRequestPreparer) PrepareRequest(
 	ctx context.Context,
 	requestURL string,
@@ -132,7 +191,16 @@ func (p *JSONRequestPreparer) PrepareRequest(
 	return req, nil
 }
 
-// PrepareRequest creates a multipart POST request.
+// PrepareRequest creates a multipart POST request. The payload goes in the
+// payload_json field as JSON, and each file in a files[n] part.
+//
+// Parameters:
+//   - ctx: the context of the request.
+//   - requestURL: the webhook URL.
+//
+// Returns:
+//   - *http.Request: the request, with the multipart form as its body.
+//   - error: the failure encoding the form or creating the request.
 func (p *MultipartRequestPreparer) PrepareRequest(
 	ctx context.Context,
 	requestURL string,
@@ -181,6 +249,16 @@ func (p *MultipartRequestPreparer) PrepareRequest(
 }
 
 // isTransientError checks if an error is transient and should be retried.
+// A canceled context is not transient, and a passed deadline is. A
+// [net.Error] is transient when it reports a timeout or a temporary failure.
+// Any other error is transient when its text mentions a refused or reset
+// connection.
+//
+// Parameters:
+//   - err: the transport error, or nil.
+//
+// Returns:
+//   - bool: whether a retry may succeed.
 func isTransientError(err error) bool {
 	if err == nil {
 		return false
@@ -210,6 +288,21 @@ func isTransientError(err error) bool {
 }
 
 // executeWithTransportRetry executes an HTTP request with transport-level retries.
+// Each attempt sends a new request with the method, URL, and headers of req
+// and bodyBytes as its body. A transient error, as [isTransientError] judges
+// it, is retried up to three times with an exponential backoff.
+//
+// Parameters:
+//   - ctx: the context of each request and wait.
+//   - httpClient: sends the requests.
+//   - bodyBytes: the request body.
+//   - req: the request whose method, URL, and headers are sent.
+//   - sleeper: waits between attempts.
+//
+// Returns:
+//   - *http.Response: the response, whatever its status.
+//   - error: the last transport error, with the URL redacted. Otherwise the
+//     failure creating a request or waiting.
 func executeWithTransportRetry(
 	ctx context.Context,
 	httpClient HTTPClient,
@@ -259,6 +352,21 @@ func executeWithTransportRetry(
 }
 
 // handleServerError handles 5xx server errors with retry logic.
+// A response below 500 is left as it is. For a 5xx response it waits an
+// exponential backoff before the next attempt and closes the body. After the
+// last attempt it closes the body and returns [ErrMaxRetries] without
+// waiting.
+//
+// Parameters:
+//   - ctx: bounds the wait.
+//   - res: the response.
+//   - attempt: the attempt that got the response, from zero.
+//   - startTime: when the send started, for the retry time limit.
+//   - sleeper: waits between attempts.
+//
+// Returns:
+//   - error: [ErrMaxRetries] after the last attempt, or the wait's failure.
+//     It is nil for a response below 500 and when the next attempt may start.
 func handleServerError(
 	ctx context.Context,
 	res *http.Response,
@@ -295,6 +403,24 @@ func handleServerError(
 }
 
 // sendWithRetry executes an HTTP request with exponential backoff retries.
+// A rate limit or server error response is retried up to [maxRetries] times,
+// while [maxRetryTimeout] allows. A 200 or 204 response is a success, and any
+// other status fails at once.
+//
+// Parameters:
+//   - ctx: bounds the requests and the waits between them.
+//   - preparer: creates the request for each attempt.
+//   - requestURL: the webhook URL.
+//   - httpClient: sends the requests.
+//   - sleeper: waits between attempts.
+//
+// Returns:
+//   - error: nil on success. An error matching [ErrMaxRetries] when the
+//     retries run out, or when [maxRetryTimeout] has passed before an attempt.
+//     An error wrapping [ErrRateLimited] when a retry wait would outlast
+//     [maxRetryTimeout] or the context's deadline. An error wrapping
+//     [ErrUnexpectedStatus] for any other status. Otherwise the request or
+//     wait failure.
 func sendWithRetry(
 	ctx context.Context,
 	preparer RequestPreparer,

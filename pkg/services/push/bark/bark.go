@@ -22,23 +22,37 @@ import (
 // HTTPClient defines the interface for HTTP operations required by the Bark service.
 // This interface allows for dependency injection of HTTP clients for testing purposes.
 type HTTPClient interface {
+	// Do sends an HTTP request and returns the server's response.
+	//
+	// Parameters:
+	//   - req: the request to send.
+	//
+	// Returns:
+	//   - *http.Response: the server's response.
+	//   - error: the request failure, or nil on success.
 	Do(req *http.Request) (*http.Response, error)
 }
 
 // DefaultHTTPClient is the default HTTP client implementation used when no
 // custom client is provided. It uses a reasonable timeout to prevent hanging requests.
 type DefaultHTTPClient struct {
+	// client sends the requests, bounded by [defaultHTTPTimeout].
 	client *http.Client
 }
 
 // Service sends push notifications to Bark-enabled iOS devices.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// HTTPClient sends the requests to the Bark server. Initialize sets the
+	// default client when it is nil.
 	HTTPClient HTTPClient
 
+	// Config holds the server, the device key, and the notification options.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // defaultHTTPTimeout is the default timeout for HTTP requests.

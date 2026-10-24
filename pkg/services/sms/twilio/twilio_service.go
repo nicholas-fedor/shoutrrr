@@ -15,12 +15,17 @@ import (
 
 // Service provides the Twilio SMS notification service.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// HTTPClient sends the requests to the Twilio API. Initialize sets it to
+	// the default client.
 	HTTPClient HTTPClient
 
+	// Config holds the credentials, the sender, the recipients, and the title.
 	Config *Config
-	pkr    format.PropKeyResolver
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
 }
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -32,11 +37,22 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It replaces any
+// HTTP client with the default client.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for the service.
+//
+// Returns:
+//   - error: the error from parsing or validating the service URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}

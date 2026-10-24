@@ -26,32 +26,49 @@ import (
 
 // HTTPClient defines the interface for HTTP operations.
 type HTTPClient interface {
+	// Do sends the request and returns the response.
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+// DefaultHTTPClient is the default implementation, using an [http.Client]
+// whose requests time out after [defaultHTTPTimeout].
 type DefaultHTTPClient struct {
+	// client sends the requests.
 	client *http.Client
 }
 
 // registerResponse represents the relevant fields from the Zulip register endpoint.
 type registerResponse struct {
+	// MaxMessageLength is the maximum message length in characters, or zero
+	// when the response omits it.
 	MaxMessageLength int `json:"max_message_length"`
-	MaxTopicLength   int `json:"max_topic_length"`
+	// MaxTopicLength is the maximum topic length in characters, or zero when
+	// the response omits it.
+	MaxTopicLength int `json:"max_topic_length"`
 }
 
 // Service sends notifications to a pre-configured Zulip channel or user.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// HTTPClient sends the requests. Initialize sets a [DefaultHTTPClient]
+	// when it is nil.
 	HTTPClient HTTPClient
 
+	// Config holds the settings read from the service URL. Each send works on
+	// a copy with its params applied.
 	Config *Config
 	// limitsDone is closed when the limits request in flight ends, and is nil
 	// when no request is in flight.
-	limitsDone     chan struct{}
-	pkr            format.PropKeyResolver
+	limitsDone chan struct{}
+	// pkr reads and writes the config props by their query keys.
+	pkr format.PropKeyResolver
+	// contentMaxSize is the maximum message length in characters. It starts at
+	// the package default and takes the server's limit once reported.
 	contentMaxSize int
+	// topicMaxLength is the maximum topic length in characters. It starts at
+	// the package default and takes the server's limit once reported.
 	topicMaxLength int
 
 	// limitsMu guards limitsFetched, limitsDone, and the limits.
@@ -133,6 +150,12 @@ func validateHost(host string) error {
 	return nil
 }
 
+// NewDefaultHTTPClient creates the client that the service uses when no other
+// client is set.
+//
+// Returns:
+//   - *DefaultHTTPClient: a client whose requests time out after
+//     [defaultHTTPTimeout].
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -142,6 +165,13 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 }
 
 // Do performs the HTTP request.
+//
+// Parameters:
+//   - req: the request to send.
+//
+// Returns:
+//   - *http.Response: the response, which the caller closes.
+//   - error: the request error, with URLs redacted by [redact.URLError].
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -152,11 +182,22 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 // GetID returns the identifier for this service.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
 // Initialize configures the service with a URL and logger.
+//
+// Parameters:
+//   - serviceURL: the service URL.
+//   - logger: the logger for the service.
+//
+// Returns:
+//   - error: the error from setting the default props or reading the URL, or
+//     nil.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -296,6 +337,9 @@ func (*Service) ServiceTimeout(*types.Params) time.Duration {
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
 // the default client.
+//
+// Parameters:
+//   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		client = nil
@@ -429,6 +473,12 @@ func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
 }
 
 // getAPIURL constructs the API URL for Zulip based on the Config.
+//
+// Parameters:
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - string: the messages endpoint URL, with the bot credentials as userinfo.
 func (s *Service) getAPIURL(config *Config) string {
 	return (&url.URL{
 		User:   url.UserPassword(config.BotMail, config.BotKey),
@@ -439,6 +489,9 @@ func (s *Service) getAPIURL(config *Config) string {
 }
 
 // getRegisterURL constructs the register API URL from the service config.
+//
+// Returns:
+//   - string: the register endpoint URL, with the bot credentials as userinfo.
 func (s *Service) getRegisterURL() string {
 	return (&url.URL{
 		User:   url.UserPassword(s.Config.BotMail, s.Config.BotKey),
