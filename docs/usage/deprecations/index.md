@@ -23,7 +23,8 @@ Deprecated identifiers carry a `Deprecated:` doc comment, which editors and lint
 Those marked with `//go:fix inline` are rewritten to their replacements by `go fix ./...`.
 
 A deprecated config field that has a replacement still applies.
-When a config sets both a deprecated field and its replacement, the replacement wins.
+When a config sets both a deprecated field and its replacement, a replacement with a non-zero value wins.
+A replacement set to its zero value, such as `false` or an empty string, counts as unset, so the deprecated field applies.
 
 | Identifier | Package | Replacement | Deprecated in |
 | --- | --- | --- | --- |

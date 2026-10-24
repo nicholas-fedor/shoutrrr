@@ -50,10 +50,11 @@ var ErrInvalidDeprecatedField = errors.New("invalid deprecated field")
 //
 // A deprecated field carries a `deprecated` tag that names its replacement.
 // The replacement must be a direct, exported field of the same type, and it
-// cannot be deprecated itself. The value moves only when
-// the deprecated field is set and the replacement holds its zero value, so a
-// replacement set by the URL or by the caller wins. The deprecated field keeps
-// the value the caller gave it.
+// cannot be deprecated itself. The value moves only when the deprecated field
+// is set and the replacement holds its zero value. A replacement with a
+// non-zero value wins. A replacement set to its zero value, such as a bool set
+// to false by the URL or the caller, looks unset, so a set deprecated field
+// replaces it. The deprecated field keeps the value the caller gave it.
 //
 // A service calls it on the config it sends with, before applying params.
 // GetURL calls it on a copy of the config, so the URL carries the replacement
