@@ -28,7 +28,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -89,7 +89,7 @@ var (
 // Returns:
 //   - *typesmocks.MockHTTPClient: the client.
 //   - func() []capturedRequest: returns the requests received so far.
-func newRecordingClient(t *testing.T, responses ...cannedResponse) (*typesmocks.MockHTTPClient, func() []capturedRequest) {
+func newRecordingClient(t *testing.T, responses ...cannedResponse) (*mockTypes.MockHTTPClient, func() []capturedRequest) {
 	t.Helper()
 
 	var (
@@ -97,7 +97,7 @@ func newRecordingClient(t *testing.T, responses ...cannedResponse) (*typesmocks.
 		captured []capturedRequest
 	)
 
-	client := typesmocks.NewMockHTTPClient(t)
+	client := mockTypes.NewMockHTTPClient(t)
 	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 		body, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
@@ -390,7 +390,7 @@ func TestSendValidation(t *testing.T) {
 
 			service := newTestService(t, tt.rawURL)
 			// The mock has no expectations, so a request fails the test.
-			service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 
 			require.ErrorIs(t, service.Send(tt.message, tt.params), tt.wantErr)
 		})
@@ -405,7 +405,7 @@ func TestSendInvalidToken(t *testing.T) {
 	for _, token := range []string{"", "Aaa"} {
 		service := newTestService(t, testServiceURL)
 		// The mock has no expectations, so a request fails the test.
-		service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+		service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 		service.Config.Token = token
 
 		require.ErrorIs(t, service.Send("Hello", nil), ErrInvalidToken, token)
@@ -419,7 +419,7 @@ func TestSendWithoutConfig(t *testing.T) {
 
 	service := newTestService(t, testServiceURL)
 	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+	service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 	service.Config = nil
 
 	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
@@ -532,7 +532,7 @@ func TestSendContextCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
-			client := typesmocks.NewMockHTTPClient(t)
+			client := mockTypes.NewMockHTTPClient(t)
 			client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 				return nil, req.Context().Err()
 			}).Once()
@@ -581,7 +581,7 @@ func TestSetHTTPClient(t *testing.T) {
 	t.Run("custom client", func(t *testing.T) {
 		t.Parallel()
 
-		client := typesmocks.NewMockHTTPClient(t)
+		client := mockTypes.NewMockHTTPClient(t)
 		service := newTestService(t, testServiceURL)
 		service.SetHTTPClient(client)
 
@@ -604,7 +604,7 @@ func TestSetHTTPClient(t *testing.T) {
 			service := newTestService(t, testServiceURL)
 			defaultClient := service.client.Client()
 
-			service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+			service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
 			assert.Same(t, defaultClient, service.client.Client())
@@ -695,10 +695,14 @@ func newGotifyServer(t *testing.T, useTLS bool) (*httptest.Server, *atomic.Int32
 	return server, &accepted
 }
 
-// TestSendDefaultClientLoopback verifies the default client against loopback
-// servers: plain HTTP with TLS disabled, with the token in the query or a
-// header, and HTTPS with a self-signed certificate, which fails verification
-// unless insecureskipverify is set.
+// TestSendDefaultClientLoopback verifies the default clients against loopback
+// servers.
+//
+//   - Plain HTTP with TLS disabled accepts the token in the query or a header.
+//   - HTTPS with a self-signed certificate fails verification, unless the URL,
+//     the deprecated key, the params, or the deprecated field skip it.
+//   - A plain HTTP server that redirects to that HTTPS server still fails
+//     verification, because disabling TLS does not skip it.
 func TestSendDefaultClientLoopback(t *testing.T) {
 	t.Parallel()
 
@@ -722,13 +726,141 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
 		assert.True(t, isCertErr, "error is not a certificate verification error")
 
+		require.NoError(t, newTestService(t, rawURL+"?skiptlsverify=yes").Send("Hello", nil))
 		require.NoError(t, newTestService(t, rawURL+"?insecureskipverify=yes").Send("Hello", nil))
-		assert.Equal(t, int32(1), accepted.Load())
+		require.NoError(t, newTestService(t, rawURL).Send("Hello", &types.Params{"skiptlsverify": "yes"}))
+
+		deprecatedField := newTestService(t, rawURL)
+		deprecatedField.Config.InsecureSkipVerify = true
+		require.NoError(t, deprecatedField.Send("Hello", nil))
+
+		paramTurnsOff := newTestService(t, rawURL+"?skiptlsverify=yes")
+		_, isCertErr = errors.AsType[*tls.CertificateVerificationError](
+			paramTurnsOff.Send("Hello", &types.Params{"skiptlsverify": "no"}),
+		)
+		assert.True(t, isCertErr, "a param should turn skipping off")
+
+		assert.Equal(t, int32(4), accepted.Load())
+	})
+
+	t.Run("redirect to self-signed HTTPS", func(t *testing.T) {
+		t.Parallel()
+
+		target, accepted := newGotifyServer(t, true)
+		redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		}))
+		t.Cleanup(redirect.Close)
+
+		rawURL := "gotify://" + redirect.Listener.Addr().String() + "/" + testToken + "?disabletls=yes"
+
+		_, isCertErr := errors.AsType[*tls.CertificateVerificationError](newTestService(t, rawURL).Send("Hello", nil))
+		assert.True(t, isCertErr, "disabling TLS should not skip verification after a redirect")
+		assert.Zero(t, accepted.Load())
 	})
 }
 
-// TestSendTimeout verifies that the default client gives up on a server that
-// does not answer within its 10 second timeout.
+// TestSendInsecureWarning verifies that the first send through the insecure
+// default client logs the shared warning, and later sends do not until the
+// service is initialized again. A send through an injected client never logs
+// it.
+func TestSendInsecureWarning(t *testing.T) {
+	t.Parallel()
+
+	const warning = "Warning: skipping TLS certificate verification\n"
+
+	server, _ := newGotifyServer(t, true)
+	rawURL := "gotify://" + server.Listener.Addr().String() + "/" + testToken + "?skiptlsverify=yes"
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("Hello", nil))
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, warning, logs.String())
+
+	// Initializing the service again lets the warning appear again.
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, warning+warning, logs.String())
+
+	var injectedLogs bytes.Buffer
+
+	injected := &Service{}
+	require.NoError(t, injected.Initialize(parseTestURL(t, rawURL), log.New(&injectedLogs, "", 0)))
+
+	client, _ := newRecordingClient(t, sent)
+	injected.SetHTTPClient(client)
+	require.NoError(t, injected.Send("Hello", nil))
+	assert.Empty(t, injectedLogs.String())
+}
+
+// TestSendPlaintextWarning verifies that the first send over plain HTTP logs
+// the shared warning, whether TLS is disabled by the URL or the params, and
+// later sends do not. An injected client gets the warning too, because the URL
+// decides the scheme.
+func TestSendPlaintextWarning(t *testing.T) {
+	t.Parallel()
+
+	const warning = "Warning: sending without TLS\n"
+
+	tests := []struct {
+		params *types.Params
+		name   string
+		rawURL string
+	}{
+		{name: "URL", rawURL: testServiceURL + "?disabletls=yes"},
+		{name: "params", rawURL: testServiceURL, params: &types.Params{"disabletls": "yes"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
+
+			client, _ := newRecordingClient(t, sent, sent)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Hello", tt.params))
+			require.NoError(t, service.Send("Hello", tt.params))
+			assert.Equal(t, warning, logs.String())
+		})
+	}
+}
+
+// TestSendDeprecationWarnings verifies that an old param key, the old
+// InsecureSkipVerify field, and the date are each warned about once over
+// several sends.
+func TestSendDeprecationWarnings(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
+
+	client, _ := newRecordingClient(t, sent, sent)
+	service.SetHTTPClient(client)
+	service.Config.InsecureSkipVerify = true
+
+	params := &types.Params{"insecureskipverify": "yes", "date": "tomorrow"}
+	require.NoError(t, service.Send("Hello", params))
+	require.NoError(t, service.Send("Hello", params))
+
+	assert.Equal(t,
+		"Warning: config field InsecureSkipVerify is deprecated, use SkipTLSVerify instead\n"+
+			`Warning: key "insecureskipverify" is deprecated, use "skiptlsverify" instead`+"\n"+
+			"Warning: ignoring the date param, because Gotify sets the date of each message\n",
+		logs.String())
+}
+
+// TestSendTimeout verifies that a send without a deadline gives up on a server
+// that does not answer within Gotify's 10 second send budget.
 func TestSendTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -775,7 +907,7 @@ func TestSendURLBuilderError(t *testing.T) {
 	service := newTestService(t, testServiceURL)
 	service.urlBuilder = failingURLBuilder{err: errBuild}
 	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+	service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 
 	require.ErrorIs(t, service.Send("Hello", nil), errBuild)
 }

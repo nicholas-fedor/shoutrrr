@@ -1,7 +1,6 @@
 package gotify
 
 import (
-	"crypto/tls"
 	"net/http"
 	"time"
 
@@ -29,7 +28,11 @@ type DefaultHTTPClientManager struct{}
 
 // Default client settings.
 const (
-	// HTTPTimeout defines the HTTP client timeout in seconds.
+	// HTTPTimeout is the request timeout in seconds of the clients that
+	// [DefaultHTTPClientManager] builds.
+	//
+	// Deprecated: A send is bounded by the budget that [Service.ServiceTimeout]
+	// reports, so the service does not use HTTPTimeout.
 	HTTPTimeout = 10
 )
 
@@ -48,8 +51,9 @@ func (m *DefaultHTTPClientManager) CreateClient(httpTransport *http.Transport) *
 }
 
 // CreateTransport sets up the HTTP transport with TLS configuration and proxy settings.
-// The transport honors the proxy environment variables, enforces TLS 1.2 or later,
-// and skips certificate verification when the config disables TLS or verification.
+// The transport honors the proxy environment variables and requires TLS 1.2 or
+// later. It skips certificate verification when the config's SkipTLSVerify or
+// its deprecated InsecureSkipVerify is set.
 //
 // Parameters:
 //   - config: the service configuration with the TLS settings.
@@ -57,21 +61,9 @@ func (m *DefaultHTTPClientManager) CreateClient(httpTransport *http.Transport) *
 // Returns:
 //   - *http.Transport: the transport for the default HTTP client.
 func (m *DefaultHTTPClientManager) CreateTransport(config *Config) *http.Transport {
-	return transport.New(newTLSConfig(config))
-}
-
-// newTLSConfig returns the TLS settings of the default HTTP client: TLS 1.2 or
-// later, without certificate verification when config disables TLS or
-// verification.
-//
-// Parameters:
-//   - config: the service configuration with the TLS settings.
-//
-// Returns:
-//   - *tls.Config: the TLS settings.
-func newTLSConfig(config *Config) *tls.Config {
-	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: config.DisableTLS || config.InsecureSkipVerify,
+	if config.SkipTLSVerify || config.InsecureSkipVerify {
+		return transport.New(transport.InsecureTLSConfig(""))
 	}
+
+	return transport.New(transport.TLSConfig(""))
 }

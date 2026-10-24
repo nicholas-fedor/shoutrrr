@@ -29,11 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
-	"github.com/nicholas-fedor/shoutrrr/internal/transport"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	mockTypes "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
@@ -54,7 +54,7 @@ type fixture struct {
 // env holds the injected client, dialer and logger for one contract case.
 type env struct {
 	fx     *fixture
-	client *mocks.MockHTTPClient
+	client *mockTypes.MockHTTPClient
 	dials  atomic.Int32
 	// markedDials counts dials whose context carries [contextMarker].
 	markedDials atomic.Int32
@@ -81,7 +81,7 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 // httpClientFunc adapts a function to [types.HTTPClient].
 type httpClientFunc func(*http.Request) (*http.Response, error)
 
-// logFunc adapts a function to [transport.Logger].
+// logFunc adapts a function to [logging.Logger].
 type logFunc func(v ...any)
 
 // sendOutcome is the result of a send that may panic.
@@ -167,6 +167,9 @@ const (
 	// checkSendBudget verifies that a send without a deadline is bounded by the
 	// service's own send budget.
 	checkSendBudget = "send_budget"
+	// checkPlaintextWarning verifies that a service with a disabletls option
+	// warns once when its sends go out without TLS.
+	checkPlaintextWarning = "plaintext_warning"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -429,16 +432,14 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	}, checkStandardKeyNames: {
-		"bark":   {"Bark selects HTTP through a scheme key", failNonStandardKey},
-		"gotify": {"Gotify names the verification option insecureskipverify", failNonStandardKey},
-		"mqtt":   {"MQTT names the verification option disabletlsverification", failNonStandardKey},
-		"mqtts":  {"MQTT names the verification option disabletlsverification", failNonStandardKey},
-		"ntfy":   {"ntfy names the verification option disabletlsverification and selects HTTP through a scheme key", failNonStandardKey},
+		"bark":  {"Bark selects HTTP through a scheme key", failNonStandardKey},
+		"mqtt":  {"MQTT names the verification option disabletlsverification", failNonStandardKey},
+		"mqtts": {"MQTT names the verification option disabletlsverification", failNonStandardKey},
+		"ntfy":  {"ntfy names the verification option disabletlsverification and selects HTTP through a scheme key", failNonStandardKey},
 	},
 	checkKeyDescriptions: {
 		"discord":    {"Discord's title key has no description", failMissingDescription},
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
-		"gotify":     {"Gotify's disabletls, insecureskipverify, priority, and title keys have no description", failMissingDescription},
 		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
 		"matrix":     {"Matrix's disabletls and title keys have no description", failMissingDescription},
 		"mattermost": {"Mattermost's disabletls key has no description", failMissingDescription},
@@ -449,7 +450,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"bark":       {"Bark bounds requests with its client timeout instead of a context deadline", failBudget},
 		"discord":    {"Discord bounds requests with its client timeout instead of a context deadline", failBudget},
 		"googlechat": {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
-		"gotify":     {"Gotify bounds requests with its client timeout instead of a context deadline", failBudget},
 		"hangouts":   {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
 		"lark":       {"Lark bounds requests with its client timeout instead of a context deadline", failBudget},
 		"matrix":     {"Matrix bounds each request by 10s, below its reported budget", failBudget},
@@ -462,20 +462,28 @@ var allowlist = map[string]map[string]knownFailure{
 		"wecom":      {"WeCom bounds requests with its client timeout instead of a context deadline", failBudget},
 		"zulip":      {"Zulip's limits lookup carries no deadline", failBudget},
 	},
+	checkPlaintextWarning: {
+		"generic":       {"Generic logs no warning when TLS is disabled", failWarningCount},
+		"homeassistant": {"Home Assistant logs no warning when TLS is disabled", failWarningCount},
+		"matrix":        {"Matrix logs no warning when TLS is disabled", failWarningCount},
+		"mattermost":    {"Mattermost logs no warning when TLS is disabled", failWarningCount},
+		"mqtt":          {"MQTT logs no warning when TLS is disabled", failWarningCount},
+		"mqtts":         {"MQTT logs no warning when TLS is disabled", failWarningCount},
+		"ntfy":          {"ntfy logs no warning when TLS is disabled", failWarningCount},
+		"signal":        {"Signal logs no warning when TLS is disabled", failWarningCount},
+		"xmpp":          {"XMPP logs no warning when TLS is disabled", failWarningCount},
+	},
 	checkSkipTLSVerifyURL: {
-		"gotify": {"Gotify names the verification option insecureskipverify", failSkipIgnored},
-		"ntfy":   {"ntfy names the verification option disabletlsverification", failSkipIgnored},
+		"ntfy": {"ntfy names the verification option disabletlsverification", failSkipIgnored},
 	},
 	checkSkipTLSVerifyParams: {
-		"gotify":        {"Gotify names the verification option insecureskipverify", failSkipIgnored},
 		"homeassistant": {"Home Assistant applies skiptlsverify only from the URL", failSkipIgnored},
 		"ntfy":          {"ntfy names the verification option disabletlsverification", failSkipIgnored},
 	},
 	checkInsecureWarning: {
-		"gotify":        {"Gotify names the verification option insecureskipverify", failInit},
-		"homeassistant": {"Home Assistant warns in Initialize, before the router injects a client", failWarnedInjected},
+		"homeassistant": {"Home Assistant logs its own warning text, in Initialize", failWarningCount},
 		"ntfy":          {"ntfy names the verification option disabletlsverification", failInit},
-		"signal":        {"Signal warns when it builds its client, whether or not a client is injected", failWarnedInjected},
+		"signal":        {"Signal logs its own warning text, when it builds its client", failWarningCount},
 	},
 }
 
@@ -561,6 +569,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkKeyDescriptions, runKeyDescriptions},
 		{checkDeprecatedFields, runDeprecatedFields},
 		{checkSendBudget, runSendBudget},
+		{checkPlaintextWarning, runPlaintextWarning},
 	}
 
 	for _, check := range checks {
@@ -927,7 +936,7 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 
 	var warning string
 
-	transport.WarnInsecure(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
+	(&logging.Once{}).Insecure(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
 	require.NotEmpty(t, warning)
 
 	for _, scheme := range skipVerifySchemes {
@@ -1748,6 +1757,65 @@ func runSendBudget(t *testing.T, fx *fixture) failure {
 	return result
 }
 
+// runPlaintextWarning verifies that a service with a disabletls key logs the
+// shared plaintext warning once over two sends with TLS disabled. The sends go
+// through the injected client and dialer, because the warning applies to them
+// too.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failWarningCount, failPanic, or failInit failure, or the zero
+//     value. A URL with disabletls that the service rejects passes.
+func runPlaintextWarning(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil || !hasKey(config, "disabletls") {
+		return result
+	}
+
+	var warning string
+
+	(&logging.Once{}).Plaintext(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
+
+	synctest.Test(t, func(t *testing.T) {
+		logs := &syncBuffer{}
+		dial := func(context.Context, string, string) (net.Conn, error) { return nil, errDial }
+
+		serviceRouter, err := router.NewWithOptions(
+			log.New(logs, "", 0),
+			types.SenderOptions{HTTPClient: httpClientFunc(respond(fx, false)), DialContext: dial},
+		)
+		require.NoError(t, err)
+
+		// A scheme that always uses TLS, such as xmpps, rejects disabletls, so
+		// it never sends without TLS.
+		service, err := serviceRouter.Locate(withURLQuery(t, fx.url, "disabletls", "yes"))
+		if err != nil {
+			return
+		}
+
+		t.Cleanup(func() { closeService(t, service) })
+
+		for range 2 {
+			if outcome := sendRecovering(service, nil); outcome.panicMsg != "" {
+				result = fail(failPanic, "%s", outcome.panicMsg)
+
+				return
+			}
+		}
+
+		if count := strings.Count(logs.String(), warning); count != 1 {
+			result = fail(failWarningCount, "the plaintext warning was logged %d times over two sends", count)
+		}
+	})
+
+	return result
+}
+
 // runSkipTLSVerifyURL verifies that a service sends nothing to a server whose
 // certificate cannot be verified, until its URL sets skiptlsverify.
 //
@@ -1959,6 +2027,24 @@ func sampleValue(fieldType reflect.Type) (reflect.Value, bool) {
 	}
 }
 
+// hasKey reports whether a config has a field with key among its keys.
+//
+// Parameters:
+//   - config: the service config.
+//   - key: the key in lower case.
+//
+// Returns:
+//   - bool: whether a field has the key.
+func hasKey(config types.ServiceConfig, key string) bool {
+	for _, item := range format.GetConfigFormat(config).Items {
+		if slices.Contains(item.Field().Keys, key) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // deprecatedKeysOf lists the deprecated keys of every field of a config.
 //
 // Parameters:
@@ -2028,7 +2114,7 @@ func newEnv(t *testing.T, fx *fixture, failTransport bool) *env {
 
 	e := &env{
 		fx:     fx,
-		client: mocks.NewMockHTTPClient(t),
+		client: mockTypes.NewMockHTTPClient(t),
 		logs:   logs,
 		logger: log.New(logs, "", 0),
 		stop:   t.Context().Done(),

@@ -200,9 +200,12 @@ Every service follows the same rules, so services behave alike for users and for
 - Build TLS settings with `transport.TLSConfig` or `transport.InsecureTLSConfig` from `internal/transport`, which require TLS 1.2 or later.
 - Send through `Holder.InsecureClient` when the user skips certificate verification.
 - Never change an injected client, because its owner controls its TLS settings.
-- Log `transport.WarnInsecure` once per service instance, at the first send that uses the insecure default client.
-- Log no warning when a client is injected.
+- Keep one `logging.Once` from `internal/logging` per service instance, so each warning below is logged once.
+- Log the insecure warning with `Once.Insecure`, at the first send that uses the insecure default client.
+- Log no insecure warning when a client is injected.
   The router injects clients after `Initialize`, so `Initialize` cannot make this decision.
+- Log the plaintext warning with `Once.Plaintext`, at the first send that goes out without TLS.
+  This applies to an injected client too, because the URL decides whether TLS is used.
 
 ### Options
 
@@ -220,7 +223,7 @@ Every service follows the same rules, so services behave alike for users and for
 
 - Keep a renamed key's old name in a `deprecatedkeys` tag.
 - Keep a renamed field's old field, with a `deprecated` tag that names its replacement.
-- Warn once per service instance when an old name is used.
+- Warn with `Once.DeprecatedKeys` or `Once.DeprecatedFields` when an old name is used.
 - List the old name on the [deprecations page](docs/usage/deprecations/index.md).
 
 ### Enforcement

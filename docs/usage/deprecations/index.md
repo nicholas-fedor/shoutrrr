@@ -16,6 +16,7 @@ When a URL or the send params hold both a deprecated query key and its replaceme
 | --- | --- | --- | --- |
 | `date` query key | Gotify | None. Gotify stamps each message with the server time, so the key has no effect. | v0.22.1 |
 | `hangouts://` scheme | Google Chat | `googlechat://` | Inherited from containrrr/shoutrrr |
+| `insecureskipverify` query key | Gotify | `skiptlsverify` | Unreleased |
 
 ## Go Package
 
@@ -52,3 +53,5 @@ A replacement set to its zero value, such as `false` or an empty string, counts 
 | `HTTPClient` | `pkg/services/chat/matrix` | `types.HTTPClient` | Unreleased |
 | `DefaultHTTPClient` | `pkg/services/chat/matrix` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | Unreleased |
+| `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | Unreleased |
+| `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |

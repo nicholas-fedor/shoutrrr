@@ -26,7 +26,7 @@ func (b *DefaultURLBuilder) BuildURL(config *Config) (string, error) {
 	// Determine URL scheme based on TLS settings
 	scheme := "https"
 	if config.DisableTLS {
-		scheme = "http" // Use HTTP scheme when TLS verification is disabled
+		scheme = "http" // Use HTTP scheme when TLS is disabled
 	}
 
 	// Construct URL using url.URL for proper encoding
