@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Document every declaration in five HTTP services by @nicholas-fedor in [#1847](https://github.com/nicholas-fedor/shoutrrr/pull/1847)
 - Document every declaration in five HTTP services by @nicholas-fedor in [#1823](https://github.com/nicholas-fedor/shoutrrr/pull/1823)
 - Document every declaration in six HTTP services by @nicholas-fedor in [#1817](https://github.com/nicholas-fedor/shoutrrr/pull/1817)
 - Document every declaration in nine HTTP services by @nicholas-fedor in [#1813](https://github.com/nicholas-fedor/shoutrrr/pull/1813)
