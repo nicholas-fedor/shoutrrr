@@ -11,9 +11,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -77,6 +80,26 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 // httpClientFunc adapts a function to [types.HTTPClient].
 type httpClientFunc func(*http.Request) (*http.Response, error)
+
+// logFunc adapts a function to [transport.Logger].
+type logFunc func(v ...any)
+
+// sendOutcome is the result of a send that may panic.
+type sendOutcome struct {
+	// err is the send's error.
+	err error
+	// panicMsg describes the panic, or is empty when Send returned.
+	panicMsg string
+}
+
+// skipVerifyURLs are the service URLs for a server whose certificate cannot be
+// verified.
+type skipVerifyURLs struct {
+	// base points at the server without skipping verification.
+	base string
+	// skip is base with skiptlsverify=yes.
+	skip string
+}
 
 // spaceReader is an endless source of spaces, which JSON decoders skip as
 // whitespace, so only the amount read tells an oversized body apart.
@@ -134,25 +157,57 @@ const (
 	// checkSendUsesContext verifies that the context passed to the router's
 	// SendContext reaches every request and dial a service makes.
 	checkSendUsesContext = "send_uses_context"
+	// checkStandardKeyNames verifies that TLS options use the standard key names.
+	checkStandardKeyNames = "standard_key_names"
+	// checkKeyDescriptions verifies that every config key has a description.
+	checkKeyDescriptions = "key_descriptions"
+	// checkDeprecatedFields verifies that deprecated config fields have valid
+	// tags and reach the config URL under their replacement's key.
+	checkDeprecatedFields = "deprecated_fields"
+	// checkSendBudget verifies that a send without a deadline is bounded by the
+	// service's own send budget.
+	checkSendBudget = "send_budget"
+)
+
+// Checks that run against the services that let users skip TLS certificate
+// verification over HTTP.
+const (
+	// checkSkipTLSVerifyURL verifies that skiptlsverify in the URL reaches a
+	// server with an unverifiable certificate, and that nothing does without it.
+	checkSkipTLSVerifyURL = "skip_tls_verify_url"
+	// checkSkipTLSVerifyParams verifies that skiptlsverify in the send params
+	// reaches a server with an unverifiable certificate.
+	checkSkipTLSVerifyParams = "skip_tls_verify_params"
+	// checkInsecureWarning verifies that the shared warning is logged once for
+	// the insecure default client and never for an injected client.
+	checkInsecureWarning = "insecure_warning"
 )
 
 // Failure kinds, one per distinct way a check can fail.
 const (
-	failNone              failureKind = iota // the check passed
-	failInit                                 // the fixture failed to initialize
-	failInitIO                               // Initialize performed network I/O
-	failPanic                                // Send panicked
-	failDefaultTransport                     // Send used http.DefaultTransport
-	failNotInjected                          // Send skipped the injected client or dialer
-	failUnexpectedIO                         // a service without network access performed I/O
-	failRejectedParams                       // reserved params were rejected as unknown keys
-	failInjectedAfterNil                     // the injected client was still used after SetHTTPClient(nil)
-	failNoFallbackRequest                    // no request went through the default client after SetHTTPClient(nil)
-	failSecretLeak                           // a secret appeared in errors or logs
-	failParamsPersisted                      // Send with params changed the service configuration
-	failNoDefaultRequest                     // no request went through the service's default client
-	failContextDropped                       // a request or dial did not carry the caller's context
-	failCancelIgnored                        // a request or dial did not end when the caller canceled
+	failNone               failureKind = iota // the check passed
+	failInit                                  // the fixture failed to initialize
+	failInitIO                                // Initialize performed network I/O
+	failPanic                                 // Send panicked
+	failDefaultTransport                      // Send used http.DefaultTransport
+	failNotInjected                           // Send skipped the injected client or dialer
+	failUnexpectedIO                          // a service without network access performed I/O
+	failRejectedParams                        // reserved params were rejected as unknown keys
+	failInjectedAfterNil                      // the injected client was still used after SetHTTPClient(nil)
+	failNoFallbackRequest                     // no request went through the default client after SetHTTPClient(nil)
+	failSecretLeak                            // a secret appeared in errors or logs
+	failParamsPersisted                       // Send with params changed the service configuration
+	failNoDefaultRequest                      // no request went through the service's default client
+	failContextDropped                        // a request or dial did not carry the caller's context
+	failCancelIgnored                         // a request or dial did not end when the caller canceled
+	failNonStandardKey                        // a TLS option uses a key name other than the standard one
+	failMissingDescription                    // a config key has no description
+	failDeprecatedField                       // a deprecated field has an invalid tag or is lost in the config URL
+	failBudget                                // a request or dial lacked the service's send budget as its deadline
+	failUnverifiedAccepted                    // a request reached a server whose certificate was not verified
+	failSkipIgnored                           // skiptlsverify did not let a request reach the server
+	failWarningCount                          // the insecure warning was not logged exactly once
+	failWarnedInjected                        // the insecure warning was logged for an injected client
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -373,6 +428,54 @@ var allowlist = map[string]map[string]knownFailure{
 		// lifetime context by design.
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
+	}, checkStandardKeyNames: {
+		"bark":   {"Bark selects HTTP through a scheme key", failNonStandardKey},
+		"gotify": {"Gotify names the verification option insecureskipverify", failNonStandardKey},
+		"mqtt":   {"MQTT names the verification option disabletlsverification", failNonStandardKey},
+		"mqtts":  {"MQTT names the verification option disabletlsverification", failNonStandardKey},
+		"ntfy":   {"ntfy names the verification option disabletlsverification and selects HTTP through a scheme key", failNonStandardKey},
+	},
+	checkKeyDescriptions: {
+		"discord":    {"Discord's title key has no description", failMissingDescription},
+		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
+		"gotify":     {"Gotify's disabletls, insecureskipverify, priority, and title keys have no description", failMissingDescription},
+		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
+		"matrix":     {"Matrix's disabletls and title keys have no description", failMissingDescription},
+		"mattermost": {"Mattermost's disabletls key has no description", failMissingDescription},
+		"pushbullet": {"Pushbullet's title key has no description", failMissingDescription},
+		"pushover":   {"Pushover's devices, priority, and title keys have no description", failMissingDescription},
+	},
+	checkSendBudget: {
+		"bark":       {"Bark bounds requests with its client timeout instead of a context deadline", failBudget},
+		"discord":    {"Discord bounds requests with its client timeout instead of a context deadline", failBudget},
+		"googlechat": {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
+		"gotify":     {"Gotify bounds requests with its client timeout instead of a context deadline", failBudget},
+		"hangouts":   {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
+		"lark":       {"Lark bounds requests with its client timeout instead of a context deadline", failBudget},
+		"matrix":     {"Matrix bounds each request by 10s, below its reported budget", failBudget},
+		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
+		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
+		"ntfy":       {"ntfy bounds requests with its client timeout instead of a context deadline", failBudget},
+		"pagerduty":  {"PagerDuty bounds requests with its client timeout instead of a context deadline", failBudget},
+		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
+		"telegram":   {"Telegram bounds requests with its client timeout instead of a context deadline", failBudget},
+		"wecom":      {"WeCom bounds requests with its client timeout instead of a context deadline", failBudget},
+		"zulip":      {"Zulip's limits lookup carries no deadline", failBudget},
+	},
+	checkSkipTLSVerifyURL: {
+		"gotify": {"Gotify names the verification option insecureskipverify", failSkipIgnored},
+		"ntfy":   {"ntfy names the verification option disabletlsverification", failSkipIgnored},
+	},
+	checkSkipTLSVerifyParams: {
+		"gotify":        {"Gotify names the verification option insecureskipverify", failSkipIgnored},
+		"homeassistant": {"Home Assistant applies skiptlsverify only from the URL", failSkipIgnored},
+		"ntfy":          {"ntfy names the verification option disabletlsverification", failSkipIgnored},
+	},
+	checkInsecureWarning: {
+		"gotify":        {"Gotify names the verification option insecureskipverify", failInit},
+		"homeassistant": {"Home Assistant warns in Initialize, before the router injects a client", failWarnedInjected},
+		"ntfy":          {"ntfy names the verification option disabletlsverification", failInit},
+		"signal":        {"Signal warns when it builds its client, whether or not a client is injected", failWarnedInjected},
 	},
 }
 
@@ -390,6 +493,17 @@ var (
 	// lookupHits counts blocked DNS lookups, which reveal requests made through
 	// transports other than http.DefaultTransport.
 	lookupHits atomic.Int64
+)
+
+var (
+	// standardKeyPattern matches the config keys that name a TLS option.
+	standardKeyPattern = regexp.MustCompile(`tls|verify|insecure|scheme`)
+	// standardKeys are the key names a TLS option may use. Deprecated keys are
+	// listed apart from Keys by the format package, so they are not checked.
+	standardKeys = []string{"skiptlsverify", "disabletls", "usestarttls", "starttls", "requirestarttls"}
+	// skipVerifySchemes lists the HTTP services that let users skip TLS
+	// certificate verification.
+	skipVerifySchemes = []string{"gotify", "homeassistant", "ntfy", "signal"}
 )
 
 // TestMain blocks every path to the real network for this package. Requests through
@@ -443,6 +557,10 @@ func TestIntegrationContract(t *testing.T) {
 		{checkNoSecretLeaks, runNoSecretLeaks},
 		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
 		{checkSendUsesContext, runSendUsesContext},
+		{checkStandardKeyNames, runStandardKeyNames},
+		{checkKeyDescriptions, runKeyDescriptions},
+		{checkDeprecatedFields, runDeprecatedFields},
+		{checkSendBudget, runSendBudget},
 	}
 
 	for _, check := range checks {
@@ -794,6 +912,68 @@ func TestIntegrationMaskedURL(t *testing.T) {
 	}
 }
 
+// TestIntegrationSkipTLSVerify verifies how each service that lets users skip
+// TLS certificate verification treats a server whose certificate cannot be
+// verified.
+//
+//   - Without skiptlsverify, no request reaches the server.
+//   - With skiptlsverify in the URL or in the send params, requests reach it.
+//   - The shared warning is logged once for the insecure default client, and
+//     never when the caller injected a client.
+//
+// Known failures are listed in [allowlist], as in [TestIntegrationContract].
+func TestIntegrationSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	var warning string
+
+	transport.WarnInsecure(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
+	require.NotEmpty(t, warning)
+
+	for _, scheme := range skipVerifySchemes {
+		fx := fixtureFor(t, scheme)
+
+		t.Run(scheme, func(t *testing.T) {
+			t.Parallel()
+
+			var hits atomic.Int32
+
+			answer := respond(fx, false)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				hits.Add(1)
+
+				resp, _ := answer(req)
+				defer resp.Body.Close()
+
+				w.WriteHeader(resp.StatusCode)
+				_, _ = io.Copy(w, resp.Body)
+			}))
+			t.Cleanup(server.Close)
+
+			tlsURLs := skipVerifyURLs{
+				base: withURLHost(t, fx.url, server.Listener.Addr().String()),
+			}
+			tlsURLs.skip = withURLQuery(t, tlsURLs.base, "skiptlsverify", "yes")
+
+			checks := []struct {
+				name string
+				run  func(t *testing.T, fx *fixture, urls skipVerifyURLs, hits *atomic.Int32, warning string) failure
+			}{
+				{checkSkipTLSVerifyURL, runSkipTLSVerifyURL},
+				{checkSkipTLSVerifyParams, runSkipTLSVerifyParams},
+				{checkInsecureWarning, runInsecureWarning},
+			}
+
+			for _, check := range checks {
+				t.Run(check.name, func(t *testing.T) {
+					hits.Store(0)
+					assertContract(t, check.name, scheme, check.run(t, fx, tlsURLs, &hits, warning))
+				})
+			}
+		})
+	}
+}
+
 // fixtureURLFor returns the contract fixture URL for scheme.
 //
 // Parameters:
@@ -814,6 +994,51 @@ func fixtureURLFor(t *testing.T, scheme string) string {
 	t.Fatalf("no fixture for scheme %q", scheme)
 
 	return ""
+}
+
+// fixtureFor returns the first contract fixture for scheme.
+//
+// Parameters:
+//   - t: the test.
+//   - scheme: the service scheme.
+//
+// Returns:
+//   - *fixture: the fixture.
+func fixtureFor(t *testing.T, scheme string) *fixture {
+	t.Helper()
+
+	for i := range fixtures {
+		if fixtures[i].scheme == scheme {
+			return &fixtures[i]
+		}
+	}
+
+	t.Fatalf("no fixture for scheme %q", scheme)
+
+	return nil
+}
+
+// withURLQuery returns rawURL with the query parameter key set to value.
+//
+// Parameters:
+//   - t: the test.
+//   - rawURL: the service URL.
+//   - key: the query parameter.
+//   - value: its value.
+//
+// Returns:
+//   - string: the service URL with the parameter set.
+func withURLQuery(t *testing.T, rawURL, key, value string) string {
+	t.Helper()
+
+	serviceURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	query := serviceURL.Query()
+	query.Set(key, value)
+	serviceURL.RawQuery = query.Encode()
+
+	return serviceURL.String()
 }
 
 // withURLHost returns rawURL with its host and port replaced by host.
@@ -1264,6 +1489,535 @@ func runNoSecretLeaksDefault(t *testing.T, fx *fixture) failure {
 	return result
 }
 
+// runStandardKeyNames verifies that every config key naming a TLS option is
+// one of [standardKeys].
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failNonStandardKey or failInit failure, or the zero value.
+func runStandardKeyNames(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil {
+		return result
+	}
+
+	var keys []string
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		for _, key := range item.Field().Keys {
+			if standardKeyPattern.MatchString(key) && !slices.Contains(standardKeys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+
+	if len(keys) > 0 {
+		return fail(failNonStandardKey, "TLS option keys with nonstandard names: %s", strings.Join(keys, ", "))
+	}
+
+	return failure{}
+}
+
+// runKeyDescriptions verifies that every keyed config field has a description,
+// which the docs and the CLI show.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failMissingDescription or failInit failure, or the zero value.
+func runKeyDescriptions(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil {
+		return result
+	}
+
+	var keys []string
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		if field := item.Field(); len(field.Keys) > 0 && field.Description == "" {
+			keys = append(keys, field.Keys[0])
+		}
+	}
+
+	if len(keys) > 0 {
+		return fail(failMissingDescription, "keys without a description: %s", strings.Join(keys, ", "))
+	}
+
+	return failure{}
+}
+
+// runDeprecatedFields verifies that the config URL holds no deprecated key, and
+// that each deprecated config field has a valid tag. A value set only through a
+// deprecated field must reach the config URL and come back in its replacement.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failDeprecatedField or failInit failure, or the zero value.
+func runDeprecatedFields(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil {
+		return result
+	}
+
+	deprecatedKeys := deprecatedKeysOf(config)
+	if key := deprecatedKeyIn(config.GetURL(), deprecatedKeys); key != "" {
+		return fail(failDeprecatedField, "the config URL holds the deprecated key %q", key)
+	}
+
+	configType := reflect.TypeOf(config)
+	if configType.Kind() != reflect.Pointer || configType.Elem().Kind() != reflect.Struct {
+		return failure{}
+	}
+
+	if _, err := format.SyncDeprecatedFields(cloneConfig(t, config)); err != nil {
+		return fail(failDeprecatedField, "%v", err)
+	}
+
+	for field := range configType.Elem().Fields() {
+		if replacement, tagged := field.Tag.Lookup("deprecated"); tagged {
+			if result := checkDeprecatedField(t, config, field.Name, replacement, deprecatedKeys); result.kind != failNone {
+				return result
+			}
+		}
+	}
+
+	return failure{}
+}
+
+// checkDeprecatedField sets only a deprecated field on a copy of config and
+// verifies that its value reaches the config URL and comes back in the
+// replacement field.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - config: the fixture's config.
+//   - name: the deprecated field.
+//   - replacement: the field that replaces it.
+//   - deprecatedKeys: the config's deprecated keys, which the URL must not hold.
+//
+// Returns:
+//   - failure: a failDeprecatedField failure, or the zero value.
+func checkDeprecatedField(
+	t *testing.T,
+	config types.ServiceConfig,
+	name, replacement string,
+	deprecatedKeys []string,
+) failure {
+	t.Helper()
+
+	clone := cloneConfig(t, config)
+	fields := reflect.ValueOf(clone).Elem()
+
+	sample, ok := sampleValue(fields.FieldByName(name).Type())
+	if !ok {
+		return fail(failDeprecatedField, "the check cannot set %s of type %s", name, fields.FieldByName(name).Type())
+	}
+
+	fields.FieldByName(replacement).SetZero()
+	fields.FieldByName(name).Set(sample)
+
+	configURL := clone.GetURL()
+	if key := deprecatedKeyIn(configURL, deprecatedKeys); key != "" {
+		return fail(failDeprecatedField, "the config URL holds the deprecated key %q", key)
+	}
+
+	restored, result := fixtureConfig(t, configURL.String())
+	if restored == nil {
+		return fail(failDeprecatedField, "the config URL with %s set does not parse: %s", name, result.detail)
+	}
+
+	if got := reflect.ValueOf(restored).Elem().FieldByName(replacement); !got.Equal(sample) {
+		return fail(failDeprecatedField, "%s set to %v came back in %s as %v", name, sample, replacement, got)
+	}
+
+	return failure{}
+}
+
+// runSendBudget verifies that a direct Send without a deadline bounds every
+// request and dial by the service's send budget. The budget is what the
+// service reports through [types.ServiceTimeout], or
+// [types.DefaultSendTimeout].
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failBudget, failNotInjected, failPanic, or failInit failure, or
+//     the zero value.
+func runSendBudget(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind == netNone {
+		return failure{}
+	}
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			mu        sync.Mutex
+			deadlines []time.Time
+			missing   int
+		)
+
+		record := func(ctx context.Context) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			if deadline, ok := ctx.Deadline(); ok {
+				deadlines = append(deadlines, deadline)
+			} else {
+				missing++
+			}
+		}
+
+		answer := respond(fx, false)
+		client := httpClientFunc(func(req *http.Request) (*http.Response, error) {
+			record(req.Context())
+
+			return answer(req)
+		})
+		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+			record(ctx)
+
+			return nil, errDial
+		}
+
+		serviceRouter, err := router.NewWithOptions(
+			log.New(io.Discard, "", 0),
+			types.SenderOptions{HTTPClient: client, DialContext: dial},
+		)
+		require.NoError(t, err)
+
+		service, err := serviceRouter.Locate(fx.url)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		t.Cleanup(func() { closeService(t, service) })
+
+		budget := types.DefaultSendTimeout
+		if reporter, ok := service.(types.ServiceTimeout); ok && reporter.ServiceTimeout(nil) > 0 {
+			budget = reporter.ServiceTimeout(nil)
+		}
+
+		start := time.Now()
+
+		if outcome := sendRecovering(service, nil); outcome.panicMsg != "" {
+			result = fail(failPanic, "%s", outcome.panicMsg)
+
+			return
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		switch {
+		case missing+len(deadlines) == 0:
+			result = fail(failNotInjected, "Send made no request or dial")
+		case missing > 0:
+			result = fail(failBudget, "%d of %d request(s) and dial(s) had no deadline", missing, missing+len(deadlines))
+		default:
+			for _, deadline := range deadlines {
+				if !deadline.Equal(start.Add(budget)) {
+					result = fail(failBudget, "a request or dial had a %v deadline, not the %v budget", deadline.Sub(start), budget)
+
+					return
+				}
+			}
+		}
+	})
+
+	return result
+}
+
+// runSkipTLSVerifyURL verifies that a service sends nothing to a server whose
+// certificate cannot be verified, until its URL sets skiptlsverify.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//   - urls: the service URLs for the server.
+//   - hits: counts the requests that reached the server.
+//
+// Returns:
+//   - failure: a failUnverifiedAccepted or failSkipIgnored failure, or the zero
+//     value.
+func runSkipTLSVerifyURL(t *testing.T, _ *fixture, urls skipVerifyURLs, hits *atomic.Int32, _ string) failure {
+	t.Helper()
+
+	service, err := locateDefault(t, urls.base, log.New(io.Discard, "", 0))
+	require.NoError(t, err)
+
+	_ = sendRecovering(service, nil)
+
+	if hits.Load() > 0 {
+		return fail(failUnverifiedAccepted, "a request reached the server without skiptlsverify")
+	}
+
+	service, err = locateDefault(t, urls.skip, log.New(io.Discard, "", 0))
+	if err != nil {
+		return fail(failSkipIgnored, "the URL with skiptlsverify was rejected: %v", err)
+	}
+
+	_ = sendRecovering(service, nil)
+
+	if hits.Load() == 0 {
+		return fail(failSkipIgnored, "no request reached the server with skiptlsverify in the URL")
+	}
+
+	return failure{}
+}
+
+// runSkipTLSVerifyParams verifies that skiptlsverify in the send params lets a
+// request reach a server whose certificate cannot be verified.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//   - urls: the service URLs for the server.
+//   - hits: counts the requests that reached the server.
+//
+// Returns:
+//   - failure: a failSkipIgnored failure, or the zero value.
+func runSkipTLSVerifyParams(t *testing.T, _ *fixture, urls skipVerifyURLs, hits *atomic.Int32, _ string) failure {
+	t.Helper()
+
+	service, err := locateDefault(t, urls.base, log.New(io.Discard, "", 0))
+	require.NoError(t, err)
+
+	outcome := sendRecovering(service, &types.Params{"skiptlsverify": "yes"})
+
+	if hits.Load() == 0 {
+		return fail(
+			failSkipIgnored,
+			"no request reached the server with skiptlsverify in the params: %v%s",
+			outcome.err, outcome.panicMsg,
+		)
+	}
+
+	return failure{}
+}
+
+// runInsecureWarning verifies that the shared warning is logged once over two
+// sends through the insecure default client, and not at all when the caller
+// injected a client.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//   - urls: the service URLs for the server.
+//   - warning: the shared warning text.
+//
+// Returns:
+//   - failure: a failWarningCount, failWarnedInjected, or failInit failure, or
+//     the zero value.
+func runInsecureWarning(t *testing.T, fx *fixture, urls skipVerifyURLs, _ *atomic.Int32, warning string) failure {
+	t.Helper()
+
+	logs := &syncBuffer{}
+
+	service, err := locateDefault(t, urls.skip, log.New(logs, "", 0))
+	if err != nil {
+		return fail(failInit, "the URL with skiptlsverify was rejected: %v", err)
+	}
+
+	_ = sendRecovering(service, nil)
+	_ = sendRecovering(service, nil)
+
+	if count := strings.Count(logs.String(), warning); count != 1 {
+		return fail(failWarningCount, "the warning was logged %d times over two sends", count)
+	}
+
+	injectedLogs := &syncBuffer{}
+
+	serviceRouter, err := router.NewWithOptions(
+		log.New(injectedLogs, "", 0),
+		types.SenderOptions{HTTPClient: httpClientFunc(respond(fx, false))},
+	)
+	require.NoError(t, err)
+
+	service, err = serviceRouter.Locate(urls.skip)
+	require.NoError(t, err)
+
+	_ = sendRecovering(service, nil)
+
+	if strings.Contains(injectedLogs.String(), warning) {
+		return fail(failWarnedInjected, "the warning was logged although the caller injected a client")
+	}
+
+	return failure{}
+}
+
+// fixtureConfig builds the service for rawURL through a router without
+// injected clients and returns its config.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - rawURL: the service URL.
+//
+// Returns:
+//   - types.ServiceConfig: the service's config, or nil when it has none or
+//     failed to initialize.
+//   - failure: a failInit failure when the service failed to initialize.
+func fixtureConfig(t *testing.T, rawURL string) (types.ServiceConfig, failure) {
+	t.Helper()
+
+	service, err := locateDefault(t, rawURL, log.New(io.Discard, "", 0))
+	if err != nil {
+		return nil, fail(failInit, "initialization failed: %v", err)
+	}
+
+	return format.GetServiceConfig(service), failure{}
+}
+
+// locateDefault builds the service for rawURL through a router without
+// injected clients, so it uses its own default client. The service is closed
+// when the test ends.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - rawURL: the service URL.
+//   - logger: receives the service's log output.
+//
+// Returns:
+//   - types.Service: the service.
+//   - error: the initialization error.
+func locateDefault(t *testing.T, rawURL string, logger *log.Logger) (types.Service, error) {
+	t.Helper()
+
+	serviceRouter, err := router.NewWithOptions(logger, types.SenderOptions{})
+	require.NoError(t, err)
+
+	service, err := serviceRouter.Locate(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("locating service: %w", err)
+	}
+
+	t.Cleanup(func() { closeService(t, service) })
+
+	return service, nil
+}
+
+// cloneConfig returns a copy of a config that points to a struct.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - config: the config to copy.
+//
+// Returns:
+//   - types.ServiceConfig: a pointer to a new copy of the struct.
+func cloneConfig(t *testing.T, config types.ServiceConfig) types.ServiceConfig {
+	t.Helper()
+
+	value := reflect.ValueOf(config).Elem()
+	clone := reflect.New(value.Type())
+	clone.Elem().Set(value)
+
+	cloned, ok := reflect.TypeAssert[types.ServiceConfig](clone)
+	require.True(t, ok, "%T is not a service config", clone.Interface())
+
+	return cloned
+}
+
+// sampleValue returns a value other than the zero value for a field type.
+//
+// Parameters:
+//   - fieldType: the type of the field.
+//
+// Returns:
+//   - reflect.Value: the sample, converted to fieldType.
+//   - bool: false when the check has no sample for the type's kind.
+func sampleValue(fieldType reflect.Type) (reflect.Value, bool) {
+	switch fieldType.Kind() {
+	case reflect.Bool:
+		return reflect.ValueOf(true).Convert(fieldType), true
+	case reflect.String:
+		return reflect.ValueOf("contract").Convert(fieldType), true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return reflect.ValueOf(1).Convert(fieldType), true
+	default:
+		return reflect.Value{}, false
+	}
+}
+
+// deprecatedKeysOf lists the deprecated keys of every field of a config.
+//
+// Parameters:
+//   - config: the service config.
+//
+// Returns:
+//   - []string: the deprecated keys in lower case.
+func deprecatedKeysOf(config types.ServiceConfig) []string {
+	var keys []string
+
+	for _, item := range format.GetConfigFormat(config).Items {
+		keys = append(keys, item.Field().DeprecatedKeys...)
+	}
+
+	return keys
+}
+
+// deprecatedKeyIn returns a deprecated key that a config URL's query holds.
+//
+// Parameters:
+//   - configURL: the config URL.
+//   - deprecatedKeys: the deprecated keys in lower case.
+//
+// Returns:
+//   - string: a deprecated key in the query, or "" when there is none.
+func deprecatedKeyIn(configURL *url.URL, deprecatedKeys []string) string {
+	for key := range configURL.Query() {
+		if slices.Contains(deprecatedKeys, strings.ToLower(key)) {
+			return key
+		}
+	}
+
+	return ""
+}
+
+// sendRecovering sends a message and reports a panic instead of crashing.
+//
+// Parameters:
+//   - service: the service to send through.
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - sendOutcome: the send's error, or its panic message.
+func sendRecovering(service types.Service, params *types.Params) sendOutcome {
+	var outcome sendOutcome
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				outcome.panicMsg = fmt.Sprintf("panicked: %v", r)
+			}
+		}()
+
+		outcome.err = service.Send("contract message", params)
+	}()
+
+	return outcome
+}
+
 // newEnv creates the injected dependencies for one case. The HTTP client answers
 // every request with the fixture's response, or fails like net/http with a
 // *url.Error carrying the full request URL when failTransport is set.
@@ -1500,6 +2254,12 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 //   - *http.Response: f's response.
 //   - error: f's error.
 func (f httpClientFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+// Log calls f with v.
+//
+// Parameters:
+//   - v: the values to log.
+func (f logFunc) Log(v ...any) { f(v...) }
 
 // Read fills p with spaces.
 //
