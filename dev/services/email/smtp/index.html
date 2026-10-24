@@ -3429,7 +3429,8 @@ When writing the URL by hand, percent-encode the values, as the example does.</p
 <h3 id="starttls">StartTLS<a class="headerlink" href="#starttls" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>usestarttls</code> (alias <code>starttls</code>) defaults to yes.</li>
-<li>When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning and continues unencrypted unless <code>requirestarttls</code> is set.</li>
+<li>When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning once and continues unencrypted unless <code>requirestarttls</code> is set.</li>
+<li>Shoutrrr also logs a warning the first time a session sends without TLS, whatever the reason.</li>
 </ul>
 <div class="admonition example">
 <p class="admonition-title">Disable STARTTLS</p>
@@ -3449,7 +3450,8 @@ When writing the URL by hand, percent-encode the values, as the example does.</p
 <h3 id="skip_tls_certificate_verification">Skip TLS Certificate Verification<a class="headerlink" href="#skip_tls_certificate_verification" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>skiptlsverify</code> defaults to no.</li>
-<li>When TLS is negotiated, <code>yes</code> disables server certificate verification; however, it does not enable TLS.</li>
+<li>When TLS is negotiated, <code>yes</code> disables server certificate verification. It does not enable TLS.</li>
+<li>Shoutrrr logs a warning the first time a TLS session skips verification.</li>
 </ul>
 <div class="admonition danger">
 <p class="admonition-title">Security Risk</p>
@@ -3489,6 +3491,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
 <ul>
 <li><code>timeout</code> is a Go duration covering the TCP/TLS dial and the SMTP session (EHLO, AUTH, DATA, QUIT).</li>
 <li>Default: <code>10s</code>.</li>
+<li>A caller's context deadline takes its place, whether it is earlier or later.</li>
 <li>With no sender timeout set, the router waits this long for SMTP, including values above 10s. A positive <code>SenderOptions.Timeout</code> is the exact fixed timeout for every service on that sender.</li>
 </ul>
 <div class="admonition example">
@@ -3561,7 +3564,7 @@ Only use this on networks you trust, such as a lab or an internal mail relay wit
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 19:13:50 UTC"><span class="timeago" datetime="2026-10-23T19:13:50+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 19:13:50 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 24, 2026 13:54:03 UTC"><span class="timeago" datetime="2026-10-24T13:54:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 24, 2026 13:54:03 UTC">2026-10-24</span>
   </span>
 
     
