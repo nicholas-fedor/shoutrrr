@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Check services against a shared service standard by @nicholas-fedor in [#1831](https://github.com/nicholas-fedor/shoutrrr/pull/1831)
 - Fix the js and wasm tests and run them in ci by @nicholas-fedor in [#1773](https://github.com/nicholas-fedor/shoutrrr/pull/1773)
 - Add an smtp suite against mailpit by @nicholas-fedor in [#1763](https://github.com/nicholas-fedor/shoutrrr/pull/1763)
 - Fix the xmpp stack setup and check the room password by @nicholas-fedor in [#1759](https://github.com/nicholas-fedor/shoutrrr/pull/1759)
