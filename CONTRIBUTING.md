@@ -184,6 +184,51 @@ This project requires all commits to be signed in order for pull requests to be 
 As Shoutrrr is a notification library that's leveraged by several open-source projects, this is simply a necessity.
 Refer to GitHub's documentation on getting it setup: <https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits>
 
+## Writing a Service
+
+Every service follows the same rules, so services behave alike for users and for programs that import Shoutrrr.
+
+### HTTP Clients
+
+- Keep the clients in `internal/httpclient.Holder`, and implement `SetHTTPClient` through it.
+- Send every request through that client, including token and API requests.
+- Restore the default client when `SetHTTPClient` receives nil.
+- Export no client fields, client interfaces, or client constructors.
+
+### TLS
+
+- Build TLS settings with `transport.TLSConfig` or `transport.InsecureTLSConfig` from `internal/transport`, which require TLS 1.2 or later.
+- Send through `Holder.InsecureClient` when the user skips certificate verification.
+- Never change an injected client, because its owner controls its TLS settings.
+- Log `transport.WarnInsecure` once per service instance, at the first send that uses the insecure default client.
+- Log no warning when a client is injected.
+  The router injects clients after `Initialize`, so `Initialize` cannot make this decision.
+
+### Options
+
+- Use `skiptlsverify` to skip certificate verification, and `disabletls` to turn off TLS.
+- Accept both in the URL and in the send params, and choose the client from the config of each send.
+- Give every key a `desc` tag, which the docs and the CLI show.
+
+### Timeouts
+
+- Run each send under `httpclient.BoundContext`, with the budget the service reports through `ServiceTimeout`.
+- Keep a caller's deadline as it is.
+- Add no timeouts to the requests within a send.
+
+### Renamed Options
+
+- Keep a renamed key's old name in a `deprecatedkeys` tag.
+- Keep a renamed field's old field, with a `deprecated` tag that names its replacement.
+- Warn once per service instance when an old name is used.
+- List the old name on the [deprecations page](docs/usage/deprecations/index.md).
+
+### Enforcement
+
+- The contract checks in `pkg/router/router_integration_test.go` enforce these rules for every registered service.
+- A service that does not meet a rule yet is listed in that file's allowlist with the reason.
+- When a listed service starts to pass, its check fails until the entry is removed.
+
 ## Testing Architecture
 
 Given the prevalence of LLM's for generating code, it is expected that testing follows the following established pattern to ensure at least a bare minimum level of functionality is met. Successful testing does not excuse other code quality issues.
@@ -191,7 +236,7 @@ Given the prevalence of LLM's for generating code, it is expected that testing f
 - Unit testing: white-box testing that resides in the corresponding package, makes no calls to actual services, and uses the Testify testing framework.
 - Integration testing: black-box testing that resides in the service package as `<service>_integration_test.go`, uses the corresponding `<service>_test` package, names its tests with a `TestIntegration` prefix, makes no outbound calls to external/actual services and instead uses mocking, as needed, and uses the Testify testing framework.
   Run one service's integration tests with `task test:integration -- <service>`, or every integration test with `task test:integration`.
-  The cross-service suites are `pkg/router/router_integration_test.go`, which checks client and dialer injection for every registered service, and `pkg/services/services_integration_test.go`, which checks that the services' default clients honor the proxy environment.
+  The cross-service suites are `pkg/router/router_integration_test.go`, which checks every registered service against the shared contract and the rules in [Writing a Service](#writing-a-service), and `pkg/services/services_integration_test.go`, which checks that the services' default clients honor the proxy environment.
 - E2E testing: black-box testing that resides within the `/testing/e2e/<service>` directory, uses the `e2e_test` package, performs outbound calls to the corresponding service, and uses the Testify testing framework.
 
 Use the pre-existing implementations, such as for Discord and Matrix, as a guide to help with this process.
