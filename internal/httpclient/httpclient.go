@@ -92,15 +92,33 @@ func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 	return insecure
 }
 
+// Prefer returns client when it is set, and the result of [Holder.Client]
+// otherwise. A nil *http.Client counts as unset.
+//
+// A service passes the exported client field it keeps for compatibility. Its
+// SetHTTPClient calls Set and clears that field, so whichever of the two the
+// caller set last carries the send.
+//
+// Parameters:
+//   - client: the service's exported client field, or nil.
+//
+// Returns:
+//   - types.HTTPClient: client, or the holder's client when client is unset.
+func (h *Holder) Prefer(client types.HTTPClient) types.HTTPClient {
+	if set := normalize(client); set != nil {
+		return set
+	}
+
+	return h.Client()
+}
+
 // Set stores the client to send through. A nil client, including a nil
 // *http.Client, clears it, so sends use the default client.
 //
 // Parameters:
 //   - client: the HTTP client, or nil for the default.
 func (h *Holder) Set(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
+	client = normalize(client)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -126,6 +144,22 @@ func (h *Holder) SetDefault(timeout time.Duration, tlsConfig *tls.Config) {
 	h.tlsConfig = tlsConfig
 	h.fallback = nil
 	h.insecure = nil
+}
+
+// normalize returns nil for a nil *http.Client, which is a non-nil
+// [types.HTTPClient], and client otherwise.
+//
+// Parameters:
+//   - client: the client to check.
+//
+// Returns:
+//   - types.HTTPClient: client, or nil when it is a nil *http.Client.
+func normalize(client types.HTTPClient) types.HTTPClient {
+	if c, ok := client.(*http.Client); ok && c == nil {
+		return nil
+	}
+
+	return client
 }
 
 // newDefault builds a default client.

@@ -1506,7 +1506,7 @@ func TestIntegrationInitializeRejectsPaths(t *testing.T) {
 
 // TestIntegrationSetHTTPClient verifies that a client injected with
 // SetHTTPClient, as the router injects one, carries the send, and that a nil
-// client restores the default client.
+// client restores the default client in place of the deprecated client field.
 func TestIntegrationSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -1546,7 +1546,15 @@ func TestIntegrationSetHTTPClient(t *testing.T) {
 			service := newService(t, testServiceURL, mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
-			assert.IsType(t, &discord.DefaultHTTPClient{}, service.HTTPClient)
+			// The context ends before the send, so the default client returns
+			// before it dials. The mock fails the test if it is called.
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := service.SendContext(ctx, testMessage, nil)
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Nil(t, service.HTTPClient, "SetHTTPClient clears the deprecated client field")
 		})
 	}
 }
@@ -1622,7 +1630,7 @@ func newWebhook(t *testing.T, replies ...reply) (*mocks.MockHTTPClient, *webhook
 //
 // Returns:
 //   - *discord.Service: the service.
-func newService(t *testing.T, rawURL string, client discord.HTTPClient) *discord.Service {
+func newService(t *testing.T, rawURL string, client types.HTTPClient) *discord.Service {
 	t.Helper()
 
 	serviceURL, err := url.Parse(rawURL)

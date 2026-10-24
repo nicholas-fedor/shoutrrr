@@ -150,7 +150,10 @@ const (
 	// checkTypedNilHTTPClient repeats the nil client check with a nil *http.Client,
 	// which is a non-nil types.HTTPClient interface value.
 	checkTypedNilHTTPClient = "typed_nil_http_client"
-	checkNoSecretLeaks      = "no_secret_leaks"
+	// checkClientFieldOrder verifies that a service's exported client field and
+	// SetHTTPClient follow last-write-wins.
+	checkClientFieldOrder = "client_field_order"
+	checkNoSecretLeaks    = "no_secret_leaks"
 	// checkNoSecretLeaksDefault repeats the leak check with each service's own
 	// default HTTP client, as used by consumers that do not inject one.
 	checkNoSecretLeaksDefault = "no_secret_leaks_default_client"
@@ -211,6 +214,7 @@ const (
 	failSkipIgnored                           // skiptlsverify did not let a request reach the server
 	failWarningCount                          // the insecure warning was not logged exactly once
 	failWarnedInjected                        // the insecure warning was logged for an injected client
+	failClientFieldOrder                      // a send used the wrong one of the client field and the injected client
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -431,11 +435,17 @@ var allowlist = map[string]map[string]knownFailure{
 		// lifetime context by design.
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
-	}, checkStandardKeyNames: {
+	},
+	checkClientFieldOrder: {
+		"bark":       {"Bark panics when its HTTPClient field is set to nil", failPanic},
+		"pushover":   {"Pushover keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
+		"rocketchat": {"Rocket.Chat keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
+		"twilio":     {"Twilio panics when its HTTPClient field is set to nil", failPanic},
+	},
+	checkStandardKeyNames: {
 		"bark": {"Bark selects HTTP through a scheme key", failNonStandardKey},
 	},
 	checkKeyDescriptions: {
-		"discord":    {"Discord's title key has no description", failMissingDescription},
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
 		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
 		"matrix":     {"Matrix's disabletls and title keys have no description", failMissingDescription},
@@ -445,7 +455,6 @@ var allowlist = map[string]map[string]knownFailure{
 	},
 	checkSendBudget: {
 		"bark":       {"Bark bounds requests with its client timeout instead of a context deadline", failBudget},
-		"discord":    {"Discord bounds requests with its client timeout instead of a context deadline", failBudget},
 		"googlechat": {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
 		"hangouts":   {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
 		"lark":       {"Lark bounds requests with its client timeout instead of a context deadline", failBudget},
@@ -456,7 +465,9 @@ var allowlist = map[string]map[string]knownFailure{
 		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
 		"telegram":   {"Telegram bounds requests with its client timeout instead of a context deadline", failBudget},
 		"wecom":      {"WeCom bounds requests with its client timeout instead of a context deadline", failBudget},
-		"zulip":      {"Zulip's limits lookup carries no deadline", failBudget},
+		// Zulip's limits lookup is optional, so it is capped below the budget and
+		// a slow lookup leaves the message request the rest of the budget.
+		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
 	},
 	checkPlaintextWarning: {
 		"generic":    {"Generic logs no warning when TLS is disabled", failWarningCount},
@@ -540,6 +551,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkParamsDoNotPersist, runParamsDoNotPersist},
 		{checkNilHTTPClient, runNilHTTPClient},
 		{checkTypedNilHTTPClient, runTypedNilHTTPClient},
+		{checkClientFieldOrder, runClientFieldOrder},
 		{checkNoSecretLeaks, runNoSecretLeaks},
 		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
 		{checkSendUsesContext, runSendUsesContext},
@@ -1426,6 +1438,133 @@ func runResetHTTPClient(t *testing.T, fx *fixture, reset types.HTTPClient) failu
 	})
 
 	return result
+}
+
+// runClientFieldOrder verifies that a service's exported client field and
+// SetHTTPClient follow last-write-wins. A field set before SetHTTPClient loses
+// to it, and a field set after it wins. A field set back to nil restores the
+// client from SetHTTPClient. A service without an exported client field passes.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failClientFieldOrder, failPanic, or failInit failure, or the
+//     zero value.
+func runClientFieldOrder(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind != netHTTP {
+		return failure{}
+	}
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		setter, isSetter := service.(types.HTTPClientSetter)
+
+		field, hasField := clientField(service)
+		if !isSetter || !hasField {
+			return
+		}
+
+		var fieldCalls atomic.Int32
+
+		answer := respond(fx, false)
+		record := func(req *http.Request) (*http.Response, error) {
+			fieldCalls.Add(1)
+
+			return answer(req)
+		}
+
+		fieldClient := reflect.ValueOf(httpClientFunc(record))
+		if field.Type() == reflect.TypeFor[*http.Client]() {
+			fieldClient = reflect.ValueOf(&http.Client{Transport: roundTripperFunc(record)})
+		}
+
+		// sendThrough sends and reports whether only the expected client carried
+		// the requests.
+		sendThrough := func(step string, wantField bool) bool {
+			fieldBefore, injectedBefore := fieldCalls.Load(), env.httpCalls()
+
+			if result = env.send(service, nil); result.kind != failNone {
+				return false
+			}
+
+			fieldUsed := fieldCalls.Load() > fieldBefore
+			injectedUsed := env.httpCalls() > injectedBefore
+
+			switch {
+			case wantField && (!fieldUsed || injectedUsed):
+				result = fail(failClientFieldOrder, "%s: Send did not use only the client field", step)
+			case !wantField && (fieldUsed || !injectedUsed):
+				result = fail(failClientFieldOrder, "%s: Send did not use only the client from SetHTTPClient", step)
+			}
+
+			return result.kind == failNone
+		}
+
+		field.Set(fieldClient)
+		setter.SetHTTPClient(env.client)
+
+		if !sendThrough("field set before SetHTTPClient", false) {
+			return
+		}
+
+		field.Set(fieldClient)
+
+		if !sendThrough("field set after SetHTTPClient", true) {
+			return
+		}
+
+		field.SetZero()
+		sendThrough("field set to nil", false)
+	})
+
+	return result
+}
+
+// clientField returns a service's exported HTTP client field, which callers
+// can set in place of calling SetHTTPClient. The field holds an *http.Client
+// or an interface that [types.HTTPClient] satisfies.
+//
+// Parameters:
+//   - service: the located service.
+//
+// Returns:
+//   - reflect.Value: the settable field.
+//   - bool: whether the service has such a field.
+func clientField(service types.Service) (reflect.Value, bool) {
+	value := reflect.ValueOf(service)
+	if value.Kind() != reflect.Pointer || value.Elem().Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+
+	clientType := reflect.TypeFor[types.HTTPClient]()
+
+	for field, fieldValue := range value.Elem().Fields() {
+		if !field.IsExported() || field.Anonymous {
+			continue
+		}
+
+		isInterface := field.Type.Kind() == reflect.Interface && field.Type.NumMethod() > 0
+
+		if field.Type == reflect.TypeFor[*http.Client]() || isInterface && clientType.Implements(field.Type) {
+			return fieldValue, true
+		}
+	}
+
+	return reflect.Value{}, false
 }
 
 // runNoSecretLeaks verifies that secrets from the service URL never appear in

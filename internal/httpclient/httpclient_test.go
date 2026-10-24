@@ -81,6 +81,44 @@ func TestHolderClient(t *testing.T) {
 	}
 }
 
+// TestHolderPrefer verifies that Prefer returns a set client over the
+// holder's, and the holder's client when the given one is nil or a nil
+// *http.Client.
+func TestHolderPrefer(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the clients passed to Prefer, with whether Prefer should
+	// return them.
+	tests := []struct {
+		client types.HTTPClient
+		name   string
+		want   bool
+	}{
+		{name: "set client", client: &http.Client{}, want: true},
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var holder Holder
+
+			injected := &http.Client{}
+			holder.Set(injected)
+
+			if tt.want {
+				assert.Same(t, tt.client, holder.Prefer(tt.client))
+
+				return
+			}
+
+			assert.Same(t, injected, holder.Prefer(tt.client))
+		})
+	}
+}
+
 // TestHolderSetDefault verifies that the default client follows the
 // SetDefault settings, that new settings replace a default already built, and
 // that an injected client is kept.

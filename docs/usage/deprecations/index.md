@@ -29,6 +29,7 @@ Those marked with `//go:fix inline` are rewritten to their replacements by `go f
 A deprecated config field that has a replacement still applies.
 When a config sets both a deprecated field and its replacement, a replacement with a non-zero value wins.
 A replacement set to its zero value, such as `false` or an empty string, counts as unset, so the deprecated field applies.
+A deprecated client field on a service and `Service.SetHTTPClient` both set the client, and the one set last carries the sends.
 
 | Identifier | Package | Replacement | Deprecated in |
 | --- | --- | --- | --- |
@@ -56,6 +57,14 @@ A replacement set to its zero value, such as `false` or an empty string, counts 
 | `HTTPClient` | `pkg/services/chat/matrix` | `types.HTTPClient` | Unreleased |
 | `DefaultHTTPClient` | `pkg/services/chat/matrix` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | Unreleased |
+| `HTTPClient` | `pkg/services/chat/discord` | `types.HTTPClient` | Unreleased |
+| `DefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `NewDefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `Service.HTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` | Unreleased |
+| `HTTPClient` | `pkg/services/chat/zulip` | `types.HTTPClient` | Unreleased |
+| `DefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `NewDefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `Service.HTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` | Unreleased |
 | `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | Unreleased |
 | `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
 | `Config.DisableTLSVerification` | `pkg/services/push/ntfy` | `Config.SkipTLSVerify` | Unreleased |

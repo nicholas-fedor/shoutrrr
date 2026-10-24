@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -25,15 +26,22 @@ import (
 )
 
 // HTTPClient defines the interface for HTTP operations.
-type HTTPClient interface {
-	// Do sends the request and returns the response.
-	Do(req *http.Request) (*http.Response, error)
-}
+//
+// Deprecated: The service takes a [types.HTTPClient], which HTTPClient is an
+// alias of. Use [types.HTTPClient].
+//
+//go:fix inline
+type HTTPClient = types.HTTPClient
 
-// DefaultHTTPClient is the default implementation, using an [http.Client]
-// whose requests time out after [defaultHTTPTimeout].
+// DefaultHTTPClient is an HTTP client whose requests time out after
+// [defaultHTTPTimeout]. The zero value is ready to use.
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 type DefaultHTTPClient struct {
-	// client sends the requests.
+	// client sends the requests, or is nil to send through a new client with
+	// [defaultHTTPTimeout] as its timeout.
 	client *http.Client
 }
 
@@ -52,9 +60,15 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// HTTPClient sends the requests. Initialize sets a [DefaultHTTPClient]
-	// when it is nil.
-	HTTPClient HTTPClient
+	// HTTPClient sends the requests when set. [Service.SetHTTPClient] clears
+	// it, so whichever of the two the caller set last carries the sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
+	HTTPClient types.HTTPClient
+
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
 
 	// Config holds the settings read from the service URL. Each send works on
 	// a copy with its params applied.
@@ -77,7 +91,8 @@ type Service struct {
 	limitsFetched bool
 }
 
-// defaultHTTPTimeout is the default timeout for HTTP requests to Zulip.
+// defaultHTTPTimeout is the timeout of [DefaultHTTPClient], and the part of
+// the send budget for the message request.
 const defaultHTTPTimeout = 30 * time.Second
 
 // contentMaxSize defines the default maximum allowed message length in characters.
@@ -86,7 +101,9 @@ const contentMaxSize = 10000
 // topicMaxLength defines the default maximum allowed topic length in characters.
 const topicMaxLength = 60
 
-// registerTimeout is the timeout for the register API call.
+// registerTimeout caps the limits lookup within the send budget. A slow lookup
+// falls back to the default limits and leaves the message request the rest of
+// the budget.
 const registerTimeout = 10 * time.Second
 
 // maxErrorBodySize limits how much of a non-OK response body we read to prevent
@@ -150,12 +167,15 @@ func validateHost(host string) error {
 	return nil
 }
 
-// NewDefaultHTTPClient creates the client that the service uses when no other
-// client is set.
+// NewDefaultHTTPClient creates an HTTP client with a timeout.
 //
 // Returns:
 //   - *DefaultHTTPClient: a client whose requests time out after
 //     [defaultHTTPTimeout].
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -173,7 +193,12 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 //   - *http.Response: the response, which the caller closes.
 //   - error: the request error, with URLs redacted by [redact.URLError].
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+	client := &http.Client{Timeout: defaultHTTPTimeout}
+	if c != nil && c.client != nil {
+		client = c.client
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
@@ -189,7 +214,9 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It keeps an HTTP
+// client that is already set, and drops the limits of an earlier server, so
+// the next send looks them up again.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -203,12 +230,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	if s.HTTPClient == nil {
-		s.HTTPClient = NewDefaultHTTPClient()
-	}
 
+	s.limitsMu.Lock()
 	s.contentMaxSize = contentMaxSize
 	s.topicMaxLength = topicMaxLength
+	s.limitsFetched = false
+	s.limitsMu.Unlock()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -234,7 +261,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Zulip. The router calls it with
-// its send deadline.
+// its send deadline. A context without a deadline is bounded by the budget
+// that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds the server limits lookup and the message request.
@@ -244,6 +272,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Returns:
 //   - error: the send failure, or nil on success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Clone the config to avoid modifying the original for this send operation.
 	config := s.Config.Clone()
 
@@ -322,34 +353,28 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.SendContext(ctx, message, params)
 }
 
-// ServiceTimeout reports the send budget the router gives Zulip. The first send
-// calls the register endpoint for server limits before the message request, so
-// the budget covers both requests.
+// ServiceTimeout reports the send budget of Zulip. The first send calls the
+// register endpoint for server limits before the message request, so the
+// budget covers both requests.
 //
 // Parameters:
-//   - params: unused. The request timeouts do not depend on send parameters.
+//   - params: unused. The budget does not depend on send parameters.
 //
 // Returns:
-//   - time.Duration: the register timeout plus the message request timeout.
+//   - time.Duration: [registerTimeout] plus [defaultHTTPTimeout].
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return registerTimeout + defaultHTTPTimeout
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores
-// the default client.
+// the default client. It clears the deprecated HTTPClient field, so the sends
+// use this client until that field is set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		client = NewDefaultHTTPClient()
-	}
-
-	s.HTTPClient = client
+	s.client.Set(client)
+	s.HTTPClient = nil
 }
 
 // currentLimits returns the message and topic limits as they stand.
@@ -391,7 +416,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	res, err := s.HTTPClient.Do(req)
+	res, err := s.client.Prefer(s.HTTPClient).Do(req)
 	if err != nil {
 		return fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}
@@ -449,7 +474,7 @@ func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	res, err := s.HTTPClient.Do(req)
+	res, err := s.client.Prefer(s.HTTPClient).Do(req)
 	if err != nil {
 		return reg, false
 	}
