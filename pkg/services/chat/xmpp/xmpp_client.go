@@ -17,6 +17,8 @@ import (
 
 	mxmpp "mellium.im/xmpp"
 	xmux "mellium.im/xmpp/mux"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 )
 
 // Session is a connected XMPP session used to send notifications.
@@ -121,10 +123,11 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 	return clientSession, nil
 }
 
-// newTLSConfig builds a TLS config from cfg.
+// newTLSConfig builds a TLS config from cfg with the shared helpers.
 //
-// TLS 1.2 is the minimum version. [Config.SkipTLSVerify] is copied onto
-// InsecureSkipVerify for self-signed or internal servers.
+// TLS 1.2 is the minimum version, and the certificate is verified against
+// Host unless [Config.SkipTLSVerify] is set, such as for a self-signed or
+// internal server.
 //
 // Parameters:
 //   - cfg: The service configuration supplying Host and SkipTLSVerify.
@@ -132,11 +135,11 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 // Returns:
 //   - A TLS config with TLS 1.2 as the minimum version.
 func newTLSConfig(cfg *Config) *tls.Config {
-	return &tls.Config{
-		ServerName:         cfg.Host,
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: cfg.SkipTLSVerify,
+	if cfg.SkipTLSVerify {
+		return transport.InsecureTLSConfig(cfg.Host)
 	}
+
+	return transport.TLSConfig(cfg.Host)
 }
 
 func wrapNegotiateError(err error) error {

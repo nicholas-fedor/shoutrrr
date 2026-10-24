@@ -7,8 +7,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -392,23 +395,93 @@ func TestSendContextErrors(t *testing.T) {
 	}
 }
 
-// TestSendWarnsWhenSkippingVerification verifies that a send logs a warning
-// when TLS verification is disabled.
-func TestSendWarnsWhenSkippingVerification(t *testing.T) {
+// TestSendContextDeadline verifies what ends a session negotiation that never
+// finishes. A send without a deadline is bounded by the 30 second send budget,
+// and a caller's longer deadline applies as it is.
+func TestSendContextDeadline(t *testing.T) {
 	t.Parallel()
 
-	var logs bytes.Buffer
+	for _, tt := range []struct {
+		name     string
+		deadline time.Duration
+		want     time.Duration
+	}{
+		{name: "send budget", want: defaultTimeout},
+		{name: "longer caller deadline", deadline: time.Minute, want: time.Minute},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	service := &Service{}
-	require.NoError(t, service.Initialize(parseTestURL(t, chatURL+"&skiptlsverify=yes"), log.New(&logs, "", 0)))
-	service.SetDialContext(pipeDialer())
-	service.SetSessionFactory(func(context.Context, *Config, net.Conn) (Session, error) {
-		return &recordingSession{}, nil
-	})
+			synctest.Test(t, func(t *testing.T) {
+				service := newTestService(t, chatURL, &recordingSession{})
+				service.SetDialContext(pipeDialer())
+				service.SetSessionFactory(func(ctx context.Context, _ *Config, _ net.Conn) (Session, error) {
+					<-ctx.Done()
 
-	require.NoError(t, service.Send("hello", nil))
+					return nil, ctx.Err()
+				})
 
-	assert.Contains(t, logs.String(), "TLS verification is disabled")
+				ctx := t.Context()
+
+				if tt.deadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tt.deadline)
+					defer cancel()
+				}
+
+				start := time.Now()
+
+				require.ErrorIs(t, service.SendContext(ctx, "hello", nil), context.DeadlineExceeded)
+				assert.Equal(t, tt.want, time.Since(start))
+			})
+		})
+	}
+}
+
+// TestSendWarnings verifies that a send without TLS, or without certificate
+// verification, logs the shared warning once over two sends and again after
+// the service is initialized again. A send with verified TLS logs nothing.
+func TestSendWarnings(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		params *types.Params
+		name   string
+		rawURL string
+		want   []string
+	}{
+		{name: "verified TLS", rawURL: chatURL},
+		{name: "skiptlsverify in the URL", rawURL: chatURL + "&skiptlsverify=yes", want: []string{"Warning: skipping TLS certificate verification"}},
+		{
+			name:   "skiptlsverify param",
+			rawURL: chatURL,
+			params: &types.Params{"skiptlsverify": "yes"},
+			want:   []string{"Warning: skipping TLS certificate verification"},
+		},
+		{name: "TLS disabled", rawURL: chatURL + "&disabletls=yes", want: []string{"Warning: sending without TLS"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
+			service.SetDialContext(pipeDialer())
+			service.SetSessionFactory(func(context.Context, *Config, net.Conn) (Session, error) {
+				return &recordingSession{}, nil
+			})
+
+			require.NoError(t, service.Send("hello", tt.params))
+			require.NoError(t, service.Send("hello", tt.params))
+			assert.Equal(t, strings.Join(tt.want, ""), strings.TrimSuffix(logs.String(), "\n"))
+
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
+			require.NoError(t, service.Send("hello", tt.params))
+			assert.Equal(t, 2*len(tt.want), strings.Count(logs.String(), "Warning: "))
+		})
+	}
 }
 
 // TestSendThroughDefaultSession verifies a send end to end with the default

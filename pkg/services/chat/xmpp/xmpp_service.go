@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -24,11 +26,14 @@ type Service struct {
 	dialContext types.DialContextFunc
 	// newSession constructs the XMPP session after the TCP dial succeeds.
 	newSession SessionFactory
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 	// pkr applies URL query keys and Send params onto Config.
 	pkr format.PropKeyResolver
 }
 
-// defaultTimeout bounds dial, session negotiation, and send.
+// defaultTimeout is the send budget, which bounds dial, session negotiation,
+// and send when the caller's context has no deadline.
 const defaultTimeout = 30 * time.Second
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -59,6 +64,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
+	s.warnings.Reset()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default props: %w", err)
@@ -92,6 +98,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 // It clones the service configuration, applies optional runtime params, dials
 // the server, negotiates a session, and sends chat and MUC messages. Delivery
 // continues after a per-target failure. The session is closed after the send.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports. The first send without TLS, or without
+// certificate verification, logs a warning.
 //
 // Parameters:
 //   - ctx: Parent context for cancellation and deadlines.
@@ -113,11 +122,15 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	if config.SkipTLSVerify {
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
+	switch {
+	case config.DisableTLS:
+		s.warnings.Plaintext(s)
+	case config.SkipTLSVerify:
+		s.warnings.Insecure(s)
+	default:
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
 	conn, err := s.dial(ctx, &config)
@@ -156,7 +169,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // ServiceTimeout returns the session timeout used for an XMPP send.
 //
 // The budget is [defaultTimeout], which [Service.SendContext] applies to dial,
-// negotiation, and send.
+// negotiation, and send when the caller's context has no deadline.
 //
 // Parameters:
 //   - params: Unused. The budget does not depend on send parameters.

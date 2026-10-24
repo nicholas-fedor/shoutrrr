@@ -337,9 +337,10 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendContextTimeout verifies that the session timeout from the URL or a
-// param, or the caller's earlier deadline, ends a session with a server that
-// stops answering.
+// TestSendContextTimeout verifies what ends a session with a server that
+// stops answering. A send without a deadline is bounded by the session
+// timeout from the URL or a param. A caller's deadline applies as it is,
+// whether it is earlier or later than that timeout.
 func TestSendContextTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -355,6 +356,7 @@ func TestSendContextTimeout(t *testing.T) {
 		{name: "timeout param", rawURL: testServiceURL + "&timeout=3s", params: &types.Params{"timeout": "2s"}, want: 2 * time.Second},
 		{name: "default for zero", rawURL: testServiceURL + "&timeout=0s", want: 10 * time.Second},
 		{name: "caller deadline", rawURL: testServiceURL + "&timeout=3s", deadline: time.Second, want: time.Second},
+		{name: "longer caller deadline", rawURL: testServiceURL + "&timeout=3s", deadline: 5 * time.Second, want: 5 * time.Second},
 	}
 
 	for _, tt := range tests {
@@ -385,30 +387,79 @@ func TestSendContextTimeout(t *testing.T) {
 	}
 }
 
-// TestSendLogsSkipTLSVerify verifies that a send warns when certificate
-// verification is off, from the URL or a param.
-func TestSendLogsSkipTLSVerify(t *testing.T) {
+// TestSendLogsConnectionWarnings verifies the warnings about the connection a
+// send actually uses, each logged once over two sends and again after the
+// service is initialized again. A session without TLS logs the plaintext
+// warning, even when skiptlsverify is set, because it skips nothing. An
+// implicit TLS session that skips verification, from the URL or a param, logs
+// the insecure warning.
+func TestSendLogsConnectionWarnings(t *testing.T) {
 	t.Parallel()
 
+	const implicitTLSURL = "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&encryption=ImplicitTLS"
+
 	for _, tt := range []struct {
-		params *types.Params
-		name   string
-		rawURL string
+		params      *types.Params
+		name        string
+		rawURL      string
+		implicitTLS bool
+		want        string
 	}{
-		{name: "URL", rawURL: testServiceURL + "&skiptlsverify=yes"},
-		{name: "param", rawURL: testServiceURL, params: &types.Params{"skiptlsverify": "yes"}},
+		{name: "without TLS", rawURL: testServiceURL, want: "Warning: sending without TLS"},
+		{name: "skiptlsverify without TLS", rawURL: testServiceURL + "&skiptlsverify=yes", want: "Warning: sending without TLS"},
+		{
+			name:        "skiptlsverify in the URL",
+			rawURL:      implicitTLSURL + "&skiptlsverify=yes",
+			implicitTLS: true,
+			want:        "Warning: skipping TLS certificate verification",
+		},
+		{
+			name:        "skiptlsverify param",
+			rawURL:      implicitTLSURL,
+			params:      &types.Params{"skiptlsverify": "yes"},
+			implicitTLS: true,
+			want:        "Warning: skipping TLS certificate verification",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			var logs bytes.Buffer
 
-			service := newLoggingService(t, tt.rawURL, newFakeSMTP(), log.New(&logs, "", 0))
+			server := newFakeSMTP()
+			server.implicitTLS = tt.implicitTLS
+
+			service := newLoggingService(t, tt.rawURL, server, log.New(&logs, "", 0))
 
 			require.NoError(t, service.Send("Hello", tt.params))
-			assert.True(t, strings.HasPrefix(logs.String(), "Warning: TLS verification is disabled, making connections insecure\n"), logs.String())
+			require.NoError(t, service.Send("Hello", tt.params))
+			assert.Equal(t, []string{tt.want}, warningLines(logs.String()))
+
+			require.NoError(t, service.Initialize(parseConfigURL(t, tt.rawURL), log.New(&logs, "", 0)))
+			require.NoError(t, service.Send("Hello", tt.params))
+			assert.Equal(t, []string{tt.want, tt.want}, warningLines(logs.String()))
 		})
 	}
+}
+
+// warningLines returns the logged lines that are warnings, leaving out the
+// log of each message sent.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "Warning: ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
 }
 
 // TestSetDialContext verifies that a nil dialer restores the default dialer.

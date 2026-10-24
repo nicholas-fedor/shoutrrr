@@ -462,7 +462,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"generic":    {"Generic logs no warning when TLS is disabled", failWarningCount},
 		"matrix":     {"Matrix logs no warning when TLS is disabled", failWarningCount},
 		"mattermost": {"Mattermost logs no warning when TLS is disabled", failWarningCount},
-		"xmpp":       {"XMPP logs no warning when TLS is disabled", failWarningCount},
 	},
 }
 
