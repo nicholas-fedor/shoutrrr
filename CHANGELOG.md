@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bring Signal and Home Assistant under the service rules by @nicholas-fedor in [#1841](https://github.com/nicholas-fedor/shoutrrr/pull/1841)
 - Add SendContext and follow the service rules by @nicholas-fedor in [#1837](https://github.com/nicholas-fedor/shoutrrr/pull/1837)
 - Add the skiptlsverify key and follow the service rules by @nicholas-fedor in [#1835](https://github.com/nicholas-fedor/shoutrrr/pull/1835)
 - Add the skiptlsverify key and follow the service rules by @nicholas-fedor in [#1833](https://github.com/nicholas-fedor/shoutrrr/pull/1833)
