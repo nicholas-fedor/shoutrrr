@@ -183,7 +183,8 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 ### StartTLS
 
 - `usestarttls` (alias `starttls`) defaults to yes.
-- When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning and continues unencrypted unless `requirestarttls` is set.
+- When enabled and the server does not advertise STARTTLS, Shoutrrr logs a warning once and continues unencrypted unless `requirestarttls` is set.
+- Shoutrrr also logs a warning the first time a session sends without TLS, whatever the reason.
 
 !!! Example "Disable STARTTLS"
 
@@ -205,7 +206,8 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 ### Skip TLS Certificate Verification
 
 - `skiptlsverify` defaults to no.
-- When TLS is negotiated, `yes` disables server certificate verification; however, it does not enable TLS.
+- When TLS is negotiated, `yes` disables server certificate verification. It does not enable TLS.
+- Shoutrrr logs a warning the first time a TLS session skips verification.
 
 !!! danger "Security Risk"
     Skipping certificate verification makes the connection vulnerable to man-in-the-middle attacks.
@@ -248,6 +250,7 @@ The [OAuth2 generator](../../../usage/cli/generate/index.md#oauth2) writes these
 
 - `timeout` is a Go duration covering the TCP/TLS dial and the SMTP session (EHLO, AUTH, DATA, QUIT).
 - Default: `10s`.
+- A caller's context deadline takes its place, whether it is earlier or later.
 - With no sender timeout set, the router waits this long for SMTP, including values above 10s. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service on that sender.
 
 !!! Example "Thirty-second timeout"

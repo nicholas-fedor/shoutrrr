@@ -9,6 +9,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -25,16 +26,18 @@ type Service struct {
 	Config *Config
 	// dialContext, if non-nil, is used for the SMTP TCP dial.
 	dialContext types.DialContextFunc
-	// client holds the injected HTTP client and the default client for OAuth2
-	// token requests.
-	client httpclient.Holder
 	// tokens caches the OAuth2 access token of each set of refresh settings.
 	tokens map[tokenKey]*oauth2.Token
 	// refreshes holds the token request in flight for each set of refresh
 	// settings, which concurrent sends with those settings wait for.
 	refreshes map[tokenKey]*tokenRefresh
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 	// propKeyResolver applies URL and send-parameter overrides to [Config].
 	propKeyResolver format.PropKeyResolver
+	// client holds the injected HTTP client and the default client for OAuth2
+	// token requests.
+	client httpclient.Holder
 	// tokenMu guards tokens and refreshes. It is not held during token
 	// requests.
 	tokenMu sync.Mutex
@@ -81,6 +84,7 @@ func (s *Service) GetID() string {
 //     for invalid refresh settings.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.warnings.Reset()
 	// The default client has no timeout of its own, because the send's
 	// timeout bounds each token request.
 	s.client.SetDefault(0, nil)
@@ -166,14 +170,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fail(FailApplySendParams, err)
 	}
 
-	if config.SkipTLSVerify {
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		effectiveTimeout(config.Timeout),
-	)
+	ctx, cancel := httpclient.BoundContext(ctx, effectiveTimeout(config.Timeout))
 	defer cancel()
 
 	if config.usesTokenRefresh() {

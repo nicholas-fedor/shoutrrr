@@ -62,7 +62,8 @@
 //   - ClientHost: The client hostname used in the SMTP handshake (default: "localhost").
 //   - RequireStartTLS: Whether to fail if StartTLS is enabled but unsupported (default: false).
 //   - SkipTLSVerify: Whether to skip TLS certificate verification (default: false).
-//   - Timeout: Duration for SMTP operations timeout (default: 10 seconds).
+//   - Timeout: Duration for SMTP operations timeout (default: 10 seconds). A
+//     caller's context deadline takes its place.
 //
 // The configuration URL follows the format:
 //

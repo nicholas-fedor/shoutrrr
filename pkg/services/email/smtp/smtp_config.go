@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -305,7 +306,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return nil
 }
 
-// newTLSConfig builds the [tls.Config] used for implicit TLS and STARTTLS.
+// newTLSConfig builds the [tls.Config] used for implicit TLS and STARTTLS from
+// the shared helpers. It verifies the server's certificate against Host unless
+// [Config.SkipTLSVerify] is set.
 //
 // Parameters:
 //   - config: SMTP configuration providing the server name and [Config.SkipTLSVerify] flag.
@@ -314,9 +317,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //   - A TLS config with TLS 1.2 as the minimum version. The maximum version is
 //     left unset so crypto/tls can negotiate the highest mutually supported version.
 func newTLSConfig(config *Config) *tls.Config {
-	return &tls.Config{
-		ServerName:         config.Host,
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: config.SkipTLSVerify,
+	if config.SkipTLSVerify {
+		return transport.InsecureTLSConfig(config.Host)
 	}
+
+	return transport.TLSConfig(config.Host)
 }

@@ -370,7 +370,8 @@ func TestSessionRunEmptyMessage(t *testing.T) {
 }
 
 // TestSessionRunLogsStartTLS verifies that a send warns when the server does
-// not offer STARTTLS and continues without it.
+// not offer STARTTLS and continues without it, along with the shared warning
+// about sending without TLS. Each warning is logged once over two sends.
 func TestSessionRunLogsStartTLS(t *testing.T) {
 	t.Parallel()
 
@@ -380,8 +381,12 @@ func TestSessionRunLogsStartTLS(t *testing.T) {
 	service := newLoggingService(t, "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com", server, log.New(&logs, "", 0))
 
 	require.NoError(t, service.Send("Hello", nil))
+	require.NoError(t, service.Send("Hello", nil))
 	assert.Equal(t,
-		"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted\nMail successfully sent to \"rec@example.com\"!\n",
+		"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted\n"+
+			"Warning: sending without TLS\n"+
+			"Mail successfully sent to \"rec@example.com\"!\n"+
+			"Mail successfully sent to \"rec@example.com\"!\n",
 		logs.String())
 }
 

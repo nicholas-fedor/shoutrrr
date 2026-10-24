@@ -200,6 +200,8 @@ func (s *session) run(message string) error {
 		return err
 	}
 
+	s.warnConnection()
+
 	if err := s.auth(); err != nil {
 		return err
 	}
@@ -277,8 +279,8 @@ func (s *session) sendMessage(toAddress, message, boundary string) error {
 // startTLS upgrades the connection with STARTTLS when configured.
 //
 // Implicit TLS sessions skip this step. If STARTTLS is unsupported and
-// [Config.RequireStartTLS] is false, a warning is logged and the session continues
-// unencrypted.
+// [Config.RequireStartTLS] is false, a warning is logged once and the session
+// continues unencrypted.
 //
 // Returns:
 //   - An error if STARTTLS is required but unsupported or the upgrade fails.
@@ -292,9 +294,9 @@ func (s *session) startTLS() error {
 			return fail(FailEnableStartTLS, ErrServerNoStartTLS)
 		}
 
-		s.svc.Logf(
-			"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted",
-		)
+		s.svc.warnings.Do("starttls-unsupported", func() {
+			s.svc.Logf("Warning: StartTLS enabled, but server does not support it. Connection is unencrypted")
+		})
 
 		return nil
 	}
@@ -304,4 +306,19 @@ func (s *session) startTLS() error {
 	}
 
 	return nil
+}
+
+// warnConnection logs, once per service instance, that the session sends
+// without TLS, or that its TLS connection skips certificate verification. It
+// runs after the TLS setup, so it reports what the session actually uses.
+func (s *session) warnConnection() {
+	if _, usesTLS := s.client.TLSConnectionState(); !usesTLS {
+		s.svc.warnings.Plaintext(s.svc)
+
+		return
+	}
+
+	if s.config.SkipTLSVerify {
+		s.svc.warnings.Insecure(s.svc)
+	}
 }

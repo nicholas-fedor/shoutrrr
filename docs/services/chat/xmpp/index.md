@@ -40,6 +40,8 @@ xmpp://alice%40jabber.example.com:secret@xmpp.example.com/?to=bob@jabber.example
 - Use `disabletls=yes` only with `xmpp://` for plaintext on a trusted network. Combining it with `xmpps://` is rejected.
 - Use `skiptlsverify=yes` to skip certificate verification (self-signed or internal TLS). TLS 1.2 remains the minimum.
 
+Shoutrrr logs a warning the first time a send skips certificate verification, and the first time a send goes out without TLS.
+
 Plaintext SASL is used only when `disabletls=yes` is set.
 Encrypted connections prefer SCRAM-SHA-256, then SCRAM-SHA-1, then PLAIN.
 
