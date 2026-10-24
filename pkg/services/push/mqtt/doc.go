@@ -28,8 +28,9 @@
 //   - qos: Quality of Service level (0=at most once, 1=at least once, 2=exactly once)
 //   - retained: retain message on broker (default: no)
 //   - cleansession: start with a clean session (default: yes)
-//   - disabletls: disable TLS encryption (default: no)
-//   - disabletlsverification: disable TLS certificate verification (default: no)
+//   - disabletls: disable TLS encryption for mqtts:// (default: no)
+//   - skiptlsverify: skip TLS certificate verification (default: no). The
+//     deprecated disabletlsverification key sets it too.
 //
 // # Quality of Service (QoS) Levels
 //
@@ -89,22 +90,24 @@
 //
 //	url := "mqtts://broker.example.com:8883/secure-topic"
 //
-// To explicitly disable TLS, set disabletls=true. To explicitly enable TLS when
-// using the mqtt:// scheme, set disabletls=false:
-//
-//	url := "mqtt://broker.example.com/topic?disabletls=false"
-//
-// To explicitly disable TLS when using the mqtts:// scheme:
+// The mqtt:// scheme never uses TLS. To disable TLS when using the mqtts://
+// scheme:
 //
 //	url := "mqtts://broker.example.com:8883/secure-topic?disabletls=true"
 //
 // To skip TLS certificate verification (useful for testing with self-signed certs):
 //
-//	url := "mqtts://broker.example.com/topic?disabletlsverification=yes"
+//	url := "mqtts://broker.example.com/topic?skiptlsverify=yes"
+//
+// The first connection without TLS, or without certificate verification,
+// logs a warning.
 //
 // # Connection Behavior
 //
 // The first Send opens a connection to the broker, and later sends reuse it.
 // A connection that no send has used for 60 seconds is closed, and the next Send
 // reconnects. Call Close to disconnect when the service is no longer needed.
+// SendContext bounds the wait for the connection and the publish by its
+// context, or by the 10 second send budget when the context has no deadline.
+// The connection itself outlives the send.
 package mqtt

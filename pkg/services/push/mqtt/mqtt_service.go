@@ -15,6 +15,9 @@ import (
 	"github.com/eclipse/paho.golang/packets"
 	"github.com/eclipse/paho.golang/paho"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -48,6 +51,8 @@ type Service struct {
 	connectionSends *sync.WaitGroup
 	// idleTimer tears down a connection the service created once it is idle.
 	idleTimer *time.Timer
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 	// pkr resolves property keys for configuration updates from URL parameters.
 	pkr format.PropKeyResolver
 	// activeSends counts the sends in progress, which keeps the idle timer stopped.
@@ -67,10 +72,6 @@ type Service struct {
 // Done() <-chan struct{}, as autopaho's does. A manager without Done is reused
 // until Close or an idle teardown.
 type connectFunc func(ctx context.Context, cfg *autopaho.ClientConfig) (ConnectionManager, error)
-
-// publishTimeout defines the maximum time in seconds to wait for message publication.
-// This prevents indefinite blocking when the broker is unresponsive during publish operations.
-const publishTimeout = 10
 
 // keepAliveInterval defines the interval in seconds between keep-alive packets.
 // This maintains the connection and detects dead peers.
@@ -92,6 +93,7 @@ const idleTimeout = 60 * time.Second
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service           = (*Service)(nil)
+	_ types.ContextSender     = (*Service)(nil)
 	_ types.DialContextSetter = (*Service)(nil)
 	_ types.ServiceTimeout    = (*Service)(nil)
 	_ io.Closer               = (*Service)(nil)
@@ -136,6 +138,8 @@ func (s *Service) GetID() string {
 // connection is established. This means Host, Port, Username, Password, and TLS
 // settings can be modified through params in the first Send call.
 //
+// It warns once about each deprecated key the URL uses.
+//
 // Parameters:
 //   - serviceURL: The configuration URL containing broker address, credentials, and topic
 //   - logger: The logger instance for recording service events and errors
@@ -144,6 +148,7 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set up logging for the service
 	s.SetLogger(logger)
+	s.warnings.Reset()
 
 	// A connection the service created belongs to the previous configuration.
 	s.closeOwnedConnection()
@@ -164,6 +169,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return fmt.Errorf("parsing configuration URL: %w", err)
 	}
 
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
+
 	// Note: The MQTT client is lazily initialized on the first Send call,
 	// allowing runtime configuration changes to take effect before connection.
 
@@ -171,6 +178,19 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 }
 
 // Send delivers a message to the configured MQTT topic.
+//
+// It delegates to [Service.SendContext] with [context.Background].
+//
+// Parameters:
+//   - message: The notification message to publish to the topic
+//   - params: Optional runtime parameters to override config settings
+//
+// Returns an error if connection fails or publishing encounters an error.
+func (s *Service) Send(message string, params *types.Params) error {
+	return s.SendContext(context.Background(), message, params)
+}
+
+// SendContext delivers a message to the configured MQTT topic.
 // It handles connection establishment if needed and publishes the message
 // with the configured QoS level and retention settings.
 //
@@ -179,13 +199,29 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // connection. Sends that reuse the connection apply only their message settings
 // (Topic, QoS, Retained).
 //
+// ctx bounds the wait for the connection and the publish. A context without a
+// deadline is bounded by the budget that [Service.ServiceTimeout] reports. The
+// connection itself outlives the send, so it is not bound by ctx.
+//
 // Parameters:
+//   - ctx: cancellation and deadline for the send.
 //   - message: The notification message to publish to the topic
 //   - params: Optional runtime parameters to override config settings
 //
 // Returns an error if connection fails or publishing encounters an error.
-func (s *Service) Send(message string, params *types.Params) error {
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
+
+	deprecatedFields, err := format.SyncDeprecatedFields(&config)
+	if err != nil {
+		return fmt.Errorf("syncing deprecated config fields: %w", err)
+	}
+
+	s.warnings.DeprecatedFields(s, deprecatedFields)
+	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(params))
 
 	// Apply any runtime parameter overrides to this send's configuration
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
@@ -201,18 +237,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 		)
 	}
 
-	manager, sends, err := s.acquireConnection(&config)
+	manager, sends, err := s.acquireConnection(&config) //nolint:contextcheck // The connection outlives the send.
 	if err != nil {
 		return fmt.Errorf("initializing MQTT client: %w", err)
 	}
-	defer s.releaseConnection(sends)
-
-	// Create a context with timeout for the publish operation
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		publishTimeout*time.Second,
-	)
-	defer cancel()
+	defer s.releaseConnection(sends) //nolint:contextcheck // An idle teardown runs after the send, with its own timeout.
 
 	// Wait for connection to be established
 	if err := manager.AwaitConnection(ctx); err != nil {
@@ -421,31 +450,24 @@ func (s *Service) closeOwnedConnection() {
 	}
 }
 
-// createTLSConfig builds a TLS configuration based on config.
-// It enforces TLS 1.2 as the minimum version and optionally skips certificate
-// verification when DisableTLSVerification is set (useful for testing or
-// self-signed certificates).
+// createTLSConfig builds the TLS settings of a connection from the shared
+// helpers, which require TLS 1.2 or later. It skips certificate verification
+// when SkipTLSVerify is set, such as for a self-signed certificate, and warns
+// about it once. The dial fills in the server name from the broker URL.
 //
 // Parameters:
 //   - config: the configuration of the connection being opened.
 //
-// Returns a *tls.Config ready for use with the MQTT client.
+// Returns:
+//   - *tls.Config: new settings for the connection.
 func (s *Service) createTLSConfig(config *Config) *tls.Config {
-	// Start with a base config requiring TLS 1.2 or higher
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
+	if config.SkipTLSVerify {
+		s.warnings.Insecure(s)
+
+		return transport.InsecureTLSConfig("")
 	}
 
-	// Skip certificate verification if explicitly disabled
-	// Warning: This makes the connection vulnerable to man-in-the-middle attacks
-	if config.DisableTLSVerification {
-		tlsConfig.InsecureSkipVerify = true
-
-		// Log a warning about the security implications
-		s.Log("Warning: TLS verification is disabled, making connections insecure")
-	}
-
-	return tlsConfig
+	return transport.TLSConfig("")
 }
 
 // detachConnectionLocked clears the connection state and stops the idle timer.
@@ -521,17 +543,26 @@ func (s *Service) openConnectionLocked(config *Config) error {
 		port = defaultPort
 	}
 
-	// Handle scheme/port mismatches with warnings (but don't change the scheme)
+	// Handle scheme/port mismatches with warnings (but don't change the scheme).
+	// Each is logged once, since reconnecting after an idle teardown opens the
+	// connection again.
 	if scheme == SchemeTLS && !config.DisableTLS && port == DefaultPort {
 		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
-		s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
+		s.warnings.Do("mqtts-port", func() {
+			s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
+		})
 	} else if scheme == Scheme && port == DefaultTLSPort {
 		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
-		s.Logf("Warning: Using MQTT scheme with TLS port %d; TLS will not be used", port)
+		s.warnings.Do("mqtt-port", func() {
+			s.Logf("Warning: Using MQTT scheme with TLS port %d; TLS will not be used", port)
+		})
 	}
 
 	// Enable TLS when using secure scheme and TLS is not disabled
 	useTLS := scheme == SchemeTLS && !config.DisableTLS
+	if !useTLS {
+		s.warnings.Plaintext(s)
+	}
 
 	// Build the broker URL
 	brokerURL := (&url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, strconv.Itoa(port))}).String()

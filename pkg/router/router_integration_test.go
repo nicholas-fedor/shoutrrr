@@ -432,9 +432,7 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	}, checkStandardKeyNames: {
-		"bark":  {"Bark selects HTTP through a scheme key", failNonStandardKey},
-		"mqtt":  {"MQTT names the verification option disabletlsverification", failNonStandardKey},
-		"mqtts": {"MQTT names the verification option disabletlsverification", failNonStandardKey},
+		"bark": {"Bark selects HTTP through a scheme key", failNonStandardKey},
 	},
 	checkKeyDescriptions: {
 		"discord":    {"Discord's title key has no description", failMissingDescription},
@@ -465,8 +463,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"homeassistant": {"Home Assistant logs no warning when TLS is disabled", failWarningCount},
 		"matrix":        {"Matrix logs no warning when TLS is disabled", failWarningCount},
 		"mattermost":    {"Mattermost logs no warning when TLS is disabled", failWarningCount},
-		"mqtt":          {"MQTT logs no warning when TLS is disabled", failWarningCount},
-		"mqtts":         {"MQTT logs no warning when TLS is disabled", failWarningCount},
 		"signal":        {"Signal logs no warning when TLS is disabled", failWarningCount},
 		"xmpp":          {"XMPP logs no warning when TLS is disabled", failWarningCount},
 	},

@@ -1,10 +1,14 @@
 package mqtt
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"log"
 	"net/url"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -44,6 +48,9 @@ type fakeConnector struct {
 	connections []*fakeConnection
 	// gateFirst, when set, becomes the publish gate of the first connection.
 	gateFirst chan struct{}
+	// tlsConfigs holds the TLS settings of each connection, nil for one
+	// without TLS.
+	tlsConfigs []*tls.Config
 }
 
 // lifecycleURL is a broker URL for the lifecycle tests.
@@ -52,10 +59,10 @@ const lifecycleURL = "mqtt://broker.example.invalid/test/topic"
 // errConnectionEnded is returned by a fake connection used after it ended.
 var errConnectionEnded = errors.New("connection ended")
 
-// TestConnectionOutlivesPublishTimeout verifies that a connection the service
-// creates is not bounded by the publish timeout, so a send more than 10 seconds
+// TestConnectionOutlivesSendBudget verifies that a connection the service
+// creates is not bounded by a send's budget, so a send more than 10 seconds
 // after the first one reuses the same live connection.
-func TestConnectionOutlivesPublishTimeout(t *testing.T) {
+func TestConnectionOutlivesSendBudget(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -64,7 +71,7 @@ func TestConnectionOutlivesPublishTimeout(t *testing.T) {
 
 		require.NoError(t, service.Send("first", nil))
 
-		time.Sleep(publishTimeout*time.Second + time.Second)
+		time.Sleep(types.DefaultSendTimeout + time.Second)
 
 		require.NoError(t, service.Send("second", nil))
 
@@ -249,6 +256,264 @@ func TestSendParamsDoNotChangeConfig(t *testing.T) {
 	})
 }
 
+// TestSendContextCancel verifies that canceling the caller's context ends a
+// publish the broker does not answer.
+func TestSendContextCancel(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		connector := &fakeConnector{gateFirst: make(chan struct{})}
+		service := newLifecycleService(t, connector)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		time.AfterFunc(time.Second, cancel)
+
+		start := time.Now()
+		err := service.SendContext(ctx, "held", nil)
+
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Equal(t, time.Second, time.Since(start))
+	})
+}
+
+// TestSendBudget verifies that a send without a deadline gives up on a publish
+// the broker does not answer after MQTT's send budget.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		connector := &fakeConnector{gateFirst: make(chan struct{})}
+		service := newLifecycleService(t, connector)
+
+		start := time.Now()
+		err := service.Send("held", nil)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, service.ServiceTimeout(nil), time.Since(start))
+	})
+}
+
+// TestSendWarnings verifies that each warning about a connection's settings
+// is logged once per service instance, even when an idle teardown makes a
+// later send open the connection again.
+func TestSendWarnings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		setup  func(service *Service)
+		params *types.Params
+		name   string
+		rawURL string
+		want   []string
+	}{
+		{
+			name:   "plain mqtt",
+			rawURL: "mqtt://broker.example.invalid/t",
+			want:   []string{"Warning: sending without TLS"},
+		},
+		{
+			name:   "TLS disabled",
+			rawURL: "mqtts://broker.example.invalid/t?disabletls=yes",
+			want:   []string{"Warning: sending without TLS"},
+		},
+		{name: "TLS", rawURL: "mqtts://broker.example.invalid/t"},
+		{
+			name:   "verification skipped",
+			rawURL: "mqtts://broker.example.invalid/t?skiptlsverify=yes",
+			want:   []string{"Warning: skipping TLS certificate verification"},
+		},
+		{
+			name:   "deprecated verification key in params",
+			rawURL: "mqtts://broker.example.invalid/t",
+			params: &types.Params{"disabletlsverification": "yes"},
+			want: []string{
+				`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
+				"Warning: skipping TLS certificate verification",
+			},
+		},
+		{
+			name:   "deprecated verification field",
+			rawURL: "mqtts://broker.example.invalid/t",
+			setup:  func(service *Service) { service.Config.DisableTLSVerification = true },
+			want: []string{
+				"Warning: config field DisableTLSVerification is deprecated, use SkipTLSVerify instead",
+				"Warning: skipping TLS certificate verification",
+			},
+		},
+		{
+			name:   "mqtt scheme on the TLS port",
+			rawURL: "mqtt://broker.example.invalid:8883/t",
+			want: []string{
+				"Warning: Using MQTT scheme with TLS port 8883; TLS will not be used",
+				"Warning: sending without TLS",
+			},
+		},
+		{
+			name:   "mqtts scheme on the plain port",
+			rawURL: "mqtts://broker.example.invalid:1883/t",
+			want:   []string{"Warning: Using MQTTS scheme with non-TLS port 1883; TLS will be attempted"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var logs bytes.Buffer
+
+				serviceURL, err := url.Parse(tt.rawURL)
+				require.NoError(t, err)
+
+				service := &Service{}
+				require.NoError(t, service.Initialize(serviceURL, log.New(&logs, "", 0)))
+
+				connector := &fakeConnector{}
+				service.connect = connector.connect
+
+				t.Cleanup(func() { _ = service.Close() })
+
+				if tt.setup != nil {
+					tt.setup(service)
+				}
+
+				require.NoError(t, service.Send("first", tt.params))
+				require.NoError(t, service.Send("second", tt.params))
+
+				time.Sleep(idleTimeout + time.Second)
+
+				require.NoError(t, service.Send("after reconnect", tt.params))
+				require.Len(t, connector.created(), 2)
+				assert.Equal(t, tt.want, warningLines(logs.String()))
+			})
+		})
+	}
+}
+
+// TestInitializeWarnings verifies that Initialize warns about a deprecated
+// key in the URL, and that initializing the service again lets each warning
+// appear again.
+func TestInitializeWarnings(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+
+		serviceURL, err := url.Parse("mqtt://broker.example.invalid/t?disabletlsverification=no")
+		require.NoError(t, err)
+
+		service := &Service{}
+		connector := &fakeConnector{}
+
+		t.Cleanup(func() { _ = service.Close() })
+
+		for range 2 {
+			require.NoError(t, service.Initialize(serviceURL, log.New(&logs, "", 0)))
+			service.connect = connector.connect
+
+			require.NoError(t, service.Send("hello", nil))
+		}
+
+		warnings := []string{
+			`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
+			"Warning: sending without TLS",
+		}
+		assert.Equal(t, slices.Concat(warnings, warnings), warningLines(logs.String()))
+	})
+}
+
+// TestSendTLSSettings verifies the TLS settings of the connection a send
+// opens. They require TLS 1.2 and skip verification only when the URL, the
+// params, or the deprecated field ask for it. A connection without TLS has
+// none.
+func TestSendTLSSettings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		setup    func(service *Service)
+		params   *types.Params
+		name     string
+		rawURL   string
+		wantTLS  bool
+		wantSkip bool
+	}{
+		{name: "plain", rawURL: "mqtt://broker.example.invalid/t"},
+		{name: "TLS disabled", rawURL: "mqtts://broker.example.invalid/t?disabletls=yes"},
+		{name: "verified", rawURL: "mqtts://broker.example.invalid/t", wantTLS: true},
+		{name: "skipped in the URL", rawURL: "mqtts://broker.example.invalid/t?skiptlsverify=yes", wantTLS: true, wantSkip: true},
+		{
+			name:     "skipped in params",
+			rawURL:   "mqtts://broker.example.invalid/t",
+			params:   &types.Params{"skiptlsverify": "yes"},
+			wantTLS:  true,
+			wantSkip: true,
+		},
+		{
+			name:     "skipped through the deprecated field",
+			rawURL:   "mqtts://broker.example.invalid/t",
+			setup:    func(service *Service) { service.Config.DisableTLSVerification = true },
+			wantTLS:  true,
+			wantSkip: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				serviceURL, err := url.Parse(tt.rawURL)
+				require.NoError(t, err)
+
+				service := &Service{}
+				require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+				connector := &fakeConnector{}
+				service.connect = connector.connect
+
+				t.Cleanup(func() { _ = service.Close() })
+
+				if tt.setup != nil {
+					tt.setup(service)
+				}
+
+				require.NoError(t, service.Send("hello", tt.params))
+				require.Len(t, connector.tlsConfigs, 1)
+
+				tlsConfig := connector.tlsConfigs[0]
+				if !tt.wantTLS {
+					assert.Nil(t, tlsConfig)
+
+					return
+				}
+
+				require.NotNil(t, tlsConfig)
+				assert.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+				assert.Equal(t, tt.wantSkip, tlsConfig.InsecureSkipVerify)
+			})
+		})
+	}
+}
+
+// warningLines returns the logged lines that are warnings.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "Warning: ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
+}
+
 // newLifecycleService initializes a service that creates its connections with
 // connector, and closes it when the test ends.
 //
@@ -346,10 +611,12 @@ func (f *fakeConnection) ended() bool {
 }
 
 // connect creates a fake connection bound to ctx.
-func (c *fakeConnector) connect(ctx context.Context, _ *autopaho.ClientConfig) (ConnectionManager, error) {
+func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig) (ConnectionManager, error) {
 	connection := newFakeConnection(ctx)
 
 	c.mu.Lock()
+	c.tlsConfigs = append(c.tlsConfigs, cfg.TlsCfg)
+
 	if len(c.connections) == 0 {
 		connection.gate = c.gateFirst
 	}

@@ -169,7 +169,7 @@ func addCredentialsToURL(envURL string) string {
 	return newURL
 }
 
-// addTLSParam adds the disabletlsverification parameter to a URL when
+// addTLSParam adds the skiptlsverify parameter to a URL when
 // SHOUTRRR_MQTT_TLS_SKIP_VERIFY is set.
 //
 // Parameters:
@@ -179,7 +179,7 @@ func addCredentialsToURL(envURL string) string {
 //   - string: the URL, with the parameter when verification is skipped.
 func addTLSParam(rawURL string) string {
 	if os.Getenv("SHOUTRRR_MQTT_TLS_SKIP_VERIFY") == envValueTrue {
-		return appendQuery(rawURL, "disabletlsverification=yes")
+		return appendQuery(rawURL, "skiptlsverify=yes")
 	}
 
 	return rawURL

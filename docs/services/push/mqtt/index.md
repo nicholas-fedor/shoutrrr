@@ -49,13 +49,19 @@ The MQTT service supports two URL schemes for connection security:
 
     - __`disabletls`__: When set to `yes`, forces an **unencrypted connection** even if the `mqtts://` scheme is used. This overrides the scheme's implicit TLS requirement.
 
-    - __`disabletlsverification`__: When set to `yes`, disables TLS certificate verification while still using encryption. This is useful for self-signed certificates.
+    - __`skiptlsverify`__: When set to `yes`, skips TLS certificate verification while still using encryption. This is useful for self-signed certificates.
+
+    Shoutrrr logs a warning the first time it connects without TLS or without verifying the certificate.
 
 !!! Danger "Security Warning: Silent TLS Downgrade"
 
     Setting __`disabletls=yes`__ with `mqtts://` will force an unencrypted connection despite the secure scheme. This is **likely unexpected behavior** and can cause silent downgrades where you believe traffic is encrypted but it is not.
 
     **Recommendation**: If you intentionally want an unencrypted connection, use `mqtt://` (non-TLS scheme) instead of combining `mqtts://` with `disabletls=yes`.
+
+!!! Warning "Deprecated"
+    The `disabletlsverification` parameter is deprecated in favor of `skiptlsverify`.
+    It still works and logs a warning the first time it is used, and `skiptlsverify` takes precedence when both are set. In Go, the `Config.DisableTLSVerification` field is likewise deprecated in favor of `Config.SkipTLSVerify`.
 
 !!! Tip "When to Use `disabletls=yes`"
 
@@ -83,7 +89,7 @@ If opening the connection fails, the error is returned to the caller and the nex
 
 ### Send Params
 
-Params apply to a single send and do not change the service configuration. The `qos` and `retained` params affect every send that uses them. The connection params (`clientid`, `cleansession`, `disabletls`, and `disabletlsverification`) apply when that send opens the connection, and are ignored while an existing connection is reused.
+Params apply to a single send and do not change the service configuration. The `qos` and `retained` params affect every send that uses them. The connection params (`clientid`, `cleansession`, `disabletls`, and `skiptlsverify`) apply when that send opens the connection, and are ignored while an existing connection is reused.
 
 ```go title="Example Send Params"
 // Publish this message as retained with QoS 1, without changing later sends
@@ -128,7 +134,7 @@ service.Send(message, &params)
 
 !!! Example "Self-signed Certificate"
     ```uri
-    mqtts://broker.local:8883/secure/alerts?disabletlsverification=yes
+    mqtts://broker.local:8883/secure/alerts?skiptlsverify=yes
     ```
 
 !!! Example "Full Configuration"

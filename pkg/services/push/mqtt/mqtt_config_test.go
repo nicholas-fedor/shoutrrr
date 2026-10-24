@@ -50,17 +50,17 @@ func TestConfigGetURL(t *testing.T) {
 		t.Parallel()
 
 		config := &Config{
-			Host:                   "broker.example.com",
-			Port:                   1883,
-			Topic:                  "notifications/alerts",
-			Username:               "testuser",
-			Password:               "testpass",
-			ClientID:               "shoutrrr-client",
-			QoS:                    QoSAtLeastOnce,
-			Retained:               true,
-			CleanSession:           false,
-			DisableTLS:             true,
-			DisableTLSVerification: true,
+			Host:          "broker.example.com",
+			Port:          1883,
+			Topic:         "notifications/alerts",
+			Username:      "testuser",
+			Password:      "testpass",
+			ClientID:      "shoutrrr-client",
+			QoS:           QoSAtLeastOnce,
+			Retained:      true,
+			CleanSession:  false,
+			DisableTLS:    true,
+			SkipTLSVerify: true,
 		}
 
 		result := config.GetURL()
@@ -77,13 +77,24 @@ func TestConfigGetURL(t *testing.T) {
 		assert.Equal(t, "testpass", password)
 
 		assert.Equal(t, url.Values{
-			"clientid":               {"shoutrrr-client"},
-			"qos":                    {"AtLeastOnce"},
-			"retained":               {"Yes"},
-			"cleansession":           {"No"},
-			"disabletls":             {"Yes"},
-			"disabletlsverification": {"Yes"},
+			"clientid":      {"shoutrrr-client"},
+			"qos":           {"AtLeastOnce"},
+			"retained":      {"Yes"},
+			"cleansession":  {"No"},
+			"disabletls":    {"Yes"},
+			"skiptlsverify": {"Yes"},
 		}, result.Query())
+	})
+
+	t.Run("deprecated verification field", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{
+			Host: "broker.example.com", Port: 8883, Topic: "t", ClientID: "shoutrrr", CleanSession: true, DisableTLSVerification: true,
+		}
+
+		assert.Equal(t, url.Values{"skiptlsverify": {"Yes"}}, config.GetURL().Query())
+		assert.False(t, config.SkipTLSVerify, "GetURL must not change the config")
 	})
 
 	t.Run("no credentials", func(t *testing.T) {
@@ -181,12 +192,17 @@ func TestConfigSetURL(t *testing.T) {
 	}{
 		{
 			name:   "every component",
-			rawURL: "mqtt://testuser:testpass@broker.example.com:1883/notifications/alerts?clientid=myclient&qos=1&retained=yes&cleansession=no&disabletls=yes&disabletlsverification=yes",
+			rawURL: "mqtt://testuser:testpass@broker.example.com:1883/notifications/alerts?clientid=myclient&qos=1&retained=yes&cleansession=no&disabletls=yes&skiptlsverify=yes",
 			want: Config{
 				Host: "broker.example.com", Port: 1883, Topic: "notifications/alerts",
 				Username: "testuser", Password: "testpass", ClientID: "myclient", QoS: QoSAtLeastOnce,
-				Retained: true, CleanSession: false, DisableTLS: true, DisableTLSVerification: true,
+				Retained: true, CleanSession: false, DisableTLS: true, SkipTLSVerify: true,
 			},
+		},
+		{
+			name:   "deprecated verification key",
+			rawURL: "mqtts://broker.example.com:8883/t?disabletlsverification=yes",
+			want:   Config{Host: "broker.example.com", Port: 8883, Topic: "t", SkipTLSVerify: true},
 		},
 		{
 			name:   "omitted host",
@@ -363,7 +379,7 @@ func TestConfigQueryFieldsAndEnums(t *testing.T) {
 
 	config := &Config{}
 
-	assert.Subset(t, config.QueryFields(), []string{"clientid", "qos", "retained", "cleansession", "disabletls", "disabletlsverification"})
+	assert.Subset(t, config.QueryFields(), []string{"clientid", "qos", "retained", "cleansession", "disabletls", "disabletlsverification", "skiptlsverify"})
 
 	enums := config.Enums()
 	assert.Len(t, enums, 1)
