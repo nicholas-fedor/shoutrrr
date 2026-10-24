@@ -34,6 +34,26 @@
 //   - GetConfigFieldString: Get string representation of a config field
 //   - GetConfigFormat: Get type and field information from a service config
 //
+// # Deprecated Keys and Fields
+//
+// A renamed option keeps working through two struct tags.
+//
+// A `deprecatedkeys` tag on a keyed field lists its old keys, separated by
+// commas. They set the field like its other keys. They are never written to a
+// URL. When a URL or params hold both an old key and a current key, the
+// current key wins. [PropKeyResolver.DeprecatedKeys] reports the old keys a
+// URL used, and [PropKeyResolver.DeprecatedParams] reports those in params, so
+// the service can warn about them.
+//
+// A `deprecated` tag on an old field names the field that replaces it, which
+// must be an exported field of the same type. The docs, the generators, and
+// [MaskedURL] leave the old field out. [SyncDeprecatedFields] copies it into
+// its replacement. A service calls it on the config it sends with, and on a
+// copy of the config in GetURL.
+//
+//	SkipTLSVerify bool `default:"No" deprecatedkeys:"insecureskipverify" key:"skiptlsverify"`
+//	InsecureSkipVerify bool `deprecated:"SkipTLSVerify"`
+//
 // # Format Conversion
 //
 // The package provides conversion between text, markdown, and HTML formats:

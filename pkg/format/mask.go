@@ -46,6 +46,11 @@ func MaskedURL(config types.ServiceConfig) *url.URL {
 	masked := reflect.New(value.Type())
 	masked.Elem().Set(value)
 
+	// Deprecated fields move into their replacements first, so a secret set
+	// through a deprecated field is masked too. A config with invalid
+	// deprecated tags keeps them, and its GetURL cannot read them either.
+	moveDeprecatedFields(masked.Elem())
+
 	fields := getStructFieldInfo(masked.Elem().Type(), nil)
 	for i := range fields {
 		fieldValue := masked.Elem().FieldByName(fields[i].Name)

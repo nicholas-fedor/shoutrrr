@@ -125,3 +125,15 @@ func TestMaskedURL(t *testing.T) {
 
 	assert.Equal(t, "string://host", MaskedURL(stringConfig("host")).String())
 }
+
+// TestMaskedURLDeprecatedFields verifies that a secret set through a
+// deprecated field is masked like one set through its replacement. That holds
+// for a secret that cannot hold [MaskedValue] too. The config is not changed.
+func TestMaskedURLDeprecatedFields(t *testing.T) {
+	t.Parallel()
+
+	config := &deprecatedConfig{Insecure: true, OldToken: "secret", OldPin: 42}
+
+	assert.Equal(t, "deprecated:?skipverify=Yes&token=REDACTED", MaskedURL(config).String())
+	assert.Equal(t, &deprecatedConfig{Insecure: true, OldToken: "secret", OldPin: 42}, config)
+}

@@ -15,8 +15,8 @@ import (
 // fuzzConfig is a service config with a keyed field of each kind a service
 // config can declare, each with a valid default.
 type fuzzConfig struct {
-	// Text is a string with an alias key.
-	Text string `default:"text" key:"text,alias"`
+	// Text is a string with an alias key and a deprecated key.
+	Text string `default:"text" deprecatedkeys:"oldtext" key:"text,alias"`
 	// Number is a decimal int.
 	Number int `default:"0" key:"number"`
 	// Hex is an int written in base 16.
@@ -77,10 +77,11 @@ func (c *fuzzConfig) SetURL(*url.URL) error {
 // FuzzPropKeyResolver checks that a value set through a key reads back in a form
 // that sets the same value again, and that the config survives a round trip
 // through [BuildQuery] and [SetConfigPropsFromQuery] into a config with default
-// values. The fuzzer picks the key by index and supplies its value. The seed
-// corpus covers each field kind with valid values, including hex prefixes,
-// negative numbers, bool spellings, enum names in another case, and separators
-// inside map and slice values, as well as invalid ones.
+// values. The fuzzer picks the key by index and supplies its value, and
+// deprecated keys are among the keys. The seed corpus covers each field kind
+// and a deprecated key with valid values, including hex prefixes, negative
+// numbers, bool spellings, enum names in another case, and separators inside
+// map and slice values, as well as invalid ones.
 func FuzzPropKeyResolver(f *testing.F) {
 	keyResolver := NewPropKeyResolver(&fuzzConfig{})
 	keys := keyResolver.QueryFields()
@@ -91,6 +92,7 @@ func FuzzPropKeyResolver(f *testing.F) {
 	}{
 		{"text", "hello world"},
 		{"alias", "a=b&c"},
+		{"oldtext", "legacy"},
 		{"number", "-42"},
 		{"hex", "#ff"},
 		{"hex", "-1a"},

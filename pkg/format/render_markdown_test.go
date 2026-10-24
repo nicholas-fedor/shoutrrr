@@ -38,6 +38,15 @@ func TestMarkdownTreeRendererRenderTree(t *testing.T) {
 				"* __name__\n  Default: `notempty`\n",
 		},
 		{
+			name:     "deprecated keys and fields",
+			renderer: renderer,
+			config:   &deprecatedConfig{},
+			want: "### URL Fields\n\n### Query/Param Props\n\n" +
+				"* __pin__\n  Default: `0`\n\n" +
+				"* __skipverify__ - Skip verification\n  Default: ❌ `No`\n  Deprecated: `insecure`, `noverify`\n\n" +
+				"* __token__\n  Default: *empty*\n",
+		},
+		{
 			name:     "URL paths in part order",
 			renderer: renderer,
 			config: &struct {

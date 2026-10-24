@@ -116,6 +116,7 @@ nav:
       - Docker: usage/docker/index.md
       - GitHub Action: usage/github-action/index.md
       - Go Package: usage/go-package/index.md
+      - Deprecations: usage/deprecations/index.md
   - Services:
       - Overview: services/overview.md
       - Chat and Messaging Platforms:
