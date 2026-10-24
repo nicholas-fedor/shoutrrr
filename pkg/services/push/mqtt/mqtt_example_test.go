@@ -130,14 +130,14 @@ func ExampleService_withCustomConfig() {
 
 	// Parse the MQTTS URL with various configuration options
 	// - cleansession=no: persist session across connections
-	// - disabletlsverification=yes: skip TLS cert verification
+	// - skiptlsverify=yes: skip TLS cert verification
 	//
-	// WARNING: disabletlsverification=yes bypasses certificate validation and
+	// WARNING: skiptlsverify=yes bypasses certificate validation and
 	// should ONLY be used for testing with self-signed certificates.
 	// NEVER use this option in production environments as it exposes
 	// connections to man-in-the-middle attacks.
 	serviceURL, err := url.Parse(
-		"mqtts://broker.example.com/events?cleansession=no&disabletlsverification=yes",
+		"mqtts://broker.example.com/events?cleansession=no&skiptlsverify=yes",
 	)
 	if err != nil {
 		log.Printf("Failed to parse URL: %v", err)
@@ -154,7 +154,7 @@ func ExampleService_withCustomConfig() {
 	}
 
 	// The service is configured with custom settings including TLS verification bypass
-	// Note: disabletlsverification is only applicable to mqtts:// (TLS) connections
+	// Note: skiptlsverify is only applicable to mqtts:// (TLS) connections
 	fmt.Println("MQTTS service with custom config initialized successfully")
 	// Output: MQTTS service with custom config initialized successfully
 }

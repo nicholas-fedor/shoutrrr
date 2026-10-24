@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -133,9 +134,14 @@ func TestInitialize(t *testing.T) {
 		{name: "username only", rawURL: "mqtt://user@broker.example.com:1883/test/topic", want: with(func(c *Config) { c.Username = "user" })},
 		{name: "TLS disabled", rawURL: "mqtts://broker.example.com:8883/test/topic?disabletls=yes", want: with(func(c *Config) { c.Port, c.DisableTLS = 8883, true })},
 		{
-			name:   "TLS verification disabled",
+			name:   "TLS verification skipped",
+			rawURL: "mqtts://broker.example.com:8883/test/topic?skiptlsverify=yes",
+			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify = 8883, true }),
+		},
+		{
+			name:   "deprecated verification key",
 			rawURL: "mqtts://broker.example.com:8883/test/topic?disabletlsverification=yes",
-			want:   with(func(c *Config) { c.Port, c.DisableTLSVerification = 8883, true }),
+			want:   with(func(c *Config) { c.Port, c.SkipTLSVerify = 8883, true }),
 		},
 		{name: "persistent session", rawURL: "mqtt://broker.example.com:1883/test/topic?cleansession=no", want: with(func(c *Config) { c.CleanSession = false })},
 		{name: "deeply nested topic", rawURL: "mqtt://broker.example.com:1883/l1/l2/l3/l4/l5", want: with(func(c *Config) { c.Topic = "l1/l2/l3/l4/l5" })},
@@ -161,21 +167,28 @@ func TestInitialize(t *testing.T) {
 	}
 }
 
-// TestCreateTLSConfig verifies that the TLS config requires TLS 1.2, verifies
-// certificates unless disabled, and is new on every call.
+// TestCreateTLSConfig verifies that the TLS config requires TLS 1.2 and is
+// new on every call. It verifies certificates unless SkipTLSVerify is set,
+// which logs the shared warning once.
 func TestCreateTLSConfig(t *testing.T) {
 	t.Parallel()
 
-	service := newServiceWithLogger(t)
+	var logs bytes.Buffer
+
+	service := &Service{}
+	service.SetLogger(log.New(&logs, "", 0))
 
 	verified := service.createTLSConfig(&Config{})
 	require.NotNil(t, verified)
 	assert.False(t, verified.InsecureSkipVerify)
 	assert.Equal(t, uint16(tls.VersionTLS12), verified.MinVersion)
 
-	unverified := service.createTLSConfig(&Config{DisableTLSVerification: true})
+	unverified := service.createTLSConfig(&Config{SkipTLSVerify: true})
 	require.NotNil(t, unverified)
 	assert.True(t, unverified.InsecureSkipVerify)
+	assert.Equal(t, uint16(tls.VersionTLS12), unverified.MinVersion)
+	service.createTLSConfig(&Config{SkipTLSVerify: true})
+	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
 
 	assert.NotSame(t, verified, service.createTLSConfig(&Config{}))
 }

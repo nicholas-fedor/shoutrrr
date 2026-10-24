@@ -73,12 +73,18 @@ type Config struct {
 	// Default: false (TLS enabled)
 	DisableTLS bool `default:"no" desc:"Disable TLS encryption" key:"disabletls"`
 
-	// DisableTLSVerification skips TLS certificate validation.
+	// SkipTLSVerify skips TLS certificate validation.
 	// When true, the client accepts any certificate from the broker.
 	// WARNING: This makes the connection vulnerable to man-in-the-middle attacks.
 	// Only use for testing or with self-signed certificates in trusted environments.
 	// Default: false (verification enabled)
-	DisableTLSVerification bool `default:"no" desc:"Disable TLS certificate verification" key:"disabletlsverification"`
+	SkipTLSVerify bool `default:"no" deprecatedkeys:"disabletlsverification" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
+
+	// DisableTLSVerification is the old name of SkipTLSVerify. When
+	// SkipTLSVerify is off, setting it skips verification too.
+	//
+	// Deprecated: Use [Config.SkipTLSVerify], which the skiptlsverify key sets.
+	DisableTLSVerification bool `deprecated:"SkipTLSVerify"`
 }
 
 // QoS represents the Quality of Service (QoS) level for MQTT message delivery.
@@ -173,15 +179,20 @@ func (c *Config) Enums() map[string]types.EnumFormatter {
 
 // GetURL constructs a configuration URL from the current config settings.
 // The URL contains all configuration values and can be used to recreate
-// an identical service configuration.
+// an identical service configuration. A value set through a deprecated field
+// is written under its replacement's key.
 //
 // Returns:
 //   - *url.URL: the URL in the format mqtt://[user][:pass]@host:port/topic?options.
 func (c *Config) GetURL() *url.URL {
-	// Create a new property key resolver for building the query string
-	resolver := format.NewPropKeyResolver(c)
+	synced := *c
 
-	return c.getURL(&resolver)
+	_, _ = format.SyncDeprecatedFields(&synced) //nolint:errcheck // The tags are valid, and a failed sync changes nothing.
+
+	// Create a new property key resolver for building the query string
+	resolver := format.NewPropKeyResolver(&synced)
+
+	return synced.getURL(&resolver)
 }
 
 // QueryFields returns a list of all configurable query parameter names.
