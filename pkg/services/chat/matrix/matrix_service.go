@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -21,6 +22,8 @@ type Service struct {
 	// httpClient holds the injected HTTP client and the default client, which
 	// the API client sends through.
 	httpClient httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the homeserver, the credentials, and the rooms.
 	Config *Config
@@ -80,7 +83,7 @@ func (s *Service) GetID() string {
 //     or [ErrMissingHost].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.httpClient.SetDefault(defaultHTTPTimeout, nil)
+	s.warnings.Reset()
 	s.Config = &Config{
 		EnumlessConfig: standard.EnumlessConfig{},
 		User:           "",
@@ -115,7 +118,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	return nil
 }
 
-// Send delivers a notification message to Matrix rooms without a deadline of its own.
+// Send delivers a notification message to Matrix rooms.
 //
 // Parameters:
 //   - message: the message to send.
@@ -128,7 +131,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Matrix rooms. The router calls it
-// with its send deadline. The first send logs in when a user is configured.
+// with its send deadline, and a context without a deadline is bounded by the
+// budget that [Service.ServiceTimeout] reports. The first send logs in when a
+// user is configured, and the first send without TLS logs a warning.
 //
 // Parameters:
 //   - ctx: bounds the login and the room requests.
@@ -140,6 +145,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.client == nil {
 		return ErrClientNotInitialized
+	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
+	// The API client keeps the protocol of the service URL, so the stored
+	// setting decides it, and an injected client is warned about too.
+	if s.Config.DisableTLS {
+		s.warnings.Plaintext(s)
 	}
 
 	if err := s.ensureLogin(ctx); err != nil {
@@ -189,8 +203,8 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.SendContext(ctx, message, params)
 }
 
-// ServiceTimeout reports the send budget the router gives Matrix. A send makes
-// sequential requests, each bounded by the client's request timeout: two for the
+// ServiceTimeout reports the send budget of Matrix. A send makes sequential
+// requests, and the budget allows [defaultHTTPTimeout] for each: two for the
 // password login when a user is configured, then a join and a message for each
 // configured room. Without configured rooms, the send looks up the joined rooms
 // and is budgeted for one message, so sends to many joined rooms need configured
@@ -200,7 +214,7 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 //   - params: per-send parameters, which may set the rooms.
 //
 // Returns:
-//   - time.Duration: the request timeout multiplied by the number of requests.
+//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of requests.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultHTTPTimeout * minRequestsPerSend

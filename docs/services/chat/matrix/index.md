@@ -14,7 +14,7 @@ Matrix is an open protocol for real-time communication. It is designed to allow 
 ## URL Format
 
 !!! Info ""
-    matrix://[__`user`__:__`password`__@]__`host`__[:__`port`__]/[?rooms=__`!roomID1`__[,__`roomAlias2`__]][&disableTLS=yes]
+    matrix://[__`user`__:__`password`__@]__`host`__[:__`port`__]/[?rooms=__`!roomID1`__[,__`roomAlias2`__]][&disabletls=yes]
 
 If the port is omitted, the default port 443 (HTTPS) is used.
 
@@ -114,8 +114,9 @@ You can use either `rooms` (for multiple rooms) or `room` (for a single room) - 
 
 ## TLS
 
-If you do not have TLS enabled on the server you can disable it by providing `disableTLS=yes`.
+If you do not have TLS enabled on the server you can disable it by providing `disabletls=yes`.
 This will effectively use `http` instead of `https` for the API calls.
+The first send without TLS logs a warning.
 
 !!! Warning "Security Risk"
     Disabling TLS exposes your credentials and messages in plain text over the network.
@@ -150,5 +151,5 @@ This will effectively use `http` instead of `https` for the API calls.
 
 !!! Example "Without TLS (Not Recommended)"
     ```uri
-    matrix://user:token@matrix.example.com?disableTLS=yes&rooms=!roomID:matrix.example.com
+    matrix://user:token@matrix.example.com?disabletls=yes&rooms=!roomID:matrix.example.com
     ```

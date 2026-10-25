@@ -138,7 +138,7 @@ func TestInitialize(t *testing.T) {
 
 	client, ok := service.client.Client().(*http.Client)
 	require.True(t, ok, "the default client should be an *http.Client")
-	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+	assert.Zero(t, client.Timeout, "the send budget bounds each send")
 }
 
 // TestInitializeErrors verifies that a token with a part that is too short or
@@ -272,7 +272,7 @@ func TestSendWebhookErrors(t *testing.T) {
 }
 
 // TestSendWebhookTimeout verifies that a webhook request that never answers
-// ends after [defaultHTTPTimeout].
+// ends when the send budget runs out.
 func TestSendWebhookTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +290,7 @@ func TestSendWebhookTimeout(t *testing.T) {
 		err := service.Send("Message", nil)
 
 		require.ErrorIs(t, err, context.DeadlineExceeded)
-		assert.Equal(t, defaultHTTPTimeout, time.Since(start))
+		assert.Equal(t, service.ServiceTimeout(nil), time.Since(start))
 	})
 }
 

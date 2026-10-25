@@ -32,7 +32,7 @@ type Config struct {
 	// Token is the incoming webhook token. It is the first path segment.
 	Token string `desc:"Webhook token" sensitive:"true" url:"path1"`
 	// DisableTLS sends the webhook request over HTTP instead of HTTPS.
-	DisableTLS bool `default:"No" key:"disabletls"`
+	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

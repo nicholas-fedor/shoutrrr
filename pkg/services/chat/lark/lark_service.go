@@ -44,8 +44,7 @@ const (
 	apiFormat = "https://%s/open-apis/bot/v2/hook/%s"
 	// maxLength is the most bytes a message can hold.
 	maxLength = 4096
-	// defaultTime bounds each request of the default client and is the send
-	// budget the router gives Lark.
+	// defaultTime is the send budget of Lark.
 	defaultTime = 30 * time.Second
 )
 
@@ -104,7 +103,6 @@ func (s *Service) GetID() string {
 //     [ErrNoPath].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultTime, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -125,7 +123,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Lark.
+// SendContext delivers a notification message to Lark. A context without a
+// deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -139,6 +138,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if len(message) > maxLength {
 		return ErrLargeMessage
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
@@ -156,7 +158,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return s.doSend(ctx, &config, message, params)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Lark send.
+// ServiceTimeout reports the send budget of Lark.
 //
 // Returns:
 //   - time.Duration: [defaultTime], whatever the params.

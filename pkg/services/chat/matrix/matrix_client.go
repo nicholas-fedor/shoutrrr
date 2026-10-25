@@ -45,13 +45,15 @@ type client struct {
 	apiURL url.URL
 }
 
-// DefaultHTTPClient is the default implementation using http.DefaultClient with timeout.
+// DefaultHTTPClient is an HTTP client whose requests time out after
+// [defaultHTTPTimeout]. The zero value is ready to use.
 //
 // Deprecated: The service builds its own default client and redacts the
 // errors of every client. Inject an *http.Client with [Service.SetHTTPClient]
 // instead.
 type DefaultHTTPClient struct {
-	// client sends the requests.
+	// client sends the requests, or is nil to send through a new client with
+	// [defaultHTTPTimeout] as its timeout.
 	client *http.Client
 }
 
@@ -72,7 +74,8 @@ const (
 	// httpClientErrorStatus is the HTTP status code threshold for client errors.
 	httpClientErrorStatus = 400
 
-	// defaultHTTPTimeout is the timeout for HTTP requests.
+	// defaultHTTPTimeout is the part of the send budget for each request, and
+	// the timeout of [DefaultHTTPClient].
 	defaultHTTPTimeout = 10 * time.Second
 
 	// transactionIDRandLen is the length of random bytes in transaction ID.
@@ -118,7 +121,12 @@ const (
 //   - *http.Response: the response.
 //   - error: the client's error, with its URL redacted.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+	client := &http.Client{Timeout: defaultHTTPTimeout}
+	if c != nil && c.client != nil {
+		client = c.client
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("performing HTTP request: %w", redact.URLError(err))
 	}
@@ -161,7 +169,7 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 // apiGet performs a GET request to the Matrix API with the provided context.
 //
 // Parameters:
-//   - ctx: cancellation for the request, further bounded by the client's timeout.
+//   - ctx: cancellation and deadline for the request.
 //   - path: the API path to request.
 //   - response: the value the JSON response is decoded into.
 //
@@ -171,14 +179,8 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 //     Reading stops at [httpbody.MaxSize]. An error status is reported from the
 //     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) apiGet(ctx context.Context, path string, response any) error {
-	reqCtx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
-		reqCtx,
+		ctx,
 		http.MethodGet,
 		c.buildURL(path),
 		http.NoBody,
@@ -288,11 +290,8 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 		return fmt.Errorf("marshaling %s request: %w", method, err)
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
-		reqCtx,
+		ctx,
 		method,
 		c.buildURL(path),
 		bytes.NewReader(body),

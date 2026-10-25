@@ -26,12 +26,12 @@ type Config struct {
 	// Host is the homeserver host, with an optional port.
 	Host string `url:"host"`
 	// Title is prepended to the message, followed by a blank line.
-	Title string `default:"" key:"title"`
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
 	// Rooms lists the room aliases, or room IDs starting with !, to send to.
 	// Without rooms the message goes to every joined room.
 	Rooms []string `desc:"Room aliases, or with ! prefix, room IDs" key:"rooms,room" optional:""`
 	// DisableTLS connects to the homeserver over HTTP instead of HTTPS.
-	DisableTLS bool `default:"No" key:"disableTLS"`
+	DisableTLS bool `default:"No" desc:"Connect over HTTP instead of HTTPS" key:"disabletls"`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -87,7 +87,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Skip credential validation and query parameter parsing for dummy URLs
-	// used in docs generation. Query params (rooms, title, disableTLS) are
+	// used in docs generation. Query params (rooms, title, disabletls) are
 	// intentionally ignored for dummy.com to avoid validation errors.
 	if serviceURL.Hostname() == "dummy.com" {
 		c.User = serviceURL.User.Username()

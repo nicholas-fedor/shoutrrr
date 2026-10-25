@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -339,9 +341,85 @@ func TestServiceTimeout(t *testing.T) {
 	}
 }
 
-// TestDefaultHTTPClient verifies that the default client has the request
-// timeout and sends through http.DefaultTransport, so it honors the proxy
-// environment variables.
+// TestSendBudget verifies that every request of a send, the login flows
+// lookup, the login, and the message, carries the budget that ServiceTimeout
+// reports when the caller sets no deadline, and the caller's deadline
+// otherwise.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the caller deadlines, or zero for none, with the request
+	// deadline to expect, measured from the start of the send.
+	tests := []struct {
+		name           string
+		callerDeadline time.Duration
+	}{
+		{name: "no caller deadline"},
+		{name: "caller deadline", callerDeadline: time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var deadlines []time.Time
+
+				server := &fakeHomeserver{}
+				httpClient := mocks.NewMockHTTPClient(t)
+				httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+					deadline, _ := req.Context().Deadline()
+					deadlines = append(deadlines, deadline)
+
+					return server.Do(req)
+				})
+
+				service := &Service{}
+				service.SetHTTPClient(httpClient)
+				require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+				ctx := t.Context()
+				want := time.Now().Add(service.ServiceTimeout(nil))
+
+				if tt.callerDeadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tt.callerDeadline)
+					defer cancel()
+
+					want = time.Now().Add(tt.callerDeadline)
+				}
+
+				require.NoError(t, service.SendContext(ctx, "message", nil))
+				assert.Equal(t, []time.Time{want, want, want}, deadlines)
+			})
+		})
+	}
+}
+
+// TestSendWarnsPlaintext verifies that sends without TLS log the plaintext
+// warning once, and again after the service is initialized again.
+func TestSendWarnsPlaintext(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL+"&disabletls=yes"), log.New(&logs, "", 0)))
+
+	require.NoError(t, service.Send("first", nil))
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, 1, strings.Count(logs.String(), "Warning: sending without TLS"))
+
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL+"&disabletls=yes"), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("third", nil))
+	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
+}
+
+// TestDefaultHTTPClient verifies that the default client has no request
+// timeout, since the send budget bounds each send, and sends through
+// http.DefaultTransport, so it honors the proxy environment variables.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -350,6 +428,6 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	httpClient, ok := service.httpClient.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
 	assert.Nil(t, httpClient.Transport)
 }
