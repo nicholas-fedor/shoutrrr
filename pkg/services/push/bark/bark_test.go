@@ -403,9 +403,9 @@ func TestSendItems(t *testing.T) {
 // TestSendServerErrors verifies how a send reports a response the Bark server
 // rejects. The server's message comes back as an *APIResponse, and a response
 // without a message as ErrUnexpectedStatus. An error status whose body is not
-// JSON gives ErrUnexpectedStatus with the HTTP status, a success status with
-// such a body gives a decoding error, and a body over [httpbody.MaxSize] gives
-// [httpbody.ErrTooLarge].
+// JSON, or whose JSON body reports success, gives ErrUnexpectedStatus with the
+// HTTP status. A success status with a body that is not JSON gives a decoding
+// error, and a body over [httpbody.MaxSize] gives [httpbody.ErrTooLarge].
 func TestSendServerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -442,6 +442,19 @@ func TestSendServerErrors(t *testing.T) {
 
 		service := newTestService(t, "bark://:devicekey@hostname")
 		client, _ := newRespondingClient(t, http.StatusBadGateway, "<html>Bad Gateway</html>")
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "502")
+	})
+
+	t.Run("error status with a JSON body that reports success", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusBadGateway, successBody)
 		service.SetHTTPClient(client)
 
 		err := service.Send("Message", nil)
