@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bring Discord and Zulip under the service rules by @nicholas-fedor in [#1851](https://github.com/nicholas-fedor/shoutrrr/pull/1851)
 - Bring SMTP and XMPP under the service rules by @nicholas-fedor in [#1843](https://github.com/nicholas-fedor/shoutrrr/pull/1843)
 - Bring Signal and Home Assistant under the service rules by @nicholas-fedor in [#1841](https://github.com/nicholas-fedor/shoutrrr/pull/1841)
 - Add SendContext and follow the service rules by @nicholas-fedor in [#1837](https://github.com/nicholas-fedor/shoutrrr/pull/1837)
