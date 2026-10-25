@@ -233,9 +233,10 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 }
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed naming
-// the event for an error status or a transport error, stops at the first
-// failing event, rejects an invalid param before any request, and stops when
-// the caller's context is canceled.
+// the event for an error status or a transport error, keeps sending to the
+// events after a failing one, rejects an invalid param before any request,
+// sends nothing when the caller's context is already canceled, and skips the
+// remaining events once it ends.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -257,14 +258,34 @@ func TestSendContextErrors(t *testing.T) {
 		t.Parallel()
 
 		service := newTestService(t, "ifttt://dummy/?events=event1,event2,event3")
-		client, captured := newRespondingClient(t, okResponse, cannedResponse{status: "404 Not Found", statusCode: http.StatusNotFound})
+		client, captured := newRespondingClient(t, okResponse, cannedResponse{status: "404 Not Found", statusCode: http.StatusNotFound}, okResponse)
 		service.SetHTTPClient(client)
 
 		err := service.SendContext(t.Context(), "hello", nil)
 
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 		assert.Contains(t, err.Error(), `event "event2"`)
-		assert.Len(t, *captured, 2)
+		assert.NotContains(t, err.Error(), `event "event1"`)
+		assert.NotContains(t, err.Error(), `event "event3"`)
+		assert.Len(t, *captured, 3)
+	})
+
+	t.Run("two events fail", func(t *testing.T) {
+		t.Parallel()
+
+		notFound := cannedResponse{status: "404 Not Found", statusCode: http.StatusNotFound}
+
+		service := newTestService(t, "ifttt://dummy/?events=event1,event2,event3")
+		client, captured := newRespondingClient(t, notFound, okResponse, notFound)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "hello", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), `event "event1"`)
+		assert.Contains(t, err.Error(), `event "event3"`)
+		assert.NotContains(t, err.Error(), `event "event2"`)
+		assert.Len(t, *captured, 3)
 	})
 
 	t.Run("transport error", func(t *testing.T) {
@@ -327,12 +348,29 @@ func TestSendContextErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
+		service := newTestService(t, "ifttt://webhookid/?events=event")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+
+	t.Run("canceled between events", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		// The client expects one request, so a request for the second event
+		// fails the test.
 		client := mocks.NewMockHTTPClient(t)
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			cancel()
+
+			return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 		}).Once()
 
-		service := newTestService(t, "ifttt://webhookid/?events=event")
+		service := newTestService(t, "ifttt://webhookid/?events=event1,event2")
 		service.SetHTTPClient(client)
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
@@ -393,8 +431,8 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
-// TestServiceTimeout verifies that the router budget is one request timeout
-// for each event, counting events set by params, and at least one timeout.
+// TestServiceTimeout verifies that the send budget is [defaultTimeout] for
+// each event, counting events set by params, and at least [defaultTimeout].
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -427,9 +465,9 @@ func TestServiceTimeout(t *testing.T) {
 	})
 }
 
-// TestDefaultHTTPClient verifies that the default client has the send
-// timeout and sends through http.DefaultTransport, so it honors the proxy
-// environment variables.
+// TestDefaultHTTPClient verifies that the default client has no request
+// timeout, since the send budget bounds each send, and sends through
+// http.DefaultTransport, so it honors the proxy environment variables.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -437,7 +475,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	httpClient, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, defaultTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
 	assert.Nil(t, httpClient.Transport)
 }
 

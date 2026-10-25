@@ -21,7 +21,7 @@ type Config struct {
 	// Token is the access token, written as the host of the service URL.
 	Token string `sensitive:"true" url:"host"`
 	// Title is the push title.
-	Title string `default:"Shoutrrr notification" key:"title"`
+	Title string `default:"Shoutrrr notification" desc:"Notification title, optionally set by the sender" key:"title"`
 
 	// Targets lists the devices, e-mail addresses, and #channels to push to,
 	// written as the path of the service URL. A URL without a path gives one

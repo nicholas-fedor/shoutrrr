@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -39,8 +38,6 @@ const (
 	apiURL = "https://api.signalgrid.co/v1/push"
 	// contentType is the form encoding required by the Push API.
 	contentType = "application/x-www-form-urlencoded"
-	// defaultHTTPTimeout is the timeout applied to Push API requests.
-	defaultHTTPTimeout = 10 * time.Second
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -78,7 +75,6 @@ func (s *Service) GetID() string {
 //   - error: the error when default properties cannot be applied or the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -107,7 +103,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Signalgrid.
+// SendContext delivers a notification message to Signalgrid. A context without
+// a deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -118,6 +115,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the params or send error. A request error matches ctx's error when
 //     ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
@@ -166,7 +166,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 // send posts a notification to the Signalgrid Push API.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: The notification body sent as the form field body.
 //   - config: The resolved configuration used to populate remaining form fields.
 //
@@ -186,9 +186,6 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 	if config.Critical {
 		data.Set("critical", "true")
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,

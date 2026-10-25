@@ -35,7 +35,7 @@ const (
 	// apiURLFormat is the webhook URL template, formatted with the event name
 	// and the webhook key.
 	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
-	// defaultTimeout bounds each request.
+	// defaultTimeout is the part of the send budget for each event.
 	defaultTimeout = 10 * time.Second
 )
 
@@ -74,7 +74,6 @@ func (s *Service) GetID() string {
 //     [ErrMissingWebhookID].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultTimeout, nil)
 	s.Config = &Config{
 		UseMessageAsValue: DefaultMessageValue,
 	}
@@ -102,7 +101,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to the IFTTT webhook of every
-// configured event, one after another.
+// configured event, one after another. A context without a deadline is bounded
+// by the budget that [Service.ServiceTimeout] reports, which the requests
+// share. An event that fails does not stop the events after it, and once ctx
+// ends, the remaining events are skipped.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the requests.
@@ -110,10 +112,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields and payload values.
 //
 // Returns:
-//   - error: the params, value field, or payload error, or [ErrSendFailed]
-//     wrapping the first event's send error, which matches ctx's error when ctx
-//     ends the request.
+//   - error: the params, value field, or payload error, or the joined errors
+//     of the events that failed, each wrapping [ErrSendFailed] and naming its
+//     event, and ctx's error when it ended the send.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -132,18 +137,30 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
+	var errs []error
+
 	for _, event := range config.Events {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		apiURL := s.createAPIURLForEvent(event)
 		if err := s.doSend(ctx, payload, apiURL); err != nil {
-			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
+			errs = append(errs, fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
-// ServiceTimeout reports the send budget the router gives IFTTT. A send makes
-// one request per event, one after another, each bounded by [defaultTimeout].
+// ServiceTimeout reports the send budget of IFTTT. A send makes one request per
+// event, one after another, so the budget allows [defaultTimeout] for each.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields, which may set the
@@ -189,16 +206,13 @@ func (s *Service) createAPIURLForEvent(event string) string {
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - payload: the JSON payload.
 //   - postURL: the webhook URL for the event.
 //
 // Returns:
 //   - error: the request error, or [ErrUnexpectedStatus] for a non-success status.
 func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) error {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

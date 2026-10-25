@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,16 +15,12 @@ import (
 type holderModel struct {
 	// injected is the injected client, or nil.
 	injected types.HTTPClient
-	// built is the default client Client returned since the last SetDefault,
-	// or nil before Client builds one.
+	// built is the default client Client returned, or nil before Client
+	// builds one.
 	built types.HTTPClient
-	// insecure is the default client InsecureClient returned since the last
-	// SetDefault, or nil before InsecureClient builds one.
+	// insecure is the default client InsecureClient returned, or nil before
+	// InsecureClient builds one.
 	insecure types.HTTPClient
-	// tlsConfig is the TLS settings of the last SetDefault call.
-	tlsConfig *tls.Config
-	// timeout is the timeout of the last SetDefault call.
-	timeout time.Duration
 }
 
 // Holder operations a fuzz input byte encodes in its low two bits.
@@ -34,54 +29,47 @@ const (
 	opClient byte = iota
 	// opSet calls Set with the client that bits 2 and 3 select.
 	opSet
-	// opSetDefault calls SetDefault with the timeout that bits 2 and 3 select
-	// and the TLS settings that bits 4 and 5 select.
-	opSetDefault
+	// opPrefer calls Prefer with the client that bits 2 and 3 select and
+	// checks the result against the model.
+	opPrefer
 	// opInsecureClient calls InsecureClient and checks the result against the
 	// model, so reads are as common as writes.
 	opInsecureClient
 )
 
-// fuzzTimeouts are the timeouts opSetDefault chooses from.
-var fuzzTimeouts = [...]time.Duration{0, time.Second, 10 * time.Second, 30 * time.Second}
-
-// FuzzHolder runs a sequence of Set, SetDefault, Client, and InsecureClient
-// calls on a Holder and checks every result against a model of the expected
-// state:
+// FuzzHolder runs a sequence of Set, Prefer, Client, and InsecureClient calls
+// on a Holder and checks every result against a model of the expected state:
 //
-//   - An injected client is returned by both getters whatever the default
-//     settings are, and InsecureClient calls its warning callback only when
-//     it returns the insecure default client.
+//   - An injected client is returned by both getters, and InsecureClient calls
+//     its warning callback only when it returns the insecure default client.
 //   - A nil client, or a nil *http.Client, clears the injected client.
-//   - The default client has the timeout of the last SetDefault call, and
-//     sends through http.DefaultTransport without TLS settings or through a
-//     transport with exactly those settings.
-//   - The insecure default client has the same timeout and skips certificate
-//     verification, whatever TLS settings SetDefault was given.
-//   - Each default client is built once and reused until the next SetDefault
-//     call, even across Set calls.
+//   - Prefer returns a client it is given, unless that client is nil or a nil
+//     *http.Client, and returns what Client returns otherwise.
+//   - The default client has no timeout and sends through
+//     http.DefaultTransport.
+//   - The insecure default client has no timeout and skips certificate
+//     verification.
+//   - Each default client is built once and reused, even across Set calls.
 //
-// Each input byte is one call: the low two bits pick the operation, and the
+// Each input byte is one call. The low two bits pick the operation, and the
 // higher bits its argument. The seed corpus covers the zero value, an
-// injected client set and cleared both ways, default settings replaced before
-// and after the default is built, and settings changed while a client is
-// injected.
+// injected client set and cleared both ways, and Prefer with a set client, a
+// nil client, and a nil *http.Client before and after the default is built.
 func FuzzHolder(f *testing.F) {
 	clients := [...]types.HTTPClient{nil, (*http.Client)(nil), &http.Client{}, &http.Client{}}
-	tlsConfigs := [...]*tls.Config{nil, nil, {MinVersion: tls.VersionTLS12}, {MinVersion: tls.VersionTLS13}}
 
 	set := func(client byte) byte { return opSet | client<<2 }
-	setDefault := func(timeout, tlsConfig byte) byte { return opSetDefault | timeout<<2 | tlsConfig<<4 }
+	prefer := func(client byte) byte { return opPrefer | client<<2 }
 
 	for _, seed := range [][]byte{
 		{},
 		{opClient, opInsecureClient, opInsecureClient},
 		{set(2), opClient, set(0), opClient},
 		{opClient, set(3), opClient, set(1), opClient},
-		{setDefault(2, 0), opClient, setDefault(1, 2), opClient, opClient},
-		{opClient, setDefault(3, 3), set(2), opClient, set(0), opClient},
-		{setDefault(1, 2), opInsecureClient, set(2), opInsecureClient, setDefault(2, 3), set(0), opInsecureClient},
-		{set(2), setDefault(2, 2), opClient, set(1), opClient, setDefault(0, 0), opClient},
+		{prefer(0), opClient, prefer(2), prefer(1), opClient},
+		{set(2), prefer(1), prefer(3), set(0), prefer(0), opClient},
+		{opInsecureClient, set(2), opInsecureClient, set(0), opInsecureClient},
+		{prefer(3), set(3), prefer(2), prefer(0), set(1), prefer(1)},
 	} {
 		f.Add(seed)
 	}
@@ -102,11 +90,17 @@ func FuzzHolder(f *testing.F) {
 				if c, ok := client.(*http.Client); ok && c == nil {
 					model.injected = nil
 				}
-			case opSetDefault:
-				timeout, tlsConfig := fuzzTimeouts[op>>2&3], tlsConfigs[op>>4&3]
-				holder.SetDefault(timeout, tlsConfig)
+			case opPrefer:
+				client := clients[op>>2&3]
+				got := holder.Prefer(client)
 
-				model.timeout, model.tlsConfig, model.built, model.insecure = timeout, tlsConfig, nil, nil
+				if c, ok := client.(*http.Client); client != nil && (!ok || c != nil) {
+					require.Same(t, client, got, "step %d: Prefer should return the client it is given", i)
+
+					continue
+				}
+
+				checkClient(t, i, got, &model)
 			case opInsecureClient:
 				warned := false
 				got := holder.InsecureClient(func() { warned = true })
@@ -143,15 +137,8 @@ func checkClient(t *testing.T, step int, got types.HTTPClient, model *holderMode
 
 	client, ok := got.(*http.Client)
 	require.True(t, ok, "step %d: the default client is a %T", step, got)
-	assert.Equal(t, model.timeout, client.Timeout, "step %d: default client timeout", step)
-
-	if model.tlsConfig == nil {
-		assert.Nil(t, client.Transport, "step %d: the default client should send through http.DefaultTransport", step)
-	} else {
-		httpTransport, ok := client.Transport.(*http.Transport)
-		require.True(t, ok, "step %d: the default transport is a %T", step, client.Transport)
-		assert.Same(t, model.tlsConfig, httpTransport.TLSClientConfig, "step %d: default TLS settings", step)
-	}
+	assert.Zero(t, client.Timeout, "step %d: default client timeout", step)
+	assert.Nil(t, client.Transport, "step %d: the default client should send through http.DefaultTransport", step)
 
 	model.built = got
 }
@@ -185,7 +172,7 @@ func checkInsecureClient(t *testing.T, step int, got types.HTTPClient, warned bo
 
 	client, ok := got.(*http.Client)
 	require.True(t, ok, "step %d: the insecure client is a %T", step, got)
-	assert.Equal(t, model.timeout, client.Timeout, "step %d: insecure client timeout", step)
+	assert.Zero(t, client.Timeout, "step %d: insecure client timeout", step)
 
 	httpTransport, ok := client.Transport.(*http.Transport)
 	require.True(t, ok, "step %d: the insecure transport is a %T", step, client.Transport)

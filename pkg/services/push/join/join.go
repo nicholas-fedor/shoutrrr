@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -36,8 +35,6 @@ const (
 	// contentType is the Content-Type header of the request. The request has
 	// an empty body and carries its fields in the query.
 	contentType = "text/plain"
-	// defaultTimeout bounds each request.
-	defaultTimeout = 10 * time.Second
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -67,7 +64,6 @@ func (s *Service) GetID() string {
 //     [ErrAPIKeyMissing].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -93,6 +89,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Join devices in one request.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -102,6 +100,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Returns:
 //   - error: the send error, which matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := s.Config
 
 	if params == nil {
@@ -135,7 +136,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 // sendToDevices sends the message to the given devices through the Join API.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - devices: the comma-separated device IDs.
 //   - message: the message to send.
 //   - title: the notification title, or empty for none.
@@ -165,9 +166,6 @@ func (s *Service) sendToDevices(ctx context.Context, devices, message, title, ic
 	}
 
 	apiURL.RawQuery = data.Encode()
-
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,

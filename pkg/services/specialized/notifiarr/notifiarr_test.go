@@ -105,8 +105,7 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "notifiarr", (&Service{}).GetID())
 }
 
-// TestServiceTimeout verifies that the router budget for a send is the
-// request timeout.
+// TestServiceTimeout verifies that the send budget is [requestTimeout].
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -464,9 +463,9 @@ func TestSetHTTPClient(t *testing.T) {
 	}
 }
 
-// TestDefaultHTTPClient verifies the default client's timeout, and that it
-// sends through http.DefaultTransport, so it honors the proxy environment
-// variables.
+// TestDefaultHTTPClient verifies that the default client has no request
+// timeout, since the send budget bounds each send, and sends through
+// http.DefaultTransport, so it honors the proxy environment variables.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -474,7 +473,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	httpClient, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, requestTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
 	assert.Nil(t, httpClient.Transport)
 }
 

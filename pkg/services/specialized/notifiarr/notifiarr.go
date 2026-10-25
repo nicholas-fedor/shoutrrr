@@ -54,7 +54,7 @@ const (
 	MentionTypeRole = 2
 )
 
-// requestTimeout is the timeout for one Notifiarr request.
+// requestTimeout is the send budget of Notifiarr.
 const requestTimeout = 30 * time.Second
 
 // Errors returned by the Notifiarr service.
@@ -181,7 +181,6 @@ func (*Service) GetServiceURLFromCustom(serviceURL *url.URL) (*url.URL, error) {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
-	s.client.SetDefault(requestTimeout, nil)
 	// Initialize service config
 	s.Config = &Config{}
 	// Initialize property key resolver
@@ -287,10 +286,11 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return s.SendContext(context.Background(), message, paramsPtr)
 }
 
-// SendContext delivers a notification message to Notifiarr.
+// SendContext delivers a notification message to Notifiarr. A context without
+// a deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [requestTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which may override configuration fields
 //     and set the Discord payload.
@@ -303,6 +303,9 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	if message == "" {
 		return ErrEmptyMessage
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(paramsPtr))
+	defer cancel()
 
 	// Create a copy of the config to avoid modifying the original
 	config := *s.Config
@@ -350,7 +353,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	return nil
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Notifiarr send.
+// ServiceTimeout reports the send budget of Notifiarr.
 //
 // Returns:
 //   - time.Duration: [requestTimeout], whatever the params.
@@ -502,10 +505,10 @@ func (s *Service) createPayload(
 }
 
 // doSend executes the HTTP request to send a notification to Notifiarr.
-// It includes a timeout to prevent hangs and differentiates between authentication failures and other errors.
+// It differentiates between authentication failures and other errors.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [requestTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - payload: the JSON payload.
 //
 // Returns:
@@ -515,14 +518,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte) error {
 	// Build the API URL with API key
 	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, s.Config.APIKey)
 
-	// Create context with timeout to prevent request hangs
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		requestTimeout,
-	)
-	defer cancel()
-
-	// Create HTTP request with context and timeout
+	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("creating HTTP request: %w", redact.URLError(err))

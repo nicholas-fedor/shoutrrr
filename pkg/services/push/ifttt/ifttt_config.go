@@ -22,16 +22,16 @@ type Config struct {
 	// URL.
 	WebHookID string `required:"true" sensitive:"true" url:"host"`
 	// Value1 is the payload's value1 field.
-	Value1 string `key:"value1" optional:""`
+	Value1 string `desc:"The value1 field of the webhook payload" key:"value1" optional:""`
 	// Value2 is the payload's value2 field.
-	Value2 string `key:"value2" optional:""`
+	Value2 string `desc:"The value2 field of the webhook payload" key:"value2" optional:""`
 	// Value3 is the payload's value3 field.
-	Value3 string `key:"value3" optional:""`
+	Value3 string `desc:"The value3 field of the webhook payload" key:"value3" optional:""`
 	// Title is the notification title, sent in the value field that
 	// UseTitleAsValue selects.
 	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
 	// Events lists the webhook event names. A send triggers each one.
-	Events []string `key:"events" required:"true"`
+	Events []string `desc:"The webhook events to trigger" key:"events" required:"true"`
 	// UseMessageAsValue selects the value field, 1 to 3, that carries the
 	// message.
 	UseMessageAsValue uint8 `default:"2" desc:"Sets the corresponding value field to the notification message" key:"messagevalue"`
