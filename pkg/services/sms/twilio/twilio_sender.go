@@ -13,20 +13,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // HTTPClient defines the interface for making HTTP requests.
-type HTTPClient interface {
-	// Do sends an HTTP request and returns the server's response.
-	//
-	// Parameters:
-	//   - req: the request to send.
-	//
-	// Returns:
-	//   - *http.Response: the server's response.
-	//   - error: the request failure, or nil on success.
-	Do(req *http.Request) (*http.Response, error)
-}
+//
+// Deprecated: The service takes a [types.HTTPClient], which HTTPClient is an
+// alias of. Use [types.HTTPClient].
+//
+//go:fix inline
+type HTTPClient = types.HTTPClient
 
 // apiErrorResponse represents an error response from the Twilio REST API.
 type apiErrorResponse struct {
@@ -45,8 +41,8 @@ const (
 	apiBaseURL = "https://api.twilio.com/2010-04-01/Accounts"
 	// contentType is the content type of the URL-encoded form request body.
 	contentType = "application/x-www-form-urlencoded"
-	// defaultHTTPTimeout bounds each request, and is the timeout of the
-	// default client.
+	// defaultHTTPTimeout is the part of the send budget for each recipient,
+	// and the timeout of the client [DefaultHTTPClient] returns.
 	defaultHTTPTimeout = 10 * time.Second
 	// msgServicePrefix starts a Messaging Service SID. A sender with this
 	// prefix is sent as MessagingServiceSid instead of From.
@@ -57,7 +53,11 @@ const (
 //
 // Returns:
 //   - HTTPClient: an [http.Client] with a timeout of [defaultHTTPTimeout].
-func DefaultHTTPClient() HTTPClient {
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
+func DefaultHTTPClient() types.HTTPClient {
 	return &http.Client{
 		Timeout: defaultHTTPTimeout,
 	}
@@ -66,7 +66,7 @@ func DefaultHTTPClient() HTTPClient {
 // sendToRecipient sends an SMS message to a single recipient via the Twilio API.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - config: the configuration for this send.
 //   - toNumber: the recipient phone number.
 //   - message: the message to send.
@@ -93,9 +93,6 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 		data.Set("From", config.FromNumber)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -109,7 +106,7 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 	req.Header.Set("Content-Type", contentType)
 	req.SetBasicAuth(config.AccountSID, config.AuthToken)
 
-	res, err := s.HTTPClient.Do(req)
+	res, err := s.client.Prefer(s.HTTPClient).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request to Twilio API: %w", redact.URLError(err))
 	}

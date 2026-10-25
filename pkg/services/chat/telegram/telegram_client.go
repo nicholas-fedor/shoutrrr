@@ -15,7 +15,7 @@ import (
 
 // Client for Telegram API.
 type Client struct {
-	// httpClient sends the requests, or a default client with a timeout when nil.
+	// httpClient sends the requests, or is nil to use [fallbackClient].
 	httpClient types.HTTPClient
 	// token is the bot token, which is part of every request URL.
 	token string
@@ -23,6 +23,11 @@ type Client struct {
 	// https://api.telegram.org.
 	apiURL string
 }
+
+// fallbackClient sends the requests of every [Client] without an HTTP client
+// of its own, so they share connections. Its timeout bounds the requests that
+// take no context.
+var fallbackClient = &http.Client{Timeout: defaultHTTPTimeout}
 
 // GetBotInfo returns the bot User info.
 //
@@ -124,17 +129,17 @@ func (c *Client) endpointURL(endpoint string) string {
 	return base + "/bot" + c.token + "/" + endpoint
 }
 
-// httpClientOrDefault returns the injected client or a default Client.
+// httpClientOrDefault returns the injected client or the shared fallback
+// client.
 //
 // Returns:
-//   - types.HTTPClient: the injected client, or a new client with
-//     [defaultHTTPTimeout].
+//   - types.HTTPClient: the injected client, or [fallbackClient].
 func (c *Client) httpClientOrDefault() types.HTTPClient {
 	if c.httpClient != nil {
 		return c.httpClient
 	}
 
-	return &http.Client{Timeout: defaultHTTPTimeout}
+	return fallbackClient
 }
 
 // GetErrorResponse retrieves the error message from a failed request.

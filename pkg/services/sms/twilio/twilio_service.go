@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -18,12 +18,19 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// HTTPClient sends the requests to the Twilio API. Initialize sets it to
-	// the default client.
-	HTTPClient HTTPClient
+	// HTTPClient sends the requests to the Twilio API when set. It stays nil
+	// after Initialize until the caller sets it, and the sends use the default
+	// client meanwhile. [Service.SetHTTPClient] clears it, so whichever of the
+	// two the caller set last carries the sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
+	HTTPClient types.HTTPClient
 
 	// Config holds the credentials, the sender, the recipients, and the title.
 	Config *Config
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
 }
@@ -44,8 +51,8 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger. It replaces any
-// HTTP client with the default client.
+// Initialize configures the service with a URL and logger. It keeps an HTTP
+// client that is already set.
 //
 // Parameters:
 //   - serviceURL: the service URL.
@@ -57,7 +64,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.HTTPClient = DefaultHTTPClient()
 
 	err := s.Config.setURL(&s.pkr, serviceURL)
 	if err != nil {
@@ -82,10 +88,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers an SMS message via Twilio to all configured recipients.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports, which the requests share.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the requests, each further bounded by
-//     [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the requests.
 //   - message: the message to send.
 //   - params: optional overrides for configuration fields.
 //
@@ -94,6 +101,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     request error matches ctx's error when ctx ends the request. When ctx
 //     ends, the remaining recipients are skipped and ctx's error is included.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -125,9 +135,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return errors.Join(errs...)
 }
 
-// ServiceTimeout reports the send budget the router gives Twilio. A send makes
-// one request per recipient, one after another, each bounded by
-// [defaultHTTPTimeout].
+// ServiceTimeout reports the send budget of Twilio. A send makes one request
+// per recipient, one after another, so the budget allows [defaultHTTPTimeout]
+// for each.
 //
 // Parameters:
 //   - _: unused, because the recipients come only from the service URL.
@@ -144,20 +154,13 @@ func (s *Service) ServiceTimeout(_ *types.Params) time.Duration {
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// including a nil *http.Client, selects the default client. It clears the
+// deprecated HTTPClient field, so the sends use this client until that field
+// is set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		s.HTTPClient = DefaultHTTPClient()
-
-		return
-	}
-
-	s.HTTPClient = client
+	s.client.Set(client)
+	s.HTTPClient = nil
 }

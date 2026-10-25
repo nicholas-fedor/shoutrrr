@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+	"unicode/utf16"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -31,9 +32,10 @@ type Service struct {
 const (
 	// defaultAPIURL is the base URL of Telegram's own Bot API server.
 	defaultAPIURL = "https://api.telegram.org"
-	// maxlength is the most bytes a message can hold.
+	// maxlength is the most UTF-16 code units a message can hold.
 	maxlength = 4096
-	// defaultHTTPTimeout bounds each request of the default client.
+	// defaultHTTPTimeout is the part of the send budget for each chat, and the
+	// timeout of a [Client] without an HTTP client of its own.
 	defaultHTTPTimeout = 10 * time.Second
 )
 
@@ -80,7 +82,6 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{
 		Preview:      true,
 		Notification: true,
@@ -109,6 +110,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to every configured Telegram chat.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports, which the requests share.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the requests.
@@ -116,18 +119,22 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [ErrMessageTooLong], a params error, [ErrInvalidAPIURL] for an
-//     API URL set by the params, or the first send error, which matches ctx's
-//     error when ctx ends the request.
+//   - error: a params error, [ErrMessageTooLong] for a text over [maxlength]
+//     UTF-16 code units with its title line, [ErrInvalidAPIURL] for an API
+//     URL set by the params, or the joined errors of the chats that failed. A
+//     request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	if len(message) > maxlength {
-		return ErrMessageTooLong
-	}
-
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	if textLength(message, &config) > maxlength {
+		return ErrMessageTooLong
+	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	if err := validateAPIURL(config.APIURL); err != nil {
 		return err
@@ -169,7 +176,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 }
 
 // sendMessageForChatIDs sends the message to every chat in config, which includes
-// any chats set by the send params.
+// any chats set by the send params. A chat that fails does not stop the chats
+// after it. Once ctx ends, the remaining chats are skipped.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the requests.
@@ -177,15 +185,28 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - config: the configuration for this send.
 //
 // Returns:
-//   - error: the first send error.
+//   - error: the joined errors of the chats that failed, each naming its
+//     chat, and ctx's error when it ended the send.
 func (s *Service) sendMessageForChatIDs(ctx context.Context, message string, config *Config) error {
+	var errs []error
+
 	for _, chat := range config.Chats {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		if err := s.sendMessageToAPI(ctx, message, chat, config); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("sending to chat %q: %w", chat, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.
@@ -204,4 +225,45 @@ func (s *Service) sendMessageToAPI(ctx context.Context, message, chat string, co
 	_, err := client.SendMessageContext(ctx, &payload)
 
 	return err
+}
+
+// textLength returns the length of the text Telegram shows for message, in
+// UTF-16 code units. A message sent with the HTML parse mode, or without one,
+// carries its title on a line of its own, so the title and the line break
+// count too. Telegram counts the text after parsing, so the HTML markup does
+// not count.
+//
+// Parameters:
+//   - message: the message to send.
+//   - config: the configuration for this send.
+//
+// Returns:
+//   - int: the number of UTF-16 code units Telegram counts.
+func textLength(message string, config *Config) int {
+	length := utf16Length(message)
+
+	if config.Title != "" && (config.ParseMode == ParseModes.None || config.ParseMode == ParseModes.HTML) {
+		length += utf16Length(config.Title) + 1
+	}
+
+	return length
+}
+
+// utf16Length returns the length of s in UTF-16 code units, the unit of
+// Telegram's message length limit. A character outside the Basic
+// Multilingual Plane counts as two units, and an invalid byte as one.
+//
+// Parameters:
+//   - s: the text to measure.
+//
+// Returns:
+//   - int: the number of UTF-16 code units.
+func utf16Length(s string) int {
+	length := 0
+
+	for _, r := range s {
+		length += max(1, utf16.RuneLen(r))
+	}
+
+	return length
 }

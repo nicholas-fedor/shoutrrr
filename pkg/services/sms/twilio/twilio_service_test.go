@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -136,8 +137,9 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "twilio", (&Service{}).GetID())
 }
 
-// TestInitialize verifies that Initialize parses the service URL with the
-// default client, and rejects an invalid URL.
+// TestInitialize verifies that Initialize parses the service URL without
+// filling the deprecated client field, keeps a client set before it, and
+// rejects an invalid URL.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -152,7 +154,18 @@ func TestInitialize(t *testing.T) {
 			FromNumber: testFrom,
 			ToNumbers:  []string{testTo, "+15559876544"},
 		}, service.Config)
-		assert.IsType(t, &http.Client{}, service.HTTPClient)
+		assert.Nil(t, service.HTTPClient, "Initialize leaves the deprecated client field unset")
+	})
+
+	t.Run("keeps a client set before it", func(t *testing.T) {
+		t.Parallel()
+
+		client := mocks.NewMockHTTPClient(t)
+		service := &Service{}
+		service.SetHTTPClient(client)
+		require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(t.Output(), "", 0)))
+
+		assert.Same(t, client, service.client.Prefer(service.HTTPClient))
 	})
 
 	t.Run("missing account SID", func(t *testing.T) {
@@ -343,8 +356,9 @@ func TestServiceTimeout(t *testing.T) {
 	}
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// selects the default client for nil and a nil *http.Client.
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client in
+// place of the deprecated client field, and selects the default client for
+// nil and a nil *http.Client.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -369,16 +383,54 @@ func TestSetHTTPClient(t *testing.T) {
 			t.Parallel()
 
 			client := tt.client(t)
-			service := &Service{}
+			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
 			service.SetHTTPClient(client)
 
+			assert.Nil(t, service.HTTPClient, "SetHTTPClient clears the deprecated client field")
+
 			if tt.wantDefault {
-				assert.IsType(t, &http.Client{}, service.HTTPClient)
+				assert.IsType(t, &http.Client{}, service.client.Prefer(service.HTTPClient))
 
 				return
 			}
 
-			assert.Same(t, client, service.HTTPClient)
+			assert.Same(t, client, service.client.Prefer(service.HTTPClient))
 		})
 	}
+}
+
+// TestSendBudget verifies that the requests of a send without a caller
+// deadline share the budget that ServiceTimeout reports for all recipients,
+// and that a caller's deadline is kept as it is.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var deadlines []time.Time
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			deadline, _ := req.Context().Deadline()
+			deadlines = append(deadlines, deadline)
+
+			return &http.Response{StatusCode: http.StatusCreated, Body: io.NopCloser(strings.NewReader(messageBody))}, nil
+		})
+
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+		budget := start.Add(service.ServiceTimeout(nil))
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, []time.Time{budget, budget}, deadlines, "both recipients share the budget")
+
+		deadlines = nil
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+		defer cancel()
+
+		require.NoError(t, service.SendContext(ctx, "Message", nil))
+		assert.Equal(t, []time.Time{start.Add(time.Hour), start.Add(time.Hour)}, deadlines, "the caller's deadline applies")
+	})
 }
