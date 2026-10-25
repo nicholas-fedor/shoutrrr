@@ -36,15 +36,21 @@ type SessionFactory func(ctx context.Context, cfg *Config, conn net.Conn) (Sessi
 
 // messageBody is the XML payload encoded for chat and groupchat stanzas.
 type messageBody struct {
+	// XMLName names the message element.
 	XMLName xml.Name `xml:"message"`
-	To      string   `xml:"to,attr"`
-	Type    string   `xml:"type,attr"`
-	Body    string   `xml:"body"`
+	// To is the recipient or room JID in the to attribute.
+	To string `xml:"to,attr"`
+	// Type is the message type attribute, chat or groupchat.
+	Type string `xml:"type,attr"`
+	// Body is the message text.
+	Body string `xml:"body"`
 }
 
 // melliumSession implements [Session] with mellium over an existing connection.
 type melliumSession struct {
-	session   *mxmpp.Session
+	// session is the negotiated mellium client session.
+	session *mxmpp.Session
+	// mucClient tracks MUC presence so the session can join rooms.
 	mucClient *muc.Client
 }
 
@@ -62,8 +68,8 @@ var _ io.Closer = (*melliumSession)(nil)
 //   - conn: The TCP connection to wrap.
 //
 // Returns:
-//   - A [Session] ready to send chat and MUC messages.
-//   - An error if TLS, SASL, or stream negotiation fails.
+//   - Session: a [Session] ready to send chat and MUC messages.
+//   - error: an error if TLS, SASL, or stream negotiation fails.
 func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session, error) {
 	local, domain, err := splitJID(cfg.authJIDString())
 	if err != nil {
@@ -133,7 +139,7 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 //   - cfg: The service configuration supplying Host and SkipTLSVerify.
 //
 // Returns:
-//   - A TLS config with TLS 1.2 as the minimum version.
+//   - *tls.Config: a TLS config with TLS 1.2 as the minimum version.
 func newTLSConfig(cfg *Config) *tls.Config {
 	if cfg.SkipTLSVerify {
 		return transport.InsecureTLSConfig(cfg.Host)
@@ -142,6 +148,15 @@ func newTLSConfig(cfg *Config) *tls.Config {
 	return transport.TLSConfig(cfg.Host)
 }
 
+// wrapNegotiateError wraps a session negotiation error, marking an
+// authentication failure with [ErrAuthenticationFailed].
+//
+// Parameters:
+//   - err: the error from session negotiation.
+//
+// Returns:
+//   - error: err wrapped with [ErrAuthenticationFailed] when it is an
+//     authentication failure, otherwise err wrapped as a negotiation error.
 func wrapNegotiateError(err error) error {
 	if isAuthFailure(err) {
 		return fmt.Errorf("%w: %w", ErrAuthenticationFailed, err)
@@ -150,6 +165,15 @@ func wrapNegotiateError(err error) error {
 	return fmt.Errorf("negotiating XMPP session: %w", err)
 }
 
+// isAuthFailure reports whether the error text names an authentication
+// failure, such as the SASL condition not-authorized or an invalid username.
+// The match ignores case.
+//
+// Parameters:
+//   - err: the error from session negotiation.
+//
+// Returns:
+//   - bool: true when the text contains a known authentication failure.
 func isAuthFailure(err error) bool {
 	text := strings.ToLower(err.Error())
 
@@ -165,7 +189,7 @@ func isAuthFailure(err error) bool {
 // Close ends the XMPP session and the underlying connection.
 //
 // Returns:
-//   - Combined close errors, or nil when the session is already unset.
+//   - error: combined close errors, or nil when the session is already unset.
 func (s *melliumSession) Close() error {
 	if s.session == nil {
 		return nil
@@ -187,7 +211,7 @@ func (s *melliumSession) Close() error {
 //   - body: Message body.
 //
 // Returns:
-//   - An error if the JID is invalid or encoding fails.
+//   - error: an error if the JID is invalid or encoding fails.
 func (s *melliumSession) SendChat(ctx context.Context, to, body string) error {
 	toJID, err := jid.Parse(to)
 	if err != nil {
@@ -220,7 +244,7 @@ func (s *melliumSession) SendChat(ctx context.Context, to, body string) error {
 //   - body: Message body.
 //
 // Returns:
-//   - An error if join, send, or leave fails.
+//   - error: an error if join, send, or leave fails.
 func (s *melliumSession) SendToRoom(ctx context.Context, room, nick, password, body string) error {
 	roomJID, err := jid.Parse(room)
 	if err != nil {

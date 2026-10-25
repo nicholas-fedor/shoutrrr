@@ -18,6 +18,7 @@ import (
 
 // Service sends fire-and-forget XMPP chat and MUC notifications.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
 	// Config holds the parsed XMPP service settings.
@@ -47,7 +48,7 @@ var (
 // GetID returns the service identifier.
 //
 // Returns:
-//   - The scheme name [Scheme].
+//   - string: the scheme name [Scheme].
 func (*Service) GetID() string {
 	return Scheme
 }
@@ -59,7 +60,7 @@ func (*Service) GetID() string {
 //   - logger: Logger used for service output ([types.StdLogger]).
 //
 // Returns:
-//   - An error if the configuration URL is invalid.
+//   - error: an error if the configuration URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -181,7 +182,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //   - params: Unused. The budget does not depend on send parameters.
 //
 // Returns:
-//   - [defaultTimeout].
+//   - time.Duration: [defaultTimeout].
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultTimeout
 }
@@ -220,8 +221,8 @@ func (s *Service) SetSessionFactory(factory SessionFactory) {
 //   - cfg: Configuration supplying the dial address.
 //
 // Returns:
-//   - The connected TCP socket.
-//   - An error if the dial fails.
+//   - net.Conn: the connected TCP socket.
+//   - error: an error if the dial fails.
 func (s *Service) dial(ctx context.Context, cfg *Config) (net.Conn, error) {
 	addr := net.JoinHostPort(cfg.Host, strconvPort(cfg.Port))
 
@@ -246,7 +247,7 @@ func (s *Service) dial(ctx context.Context, cfg *Config) (net.Conn, error) {
 //   - port: The TCP port.
 //
 // Returns:
-//   - The port as a decimal string.
+//   - string: the port as a decimal string.
 func strconvPort(port uint16) string {
 	return strconv.FormatUint(uint64(port), 10)
 }

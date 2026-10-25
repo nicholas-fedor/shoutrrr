@@ -10,19 +10,28 @@ type MessageLevel uint8
 
 // File represents a file attachment for a message.
 type File struct {
+	// Name is the file name of the attachment.
 	Name string
+	// Data is the content of the file.
 	Data []byte
 }
 
 // MessageItem is an entry in a notification being sent by a service.
 type MessageItem struct {
+	// Timestamp is the time the item refers to. The zero time means none.
 	Timestamp time.Time
-	File      *File
-	Text      string
-	Fields    []Field
-	Level     MessageLevel
+	// File is an attachment for the item, or nil for none.
+	File *File
+	// Text is the body of the item.
+	Text string
+	// Fields holds extra key/value data for the item.
+	Fields []Field
+	// Level is the urgency of the item. [Unknown] means none.
+	Level MessageLevel
 }
 
+// Message levels. Each level after [Unknown] is more urgent than the one
+// before it.
 const (
 	// Unknown is the default message level.
 	Unknown MessageLevel = iota
@@ -34,12 +43,15 @@ const (
 	Warning
 	// Error is generally used for messages about things that did not go as planned.
 	Error
+	// messageLevelCount is the number of message levels.
 	messageLevelCount
 )
 
 // MessageLevelCount is used to create arrays that maps levels to other values.
 const MessageLevelCount = int(messageLevelCount)
 
+// messageLevelStrings holds the name of each message level, indexed by
+// level.
 var messageLevelStrings = [MessageLevelCount]string{
 	"Unknown",
 	"Debug",
@@ -49,6 +61,9 @@ var messageLevelStrings = [MessageLevelCount]string{
 }
 
 // String returns the string representation of the message level.
+//
+// Returns:
+//   - string: the level name, or "Unknown" for a level out of range.
 func (lvl MessageLevel) String() string {
 	if lvl >= messageLevelCount {
 		return messageLevelStrings[0]

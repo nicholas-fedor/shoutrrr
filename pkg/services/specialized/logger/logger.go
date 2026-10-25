@@ -12,8 +12,10 @@ import (
 
 // Service is the Logger service struct.
 type Service struct {
+	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
+	// Config is the service configuration, set by Initialize.
 	Config *Config
 }
 
@@ -24,11 +26,21 @@ var (
 )
 
 // GetID returns the service identifier.
+//
+// Returns:
+//   - string: the service scheme, [Scheme].
 func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize loads ServiceConfig from serviceURL and sets logger for this Service.
+// Initialize sets logger for this Service and gives it an empty Config. The
+// service URL is ignored, since the logger service has no settings.
+//
+// Parameters:
+//   - logger: the logger that receives the messages.
+//
+// Returns:
+//   - error: always nil.
 func (s *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
@@ -62,6 +74,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.doSend(data)
 }
 
+// doSend logs the message in data, rendered through the message template when
+// one is set.
+//
+// Parameters:
+//   - data: the template values, with the message under the message key.
+//
+// Returns:
+//   - error: the template execution error.
 func (s *Service) doSend(data types.Params) error {
 	msg := data["message"]
 

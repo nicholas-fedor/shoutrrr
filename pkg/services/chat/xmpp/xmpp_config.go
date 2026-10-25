@@ -16,6 +16,8 @@ import (
 
 // Config holds settings for the XMPP notification service.
 type Config struct {
+	// EnumlessConfig provides the empty enum set, since XMPP has no enum
+	// fields.
 	standard.EnumlessConfig
 
 	// Host is the XMPP server hostname used for the TCP dial.
@@ -45,6 +47,7 @@ type Config struct {
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
+// URL schemes, default ports, and the session resource for XMPP.
 const (
 	// Scheme identifies STARTTLS XMPP URLs.
 	Scheme = "xmpp"
@@ -61,7 +64,7 @@ const (
 // Clone returns a copy of the config with independent target lists.
 //
 // Returns:
-//   - A copy of the configuration.
+//   - Config: a copy of the configuration.
 func (c *Config) Clone() Config {
 	clone := *c
 	clone.To = slices.Clone(c.To)
@@ -73,7 +76,7 @@ func (c *Config) Clone() Config {
 // GetURL returns a URL representation of the current field values.
 //
 // Returns:
-//   - A configuration URL using the stored scheme.
+//   - *url.URL: a configuration URL using the stored scheme.
 func (c *Config) GetURL() *url.URL {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -86,7 +89,7 @@ func (c *Config) GetURL() *url.URL {
 //   - serviceURL: The XMPP configuration URL to parse.
 //
 // Returns:
-//   - An error if the URL is invalid or required fields are missing.
+//   - error: an error if the URL is invalid or required fields are missing.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	next := Config{}
 	resolver := format.NewPropKeyResolver(&next)
@@ -110,7 +113,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // localpart@host.
 //
 // Returns:
-//   - The auth JID string.
+//   - string: the auth JID string.
 func (c *Config) authJIDString() string {
 	if strings.Contains(c.User, "@") {
 		return c.User
@@ -125,7 +128,8 @@ func (c *Config) authJIDString() string {
 //   - resolver: Resolver used to serialize configuration query keys.
 //
 // Returns:
-//   - A configuration URL using the stored scheme and default port when unset.
+//   - *url.URL: a configuration URL using the stored scheme and default port
+//     when unset.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	scheme := c.scheme
 	if scheme == "" {
@@ -154,7 +158,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // implicitTLS reports whether the URL uses xmpps:// implicit TLS.
 //
 // Returns:
-//   - true when the stored scheme is [SchemeTLS].
+//   - bool: true when the stored scheme is [SchemeTLS].
 func (c *Config) implicitTLS() bool {
 	return c.scheme == SchemeTLS
 }
@@ -165,7 +169,7 @@ func (c *Config) implicitTLS() bool {
 // falling back to [Resource] if the JID cannot be split.
 //
 // Returns:
-//   - The MUC nickname.
+//   - string: the MUC nickname.
 func (c *Config) mucNick() string {
 	if c.Nick != "" {
 		return c.Nick
@@ -189,7 +193,7 @@ func (c *Config) mucNick() string {
 //   - serviceURL: The XMPP configuration URL to parse.
 //
 // Returns:
-//   - An error if the URL is invalid, including a malformed query
+//   - error: an error if the URL is invalid, including a malformed query
 //     ([util.ErrInvalidQuery]), or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	dummy := isDummyURL(serviceURL)
@@ -252,7 +256,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // useTLS reports whether the session should encrypt the stream.
 //
 // Returns:
-//   - false only when [Config.DisableTLS] is set.
+//   - bool: false only when [Config.DisableTLS] is set.
 func (c *Config) useTLS() bool {
 	return !c.DisableTLS
 }
@@ -260,7 +264,7 @@ func (c *Config) useTLS() bool {
 // validate checks that required fields and JIDs are present and consistent.
 //
 // Returns:
-//   - An error describing the first invalid field.
+//   - error: an error describing the first invalid field.
 func (c *Config) validate() error {
 	if c.Host == "" {
 		return ErrMissingHost
@@ -309,7 +313,7 @@ func (c *Config) validate() error {
 //   - values: The slice to compact.
 //
 // Returns:
-//   - A slice with empty strings removed, or nil when none remain.
+//   - []string: a slice with empty strings removed, or nil when none remain.
 func compactStrings(values []string) []string {
 	values = slices.DeleteFunc(values, isEmpty)
 	if len(values) == 0 {
@@ -326,7 +330,7 @@ func compactStrings(values []string) []string {
 //   - message: The notification body.
 //
 // Returns:
-//   - The combined text sent as the XMPP body.
+//   - string: the combined text sent as the XMPP body.
 func composeMessage(title, message string) string {
 	if title == "" {
 		return message
@@ -345,7 +349,7 @@ func composeMessage(title, message string) string {
 //   - scheme: [Scheme] or [SchemeTLS].
 //
 // Returns:
-//   - [DefaultTLSPort] for xmpps, otherwise [DefaultPort].
+//   - uint16: [DefaultTLSPort] for xmpps, otherwise [DefaultPort].
 func defaultPort(scheme string) uint16 {
 	if scheme == SchemeTLS {
 		return DefaultTLSPort
@@ -360,7 +364,8 @@ func defaultPort(scheme string) uint16 {
 //   - serviceURL: The URL to inspect.
 //
 // Returns:
-//   - true when the URL is exactly <scheme>://dummy@dummy.com, for either scheme.
+//   - bool: true when the URL is exactly <scheme>://dummy@dummy.com, for either
+//     scheme.
 func isDummyURL(serviceURL *url.URL) bool {
 	return serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
 }
@@ -371,7 +376,7 @@ func isDummyURL(serviceURL *url.URL) bool {
 //   - value: The string to inspect.
 //
 // Returns:
-//   - true if value has length zero.
+//   - bool: true if value has length zero.
 func isEmpty(value string) bool {
 	return value == ""
 }
@@ -384,9 +389,9 @@ func isEmpty(value string) bool {
 //   - value: A bare or full JID string.
 //
 // Returns:
-//   - The localpart.
-//   - The domainpart.
-//   - An error if value is not a valid JID.
+//   - string: the localpart.
+//   - string: the domainpart.
+//   - error: an error if value is not a valid JID.
 func splitJID(value string) (string, string, error) {
 	local, rest, ok := strings.Cut(value, "@")
 	if !ok || local == "" || rest == "" {
@@ -407,7 +412,7 @@ func splitJID(value string) (string, string, error) {
 //   - value: A candidate JID string.
 //
 // Returns:
-//   - An error if value cannot be split into localpart and domainpart.
+//   - error: an error if value cannot be split into localpart and domainpart.
 func validateJID(value string) error {
 	_, _, err := splitJID(value)
 

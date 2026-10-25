@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseMessageLevel verifies that [ParseMessageLevel] matches level
+// names in any case and rejects other input.
 func TestParseMessageLevel(t *testing.T) {
 	t.Parallel()
 
@@ -46,6 +48,8 @@ func TestParseMessageLevel(t *testing.T) {
 	}
 }
 
+// TestMessageLevelString verifies that [MessageLevel.String] names each
+// level and returns "Unknown" for a level out of range.
 func TestMessageLevelString(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +78,8 @@ func TestMessageLevelString(t *testing.T) {
 	}
 }
 
+// TestMessageLevelConstants verifies the numeric values of the message
+// levels and [MessageLevelCount].
 func TestMessageLevelConstants(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +91,8 @@ func TestMessageLevelConstants(t *testing.T) {
 	assert.Equal(t, 5, MessageLevelCount)
 }
 
+// TestMessageLevelStringRoundTrip verifies that [ParseMessageLevel] parses
+// the name of each level back to that level.
 func TestMessageLevelStringRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +108,8 @@ func TestMessageLevelStringRoundTrip(t *testing.T) {
 	}
 }
 
+// TestParamsLevel verifies that [Params.Level] reads back the level that
+// [Params.SetLevel] stores, and reports a missing level.
 func TestParamsLevel(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +153,8 @@ func TestParamsLevel(t *testing.T) {
 	})
 }
 
+// TestParamsTitle verifies that [Params.Title] reads back the title that
+// [Params.SetTitle] stores, and reports a missing title.
 func TestParamsTitle(t *testing.T) {
 	t.Parallel()
 
@@ -196,6 +208,8 @@ func TestParamsTitle(t *testing.T) {
 	})
 }
 
+// TestParamsMessage verifies that [Params.SetMessage] stores the message
+// under [MessageKey].
 func TestParamsMessage(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +255,8 @@ func TestParamsMessage(t *testing.T) {
 	})
 }
 
+// TestParamsMultipleKeys verifies that the title, message, and level
+// setters write their own keys without overwriting each other.
 func TestParamsMultipleKeys(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +304,9 @@ func TestParamsMultipleKeys(t *testing.T) {
 	})
 }
 
+// TestTargetError verifies the message of [TargetError]. It also verifies
+// that [errors.Is] finds the wrapped error and that [errors.As] recovers
+// the *TargetError.
 func TestTargetError(t *testing.T) {
 	t.Parallel()
 
@@ -351,6 +370,8 @@ func TestTargetError(t *testing.T) {
 	})
 }
 
+// TestTargetErrorNil verifies that [errors.As] matches a nil *TargetError
+// held in an error, and does not match other errors.
 func TestTargetErrorNil(t *testing.T) {
 	t.Parallel()
 
@@ -378,6 +399,8 @@ func TestTargetErrorNil(t *testing.T) {
 	})
 }
 
+// TestItemsToPlain verifies that [ItemsToPlain] ends the text of each item
+// with a newline and drops the other item fields.
 func TestItemsToPlain(t *testing.T) {
 	t.Parallel()
 
@@ -441,6 +464,8 @@ func TestItemsToPlain(t *testing.T) {
 	})
 }
 
+// TestMessageItemWithField verifies that [MessageItem.WithField] appends
+// fields in order and returns its receiver for chaining.
 func TestMessageItemWithField(t *testing.T) {
 	t.Parallel()
 
@@ -491,6 +516,8 @@ func TestMessageItemWithField(t *testing.T) {
 	})
 }
 
+// TestFieldsFromMap verifies that [FieldsFromMap] returns one field per map
+// entry, sorted by key when asked.
 func TestFieldsFromMap(t *testing.T) {
 	t.Parallel()
 
@@ -571,6 +598,8 @@ func TestFieldsFromMap(t *testing.T) {
 	})
 }
 
+// TestMessageItemStruct verifies the zero value and field assignment of
+// [MessageItem].
 func TestMessageItemStruct(t *testing.T) {
 	t.Parallel()
 
@@ -608,6 +637,7 @@ func TestMessageItemStruct(t *testing.T) {
 	})
 }
 
+// TestFileStruct verifies the zero value and field assignment of [File].
 func TestFileStruct(t *testing.T) {
 	t.Parallel()
 
@@ -636,6 +666,8 @@ func TestFileStruct(t *testing.T) {
 	})
 }
 
+// TestMessageLimitStruct verifies the zero value and field assignment of
+// [MessageLimit].
 func TestMessageLimitStruct(t *testing.T) {
 	t.Parallel()
 

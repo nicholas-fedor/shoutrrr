@@ -24,13 +24,12 @@ type Config struct {
 	// Example: "notifications/alerts" for topic notifications/alerts
 	Topic string `desc:"Target topic name" required:"" url:"path"`
 
-	// Username for MQTT broker authentication.
-	// Optional: Leave empty for anonymous connections or when password-only auth is used.
+	// Username for MQTT broker authentication. It is optional, and empty for
+	// anonymous connections or password-only authentication.
 	Username string `desc:"Auth username" optional:"" url:"user"`
 
-	// Password for MQTT broker authentication.
-	// Optional: Leave empty for anonymous connections or username-only auth.
-
+	// Password for MQTT broker authentication. It is optional, and empty for
+	// anonymous connections or username-only authentication.
 	Password string `desc:"Auth password" optional:"" sensitive:"true" url:"password"`
 
 	// ClientID is the unique identifier for this MQTT client connection.
@@ -169,8 +168,9 @@ var QoSValues = &qosVals{
 // Enums returns a map of enum type names to their formatters.
 // This enables proper parsing and formatting of enum values like QoS.
 //
-// Returns a map where keys are enum type names and values are formatters
-// that can convert between string representations and enum values.
+// Returns:
+//   - map[string]types.EnumFormatter: the QoS formatter by field name, which
+//     converts between string representations and enum values.
 func (c *Config) Enums() map[string]types.EnumFormatter {
 	return map[string]types.EnumFormatter{
 		"QoS": QoSValues.Enum,
@@ -198,7 +198,8 @@ func (c *Config) GetURL() *url.URL {
 // QueryFields returns a list of all configurable query parameter names.
 // This is used for documentation generation and validation of URL parameters.
 //
-// Returns a slice of query parameter field names.
+// Returns:
+//   - []string: the query parameter field names.
 func (c *Config) QueryFields() []string {
 	return format.GetConfigQueryResolver(c).QueryFields()
 }
@@ -207,9 +208,12 @@ func (c *Config) QueryFields() []string {
 // This is the public entry point for URL-based configuration.
 //
 // Parameters:
-//   - url: The configuration URL to parse
+//   - serviceURL: The configuration URL to parse
 //
-// Returns an error if the URL is malformed or required fields are missing.
+// Returns:
+//   - error: a host error such as [util.ErrInvalidHost], a port error, a
+//     malformed query ([util.ErrInvalidQuery]) or query parameter error,
+//     [ErrTopicRequired], [ErrInvalidTopic], or [ErrInvalidQoS].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	// Create a new property key resolver for parsing query parameters
 	resolver := format.NewPropKeyResolver(c)
@@ -381,7 +385,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // MQTT protocol only supports QoS levels 0 (at most once), 1 (at least once),
 // and 2 (exactly once). Any value outside this range is invalid.
 //
-// Returns true if q is between QoSAtMostOnce (0) and QoSExactlyOnce (2) inclusive.
+// Returns:
+//   - bool: true if q is between QoSAtMostOnce (0) and QoSExactlyOnce (2)
+//     inclusive.
 func (q QoS) IsValid() bool {
 	return q >= QoSAtMostOnce && q <= QoSExactlyOnce
 }
@@ -389,7 +395,9 @@ func (q QoS) IsValid() bool {
 // String returns the human-readable name of the QoS level.
 // This implements the fmt.Stringer interface for pretty printing.
 //
-// Returns one of "AtMostOnce", "AtLeastOnce", or "ExactlyOnce".
+// Returns:
+//   - string: one of "AtMostOnce", "AtLeastOnce", or "ExactlyOnce", or
+//     "Invalid" for any other value.
 func (q QoS) String() string {
 	return QoSValues.Enum.Print(int(q))
 }

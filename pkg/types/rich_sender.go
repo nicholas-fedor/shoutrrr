@@ -6,5 +6,13 @@ package types
 // slice, preserving fields, timestamps, and file attachments. Services that do
 // not implement it fall back to plain text via ItemsToPlain.
 type RichSender interface {
+	// SendItems sends structured message items.
+	//
+	// Parameters:
+	//   - items: the message items to send.
+	//   - params: per-send parameters such as the title.
+	//
+	// Returns:
+	//   - error: the send failure, or nil on success.
 	SendItems(items []MessageItem, params Params) error
 }

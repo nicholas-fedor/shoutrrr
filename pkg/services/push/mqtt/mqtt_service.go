@@ -125,7 +125,8 @@ func (s *Service) Close() error {
 // GetID returns the service identifier used for registration and URL scheme matching.
 // This identifier is used to route URLs to the correct service implementation.
 //
-// Returns the MQTT scheme constant "mqtt".
+// Returns:
+//   - string: the MQTT scheme constant [Scheme], "mqtt".
 func (s *Service) GetID() string {
 	return Scheme
 }
@@ -144,7 +145,9 @@ func (s *Service) GetID() string {
 //   - serviceURL: The configuration URL containing broker address, credentials, and topic
 //   - logger: The logger instance for recording service events and errors
 //
-// Returns an error if URL parsing fails or required fields are missing.
+// Returns:
+//   - error: the error from applying the default props or reading the URL,
+//     such as [ErrTopicRequired], [ErrInvalidTopic], or [ErrInvalidQoS].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set up logging for the service
 	s.SetLogger(logger)
@@ -382,9 +385,10 @@ func (s *Service) acquireConnection(config *Config) (ConnectionManager, *sync.Wa
 //   - serverURL: Broker URL whose host and port are dialed.
 //
 // Returns:
-//   - A connected [net.Conn], TLS-wrapped when cfg.TlsCfg is set, always
-//     wrapped for thread-safe writes.
-//   - An error if the custom dialer is unset, dialing fails, or the handshake fails.
+//   - net.Conn: a connected [net.Conn], TLS-wrapped when cfg.TlsCfg is set,
+//     always wrapped for thread-safe writes.
+//   - error: an error if the custom dialer is unset, dialing fails, or the
+//     handshake fails.
 func (s *Service) attemptConnection(
 	ctx context.Context,
 	cfg autopaho.ClientConfig, //nolint:gocritic // hugeParam: matches autopaho.AttemptConnection
@@ -507,7 +511,8 @@ func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFun
 // Parameters:
 //   - scheme: The MQTT scheme ("mqtt" or "mqtts")
 //
-// Returns the default port number (1883 for mqtt, 8883 for mqtts).
+// Returns:
+//   - int: [DefaultTLSPort] (8883) for mqtts, otherwise [DefaultPort] (1883).
 func (s *Service) getDefaultPortForScheme(scheme string) int {
 	switch scheme {
 	case SchemeTLS:

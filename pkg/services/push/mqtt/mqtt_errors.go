@@ -56,8 +56,11 @@ var (
 )
 
 // Error implements the error interface for PublishError.
-// It returns a formatted error message including the reason code in hex format
-// and the optional reason string if provided.
+// It formats the reason code in hex and appends the reason string when the
+// broker provided one.
+//
+// Returns:
+//   - string: the error message.
 func (e PublishError) Error() string {
 	// Build the base error message with hex-formatted reason code
 	msg := fmt.Sprintf("MQTT publish failed: reason code 0x%02X", e.ReasonCode)
@@ -73,8 +76,12 @@ func (e PublishError) Error() string {
 // IsFailureCode checks if an MQTT v5 reason code indicates a failure.
 // Reason codes >= 0x80 are failure codes per the MQTT v5 specification.
 //
-// Returns true if the code indicates a failure that should be returned as an error,
-// false if the code indicates success or a non-fatal condition.
+// Parameters:
+//   - code: the MQTT v5 reason code.
+//
+// Returns:
+//   - bool: true if the code indicates a failure that should be returned as
+//     an error, false if it indicates success or a non-fatal condition.
 func IsFailureCode(code byte) bool {
 	return code >= reasonCodeFailureThreshold
 }

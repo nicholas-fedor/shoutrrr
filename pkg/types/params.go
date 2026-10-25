@@ -3,6 +3,7 @@ package types
 // Params is the string map used to provide additional variables to the service templates.
 type Params map[string]string
 
+// Keys of the common params.
 const (
 	// TitleKey is the common key for the title prop.
 	TitleKey = "title"
