@@ -116,6 +116,7 @@ You can use either `rooms` (for multiple rooms) or `room` (for a single room) - 
 
 If you do not have TLS enabled on the server you can disable it by providing `disabletls=yes`.
 This will effectively use `http` instead of `https` for the API calls.
+A `disabletls` send param applies to that send only, including the login on the first send.
 The first send without TLS logs a warning.
 
 !!! Warning "Security Risk"

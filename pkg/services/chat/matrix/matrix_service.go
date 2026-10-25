@@ -156,16 +156,6 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	// The API client keeps the protocol of the service URL, so the stored
-	// setting decides it, and an injected client is warned about too.
-	if s.Config.DisableTLS {
-		s.warnings.Plaintext(s)
-	}
-
-	if err := s.ensureLogin(ctx); err != nil {
-		return err
-	}
-
 	// Make a per-call copy of the config to avoid mutating the shared s.Config
 	cfg := *s.Config
 
@@ -173,10 +163,20 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	// The send's config decides the protocol, so an injected client is warned
+	// about too.
+	if cfg.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
+
+	if err := s.ensureLogin(ctx, cfg.apiScheme()); err != nil {
+		return err
+	}
+
 	// Create message with title if provided
 	fullMessage := createMessage(message, cfg.Title)
 
-	sendErrors := s.client.sendMessage(ctx, fullMessage, cfg.Rooms)
+	sendErrors := s.client.withScheme(cfg.apiScheme()).sendMessage(ctx, fullMessage, cfg.Rooms)
 	if len(sendErrors) > 0 {
 		for _, err := range sendErrors {
 			s.Logf("error sending message: %v", err)
@@ -262,10 +262,11 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Parameters:
 //   - ctx: cancellation for waiting on and running the login.
+//   - scheme: the URL scheme of the send, which the login uses too.
 //
 // Returns:
 //   - error: the login failure or ctx's error, or nil when no login is needed.
-func (s *Service) ensureLogin(ctx context.Context) error {
+func (s *Service) ensureLogin(ctx context.Context, scheme string) error {
 	if s.Config.User == "" {
 		return nil
 	}
@@ -282,10 +283,13 @@ func (s *Service) ensureLogin(ctx context.Context) error {
 		return nil
 	}
 
-	if err := s.client.login(ctx, s.Config.User, s.Config.Password); err != nil {
+	loginClient := s.client.withScheme(scheme)
+	if err := loginClient.login(ctx, s.Config.User, s.Config.Password); err != nil {
 		return fmt.Errorf("logging in to Matrix: %w", err)
 	}
 
+	// Later sends copy the shared client, so it keeps the access token.
+	s.client.accessToken = loginClient.accessToken
 	s.loggedIn = true
 
 	return nil

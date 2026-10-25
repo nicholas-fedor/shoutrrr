@@ -675,6 +675,21 @@ func (c *client) useToken(token string) {
 	c.accessToken = token
 }
 
+// withScheme returns a copy of the client that sends its requests with
+// scheme. The copy shares the HTTP client and starts with the access token.
+//
+// Parameters:
+//   - scheme: the URL scheme, http or https.
+//
+// Returns:
+//   - *client: the copy.
+func (c *client) withScheme(scheme string) *client {
+	scoped := *c
+	scoped.apiURL.Scheme = scheme
+
+	return &scoped
+}
+
 // isRateLimitedError checks if the error is a rate limiting error.
 //
 // Parameters:
