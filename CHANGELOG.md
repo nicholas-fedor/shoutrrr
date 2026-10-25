@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bring the chat services under the service rules by @nicholas-fedor in [#1861](https://github.com/nicholas-fedor/shoutrrr/pull/1861)
 - Bring Twilio and Telegram under the service rules by @nicholas-fedor in [#1859](https://github.com/nicholas-fedor/shoutrrr/pull/1859)
 - Bring Rocket.Chat and Pushover under the service rules by @nicholas-fedor in [#1857](https://github.com/nicholas-fedor/shoutrrr/pull/1857)
 - Bring Bark under the service rules by @nicholas-fedor in [#1853](https://github.com/nicholas-fedor/shoutrrr/pull/1853)
