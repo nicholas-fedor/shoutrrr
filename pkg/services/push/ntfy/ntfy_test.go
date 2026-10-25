@@ -851,8 +851,8 @@ func TestSendTLSParams(t *testing.T) {
 
 // TestSendSchemePrecedence verifies that disabletls decides the protocol of a
 // send over the deprecated scheme. A disabletls param overrides a stored http
-// scheme, a scheme param applies when the params do not set disabletls, and
-// disabletls wins when the params set both.
+// scheme, a scheme param of either protocol applies when the params do not set
+// disabletls, and disabletls wins when the params set both.
 func TestSendSchemePrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -869,6 +869,12 @@ func TestSendSchemePrecedence(t *testing.T) {
 			wantURL: testEndpoint,
 		},
 		{name: "stored scheme", rawURL: testServiceURL + "?scheme=http", wantURL: "http://ntfy.sh/" + testTopic},
+		{
+			name:    "https scheme param overrides the stored scheme",
+			rawURL:  testServiceURL + "?scheme=http",
+			params:  &types.Params{"scheme": "https"},
+			wantURL: testEndpoint,
+		},
 		{name: "stored disabletls over a stored scheme", rawURL: testServiceURL + "?scheme=http&disabletls=no", wantURL: testEndpoint},
 		{
 			name:    "scheme param",
