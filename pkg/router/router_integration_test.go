@@ -437,13 +437,9 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	},
 	checkClientFieldOrder: {
-		"bark":       {"Bark panics when its HTTPClient field is set to nil", failPanic},
 		"pushover":   {"Pushover keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
 		"rocketchat": {"Rocket.Chat keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
 		"twilio":     {"Twilio panics when its HTTPClient field is set to nil", failPanic},
-	},
-	checkStandardKeyNames: {
-		"bark": {"Bark selects HTTP through a scheme key", failNonStandardKey},
 	},
 	checkKeyDescriptions: {
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
@@ -454,7 +450,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"pushover":   {"Pushover's devices, priority, and title keys have no description", failMissingDescription},
 	},
 	checkSendBudget: {
-		"bark":       {"Bark bounds requests with its client timeout instead of a context deadline", failBudget},
 		"googlechat": {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
 		"hangouts":   {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
 		"lark":       {"Lark bounds requests with its client timeout instead of a context deadline", failBudget},

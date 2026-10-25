@@ -4,39 +4,39 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
-// HTTPClient defines the interface for HTTP operations required by the Bark service.
-// This interface allows for dependency injection of HTTP clients for testing purposes.
-type HTTPClient interface {
-	// Do sends an HTTP request and returns the server's response.
-	//
-	// Parameters:
-	//   - req: the request to send.
-	//
-	// Returns:
-	//   - *http.Response: the server's response.
-	//   - error: the request failure, or nil on success.
-	Do(req *http.Request) (*http.Response, error)
-}
+// HTTPClient defines the interface for HTTP operations.
+//
+// Deprecated: The service takes a [types.HTTPClient], which HTTPClient is an
+// alias of. Use [types.HTTPClient].
+//
+//go:fix inline
+type HTTPClient = types.HTTPClient
 
-// DefaultHTTPClient is the default HTTP client implementation used when no
-// custom client is provided. It uses a reasonable timeout to prevent hanging requests.
+// DefaultHTTPClient is an HTTP client whose requests time out after
+// [defaultHTTPTimeout]. The zero value is ready to use.
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 type DefaultHTTPClient struct {
-	// client sends the requests, bounded by [defaultHTTPTimeout].
+	// client sends the requests, or is nil to send through a new client with
+	// [defaultHTTPTimeout] as its timeout.
 	client *http.Client
 }
 
@@ -45,18 +45,36 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// HTTPClient sends the requests to the Bark server. Initialize sets the
-	// default client when it is nil.
-	HTTPClient HTTPClient
+	// HTTPClient sends the requests to the Bark server when set.
+	// [Service.SetHTTPClient] clears it, so whichever of the two the caller
+	// set last carries the sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
+	HTTPClient types.HTTPClient
 
 	// Config holds the server, the device key, and the notification options.
 	Config *Config
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
 }
 
-// defaultHTTPTimeout is the default timeout for HTTP requests.
+// defaultHTTPTimeout is the send budget, and the timeout of
+// [DefaultHTTPClient].
 const defaultHTTPTimeout = 30 * time.Second
+
+// Deprecations of the scheme. Its replacement is another field, which the
+// format package's deprecation tags cannot describe.
+var (
+	// schemeKey is the deprecated scheme key and its replacement.
+	schemeKey = format.Deprecation{Name: "scheme", Replacement: "disabletls"}
+	// schemeField is the deprecated Scheme field and its replacement.
+	schemeField = format.Deprecation{Name: "Scheme", Replacement: "DisableTLS"}
+)
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -69,7 +87,12 @@ var (
 // NewDefaultHTTPClient creates a new HTTP client with default timeout settings.
 //
 // Returns:
-//   - A configured DefaultHTTPClient instance ready for use.
+//   - *DefaultHTTPClient: a client whose requests time out after
+//     [defaultHTTPTimeout].
+//
+// Deprecated: The service builds its own default client and bounds each send
+// by its send budget. Inject an *http.Client with [Service.SetHTTPClient]
+// instead.
 func NewDefaultHTTPClient() *DefaultHTTPClient {
 	return &DefaultHTTPClient{
 		client: &http.Client{
@@ -81,13 +104,18 @@ func NewDefaultHTTPClient() *DefaultHTTPClient {
 // Do executes the HTTP request and returns the response.
 //
 // Parameters:
-//   - req: The HTTP request to execute.
+//   - req: the request to send.
 //
 // Returns:
-//   - The HTTP response from the server.
-//   - An error if the request fails.
+//   - *http.Response: the server's response.
+//   - error: the request failure, with the request URL redacted.
 func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+	client := &http.Client{Timeout: defaultHTTPTimeout}
+	if c != nil && c.client != nil {
+		client = c.client
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return resp, fmt.Errorf("executing HTTP request: %w", redact.URLError(err))
 	}
@@ -104,27 +132,37 @@ func (s *Service) GetID() string {
 }
 
 // Initialize sets up the Bark service with configuration from the provided URL.
+// It keeps an HTTP client that is already set, and warns once when the URL
+// uses the deprecated scheme key. It performs no network I/O.
 //
 // Parameters:
-//   - serviceURL: URL containing configuration for the Bark service.
-//   - logger: Standard logger for output messages.
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
 //
 // Returns:
-//   - An error if initialization fails.
+//   - error: the error from applying the default props or reading the URL,
+//     such as [ErrMissingDeviceKey] or [ErrInvalidScheme].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.Config = &Config{}
-
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	if s.HTTPClient == nil {
-		s.HTTPClient = NewDefaultHTTPClient()
-	}
+	s.warnings.Reset()
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
 	}
 
-	return s.Config.setURL(&s.pkr, serviceURL)
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
+		return err
+	}
+
+	// The resolver records the keys the URL set, so a scheme the URL set
+	// does not keep its default.
+	if !s.pkr.KeepsDefault(s.Config, nil, schemeKey.Name) {
+		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+	}
+
+	return nil
 }
 
 // Send transmits a notification message to the Bark server.
@@ -141,26 +179,33 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext transmits a notification message to the Bark server.
+// SendContext transmits a notification message to the Bark server. Params
+// apply to this send only, including disabletls. A context without a deadline
+// is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
-//   - message: The notification body text to send.
-//   - params: Additional parameters for notification customization.
+//   - message: the notification body text to send.
+//   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params or send error. A request error matches ctx's error when
-//     ctx ends the request.
+//   - error: the params error, such as [ErrInvalidScheme], or the send error.
+//     A request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	// Params apply to this send only, so they update a copy of the service config.
-	configCopy := *s.Config
-	config := &configCopy
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
-	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
-		return fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
+	config, err := s.sendConfig(params)
+	if err != nil {
+		return err
 	}
 
-	if err := s.sendAPI(ctx, config, message); err != nil {
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
+
+	if err := s.sendAPI(ctx, &config, message); err != nil {
 		return fmt.Errorf("failed to send bark notification: %w", err)
 	}
 
@@ -185,34 +230,27 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 	return s.Send(types.ItemsToPlain(items), params)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Bark send.
+// ServiceTimeout reports the send budget of Bark.
 //
 // Parameters:
-//   - params: Unused. The budget does not depend on send parameters.
+//   - params: unused. The budget does not depend on send parameters.
 //
 // Returns:
-//   - [defaultHTTPTimeout].
+//   - time.Duration: [defaultHTTPTimeout].
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return defaultHTTPTimeout
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// including a nil *http.Client, selects the default client. It clears the
+// deprecated HTTPClient field, so the sends use this client until that field
+// is set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	if client == nil {
-		s.HTTPClient = NewDefaultHTTPClient()
-
-		return
-	}
-
-	s.HTTPClient = client
+	s.client.Set(client)
+	s.HTTPClient = nil
 }
 
 // sendAPI sends a notification to the Bark server using the configured endpoint.
@@ -224,7 +262,9 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - message: The notification body text to send.
 //
 // Returns:
-//   - error: the request error, or the error the Bark server reported.
+//   - error: the request error, the error the Bark server reported, or an
+//     error wrapping [ErrUnexpectedStatus] for an error status without a
+//     JSON body.
 func (s *Service) sendAPI(ctx context.Context, config *Config, message string) error {
 	response := APIResponse{}
 	request := PushPayload{
@@ -254,14 +294,8 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := s.HTTPClient.Do(httpReq)
+	httpResp, err := s.client.Prefer(s.HTTPClient).Do(httpReq)
 	if err != nil {
-		if jsonErr, ok := errors.AsType[jsonclient.Error](err); ok {
-			if json.Unmarshal([]byte(jsonErr.Body), &response, jsonopts.Default) == nil {
-				return &response
-			}
-		}
-
 		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, redact.URLError(err))
 	}
 
@@ -273,6 +307,12 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	}
 
 	if err := json.Unmarshal(body, &response, jsonopts.Default); err != nil {
+		// A proxy in front of the server can answer an error status with a
+		// body that is not JSON, such as an HTML page.
+		if httpResp.StatusCode >= http.StatusBadRequest {
+			return fmt.Errorf("%w: %d", ErrUnexpectedStatus, httpResp.StatusCode)
+		}
+
 		return fmt.Errorf("decoding response: %w", err)
 	}
 
@@ -285,4 +325,64 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	}
 
 	return nil
+}
+
+// sendConfig returns the config for one send. The stored scheme moves into
+// DisableTLS before the params apply, so a disabletls param can turn TLS back
+// on. A scheme param of either protocol applies only when the params do not
+// set disabletls. The deprecated Scheme field and scheme param are each warned
+// about once.
+//
+// Parameters:
+//   - params: the send params, or nil.
+//
+// Returns:
+//   - Config: the config for this send.
+//   - error: a params error wrapping [ErrUpdateParamsFailed], or
+//     [ErrInvalidScheme].
+func (s *Service) sendConfig(params *types.Params) (Config, error) {
+	config := *s.Config
+
+	// A URL with an http scheme turns TLS off as it is read, so an http scheme
+	// with TLS on was set on the deprecated field directly.
+	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
+		s.warnings.DeprecatedFields(s, []format.Deprecation{schemeField})
+	}
+
+	if params != nil && hasKey(*params, schemeKey.Name) {
+		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+	}
+
+	// The stored scheme turns TLS off before the params apply, so a disabletls
+	// param can turn it back on. DisableTLS alone then decides the protocol.
+	if err := config.applyScheme(); err != nil {
+		return config, err
+	}
+
+	config.Scheme = schemeHTTPS
+
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return config, fmt.Errorf("%w: %w", ErrUpdateParamsFailed, err)
+	}
+
+	if params != nil && hasKey(*params, schemeKey.Name) {
+		disableTLS := config.DisableTLS
+
+		// The scheme param decides the protocol on its own, so https turns
+		// TLS back on.
+		config.DisableTLS = false
+
+		if err := config.applyScheme(); err != nil {
+			return config, err
+		}
+
+		// disabletls replaces scheme, so it wins when the params set both.
+		if hasKey(*params, schemeKey.Replacement) {
+			config.DisableTLS = disableTLS
+		}
+
+		config.Scheme = schemeHTTPS
+	}
+
+	return config, nil
 }

@@ -27,8 +27,11 @@ type Config struct {
 	// DeviceKey is the key of the device that receives the notifications.
 	// It is the password of the service URL.
 	DeviceKey string `desc:"The key for each device" sensitive:"true" url:"password"`
-	// Scheme is the protocol used to reach the server, http or https.
-	Scheme string `default:"https" desc:"Server protocol, http or https" key:"scheme"`
+	// Scheme is the server's protocol, http or https. A URL or params that set
+	// it to http turn TLS off, and GetURL writes that as disabletls.
+	//
+	// Deprecated: Use [Config.DisableTLS], which the disabletls key sets.
+	Scheme string `default:"https" desc:"Deprecated: use disabletls. Server protocol, http or https" key:"scheme"`
 	// Sound is the name of the notification sound.
 	Sound string `default:"" desc:"Value from https://github.com/Finb/Bark/tree/master/Sounds" key:"sound"`
 	// Icon is the URL of the notification icon, shown on iOS 15 or later.
@@ -44,22 +47,33 @@ type Config struct {
 	Copy string `default:"" desc:"The value to be copied" key:"copy"`
 	// Badge is the number displayed next to the app icon.
 	Badge int64 `default:"0" desc:"The number displayed next to App icon" key:"badge"`
+	// DisableTLS sends over HTTP whatever Scheme says.
+	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 }
 
 // Scheme is the URL scheme identifier for the Bark service.
 const Scheme = "bark"
 
+// Protocols that the deprecated scheme accepts.
+const (
+	// schemeHTTP sends over plain HTTP.
+	schemeHTTP = "http"
+	// schemeHTTPS sends over HTTPS, the default.
+	schemeHTTPS = "https"
+)
+
 // ErrSetQueryFailed indicates a failure to set a configuration value from a query parameter.
 var ErrSetQueryFailed = errors.New("failed to set query parameter")
 
 // GetAPIURL constructs the full API URL for a given endpoint.
-// The endpoint is appended to the configured host and path.
+// The endpoint is appended to the configured host and path. The URL uses HTTP
+// when TLS is disabled or the deprecated scheme is http, and HTTPS otherwise.
 //
 // Parameters:
-//   - endpoint: The API endpoint to access (e.g., "push", "register").
+//   - endpoint: the API endpoint, such as "push".
 //
 // Returns:
-//   - The complete URL string for the API request.
+//   - string: the API URL for the endpoint.
 func (c *Config) GetAPIURL(endpoint string) string {
 	path := strings.Builder{}
 	if !strings.HasPrefix(c.Path, "/") {
@@ -74,8 +88,13 @@ func (c *Config) GetAPIURL(endpoint string) string {
 
 	path.WriteString(endpoint)
 
+	scheme := schemeHTTPS
+	if c.DisableTLS || strings.EqualFold(c.Scheme, schemeHTTP) {
+		scheme = schemeHTTP
+	}
+
 	apiURL := url.URL{
-		Scheme: c.Scheme,
+		Scheme: scheme,
 		Host:   c.Host,
 		Path:   path.String(),
 	}
@@ -84,14 +103,17 @@ func (c *Config) GetAPIURL(endpoint string) string {
 }
 
 // GetURL returns a URL representation of the current configuration.
-// This URL can be used to share or persist the service configuration.
+// This URL can be used to share or persist the service configuration. An
+// http scheme is written as disabletls, and the config is left unchanged.
 //
 // Returns:
-//   - A URL struct containing the configuration as query parameters.
+//   - *url.URL: the service URL, with the options as query parameters.
 func (c *Config) GetURL() *url.URL {
-	resolver := format.NewPropKeyResolver(c)
+	normalized := *c
+	normalized.normalizeScheme()
+	resolver := format.NewPropKeyResolver(&normalized)
 
-	return c.getURL(&resolver)
+	return normalized.getURL(&resolver)
 }
 
 // SetURL updates the configuration from a URL representation.
@@ -101,21 +123,39 @@ func (c *Config) GetURL() *url.URL {
 //   - serviceURL: URL containing the service configuration.
 //
 // Returns:
-//   - An error if the URL is invalid or missing required parameters.
+//   - error: the error from reading the URL, such as [ErrMissingDeviceKey]
+//     or [ErrInvalidScheme].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
 	return c.setURL(&resolver, serviceURL)
 }
 
+// applyScheme checks the deprecated Scheme and turns TLS off when it is http,
+// so DisableTLS alone decides the protocol. An empty Scheme counts as https.
+//
+// Returns:
+//   - error: [ErrInvalidScheme] for a scheme other than http or https.
+func (c *Config) applyScheme() error {
+	switch strings.ToLower(c.Scheme) {
+	case schemeHTTP:
+		c.DisableTLS = true
+	case schemeHTTPS, "":
+	default:
+		return fmt.Errorf("%w: %q", ErrInvalidScheme, c.Scheme)
+	}
+
+	return nil
+}
+
 // getURL generates a URL representation using the provided resolver.
 // This internal method handles the actual URL construction logic.
 //
 // Parameters:
-//   - resolver: Configuration query resolver for building URL parameters.
+//   - resolver: the resolver that builds the query from the config props.
 //
 // Returns:
-//   - A URL struct with embedded credentials and query parameters.
+//   - *url.URL: the service URL, with the device key as its password.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		User:       url.UserPassword("", c.DeviceKey),
@@ -127,16 +167,33 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// normalizeScheme writes an http scheme as DisableTLS and resets the scheme to
+// its default, so a config URL carries disabletls instead of the deprecated
+// scheme key. An invalid scheme is kept, so reading the URL reports it.
+func (c *Config) normalizeScheme() {
+	switch strings.ToLower(c.Scheme) {
+	case schemeHTTP:
+		c.DisableTLS = true
+		c.Scheme = schemeHTTPS
+	case schemeHTTPS, "":
+		c.Scheme = schemeHTTPS
+	default:
+	}
+}
+
 // setURL parses a service URL and updates the configuration accordingly.
 // It extracts the device key from the password field and host from the URL.
+// A scheme of http turns TLS off, and disabletls wins when the query sets
+// both.
 //
 // Parameters:
-//   - resolver: Configuration query resolver for setting query parameters.
-//   - serviceURL: URL containing the service configuration.
+//   - resolver: the resolver that sets the query parameters.
+//   - serviceURL: the service URL.
 //
 // Returns:
-//   - An error if required fields are missing, the query is malformed
-//     ([util.ErrInvalidQuery]), or query parameters are invalid.
+//   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field, a
+//     malformed query ([util.ErrInvalidQuery]), a query parameter error, or
+//     [ErrInvalidScheme].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.DeviceKey = password
@@ -168,5 +225,37 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
+	disableTLS := c.DisableTLS
+
+	if err := c.applyScheme(); err != nil {
+		return err
+	}
+
+	// disabletls replaces scheme, so it wins when the query sets both. The
+	// scheme resets, so a send that applies the stored scheme keeps the choice.
+	if hasKey(query, schemeKey.Replacement) {
+		c.DisableTLS = disableTLS
+		c.Scheme = schemeHTTPS
+	}
+
 	return nil
+}
+
+// hasKey reports whether values set key, matched case-insensitively as the
+// config keys are.
+//
+// Parameters:
+//   - values: the URL query or the send params.
+//   - key: the key in lower case.
+//
+// Returns:
+//   - bool: whether values hold the key.
+func hasKey[V any](values map[string]V, key string) bool {
+	for name := range values {
+		if strings.EqualFold(name, key) {
+			return true
+		}
+	}
+
+	return false
 }

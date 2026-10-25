@@ -18,4 +18,7 @@ var (
 
 	// ErrMissingHost indicates the Host is required but was not provided.
 	ErrMissingHost = errors.New("host is required but not specified in the configuration")
+
+	// ErrInvalidScheme indicates a scheme other than http or https.
+	ErrInvalidScheme = errors.New("invalid scheme: use http or https, or disabletls instead")
 )
