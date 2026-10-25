@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Return an error instead of panicking before Initialize by @nicholas-fedor in [#1865](https://github.com/nicholas-fedor/shoutrrr/pull/1865)
 - Let a scheme param override the stored scheme by @nicholas-fedor in [#1855](https://github.com/nicholas-fedor/shoutrrr/pull/1855)
 - Harden scheme lookup, channel ID parsing, and message partitioning by @nicholas-fedor in [#1791](https://github.com/nicholas-fedor/shoutrrr/pull/1791)
 - Cap response body reads at 1 MiB by @nicholas-fedor in [#1781](https://github.com/nicholas-fedor/shoutrrr/pull/1781)
