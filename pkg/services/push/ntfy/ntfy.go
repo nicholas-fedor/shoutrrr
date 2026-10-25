@@ -283,8 +283,8 @@ func (s *Service) sendClient(config *Config) types.HTTPClient {
 // sendConfig returns the config for one send. Deprecated config fields and
 // the stored scheme move into their replacements before the params apply, so
 // a param can still turn an option off. A scheme param of either protocol
-// applies only when the params do not set disabletls. Each deprecated field and param key is warned
-// about once.
+// applies only when the params do not set disabletls. Each deprecated field
+// and param key is warned about once.
 //
 // Parameters:
 //   - params: the send params, or nil.
