@@ -50,6 +50,16 @@ The bot should be constantly online, unless it's usage exceeds the free tier on 
 
 
 
+## Sending to several chats
+
+Each chat in the `chats` param gets its own request, in order.
+A chat that Telegram rejects does not stop the chats after it, and the error lists every chat that failed.
+
+A message can hold up to 4096 characters, counted as UTF-16 code units the way Telegram measures text.
+Most characters count as one unit, and an emoji or another character outside the Basic Multilingual Plane counts as two.
+A title sent on its own line, as the HTML parse mode or no parse mode sends it, counts toward the limit too.
+A longer message fails before any request is sent.
+
 ## Optional parameters
 
 You can optionally specify the __`notification`__, __`parseMode`__ and __`preview`__ parameters in the URL:

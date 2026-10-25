@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -313,38 +314,210 @@ func TestSendUsesChatsFromParams(t *testing.T) {
 	assert.Equal(t, []string{"channel-9"}, chats)
 }
 
-// TestSendRejectsLongMessage verifies that a message over the length limit fails
-// before any request is made.
-func TestSendRejectsLongMessage(t *testing.T) {
+// TestSendMessageLength verifies that the length limit counts UTF-16 code
+// units, so a message of multibyte characters within the limit is sent, and a
+// message over it fails before any request is made. A character outside the
+// Basic Multilingual Plane, such as an emoji, counts as two units.
+func TestSendMessageLength(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, testServiceURL)
-	// The mock has no expectations, so any request fails the test.
-	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+	// tests lists messages with whether they fit the limit.
+	tests := []struct {
+		name    string
+		message string
+		fits    bool
+	}{
+		{name: "ASCII at the limit", message: strings.Repeat("a", maxlength), fits: true},
+		{name: "ASCII over the limit", message: strings.Repeat("a", maxlength+1)},
+		{name: "Cyrillic within the limit", message: strings.Repeat("ж", 3000), fits: true},
+		{name: "emoji at the limit", message: strings.Repeat("😀", maxlength/2), fits: true},
+		{name: "emoji over the limit", message: strings.Repeat("😀", maxlength/2+1)},
+	}
 
-	require.ErrorIs(t, service.Send(strings.Repeat("a", maxlength+1), nil), ErrMessageTooLong)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !tt.fits {
+				service := newTestService(t, testServiceURL)
+				// The mock has no expectations, so any request fails the test.
+				service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+				require.ErrorIs(t, service.Send(tt.message, nil), ErrMessageTooLong)
+
+				return
+			}
+
+			require.NoError(t, newSendingService(t, respondWith(http.StatusOK, sendSuccessBody)).Send(tt.message, nil))
+		})
+	}
 }
 
-// TestSendContextCanceled verifies that a canceled context stops the request.
+// TestSendMessageLengthWithTitle verifies that the length limit counts the
+// title line a send with a title carries, whether the title comes from the
+// service URL or the send params. A Markdown message carries no title, so its
+// title does not count.
+func TestSendMessageLengthWithTitle(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with whether a message of
+	// maxlength-4 units fits the limit with the title "Alert" and its newline.
+	tests := []struct {
+		params *types.Params
+		name   string
+		rawURL string
+		fits   bool
+	}{
+		{name: "no title", rawURL: testServiceURL, fits: true},
+		{name: "title param", rawURL: testServiceURL, params: &types.Params{"title": "Alert"}},
+		{name: "title in the URL", rawURL: testServiceURL + "&title=Alert"},
+		{name: "title with HTML", rawURL: testServiceURL + "&title=Alert&parsemode=HTML"},
+		{name: "title with Markdown", rawURL: testServiceURL + "&title=Alert&parsemode=Markdown", fits: true},
+	}
+
+	message := strings.Repeat("a", maxlength-4)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+
+			if !tt.fits {
+				// The mock has no expectations, so any request fails the test.
+				service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
+
+				require.ErrorIs(t, service.Send(message, tt.params), ErrMessageTooLong)
+
+				return
+			}
+
+			service.SetHTTPClient(&http.Client{Transport: respondWith(http.StatusOK, sendSuccessBody)})
+
+			require.NoError(t, service.Send(message, tt.params))
+		})
+	}
+}
+
+// TestSendContinuesAfterFailedChat verifies that a chat Telegram rejects does
+// not stop the send to the chats after it, and that the error names each
+// chat that failed.
+func TestSendContinuesAfterFailedChat(t *testing.T) {
+	t.Parallel()
+
+	var chats []string
+
+	service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+	service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var payload struct {
+			ChatID string `json:"chat_id"`
+		}
+
+		if err := json.UnmarshalRead(req.Body, &payload); err != nil {
+			return nil, err
+		}
+
+		chats = append(chats, payload.ChatID)
+
+		if payload.ChatID == "channel-2" {
+			return newResponse(req, http.StatusBadRequest, `{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`), nil
+		}
+
+		return newResponse(req, http.StatusOK, sendSuccessBody), nil
+	})})
+
+	err := service.Send("Message", nil)
+
+	require.Error(t, err)
+	assert.Equal(t, []string{"channel-1", "channel-2", "channel-3"}, chats)
+	assert.Contains(t, err.Error(), `"channel-2"`)
+	assert.NotContains(t, err.Error(), `"channel-1"`)
+
+	apiErr, ok := errors.AsType[*responseError](err)
+	require.True(t, ok, "the error should carry the Telegram API error")
+	assert.Equal(t, "Bad Request: chat not found", apiErr.Description)
+}
+
+// TestSendStopsWhenContextEnds verifies that once the caller's context ends,
+// the chats not yet sent are skipped and the error matches the context's
+// error.
+func TestSendStopsWhenContextEnds(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var requests int
+
+	service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2,channel-3")
+	service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requests++
+
+		cancel()
+
+		return newResponse(req, http.StatusOK, sendSuccessBody), nil
+	})})
+
+	err := service.SendContext(ctx, "Message", nil)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, requests)
+}
+
+// TestSendBudget verifies that the requests of a send without a caller
+// deadline share the budget that ServiceTimeout reports for all chats, and
+// that a caller's deadline is kept as it is.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var deadlines []time.Time
+
+		client := typesmocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			deadline, _ := req.Context().Deadline()
+			deadlines = append(deadlines, deadline)
+
+			return newResponse(req, http.StatusOK, sendSuccessBody), nil
+		})
+
+		service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=channel-1,channel-2")
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+		budget := start.Add(service.ServiceTimeout(nil))
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, []time.Time{budget, budget}, deadlines, "both chats share the budget")
+
+		deadlines = nil
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+		defer cancel()
+
+		require.NoError(t, service.SendContext(ctx, "Message", nil))
+		assert.Equal(t, []time.Time{start.Add(time.Hour), start.Add(time.Hour)}, deadlines, "the caller's deadline applies")
+	})
+}
+
+// TestSendContextCanceled verifies that a context canceled before the send
+// skips every chat and reports the context's error.
 func TestSendContextCanceled(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	client := typesmocks.NewMockHTTPClient(t)
-	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-		return nil, req.Context().Err()
-	}).Once()
-
 	service := newTestService(t, testServiceURL)
-	service.SetHTTPClient(client)
+	// The mock has no expectations, so any request fails the test.
+	service.SetHTTPClient(typesmocks.NewMockHTTPClient(t))
 
 	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 }
 
 // TestSetHTTPClient verifies that the service uses an injected client, and
-// otherwise a default client with the send timeout.
+// otherwise a default client without a request timeout, since the send
+// budget bounds each send.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -353,7 +526,7 @@ func TestSetHTTPClient(t *testing.T) {
 
 		client, ok := newTestService(t, testServiceURL).client.Client().(*http.Client)
 		require.True(t, ok, "the default client should be an *http.Client")
-		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+		assert.Zero(t, client.Timeout)
 	})
 
 	t.Run("injected", func(t *testing.T) {

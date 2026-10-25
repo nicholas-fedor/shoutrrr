@@ -436,9 +436,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	},
-	checkClientFieldOrder: {
-		"twilio": {"Twilio panics when its HTTPClient field is set to nil", failPanic},
-	},
 	checkKeyDescriptions: {
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
 		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
@@ -456,7 +453,6 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
 		"pagerduty":  {"PagerDuty bounds requests with its client timeout instead of a context deadline", failBudget},
 		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
-		"telegram":   {"Telegram bounds requests with its client timeout instead of a context deadline", failBudget},
 		"wecom":      {"WeCom bounds requests with its client timeout instead of a context deadline", failBudget},
 		// Zulip's limits lookup is optional, so it is capped below the budget and
 		// a slow lookup leaves the message request the rest of the budget.

@@ -68,6 +68,9 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `DefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `NewDefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `Service.HTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` | Unreleased |
+| `HTTPClient` | `pkg/services/sms/twilio` | `types.HTTPClient` | Unreleased |
+| `DefaultHTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `Service.HTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` | Unreleased |
 | `HTTPClient` | `pkg/services/push/bark` | `types.HTTPClient` | Unreleased |
 | `DefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `NewDefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
