@@ -14,9 +14,10 @@ type HTTPClient interface {
 	//
 	// Returns:
 	//   - *http.Response: the response. When the error is nil, the caller
-	//     closes its body. Otherwise the response can be ignored.
+	//     closes its body. With an error, the response can be ignored. It is
+	//     non-nil only after a failed CheckRedirect, with its body closed.
 	//   - error: a client policy failure, such as a failed CheckRedirect, or
-	//     a transport failure. It is nil when a response arrived.
+	//     a transport failure. It is nil when Do succeeds.
 	Do(req *http.Request) (*http.Response, error)
 }
 
