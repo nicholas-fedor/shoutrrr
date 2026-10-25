@@ -122,7 +122,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the first failure among the message's batches, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the first
+//     failure among the message's batches, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -137,8 +138,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the first failure among the message's batches, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the first
+//     failure among the message's batches, or nil on success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	if message == "" {
 		return ErrEmptyMessage
 	}
@@ -195,7 +201,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the send failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
+//     failure, or nil on success.
 //
 // Deprecated: Use [Service.SendItemsContext], which the router calls for rich
 // messages. This method's *types.Params parameter does not match
@@ -215,7 +222,8 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the send failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
+//     failure, or nil on success.
 func (s *Service) SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) error {
 	return s.sendItemBatches(ctx, items, &params)
 }
@@ -374,10 +382,15 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //   - params: per-send parameters, applied to a copy of the config.
 //
 // Returns:
-//   - error: the params failure, the first batch's failure, ctx's error when
-//     ctx ended before every batch was sent and no batch failed, or nil when
-//     every batch is sent.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
+//     failure, the first batch's failure, ctx's error when ctx ended before
+//     every batch was sent and no batch failed, or nil when every batch is
+//     sent.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

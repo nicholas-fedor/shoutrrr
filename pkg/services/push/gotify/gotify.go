@@ -127,7 +127,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional parameters that override configuration settings or provide extras.
 //
 // Returns:
-//   - error: the validation, config, or send error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the
+//     validation, config, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -143,8 +144,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional parameters that override configuration settings or provide extras.
 //
 // Returns:
-//   - error: the validation, config, or send error. A request error matches
-//     ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the
+//     validation, config, or send error. A request error matches ctx's error
+//     when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
@@ -340,11 +342,11 @@ func (s *Service) sendRequest(
 //   - message: the message to send.
 //
 // Returns:
-//   - error: [ErrServiceNotInitialized] when Initialize has not succeeded, or
-//     a message validation error.
+//   - error: [types.ErrServiceNotInitialized] when Initialize has not
+//     succeeded, or a message validation error.
 func (s *Service) validateInputs(message string, _ *types.Params) error {
 	if s.validator == nil {
-		return ErrServiceNotInitialized
+		return types.ErrServiceNotInitialized
 	}
 
 	if err := s.validator.ValidateMessage(message); err != nil {

@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // DefaultValidator provides the default implementation of Validator.
@@ -128,10 +130,10 @@ func (v *DefaultValidator) ValidatePriority(priority int) error {
 //   - config: the service configuration, nil before Initialize.
 //
 // Returns:
-//   - error: [ErrServiceNotInitialized] for a nil configuration.
+//   - error: [types.ErrServiceNotInitialized] for a nil configuration.
 func (v *DefaultValidator) ValidateServiceInitialized(config *Config) error {
 	if config == nil {
-		return ErrServiceNotInitialized
+		return types.ErrServiceNotInitialized
 	}
 
 	return nil

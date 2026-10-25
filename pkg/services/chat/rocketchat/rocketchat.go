@@ -82,7 +82,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional username and channel overrides.
 //
 // Returns:
-//   - error: the payload or request error, or an error for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
+//     request error, or an error for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -97,9 +98,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional username and channel overrides.
 //
 // Returns:
-//   - error: the payload or request error, or an error for a non-success status.
-//     A request error matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
+//     request error, or an error for a non-success status. A request error
+//     matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

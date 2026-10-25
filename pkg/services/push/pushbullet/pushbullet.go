@@ -93,7 +93,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params error or the first push error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
+//     error, or the joined errors of the targets that failed.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -110,9 +111,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params error, or the joined errors of the targets that
-//     failed, each naming its target, and ctx's error when it ended the send.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
+//     error, or the joined errors of the targets that failed, each naming its
+//     target, and ctx's error when it ended the send.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

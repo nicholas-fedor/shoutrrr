@@ -101,7 +101,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: Optional runtime overrides for title, service, targets, and nid.
 //
 // Returns:
-//   - error: [ErrMessageEmpty], a params error, or the send error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize,
+//     [ErrMessageEmpty], a params error, or the send error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -117,9 +118,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime overrides for title, service, targets, and nid.
 //
 // Returns:
-//   - error: [ErrMessageEmpty], a params error, or the send error, which matches
-//     ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize,
+//     [ErrMessageEmpty], a params error, or the send error, which matches ctx's
+//     error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	if message == "" {
 		return ErrMessageEmpty
 	}

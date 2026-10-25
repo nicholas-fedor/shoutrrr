@@ -125,7 +125,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the login or send failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the login or
+//     send failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -141,8 +142,13 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: the login or send failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the login or
+//     send failure, or nil on success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	if s.client == nil {
 		return ErrClientNotInitialized
 	}

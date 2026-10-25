@@ -36,8 +36,21 @@ func (s *Service) Initialize(_ *url.URL, logger types.StdLogger) error {
 	return nil
 }
 
-// Send a notification message to log.
+// Send writes a notification message to the log, through the message template
+// when one is set.
+//
+// Parameters:
+//   - message: the message to log.
+//   - params: optional values for the message template.
+//
+// Returns:
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     template error.
 func (s *Service) Send(message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	data := types.Params{}
 
 	if params != nil {
