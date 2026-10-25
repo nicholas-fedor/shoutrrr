@@ -31,6 +31,9 @@ The following adds webhook-specific information:
 
 By using the built-in `JSON` template (`template=json`) you can create a generic JSON payload.
 The keys used for `title` and `message` can be overridden by supplying the params/query values `titleKey` and `messageKey`.
+The other send params are added to the JSON object as they are.
+A param named after one of the [Query/Param Props](#queryparam_props) also sets that prop for the send, whatever its letter case.
+An invalid value for a prop fails the send.
 
 !!! example
     ```json

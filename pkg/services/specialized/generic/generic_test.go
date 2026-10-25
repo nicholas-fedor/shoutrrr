@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
@@ -355,6 +356,27 @@ func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
 	assert.Equal(t, want, *service.Config)
 }
 
+// TestSendAppliesOnlyConfigKeyParams verifies that params that are not config
+// keys fill the payload without a logged error, while config keys in any case
+// still update the config of the send.
+func TestSendAppliesOnlyConfigKeyParams(t *testing.T) {
+	t.Parallel()
+
+	logs := &bytes.Buffer{}
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, "generic://host.tld/webhook?template=json"), log.New(logs, "", 0)))
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	params := types.Params{"priority": "high", "Method": "PUT"}
+	require.NoError(t, service.Send("Message", &params))
+
+	assert.Equal(t, http.MethodPut, captured.method)
+	assert.JSONEq(t, `{"message":"Message","priority":"high","Method":"PUT"}`, captured.body)
+	assert.NotContains(t, logs.String(), format.ErrInvalidConfigKey.Error())
+}
+
 // TestSendLogsStatusWithoutBody verifies that a send logs the response status
 // but not a body that echoes the request URL.
 func TestSendLogsStatusWithoutBody(t *testing.T) {
@@ -506,6 +528,18 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, ErrSendFailed)
 		require.ErrorIs(t, err, ErrTemplateNotLoaded)
+	})
+
+	t.Run("invalid config param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "generic://host.tld/webhook")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", &types.Params{"disabletls": "maybe"})
+
+		require.ErrorIs(t, err, format.ErrInvalidBoolValue)
 	})
 
 	t.Run("transport error", func(t *testing.T) {
