@@ -269,6 +269,24 @@ func TestSendContextErrors(t *testing.T) {
 		assert.Len(t, *captured, 3)
 	})
 
+	t.Run("two events fail", func(t *testing.T) {
+		t.Parallel()
+
+		notFound := cannedResponse{status: "404 Not Found", statusCode: http.StatusNotFound}
+
+		service := newTestService(t, "ifttt://dummy/?events=event1,event2,event3")
+		client, captured := newRespondingClient(t, notFound, okResponse, notFound)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "hello", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), `event "event1"`)
+		assert.Contains(t, err.Error(), `event "event3"`)
+		assert.NotContains(t, err.Error(), `event "event2"`)
+		assert.Len(t, *captured, 3)
+	})
+
 	t.Run("transport error", func(t *testing.T) {
 		t.Parallel()
 

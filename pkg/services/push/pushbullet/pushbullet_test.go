@@ -382,6 +382,23 @@ func TestSendContextErrors(t *testing.T) {
 			(*captured)[1].body)
 	})
 
+	t.Run("names every failing target", func(t *testing.T) {
+		t.Parallel()
+
+		rejected := cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody}
+
+		service := newTestService(t, "pushbullet://"+testToken+"/first/second")
+		client, captured := newRespondingClient(t, rejected, rejected)
+		service.SetHTTPClient(client)
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `target "first"`)
+		assert.Contains(t, err.Error(), `target "second"`)
+		assert.Len(t, *captured, 2)
+	})
+
 	t.Run("unknown param", func(t *testing.T) {
 		t.Parallel()
 
