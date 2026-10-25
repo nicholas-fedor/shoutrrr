@@ -31,13 +31,13 @@ type Service struct {
 	// refreshes holds the token request in flight for each set of refresh
 	// settings, which concurrent sends with those settings wait for.
 	refreshes map[tokenKey]*tokenRefresh
+	// client holds the injected HTTP client and the default client for OAuth2
+	// token requests.
+	client httpclient.Holder
 	// warnings logs each warning about the service's settings once.
 	warnings logging.Once
 	// propKeyResolver applies URL and send-parameter overrides to [Config].
 	propKeyResolver format.PropKeyResolver
-	// client holds the injected HTTP client and the default client for OAuth2
-	// token requests.
-	client httpclient.Holder
 	// tokenMu guards tokens and refreshes. It is not held during token
 	// requests.
 	tokenMu sync.Mutex
@@ -85,9 +85,6 @@ func (s *Service) GetID() string {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 	s.warnings.Reset()
-	// The default client has no timeout of its own, because the send's
-	// timeout bounds each token request.
-	s.client.SetDefault(0, nil)
 	s.Config = &Config{
 		Port:        DefaultSMTPPort,
 		ToAddresses: nil,

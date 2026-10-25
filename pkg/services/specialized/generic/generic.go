@@ -14,6 +14,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -28,6 +29,8 @@ type Service struct {
 
 	// client holds the injected HTTP client and the default client.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the webhook URL, the custom headers and extra data, and
 	// the payload options.
@@ -40,9 +43,6 @@ type Service struct {
 const (
 	// JSONTemplate identifies the JSON format for webhook payloads.
 	JSONTemplate = "JSON"
-	// defaultSendTimeout bounds a direct Send, matching the send budget the router
-	// gives the service by default.
-	defaultSendTimeout = types.DefaultSendTimeout
 )
 
 // Errors returned by the generic webhook service.
@@ -159,9 +159,7 @@ func (*Service) GetServiceURLFromCustom(customURL *url.URL) (*url.URL, error) {
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	// Set the logger for the service
 	s.SetLogger(logger)
-	// The default client has no timeout of its own, because the send context
-	// bounds each request, so a longer router budget is not cut short.
-	s.client.SetDefault(0, nil)
+	s.warnings.Reset()
 
 	// Get default config and property key resolver
 	config, pkr := DefaultConfig()
@@ -176,8 +174,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 // Send delivers a notification message to a generic webhook endpoint.
 //
-// It delegates to [Service.SendContext] with a context that ends after
-// [defaultSendTimeout], so a stalled webhook cannot block the send.
+// It delegates to [Service.SendContext] with [context.Background].
 //
 // Parameters:
 //   - message: the message to send.
@@ -187,13 +184,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // Returns:
 //   - error: [ErrSendFailed] wrapping the payload or request error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultSendTimeout)
-	defer cancel()
-
-	return s.SendContext(ctx, message, paramsPtr)
+	return s.SendContext(context.Background(), message, paramsPtr)
 }
 
 // SendContext delivers a notification message to a generic webhook endpoint.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports. The first send without TLS logs a warning.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -205,6 +201,9 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //   - error: [ErrSendFailed] wrapping the payload or request error, which matches
 //     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(paramsPtr))
+	defer cancel()
+
 	// Create a copy of the config to avoid modifying the original
 	config := *s.Config
 
@@ -219,6 +218,11 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	if err := s.pkr.UpdateConfigFromParams(&config, &params); err != nil {
 		// Update config with runtime parameters
 		s.Logf("Failed to update params: %v", err)
+	}
+
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
 	}
 
 	// Prepare parameters for sending

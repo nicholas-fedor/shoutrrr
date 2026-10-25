@@ -1,18 +1,17 @@
 package httpclient
 
 import (
-	"crypto/tls"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // Holder holds the injected HTTP client of a service and its default clients.
-// The zero value holds no client and builds defaults without a timeout. A
-// Holder must not be copied after first use.
+// The zero value is ready to use and holds no client. The default clients
+// have no timeout of their own, because each send bounds its requests with
+// [BoundContext]. A Holder must not be copied after first use.
 type Holder struct {
 	// injected is the client from Set, or nil.
 	injected types.HTTPClient
@@ -22,11 +21,6 @@ type Holder struct {
 	// insecure is the default client that skips TLS certificate verification,
 	// built by the first InsecureClient call that needs it, or nil.
 	insecure types.HTTPClient
-	// tlsConfig is the TLS settings of the default client, or nil for the
-	// settings of [http.DefaultTransport].
-	tlsConfig *tls.Config
-	// timeout bounds each request of the default client, or 0 for no bound.
-	timeout time.Duration
 	// mu guards the other fields.
 	mu sync.Mutex
 }
@@ -34,7 +28,9 @@ type Holder struct {
 // Client returns the client to send through.
 //
 // Without an injected client, it returns the default client, which it builds
-// from the SetDefault settings on first use and reuses after that.
+// on first use and reuses after that. The default client sends through
+// [http.DefaultTransport], so it honors the proxy environment variables and
+// any transport a program installs there.
 //
 // Returns:
 //   - types.HTTPClient: the injected client, or the default client.
@@ -47,7 +43,7 @@ func (h *Holder) Client() types.HTTPClient {
 	}
 
 	if h.fallback == nil {
-		h.fallback = newDefault(h.timeout, h.tlsConfig)
+		h.fallback = &http.Client{}
 	}
 
 	return h.fallback
@@ -58,8 +54,8 @@ func (h *Holder) Client() types.HTTPClient {
 //
 // Without an injected client, it returns a default client that skips
 // verification and calls warn, so the service can log the warning once. It
-// builds that client with the SetDefault timeout on first use and reuses it
-// after that. An injected client is returned unchanged, without calling warn,
+// builds that client on first use, from a clone of [http.DefaultTransport],
+// and reuses it after that. An injected client is returned unchanged, without calling warn,
 // because its owner controls its TLS settings.
 //
 // Parameters:
@@ -79,7 +75,7 @@ func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 	}
 
 	if h.insecure == nil {
-		h.insecure = newDefault(h.timeout, transport.InsecureTLSConfig(""))
+		h.insecure = &http.Client{Transport: transport.New(transport.InsecureTLSConfig(""))}
 	}
 
 	insecure := h.insecure
@@ -126,26 +122,6 @@ func (h *Holder) Set(client types.HTTPClient) {
 	h.injected = client
 }
 
-// SetDefault sets how the default clients are built. A service calls it from
-// Initialize. Defaults built with earlier settings are dropped, so the next
-// Client or InsecureClient call builds one with these. The injected client is
-// kept.
-//
-// Parameters:
-//   - timeout: bounds each request of the default clients, or 0 for no bound.
-//   - tlsConfig: the TLS settings of the default client, or nil to send
-//     through [http.DefaultTransport]. The insecure default client ignores
-//     them.
-func (h *Holder) SetDefault(timeout time.Duration, tlsConfig *tls.Config) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.timeout = timeout
-	h.tlsConfig = tlsConfig
-	h.fallback = nil
-	h.insecure = nil
-}
-
 // normalize returns nil for a nil *http.Client, which is a non-nil
 // [types.HTTPClient], and client otherwise.
 //
@@ -157,28 +133,6 @@ func (h *Holder) SetDefault(timeout time.Duration, tlsConfig *tls.Config) {
 func normalize(client types.HTTPClient) types.HTTPClient {
 	if c, ok := client.(*http.Client); ok && c == nil {
 		return nil
-	}
-
-	return client
-}
-
-// newDefault builds a default client.
-//
-// Without TLS settings, the client sends through [http.DefaultTransport], so
-// it honors the proxy environment variables and any transport a program
-// installs there. With TLS settings, it sends through a clone of that
-// transport with those settings.
-//
-// Parameters:
-//   - timeout: bounds each request, or 0 for no bound.
-//   - tlsConfig: the TLS settings, or nil.
-//
-// Returns:
-//   - types.HTTPClient: the new client.
-func newDefault(timeout time.Duration, tlsConfig *tls.Config) types.HTTPClient {
-	client := &http.Client{Timeout: timeout}
-	if tlsConfig != nil {
-		client.Transport = transport.New(tlsConfig)
 	}
 
 	return client

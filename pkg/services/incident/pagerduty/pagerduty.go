@@ -40,7 +40,7 @@ type Service struct {
 const (
 	// eventEndpointPath is the Events API v2 endpoint path for sending events.
 	eventEndpointPath = "/v2/enqueue"
-	// defaultHTTPTimeout is the default timeout for HTTP requests.
+	// defaultHTTPTimeout is the send budget of PagerDuty.
 	defaultHTTPTimeout = 30 * time.Second
 	// maxMessageLength is the maximum permitted length of the summary property.
 	maxMessageLength = 1024
@@ -87,7 +87,6 @@ func (s *Service) GetID() string {
 //   - error: the error from applying the default props or reading the URL.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -112,7 +111,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to PagerDuty. The router calls it
-// with its send deadline. See https://developer.pagerduty.com/docs/events-api-v2-overview.
+// with its send deadline, and a context without a deadline is bounded by the
+// budget that [Service.ServiceTimeout] reports.
+// See https://developer.pagerduty.com/docs/events-api-v2-overview.
 //
 // Parameters:
 //   - ctx: bounds the event request.
@@ -126,6 +127,9 @@ func (s *Service) SendContext(
 	message string,
 	params *types.Params,
 ) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := s.Config
 	endpointURL := (&url.URL{
 		Scheme: "https",
@@ -158,7 +162,7 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.SendContext(ctx, message, params)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a PagerDuty send.
+// ServiceTimeout reports the send budget of PagerDuty.
 //
 // Returns:
 //   - time.Duration: [defaultHTTPTimeout], whatever the params.

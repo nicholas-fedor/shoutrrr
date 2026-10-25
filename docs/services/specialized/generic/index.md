@@ -102,6 +102,8 @@ If you need to pass a query variable that _is_ reserved, you can prefix it with 
     generic://webhook.example.com/alert?template=json&disabletls=yes&method=POST&titlekey=alert_title&messagekey=alert_message
     ```
 
+With `disabletls=yes`, the request goes over plain HTTP and the first send without TLS logs a warning.
+
 ## URL Format
 
 --8<-- "docs/services/specialized/generic/config.md"

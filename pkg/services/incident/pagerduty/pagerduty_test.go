@@ -114,7 +114,7 @@ func TestServiceTimeout(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize applies the event defaults before
-// the URL, builds a client with the HTTP timeout unless one is set, and
+// the URL, uses a default client without a request timeout unless one is set, and
 // rejects an invalid integration key.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
@@ -135,7 +135,7 @@ func TestInitialize(t *testing.T) {
 
 		client, ok := service.client.Client().(*http.Client)
 		require.True(t, ok, "client is a %T", service.client.Client())
-		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+		assert.Zero(t, client.Timeout)
 	})
 
 	t.Run("default host and port", func(t *testing.T) {
@@ -498,7 +498,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 }
 
 // TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// selects a client with the HTTP timeout for nil.
+// selects a default client without a request timeout for nil.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -535,7 +535,7 @@ func TestSetHTTPClient(t *testing.T) {
 
 			defaultClient, ok := service.client.Client().(*http.Client)
 			require.True(t, ok, "client is a %T", service.client.Client())
-			assert.Equal(t, defaultHTTPTimeout, defaultClient.Timeout)
+			assert.Zero(t, defaultClient.Timeout)
 		})
 	}
 }

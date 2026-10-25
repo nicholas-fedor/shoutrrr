@@ -31,7 +31,7 @@ type Service struct {
 const (
 	// pushesEndpoint is the API endpoint for creating pushes.
 	pushesEndpoint = "https://api.pushbullet.com/v2/pushes"
-	// defaultHTTPTimeout is the timeout of the HTTP client used when none is injected.
+	// defaultHTTPTimeout is the part of the send budget for each target.
 	defaultHTTPTimeout = 10 * time.Second
 )
 
@@ -75,7 +75,6 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrTokenIncorrectSize].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	s.Config = &Config{
 		Title: "Shoutrrr notification", // Explicitly set default
@@ -100,6 +99,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext sends a push notification to every configured Pushbullet target.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports, which the requests share. A target that
+// fails does not stop the targets after it, and once ctx ends, the remaining
+// targets are skipped.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the requests.
@@ -107,33 +110,49 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the params error or the first push error, which matches ctx's
-//     error when ctx ends the request.
+//   - error: the params error, or the joined errors of the targets that
+//     failed, each naming its target, and ctx's error when it ended the send.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	var errs []error
+
 	for _, target := range config.Targets {
+		// Once ctx ends, every remaining request would fail with its error, so the
+		// send stops and reports that error once.
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
 		if err := s.doSend(ctx, &config, target, message); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("sending to target %q: %w", target, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
-// ServiceTimeout reports the send budget the router gives Pushbullet. A send makes
-// one request per target, one after another, each bounded by the client timeout.
+// ServiceTimeout reports the send budget of Pushbullet. A send makes one request
+// per target, one after another, so the budget allows [defaultHTTPTimeout] for
+// each.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields. An invalid param fails
 //     the send itself, so the stored targets set the budget.
 //
 // Returns:
-//   - time.Duration: the client timeout multiplied by the number of targets, and
-//     at least one client timeout.
+//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of targets,
+//     and at least [defaultHTTPTimeout].
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultHTTPTimeout

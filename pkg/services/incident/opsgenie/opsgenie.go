@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
@@ -44,8 +43,6 @@ const (
 	MaxMessageLength = 130
 	// httpSuccessMax is the maximum HTTP status code for a successful response.
 	httpSuccessMax = 299
-	// defaultHTTPTimeout is the default timeout for HTTP requests.
-	defaultHTTPTimeout = 10 * time.Second
 )
 
 // ErrUnexpectedStatus indicates that OpsGenie returned an unexpected HTTP status code.
@@ -88,7 +85,6 @@ func (s *Service) GetID() string {
 //     [ErrInvalidPort].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -112,9 +108,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to OpsGenie as a new alert.
 // See: https://docs.opsgenie.com/docs/alert-api#create-alert
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - params: optional overrides for configuration fields.
 //
@@ -123,6 +121,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     [ErrUnexpectedStatus] for a non-success status. A request error matches
 //     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := s.Config
 	serviceURL := (&url.URL{
 		Scheme: "https",
@@ -248,7 +249,7 @@ func (s *Service) newAlertPayload(
 // sendAlert sends an alert to OpsGenie using the specified URL and API key.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - serviceURL: the alert API URL.
 //   - apiKey: the OpsGenie API key.
 //   - payload: the alert payload.
@@ -263,12 +264,6 @@ func (s *Service) sendAlert(ctx context.Context, serviceURL, apiKey string, payl
 	}
 
 	jsonBuffer := bytes.NewBuffer(jsonBody)
-
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,

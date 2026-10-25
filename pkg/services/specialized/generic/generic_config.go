@@ -28,15 +28,15 @@ type Config struct {
 	// JSON for a JSON object, or a template loaded into the service.
 	Template string `desc:"The template used for creating the request payload" key:"template" optional:""`
 	// Title is the notification title, sent under TitleKey.
-	Title string `default:"" key:"title"`
+	Title string `default:"" desc:"Notification title, optionally set by the sender" key:"title"`
 	// TitleKey is the payload key of the title.
 	TitleKey string `default:"title" desc:"The key that will be used for the title value" key:"titlekey"`
 	// MessageKey is the payload key of the message.
 	MessageKey string `default:"message" desc:"The key that will be used for the message value" key:"messagekey"`
 	// RequestMethod is the HTTP method of the request.
-	RequestMethod string `default:"POST" key:"method"`
+	RequestMethod string `default:"POST" desc:"The HTTP method of the request" key:"method"`
 	// DisableTLS sends the request over HTTP instead of HTTPS.
-	DisableTLS bool `default:"No" key:"disabletls"`
+	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
 }
 
 // Service identity and webhook defaults.

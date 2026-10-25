@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,80 +118,23 @@ func TestHolderPrefer(t *testing.T) {
 	}
 }
 
-// TestHolderSetDefault verifies that the default client follows the
-// SetDefault settings, that new settings replace a default already built, and
-// that an injected client is kept.
-func TestHolderSetDefault(t *testing.T) {
+// TestHolderDefaultClient verifies that the default client has no timeout of
+// its own and sends through http.DefaultTransport, so it honors the proxy
+// environment variables.
+func TestHolderDefaultClient(t *testing.T) {
 	t.Parallel()
 
-	t.Run("zero value", func(t *testing.T) {
-		t.Parallel()
+	var holder Holder
 
-		var holder Holder
-
-		client := requireHTTPClient(t, holder.Client())
-		assert.Zero(t, client.Timeout)
-		assert.Nil(t, client.Transport)
-	})
-
-	t.Run("timeout keeps the default transport", func(t *testing.T) {
-		t.Parallel()
-
-		var holder Holder
-
-		holder.SetDefault(10*time.Second, nil)
-
-		client := requireHTTPClient(t, holder.Client())
-		assert.Equal(t, 10*time.Second, client.Timeout)
-		assert.Nil(t, client.Transport, "the client should send through http.DefaultTransport")
-	})
-
-	t.Run("TLS settings", func(t *testing.T) {
-		t.Parallel()
-
-		var holder Holder
-
-		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}
-		holder.SetDefault(time.Second, tlsConfig)
-
-		client := requireHTTPClient(t, holder.Client())
-		httpTransport, ok := client.Transport.(*http.Transport)
-		require.True(t, ok, "transport is a %T", client.Transport)
-		assert.Same(t, tlsConfig, httpTransport.TLSClientConfig)
-	})
-
-	t.Run("new settings rebuild the default", func(t *testing.T) {
-		t.Parallel()
-
-		var holder Holder
-
-		holder.SetDefault(time.Second, nil)
-		first := holder.Client()
-
-		holder.SetDefault(2*time.Second, nil)
-		second := requireHTTPClient(t, holder.Client())
-
-		assert.NotSame(t, first, second)
-		assert.Equal(t, 2*time.Second, second.Timeout)
-	})
-
-	t.Run("injected client kept", func(t *testing.T) {
-		t.Parallel()
-
-		var holder Holder
-
-		injected := &http.Client{}
-		holder.Set(injected)
-		holder.SetDefault(time.Second, nil)
-
-		assert.Same(t, injected, holder.Client())
-	})
+	client := requireHTTPClient(t, holder.Client())
+	assert.Zero(t, client.Timeout)
+	assert.Nil(t, client.Transport)
 }
 
 // TestHolderInsecureClient verifies which client InsecureClient returns. It
 // returns the injected client when one is set. Otherwise it returns one
-// default client that skips verification, separate from the verifying default.
-// SetDefault rebuilds it with the new timeout.
+// default client that skips verification, separate from the verifying default
+// and kept across Set calls.
 func TestHolderInsecureClient(t *testing.T) {
 	t.Parallel()
 
@@ -201,12 +143,10 @@ func TestHolderInsecureClient(t *testing.T) {
 
 		var holder Holder
 
-		holder.SetDefault(time.Second, &tls.Config{MinVersion: tls.VersionTLS13})
-
 		first := requireHTTPClient(t, holder.InsecureClient(nil))
 		assert.Same(t, first, holder.InsecureClient(nil))
 		assert.NotSame(t, holder.Client(), first)
-		assert.Equal(t, time.Second, first.Timeout)
+		assert.Zero(t, first.Timeout)
 
 		httpTransport, ok := first.Transport.(*http.Transport)
 		require.True(t, ok, "transport is a %T", first.Transport)
@@ -225,7 +165,7 @@ func TestHolderInsecureClient(t *testing.T) {
 		assert.Same(t, injected, holder.InsecureClient(nil))
 	})
 
-	t.Run("new settings rebuild the insecure default", func(t *testing.T) {
+	t.Run("insecure default kept across Set", func(t *testing.T) {
 		t.Parallel()
 
 		var holder Holder
@@ -234,13 +174,7 @@ func TestHolderInsecureClient(t *testing.T) {
 
 		holder.Set(&http.Client{})
 		holder.Set(nil)
-		assert.Same(t, first, holder.InsecureClient(nil), "Set should keep the insecure default")
-
-		holder.SetDefault(2*time.Second, nil)
-		second := requireHTTPClient(t, holder.InsecureClient(nil))
-
-		assert.NotSame(t, first, second)
-		assert.Equal(t, 2*time.Second, second.Timeout)
+		assert.Same(t, first, holder.InsecureClient(nil))
 	})
 }
 
@@ -294,9 +228,8 @@ func TestHolderConcurrentClient(t *testing.T) {
 }
 
 // TestHolderConcurrentUse verifies that every Holder method can run at the
-// same time, which the race detector checks. Every Client and InsecureClient
-// result is the injected client or a default built from settings that some
-// SetDefault call used.
+// same time, which the race detector checks. Every Client, Prefer, and
+// InsecureClient result is the injected client or a default client.
 func TestHolderConcurrentUse(t *testing.T) {
 	t.Parallel()
 
@@ -311,7 +244,6 @@ func TestHolderConcurrentUse(t *testing.T) {
 	)
 
 	injected := &http.Client{}
-	timeouts := []time.Duration{time.Second, 2 * time.Second}
 	results := make([][]types.HTTPClient, goroutines)
 	insecureResults := make([][]types.HTTPClient, goroutines)
 
@@ -324,7 +256,7 @@ func TestHolderConcurrentUse(t *testing.T) {
 				case 1:
 					holder.Set(nil)
 				case 2:
-					holder.SetDefault(timeouts[i%len(timeouts)], nil)
+					results[g] = append(results[g], holder.Prefer(nil))
 				case 3:
 					insecureResults[g] = append(insecureResults[g], holder.InsecureClient(func() {}))
 				default:
@@ -343,7 +275,7 @@ func TestHolderConcurrentUse(t *testing.T) {
 			}
 
 			httpClient := requireHTTPClient(t, client)
-			assert.Contains(t, append(timeouts, 0), httpClient.Timeout)
+			assert.Zero(t, httpClient.Timeout)
 			assert.Nil(t, httpClient.Transport)
 		}
 
@@ -353,7 +285,7 @@ func TestHolderConcurrentUse(t *testing.T) {
 			}
 
 			httpClient := requireHTTPClient(t, client)
-			assert.Contains(t, append(timeouts, 0), httpClient.Timeout)
+			assert.Zero(t, httpClient.Timeout)
 			assert.NotNil(t, httpClient.Transport)
 		}
 	}

@@ -288,9 +288,9 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
-// TestDefaultHTTPClient verifies that the default client has the send
-// timeout and sends through http.DefaultTransport, so it honors the proxy
-// environment variables.
+// TestDefaultHTTPClient verifies that the default client has no request
+// timeout, since the send budget bounds each send, and sends through
+// http.DefaultTransport, so it honors the proxy environment variables.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	httpClient, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, defaultTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
 	assert.Nil(t, httpClient.Transport)
 }
 

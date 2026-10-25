@@ -50,20 +50,20 @@ const invalidTokenBody = `{"error":{"cat":"~(=^‥^)","message":"Access token is
 // errTransport is the transport failure returned by the failing HTTP client.
 var errTransport = errors.New("transport failure")
 
-// noteResponse returns the JSON body of a created note push.
+// noteResponse returns the JSON body of a created note push, which is
+// active.
 //
 // Parameters:
 //   - t: the test.
 //   - body: the push body.
 //   - title: the push title.
-//   - active: whether the push is active.
 //
 // Returns:
 //   - string: the JSON body.
-func noteResponse(t *testing.T, body, title string, active bool) string {
+func noteResponse(t *testing.T, body, title string) string {
 	t.Helper()
 
-	encoded, err := json.Marshal(PushResponse{Type: "note", Body: body, Title: title, Active: active})
+	encoded, err := json.Marshal(PushResponse{Type: "note", Body: body, Title: title, Active: true})
 	require.NoError(t, err)
 
 	return string(encoded)
@@ -158,7 +158,7 @@ func TestInitialize(t *testing.T) {
 
 		client, ok := service.client.Client().(*http.Client)
 		require.True(t, ok)
-		assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+		assert.Zero(t, client.Timeout)
 	})
 
 	t.Run("short token", func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestSend(t *testing.T) {
 
 			responses := make([]cannedResponse, len(tt.wantBodies))
 			for i := range responses {
-				responses[i] = cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", tt.title, true)}
+				responses[i] = cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", tt.title)}
 			}
 
 			service := newTestService(t, tt.rawURL)
@@ -251,13 +251,13 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	service := newTestService(t, "pushbullet://"+testToken+"/device?title=Configured")
 	want := *service.Config
 
-	client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Override", true)})
+	client, _ := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Override")})
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Message", &types.Params{"title": "Override"}))
 	assert.Equal(t, want, *service.Config)
 
-	client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Configured", true)})
+	client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Configured")})
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Message", nil))
@@ -316,10 +316,10 @@ func TestSendResponseValidation(t *testing.T) {
 	}
 }
 
-// TestSendContextErrors verifies that a send reports the API's error message,
-// wraps other request errors, stops at the first failing target, rejects an
-// unknown param before any request, and stops when the caller's context is
-// canceled.
+// TestSendContextErrors verifies that a send reports the API's error message
+// naming the target, wraps other request errors, keeps sending to the targets
+// after a failing one, rejects an unknown param before any request, and sends
+// nothing when the caller's context is already canceled.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +335,7 @@ func TestSendContextErrors(t *testing.T) {
 		responseErr, ok := errors.AsType[*ResponseError](err)
 		require.True(t, ok, "error %v is not a *ResponseError", err)
 		assert.Equal(t, "invalid_request", responseErr.ErrorData.Type)
-		assert.EqualError(t, err, "API error: Access token is missing or invalid.")
+		assert.EqualError(t, err, `sending to target "device": API error: Access token is missing or invalid.`)
 	})
 
 	t.Run("error status without a JSON body", func(t *testing.T) {
@@ -362,17 +362,24 @@ func TestSendContextErrors(t *testing.T) {
 		require.ErrorIs(t, service.SendContext(t.Context(), "Message", nil), errTransport)
 	})
 
-	t.Run("stops at the first failing target", func(t *testing.T) {
+	t.Run("keeps sending after a failing target", func(t *testing.T) {
 		t.Parallel()
 
 		service := newTestService(t, "pushbullet://"+testToken+"/first/second")
-		client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody})
+		client, captured := newRespondingClient(t,
+			cannedResponse{statusCode: http.StatusUnauthorized, body: invalidTokenBody},
+			cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Second", "Shoutrrr notification")},
+		)
 		service.SetHTTPClient(client)
 
-		require.Error(t, service.SendContext(t.Context(), "Message", nil))
-		require.Len(t, *captured, 1)
-		assert.JSONEq(t, `{"type":"note","title":"Shoutrrr notification","body":"Message","email":"","channel_tag":"","device_iden":"first"}`,
-			(*captured)[0].body)
+		err := service.SendContext(t.Context(), "Second", nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `target "first"`)
+		assert.NotContains(t, err.Error(), `target "second"`)
+		require.Len(t, *captured, 2)
+		assert.JSONEq(t, `{"type":"note","title":"Shoutrrr notification","body":"Second","email":"","channel_tag":"","device_iden":"second"}`,
+			(*captured)[1].body)
 	})
 
 	t.Run("unknown param", func(t *testing.T) {
@@ -393,20 +400,16 @@ func TestSendContextErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		client := mocks.NewMockHTTPClient(t)
-		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-			return nil, req.Context().Err()
-		}).Once()
-
 		service := newTestService(t, "pushbullet://"+testToken)
-		service.SetHTTPClient(client)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
 }
 
-// TestServiceTimeout verifies that the router budget is one client timeout for
-// each target, and at least one client timeout.
+// TestServiceTimeout verifies that the send budget is [defaultHTTPTimeout] for
+// each target, and at least [defaultHTTPTimeout].
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 

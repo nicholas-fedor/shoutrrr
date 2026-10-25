@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -380,33 +381,87 @@ func TestSendLogsStatusWithoutBody(t *testing.T) {
 	assert.NotContains(t, logs.String(), "BODYmarker")
 }
 
-// TestSendBoundsDirectSend verifies that a direct Send bounds the request with
-// the default send timeout.
-func TestSendBoundsDirectSend(t *testing.T) {
+// TestSendBudget verifies that Send and SendContext without a caller deadline
+// bound the request by the budget that ServiceTimeout reports, and that
+// SendContext keeps a caller's deadline as it is.
+func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
-	var deadline time.Time
+	// sends lists the send entries with the caller deadline they pass, or zero
+	// for none.
+	sends := []struct {
+		name           string
+		callerDeadline time.Duration
+		viaContext     bool
+	}{
+		{name: "Send"},
+		{name: "SendContext without a deadline", viaContext: true},
+		{name: "SendContext with a deadline", viaContext: true, callerDeadline: time.Hour},
+	}
 
-	service := newTestService(t, "generic://hooks.example.invalid/webhook")
+	for _, tt := range sends {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var deadline time.Time
+
+				service := newTestService(t, "generic://hooks.example.invalid/webhook")
+				client := mocks.NewMockHTTPClient(t)
+				client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+					deadline, _ = req.Context().Deadline()
+
+					return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+				}).Once()
+				service.SetHTTPClient(client)
+
+				want := time.Now().Add(service.ServiceTimeout(nil))
+
+				switch {
+				case !tt.viaContext:
+					require.NoError(t, service.Send("message", nil))
+				case tt.callerDeadline > 0:
+					ctx, cancel := context.WithTimeout(t.Context(), tt.callerDeadline)
+					defer cancel()
+
+					want = time.Now().Add(tt.callerDeadline)
+
+					require.NoError(t, service.SendContext(ctx, "message", nil))
+				default:
+					require.NoError(t, service.SendContext(t.Context(), "message", nil))
+				}
+
+				assert.Equal(t, want, deadline)
+			})
+		})
+	}
+}
+
+// TestSendWarnsPlaintext verifies that sends without TLS log the plaintext
+// warning once, and again after the service is initialized again.
+func TestSendWarnsPlaintext(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	rawURL := "generic://hooks.example.invalid/webhook?disabletls=yes"
+
 	client := mocks.NewMockHTTPClient(t)
-	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-		var ok bool
-
-		deadline, ok = req.Context().Deadline()
-		assert.True(t, ok, "the request must carry a deadline")
-
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
 		return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
-	}).Once()
+	}).Times(3)
+
+	service := &Service{}
 	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
 
-	start := time.Now()
+	require.NoError(t, service.Send("first", nil))
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, 1, strings.Count(logs.String(), "Warning: sending without TLS"))
 
-	require.NoError(t, service.Send("message", nil))
-
-	end := time.Now()
-
-	assert.False(t, deadline.Before(start.Add(defaultSendTimeout)), "deadline %v is before %v", deadline, start.Add(defaultSendTimeout))
-	assert.False(t, deadline.After(end.Add(defaultSendTimeout)), "deadline %v is after %v", deadline, end.Add(defaultSendTimeout))
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("third", nil))
+	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
 }
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed for a

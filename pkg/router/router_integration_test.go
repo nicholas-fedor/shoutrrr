@@ -440,37 +440,21 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtt":  {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	},
-	checkKeyDescriptions: {
-		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
-		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
-		"pushbullet": {"Pushbullet's title key has no description", failMissingDescription},
-		"pushover":   {"Pushover's devices, priority, and title keys have no description", failMissingDescription},
-	},
 	checkSendBudget: {
-		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
-		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
-		"pagerduty":  {"PagerDuty bounds requests with its client timeout instead of a context deadline", failBudget},
-		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
+		"mqtt":  {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
+		"mqtts": {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
 		// Zulip's limits lookup is optional, so it is capped below the budget and
 		// a slow lookup leaves the message request the rest of the budget.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
 	},
 	checkSendKeepsDeadline: {
-		"ifttt": {"IFTTT bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
-		"join":  {"Join bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.
-		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
-		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
-		"notifiarr":  {"Notifiarr bounds each request by its request timeout, below a caller's deadline", failDeadlineChanged},
-		"opsgenie":   {"Opsgenie bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
-		"signalgrid": {"Signalgrid bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
+		"mqtt":  {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
+		"mqtts": {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
 		// Zulip's limits lookup is optional, so it is capped below the caller's
 		// deadline and a slow lookup leaves the message request the rest.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failDeadlineChanged},
-	},
-	checkPlaintextWarning: {
-		"generic": {"Generic logs no warning when TLS is disabled", failWarningCount},
 	},
 }
 

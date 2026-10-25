@@ -16,15 +16,15 @@ type Config struct {
 	// User is the user or group key to send to, written as the host of the service URL.
 	User string `desc:"User Key" sensitive:"true" url:"host"`
 	// Title is the message title. Pushover shows the application's name when it is empty.
-	Title string `key:"title" optional:""`
+	Title string `desc:"Notification title, optionally set by the sender" key:"title" optional:""`
 	// EncryptionKey is the AES-256 key, as 64 hex characters, for end-to-end
 	// encryption of the message and title. Empty sends them unencrypted.
 	EncryptionKey string `desc:"256-bit AES key as 64 hex characters for end-to-end encryption" key:"encryptionkey,key" optional:"" sensitive:"true"`
 	// Devices lists the devices to send to. Empty sends to all of the user's devices.
-	Devices []string `key:"devices" optional:""`
+	Devices []string `desc:"The devices to send to, or empty for all of the user's devices" key:"devices" optional:""`
 	// Priority is the message priority, from -2 (lowest) to 1 (high). Emergency
 	// priority 2 needs retry settings, so it is left out of the request.
-	Priority int8 `default:"0" key:"priority"`
+	Priority int8 `default:"0" desc:"Message priority from -2 (lowest) to 1 (high)" key:"priority"`
 	// Timestamp is the Unix time, in seconds, that Pushover shows and orders the
 	// message by instead of when it received the message. 0 leaves it to Pushover.
 	Timestamp int64 `default:"0" desc:"Unix time in seconds to show instead of when Pushover received the message" key:"timestamp"`
