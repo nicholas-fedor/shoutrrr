@@ -19,6 +19,7 @@ When a URL or the send params hold both a deprecated query key and its replaceme
 | `insecureskipverify` query key | Gotify | `skiptlsverify` | Unreleased |
 | `disabletlsverification` query key | ntfy | `skiptlsverify` | Unreleased |
 | `scheme` query key | ntfy | `disabletls`. A `scheme` of `http` turns TLS off. | Unreleased |
+| `scheme` query key | Bark | `disabletls`. A `scheme` of `http` turns TLS off. | Unreleased |
 | `disabletlsverification` query key | MQTT | `skiptlsverify` | Unreleased |
 
 ## Go Package
@@ -65,6 +66,11 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `DefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `NewDefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `Service.HTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` | Unreleased |
+| `HTTPClient` | `pkg/services/push/bark` | `types.HTTPClient` | Unreleased |
+| `DefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `NewDefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
+| `Service.HTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` | Unreleased |
+| `Config.Scheme` | `pkg/services/push/bark` | `Config.DisableTLS` | Unreleased |
 | `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | Unreleased |
 | `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
 | `Config.DisableTLSVerification` | `pkg/services/push/ntfy` | `Config.SkipTLSVerify` | Unreleased |

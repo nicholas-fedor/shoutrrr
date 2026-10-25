@@ -55,6 +55,64 @@ func TestConfigGetAPIURL(t *testing.T) {
 			assert.Equal(t, tt.want, config.GetAPIURL("endpoint"))
 		})
 	}
+
+	t.Run("TLS disabled", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Host: "host", Path: "/", Scheme: "https", DisableTLS: true}
+
+		assert.Equal(t, "http://host/endpoint", config.GetAPIURL("endpoint"))
+	})
+
+	t.Run("deprecated http scheme", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{Host: "host", Path: "/", Scheme: "HTTP"}
+
+		assert.Equal(t, "http://host/endpoint", config.GetAPIURL("endpoint"))
+	})
+}
+
+// TestConfigSetURLScheme verifies how the disabletls key and the deprecated
+// scheme key choose the protocol. A scheme of http, in any case, turns TLS
+// off. disabletls wins when the query sets both, whatever their order. A
+// scheme other than http or https is rejected.
+func TestConfigSetURLScheme(t *testing.T) {
+	t.Parallel()
+
+	// tests lists queries with the protocol the API URL should use.
+	tests := []struct {
+		name    string
+		query   string
+		wantAPI string
+	}{
+		{name: "default", query: "", wantAPI: "https://hostname/push"},
+		{name: "disabletls", query: "?disabletls=yes", wantAPI: "http://hostname/push"},
+		{name: "http scheme", query: "?scheme=http", wantAPI: "http://hostname/push"},
+		{name: "uppercase http scheme", query: "?scheme=HTTP", wantAPI: "http://hostname/push"},
+		{name: "https scheme", query: "?scheme=https", wantAPI: "https://hostname/push"},
+		{name: "disabletls after scheme", query: "?scheme=http&disabletls=no", wantAPI: "https://hostname/push"},
+		{name: "disabletls before scheme", query: "?disabletls=no&scheme=http", wantAPI: "https://hostname/push"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, "bark://:devicekey@hostname"+tt.query)))
+
+			assert.Equal(t, tt.wantAPI, config.GetAPIURL("push"))
+		})
+	}
+
+	t.Run("invalid scheme", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Config{}).SetURL(parseTestURL(t, "bark://:devicekey@hostname?scheme=ftp"))
+
+		require.ErrorIs(t, err, ErrInvalidScheme)
+	})
 }
 
 // TestConfigSetURL verifies that SetURL reads the device key, host, path, and
@@ -83,18 +141,19 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "bark://:device-key@example.com:2225/?badge=5&category=CAT&copy=COPY&group=GROUP" +
 				"&icon=https%3A%2F%2Fexample.com%2Ficon.png&scheme=http&sound=bell&title=TITLE&url=URL",
 			want: Config{
-				Title:     "TITLE",
-				Host:      "example.com:2225",
-				Path:      "/",
-				DeviceKey: "device-key",
-				Scheme:    "http",
-				Sound:     "bell",
-				Badge:     5,
-				Icon:      "https://example.com/icon.png",
-				Group:     "GROUP",
-				URL:       "URL",
-				Category:  "CAT",
-				Copy:      "COPY",
+				Title:      "TITLE",
+				Host:       "example.com:2225",
+				Path:       "/",
+				DeviceKey:  "device-key",
+				Scheme:     "http",
+				DisableTLS: true,
+				Sound:      "bell",
+				Badge:      5,
+				Icon:       "https://example.com/icon.png",
+				Group:      "GROUP",
+				URL:        "URL",
+				Category:   "CAT",
+				Copy:       "COPY",
 			},
 		},
 		{
@@ -167,15 +226,46 @@ func TestConfigSetURLErrors(t *testing.T) {
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	rawURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&group=GROUP&scheme=http&title=TITLE&url=URL"
+	rawURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&disabletls=Yes&group=GROUP&title=TITLE&url=URL"
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
 
 	assert.Equal(t, rawURL, config.GetURL().String())
 }
 
+// TestConfigGetURLScheme verifies that GetURL writes an http scheme as
+// disabletls, without changing the config, so a config URL never carries the
+// deprecated scheme key. An invalid scheme is kept, so reading the URL
+// reports it.
+func TestConfigGetURLScheme(t *testing.T) {
+	t.Parallel()
+
+	// tests lists schemes with the query GetURL should write for them.
+	tests := []struct {
+		name      string
+		scheme    string
+		wantQuery string
+	}{
+		{name: "http from the URL", scheme: "http", wantQuery: "disabletls=Yes"},
+		{name: "uppercase https", scheme: "HTTPS", wantQuery: ""},
+		{name: "invalid", scheme: "ftp", wantQuery: "scheme=ftp"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{Host: "hostname", DeviceKey: "devicekey", Path: "/", Scheme: tt.scheme}
+			original := *config
+
+			assert.Equal(t, tt.wantQuery, config.GetURL().RawQuery)
+			assert.Equal(t, original, *config)
+		})
+	}
+}
+
 // TestConfigQueryResolver verifies the config's query props: an unknown key
-// is rejected, the defaults apply cleanly, and there are nine keys and no
+// is rejected, the defaults apply cleanly, and there are ten keys and no
 // enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
@@ -205,6 +295,6 @@ func TestConfigQueryResolver(t *testing.T) {
 		config := &Config{}
 
 		assert.Empty(t, config.Enums())
-		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 9)
+		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 10)
 	})
 }

@@ -34,7 +34,9 @@
 //   - url: URL to open when notification is tapped
 //   - category: notification category (reserved for future use)
 //   - copy: text to copy to clipboard when notification is tapped
-//   - scheme: server protocol, "http" or "https" (default: "https")
+//   - disabletls: send over HTTP instead of HTTPS (default: no)
+//   - scheme: deprecated, use disabletls. A scheme of "http" turns TLS off,
+//     and any value other than "http" or "https" is rejected.
 //
 // # Templates
 //
@@ -75,12 +77,15 @@
 //
 // ## Notification to custom server path
 //
-//	url := "bark://:devicekey@example.com:2225/bark/push"
+// The service appends the push endpoint to the path, so this URL sends to
+// /bark/push.
+//
+//	url := "bark://:devicekey@example.com:2225/bark"
 //	err := shoutrrr.Send(url, "Notification to custom path")
 //
 // ## Notification with HTTP (insecure)
 //
-//	url := "bark://:devicekey@example.com?scheme=http"
+//	url := "bark://:devicekey@example.com?disabletls=yes"
 //	err := shoutrrr.Send(url, "Insecure notification (not recommended)")
 //
 // # Common Use Cases
@@ -151,7 +156,7 @@
 // - Use HTTPS whenever possible (default behavior) to protect notification content in transit
 // - Store device keys securely - avoid hardcoding them in source code or configuration files
 // - Device keys are device-specific and act as authentication tokens
-// - Be cautious with scheme=http - only use in trusted environments as it disables encryption
+// - Be cautious with disabletls=yes - only use in trusted environments as it disables encryption
 // - Validate icon URLs - ensure they point to trusted sources
 // - Consider message content - avoid sending sensitive information in notification messages
 // - Use appropriate notification sounds - avoid disruptive sounds in production environments
@@ -171,8 +176,8 @@
 //   - URL field specifies what URL to open when notification is tapped
 //   - Copy field specifies text to copy to clipboard when notification is tapped
 //   - Server path defaults to "/" if not specified
-//   - Default scheme is "https" for secure communication
-//   - HTTP client timeout is set for API requests
+//   - Sends use HTTPS unless disabletls is set, and the first send over HTTP logs a warning
+//   - A send without a deadline is bounded by a 30 second budget
 //   - Server response includes code, message, and timestamp upon delivery
 //   - Failed requests return structured error responses with error codes and descriptions
 package bark

@@ -1,6 +1,7 @@
 package bark
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,8 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -19,7 +23,6 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/push/bark/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -120,28 +123,38 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "bark", (&Service{}).GetID())
 }
 
-// TestInitialize verifies that Initialize applies the default props, keeps an
-// HTTP client set before it runs, and rejects an invalid URL.
+// TestInitialize verifies that Initialize applies the default props, leaves
+// the deprecated client field unset, keeps a client set before it runs, and
+// rejects an invalid URL.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
-	t.Run("defaults and default client", func(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
 		t.Parallel()
 
 		service := newTestService(t, "bark://:devicekey@hostname")
 
 		assert.Equal(t, Config{Host: "hostname", DeviceKey: "devicekey", Scheme: "https"}, *service.Config)
-		assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
+		assert.Nil(t, service.HTTPClient, "Initialize leaves the deprecated client field unset")
 	})
 
 	t.Run("keeps an injected client", func(t *testing.T) {
 		t.Parallel()
 
 		client := mocks.NewMockHTTPClient(t)
-		service := &Service{HTTPClient: client}
+		service := &Service{}
+		service.SetHTTPClient(client)
 		require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname"), log.New(t.Output(), "", 0)))
 
-		assert.Same(t, client, service.HTTPClient)
+		assert.Same(t, client, service.client.Prefer(service.HTTPClient))
+	})
+
+	t.Run("invalid scheme", func(t *testing.T) {
+		t.Parallel()
+
+		err := (&Service{}).Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=ftp"), log.New(t.Output(), "", 0))
+
+		require.ErrorIs(t, err, ErrInvalidScheme)
 	})
 
 	t.Run("missing device key", func(t *testing.T) {
@@ -233,6 +246,145 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	assert.JSONEq(t, `{"body":"Message","device_key":"devicekey","title":"Configured","badge":0}`, captured.body)
 }
 
+// TestSendSchemePrecedence verifies that disabletls decides the protocol of a
+// send over the deprecated scheme. A disabletls param overrides a stored http
+// scheme, a scheme param of either protocol applies when the params do not set
+// disabletls, and disabletls wins when the params set both.
+func TestSendSchemePrecedence(t *testing.T) {
+	t.Parallel()
+
+	// tests lists service URLs and params with the request URL to expect.
+	tests := []struct {
+		params  *types.Params
+		name    string
+		rawURL  string
+		wantURL string
+	}{
+		{
+			name:    "disabletls param overrides the stored scheme",
+			rawURL:  "bark://:devicekey@hostname?scheme=http",
+			params:  &types.Params{"disabletls": "no"},
+			wantURL: "https://hostname/push",
+		},
+		{name: "stored scheme", rawURL: "bark://:devicekey@hostname?scheme=http", wantURL: "http://hostname/push"},
+		{
+			name:    "https scheme param overrides the stored scheme",
+			rawURL:  "bark://:devicekey@hostname?scheme=http",
+			params:  &types.Params{"scheme": "https"},
+			wantURL: "https://hostname/push",
+		},
+		{name: "disabletls param", rawURL: "bark://:devicekey@hostname", params: &types.Params{"disabletls": "yes"}, wantURL: "http://hostname/push"},
+		{name: "scheme param", rawURL: "bark://:devicekey@hostname", params: &types.Params{"scheme": "http"}, wantURL: "http://hostname/push"},
+		{
+			name:    "disabletls param wins over a scheme param",
+			rawURL:  "bark://:devicekey@hostname",
+			params:  &types.Params{"scheme": "http", "disabletls": "no"},
+			wantURL: "https://hostname/push",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, http.StatusOK, successBody)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("Message", tt.params))
+
+			assert.Equal(t, tt.wantURL, captured.url)
+		})
+	}
+}
+
+// TestSendWarnings verifies that the plaintext warning, the deprecated scheme
+// key, and the deprecated Scheme field are each warned about once over two
+// sends, and appear again after the service is initialized again.
+func TestSendWarnings(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	service := &Service{}
+	require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname"), log.New(&logs, "", 0)))
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(successBody))}, nil
+	}).Times(3)
+	service.SetHTTPClient(client)
+	service.Config.Scheme = "http"
+
+	params := &types.Params{"scheme": "http"}
+	require.NoError(t, service.Send("Message", params))
+	require.NoError(t, service.Send("Message", params))
+
+	want := []string{
+		"Warning: config field Scheme is deprecated, use DisableTLS instead",
+		`Warning: key "scheme" is deprecated, use "disabletls" instead`,
+		"Warning: sending without TLS",
+	}
+	assert.Equal(t, want, warningLines(logs.String()))
+
+	require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=http"), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("Message", nil))
+
+	again := []string{`Warning: key "scheme" is deprecated, use "disabletls" instead`, "Warning: sending without TLS"}
+	assert.Equal(t, slices.Concat(want, again), warningLines(logs.String()))
+}
+
+// warningLines returns the logged lines that are warnings.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "Warning: ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
+}
+
+// TestSendBudget verifies that a send without a caller deadline is bounded by
+// the budget that ServiceTimeout reports, and that a caller's deadline is
+// kept as it is.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var deadline time.Time
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			deadline, _ = req.Context().Deadline()
+
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(successBody))}, nil
+		})
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, start.Add(defaultHTTPTimeout), deadline, "a send without a deadline gets the budget")
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+		defer cancel()
+
+		require.NoError(t, service.SendContext(ctx, "Message", nil))
+		assert.Equal(t, start.Add(time.Hour), deadline, "the caller's deadline applies")
+	})
+}
+
 // TestSendItems verifies that the deprecated SendItems sends the items as one
 // plain text message.
 func TestSendItems(t *testing.T) {
@@ -250,9 +402,10 @@ func TestSendItems(t *testing.T) {
 
 // TestSendServerErrors verifies how a send reports a response the Bark server
 // rejects. The server's message comes back as an *APIResponse, and a response
-// without a message as ErrUnexpectedStatus. A body that is not JSON gives a
-// decoding error, and a body over [httpbody.MaxSize] gives
-// [httpbody.ErrTooLarge].
+// without a message as ErrUnexpectedStatus. An error status whose body is not
+// JSON, or whose JSON body reports success, gives ErrUnexpectedStatus with the
+// HTTP status. A success status with a body that is not JSON gives a decoding
+// error, and a body over [httpbody.MaxSize] gives [httpbody.ErrTooLarge].
 func TestSendServerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -284,11 +437,37 @@ func TestSendServerErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "500")
 	})
 
-	t.Run("body is not JSON", func(t *testing.T) {
+	t.Run("error status with a body that is not JSON", func(t *testing.T) {
 		t.Parallel()
 
 		service := newTestService(t, "bark://:devicekey@hostname")
 		client, _ := newRespondingClient(t, http.StatusBadGateway, "<html>Bad Gateway</html>")
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "502")
+	})
+
+	t.Run("error status with a JSON body that reports success", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusBadGateway, successBody)
+		service.SetHTTPClient(client)
+
+		err := service.Send("Message", nil)
+
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Contains(t, err.Error(), "502")
+	})
+
+	t.Run("success status with a body that is not JSON", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		client, _ := newRespondingClient(t, http.StatusOK, "<html>OK</html>")
 		service.SetHTTPClient(client)
 
 		err := service.Send("Message", nil)
@@ -311,9 +490,9 @@ func TestSendServerErrors(t *testing.T) {
 	})
 }
 
-// TestSendContextErrors verifies that a send wraps a transport error, reports
-// the server message carried by a jsonclient.Error, rejects an unknown param
-// before any request, and stops when the caller's context is canceled.
+// TestSendContextErrors verifies that a send wraps a transport error, rejects
+// an unknown param or an invalid scheme param before any request, and stops
+// when the caller's context is canceled.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -331,36 +510,6 @@ func TestSendContextErrors(t *testing.T) {
 		require.ErrorIs(t, err, errTransport)
 	})
 
-	t.Run("jsonclient error with a server message", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, "bark://:devicekey@hostname")
-		client := mocks.NewMockHTTPClient(t)
-		client.EXPECT().Do(mock.Anything).
-			Return(nil, jsonclient.Error{StatusCode: http.StatusBadRequest, Body: deviceErrorBody}).Once()
-		service.SetHTTPClient(client)
-
-		err := service.SendContext(t.Context(), "Message", nil)
-
-		_, ok := errors.AsType[*APIResponse](err)
-		require.True(t, ok, "error %v is not an *APIResponse", err)
-		assert.Contains(t, err.Error(), "failed to get device token")
-	})
-
-	t.Run("jsonclient error without a JSON body", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, "bark://:devicekey@hostname")
-		client := mocks.NewMockHTTPClient(t)
-		client.EXPECT().Do(mock.Anything).
-			Return(nil, jsonclient.Error{StatusCode: http.StatusBadGateway, Body: "Bad Gateway"}).Once()
-		service.SetHTTPClient(client)
-
-		err := service.SendContext(t.Context(), "Message", nil)
-
-		require.ErrorIs(t, err, ErrFailedAPIRequest)
-	})
-
 	t.Run("unknown param", func(t *testing.T) {
 		t.Parallel()
 
@@ -372,6 +521,31 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, ErrUpdateParamsFailed)
 		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	})
+
+	t.Run("invalid stored scheme", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		service.Config.Scheme = "ftp"
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", nil)
+
+		require.ErrorIs(t, err, ErrInvalidScheme)
+	})
+
+	t.Run("invalid scheme param", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "bark://:devicekey@hostname")
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		err := service.SendContext(t.Context(), "Message", &types.Params{"scheme": "ftp"})
+
+		require.ErrorIs(t, err, ErrInvalidScheme)
 	})
 
 	t.Run("canceled context", func(t *testing.T) {
@@ -410,8 +584,8 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 }
 
 // TestSendDefaultClient verifies that a send reaches a plain HTTP server
-// through the default client that Initialize sets and that a nil
-// *http.Client selects.
+// through the default client, without a client set and after a nil
+// *http.Client is set.
 func TestSendDefaultClient(t *testing.T) {
 	t.Parallel()
 
@@ -420,7 +594,7 @@ func TestSendDefaultClient(t *testing.T) {
 		configure func(*Service)
 		name      string
 	}{
-		{name: "client set by Initialize"},
+		{name: "no client set"},
 		{name: "nil *http.Client", configure: func(s *Service) { s.SetHTTPClient((*http.Client)(nil)) }},
 	}
 
@@ -445,7 +619,7 @@ func TestSendDefaultClient(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			service := newTestService(t, "bark://:devicekey@"+server.Listener.Addr().String()+"?scheme=http")
+			service := newTestService(t, "bark://:devicekey@"+server.Listener.Addr().String()+"?disabletls=yes")
 
 			if tt.configure != nil {
 				tt.configure(service)
@@ -461,8 +635,9 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
-// TestDefaultHTTPClientDo verifies that the default client redacts the request
-// URL from a transport error and keeps the error matchable as a *url.Error.
+// TestDefaultHTTPClientDo verifies that the default client sends a request,
+// redacts the request URL from a transport error and keeps the error
+// matchable as a *url.Error, and works as a zero value.
 func TestDefaultHTTPClientDo(t *testing.T) {
 	t.Parallel()
 
@@ -481,10 +656,41 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 	_, isURLErr := errors.AsType[*url.Error](err)
 	require.True(t, isURLErr, "error %v is not a *url.Error", err)
 	assert.NotContains(t, err.Error(), "SECRETpath")
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, successBody)
+		}))
+		t.Cleanup(server.Close)
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+"/push", http.NoBody)
+		require.NoError(t, err)
+
+		resp, err := NewDefaultHTTPClient().Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	})
+
+	t.Run("zero value", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL+"/push", http.NoBody)
+		require.NoError(t, err)
+
+		_, err = (&DefaultHTTPClient{}).Do(req)
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }
 
-// TestSetHTTPClient verifies that SetHTTPClient stores a custom client and
-// selects the default client for nil.
+// TestSetHTTPClient verifies that SetHTTPClient stores a custom client in
+// place of the deprecated client field, and selects the default client for
+// nil.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -504,16 +710,18 @@ func TestSetHTTPClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{}
+			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
 			service.SetHTTPClient(tt.client)
 
+			assert.Nil(t, service.HTTPClient, "SetHTTPClient clears the deprecated client field")
+
 			if tt.wantDefault {
-				assert.IsType(t, &DefaultHTTPClient{}, service.HTTPClient)
+				assert.IsType(t, &http.Client{}, service.client.Prefer(service.HTTPClient))
 
 				return
 			}
 
-			assert.Same(t, tt.client, service.HTTPClient)
+			assert.Same(t, tt.client, service.client.Prefer(service.HTTPClient))
 		})
 	}
 }
