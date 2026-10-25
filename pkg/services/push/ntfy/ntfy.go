@@ -282,8 +282,8 @@ func (s *Service) sendClient(config *Config) types.HTTPClient {
 
 // sendConfig returns the config for one send. Deprecated config fields and
 // the stored scheme move into their replacements before the params apply, so
-// a param can still turn an option off. A scheme param applies only when the
-// params do not set disabletls. Each deprecated field and param key is warned
+// a param can still turn an option off. A scheme param of either protocol
+// applies only when the params do not set disabletls. Each deprecated field and param key is warned
 // about once.
 //
 // Parameters:
@@ -328,6 +328,10 @@ func (s *Service) sendConfig(params *types.Params) (Config, error) {
 
 	if hasParam(params, schemeKey.Name) {
 		disableTLS := config.DisableTLS
+
+		// The scheme param decides the protocol on its own, so https turns
+		// TLS back on.
+		config.DisableTLS = false
 
 		if err := config.applyScheme(); err != nil {
 			return config, err
