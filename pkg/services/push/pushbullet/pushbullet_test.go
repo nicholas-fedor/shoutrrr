@@ -318,8 +318,9 @@ func TestSendResponseValidation(t *testing.T) {
 
 // TestSendContextErrors verifies that a send reports the API's error message
 // naming the target, wraps other request errors, keeps sending to the targets
-// after a failing one, rejects an unknown param before any request, and sends
-// nothing when the caller's context is already canceled.
+// after a failing one, rejects an unknown param before any request, sends
+// nothing when the caller's context is already canceled, and skips the
+// remaining targets once it ends.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -422,6 +423,30 @@ func TestSendContextErrors(t *testing.T) {
 		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+
+	t.Run("canceled between targets", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		// The client expects one request, so a request to the second target
+		// fails the test.
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			cancel()
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(noteResponse(t, "Message", "Shoutrrr notification"))),
+			}, nil
+		}).Once()
+
+		service := newTestService(t, "pushbullet://"+testToken+"/first/second")
+		service.SetHTTPClient(client)
+
+		require.ErrorIs(t, service.SendContext(ctx, "Message", nil), context.Canceled)
 	})
 }
 

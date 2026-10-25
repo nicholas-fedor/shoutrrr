@@ -234,8 +234,9 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed naming
 // the event for an error status or a transport error, keeps sending to the
-// events after a failing one, rejects an invalid param before any request, and
-// sends nothing when the caller's context is already canceled.
+// events after a failing one, rejects an invalid param before any request,
+// sends nothing when the caller's context is already canceled, and skips the
+// remaining events once it ends.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -350,6 +351,27 @@ func TestSendContextErrors(t *testing.T) {
 		service := newTestService(t, "ifttt://webhookid/?events=event")
 		// The mock has no expectations, so a request fails the test.
 		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+	})
+
+	t.Run("canceled between events", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		// The client expects one request, so a request for the second event
+		// fails the test.
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(*http.Request) (*http.Response, error) {
+			cancel()
+
+			return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+		}).Once()
+
+		service := newTestService(t, "ifttt://webhookid/?events=event1,event2")
+		service.SetHTTPClient(client)
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
