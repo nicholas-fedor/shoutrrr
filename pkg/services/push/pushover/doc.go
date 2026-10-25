@@ -134,7 +134,7 @@
 //   - Invalid or missing API token
 //   - Network connectivity issues
 //   - Invalid device names (devices that don't exist in your Pushover account)
-//   - HTTP error status codes from the Pushover API
+//   - Requests the Pushover API rejects, reported with the errors it lists
 //   - Empty message content
 //
 // # Security Considerations
@@ -154,7 +154,7 @@
 //   - Priority 2 (emergency) requires additional parameters (retry, expire) which are not currently supported
 //
 // - Device names must match exactly how they appear in your Pushover account
-// - HTTP client timeout is set to 10 seconds for API requests
+// - A send without a deadline is bounded by a 10 second budget
 // - The Pushover API endpoint is https://api.pushover.net/1/messages.json
 // - Notifications are delivered instantly under normal conditions
 // - Priority -2 messages are stored for 7 days, -1 and 0 for 30 days, 1 for 7 days
