@@ -554,6 +554,9 @@ func newFakeConnection(ctx context.Context) *fakeConnection {
 }
 
 // AwaitConnection reports whether the connection is still up.
+//
+// Returns:
+//   - error: [errConnectionEnded] after the connection ended, otherwise nil.
 func (f *fakeConnection) AwaitConnection(context.Context) error {
 	if f.ended() {
 		return errConnectionEnded
@@ -563,6 +566,9 @@ func (f *fakeConnection) AwaitConnection(context.Context) error {
 }
 
 // Disconnect records the call and ends the connection.
+//
+// Returns:
+//   - error: always nil.
 func (f *fakeConnection) Disconnect(context.Context) error {
 	f.disconnects.Add(1)
 	f.end()
@@ -571,11 +577,23 @@ func (f *fakeConnection) Disconnect(context.Context) error {
 }
 
 // Done returns a channel that is closed when the connection ends.
+//
+// Returns:
+//   - <-chan struct{}: the channel closed when the connection ends.
 func (f *fakeConnection) Done() <-chan struct{} {
 	return f.done
 }
 
 // Publish records a publish on a live connection, after the gate opens when one is set.
+//
+// Parameters:
+//   - ctx: cancellation for the wait on the gate.
+//   - publish: the message to publish, whose Retain flag is recorded.
+//
+// Returns:
+//   - *paho.PublishResponse: an empty response for a recorded publish.
+//   - error: the context error when ctx ends before the gate opens, or
+//     [errConnectionEnded] after the connection ended.
 func (f *fakeConnection) Publish(ctx context.Context, publish *paho.Publish) (*paho.PublishResponse, error) {
 	if f.gate != nil {
 		select {
@@ -601,6 +619,9 @@ func (f *fakeConnection) end() {
 }
 
 // ended reports whether the connection has ended.
+//
+// Returns:
+//   - bool: true once done is closed.
 func (f *fakeConnection) ended() bool {
 	select {
 	case <-f.done:
@@ -610,7 +631,16 @@ func (f *fakeConnection) ended() bool {
 	}
 }
 
-// connect creates a fake connection bound to ctx.
+// connect creates a fake connection bound to ctx. It records the TLS settings
+// and gives the first connection the gateFirst gate.
+//
+// Parameters:
+//   - ctx: the connection's lifetime.
+//   - cfg: the client config, whose TLS settings are recorded.
+//
+// Returns:
+//   - ConnectionManager: the new fake connection.
+//   - error: always nil.
 func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig) (ConnectionManager, error) {
 	connection := newFakeConnection(ctx)
 
@@ -628,6 +658,9 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 }
 
 // created returns the connections created so far.
+//
+// Returns:
+//   - []*fakeConnection: a copy of the connections in creation order.
 func (c *fakeConnector) created() []*fakeConnection {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -2,6 +2,7 @@ package xmpp
 
 import "errors"
 
+// Errors returned by the XMPP service.
 var (
 	// ErrMissingHost is returned when the configuration URL has no hostname.
 	ErrMissingHost = errors.New("host is required")

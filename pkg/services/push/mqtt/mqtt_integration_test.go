@@ -81,6 +81,7 @@ type brokerPublish struct {
 	retain bool
 }
 
+// Service URLs, timeouts, and buffer sizes for the integration tests.
 const (
 	// pipeBrokerURL is the service URL for the in-process broker. Plain mqtt
 	// keeps the pipe free of TLS, and the missing port selects the default.
