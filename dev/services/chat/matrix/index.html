@@ -3052,7 +3052,7 @@
 </ul>
 <h2 id="url_format">URL Format<a class="headerlink" href="#url_format" title="Permanent link">&para;</a></h2>
 <div class="admonition info">
-<p>matrix://[<strong><code>user</code></strong>:<strong><code>password</code></strong>@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/[?rooms=<strong><code>!roomID1</code></strong>[,<strong><code>roomAlias2</code></strong>]][&amp;disableTLS=yes]</p>
+<p>matrix://[<strong><code>user</code></strong>:<strong><code>password</code></strong>@]<strong><code>host</code></strong>[:<strong><code>port</code></strong>]/[?rooms=<strong><code>!roomID1</code></strong>[,<strong><code>roomAlias2</code></strong>]][&amp;disabletls=yes]</p>
 </div>
 <p>If the port is omitted, the default port 443 (HTTPS) is used.</p>
 <h3 id="url_fields">URL Fields<a class="headerlink" href="#url_fields" title="Permanent link">&para;</a></h3>
@@ -3070,7 +3070,7 @@
 <code>?key=value&amp;key=value</code> etc.</p>
 <ul>
 <li>
-<p><strong>disabletls</strong>
+<p><strong>disabletls</strong> - Connect over HTTP instead of HTTPS
   Default: ❌ <code>No</code></p>
 </li>
 <li>
@@ -3079,7 +3079,7 @@
   Aliases: <code>room</code></p>
 </li>
 <li>
-<p><strong>title</strong>
+<p><strong>title</strong> - Notification title, optionally set by the sender
   Default: <em>empty</em></p>
 </li>
 </ul>
@@ -3150,8 +3150,9 @@ This allows you to use simple channel names without worrying about the prefix.</
 Either omit them or URL encode them, i.e. <code>rooms=%23alias:server</code> or <code>rooms=alias:server</code></p>
 </div>
 <h2 id="tls">TLS<a class="headerlink" href="#tls" title="Permanent link">&para;</a></h2>
-<p>If you do not have TLS enabled on the server you can disable it by providing <code>disableTLS=yes</code>.
-This will effectively use <code>http</code> instead of <code>https</code> for the API calls.</p>
+<p>If you do not have TLS enabled on the server you can disable it by providing <code>disabletls=yes</code>.
+This will effectively use <code>http</code> instead of <code>https</code> for the API calls.
+The first send without TLS logs a warning.</p>
 <div class="admonition warning">
 <p class="admonition-title">Security Risk</p>
 <p>Disabling TLS exposes your credentials and messages in plain text over the network.
@@ -3185,7 +3186,7 @@ Only use this option in trusted local networks or testing environments.</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Without TLS (Not Recommended)</p>
-<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?disableTLS=yes&amp;rooms=!roomID:matrix.example.com
+<div class="highlight"><pre><span></span><code>matrix://user:token@matrix.example.com?disabletls=yes&amp;rooms=!roomID:matrix.example.com
 </code></pre></div>
 </div>
 
@@ -3210,7 +3211,7 @@ Only use this option in trusted local networks or testing environments.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="April 1, 2026 00:27:59 UTC"><span class="timeago" datetime="2026-04-01T00:27:59+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="April 1, 2026 00:27:59 UTC">2026-04-01</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 25, 2026 06:53:57 UTC"><span class="timeago" datetime="2026-10-25T06:53:57+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 25, 2026 06:53:57 UTC">2026-10-25</span>
   </span>
 
     
