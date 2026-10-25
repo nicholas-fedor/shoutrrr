@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bring Rocket.Chat and Pushover under the service rules by @nicholas-fedor in [#1857](https://github.com/nicholas-fedor/shoutrrr/pull/1857)
 - Bring Bark under the service rules by @nicholas-fedor in [#1853](https://github.com/nicholas-fedor/shoutrrr/pull/1853)
 - Bring Discord and Zulip under the service rules by @nicholas-fedor in [#1851](https://github.com/nicholas-fedor/shoutrrr/pull/1851)
 - Bring SMTP and XMPP under the service rules by @nicholas-fedor in [#1843](https://github.com/nicholas-fedor/shoutrrr/pull/1843)
