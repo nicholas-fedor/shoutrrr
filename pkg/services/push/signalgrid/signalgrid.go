@@ -98,7 +98,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: Optional runtime overrides for title, type, and critical.
 //
 // Returns:
-//   - error: the params or send error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params or
+//     send error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -112,9 +113,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime overrides for title, type, and critical.
 //
 // Returns:
-//   - error: the params or send error. A request error matches ctx's error when
-//     ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params or
+//     send error. A request error matches ctx's error when ctx ends the
+//     request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

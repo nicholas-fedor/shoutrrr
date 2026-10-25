@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // TestValidateToken verifies that legacy tokens of 15 allowed characters
@@ -125,5 +127,5 @@ func TestValidateServiceInitialized(t *testing.T) {
 	validator := &DefaultValidator{}
 
 	require.NoError(t, validator.ValidateServiceInitialized(&Config{}))
-	require.ErrorIs(t, validator.ValidateServiceInitialized(nil), ErrServiceNotInitialized)
+	require.ErrorIs(t, validator.ValidateServiceInitialized(nil), types.ErrServiceNotInitialized)
 }

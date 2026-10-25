@@ -72,7 +72,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: unused, because Google Chat takes no send parameters.
 //
 // Returns:
-//   - error: the request error, or [ErrUnexpectedStatus] for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the request
+//     error, or [ErrUnexpectedStatus] for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -87,9 +88,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: unused, because Google Chat takes no send parameters.
 //
 // Returns:
-//   - error: the request error, which matches ctx's error when ctx ends the
-//     request, or [ErrUnexpectedStatus] for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the request
+//     error, which matches ctx's error when ctx ends the request, or
+//     [ErrUnexpectedStatus] for a non-success status.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

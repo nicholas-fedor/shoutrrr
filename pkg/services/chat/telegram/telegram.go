@@ -104,7 +104,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: the validation, params, or send error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the
+//     validation, params, or send error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -119,11 +120,16 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: a params error, [ErrMessageTooLong] for a text over [maxlength]
-//     UTF-16 code units with its title line, [ErrInvalidAPIURL] for an API
-//     URL set by the params, or the joined errors of the chats that failed. A
-//     request error matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, a params
+//     error, [ErrMessageTooLong] for a text over [maxlength] UTF-16 code units
+//     with its title line, [ErrInvalidAPIURL] for an API URL set by the params,
+//     or the joined errors of the chats that failed. A request error matches
+//     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)

@@ -422,19 +422,20 @@ func TestSendWithoutConfig(t *testing.T) {
 	service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
 	service.Config = nil
 
-	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
+	require.ErrorIs(t, service.Send("Hello", nil), types.ErrServiceNotInitialized)
 }
 
 // TestUninitializedSend verifies that a send on a service that was never
-// initialized, or whose Initialize failed, returns [ErrServiceNotInitialized].
+// initialized, or whose Initialize failed, returns
+// [types.ErrServiceNotInitialized].
 func TestUninitializedSend(t *testing.T) {
 	t.Parallel()
 
-	require.ErrorIs(t, (&Service{}).Send("Hello", nil), ErrServiceNotInitialized)
+	require.ErrorIs(t, (&Service{}).Send("Hello", nil), types.ErrServiceNotInitialized)
 
 	service := &Service{}
 	require.Error(t, service.Initialize(parseTestURL(t, testServiceURL+"?extras=%7Binvalid"), log.New(t.Output(), "", 0)))
-	require.ErrorIs(t, service.Send("Hello", nil), ErrServiceNotInitialized)
+	require.ErrorIs(t, service.Send("Hello", nil), types.ErrServiceNotInitialized)
 }
 
 // TestSendErrors verifies that a failed request fails the send with

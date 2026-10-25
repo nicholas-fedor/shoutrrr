@@ -185,7 +185,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - message: The notification message to publish to the topic
 //   - params: Optional runtime parameters to override config settings
 //
-// Returns an error if connection fails or publishing encounters an error.
+// Returns:
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     params, connection, or publish error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -208,8 +210,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - message: The notification message to publish to the topic
 //   - params: Optional runtime parameters to override config settings
 //
-// Returns an error if connection fails or publishing encounters an error.
+// Returns:
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     params, connection, or publish error, which matches ctx's error when
+//     ctx ends the wait.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

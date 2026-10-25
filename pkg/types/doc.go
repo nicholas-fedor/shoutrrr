@@ -53,6 +53,8 @@
 //   - TargetError: Wraps a send failure with the service URL/ID that produced it,
 //     enabling callers to identify which target failed in a multi-target send.
 //     Implements Unwrap so errors.Is and errors.As work against the underlying error.
+//   - ErrServiceNotInitialized: Returned by every send of a service whose
+//     Initialize has not run.
 //
 // # Configuration Types
 //

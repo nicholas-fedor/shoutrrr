@@ -105,7 +105,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters for the event.
 //
 // Returns:
-//   - error: the payload or request failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
+//     request failure, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -121,12 +122,17 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters for the event.
 //
 // Returns:
-//   - error: the payload or request failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
+//     request failure, or nil on success.
 func (s *Service) SendContext(
 	ctx context.Context,
 	message string,
 	params *types.Params,
 ) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

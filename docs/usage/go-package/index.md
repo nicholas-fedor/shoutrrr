@@ -294,6 +294,8 @@ if services.SupportsSchema("discord") {
   `SendItems`, and `SendItemsContext` return one entry per URL, `nil` on success, so check each entry rather than the
   length of the slice. A failed send is or wraps a `*types.TargetError` naming the service, never its URL, so use
   `errors.As` to get it. Creating a sender and locating a service return ordinary wrapped errors.
+- **Uninitialized Services**: A service created directly from its package, without the router, returns
+  `types.ErrServiceNotInitialized` from every send made before `Initialize` runs, so use `errors.Is` to check for it.
 - **Parameters**: `params` is a `*types.Params` value for `Send`, `SendContext`, `SendAsync`, and `Flush`, including
   `shoutrrr.SendContext`. `SendItems` accepts `types.Params` by value. Use setter methods such as `SetTitle`, `SetMessage`, and `SetLevel` to configure service-specific options. Use `shoutrrr docs` to view supported parameters for each service.
 - **Timeouts**: The default is 10 seconds per service. A longer service timeout extends that service. A positive `SenderOptions.Timeout` is the exact fixed timeout for every service.

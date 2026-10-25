@@ -82,7 +82,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: a params error, or the joined errors of the failed recipients.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, a params
+//     error, or the joined errors of the failed recipients.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -97,10 +98,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: a params error, or the joined errors of the failed recipients. A
-//     request error matches ctx's error when ctx ends the request. When ctx
-//     ends, the remaining recipients are skipped and ctx's error is included.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, a params
+//     error, or the joined errors of the failed recipients. A request error
+//     matches ctx's error when ctx ends the request. When ctx ends, the
+//     remaining recipients are skipped and ctx's error is included.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 

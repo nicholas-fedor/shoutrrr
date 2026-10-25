@@ -4,12 +4,6 @@ import (
 	"errors"
 )
 
-// Service/Initialization errors.
-var (
-	// ErrServiceNotInitialized indicates that the service has not been initialized.
-	ErrServiceNotInitialized = errors.New("service not initialized")
-)
-
 // Input validation errors.
 var (
 	// ErrInvalidToken indicates an invalid Gotify token format or content.

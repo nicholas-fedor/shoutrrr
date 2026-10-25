@@ -182,7 +182,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //     override configuration fields.
 //
 // Returns:
-//   - error: [ErrSendFailed] wrapping the payload or request error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize,
+//     [ErrSendFailed] wrapping the payload or request error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return s.SendContext(context.Background(), message, paramsPtr)
 }
@@ -198,9 +199,14 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //     override configuration fields.
 //
 // Returns:
-//   - error: [ErrSendFailed] wrapping the payload or request error, which matches
+//   - error: [types.ErrServiceNotInitialized] before Initialize,
+//     [ErrSendFailed] wrapping the payload or request error, which matches
 //     ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(paramsPtr))
 	defer cancel()
 

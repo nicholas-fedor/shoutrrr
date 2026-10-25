@@ -132,7 +132,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: Optional runtime overrides for configuration fields ([types.Params]).
 //
 // Returns:
-//   - An error if configuration updates, connection, or delivery fail.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
+//     params, connection, or delivery error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -154,10 +155,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime overrides for configuration fields ([types.Params]).
 //
 // Returns:
-//   - An error if configuration updates, connection, or delivery fail, a
-//     [FailTokenRefresh] failure when no access token could be obtained, or
-//     [ErrInvalidOAuth2Refresh] for invalid refresh settings in params.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
+//     connection, or delivery error, a [FailTokenRefresh] failure when no
+//     access token could be obtained, or [ErrInvalidOAuth2Refresh] for invalid
+//     refresh settings in params.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
 	config, err := s.sendConfig(params)
 	if err != nil {
 		return fail(FailApplySendParams, err)
@@ -203,6 +209,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 // Returns:
 //   - The positive session timeout. Non-positive configured values use [defaultTimeout].
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
+	if s.Config == nil {
+		return defaultTimeout
+	}
+
 	config, err := s.sendConfig(params)
 	if err != nil {
 		return effectiveTimeout(s.Config.Timeout)

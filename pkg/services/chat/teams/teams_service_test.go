@@ -461,7 +461,7 @@ func TestServiceSendErrorsBeforeRequest(t *testing.T) {
 		params  *types.Params
 		wantErr error
 	}{
-		{name: "uninitialized service", wantErr: ErrMissingHost},
+		{name: "uninitialized service", wantErr: types.ErrServiceNotInitialized},
 		{name: "empty host", rawURL: "teams://?title=Alert", wantErr: ErrMissingHost},
 		{
 			name:    "invalid webhook URL",
