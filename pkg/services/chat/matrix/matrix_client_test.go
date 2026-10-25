@@ -849,4 +849,17 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 	assert.Nil(t, res)
 	assert.NotContains(t, err.Error(), "SECRETpath")
 	assert.Contains(t, err.Error(), "matrix.example.com")
+
+	t.Run("zero value", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://matrix.example.com/", http.NoBody)
+		require.NoError(t, err)
+
+		_, err = (&DefaultHTTPClient{}).Do(req)
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }

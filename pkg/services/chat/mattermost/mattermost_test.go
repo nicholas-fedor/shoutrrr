@@ -1,6 +1,7 @@
 package mattermost
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -409,9 +410,36 @@ func TestSetHTTPClient(t *testing.T) {
 	assert.Same(t, client, service.client.Client())
 }
 
-// TestDefaultHTTPClient verifies that the default client has the send
-// timeout and sends through http.DefaultTransport, so it honors the proxy
-// environment variables.
+// TestSendWarnsPlaintext verifies that sends without TLS log the plaintext
+// warning once, and again after the service is initialized again.
+func TestSendWarnsPlaintext(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+
+	rawURL := "mattermost://mattermost.example.com/token?disabletls=yes"
+
+	client := mocks.NewMockHTTPClient(t)
+	client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
+	}).Times(3)
+
+	service := &Service{}
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+
+	require.NoError(t, service.Send("first", nil))
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, 1, strings.Count(logs.String(), "Warning: sending without TLS"))
+
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("third", nil))
+	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
+}
+
+// TestDefaultHTTPClient verifies that the default client has no request
+// timeout, since the send budget bounds each send, and sends through
+// http.DefaultTransport, so it honors the proxy environment variables.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -419,7 +447,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	httpClient, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, defaultHTTPTimeout, httpClient.Timeout)
+	assert.Zero(t, httpClient.Timeout)
 	assert.Nil(t, httpClient.Transport)
 }
 

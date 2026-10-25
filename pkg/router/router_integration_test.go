@@ -170,6 +170,9 @@ const (
 	// checkSendBudget verifies that a send without a deadline is bounded by the
 	// service's own send budget.
 	checkSendBudget = "send_budget"
+	// checkSendKeepsDeadline verifies that a caller's deadline reaches every
+	// request and dial of a send unchanged.
+	checkSendKeepsDeadline = "send_keeps_deadline"
 	// checkPlaintextWarning verifies that a service with a disabletls option
 	// warns once when its sends go out without TLS.
 	checkPlaintextWarning = "plaintext_warning"
@@ -215,6 +218,7 @@ const (
 	failWarningCount                          // the insecure warning was not logged exactly once
 	failWarnedInjected                        // the insecure warning was logged for an injected client
 	failClientFieldOrder                      // a send used the wrong one of the client field and the injected client
+	failDeadlineChanged                       // a request or dial did not carry the caller's deadline
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -439,29 +443,34 @@ var allowlist = map[string]map[string]knownFailure{
 	checkKeyDescriptions: {
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},
 		"ifttt":      {"IFTTT's events and value keys have no description", failMissingDescription},
-		"matrix":     {"Matrix's disabletls and title keys have no description", failMissingDescription},
-		"mattermost": {"Mattermost's disabletls key has no description", failMissingDescription},
 		"pushbullet": {"Pushbullet's title key has no description", failMissingDescription},
 		"pushover":   {"Pushover's devices, priority, and title keys have no description", failMissingDescription},
 	},
 	checkSendBudget: {
-		"googlechat": {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
-		"hangouts":   {"Google Chat bounds requests with its client timeout instead of a context deadline", failBudget},
-		"lark":       {"Lark bounds requests with its client timeout instead of a context deadline", failBudget},
-		"matrix":     {"Matrix bounds each request by 10s, below its reported budget", failBudget},
 		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
 		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failBudget},
 		"pagerduty":  {"PagerDuty bounds requests with its client timeout instead of a context deadline", failBudget},
 		"pushbullet": {"Pushbullet bounds requests with its client timeout instead of a context deadline", failBudget},
-		"wecom":      {"WeCom bounds requests with its client timeout instead of a context deadline", failBudget},
 		// Zulip's limits lookup is optional, so it is capped below the budget and
 		// a slow lookup leaves the message request the rest of the budget.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
 	},
+	checkSendKeepsDeadline: {
+		"ifttt": {"IFTTT bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
+		"join":  {"Join bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
+		// MQTT keeps one connection across sends, so its dials use the connection's
+		// lifetime context by design.
+		"mqtt":       {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
+		"mqtts":      {"MQTT dials with the connection's lifetime context, which has no deadline", failDeadlineChanged},
+		"notifiarr":  {"Notifiarr bounds each request by its request timeout, below a caller's deadline", failDeadlineChanged},
+		"opsgenie":   {"Opsgenie bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
+		"signalgrid": {"Signalgrid bounds each request by 10s, below a caller's deadline", failDeadlineChanged},
+		// Zulip's limits lookup is optional, so it is capped below the caller's
+		// deadline and a slow lookup leaves the message request the rest.
+		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failDeadlineChanged},
+	},
 	checkPlaintextWarning: {
-		"generic":    {"Generic logs no warning when TLS is disabled", failWarningCount},
-		"matrix":     {"Matrix logs no warning when TLS is disabled", failWarningCount},
-		"mattermost": {"Mattermost logs no warning when TLS is disabled", failWarningCount},
+		"generic": {"Generic logs no warning when TLS is disabled", failWarningCount},
 	},
 }
 
@@ -548,6 +557,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkKeyDescriptions, runKeyDescriptions},
 		{checkDeprecatedFields, runDeprecatedFields},
 		{checkSendBudget, runSendBudget},
+		{checkSendKeepsDeadline, runSendKeepsDeadline},
 		{checkPlaintextWarning, runPlaintextWarning},
 	}
 
@@ -1858,6 +1868,118 @@ func runSendBudget(t *testing.T, fx *fixture) failure {
 			for _, deadline := range deadlines {
 				if !deadline.Equal(start.Add(budget)) {
 					result = fail(failBudget, "a request or dial had a %v deadline, not the %v budget", deadline.Sub(start), budget)
+
+					return
+				}
+			}
+		}
+	})
+
+	return result
+}
+
+// runSendKeepsDeadline verifies that a send through SendContext with a
+// caller's deadline gives every request and dial that deadline unchanged, so
+// no request within the send adds a timeout of its own. A service without
+// SendContext passes.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failDeadlineChanged, failNotInjected, failPanic, or failInit
+//     failure, or the zero value.
+func runSendKeepsDeadline(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind == netNone {
+		return failure{}
+	}
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			mu        sync.Mutex
+			deadlines []time.Time
+			missing   int
+		)
+
+		record := func(ctx context.Context) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			if deadline, ok := ctx.Deadline(); ok {
+				deadlines = append(deadlines, deadline)
+			} else {
+				missing++
+			}
+		}
+
+		answer := respond(fx, false)
+		client := httpClientFunc(func(req *http.Request) (*http.Response, error) {
+			record(req.Context())
+
+			return answer(req)
+		})
+		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+			record(ctx)
+
+			return nil, errDial
+		}
+
+		serviceRouter, err := router.NewWithOptions(
+			log.New(io.Discard, "", 0),
+			types.SenderOptions{HTTPClient: client, DialContext: dial},
+		)
+		require.NoError(t, err)
+
+		service, err := serviceRouter.Locate(fx.url)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		t.Cleanup(func() { closeService(t, service) })
+
+		sender, ok := service.(types.ContextSender)
+		if !ok {
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+		defer cancel()
+
+		want, _ := ctx.Deadline()
+
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					result = fail(failPanic, "panicked: %v", r)
+				}
+			}()
+
+			_ = sender.SendContext(ctx, "contract message", nil)
+		}()
+
+		if result.kind != failNone {
+			return
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		switch {
+		case missing+len(deadlines) == 0:
+			result = fail(failNotInjected, "SendContext made no request or dial")
+		case missing > 0:
+			result = fail(failDeadlineChanged, "%d of %d request(s) and dial(s) had no deadline", missing, missing+len(deadlines))
+		default:
+			for _, deadline := range deadlines {
+				if !deadline.Equal(want) {
+					result = fail(failDeadlineChanged, "a request or dial had a deadline %v before the caller's", want.Sub(deadline))
 
 					return
 				}

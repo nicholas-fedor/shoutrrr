@@ -142,7 +142,7 @@ func TestServiceInitialize(t *testing.T) {
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
 		assert.Equal(t, &Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"}, service.Config)
-		assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.client.Client())
+		assert.Equal(t, &http.Client{}, service.client.Client(), "the default client has no request timeout")
 	})
 
 	t.Run("injected client", func(t *testing.T) {
@@ -300,7 +300,7 @@ func TestSetHTTPClient(t *testing.T) {
 			service := newTestService(t, mocks.NewMockHTTPClient(t))
 			service.SetHTTPClient(tt.client)
 
-			assert.Equal(t, &http.Client{Timeout: defaultHTTPTimeout}, service.client.Client())
+			assert.Equal(t, &http.Client{}, service.client.Client(), "the default client has no request timeout")
 		})
 	}
 }

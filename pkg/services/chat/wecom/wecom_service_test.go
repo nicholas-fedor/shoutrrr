@@ -222,7 +222,8 @@ func TestSetHTTPClient(t *testing.T) {
 }
 
 // TestDefaultHTTPClient verifies that a service without a custom client uses
-// one default client with the send timeout.
+// one default client without a request timeout, since the send budget bounds
+// each send.
 func TestDefaultHTTPClient(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +231,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 
 	client, ok := service.client.Client().(*http.Client)
 	require.True(t, ok, "the default client should be an *http.Client")
-	assert.Equal(t, defaultTime, client.Timeout)
+	assert.Zero(t, client.Timeout)
 	assert.Same(t, client, service.client.Client())
 }
 

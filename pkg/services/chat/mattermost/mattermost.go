@@ -7,9 +7,9 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -24,6 +24,8 @@ type Service struct {
 	// client holds the injected HTTP client and the default client for webhook
 	// requests.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the host, the webhook token, and the message options.
 	Config *Config
@@ -39,9 +41,6 @@ const (
 	// channelParam overrides [Config.Channel] for one send.
 	channelParam = "channel"
 )
-
-// defaultHTTPTimeout is the default timeout for HTTP requests.
-const defaultHTTPTimeout = 10 * time.Second
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -69,7 +68,7 @@ func (s *Service) GetID() string {
 //   - error: the error when the URL is invalid.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
+	s.warnings.Reset()
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
@@ -91,10 +90,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Mattermost.
+// SendContext delivers a notification message to Mattermost. A context without
+// a deadline is bounded by the budget that [Service.ServiceTimeout] reports.
+// The first send without TLS logs a warning.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - params: optional overrides for configuration fields, including the
 //     username and channel params and disabletls.
@@ -103,6 +104,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the params, payload, or request error, or [ErrSendFailed] for an
 //     error status. A request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -118,11 +122,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("creating JSON payload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
-	defer cancel()
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(s)
+	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,

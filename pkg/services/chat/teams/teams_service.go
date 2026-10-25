@@ -40,7 +40,7 @@ type Service struct {
 	pkr format.PropKeyResolver
 }
 
-// defaultHTTPTimeout is the default timeout for HTTP requests.
+// defaultHTTPTimeout is the send budget of Teams.
 const defaultHTTPTimeout = 30 * time.Second
 
 // adaptiveCardVersion is the Adaptive Card schema version used in payloads.
@@ -76,7 +76,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
 		return fmt.Errorf("setting default properties: %w", err)
@@ -100,6 +99,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Microsoft Teams as an Adaptive Card.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -114,6 +115,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrMissingHost
 	}
 
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
@@ -122,7 +126,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	return s.doSend(ctx, &config, message)
 }
 
-// ServiceTimeout returns the HTTP timeout used for a Teams send.
+// ServiceTimeout reports the send budget of Teams.
 //
 // Returns:
 //   - time.Duration: [defaultHTTPTimeout], whatever the params.
@@ -254,7 +258,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 // postJSON performs an HTTP POST with a JSON payload.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - serviceURL: the webhook URL.
 //   - payload: the JSON payload.
 //
@@ -262,12 +266,6 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 //   - *http.Response: the response, whose body the caller closes.
 //   - error: the request error.
 func (s *Service) postJSON(ctx context.Context, serviceURL string, payload []byte) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

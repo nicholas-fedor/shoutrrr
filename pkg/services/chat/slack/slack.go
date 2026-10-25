@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -38,8 +37,6 @@ type Service struct {
 const (
 	// apiPostMessage is the Slack API endpoint for sending messages.
 	apiPostMessage = "https://slack.com/api/chat.postMessage"
-	// defaultHTTPTimeout is the default timeout for HTTP requests.
-	defaultHTTPTimeout = 10 * time.Second
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -68,7 +65,6 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrInvalidToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
@@ -91,6 +87,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to Slack through the API or a webhook.
+// A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -101,6 +99,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the params error or the send error, which matches ctx's error when
 //     ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -170,7 +171,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 // sendWebhook sends a notification using a Slack webhook.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - config: the configuration for this send.
 //   - payload: the message payload.
 //
@@ -182,9 +183,6 @@ func (s *Service) sendWebhook(ctx context.Context, config *Config, payload *Mess
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,

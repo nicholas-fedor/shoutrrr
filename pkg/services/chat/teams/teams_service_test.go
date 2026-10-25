@@ -186,7 +186,7 @@ func TestServiceInitialize(t *testing.T) {
 
 	client, ok := service.client.Client().(*http.Client)
 	require.True(t, ok)
-	assert.Equal(t, defaultHTTPTimeout, client.Timeout)
+	assert.Zero(t, client.Timeout, "the send budget bounds each send")
 	assert.Nil(t, client.Transport)
 }
 

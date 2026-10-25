@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
@@ -27,9 +26,6 @@ type Service struct {
 	// client holds the injected HTTP client and the default client.
 	client httpclient.Holder
 }
-
-// defaultHTTPTimeout bounds each request of the default client.
-const defaultHTTPTimeout = 10 * time.Second
 
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
 var ErrUnexpectedStatus = errors.New("google chat api returned unexpected http status code")
@@ -61,7 +57,6 @@ func (s *Service) GetID() string {
 //     [ErrMissingToken].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
-	s.client.SetDefault(defaultHTTPTimeout, nil)
 
 	s.Config = &Config{}
 
@@ -82,17 +77,22 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Google Chat.
+// SendContext delivers a notification message to Google Chat. A context
+// without a deadline is bounded by the budget that [Service.ServiceTimeout]
+// reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
-//   - _: unused, because Google Chat takes no send parameters.
+//   - params: unused, because Google Chat takes no send parameters.
 //
 // Returns:
 //   - error: the request error, which matches ctx's error when ctx ends the
 //     request, or [ErrUnexpectedStatus] for a non-success status.
-func (s *Service) SendContext(ctx context.Context, message string, _ *types.Params) error {
+func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	config := s.Config
 
 	jsonBody, err := json.Marshal(JSON{Text: message}, jsonopts.Default)

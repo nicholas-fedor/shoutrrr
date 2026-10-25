@@ -41,7 +41,7 @@
 //     room IDs (e.g., "!roomid:example.com"). If not specified, messages are sent
 //     to all joined rooms.
 //   - title: notification title to prepend to the message
-//   - disableTLS: set to "yes" or "true" to disable TLS (not recommended)
+//   - disabletls: set to "yes" or "true" to disable TLS (not recommended)
 //
 // # Templates
 //
@@ -72,7 +72,7 @@
 //
 // ## Custom port and TLS disabled
 //
-//	url := "matrix://:access_token@matrix.example.com:8008?disableTLS=yes"
+//	url := "matrix://:access_token@matrix.example.com:8008?disabletls=yes"
 //	err := shoutrrr.Send(url, "Insecure notification")
 //
 // # Common Use Cases

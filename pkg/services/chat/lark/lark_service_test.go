@@ -206,7 +206,7 @@ func TestServiceInitializeRejectsInvalidURLs(t *testing.T) {
 }
 
 // TestSetHTTPClient verifies that the service uses an injected
-// client and falls back to a default client with the send timeout when no
+// client and falls back to a default client without a request timeout when no
 // client, a nil interface, or a nil *http.Client is set.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
@@ -247,7 +247,7 @@ func TestSetHTTPClient(t *testing.T) {
 
 			client, ok := service.client.Client().(*http.Client)
 			require.True(t, ok, "the default client should be an *http.Client")
-			assert.Equal(t, defaultTime, client.Timeout)
+			assert.Zero(t, client.Timeout, "the send budget bounds each send")
 			assert.Same(t, client, service.client.Client())
 		})
 	}
