@@ -1552,6 +1552,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sending_to_several_chats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending to several chats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#optional_parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2859,6 +2870,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sending_to_several_chats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending to several chats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#optional_parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2993,6 +3015,13 @@ It will reply with the Chat ID for the chat where the forwarded message was orig
 Note that it will not work correctly for Group chats, as those messages are just seen as being posted by a user, not in a specific chat.
 Instead you can use the second method, which is to invite the @shoutrrrbot into your group chat and address a message to it (start the message with @shoutrrrbot). You can then safely kick the bot from the group.</p>
 <p>The bot should be constantly online, unless it's usage exceeds the free tier on GCP. It's source is available at <a href="https://github.com/nicholas-fedor/shoutrrrbot">github.com/nicholas-fedor/shoutrrrbot</a>.</p>
+<h2 id="sending_to_several_chats">Sending to several chats<a class="headerlink" href="#sending_to_several_chats" title="Permanent link">&para;</a></h2>
+<p>Each chat in the <code>chats</code> param gets its own request, in order.
+A chat that Telegram rejects does not stop the chats after it, and the error lists every chat that failed.</p>
+<p>A message can hold up to 4096 characters, counted as UTF-16 code units the way Telegram measures text.
+Most characters count as one unit, and an emoji or another character outside the Basic Multilingual Plane counts as two.
+A title sent on its own line, as the HTML parse mode or no parse mode sends it, counts toward the limit too.
+A longer message fails before any request is sent.</p>
 <h2 id="optional_parameters">Optional parameters<a class="headerlink" href="#optional_parameters" title="Permanent link">&para;</a></h2>
 <p>You can optionally specify the <strong><code>notification</code></strong>, <strong><code>parseMode</code></strong> and <strong><code>preview</code></strong> parameters in the URL:</p>
 <div class="admonition info">
@@ -3046,7 +3075,7 @@ The self-hosted server accepts only plain HTTP, so use <code>https</code> only b
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 08:29:58 UTC"><span class="timeago" datetime="2026-10-23T08:29:58+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 08:29:58 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 25, 2026 04:58:38 UTC"><span class="timeago" datetime="2026-10-25T04:58:38+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 25, 2026 04:58:38 UTC">2026-10-25</span>
   </span>
 
     
