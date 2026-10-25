@@ -56,7 +56,7 @@
 // # Important Notes
 //
 //   - The service requires a valid host and token for authentication
-//   - Messages have a maximum length of 4096 bytes
+//   - The request body, including the title and link, can hold at most 20 KB
 //   - Signature verification requires the secret to be configured
 //   - Supports both Lark (open.larksuite.com) and Feishu (open.feishu.cn) platforms
 //   - Rich post messages require a title to be specified

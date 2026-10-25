@@ -253,8 +253,8 @@ func TestSetHTTPClient(t *testing.T) {
 	}
 }
 
-// TestServiceSendRejectsInvalidInput verifies that Send validates the message
-// length, params, host, and path before making any request.
+// TestServiceSendRejectsInvalidInput verifies that Send validates the request
+// body size, params, host, and path before making any request.
 func TestServiceSendRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -269,7 +269,7 @@ func TestServiceSendRejectsInvalidInput(t *testing.T) {
 		{
 			name:    "message too large",
 			config:  Config{Host: larkHost, Path: "token"},
-			message: strings.Repeat("a", maxLength+1),
+			message: strings.Repeat("a", 20*1024),
 			wantErr: ErrLargeMessage,
 		},
 		{
@@ -307,18 +307,63 @@ func TestServiceSendRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// TestServiceSendMaxLengthMessage verifies that a message of exactly the
-// maximum length is sent.
-func TestServiceSendMaxLengthMessage(t *testing.T) {
+// TestServiceSendBodySizeLimit verifies that Lark's 20 KB limit applies to the
+// encoded request body, so the title, the link, and JSON escapes count toward
+// it, and that a body of exactly the limit is sent.
+func TestServiceSendBodySizeLimit(t *testing.T) {
 	t.Parallel()
 
-	message := strings.Repeat("a", maxLength)
-	client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
-	service := newTestService(t, fullURL)
-	service.SetHTTPClient(client)
+	const limit = 20 * 1024
 
-	require.NoError(t, service.Send(message, nil))
-	assert.Equal(t, message, decodeBody(t, captured).Content.Text)
+	service := newTestService(t, fullURL)
+	// An empty text is left out of the body, so a one-byte message measures
+	// the body around the text.
+	base, err := service.preparePayload("a", service.Config, nil)
+	require.NoError(t, err)
+
+	// fill is the text message that makes the body exactly the limit.
+	fill := strings.Repeat("a", limit-len(base)+1)
+
+	// tests lists sends with whether the body stays within the limit.
+	tests := []struct {
+		params  *types.Params
+		name    string
+		message string
+		wantErr bool
+	}{
+		{name: "body at the limit", message: fill},
+		{name: "body one byte over", message: fill + "a", wantErr: true},
+		{name: "title over the limit", message: fill, params: &types.Params{"title": "Title"}, wantErr: true},
+		{
+			name:    "link over the limit",
+			message: fill[:len(fill)-200],
+			params:  &types.Params{"title": "T", "link": "https://example.com/" + strings.Repeat("l", 200)},
+			wantErr: true,
+		},
+		{name: "escaped quotes over the limit", message: strings.Repeat(`"`, len(fill)/2+1), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, fullURL)
+
+			if tt.wantErr {
+				// The mock has no expectations, so a request fails the test.
+				service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+				require.ErrorIs(t, service.Send(tt.message, tt.params), ErrLargeMessage)
+
+				return
+			}
+
+			client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send(tt.message, tt.params))
+			assert.Len(t, captured.body, limit)
+		})
+	}
 }
 
 // TestServiceSendPayload verifies the request the service sends for text

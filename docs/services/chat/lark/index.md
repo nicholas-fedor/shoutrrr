@@ -21,6 +21,18 @@ Send notifications to Lark using a custom bot webhook.
 lark://open.larksuite.com/abc123?secret=xyz789&title=Alert&link=https://example.com
 ```
 
+## Message Size
+
+Lark limits the request body of a custom bot message to 20 KB, which Shoutrrr counts as 20,480 bytes.
+The limit covers the whole JSON body, so all of these parts count toward it:
+
+- The message, as UTF-8 with JSON escapes such as `\"` and `\n`.
+- The `title`, which turns the message into a post.
+- The `link`, which only a post with a title includes.
+- The `timestamp` and `sign` fields that a `secret` adds.
+
+A body over the limit fails the send before any request is made.
+
 ## Create a Custom Bot in Lark
 
 Official Documentation: [Custom Bot Guide](https://open.larksuite.com/document/client-docs/bot-v3/add-custom-bot)

@@ -38,7 +38,7 @@ Official Documentation: [Webhook Bot Guide](https://developer.work.weixin.qq.com
 
 ### Message Features
 
-- Supports text messages up to 4096 characters
+- Supports text messages up to 2048 bytes of UTF-8, the limit WeCom sets for text content
 - Can mention users by user ID with the `mentioned_list` parameter, or everyone with `@all`
 - Can mention users by mobile number with the `mentioned_mobile_list` parameter
 - Both lists are comma-separated, so one parameter can mention several users
