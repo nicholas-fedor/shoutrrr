@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -179,11 +180,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 // Parameters:
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which fill the payload template and may
-//     override configuration fields.
+//     override the configuration fields their keys name.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrSendFailed] wrapping the payload or request error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     for an invalid config value in params, or [ErrSendFailed] wrapping the
+//     payload or request error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return s.SendContext(context.Background(), message, paramsPtr)
 }
@@ -196,12 +198,13 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which fill the payload template and may
-//     override configuration fields.
+//     override the configuration fields their keys name.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrSendFailed] wrapping the payload or request error, which matches
-//     ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     for an invalid config value in params, or [ErrSendFailed] wrapping the
+//     payload or request error, which matches ctx's error when ctx ends the
+//     request.
 func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -221,9 +224,17 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 		params = *paramsPtr
 	}
 
-	if err := s.pkr.UpdateConfigFromParams(&config, &params); err != nil {
-		// Update config with runtime parameters
-		s.Logf("Failed to update params: %v", err)
+	// Only config keys update the config. The other params fill the payload.
+	configParams := types.Params{}
+
+	for key, value := range params {
+		if slices.Contains(s.pkr.QueryFields(), strings.ToLower(key)) {
+			configParams[key] = value
+		}
+	}
+
+	if err := s.pkr.UpdateConfigFromParams(&config, &configParams); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
