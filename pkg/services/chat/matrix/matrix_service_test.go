@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -31,10 +32,12 @@ type fakeHomeserver struct {
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
 	releaseFlows chan struct{}
-	// mu guards tokens.
+	// mu guards tokens and schemes.
 	mu sync.Mutex
 	// tokens records the Authorization header of each message sent.
 	tokens []string
+	// schemes records the URL scheme of each request.
+	schemes []string
 }
 
 // Service test URLs.
@@ -60,6 +63,10 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		_, _ = io.Copy(io.Discard, req.Body)
 		_ = req.Body.Close()
 	}
+
+	f.mu.Lock()
+	f.schemes = append(f.schemes, req.URL.Scheme)
+	f.mu.Unlock()
 
 	if req.Method == http.MethodGet && req.URL.Path == apiLogin && f.releaseFlows != nil {
 		// The notification is best effort, so a repeated request cannot block on a
@@ -94,6 +101,21 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	default:
 		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
 	}
+}
+
+// requestSchemes returns the URL scheme of each request so far and clears
+// them.
+//
+// Returns:
+//   - []string: the schemes, in order.
+func (f *fakeHomeserver) requestSchemes() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	schemes := f.schemes
+	f.schemes = nil
+
+	return schemes
 }
 
 // sentTokens returns the Authorization header of each message sent so far.
@@ -415,6 +437,79 @@ func TestSendWarnsPlaintext(t *testing.T) {
 	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL+"&disabletls=yes"), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("third", nil))
 	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
+}
+
+// TestSendAppliesDisableTLSParam verifies that a disabletls send param decides
+// the protocol of every request in that send, including the first send's
+// login, and that later sends keep the URL's setting and the access token.
+func TestSendAppliesDisableTLSParam(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs and send params with the scheme each request of the
+	// first send uses and the scheme of a later send without params.
+	tests := []struct {
+		params      types.Params
+		name        string
+		rawURL      string
+		wantScheme  string
+		laterScheme string
+		wantWarning bool
+	}{
+		{
+			name:        "param turns TLS off",
+			rawURL:      passwordURL,
+			params:      types.Params{"disabletls": "yes"},
+			wantScheme:  "http",
+			laterScheme: "https",
+			wantWarning: true,
+		},
+		{
+			name:        "param turns TLS back on",
+			rawURL:      passwordURL + "&disabletls=yes",
+			params:      types.Params{"disabletls": "no"},
+			wantScheme:  "https",
+			laterScheme: "http",
+			wantWarning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs bytes.Buffer
+
+			server := &fakeHomeserver{}
+			service, _ := newHomeserverService(t, server)
+			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
+
+			require.NoError(t, service.Send("first", &tt.params))
+
+			// The login flows lookup, the login, and the message.
+			assert.Equal(t, []string{tt.wantScheme, tt.wantScheme, tt.wantScheme}, server.requestSchemes())
+			assert.Equal(t, tt.wantWarning, strings.Contains(logs.String(), "Warning: sending without TLS"))
+
+			require.NoError(t, service.Send("second", nil))
+
+			assert.Equal(t, []string{tt.laterScheme}, server.requestSchemes())
+			assert.Equal(t, int32(1), server.logins.Load())
+			assert.Equal(t, []string{"Bearer access", "Bearer access"}, server.sentTokens())
+		})
+	}
+}
+
+// TestSendRejectsInvalidParamBeforeLogin verifies that an invalid send param
+// fails the send before the login makes any request.
+func TestSendRejectsInvalidParamBeforeLogin(t *testing.T) {
+	t.Parallel()
+
+	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	err := service.Send("message", &types.Params{"disabletls": "maybe"})
+
+	require.ErrorIs(t, err, format.ErrInvalidBoolValue)
+	httpClient.AssertNotCalled(t, "Do", mock.Anything)
 }
 
 // TestDefaultHTTPClient verifies that the default client has no request

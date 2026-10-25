@@ -58,6 +58,18 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
+// apiScheme returns the URL scheme of the homeserver API.
+//
+// Returns:
+//   - string: http when TLS is disabled, and https otherwise.
+func (c *Config) apiScheme() string {
+	if c.DisableTLS {
+		return schemeHTTP
+	}
+
+	return schemeHTTPS
+}
+
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
 // Parameters:
