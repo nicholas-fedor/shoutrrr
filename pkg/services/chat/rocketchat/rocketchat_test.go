@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -133,6 +135,7 @@ func TestGetID(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize parses a full URL into the config
+// without filling the deprecated client field, keeps a client set before it,
 // and rejects a URL without tokens.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
@@ -149,7 +152,7 @@ func TestInitialize(t *testing.T) {
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
 		require.NotNil(t, service.Config)
-		assert.NotNil(t, service.Client)
+		assert.Nil(t, service.Client, "Initialize leaves the deprecated client field unset")
 		assert.Equal(t, &Config{
 			Host:     "rocketchat.my-domain.com",
 			Port:     "5055",
@@ -181,7 +184,7 @@ func TestInitialize(t *testing.T) {
 		service := &Service{Client: client}
 		require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
 
-		assert.Same(t, client, service.Client)
+		assert.Same(t, client, service.client.Prefer(service.Client))
 	})
 }
 
@@ -277,9 +280,8 @@ func TestSendErrors(t *testing.T) {
 
 		err := service.Send("test message", nil)
 		require.ErrorIs(t, err, errTransport)
-		assert.Contains(t, err.Error(), "posting to URL")
-		assert.Contains(t, err.Error(), "HOST: rocketchat.example.com")
-		assert.Contains(t, err.Error(), "PORT: 5055")
+		assert.True(t, strings.HasPrefix(err.Error(), "posting to rocketchat.example.com:5055: "), err.Error())
+		assert.NotContains(t, err.Error(), "\n")
 	})
 
 	t.Run("invalid host fails before sending", func(t *testing.T) {
@@ -371,59 +373,89 @@ func TestSendTLSServer(t *testing.T) {
 	}
 }
 
-// TestSetHTTPClient verifies which client a service uses after SetHTTPClient
-// receives a typed nil, a nil interface, an *http.Client, or another client.
+// TestSetHTTPClient verifies that SetHTTPClient stores a client in place of
+// the deprecated Client field, and that a nil client of either kind restores
+// the default client after an *http.Client was set.
 func TestSetHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	t.Run("typed nil selects the internal client", func(t *testing.T) {
+	t.Run("custom client clears the field", func(t *testing.T) {
 		t.Parallel()
 
-		internal := &http.Client{}
-		service := &Service{Client: internal}
-
-		var nilClient *http.Client
-		service.SetHTTPClient(nilClient)
-
-		assert.Nil(t, service.httpClient)
-		assert.Same(t, internal, service.httpClientOrDefault())
-	})
-
-	t.Run("nil interface selects the internal client", func(t *testing.T) {
-		t.Parallel()
-
-		internal := &http.Client{}
-		service := &Service{Client: internal, httpClient: mocks.NewMockHTTPClient(t)}
-
-		service.SetHTTPClient(nil)
-
-		assert.Nil(t, service.httpClient)
-		assert.Same(t, internal, service.httpClientOrDefault())
-	})
-
-	t.Run("http client replaces the internal client", func(t *testing.T) {
-		t.Parallel()
-
-		custom := &http.Client{}
+		custom := mocks.NewMockHTTPClient(t)
 		service := &Service{Client: &http.Client{}}
 
 		service.SetHTTPClient(custom)
 
-		assert.Same(t, custom, service.Client)
-		assert.Same(t, custom, service.httpClientOrDefault())
+		assert.Nil(t, service.Client, "SetHTTPClient clears the deprecated client field")
+		assert.Same(t, custom, service.client.Prefer(service.Client))
 	})
 
-	t.Run("other client keeps the internal client", func(t *testing.T) {
-		t.Parallel()
+	// nilClients lists the nil clients that restore the default client.
+	nilClients := []struct {
+		client types.HTTPClient
+		name   string
+	}{
+		{name: "nil interface", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
 
-		internal := &http.Client{}
-		custom := mocks.NewMockHTTPClient(t)
-		service := &Service{Client: internal}
+	for _, tt := range nilClients {
+		t.Run(tt.name+" restores the default client", func(t *testing.T) {
+			t.Parallel()
 
-		service.SetHTTPClient(custom)
+			serviceURL, err := url.Parse("rocketchat://rocketchat.example.com/" + testTokenA + "/" + testTokenB)
+			require.NoError(t, err)
 
-		assert.Same(t, internal, service.Client)
-		assert.Same(t, custom, service.httpClientOrDefault())
+			service := &Service{}
+			require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+
+			service.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Error("the replaced client was used")
+
+				return nil, errTransport
+			})})
+			service.SetHTTPClient(tt.client)
+
+			// The context ends before the send, so the default client returns
+			// before it dials.
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
+		})
+	}
+}
+
+// TestSendBudget verifies that a send without a caller deadline is bounded by
+// the budget that ServiceTimeout reports, and that a caller's deadline is
+// kept as it is.
+func TestSendBudget(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var deadline time.Time
+
+		client := mocks.NewMockHTTPClient(t)
+		client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
+			deadline, _ = req.Context().Deadline()
+
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
+		})
+
+		service := newTestService(t, nil)
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+
+		require.NoError(t, service.Send("message", nil))
+		assert.Equal(t, start.Add(service.ServiceTimeout(nil)), deadline, "a send without a deadline gets the budget")
+
+		ctx, cancel := context.WithTimeout(t.Context(), time.Hour)
+		defer cancel()
+
+		require.NoError(t, service.SendContext(ctx, "message", nil))
+		assert.Equal(t, start.Add(time.Hour), deadline, "the caller's deadline applies")
 	})
 }
 

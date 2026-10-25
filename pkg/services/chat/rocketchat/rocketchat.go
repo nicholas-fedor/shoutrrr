@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -24,16 +24,17 @@ type Service struct {
 
 	// Config holds the Rocket.Chat service configuration.
 	Config *Config
-	// Client sends the requests when no custom client is set. When it is nil,
-	// Initialize creates one that times out after [defaultHTTPTimeout].
+	// Client sends the requests when set. It stays nil after Initialize until
+	// the caller sets it, and the sends use the default client meanwhile.
+	// [Service.SetHTTPClient] clears it, so whichever of the two the caller
+	// set last carries the sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
 	Client *http.Client
-	// httpClient is the custom client set by [Service.SetHTTPClient]. When set,
-	// it sends the requests in place of Client.
-	httpClient types.HTTPClient
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
 }
-
-// defaultHTTPTimeout is the default timeout for HTTP requests.
-const defaultHTTPTimeout = 10 * time.Second
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -51,23 +52,19 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It keeps an HTTP
+// client that is already set.
 //
 // Parameters:
-//   - serviceURL: The configuration URL containing Rocket.Chat connection details
-//   - logger: The logger to use for this service
+//   - serviceURL: the service URL.
+//   - logger: the logger for service output.
 //
 // Returns:
-//   - error: An error if configuration fails, nil otherwise
+//   - error: the error from reading the URL, such as [ErrNotEnoughArguments].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
-	if s.Client == nil {
-		s.Client = &http.Client{
-			Timeout: defaultHTTPTimeout, // Set a default timeout
-		}
-	}
 
 	if err := s.Config.SetURL(serviceURL); err != nil {
 		return err
@@ -90,10 +87,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
-// SendContext delivers a notification message to Rocket.Chat.
+// SendContext delivers a notification message to Rocket.Chat. A context
+// without a deadline is bounded by the budget that [Service.ServiceTimeout]
+// reports.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - params: optional username and channel overrides.
 //
@@ -101,6 +100,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: the payload or request error, or an error for a non-success status.
 //     A request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	var res *http.Response
 
 	var err error
@@ -112,12 +114,6 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if err != nil {
 		return fmt.Errorf("creating JSON payload: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		defaultHTTPTimeout,
-	)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -131,14 +127,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err = s.httpClientOrDefault().Do(req)
+	res, err = s.client.Prefer(s.Client).Do(req)
 	if err != nil {
-		return fmt.Errorf(
-			"posting to URL: %w\nHOST: %s\nPORT: %s",
-			redact.URLError(err),
-			config.Host,
-			config.Port,
-		)
+		return fmt.Errorf("posting to %s: %w", util.JoinURLHost(config.Host, config.Port), redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
@@ -164,33 +155,15 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// including a nil *http.Client, selects the default client. It clears the
+// deprecated Client field, so the sends use this client until that field is
+// set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
-	if s.Client != nil {
-		if c, ok := client.(*http.Client); ok {
-			s.Client = c
-		}
-	}
-}
-
-// httpClientOrDefault returns the custom client or the internal Client.
-//
-// Returns:
-//   - types.HTTPClient: the custom client when one is set, or Client.
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return s.Client
+	s.client.Set(client)
+	s.Client = nil
 }
 
 // buildURL constructs the API URL for Rocket.Chat based on the Config.

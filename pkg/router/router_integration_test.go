@@ -437,9 +437,7 @@ var allowlist = map[string]map[string]knownFailure{
 		"mqtts": {"MQTT dials with the connection's lifetime context, which outlives one send", failContextDropped},
 	},
 	checkClientFieldOrder: {
-		"pushover":   {"Pushover keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
-		"rocketchat": {"Rocket.Chat keeps the client from SetHTTPClient over a Client field set after it", failClientFieldOrder},
-		"twilio":     {"Twilio panics when its HTTPClient field is set to nil", failPanic},
+		"twilio": {"Twilio panics when its HTTPClient field is set to nil", failPanic},
 	},
 	checkKeyDescriptions: {
 		"generic":    {"Generic's disabletls, method, and title keys have no description", failMissingDescription},

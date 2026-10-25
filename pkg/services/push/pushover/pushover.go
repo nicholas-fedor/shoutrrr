@@ -2,13 +2,16 @@ package pushover
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -20,15 +23,28 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient is the injected HTTP client, or nil to use Client.
-	httpClient types.HTTPClient
-
 	// Config holds the keys, the devices, and the message options.
 	Config *Config
-	// Client is the default HTTP client, with [defaultHTTPTimeout].
+	// Client sends the requests when set. It stays nil after Initialize until
+	// the caller sets it, and the sends use the default client meanwhile.
+	// [Service.SetHTTPClient] clears it, so whichever of the two the caller
+	// set last carries the sends.
+	//
+	// Deprecated: Use [Service.SetHTTPClient].
 	Client *http.Client
+	// client holds the client from [Service.SetHTTPClient] and the default
+	// client.
+	client httpclient.Holder
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
+}
+
+// apiResponse is the part of a Message API response that reports the result.
+type apiResponse struct {
+	// Errors describes each invalid input of a rejected request.
+	Errors []string `json:"errors"`
+	// Status is 1 for an accepted request.
+	Status int `json:"status"`
 }
 
 // Settings for requests to the Pushover Message API.
@@ -37,8 +53,9 @@ const (
 	hookURL = "https://api.pushover.net/1/messages.json"
 	// contentType is the form encoding the Message API takes.
 	contentType = "application/x-www-form-urlencoded"
-	// defaultHTTPTimeout bounds each request of the default client.
-	defaultHTTPTimeout = 10 * time.Second
+	// statusAccepted is the status the Message API reports for an accepted
+	// request.
+	statusAccepted = 1
 )
 
 // Compile-time checks that Service implements the interfaces the router relies on.
@@ -66,7 +83,8 @@ func (s *Service) GetID() string {
 	return Scheme
 }
 
-// Initialize configures the service with a URL and logger.
+// Initialize configures the service with a URL and logger. It keeps an HTTP
+// client that is already set.
 //
 // Parameters:
 //   - serviceURL: the service URL with the token and the user key.
@@ -79,11 +97,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
-	if s.Client == nil {
-		s.Client = &http.Client{
-			Timeout: defaultHTTPTimeout,
-		}
-	}
 
 	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
@@ -108,7 +121,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 }
 
 // SendContext delivers a notification message to the configured Pushover devices
-// in one request.
+// in one request. A context without a deadline is bounded by the budget that
+// [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -120,6 +134,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     for a negative timestamp. A request error matches ctx's error when ctx
 //     ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
+
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -147,16 +164,15 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
-// including a nil *http.Client, selects the default client.
+// including a nil *http.Client, selects the default client. It clears the
+// deprecated Client field, so the sends use this client until that field is
+// set again.
 //
 // Parameters:
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
-	if c, ok := client.(*http.Client); ok && c == nil {
-		client = nil
-	}
-
-	s.httpClient = client
+	s.client.Set(client)
+	s.Client = nil
 }
 
 // applyLevel sets the priority of a send from its level param, debug to low
@@ -182,29 +198,17 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 	}
 }
 
-// httpClientOrDefault returns the custom client or the default Client.
-//
-// Returns:
-//   - types.HTTPClient: the injected client, or Client.
-func (s *Service) httpClientOrDefault() types.HTTPClient {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-
-	return s.Client
-}
-
 // sendToDevice sends a notification to the given Pushover devices.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request, further bounded by [defaultHTTPTimeout].
+//   - ctx: cancellation and deadline for the request.
 //   - device: the comma-separated device names, or empty for all devices.
 //   - message: the message to send.
 //   - config: the configuration for this send.
 //
 // Returns:
-//   - error: an encryption error, the request error, or [ErrSendFailed] for a
-//     non-success status.
+//   - error: an encryption error, the request error, or an error wrapping
+//     [ErrSendFailed] for a rejected request, with the errors the API reported.
 func (s *Service) sendToDevice(ctx context.Context, device, message string, config *Config) error {
 	key, err := parseEncryptionKey(config.EncryptionKey)
 	if err != nil {
@@ -249,9 +253,6 @@ func (s *Service) sendToDevice(ctx context.Context, device, message string, conf
 		data.Set("timestamp", strconv.FormatInt(config.Timestamp, 10))
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultHTTPTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -264,18 +265,34 @@ func (s *Service) sendToDevice(ctx context.Context, device, message string, conf
 
 	req.Header.Set("Content-Type", contentType)
 
-	client := s.httpClientOrDefault()
-
-	res, err := client.Do(req)
+	res, err := s.client.Prefer(s.Client).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request to Pushover API: %w", redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, device, res.Status)
+	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+
+	var response apiResponse
+
+	decoded := readErr == nil && json.Unmarshal(body, &response, jsonopts.Default) == nil
+
+	// The API accepts a request with a 200 status and a status of 1 in the
+	// body. A body that is not JSON leaves the HTTP status to decide.
+	if res.StatusCode == http.StatusOK && (!decoded || response.Status == statusAccepted) {
+		return nil
 	}
 
-	return nil
+	if decoded && len(response.Errors) > 0 {
+		return fmt.Errorf(
+			"%w: %q, response status %q: %s",
+			ErrSendFailed,
+			device,
+			res.Status,
+			strings.Join(response.Errors, ", "),
+		)
+	}
+
+	return fmt.Errorf("%w: %q, response status %q", ErrSendFailed, device, res.Status)
 }
