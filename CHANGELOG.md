@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Compare TLS settings instead of deep-comparing the default config by @nicholas-fedor in [#1879](https://github.com/nicholas-fedor/shoutrrr/pull/1879)
 - Check services against a shared service standard by @nicholas-fedor in [#1831](https://github.com/nicholas-fedor/shoutrrr/pull/1831)
 - Fix the js and wasm tests and run them in ci by @nicholas-fedor in [#1773](https://github.com/nicholas-fedor/shoutrrr/pull/1773)
 - Add an smtp suite against mailpit by @nicholas-fedor in [#1763](https://github.com/nicholas-fedor/shoutrrr/pull/1763)
