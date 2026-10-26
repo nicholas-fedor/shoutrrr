@@ -76,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency python to v3.15.2 by @renovate[bot] in [#1884](https://github.com/nicholas-fedor/shoutrrr/pull/1884)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.6.2 by @renovate[bot] in [#1881](https://github.com/nicholas-fedor/shoutrrr/pull/1881)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.6.1 by @renovate[bot] in [#1868](https://github.com/nicholas-fedor/shoutrrr/pull/1868)
 - Update ghcr.io/home-assistant/home-assistant:stable docker digest to 23f4dfb by @renovate[bot] in [#1848](https://github.com/nicholas-fedor/shoutrrr/pull/1848)
