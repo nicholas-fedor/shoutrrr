@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop logging unknown URL parts to the global logger by @nicholas-fedor in [#1877](https://github.com/nicholas-fedor/shoutrrr/pull/1877)
 - Check Lark and WeCom messages against the documented size limits by @nicholas-fedor in [#1875](https://github.com/nicholas-fedor/shoutrrr/pull/1875)
 - Apply the disabletls send param to each send by @nicholas-fedor in [#1873](https://github.com/nicholas-fedor/shoutrrr/pull/1873)
 - Apply only config keys from send params by @nicholas-fedor in [#1871](https://github.com/nicholas-fedor/shoutrrr/pull/1871)
