@@ -214,6 +214,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Use `skiptlsverify` to skip certificate verification, and `disabletls` to turn off TLS.
 - Accept both in the URL and in the send params, and choose the client from the config of each send.
 - Give every key a `desc` tag, which the docs and the CLI show.
+- Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
+  A misspelled name falls back to the query and leaves the field out of the URL.
 
 ### Timeouts
 
