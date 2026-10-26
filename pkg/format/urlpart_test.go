@@ -1,6 +1,8 @@
 package format
 
 import (
+	"bytes"
+	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,6 +45,22 @@ func TestParseURLPart(t *testing.T) {
 			assert.Equal(t, tt.want, ParseURLPart(tt.name))
 		})
 	}
+}
+
+// TestParseURLPartDoesNotLog verifies that an unknown name writes nothing to
+// the global logger, which belongs to the consumer's process.
+//
+//nolint:paralleltest // Redirects the global logger's output.
+func TestParseURLPartDoesNotLog(t *testing.T) {
+	output := log.Writer()
+
+	t.Cleanup(func() { log.SetOutput(output) })
+
+	logs := &bytes.Buffer{}
+	log.SetOutput(logs)
+
+	assert.Equal(t, URLQuery, ParseURLPart("bogus"))
+	assert.Empty(t, logs.String())
 }
 
 // TestParseURLParts verifies that a comma-separated list parses to its parts

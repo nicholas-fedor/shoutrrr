@@ -3,7 +3,6 @@
 package format
 
 import (
-	"log"
 	"strconv"
 	"strings"
 )
@@ -41,7 +40,15 @@ func (u URLPart) Suffix() rune {
 	}
 }
 
-// ParseURLPart returns the URLPart that matches the supplied string.
+// ParseURLPart returns the URLPart that matches the supplied string, ignoring
+// case. A name that matches no part of a URL is the query, as are "query" and
+// the empty string.
+//
+// Parameters:
+//   - inputString: the part name, such as "host", "path", or "path2".
+//
+// Returns:
+//   - URLPart: the matching part, or [URLQuery] for any other name.
 func ParseURLPart(inputString string) URLPart {
 	lowerString := strings.ToLower(inputString)
 	switch lowerString {
@@ -65,8 +72,6 @@ func ParseURLPart(inputString string) URLPart {
 			return URLPath + URLPart(num-1) // Offset from URLPath; "path2" -> URLPath+1
 		}
 	}
-
-	log.Printf("invalid URLPart: %s, defaulting to URLQuery", lowerString)
 
 	return URLQuery
 }

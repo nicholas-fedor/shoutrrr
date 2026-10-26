@@ -164,6 +164,9 @@ const (
 	checkStandardKeyNames = "standard_key_names"
 	// checkKeyDescriptions verifies that every config key has a description.
 	checkKeyDescriptions = "key_descriptions"
+	// checkURLParts verifies that every url tag on a config field names a part
+	// of a URL.
+	checkURLParts = "url_parts"
 	// checkDeprecatedFields verifies that deprecated config fields have valid
 	// tags and reach the config URL under their replacement's key.
 	checkDeprecatedFields = "deprecated_fields"
@@ -211,6 +214,7 @@ const (
 	failCancelIgnored                         // a request or dial did not end when the caller canceled
 	failNonStandardKey                        // a TLS option uses a key name other than the standard one
 	failMissingDescription                    // a config key has no description
+	failInvalidURLPart                        // a url tag names no part of a URL
 	failDeprecatedField                       // a deprecated field has an invalid tag or is lost in the config URL
 	failBudget                                // a request or dial lacked the service's send budget as its deadline
 	failUnverifiedAccepted                    // a request reached a server whose certificate was not verified
@@ -539,6 +543,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkSendUsesContext, runSendUsesContext},
 		{checkStandardKeyNames, runStandardKeyNames},
 		{checkKeyDescriptions, runKeyDescriptions},
+		{checkURLParts, runURLParts},
 		{checkDeprecatedFields, runDeprecatedFields},
 		{checkSendBudget, runSendBudget},
 		{checkSendKeepsDeadline, runSendKeepsDeadline},
@@ -1664,6 +1669,51 @@ func runKeyDescriptions(t *testing.T, fx *fixture) failure {
 
 	if len(keys) > 0 {
 		return fail(failMissingDescription, "keys without a description: %s", strings.Join(keys, ", "))
+	}
+
+	return failure{}
+}
+
+// runURLParts verifies that each name in a config field's url tag is a part of
+// a URL. The docs, the CLI, and the Playground place the field by its tag. A
+// misspelled name parses as the query, like the name query itself, so they
+// would show the field as a query prop. The tag names are read before parsing
+// to tell the two apart.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failInvalidURLPart or failInit failure, or the zero value.
+func runURLParts(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil {
+		return result
+	}
+
+	var fields []string
+
+	configType := reflect.Indirect(reflect.ValueOf(config)).Type()
+	for field := range configType.Fields() {
+		tag, ok := field.Tag.Lookup("url")
+		if !ok {
+			continue
+		}
+
+		for name := range strings.SplitSeq(tag, ",") {
+			if format.ParseURLPart(name) == format.URLQuery && !strings.EqualFold(name, "query") {
+				fields = append(fields, field.Name)
+
+				break
+			}
+		}
+	}
+
+	if len(fields) > 0 {
+		return fail(failInvalidURLPart, "fields whose url tag names no part of a URL: %s", strings.Join(fields, ", "))
 	}
 
 	return failure{}
