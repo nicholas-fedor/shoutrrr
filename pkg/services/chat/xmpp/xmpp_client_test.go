@@ -6,7 +6,9 @@ import (
 	"encoding/xml"
 	"errors"
 	"net"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -53,6 +55,23 @@ type fakeServer struct {
 	presences []receivedPresence
 	// done is closed when the server stops serving.
 	done chan struct{}
+	// silentLeave makes the server record an unavailable presence without
+	// answering it, as when the room's confirmation of a leave is lost.
+	silentLeave atomic.Bool
+	// refuseJoin makes the server answer a join with a not-authorized error
+	// presence, as a room does for a missing or wrong password.
+	refuseJoin atomic.Bool
+	// silentJoin makes the server record a join without answering it.
+	silentJoin atomic.Bool
+	// bareRefusal makes the server refuse a join with an error presence that
+	// has no child elements.
+	bareRefusal atomic.Bool
+	// omitSelfStatus makes the server answer a join without status 110, as
+	// the presence of another occupant would.
+	omitSelfStatus atomic.Bool
+	// assignedNick, when set, is the nickname the server assigns on join
+	// instead of the requested one.
+	assignedNick atomic.Pointer[string]
 }
 
 // Values shared by the client tests.
@@ -61,6 +80,9 @@ const (
 	testPassword = "secret"
 	// testRoom is a MUC room JID.
 	testRoom = "alerts@conference.localhost"
+	// testTimeout bounds each session call in the tests, so a reply the client
+	// waits for and never gets fails the test instead of hanging it.
+	testTimeout = 5 * time.Second
 )
 
 // newFakeServer runs a fake XMPP server on conn. It negotiates the stream,
@@ -127,6 +149,57 @@ func startFakeServer(t *testing.T, cfg *Config) (*fakeServer, Session) {
 	return srv, session
 }
 
+// answerJoin answers a join presence, already addressed back to the client, as
+// the server's modes select: a refusal, or the self-presence with status 110
+// from the requested or the assigned occupant JID.
+//
+// Parameters:
+//   - t: the stream to write the answer to.
+//   - presence: the join presence with its to and from swapped.
+//
+// Returns:
+//   - error: an encoding error.
+func (s *fakeServer) answerJoin(t xmlstream.TokenReadEncoder, presence *stanza.Presence) error {
+	switch {
+	case s.bareRefusal.Load():
+		presence.Type = stanza.ErrorPresence
+		_, err := xmlstream.Copy(t, presence.Wrap(nil))
+
+		return err
+	case s.refuseJoin.Load():
+		presence.Type = stanza.ErrorPresence
+		refusal := stanza.Error{Type: stanza.Auth, Condition: stanza.NotAuthorized}
+		_, err := xmlstream.Copy(t, presence.Wrap(refusal.TokenReader()))
+
+		return err
+	default:
+	}
+
+	if nick := s.assignedNick.Load(); nick != nil {
+		assigned, err := presence.From.WithResource(*nick)
+		if err != nil {
+			return err
+		}
+
+		presence.From = assigned
+	}
+
+	var status xml.TokenReader
+	if !s.omitSelfStatus.Load() {
+		status = xmlstream.Wrap(nil, xml.StartElement{
+			Name: xml.Name{Local: "status"},
+			Attr: []xml.Attr{{Name: xml.Name{Local: "code"}, Value: "110"}},
+		})
+	}
+
+	_, err := xmlstream.Copy(t, presence.Wrap(xmlstream.Wrap(
+		status,
+		xml.StartElement{Name: xml.Name{Space: muc.NSUser, Local: "x"}},
+	)))
+
+	return err
+}
+
 // features returns the stream features the fake server offers: SASL PLAIN
 // that accepts only testPassword, without requiring TLS, and resource binding.
 //
@@ -188,7 +261,17 @@ func (s *fakeServer) handle(t xmlstream.TokenReadEncoder, start *xml.StartElemen
 		s.presences = append(s.presences, receivedPresence{MUC: children.MUC, Presence: presence})
 		s.mu.Unlock()
 
+		if presence.Type == stanza.UnavailablePresence && s.silentLeave.Load() ||
+			presence.Type == stanza.AvailablePresence && s.silentJoin.Load() {
+			return nil
+		}
+
 		presence.To, presence.From = presence.From, presence.To
+
+		if presence.Type == stanza.AvailablePresence {
+			return s.answerJoin(t, &presence)
+		}
+
 		_, err = xmlstream.Copy(t, presence.Wrap(xmlstream.Wrap(
 			nil,
 			xml.StartElement{Name: xml.Name{Space: muc.NSUser, Local: "x"}},
@@ -224,7 +307,39 @@ func (s *fakeServer) waitForMessages(t *testing.T, n int) {
 		messages, _ := s.received()
 
 		return len(messages) >= n
-	}, 5*time.Second, 5*time.Millisecond)
+	}, testTimeout, 5*time.Millisecond)
+}
+
+// waitForPresences waits until the server has received n presences.
+//
+// Parameters:
+//   - t: the test.
+//   - n: the number of presences to wait for.
+func (s *fakeServer) waitForPresences(t *testing.T, n int) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		_, presences := s.received()
+
+		return len(presences) >= n
+	}, testTimeout, 5*time.Millisecond)
+}
+
+// testContext returns a context for one session call that ends after
+// testTimeout.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - context.Context: the context.
+func testContext(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), testTimeout)
+	t.Cleanup(cancel)
+
+	return ctx
 }
 
 // newPlaintextConfig returns a config for a plaintext session as alice.
@@ -242,7 +357,7 @@ func TestMelliumSessionSendChat(t *testing.T) {
 
 	srv, session := startFakeServer(t, newPlaintextConfig())
 
-	require.NoError(t, session.SendChat(t.Context(), "bob@localhost", "Hello, Bob"))
+	require.NoError(t, session.SendChat(testContext(t), "bob@localhost", "Hello, Bob"))
 
 	srv.waitForMessages(t, 1)
 	messages, _ := srv.received()
@@ -274,8 +389,10 @@ func TestMelliumSessionSendToRoom(t *testing.T) {
 
 			srv, session := startFakeServer(t, newPlaintextConfig())
 
-			require.NoError(t, session.SendToRoom(t.Context(), testRoom, "bot", tt.password, "Deploy finished"))
+			require.NoError(t, session.SendToRoom(testContext(t), testRoom, "bot", tt.password, "Deploy finished"))
 
+			// The leave is sent without waiting for the room to answer it.
+			srv.waitForPresences(t, 2)
 			messages, presences := srv.received()
 			require.Len(t, messages, 1)
 			assert.Equal(t, testRoom, messages[0].To)
@@ -299,6 +416,256 @@ func TestMelliumSessionSendToRoom(t *testing.T) {
 	}
 }
 
+// TestMelliumSessionSendToRoomWithoutLeaveReply verifies that a room send
+// returns once the leave is sent, without waiting for the room to confirm it,
+// so a lost confirmation cannot hold the send until its deadline.
+func TestMelliumSessionSendToRoomWithoutLeaveReply(t *testing.T) {
+	t.Parallel()
+
+	srv, session := startFakeServer(t, newPlaintextConfig())
+	srv.silentLeave.Store(true)
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	require.NoError(t, session.SendToRoom(ctx, testRoom, "bot", "", "Deploy finished"))
+
+	srv.waitForPresences(t, 2)
+	messages, presences := srv.received()
+	require.Len(t, messages, 1)
+	assert.Equal(t, stanza.UnavailablePresence, presences[1].Presence.Type)
+}
+
+// TestMelliumSessionSendToRoomAssignedNick verifies that when the room assigns
+// another nickname on join, the send succeeds and the leave goes to the
+// assigned occupant JID.
+func TestMelliumSessionSendToRoomAssignedNick(t *testing.T) {
+	t.Parallel()
+
+	srv, session := startFakeServer(t, newPlaintextConfig())
+	assigned := "bot2"
+	srv.assignedNick.Store(&assigned)
+
+	require.NoError(t, session.SendToRoom(testContext(t), testRoom, "bot", "", "Deploy finished"))
+
+	srv.waitForPresences(t, 2)
+	messages, presences := srv.received()
+	require.Len(t, messages, 1)
+	assert.Equal(t, testRoom+"/bot", presences[0].Presence.To.String())
+	assert.Equal(t, testRoom+"/bot2", presences[1].Presence.To.String())
+	assert.Equal(t, stanza.UnavailablePresence, presences[1].Presence.Type)
+}
+
+// TestMelliumSessionSendToRoomRefused verifies that a room that refuses the
+// join fails the send with the room's stanza error, before any message is sent.
+func TestMelliumSessionSendToRoomRefused(t *testing.T) {
+	t.Parallel()
+
+	srv, session := startFakeServer(t, newPlaintextConfig())
+	srv.refuseJoin.Store(true)
+
+	err := session.SendToRoom(testContext(t), testRoom, "bot", "", "Deploy finished")
+
+	var stanzaErr stanza.Error
+	require.ErrorAs(t, err, &stanzaErr)
+	assert.Equal(t, stanza.NotAuthorized, stanzaErr.Condition)
+
+	messages, _ := srv.received()
+	assert.Empty(t, messages)
+}
+
+// TestMelliumSessionSendToRoomJoinErrors verifies the joins that fail before
+// any message is sent. A join the room never answers, or answers without
+// status 110, ends with the caller's context. A refusal without child elements
+// fails with a read error. A join to a room the session already joins, or on a
+// closed session, fails without waiting for the room.
+func TestMelliumSessionSendToRoomJoinErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unanswered join", func(t *testing.T) {
+		t.Parallel()
+
+		srv, session := startFakeServer(t, newPlaintextConfig())
+		srv.silentJoin.Store(true)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+
+		err := session.SendToRoom(ctx, testRoom, "bot", "", "Deploy finished")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		messages, _ := srv.received()
+		assert.Empty(t, messages)
+	})
+
+	t.Run("answer without status 110", func(t *testing.T) {
+		t.Parallel()
+
+		srv, session := startFakeServer(t, newPlaintextConfig())
+		srv.omitSelfStatus.Store(true)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+
+		err := session.SendToRoom(ctx, testRoom, "bot", "", "Deploy finished")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		messages, _ := srv.received()
+		assert.Empty(t, messages)
+	})
+
+	t.Run("refusal without child elements", func(t *testing.T) {
+		t.Parallel()
+
+		srv, session := startFakeServer(t, newPlaintextConfig())
+		srv.bareRefusal.Store(true)
+
+		err := session.SendToRoom(testContext(t), testRoom, "bot", "", "Deploy finished")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "reading the room's error")
+
+		messages, _ := srv.received()
+		assert.Empty(t, messages)
+	})
+
+	t.Run("join already in progress", func(t *testing.T) {
+		t.Parallel()
+
+		srv, session := startFakeServer(t, newPlaintextConfig())
+
+		client, ok := session.(*melliumSession)
+		require.True(t, ok, "the session must be a *melliumSession")
+
+		_, done, err := client.joins.register(jid.MustParse(testRoom + "/other"))
+		require.NoError(t, err)
+
+		defer done()
+
+		err = session.SendToRoom(testContext(t), testRoom, "bot", "", "Deploy finished")
+		require.ErrorIs(t, err, ErrJoinInProgress)
+
+		_, presences := srv.received()
+		assert.Empty(t, presences)
+	})
+
+	t.Run("closed session", func(t *testing.T) {
+		t.Parallel()
+
+		srv, session := startFakeServer(t, newPlaintextConfig())
+		require.NoError(t, session.Close())
+
+		err := session.SendToRoom(testContext(t), testRoom, "bot", "", "Deploy finished")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sending join presence")
+
+		messages, _ := srv.received()
+		assert.Empty(t, messages)
+	})
+}
+
+// TestRoomJoinsAnswer verifies that an answer reaches only the join waiting
+// for its room, that a join keeps its first answer, and that an error presence
+// without an error element still ends the join with an error.
+func TestRoomJoinsAnswer(t *testing.T) {
+	t.Parallel()
+
+	occupancy := jid.MustParse(testRoom + "/bot")
+
+	t.Run("answer without a waiting join", func(t *testing.T) {
+		t.Parallel()
+
+		joins := newRoomJoins()
+		joins.answer(occupancy, joinAnswer{err: nil, occupant: occupancy})
+
+		assert.Empty(t, joins.waiting)
+	})
+
+	t.Run("first answer kept", func(t *testing.T) {
+		t.Parallel()
+
+		joins := newRoomJoins()
+
+		answer, done, err := joins.register(occupancy)
+		require.NoError(t, err)
+
+		defer done()
+
+		refusal := errors.New("refused")
+		joins.answer(occupancy, joinAnswer{err: refusal, occupant: jid.JID{}})
+		joins.answer(occupancy, joinAnswer{err: nil, occupant: occupancy})
+
+		require.ErrorIs(t, (<-answer).err, refusal)
+	})
+
+	t.Run("error presence without an error element", func(t *testing.T) {
+		t.Parallel()
+
+		joins := newRoomJoins()
+
+		answer, done, err := joins.register(occupancy)
+		require.NoError(t, err)
+
+		defer done()
+
+		tokens := struct {
+			xml.TokenReader
+			xmlstream.Encoder
+		}{
+			TokenReader: xml.NewDecoder(strings.NewReader(`<presence type="error"/>`)),
+			Encoder:     nil,
+		}
+		presence := stanza.Presence{From: occupancy, Type: stanza.ErrorPresence}
+		require.NoError(t, joins.handleErrorPresence(presence, tokens))
+
+		result := <-answer
+		require.Error(t, result.err)
+		assert.Contains(t, result.err.Error(), "reading the room's error")
+	})
+}
+
+// TestRoomJoinsRegister verifies that a second join to a room waiting for an
+// answer is rejected, and that a finished join's cleanup leaves a later join's
+// registration in place.
+func TestRoomJoinsRegister(t *testing.T) {
+	t.Parallel()
+
+	occupancy := jid.MustParse(testRoom + "/bot")
+	joins := newRoomJoins()
+
+	_, firstDone, err := joins.register(occupancy)
+	require.NoError(t, err)
+
+	_, _, err = joins.register(jid.MustParse(testRoom + "/other"))
+	require.ErrorIs(t, err, ErrJoinInProgress)
+
+	firstDone()
+
+	_, secondDone, err := joins.register(occupancy)
+	require.NoError(t, err)
+
+	defer secondDone()
+
+	firstDone()
+	assert.Contains(t, joins.waiting, testRoom)
+}
+
+// newRoomJoins returns an empty [roomJoins].
+//
+// Returns:
+//   - *roomJoins: the joins.
+func newRoomJoins() *roomJoins {
+	return &roomJoins{waiting: map[string]chan joinAnswer{}, mu: sync.Mutex{}}
+}
+
+// TestReadPresenceErrorWithoutTokens verifies that an empty token stream is
+// reported as an error rather than an empty stanza error.
+func TestReadPresenceErrorWithoutTokens(t *testing.T) {
+	t.Parallel()
+
+	_, err := readPresenceError(xml.NewDecoder(strings.NewReader("")))
+	require.Error(t, err)
+}
+
 // TestMelliumSessionClose verifies that closing a session ends the stream,
 // and that a session without a stream closes without error.
 func TestMelliumSessionClose(t *testing.T) {
@@ -313,7 +680,7 @@ func TestMelliumSessionClose(t *testing.T) {
 
 		select {
 		case <-srv.done:
-		case <-time.After(5 * time.Second):
+		case <-time.After(testTimeout):
 			t.Fatal("the server kept serving after the client closed the session")
 		}
 	})
@@ -332,8 +699,8 @@ func TestMelliumSessionInvalidJIDs(t *testing.T) {
 
 	session := &melliumSession{}
 
-	require.ErrorIs(t, session.SendChat(t.Context(), "alice@", "hello"), ErrInvalidRecipientJID)
-	require.ErrorIs(t, session.SendToRoom(t.Context(), "alice@", "nick", "", "hello"), ErrInvalidRoomJID)
+	require.ErrorIs(t, session.SendChat(testContext(t), "alice@", "hello"), ErrInvalidRecipientJID)
+	require.ErrorIs(t, session.SendToRoom(testContext(t), "alice@", "nick", "", "hello"), ErrInvalidRoomJID)
 }
 
 // TestNewMelliumSessionErrors verifies the negotiation failures: an invalid

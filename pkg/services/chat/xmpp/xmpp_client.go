@@ -9,8 +9,10 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 
 	"mellium.im/sasl"
+	"mellium.im/xmlstream"
 	"mellium.im/xmpp/jid"
 	"mellium.im/xmpp/muc"
 	"mellium.im/xmpp/stanza"
@@ -50,9 +52,43 @@ type messageBody struct {
 type melliumSession struct {
 	// session is the negotiated mellium client session.
 	session *mxmpp.Session
-	// mucClient tracks MUC presence so the session can join rooms.
-	mucClient *muc.Client
+	// joins hands each room's answer to a join to the call waiting for it.
+	joins roomJoins
 }
+
+// roomJoins hands a room's answer to a join to the room send waiting for it.
+// An answer that arrives before the send starts waiting is kept.
+type roomJoins struct {
+	// waiting holds the channel of each pending join, by bare room JID.
+	waiting map[string]chan joinAnswer
+	// mu guards waiting.
+	mu sync.Mutex
+}
+
+// joinAnswer is a room's answer to a join.
+type joinAnswer struct {
+	// err is the room's refusal, or nil when the room accepted the join.
+	err error
+	// occupant is the occupant JID the room assigned, set when it accepted.
+	occupant jid.JID
+}
+
+// mucUserPresence is the part of a room's presence that marks it as the
+// joining user's own presence.
+type mucUserPresence struct {
+	// X is the XEP-0045 user element.
+	X struct {
+		// Statuses holds the status codes of the presence.
+		Statuses []struct {
+			// Code is the status code, 110 for the user's own presence.
+			Code string `xml:"code,attr"`
+		} `xml:"status"`
+	} `xml:"http://jabber.org/protocol/muc#user x"`
+}
+
+// selfPresenceStatus is the XEP-0045 status code a room includes in the
+// presence that tells the joining user it has entered.
+const selfPresenceStatus = "110"
 
 var _ io.Closer = (*melliumSession)(nil)
 
@@ -116,9 +152,24 @@ func newMelliumSession(ctx context.Context, cfg *Config, conn net.Conn) (Session
 		return nil, wrapNegotiateError(err)
 	}
 
-	mucClient := &muc.Client{}
-	handler := xmux.New(stanza.NSClient, muc.HandleClient(mucClient))
-	clientSession := &melliumSession{session: session, mucClient: mucClient}
+	clientSession := &melliumSession{
+		session: session,
+		joins:   roomJoins{waiting: map[string]chan joinAnswer{}, mu: sync.Mutex{}},
+	}
+	handler := xmux.New(stanza.NSClient,
+		xmux.PresenceFunc(
+			stanza.AvailablePresence,
+			xml.Name{Space: muc.NSUser, Local: "x"},
+			clientSession.joins.handleSelfPresence,
+		),
+		// An empty payload name also matches an error presence without child
+		// elements, so a malformed refusal still ends the join.
+		xmux.PresenceFunc(
+			stanza.ErrorPresence,
+			xml.Name{Space: "", Local: ""},
+			clientSession.joins.handleErrorPresence,
+		),
+	)
 
 	go func() {
 		if serveErr := session.Serve(handler); serveErr != nil {
@@ -233,8 +284,11 @@ func (s *melliumSession) SendChat(ctx context.Context, to, body string) error {
 
 // SendToRoom joins room, sends a groupchat message, and leaves.
 //
-// Join waits for self-presence before the message is sent. password is used
-// only for protected rooms.
+// The join waits for the room's self-presence before the message is sent, and
+// a room that refuses the join fails the send with its [stanza.Error]. When
+// the room assigns another nickname, the leave uses it. password is used only
+// for protected rooms. The leave is sent without waiting for the room to
+// confirm it, because the session closes after each send.
 //
 // Parameters:
 //   - ctx: Parent context for join, send, and leave.
@@ -244,7 +298,8 @@ func (s *melliumSession) SendChat(ctx context.Context, to, body string) error {
 //   - body: Message body.
 //
 // Returns:
-//   - error: an error if join, send, or leave fails.
+//   - error: an error if join, send, or leave fails, or [ErrJoinInProgress]
+//     when another call on the session is joining the same room.
 func (s *melliumSession) SendToRoom(ctx context.Context, room, nick, password, body string) error {
 	roomJID, err := jid.Parse(room)
 	if err != nil {
@@ -256,12 +311,7 @@ func (s *melliumSession) SendToRoom(ctx context.Context, room, nick, password, b
 		return fmt.Errorf("joining MUC %s: %w", room, err)
 	}
 
-	opts := []muc.Option{muc.MaxHistory(0)}
-	if password != "" {
-		opts = append(opts, muc.Password(password))
-	}
-
-	channel, err := s.mucClient.Join(ctx, occupancy, s.session, opts...)
+	occupant, err := s.joinRoom(ctx, occupancy, password)
 	if err != nil {
 		return fmt.Errorf("joining MUC %s: %w", room, err)
 	}
@@ -273,14 +323,237 @@ func (s *melliumSession) SendToRoom(ctx context.Context, room, nick, password, b
 		Body:    body,
 	}
 	if err := s.session.Encode(ctx, msg); err != nil {
-		leaveErr := channel.Leave(ctx, "")
+		leaveErr := s.leaveRoom(ctx, occupant)
 
 		return errors.Join(fmt.Errorf("sending groupchat message: %w", err), leaveErr)
 	}
 
-	if err := channel.Leave(ctx, ""); err != nil {
+	if err := s.leaveRoom(ctx, occupant); err != nil {
 		return fmt.Errorf("leaving MUC %s: %w", room, err)
 	}
 
 	return nil
+}
+
+// joinRoom joins a room as occupancy and waits for the room's self-presence.
+// The join requests no discussion history.
+//
+// Parameters:
+//   - ctx: cancellation for writing the join and waiting for the answer.
+//   - occupancy: the occupant JID, the room with the nickname as its resource.
+//   - password: the room password, or empty for an open room.
+//
+// Returns:
+//   - jid.JID: the occupant JID the room assigned, which may carry another
+//     nickname.
+//   - error: [ErrJoinInProgress], the error from writing the join, the
+//     [stanza.Error] of a room that refuses it, or ctx's error.
+func (s *melliumSession) joinRoom(ctx context.Context, occupancy jid.JID, password string) (jid.JID, error) {
+	answer, done, err := s.joins.register(occupancy)
+	if err != nil {
+		return jid.JID{}, err
+	}
+	defer done()
+
+	// The muc package's Join writes through a context it cancels as soon as the
+	// join completes, and the write deadline that cancellation can leave on the
+	// connection fails the next write. The join is written with ctx instead.
+	//nolint:exhaustruct_v5 // The other presence attributes are optional.
+	join := stanza.Presence{To: occupancy}
+	if err := s.session.Send(ctx, join.Wrap(mucJoinPayload(password))); err != nil {
+		return jid.JID{}, fmt.Errorf("sending join presence: %w", err)
+	}
+
+	select {
+	case result := <-answer:
+		return result.occupant, result.err
+	case <-ctx.Done():
+		return jid.JID{}, fmt.Errorf("waiting for the room to answer the join: %w", ctx.Err())
+	}
+}
+
+// leaveRoom sends the unavailable presence that leaves a room, without waiting
+// for the room to confirm it.
+//
+// Parameters:
+//   - ctx: cancellation for writing the presence.
+//   - occupancy: the occupant JID, the room with the nickname as its resource.
+//
+// Returns:
+//   - error: the error from writing the presence.
+func (s *melliumSession) leaveRoom(ctx context.Context, occupancy jid.JID) error {
+	// The muc package's Channel.Leave waits for the room's confirmation, but it
+	// misses one that arrives before it starts waiting and then blocks until
+	// ctx ends, so the presence is sent directly.
+	//nolint:exhaustruct_v5 // The other presence attributes are optional.
+	presence := stanza.Presence{To: occupancy, Type: stanza.UnavailablePresence}
+
+	if err := s.session.Send(ctx, presence.Wrap(nil)); err != nil {
+		return fmt.Errorf("sending unavailable presence: %w", err)
+	}
+
+	return nil
+}
+
+// answer passes result to the join waiting for the room from belongs to,
+// unless that join already has an answer or no join waits for the room.
+//
+// Parameters:
+//   - from: the JID the answer comes from, the room or one of its occupants.
+//   - result: the room's answer.
+func (j *roomJoins) answer(from jid.JID, result joinAnswer) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	answer, ok := j.waiting[from.Bare().String()]
+	if !ok {
+		return
+	}
+
+	select {
+	case answer <- result:
+	default:
+	}
+}
+
+// handleErrorPresence hands the stanza error of an error presence to the join
+// waiting for the presence's room. Presences no join waits for are ignored.
+//
+// Parameters:
+//   - presence: the presence.
+//   - tokens: the presence's tokens.
+//
+// Returns:
+//   - error: always nil, so the session keeps serving.
+//
+//nolint:gocritic // hugeParam: the mux handler signature passes the presence by value.
+func (j *roomJoins) handleErrorPresence(presence stanza.Presence, tokens xmlstream.TokenReadEncoder) error {
+	stanzaErr, err := readPresenceError(tokens)
+	if err != nil {
+		//nolint:exhaustruct_v5 // A refusal assigns no occupant JID.
+		j.answer(presence.From, joinAnswer{err: fmt.Errorf("reading the room's error: %w", err)})
+
+		return nil
+	}
+
+	//nolint:exhaustruct_v5 // A refusal assigns no occupant JID.
+	j.answer(presence.From, joinAnswer{err: stanzaErr})
+
+	return nil
+}
+
+// handleSelfPresence completes the join waiting for the presence's room when
+// the presence carries status 110, which marks the joining user's own
+// presence. Its sender is the occupant JID the room assigned. Presences of
+// other occupants, which a room sends first, are ignored.
+//
+// Parameters:
+//   - presence: the presence.
+//   - tokens: the presence's tokens.
+//
+// Returns:
+//   - error: always nil, so the session keeps serving.
+//
+//nolint:gocritic // hugeParam: the mux handler signature passes the presence by value.
+func (j *roomJoins) handleSelfPresence(presence stanza.Presence, tokens xmlstream.TokenReadEncoder) error {
+	var user mucUserPresence
+	if err := xml.NewTokenDecoder(tokens).Decode(&user); err != nil {
+		return nil //nolint:nilerr // A presence that does not decode is not a self-presence.
+	}
+
+	for _, status := range user.X.Statuses {
+		if status.Code == selfPresenceStatus {
+			j.answer(presence.From, joinAnswer{err: nil, occupant: presence.From})
+
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// register starts waiting for the room's answer to a join as occupancy.
+//
+// Parameters:
+//   - occupancy: the occupant JID of the join.
+//
+// Returns:
+//   - <-chan joinAnswer: receives the room's answer.
+//   - func(): stops waiting, called when the join call returns. It leaves a
+//     later join's registration in place.
+//   - error: [ErrJoinInProgress] when a join to the same room is waiting.
+func (j *roomJoins) register(occupancy jid.JID) (<-chan joinAnswer, func(), error) {
+	key := occupancy.Bare().String()
+	answer := make(chan joinAnswer, 1)
+
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	if _, waiting := j.waiting[key]; waiting {
+		return nil, nil, fmt.Errorf("%w: %s", ErrJoinInProgress, key)
+	}
+
+	j.waiting[key] = answer
+
+	return answer, func() {
+		j.mu.Lock()
+		defer j.mu.Unlock()
+
+		if j.waiting[key] == answer {
+			delete(j.waiting, key)
+		}
+	}, nil
+}
+
+// readPresenceError decodes the stanza error of an error presence.
+//
+// Parameters:
+//   - tokens: the presence's tokens, starting with the presence element.
+//
+// Returns:
+//   - stanza.Error: the error the presence carries.
+//   - error: the error from reading the tokens, or stanza's error when the
+//     presence carries no error element.
+func readPresenceError(tokens xml.TokenReader) (stanza.Error, error) {
+	// The error is a child of the presence element, so its start is skipped.
+	if _, err := tokens.Token(); err != nil {
+		return stanza.Error{}, fmt.Errorf("reading the presence element: %w", err)
+	}
+
+	stanzaErr, err := stanza.UnmarshalError(tokens)
+	if err != nil {
+		return stanza.Error{}, fmt.Errorf("decoding the stanza error: %w", err)
+	}
+
+	return stanzaErr, nil
+}
+
+// mucJoinPayload builds the XEP-0045 element of a join presence, which
+// requests no discussion history and carries the room password when one is
+// set.
+//
+// Parameters:
+//   - password: the room password, or empty for an open room.
+//
+// Returns:
+//   - xml.TokenReader: the element.
+func mucJoinPayload(password string) xml.TokenReader {
+	children := []xml.TokenReader{
+		xmlstream.Wrap(nil, xml.StartElement{
+			Name: xml.Name{Space: "", Local: "history"},
+			Attr: []xml.Attr{{Name: xml.Name{Space: "", Local: "maxstanzas"}, Value: "0"}},
+		}),
+	}
+
+	if password != "" {
+		children = append(children, xmlstream.Wrap(
+			xmlstream.Token(xml.CharData(password)),
+			xml.StartElement{Name: xml.Name{Space: "", Local: "password"}, Attr: nil},
+		))
+	}
+
+	return xmlstream.Wrap(
+		xmlstream.MultiReader(children...),
+		xml.StartElement{Name: xml.Name{Space: muc.NS, Local: "x"}, Attr: nil},
+	)
 }

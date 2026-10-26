@@ -33,4 +33,8 @@ var (
 
 	// ErrAuthenticationFailed is returned when SASL authentication is rejected.
 	ErrAuthenticationFailed = errors.New("authentication failed")
+
+	// ErrJoinInProgress is returned when a session already waits for a join to
+	// the same room.
+	ErrJoinInProgress = errors.New("a join to this room is already in progress")
 )
