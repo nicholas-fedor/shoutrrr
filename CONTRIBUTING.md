@@ -215,7 +215,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Accept both in the URL and in the send params, and choose the client from the config of each send.
 - Give every key a `desc` tag, which the docs and the CLI show.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
-  A misspelled name falls back to the query and leaves the field out of the URL.
+  The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
+  A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
 
 ### Timeouts
 

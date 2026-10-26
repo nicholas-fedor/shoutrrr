@@ -1675,9 +1675,10 @@ func runKeyDescriptions(t *testing.T, fx *fixture) failure {
 }
 
 // runURLParts verifies that each name in a config field's url tag is a part of
-// a URL. A misspelled name parses as the query, like the name query itself, so
-// the field would silently be left out of the URL's user, host, port, or path.
-// The tag names are read before parsing to tell the two apart.
+// a URL. The docs, the CLI, and the Playground place the field by its tag. A
+// misspelled name parses as the query, like the name query itself, so they
+// would show the field as a query prop. The tag names are read before parsing
+// to tell the two apart.
 //
 // Parameters:
 //   - t: the test for this case.
