@@ -46,13 +46,30 @@ func TestNewClonesDefaultTransport(t *testing.T) {
 
 // TestNewKeepsDefaultTLSWhenConfigIsNil verifies that a nil TLS config leaves the
 // cloned transport's TLS settings unchanged.
+//
+// The first clone of http.DefaultTransport sets up HTTP/2, which creates its TLS
+// config, so the default is read after New. The transport's config is compared
+// with a fresh clone of the default rather than the shared config itself,
+// because tls.Config.Clone read-locks the config's mutex, and a deep comparison
+// would see that lock while a parallel test clones the default.
 func TestNewKeepsDefaultTLSWhenConfigIsNil(t *testing.T) {
 	t.Parallel()
+
+	got := New(nil).TLSClientConfig
 
 	base, ok := http.DefaultTransport.(*http.Transport)
 	require.True(t, ok, "http.DefaultTransport must be an *http.Transport for this test")
 
-	assert.Equal(t, base.TLSClientConfig, New(nil).TLSClientConfig)
+	want := base.TLSClientConfig
+	if want == nil {
+		assert.Nil(t, got)
+
+		return
+	}
+
+	require.NotNil(t, got)
+	assert.NotSame(t, want, got, "the transport must have its own copy of the TLS settings")
+	assert.Equal(t, want.Clone(), got)
 }
 
 // TestNewBuildsTransportWhenDefaultIsReplaced verifies that New still returns a
