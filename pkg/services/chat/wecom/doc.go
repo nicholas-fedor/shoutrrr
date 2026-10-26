@@ -4,7 +4,7 @@ Package wecom provides notification support for WeChat Work (WeCom) webhook bots
 This package implements the Shoutrrr service interface for sending notifications
 to WeChat Work groups via webhook bots. It supports:
 
-- Text message notifications up to 4096 characters
+- Text message notifications up to 2048 bytes of UTF-8
 - User mentions using @username or mobile numbers
 - Custom webhook bot integration
 - Comprehensive error handling and validation

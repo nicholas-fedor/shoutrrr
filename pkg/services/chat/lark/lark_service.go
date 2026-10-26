@@ -42,8 +42,8 @@ const (
 	// apiFormat is the webhook endpoint, formatted with the host and the bot
 	// token.
 	apiFormat = "https://%s/open-apis/bot/v2/hook/%s"
-	// maxLength is the most bytes a message can hold.
-	maxLength = 4096
+	// maxBodySize is the most bytes a custom bot request body can hold, 20 KB.
+	maxBodySize = 20 * 1024
 	// defaultTime is the send budget of Lark.
 	defaultTime = 30 * time.Second
 )
@@ -64,8 +64,8 @@ var (
 	ErrNoPath = errors.New(
 		"no path, path like 'xxx' in 'https://open.larksuite.com/open-apis/bot/v2/hook/xxx'",
 	)
-	// ErrLargeMessage indicates a message longer than [maxLength] bytes.
-	ErrLargeMessage = errors.New("message exceeds the max length")
+	// ErrLargeMessage indicates a request body larger than [maxBodySize] bytes.
+	ErrLargeMessage = fmt.Errorf("message exceeds the max request body size of %d bytes", maxBodySize)
 	// ErrMissingHost indicates a send whose configuration has no host.
 	ErrMissingHost = errors.New("host is required but not specified in the configuration")
 	// ErrSendFailed indicates a failed request, an error status, or an error
@@ -141,7 +141,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return types.ErrServiceNotInitialized
 	}
 
-	if len(message) > maxLength {
+	// The encoded body is never shorter than the message, so a message over
+	// the limit fails before it is encoded.
+	if len(message) > maxBodySize {
 		return ErrLargeMessage
 	}
 
@@ -190,7 +192,8 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - params: the send params, which may set the title and link.
 //
 // Returns:
-//   - error: [ErrMissingHost], a payload error, or the send error.
+//   - error: [ErrMissingHost], a payload error, [ErrLargeMessage] for a
+//     request body over [maxBodySize] bytes, or the send error.
 func (s *Service) doSend(ctx context.Context, config *Config, message string, params *types.Params) error {
 	if config.Host == "" {
 		return ErrMissingHost
@@ -201,6 +204,12 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string, pa
 	payload, err := s.preparePayload(message, config, params)
 	if err != nil {
 		return err
+	}
+
+	// The limit applies to the encoded body, so the title, the link, and JSON
+	// escapes count toward it.
+	if len(payload) > maxBodySize {
+		return ErrLargeMessage
 	}
 
 	return s.sendRequest(ctx, postURL, payload)

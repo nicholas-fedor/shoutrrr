@@ -255,8 +255,13 @@ func TestSendSuccess(t *testing.T) {
 		},
 		{
 			name:     "message at the size limit",
-			message:  strings.Repeat("0", maxLength),
-			wantBody: RequestBody{MsgType: "text", Text: TextContent{Content: strings.Repeat("0", maxLength)}},
+			message:  strings.Repeat("0", 2048),
+			wantBody: RequestBody{MsgType: "text", Text: TextContent{Content: strings.Repeat("0", 2048)}},
+		},
+		{
+			name:     "multi-byte message within the size limit",
+			message:  strings.Repeat("测", 682),
+			wantBody: RequestBody{MsgType: "text", Text: TextContent{Content: strings.Repeat("测", 682)}},
 		},
 		{
 			name:    "mentioned users",
@@ -429,7 +434,13 @@ func TestSendValidationErrors(t *testing.T) {
 		{
 			name:    "message over the size limit",
 			config:  Config{Key: testKey},
-			message: strings.Repeat("0", maxLength+1),
+			message: strings.Repeat("0", 2049),
+			wantErr: ErrLargeMessage,
+		},
+		{
+			name:    "multi-byte message over the size limit",
+			config:  Config{Key: testKey},
+			message: strings.Repeat("测", 683),
 			wantErr: ErrLargeMessage,
 		},
 		{

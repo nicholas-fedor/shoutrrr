@@ -38,8 +38,8 @@ type Service struct {
 const (
 	// apiURL is the webhook endpoint, formatted with the webhook key.
 	apiURL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=%s"
-	// maxLength is the most bytes a message can hold.
-	maxLength = 4096
+	// maxLength is the most bytes the content of a text message can hold.
+	maxLength = 2048
 	// defaultTime is the send budget of WeCom.
 	defaultTime = 30 * time.Second
 )
