@@ -1823,7 +1823,9 @@ func TestColorKeepsItsStdoutWriter(t *testing.T) {
 }
 
 // TestColorWithClearedOutput verifies that a color whose config loses its
-// Output writer after the color was created writes to standard output.
+// Output writer after the color was created writes to standard output. The
+// first write creates the color's writer, and later writes reuse it even after
+// os.Stdout changes.
 //
 //nolint:paralleltest // Redirects os.Stdout.
 func TestColorWithClearedOutput(t *testing.T) {
@@ -1831,9 +1833,14 @@ func TestColorWithClearedOutput(t *testing.T) {
 	c := NewWithConfig(cfg, FgRed)
 	cfg.Output = nil
 
-	stdout := captureStdout(t, func() { _, _ = c.Print("text") })
+	stdout := captureStdout(t, func() {
+		_, _ = c.Print("first")
 
-	assert.Equal(t, "\x1b[31mtext\x1b[0m", stdout)
+		later := captureStdout(t, func() { _, _ = c.Print("second") })
+		assert.Empty(t, later)
+	})
+
+	assert.Equal(t, "\x1b[31mfirst\x1b[0m\x1b[31msecond\x1b[0m", stdout)
 }
 
 // captureStdout runs fn with os.Stdout redirected to a pipe and returns what fn

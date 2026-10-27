@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/mattn/go-colorable"
 	"golang.org/x/term"
@@ -26,10 +27,10 @@ type Config struct {
 
 // Color represents a color with ANSI SGR parameters.
 type Color struct {
-	// stdout is the colorable writer for standard output the color writes to
-	// when its config has no Output writer. The color creates it once, so Set,
-	// the print methods, and Unset write through the same writer.
-	stdout  io.Writer
+	// stdout returns the colorable writer for standard output the color writes
+	// to when its config has no Output writer. It creates the writer once, so
+	// Set, the print methods, and Unset write through the same writer.
+	stdout  func() io.Writer
 	noColor *bool   // Instance-level override
 	config  *Config // Reference to config (can be shared)
 	params  []Attribute
@@ -105,18 +106,19 @@ func NewWithConfig(cfg *Config, value ...Attribute) *Color {
 		cfg = DefaultConfig()
 	}
 
+	// On a Windows console without virtual terminal processing, a colorable
+	// writer records the console's colors when it is created and restores
+	// them on a reset. Set and Unset therefore share one writer.
 	c := &Color{
-		stdout:  nil,
+		stdout:  sync.OnceValue(colorable.NewColorableStdout),
 		params:  make([]Attribute, 0, len(value)),
 		noColor: nil, // Will use config.NoColor by default
 		config:  cfg,
 	}
 
-	// On a Windows console without virtual terminal processing, a colorable
-	// writer records the console's colors when it is created and restores
-	// them on a reset. Set and Unset therefore share one writer.
+	// The writer captures standard output as it is when the color is created.
 	if cfg.Output == nil {
-		c.stdout = colorable.NewColorableStdout()
+		c.stdout()
 	}
 
 	if cfg.NoColor {
@@ -574,16 +576,11 @@ func (c *Color) wrap(s string) string {
 //   - io.Writer: the config's Output, or the color's own colorable writer for
 //     standard output when Output is nil.
 func (c *Color) writer() io.Writer {
-	switch {
-	case c.config.Output != nil:
+	if c.config.Output != nil {
 		return c.config.Output
-	case c.stdout != nil:
-		return c.stdout
-	default:
-		// The config's Output was set when the color was created and cleared
-		// afterwards.
-		return colorable.NewColorableStdout()
 	}
+
+	return c.stdout()
 }
 
 // BgRGB returns a new background color in 24-bit RGB.
