@@ -77,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.13.6 by @renovate[bot] in [#1887](https://github.com/nicholas-fedor/shoutrrr/pull/1887)
 - Update dependency python to v3.15.2 by @renovate[bot] in [#1884](https://github.com/nicholas-fedor/shoutrrr/pull/1884)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.6.2 by @renovate[bot] in [#1881](https://github.com/nicholas-fedor/shoutrrr/pull/1881)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.6.1 by @renovate[bot] in [#1868](https://github.com/nicholas-fedor/shoutrrr/pull/1868)
