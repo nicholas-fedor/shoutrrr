@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Let EnableColor and DisableColor decide every method's output by @nicholas-fedor in [#1891](https://github.com/nicholas-fedor/shoutrrr/pull/1891)
 - Write to standard output when the config or its writer is nil by @nicholas-fedor in [#1889](https://github.com/nicholas-fedor/shoutrrr/pull/1889)
 - Join and leave rooms without mellium's muc client by @nicholas-fedor in [#1883](https://github.com/nicholas-fedor/shoutrrr/pull/1883)
 - Stop logging unknown URL parts to the global logger by @nicholas-fedor in [#1877](https://github.com/nicholas-fedor/shoutrrr/pull/1877)
