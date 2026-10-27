@@ -21,7 +21,8 @@ type Config struct {
 	// That writer handles the escape codes on Windows.
 	Output io.Writer
 	// NoColor controls whether color output is disabled.
-	// When true, all color formatting is stripped from output.
+	// When true, all color formatting is stripped from output. Colors read it
+	// when they write, unless EnableColor or DisableColor was called on them.
 	NoColor bool
 }
 
@@ -112,17 +113,13 @@ func NewWithConfig(cfg *Config, value ...Attribute) *Color {
 	c := &Color{
 		stdout:  sync.OnceValue(colorable.NewColorableStdout),
 		params:  make([]Attribute, 0, len(value)),
-		noColor: nil, // Will use config.NoColor by default
+		noColor: nil, // Set only by EnableColor and DisableColor
 		config:  cfg,
 	}
 
 	// The writer captures standard output as it is when the color is created.
 	if cfg.Output == nil {
 		c.stdout()
-	}
-
-	if cfg.NoColor {
-		c.noColor = new(true)
 	}
 
 	c.Add(value...)
@@ -171,17 +168,16 @@ func (c *Color) AddRGB(r, green, blue int) *Color {
 	return c
 }
 
-// DisableColor disables the color output.
-// Useful to not change any existing code and still being able to output.
-// Can be used for flags like "--no-color".
+// DisableColor disables the color output of c, whatever its config's NoColor
+// setting. Useful to not change any existing code and still being able to
+// output. Can be used for flags like "--no-color".
 // To enable back use EnableColor() method.
 func (c *Color) DisableColor() {
 	c.noColor = new(true)
 }
 
-// EnableColor enables the color output.
-// Use it in conjunction with DisableColor().
-// Otherwise, this method has no side effects.
+// EnableColor enables the color output of c, whatever its config's NoColor
+// setting. It also reverses DisableColor.
 func (c *Color) EnableColor() {
 	c.noColor = new(false)
 }
@@ -383,7 +379,7 @@ func (c *Color) PrintlnFunc() func(a ...any) {
 // Returns:
 //   - *Color: c, for chaining.
 func (c *Color) Set() *Color {
-	if c.isNoColorSet() || c.config.NoColor {
+	if c.isNoColorSet() {
 		return c
 	}
 
@@ -396,7 +392,7 @@ func (c *Color) Set() *Color {
 // This is a low-level function, and users should use the higher-level
 // functions, such as color.Fprint, color.Print, etc.
 func (c *Color) SetWriter(w io.Writer) *Color {
-	if c.isNoColorSet() || c.config.NoColor {
+	if c.isNoColorSet() {
 		return c
 	}
 
@@ -470,7 +466,7 @@ func (c *Color) SprintlnFunc() func(a ...any) string {
 // It clears the escape attributes and restores normal terminal formatting.
 // This should be called after Set() to clean up the terminal state.
 func (c *Color) Unset() {
-	if c.isNoColorSet() || c.config.NoColor {
+	if c.isNoColorSet() {
 		return
 	}
 
@@ -480,7 +476,7 @@ func (c *Color) Unset() {
 // UnsetWriter resets all escape attributes and clears the output with the give
 // io.Writer. Usually should be called after SetWriter().
 func (c *Color) UnsetWriter(w io.Writer) {
-	if c.isNoColorSet() || c.config.NoColor {
+	if c.isNoColorSet() {
 		return
 	}
 
@@ -495,6 +491,12 @@ func (c *Color) format() string {
 	return fmt.Sprintf("%s[%sm", escape, c.sequence())
 }
 
+// isNoColorSet reports whether c writes without color. The color's own
+// EnableColor or DisableColor decides when one was called, and its config's
+// NoColor setting decides otherwise.
+//
+// Returns:
+//   - bool: true when the output has no escape codes.
 func (c *Color) isNoColorSet() bool {
 	// check first if we have user set action
 	if c.noColor != nil {
@@ -563,7 +565,7 @@ func (c *Color) unformat() string {
 // wrap wraps the s string with the colors attributes.
 // The string is ready to be printed.
 func (c *Color) wrap(s string) string {
-	if c.isNoColorSet() || c.config.NoColor {
+	if c.isNoColorSet() {
 		return s
 	}
 

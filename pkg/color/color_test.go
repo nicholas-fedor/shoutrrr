@@ -1672,61 +1672,34 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// TestNewWithConfig tests the NewWithConfig function.
+// TestNewWithConfig verifies that NewWithConfig keeps the config and sets no
+// override of its own, so the color reports the config's NoColor setting.
 func TestNewWithConfig(t *testing.T) {
 	t.Parallel()
 
+	// tests lists the config settings and attributes for each new color.
 	tests := []struct {
-		name           string
-		noColor        bool
-		attrs          []Attribute
-		wantNoColor    bool
-		wantNoColorNil bool
+		name    string
+		attrs   []Attribute
+		noColor bool
 	}{
-		{
-			name:           "creates color with NoColor=true",
-			noColor:        true,
-			attrs:          []Attribute{FgRed},
-			wantNoColor:    true,
-			wantNoColorNil: false,
-		},
-		{
-			name:           "creates color with NoColor=false",
-			noColor:        false,
-			attrs:          []Attribute{FgRed},
-			wantNoColor:    false,
-			wantNoColorNil: true,
-		},
-		{
-			name:           "creates empty color with config",
-			noColor:        false,
-			attrs:          []Attribute{},
-			wantNoColor:    false,
-			wantNoColorNil: true,
-		},
+		{name: "creates color with NoColor=true", noColor: true, attrs: []Attribute{FgRed}},
+		{name: "creates color with NoColor=false", noColor: false, attrs: []Attribute{FgRed}},
+		{name: "creates empty color with config", noColor: false, attrs: []Attribute{}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			buf := &bytes.Buffer{}
-			cfg := &Config{
-				NoColor: tt.noColor,
-				Output:  buf,
-			}
+			cfg := &Config{NoColor: tt.noColor, Output: &bytes.Buffer{}}
 
 			got := NewWithConfig(cfg, tt.attrs...)
 
 			require.NotNil(t, got)
-			assert.Equal(t, cfg, got.config)
-
-			if tt.wantNoColorNil {
-				assert.Nil(t, got.noColor)
-			} else {
-				require.NotNil(t, got.noColor)
-				assert.Equal(t, tt.wantNoColor, *got.noColor)
-			}
+			assert.Same(t, cfg, got.config)
+			assert.Nil(t, got.noColor)
+			assert.Equal(t, tt.noColor, got.isNoColorSet())
 		})
 	}
 }
@@ -1873,6 +1846,130 @@ func captureStdout(t *testing.T, fn func()) string {
 	require.NoError(t, err)
 
 	return string(output)
+}
+
+// TestColorOverrideWinsOverConfig verifies that a color's own EnableColor or
+// DisableColor decides its output for every writing and string method,
+// whatever the config's NoColor setting, and that a color without an override
+// follows the config.
+func TestColorOverrideWinsOverConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config settings and overrides with whether the output is
+	// colored.
+	tests := []struct {
+		override    func(c *Color)
+		name        string
+		configNoClr bool
+		wantColored bool
+	}{
+		{name: "EnableColor on a disabled config", configNoClr: true, override: (*Color).EnableColor, wantColored: true},
+		{name: "DisableColor on an enabled config", configNoClr: false, override: (*Color).DisableColor, wantColored: false},
+		{name: "disabled config without an override", configNoClr: true, override: func(*Color) {}, wantColored: false},
+		{name: "enabled config without an override", configNoClr: false, override: func(*Color) {}, wantColored: true},
+	}
+
+	// methods lists the methods that write or return colored text, with the
+	// output each produces through the given color and buffer.
+	methods := []struct {
+		run   func(c *Color, buf *bytes.Buffer) string
+		name  string
+		plain string
+	}{
+		{name: "Print", plain: "text", run: func(c *Color, buf *bytes.Buffer) string {
+			_, _ = c.Print("text")
+
+			return buf.String()
+		}},
+		{name: "Printf", plain: "text", run: func(c *Color, buf *bytes.Buffer) string {
+			_, _ = c.Printf("%s", "text")
+
+			return buf.String()
+		}},
+		{name: "Println", plain: "text\n", run: func(c *Color, buf *bytes.Buffer) string {
+			_, _ = c.Println("text")
+
+			return buf.String()
+		}},
+		{name: "Fprint", plain: "text", run: func(c *Color, buf *bytes.Buffer) string {
+			_, _ = c.Fprint(buf, "text")
+
+			return buf.String()
+		}},
+		{name: "Fprintln", plain: "text\n", run: func(c *Color, buf *bytes.Buffer) string {
+			_, _ = c.Fprintln(buf, "text")
+
+			return buf.String()
+		}},
+		{name: "Set and Unset", plain: "", run: func(c *Color, buf *bytes.Buffer) string {
+			c.Set().Unset()
+
+			return buf.String()
+		}},
+		{name: "SetWriter and UnsetWriter", plain: "", run: func(c *Color, buf *bytes.Buffer) string {
+			c.SetWriter(buf).UnsetWriter(buf)
+
+			return buf.String()
+		}},
+		{name: "Sprint", plain: "text", run: func(c *Color, _ *bytes.Buffer) string { return c.Sprint("text") }},
+		{name: "SprintFunc", plain: "text", run: func(c *Color, _ *bytes.Buffer) string { return c.SprintFunc()("text") }},
+	}
+
+	for _, tt := range tests {
+		for _, method := range methods {
+			t.Run(tt.name+"/"+method.name, func(t *testing.T) {
+				t.Parallel()
+
+				buf := &bytes.Buffer{}
+				c := NewWithConfig(&Config{Output: buf, NoColor: tt.configNoClr}, FgRed)
+				tt.override(c)
+
+				got := method.run(c, buf)
+
+				if tt.wantColored {
+					assert.Contains(t, got, "\x1b[31m")
+				} else {
+					assert.Equal(t, method.plain, got)
+				}
+			})
+		}
+	}
+}
+
+// TestColorFollowsConfigChanges verifies that a color without an override
+// reads its config's NoColor setting when it writes, so changing the setting
+// after the color was created takes effect in either direction.
+func TestColorFollowsConfigChanges(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the NoColor setting at creation and the setting it changes to.
+	tests := []struct {
+		name        string
+		initial     bool
+		changed     bool
+		wantColored bool
+	}{
+		{name: "color turned on after creation", initial: true, changed: false, wantColored: true},
+		{name: "color turned off after creation", initial: false, changed: true, wantColored: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{Output: &bytes.Buffer{}, NoColor: tt.initial}
+			c := NewWithConfig(cfg, FgRed)
+			cfg.NoColor = tt.changed
+
+			assert.Equal(t, !tt.wantColored, c.isNoColorSet())
+
+			if tt.wantColored {
+				assert.Equal(t, "\x1b[31mtext\x1b[0m", c.Sprint("text"))
+			} else {
+				assert.Equal(t, "text", c.Sprint("text"))
+			}
+		})
+	}
 }
 
 // TestDefaultConfig tests the DefaultConfig function.
