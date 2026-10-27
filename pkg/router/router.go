@@ -39,6 +39,10 @@ var (
 	ErrParseURLFailed         = errors.New("failed to parse URL")
 	ErrSendFailed             = errors.New("failed to send message")
 	ErrCustomURLConversion    = errors.New("failed to convert custom URL")
+	// ErrEmptyFragment indicates a service URL that ends in a "#" with nothing
+	// after it. A parsed URL cannot tell that from a URL without one, so the
+	// "#", such as an MQTT wildcard written unescaped, would be lost.
+	ErrEmptyFragment = errors.New("service URL ends in an empty fragment")
 )
 
 // New creates a new service router using the specified logger and service URLs.
@@ -142,19 +146,29 @@ func (r *ServiceRouter) Enqueue(message string, v ...any) {
 
 // ExtractServiceName extracts the service name from a service URL.
 //
+// A URL that ends in a "#" with nothing after it is rejected. The parsed URL
+// would be the same as without the "#", so a service could not tell that it
+// was there, such as an MQTT wildcard written unescaped.
+//
 // Parameters:
 //   - rawURL: the raw service URL.
 //
 // Returns:
 //   - string: the extracted service scheme.
 //   - *url.URL: the parsed URL.
-//   - error: an error if parsing fails.
+//   - error: [ErrParseURLFailed] if parsing fails, or [ErrEmptyFragment].
 func (r *ServiceRouter) ExtractServiceName(rawURL string) (string, *url.URL, error) {
 	serviceURL, err := url.Parse(rawURL)
 	if err != nil {
 		// Parse errors quote parts of the URL, such as an invalid port, which can
 		// carry credentials, so the cause is not included.
 		return "", &url.URL{}, ErrParseURLFailed
+	}
+
+	// url.Parse splits at the first "#", so the fragment is empty exactly when
+	// nothing follows that "#".
+	if _, fragment, found := strings.Cut(rawURL, "#"); found && fragment == "" {
+		return "", &url.URL{}, ErrEmptyFragment
 	}
 
 	scheme := serviceURL.Scheme
