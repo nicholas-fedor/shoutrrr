@@ -49,15 +49,35 @@ func TestBuildQuery(t *testing.T) {
 	assert.Equal(t, "duration=30s&str=test&testenum=Bar", BuildQuery(resolver))
 }
 
+// TestBuildQueryZeroValueDefaults verifies that keyed fields without a default
+// are left out of the query at their zero values, which SetDefaultProps sets,
+// and are written once they hold another value.
+func TestBuildQueryZeroValueDefaults(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructNoDefaults{Duration: time.Second, Signed: -1, Unsigned: 1, Level: 2, Flag: true}
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(nil))
+
+	assert.Empty(t, BuildQuery(&resolver))
+
+	config.Signed = 3
+	config.Level = 1
+	config.Flag = true
+
+	assert.Equal(t, "flag=Yes&level=Foo&signed=3", BuildQuery(&resolver))
+}
+
 // TestBuildQueryAliases verifies that a value is written under its primary
-// key only.
+// key only. The other fields hold their defaults, apart from Broken, whose
+// default does not parse.
 func TestBuildQueryAliases(t *testing.T) {
 	t.Parallel()
 
 	config := &spelledDefaultsConfig{Enabled: true, Level: 1, Retries: 3, Name: "Shoutrrr", Delay: "5s"}
 	resolver := NewPropKeyResolver(config)
 
-	assert.Equal(t, "broken=0&delay=5s&plain=No", BuildQuery(&resolver))
+	assert.Equal(t, "broken=0&delay=5s", BuildQuery(&resolver))
 }
 
 // TestBuildQueryWithCustomFields verifies that a custom query value whose key
