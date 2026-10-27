@@ -36,35 +36,42 @@ func TestNew(t *testing.T) {
 }
 
 // TestExtractServiceName verifies that ExtractServiceName returns the service
-// scheme for plain and custom URLs, and rejects URLs without a valid scheme.
+// scheme for plain and custom URLs, keeps a non-empty fragment, and rejects
+// URLs without a valid scheme or with an empty fragment.
 func TestExtractServiceName(t *testing.T) {
 	t.Parallel()
 
-	// tests lists URLs with the service name they should resolve to, or wantErr
-	// when the URL has no valid scheme.
+	// tests lists URLs with the service name they should resolve to, or the
+	// error they should fail with.
 	tests := []struct {
-		name    string
-		rawURL  string
-		want    string
-		wantErr bool
+		wantErr  error
+		name     string
+		rawURL   string
+		want     string
+		wantFrag string
 	}{
 		{name: "plain URL", rawURL: "slack://rest/of/url", want: "slack"},
 		{name: "custom URL", rawURL: "teams+https://rest/of/url", want: "teams"},
-		{name: "missing scheme", rawURL: "://rest/of/url", wantErr: true},
-		{name: "scheme with a space", rawURL: "a d://rest/of/url", wantErr: true},
+		{name: "non-empty fragment", rawURL: "rocketchat://host/token/a/b#@user", want: "rocketchat", wantFrag: "@user"},
+		{name: "missing scheme", rawURL: "://rest/of/url", wantErr: ErrParseURLFailed},
+		{name: "scheme with a space", rawURL: "a d://rest/of/url", wantErr: ErrParseURLFailed},
+		{name: "empty fragment", rawURL: "mqtt://broker/home/#", wantErr: ErrEmptyFragment},
+		{name: "empty fragment after a query", rawURL: "mqtt://broker/home/?qos=1#", wantErr: ErrEmptyFragment},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serviceName, _, err := newTestRouter(t).ExtractServiceName(tt.rawURL)
-			if tt.wantErr {
-				require.Error(t, err)
+			serviceName, serviceURL, err := newTestRouter(t).ExtractServiceName(tt.rawURL)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Empty(t, serviceName)
 
 				return
 			}
+
+			assert.Equal(t, tt.wantFrag, serviceURL.Fragment)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, serviceName)

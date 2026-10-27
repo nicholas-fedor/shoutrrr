@@ -738,6 +738,41 @@ func TestIntegrationMalformedQuery(t *testing.T) {
 	}
 }
 
+// TestIntegrationEmptyFragment verifies that every scheme, and the custom
+// URLs, reject a service URL that ends in a bare "#". A parsed URL cannot tell
+// it from a URL without one, so the router rejects it before the service sees
+// the URL.
+func TestIntegrationEmptyFragment(t *testing.T) {
+	t.Parallel()
+
+	// rawURLs lists the service URLs to test by scheme: each fixture and the
+	// custom URLs, all with a bare "#" appended.
+	rawURLs := map[string]string{
+		"generic custom":   "generic+https://hooks.example.invalid/webhook#",
+		"notifiarr custom": "notifiarr+https://notifiarr.example.invalid/api#",
+	}
+
+	for _, fx := range fixtures {
+		require.NotContains(t, fx.url, "#", "the fixture URL must have no fragment of its own")
+
+		rawURLs[fx.scheme] = fx.url + "#"
+	}
+
+	for scheme, rawURL := range rawURLs {
+		t.Run(scheme, func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			service, err := serviceRouter.Locate(rawURL)
+			closeService(t, service)
+
+			require.ErrorIs(t, err, router.ErrEmptyFragment)
+		})
+	}
+}
+
 // TestIntegrationResponseBodyLimit verifies that no HTTP service reads more of
 // a response body than [httpbody.MaxSize] plus the one byte that detects an
 // oversized body. Every response carries the fixture's body followed by spaces
