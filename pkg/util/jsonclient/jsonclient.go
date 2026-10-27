@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -46,8 +47,11 @@ type Error struct {
 
 // client wraps an HTTP client for JSON operations.
 type client struct {
-	httpClient types.HTTPClient
-	headers    http.Header
+	// headers are set on every request.
+	headers http.Header
+	// http holds the HTTP client that sends the requests, or the default
+	// client when none was given.
+	http httpclient.Holder
 }
 
 // ContentType defines the default MIME type for JSON requests.
@@ -112,7 +116,10 @@ func NewClient() Client {
 // to get that type directly.
 //
 // Parameters:
-//   - httpClient: the HTTP client that sends the requests.
+//   - httpClient: the HTTP client that sends the requests. Nil, or a nil
+//     *http.Client, sends through a default client. A nil value of another
+//     type is used as given, and a runtime panic from it fails the request
+//     with [types.ErrNilHTTPClient].
 //
 // Returns:
 //   - Client: a client that sends JSON requests through httpClient.
@@ -123,17 +130,21 @@ func NewWithHTTPClient(httpClient types.HTTPClient) Client {
 // NewContextClient creates a JSON client whose requests honor a context.
 //
 // Parameters:
-//   - httpClient: the HTTP client that sends the requests.
+//   - httpClient: the HTTP client that sends the requests, handled as for
+//     [NewWithHTTPClient].
 //
 // Returns:
 //   - ContextClient: a client that sends JSON requests through httpClient.
 func NewContextClient(httpClient types.HTTPClient) ContextClient {
-	return &client{
-		httpClient: httpClient,
+	c := &client{
 		headers: http.Header{
 			"Content-Type": []string{ContentType},
 		},
+		http: httpclient.Holder{},
 	}
+	c.http.Set(httpClient)
+
+	return c
 }
 
 // Get fetches a URL using GET and unmarshals the response into the provided object using DefaultClient.
@@ -201,7 +212,7 @@ func (c *client) GetContext(ctx context.Context, url string, response any) error
 		req.Header.Set(key, val[0])
 	}
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.http.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
 	}
@@ -271,7 +282,7 @@ func (c *client) PostContext(ctx context.Context, url string, request, response 
 		req.Header.Set(key, val[0])
 	}
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.http.Client().Do(req)
 	if err != nil {
 		return fmt.Errorf("sending POST request: %w", redact.URLError(err))
 	}

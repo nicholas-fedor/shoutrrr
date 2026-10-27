@@ -11,10 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
 
 // temporaryError is a cause that classifies itself as temporary.
@@ -114,53 +111,11 @@ func TestURLErrorPassesThroughOtherErrors(t *testing.T) {
 	assert.NoError(t, URLError(nil))
 }
 
-// TestHTTPClient verifies that the wrapper redacts transport errors from the
-// wrapped client and passes successful responses through untouched.
-func TestHTTPClient(t *testing.T) {
-	t.Parallel()
-
-	req, err := http.NewRequestWithContext(
-		context.Background(), http.MethodGet, "https://api.example.com/"+testSecret, http.NoBody,
-	)
-	require.NoError(t, err)
-
-	failing := mocks.NewMockHTTPClient(t)
-	failing.EXPECT().Do(mock.Anything).Return(nil, &url.Error{
-		Op: http.MethodGet, URL: req.URL.String(), Err: context.DeadlineExceeded,
-	})
-
-	_, err = HTTPClient(failing).Do(req)
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.NotContains(t, err.Error(), testSecret)
-
-	want := &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}
-	succeeding := mocks.NewMockHTTPClient(t)
-	succeeding.EXPECT().Do(mock.Anything).Return(want, nil)
-
-	res, err := HTTPClient(succeeding).Do(req)
-	require.NoError(t, err)
-	assert.Same(t, want, res)
-
-	require.NoError(t, res.Body.Close())
-}
-
-// TestHTTPClientWrapsOnce verifies that wrapping is idempotent and that a nil client
-// stays nil, so callers can apply it unconditionally.
-func TestHTTPClientWrapsOnce(t *testing.T) {
-	t.Parallel()
-
-	inner := mocks.NewMockHTTPClient(t)
-	wrapped := HTTPClient(inner)
-
-	assert.Same(t, wrapped, HTTPClient(wrapped))
-	assert.Nil(t, HTTPClient(nil))
-	assert.NotContains(t, Placeholder, testSecret)
-}
-
-// TestHTTPClientRedactsRedirectLocation verifies that a malformed redirect does not
-// leak its Location header. net/http quotes the header value in the cause of the
-// *url.Error it returns, so the cause must be redacted as well as the URL.
-func TestHTTPClientRedactsRedirectLocation(t *testing.T) {
+// TestURLErrorRedactsRedirectLocation verifies that the error of a malformed
+// redirect does not leak its Location header. net/http quotes the header value
+// in the cause of the *url.Error it returns, so the cause must be redacted as
+// well as the URL.
+func TestURLErrorRedactsRedirectLocation(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -172,10 +127,12 @@ func TestHTTPClientRedactsRedirectLocation(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, http.NoBody)
 	require.NoError(t, err)
 
-	res, err := HTTPClient(server.Client()).Do(req)
+	res, err := server.Client().Do(req)
 	if res != nil {
 		require.NoError(t, res.Body.Close())
 	}
+
+	err = URLError(err)
 
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), testSecret)
@@ -200,10 +157,11 @@ func TestURLErrorRedactsURLsInCause(t *testing.T) {
 	assert.True(t, urlErr.Timeout())
 }
 
-// TestHTTPClientRedactsRelativeRedirectLocation verifies that a malformed relative
-// redirect leaks neither copy of its Location header. net/http quotes the value
-// once in its own message and again in the parse error it wraps.
-func TestHTTPClientRedactsRelativeRedirectLocation(t *testing.T) {
+// TestURLErrorRedactsRelativeRedirectLocation verifies that the error of a
+// malformed relative redirect leaks neither copy of its Location header.
+// net/http quotes the value once in its own message and again in the parse
+// error it wraps.
+func TestURLErrorRedactsRelativeRedirectLocation(t *testing.T) {
 	t.Parallel()
 
 	for name, location := range map[string]string{
@@ -222,10 +180,12 @@ func TestHTTPClientRedactsRelativeRedirectLocation(t *testing.T) {
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, http.NoBody)
 			require.NoError(t, err)
 
-			res, err := HTTPClient(server.Client()).Do(req)
+			res, err := server.Client().Do(req)
 			if res != nil {
 				require.NoError(t, res.Body.Close())
 			}
+
+			err = URLError(err)
 
 			require.Error(t, err)
 			assert.NotContains(t, err.Error(), testSecret)

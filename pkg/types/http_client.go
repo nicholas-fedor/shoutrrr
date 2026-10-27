@@ -31,6 +31,9 @@ type HTTPClientSetter interface {
 	// [SenderOptions.HTTPClient] is set.
 	//
 	// Parameters:
-	//   - client: the client for the service's requests.
+	//   - client: the client for the service's requests. Nil, or a nil
+	//     *http.Client, restores the default client. A nil value of another
+	//     type is used as given, and a runtime panic from it fails the request
+	//     with [ErrNilHTTPClient].
 	SetHTTPClient(client HTTPClient)
 }
