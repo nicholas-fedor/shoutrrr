@@ -429,13 +429,8 @@ func (c *Color) Sprintf(format string, a ...any) string {
 // given arguments with fmt.Sprintf().
 // Useful to put into or mix into other string.
 // Windows users should use this in conjunction with color.Output.
-//
-// Note: The returned function is memoized for performance.
+// Each call of the returned function follows the color's current setting.
 func (c *Color) SprintfFunc() func(format string, args ...any) string {
-	if c.isNoColorSet() {
-		return fmt.Sprintf
-	}
-
 	return func(format string, args ...any) string {
 		return c.wrap(fmt.Sprintf(format, args...))
 	}
@@ -450,13 +445,8 @@ func (c *Color) Sprintln(a ...any) string {
 // given arguments with fmt.Sprintln().
 // Useful to put into or mix into other string.
 // Windows users should use this in conjunction with color.Output.
-//
-// Note: The returned function is memoized for performance.
+// Each call of the returned function follows the color's current setting.
 func (c *Color) SprintlnFunc() func(a ...any) string {
-	if c.isNoColorSet() {
-		return func(a ...any) string { return sprintln(a...) + "\n" }
-	}
-
 	return func(a ...any) string {
 		return c.wrap(sprintln(a...)) + "\n"
 	}

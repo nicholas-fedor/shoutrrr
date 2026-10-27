@@ -1972,6 +1972,49 @@ func TestColorFollowsConfigChanges(t *testing.T) {
 	}
 }
 
+// TestSprintFuncsFollowChanges verifies that the functions SprintfFunc and
+// SprintlnFunc return decide on color each time they are called. A change to
+// the config's NoColor setting, or a later EnableColor or DisableColor, takes
+// effect in a function created before it.
+func TestSprintFuncsFollowChanges(t *testing.T) {
+	t.Parallel()
+
+	// changes lists the starting NoColor setting, the change made after the
+	// functions are created, and whether the output is then colored.
+	changes := []struct {
+		change      func(cfg *Config, c *Color)
+		name        string
+		initial     bool
+		wantColored bool
+	}{
+		{name: "config turns color on", initial: true, wantColored: true, change: func(cfg *Config, _ *Color) { cfg.NoColor = false }},
+		{name: "config turns color off", initial: false, wantColored: false, change: func(cfg *Config, _ *Color) { cfg.NoColor = true }},
+		{name: "EnableColor", initial: true, wantColored: true, change: func(_ *Config, c *Color) { c.EnableColor() }},
+		{name: "DisableColor", initial: false, wantColored: false, change: func(_ *Config, c *Color) { c.DisableColor() }},
+	}
+
+	for _, tt := range changes {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{Output: &bytes.Buffer{}, NoColor: tt.initial}
+			c := NewWithConfig(cfg, FgRed)
+			sprintf := c.SprintfFunc()
+			sprintln := c.SprintlnFunc()
+
+			tt.change(cfg, c)
+
+			if tt.wantColored {
+				assert.Equal(t, "\x1b[31mtext 1\x1b[0m", sprintf("text %d", 1))
+				assert.Equal(t, "\x1b[31mtext\x1b[0m\n", sprintln("text"))
+			} else {
+				assert.Equal(t, "text 1", sprintf("text %d", 1))
+				assert.Equal(t, "text\n", sprintln("text"))
+			}
+		})
+	}
+}
+
 // TestDefaultConfig tests the DefaultConfig function.
 func TestDefaultConfig(t *testing.T) {
 	t.Parallel()
