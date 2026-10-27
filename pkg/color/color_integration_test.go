@@ -17,7 +17,6 @@ func newTestConfig(buf *bytes.Buffer) *color.Config {
 	return &color.Config{
 		NoColor: false,
 		Output:  buf,
-		Error:   buf,
 	}
 }
 
@@ -51,7 +50,7 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			noColor: true,
 			testFn: func() string {
 				buf := &bytes.Buffer{}
-				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				cfg := &color.Config{NoColor: true, Output: buf}
 				c := color.NewWithConfig(cfg, color.FgRed)
 
 				return c.Sprint("test")
@@ -77,7 +76,7 @@ func TestIntegration_HelpersComprehensive(t *testing.T) {
 			noColor: true,
 			testFn: func() string {
 				buf := &bytes.Buffer{}
-				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				cfg := &color.Config{NoColor: true, Output: buf}
 				c := color.NewWithConfig(cfg, color.FgBlue)
 
 				return c.Sprint("world")
@@ -287,28 +286,28 @@ func TestIntegration_NewWithConfigIntegration(t *testing.T) {
 	}{
 		{
 			name:    "custom config with NoColor=true",
-			cfg:     &color.Config{NoColor: true, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			cfg:     &color.Config{NoColor: true, Output: &bytes.Buffer{}},
 			attrs:   []color.Attribute{color.FgRed},
 			input:   "test",
 			noColor: true,
 		},
 		{
 			name:    "custom config with NoColor=false",
-			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}},
 			attrs:   []color.Attribute{color.FgGreen},
 			input:   "test",
 			noColor: false,
 		},
 		{
 			name:    "custom config with multiple attributes",
-			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}},
 			attrs:   []color.Attribute{color.FgBlue, color.Bold},
 			input:   "test",
 			noColor: false,
 		},
 		{
 			name:    "empty config with explicit NoColor=false",
-			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}},
+			cfg:     &color.Config{NoColor: false, Output: &bytes.Buffer{}},
 			attrs:   []color.Attribute{color.FgRed},
 			input:   "test",
 			noColor: false,
@@ -348,7 +347,6 @@ func TestIntegration_DefaultConfigIntegration(t *testing.T) {
 				cfg := color.DefaultConfig()
 				require.NotNil(t, cfg)
 				assert.NotNil(t, cfg.Output)
-				assert.NotNil(t, cfg.Error)
 			},
 		},
 		{
@@ -404,11 +402,11 @@ func TestIntegration_InstanceConfigIntegration(t *testing.T) {
 
 				// Create two independent color instances with different configs
 				buf1 := &bytes.Buffer{}
-				cfg1 := &color.Config{NoColor: false, Output: buf1, Error: buf1}
+				cfg1 := &color.Config{NoColor: false, Output: buf1}
 				c1 := color.NewWithConfig(cfg1, color.FgRed)
 
 				buf2 := &bytes.Buffer{}
-				cfg2 := &color.Config{NoColor: true, Output: buf2, Error: buf2}
+				cfg2 := &color.Config{NoColor: true, Output: buf2}
 				c2 := color.NewWithConfig(cfg2, color.FgGreen)
 
 				// c1 should produce colored output
@@ -427,7 +425,7 @@ func TestIntegration_InstanceConfigIntegration(t *testing.T) {
 
 				// Create a shared config
 				buf := &bytes.Buffer{}
-				sharedCfg := &color.Config{NoColor: false, Output: buf, Error: buf}
+				sharedCfg := &color.Config{NoColor: false, Output: buf}
 
 				// Create multiple colors sharing the same config
 				c1 := color.NewWithConfig(sharedCfg, color.FgRed)
@@ -449,7 +447,7 @@ func TestIntegration_InstanceConfigIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				cfg := &color.Config{NoColor: false, Output: buf, Error: buf}
+				cfg := &color.Config{NoColor: false, Output: buf}
 				c := color.NewWithConfig(cfg, color.FgRed)
 
 				// Initially should have color
@@ -1079,7 +1077,7 @@ func TestIntegration_SetWriterIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				cfg := &color.Config{NoColor: true, Output: buf}
 
 				c := color.NewWithConfig(cfg, color.FgRed)
 				c.SetWriter(buf)
@@ -1127,7 +1125,7 @@ func TestIntegration_SetMethodIntegration(t *testing.T) {
 				t.Helper()
 
 				buf := &bytes.Buffer{}
-				cfg := &color.Config{NoColor: true, Output: buf, Error: buf}
+				cfg := &color.Config{NoColor: true, Output: buf}
 
 				c := color.NewWithConfig(cfg, color.FgRed)
 				c.Set()
@@ -1539,7 +1537,6 @@ func TestIntegration_ConcurrentAccessIntegration(t *testing.T) {
 			cfg := &color.Config{
 				NoColor: false,
 				Output:  buf,
-				Error:   buf,
 			}
 
 			// Various color operations
@@ -1580,7 +1577,7 @@ func TestIntegration_EnvNO_COLORIntegration(t *testing.T) {
 				t.Helper()
 				os.Setenv("NO_COLOR", "1")
 				// Create a new config which should detect NO_COLOR
-				cfg := &color.Config{NoColor: true, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}}
+				cfg := &color.Config{NoColor: true, Output: &bytes.Buffer{}}
 				c := color.NewWithConfig(cfg, color.FgRed)
 				result := c.Sprint("test")
 
@@ -1594,7 +1591,7 @@ func TestIntegration_EnvNO_COLORIntegration(t *testing.T) {
 				t.Helper()
 				os.Unsetenv("NO_COLOR")
 
-				cfg := &color.Config{NoColor: false, Output: &bytes.Buffer{}, Error: &bytes.Buffer{}}
+				cfg := &color.Config{NoColor: false, Output: &bytes.Buffer{}}
 				c := color.NewWithConfig(cfg, color.FgRed)
 				result := c.Sprint("test")
 

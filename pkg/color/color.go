@@ -14,10 +14,11 @@ import (
 
 // Config holds configuration settings for color output.
 type Config struct {
-	// Output is the default io.Writer used by print functions for colorized output.
+	// Output is the writer for the print methods and for Set and Unset. When
+	// Output is nil, each color writes to standard output through a colorable
+	// writer it creates with itself, the same kind of writer DefaultConfig sets.
+	// That writer handles the escape codes on Windows.
 	Output io.Writer
-	// Error is the default io.Writer used for error output with color support.
-	Error io.Writer
 	// NoColor controls whether color output is disabled.
 	// When true, all color formatting is stripped from output.
 	NoColor bool
@@ -25,6 +26,10 @@ type Config struct {
 
 // Color represents a color with ANSI SGR parameters.
 type Color struct {
+	// stdout is the colorable writer for standard output the color writes to
+	// when its config has no Output writer. The color creates it once, so Set,
+	// the print methods, and Unset write through the same writer.
+	stdout  io.Writer
 	noColor *bool   // Instance-level override
 	config  *Config // Reference to config (can be shared)
 	params  []Attribute
@@ -60,13 +65,15 @@ func noColorFromEnv() bool {
 //   - If TERM environment variable is "dumb", colors are disabled
 //   - If stdout is not a terminal, colors are disabled
 //
-// Output and Error are set to colorable writers that support ANSI escape codes
-// on Windows.
+// Output is set to a colorable writer for standard output, which supports ANSI
+// escape codes on Windows.
+//
+// Returns:
+//   - *Config: the new configuration.
 func DefaultConfig() *Config {
 	return &Config{
 		NoColor: noColorFromEnv(),
 		Output:  colorable.NewColorableStdout(),
-		Error:   colorable.NewColorableStderr(),
 	}
 }
 
@@ -75,22 +82,41 @@ func New(value ...Attribute) *Color {
 	return NewWithConfig(DefaultConfig(), value...)
 }
 
-// NewWithConfig returns a newly created color object with the specified configuration.
+// NewWithConfig returns a newly created color object with the specified
+// configuration. A nil cfg uses [DefaultConfig].
 //
 // Example:
 //
 //	cfg := &color.Config{
 //	    NoColor: true,
 //	    Output:  os.Stdout,
-//	    Error:   os.Stderr,
 //	}
 //	c := color.NewWithConfig(cfg, color.FgRed)
 //	c.Println("This is red text")
+//
+// Parameters:
+//   - cfg: the configuration, which the color keeps a reference to.
+//   - value: the SGR attributes of the color.
+//
+// Returns:
+//   - *Color: the new color.
 func NewWithConfig(cfg *Config, value ...Attribute) *Color {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
 	c := &Color{
+		stdout:  nil,
 		params:  make([]Attribute, 0, len(value)),
 		noColor: nil, // Will use config.NoColor by default
 		config:  cfg,
+	}
+
+	// On a Windows console without virtual terminal processing, a colorable
+	// writer records the console's colors when it is created and restores
+	// them on a reset. Set and Unset therefore share one writer.
+	if cfg.Output == nil {
+		c.stdout = colorable.NewColorableStdout()
 	}
 
 	if cfg.NoColor {
@@ -255,21 +281,28 @@ func (c *Color) FprintlnFunc() func(w io.Writer, a ...any) {
 }
 
 // Print formats using the default formats for its operands and writes to
-// standard output. Spaces are added between operands when neither is a
+// the config's writer. Spaces are added between operands when neither is a
 // string. It returns the number of bytes written and any write error
 // encountered. This is the standard fmt.Print() method wrapped with the given
 // color.
 //
+// Parameters:
+//   - args: the operands to print.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: any write error encountered.
+//
 //nolint:wrapcheck // fmt.Fprintln errors are passed through as-is for API compatibility
 func (c *Color) Print(args ...any) (int, error) {
 	if c.isNoColorSet() {
-		return fmt.Fprint(c.config.Output, args...)
+		return fmt.Fprint(c.writer(), args...)
 	}
 
 	c.Set()
 	defer c.Unset()
 
-	return fmt.Fprint(c.config.Output, args...)
+	return fmt.Fprint(c.writer(), args...)
 }
 
 // PrintFunc returns a new function that prints the passed arguments as
@@ -280,20 +313,29 @@ func (c *Color) PrintFunc() func(a ...any) {
 	}
 }
 
-// Printf formats according to a format specifier and writes to standard output.
+// Printf formats according to a format specifier and writes to the config's
+// writer.
 // It returns the number of bytes written and any write error encountered.
 // This is the standard fmt.Printf() method wrapped with the given color.
+//
+// Parameters:
+//   - format: the format specifier.
+//   - args: the operands for format.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: any write error encountered.
 //
 //nolint:wrapcheck // fmt.Fprintln errors are passed through as-is for API compatibility
 func (c *Color) Printf(format string, args ...any) (int, error) {
 	if c.isNoColorSet() {
-		return fmt.Fprintf(c.config.Output, format, args...)
+		return fmt.Fprintf(c.writer(), format, args...)
 	}
 
 	c.Set()
 	defer c.Unset()
 
-	return fmt.Fprintf(c.config.Output, format, args...)
+	return fmt.Fprintf(c.writer(), format, args...)
 }
 
 // PrintfFunc returns a new function that prints the passed arguments as
@@ -305,18 +347,25 @@ func (c *Color) PrintfFunc() func(format string, a ...any) {
 }
 
 // Println formats using the default formats for its operands and writes to
-// standard output. Spaces are always added between operands and a newline is
+// the config's writer. Spaces are always added between operands and a newline is
 // appended. It returns the number of bytes written and any write error
 // encountered. This is the standard fmt.Print() method wrapped with the given
 // color.
 //
+// Parameters:
+//   - args: the operands to print.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: any write error encountered.
+//
 //nolint:wrapcheck // fmt.Fprintln errors are passed through as-is for API compatibility
 func (c *Color) Println(args ...any) (int, error) {
 	if c.isNoColorSet() {
-		return fmt.Fprintln(c.config.Output, args...)
+		return fmt.Fprintln(c.writer(), args...)
 	}
 
-	return fmt.Fprintln(c.config.Output, c.format()+sprintln(args...)+c.unformat())
+	return fmt.Fprintln(c.writer(), c.format()+sprintln(args...)+c.unformat())
 }
 
 // PrintlnFunc returns a new function that prints the passed arguments as
@@ -327,13 +376,16 @@ func (c *Color) PrintlnFunc() func(a ...any) {
 	}
 }
 
-// Set sets the SGR sequence.
+// Set writes the SGR sequence to the config's writer.
+//
+// Returns:
+//   - *Color: c, for chaining.
 func (c *Color) Set() *Color {
 	if c.isNoColorSet() || c.config.NoColor {
 		return c
 	}
 
-	_, _ = fmt.Fprint(c.config.Output, c.format())
+	_, _ = fmt.Fprint(c.writer(), c.format())
 
 	return c
 }
@@ -420,7 +472,7 @@ func (c *Color) Unset() {
 		return
 	}
 
-	c.config.unset()
+	_, _ = fmt.Fprintf(c.writer(), "%s[%dm", escape, Reset)
 }
 
 // UnsetWriter resets all escape attributes and clears the output with the give
@@ -516,13 +568,22 @@ func (c *Color) wrap(s string) string {
 	return c.format() + s + c.unformat()
 }
 
-// unset resets all escape attributes and clears the output.
-func (c *Config) unset() {
-	if c.NoColor {
-		return
+// writer returns the writer for colorized output.
+//
+// Returns:
+//   - io.Writer: the config's Output, or the color's own colorable writer for
+//     standard output when Output is nil.
+func (c *Color) writer() io.Writer {
+	switch {
+	case c.config.Output != nil:
+		return c.config.Output
+	case c.stdout != nil:
+		return c.stdout
+	default:
+		// The config's Output was set when the color was created and cleared
+		// afterwards.
+		return colorable.NewColorableStdout()
 	}
-
-	_, _ = fmt.Fprintf(c.Output, "%s[%dm", escape, Reset)
 }
 
 // BgRGB returns a new background color in 24-bit RGB.

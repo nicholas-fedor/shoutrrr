@@ -11,7 +11,6 @@ func BenchmarkColorPrint(b *testing.B) {
 	cfg := &Config{
 		NoColor: false,
 		Output:  io.Discard,
-		Error:   io.Discard,
 	}
 
 	c := NewWithConfig(cfg, FgRed)
@@ -28,7 +27,6 @@ func BenchmarkColorSprint(b *testing.B) {
 	cfg := &Config{
 		NoColor: false,
 		Output:  nil,
-		Error:   nil,
 	}
 
 	c := NewWithConfig(cfg, FgRed)
@@ -45,7 +43,6 @@ func BenchmarkColorSprintNoColor(b *testing.B) {
 	cfg := &Config{
 		NoColor: true,
 		Output:  nil,
-		Error:   nil,
 	}
 
 	c := NewWithConfig(cfg, FgRed)

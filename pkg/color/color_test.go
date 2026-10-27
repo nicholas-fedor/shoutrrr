@@ -3,6 +3,7 @@ package color
 import (
 	"bytes"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,6 @@ func newTestColor(output *bytes.Buffer, noColor bool, attrs ...Attribute) *Color
 	cfg := &Config{
 		NoColor: noColor,
 		Output:  output,
-		Error:   output,
 	}
 
 	return NewWithConfig(cfg, attrs...)
@@ -1400,7 +1400,7 @@ func TestColor_isNoColorSet(t *testing.T) {
 			name: "returns config NoColor when noColor is nil (color enabled)",
 			c: func() *Color {
 				buf := &bytes.Buffer{}
-				cfg := &Config{NoColor: false, Output: buf, Error: buf}
+				cfg := &Config{NoColor: false, Output: buf}
 
 				return NewWithConfig(cfg)
 			}(),
@@ -1411,7 +1411,7 @@ func TestColor_isNoColorSet(t *testing.T) {
 			name: "returns config NoColor when noColor is nil (color disabled)",
 			c: func() *Color {
 				buf := &bytes.Buffer{}
-				cfg := &Config{NoColor: true, Output: buf, Error: buf}
+				cfg := &Config{NoColor: true, Output: buf}
 
 				return NewWithConfig(cfg)
 			}(),
@@ -1714,7 +1714,6 @@ func TestNewWithConfig(t *testing.T) {
 			cfg := &Config{
 				NoColor: tt.noColor,
 				Output:  buf,
-				Error:   buf,
 			}
 
 			got := NewWithConfig(cfg, tt.attrs...)
@@ -1732,6 +1731,143 @@ func TestNewWithConfig(t *testing.T) {
 	}
 }
 
+// TestNilWriters verifies that a config without an Output writer writes to
+// standard output instead of panicking. It covers a nil config and an empty
+// Config for every method that writes through the config.
+//
+// The nil config takes its NoColor setting from the environment, so the test
+// sets NO_COLOR to get plain output from it. The empty Config keeps color
+// enabled, so its cases check the escape codes too.
+func TestNilWriters(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+
+	// configs lists the configs that leave the writer unset, and whether each
+	// writes escape codes.
+	configs := []struct {
+		cfg     *Config
+		name    string
+		colored bool
+	}{
+		{name: "nil config", cfg: nil, colored: false},
+		{name: "config without an Output writer", cfg: &Config{Output: nil, NoColor: false}, colored: true},
+	}
+
+	// writes lists the methods that write through the config, with the output
+	// each writes without and with color.
+	writes := []struct {
+		write   func(c *Color)
+		name    string
+		plain   string
+		colored string
+	}{
+		{
+			name:    "Print",
+			plain:   "text",
+			colored: "\x1b[31mtext\x1b[0m",
+			write:   func(c *Color) { _, _ = c.Print("text") },
+		},
+		{
+			name:    "Printf",
+			plain:   "text 1",
+			colored: "\x1b[31mtext 1\x1b[0m",
+			write:   func(c *Color) { _, _ = c.Printf("text %d", 1) },
+		},
+		{
+			name:    "Println",
+			plain:   "text\n",
+			colored: "\x1b[31mtext\x1b[0m\n",
+			write:   func(c *Color) { _, _ = c.Println("text") },
+		},
+		{
+			name:    "Set and Unset",
+			plain:   "",
+			colored: "\x1b[31m\x1b[0m",
+			write:   func(c *Color) { c.Set().Unset() },
+		},
+	}
+
+	for _, config := range configs {
+		for _, tt := range writes {
+			t.Run(config.name+"/"+tt.name, func(t *testing.T) {
+				stdout := captureStdout(t, func() {
+					assert.NotPanics(t, func() { tt.write(NewWithConfig(config.cfg, FgRed)) })
+				})
+
+				want := tt.plain
+				if config.colored {
+					want = tt.colored
+				}
+
+				assert.Equal(t, want, stdout)
+			})
+		}
+	}
+}
+
+// TestColorKeepsItsStdoutWriter verifies that a color without an Output writer
+// keeps the standard output it saw when it was created. Set, the text, and
+// Unset of a later Print all reach that writer, even after os.Stdout changes.
+//
+//nolint:paralleltest // Redirects os.Stdout.
+func TestColorKeepsItsStdoutWriter(t *testing.T) {
+	var c *Color
+
+	created := captureStdout(t, func() {
+		c = NewWithConfig(&Config{Output: nil, NoColor: false}, FgRed)
+
+		later := captureStdout(t, func() { _, _ = c.Print("text") })
+		assert.Empty(t, later)
+	})
+
+	assert.Equal(t, "\x1b[31mtext\x1b[0m", created)
+}
+
+// TestColorWithClearedOutput verifies that a color whose config loses its
+// Output writer after the color was created writes to standard output.
+//
+//nolint:paralleltest // Redirects os.Stdout.
+func TestColorWithClearedOutput(t *testing.T) {
+	cfg := &Config{Output: &bytes.Buffer{}, NoColor: false}
+	c := NewWithConfig(cfg, FgRed)
+	cfg.Output = nil
+
+	stdout := captureStdout(t, func() { _, _ = c.Print("text") })
+
+	assert.Equal(t, "\x1b[31mtext\x1b[0m", stdout)
+}
+
+// captureStdout runs fn with os.Stdout redirected to a pipe and returns what fn
+// wrote to it.
+//
+// Parameters:
+//   - t: the test.
+//   - fn: the function whose standard output is captured.
+//
+// Returns:
+//   - string: the captured output.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer func() { _ = reader.Close() }()
+
+	original := os.Stdout
+	os.Stdout = writer
+
+	defer func() { os.Stdout = original }()
+
+	fn()
+
+	require.NoError(t, writer.Close())
+
+	output, err := io.ReadAll(reader)
+	require.NoError(t, err)
+
+	return string(output)
+}
+
 // TestDefaultConfig tests the DefaultConfig function.
 func TestDefaultConfig(t *testing.T) {
 	t.Parallel()
@@ -1740,7 +1876,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	require.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Output)
-	assert.NotNil(t, cfg.Error)
 	// NoColor depends on environment, so we just verify it's set
 }
 

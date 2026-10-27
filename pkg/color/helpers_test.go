@@ -90,7 +90,6 @@ func Test_colorPrint(t *testing.T) {
 			cfg := &Config{
 				NoColor: tt.noColor,
 				Output:  buf,
-				Error:   buf,
 			}
 
 			// Create color with config and use Fprintln for testing
@@ -173,7 +172,6 @@ func Test_colorString(t *testing.T) {
 			cfg := &Config{
 				NoColor: tt.noColor,
 				Output:  buf,
-				Error:   buf,
 			}
 			c := NewWithConfig(cfg, tt.attribute)
 
@@ -220,7 +218,6 @@ func Test_colorPrint_variousAttributes(t *testing.T) {
 			cfg := &Config{
 				NoColor: false,
 				Output:  buf,
-				Error:   buf,
 			}
 			c := NewWithConfig(cfg, attr)
 			_, _ = c.Fprintln(buf, "test")
@@ -247,7 +244,6 @@ func Test_colorString_variousAttributes(t *testing.T) {
 			cfg := &Config{
 				NoColor: false,
 				Output:  buf,
-				Error:   buf,
 			}
 			c := NewWithConfig(cfg, attr)
 			result := c.SprintFunc()("test")
