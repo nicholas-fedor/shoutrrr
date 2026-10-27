@@ -17,7 +17,10 @@ import "time"
 // Zero leaves each service's own send budget in effect.
 type SenderOptions struct {
 	// HTTPClient is the client used for all HTTP operations.
-	// If nil, a default client with reasonable settings is used.
+	// If nil, or a nil *http.Client, each service uses its default client.
+	// A nil value of another type, such as a nil pointer to a custom client,
+	// is used as given. A runtime panic from it fails the request with
+	// [ErrNilHTTPClient].
 	HTTPClient HTTPClient
 
 	// DialContext is the dial function used for non-HTTP TCP connections.

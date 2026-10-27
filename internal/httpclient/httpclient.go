@@ -1,7 +1,10 @@
 package httpclient
 
 import (
+	"fmt"
 	"net/http"
+	"reflect"
+	"runtime"
 	"sync"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/transport"
@@ -23,6 +26,17 @@ type Holder struct {
 	insecure types.HTTPClient
 	// mu guards the other fields.
 	mu sync.Mutex
+}
+
+// nilClient wraps an injected client that is a nil pointer or another nil
+// value. A nil receiver can be valid, so requests go to the client. A runtime
+// panic, such as a nil pointer dereference, fails the request with
+// [types.ErrNilHTTPClient] instead.
+type nilClient struct {
+	// client is the injected nil client.
+	client types.HTTPClient
+	// typeName is the injected client's type, for the error.
+	typeName string
 }
 
 // Client returns the client to send through.
@@ -89,7 +103,9 @@ func (h *Holder) InsecureClient(warn func()) types.HTTPClient {
 }
 
 // Prefer returns client when it is set, and the result of [Holder.Client]
-// otherwise. A nil *http.Client counts as unset.
+// otherwise. A nil *http.Client counts as unset. A nil value of another type,
+// such as a nil pointer to a custom client, counts as set: requests go to it,
+// and a runtime panic from it fails the request with [types.ErrNilHTTPClient].
 //
 // A service passes the exported client field it keeps for compatibility. Its
 // SetHTTPClient calls Set and clears that field, so whichever of the two the
@@ -109,7 +125,11 @@ func (h *Holder) Prefer(client types.HTTPClient) types.HTTPClient {
 }
 
 // Set stores the client to send through. A nil client, including a nil
-// *http.Client, clears it, so sends use the default client.
+// *http.Client, clears it, so sends use the default client. A nil value of
+// another type, such as a nil pointer to a custom client, is stored: requests
+// go to it, and a runtime panic from it fails the request with
+// [types.ErrNilHTTPClient]. It is never replaced by the default client, which
+// would bypass whatever the caller meant to inject.
 //
 // Parameters:
 //   - client: the HTTP client, or nil for the default.
@@ -122,17 +142,73 @@ func (h *Holder) Set(client types.HTTPClient) {
 	h.injected = client
 }
 
-// normalize returns nil for a nil *http.Client, which is a non-nil
-// [types.HTTPClient], and client otherwise.
+// Do sends req through the nil client. A runtime panic from the client, such
+// as a nil pointer dereference or a write to a nil map, fails the request and
+// closes its body, as a client does when it returns an error. Any other panic
+// is raised again.
 //
 // Parameters:
-//   - client: the client to check.
+//   - req: the request.
 //
 // Returns:
-//   - types.HTTPClient: client, or nil when it is a nil *http.Client.
+//   - res: the client's response, or nil after a runtime panic.
+//   - err: the client's error, or [types.ErrNilHTTPClient] wrapping the
+//     runtime panic.
+//
+//nolint:nonamedreturns // The deferred recover sets the results.
+func (c nilClient) Do(req *http.Request) (res *http.Response, err error) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+
+		runtimeErr, ok := recovered.(runtime.Error)
+		if !ok {
+			panic(recovered)
+		}
+
+		if req != nil && req.Body != nil {
+			_ = req.Body.Close()
+		}
+
+		res, err = nil, fmt.Errorf("%w: %s: %w", types.ErrNilHTTPClient, c.typeName, runtimeErr)
+	}()
+
+	return c.client.Do(req)
+}
+
+// normalize prepares an injected client for sending. A nil *http.Client, which
+// is a non-nil [types.HTTPClient], becomes nil, so the default client is used.
+// A nil pointer, func, map, channel, or slice of another type
+// is wrapped in a [nilClient], so a runtime panic from it fails the request
+// instead of the send. It never becomes the default client, which would
+// silently bypass whatever the caller meant to inject, such as a client that
+// guards outbound requests.
+//
+// Parameters:
+//   - client: the client to check, or nil.
+//
+// Returns:
+//   - types.HTTPClient: nil for no client, a [nilClient] for a nil value of
+//     another type, or client unchanged.
 func normalize(client types.HTTPClient) types.HTTPClient {
+	if client == nil {
+		return nil
+	}
+
 	if c, ok := client.(*http.Client); ok && c == nil {
 		return nil
+	}
+
+	// Values of these kinds can be nil inside a non-nil interface. Values of
+	// the other kinds never are, and an unsafe pointer cannot have methods.
+	switch value := reflect.ValueOf(client); value.Kind() { //nolint:exhaustive // Only the kinds that can be nil matter.
+	case reflect.Pointer, reflect.Func, reflect.Map, reflect.Chan, reflect.Slice:
+		if value.IsNil() {
+			return nilClient{client: client, typeName: fmt.Sprintf("%T", client)}
+		}
+	default:
 	}
 
 	return client

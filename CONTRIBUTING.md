@@ -193,6 +193,7 @@ Every service follows the same rules, so services behave alike for users and for
 - Keep the clients in `internal/httpclient.Holder`, and implement `SetHTTPClient` through it.
 - Send every request through that client, including token and API requests.
 - Restore the default client when `SetHTTPClient` receives nil.
+  The holder uses a nil value of another client type as given, and turns a runtime panic from it into `types.ErrNilHTTPClient`.
 - Export no client fields, client interfaces, or client constructors.
 - Mark an existing exported client field deprecated instead of removing it.
   Clear it in `SetHTTPClient`, and send through `Holder.Prefer` with it, so whichever of the two the caller set last carries the sends.

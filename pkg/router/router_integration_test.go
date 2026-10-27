@@ -150,6 +150,9 @@ const (
 	// checkTypedNilHTTPClient repeats the nil client check with a nil *http.Client,
 	// which is a non-nil types.HTTPClient interface value.
 	checkTypedNilHTTPClient = "typed_nil_http_client"
+	// checkNilPointerHTTPClient verifies that an injected client that is a nil
+	// pointer of another type fails the send with types.ErrNilHTTPClient.
+	checkNilPointerHTTPClient = "nil_pointer_http_client"
 	// checkClientFieldOrder verifies that a service's exported client field and
 	// SetHTTPClient follow last-write-wins.
 	checkClientFieldOrder = "client_field_order"
@@ -197,32 +200,33 @@ const (
 
 // Failure kinds, one per distinct way a check can fail.
 const (
-	failNone               failureKind = iota // the check passed
-	failInit                                  // the fixture failed to initialize
-	failInitIO                                // Initialize performed network I/O
-	failPanic                                 // Send panicked
-	failDefaultTransport                      // Send used http.DefaultTransport
-	failNotInjected                           // Send skipped the injected client or dialer
-	failUnexpectedIO                          // a service without network access performed I/O
-	failRejectedParams                        // reserved params were rejected as unknown keys
-	failInjectedAfterNil                      // the injected client was still used after SetHTTPClient(nil)
-	failNoFallbackRequest                     // no request went through the default client after SetHTTPClient(nil)
-	failSecretLeak                            // a secret appeared in errors or logs
-	failParamsPersisted                       // Send with params changed the service configuration
-	failNoDefaultRequest                      // no request went through the service's default client
-	failContextDropped                        // a request or dial did not carry the caller's context
-	failCancelIgnored                         // a request or dial did not end when the caller canceled
-	failNonStandardKey                        // a TLS option uses a key name other than the standard one
-	failMissingDescription                    // a config key has no description
-	failInvalidURLPart                        // a url tag names no part of a URL
-	failDeprecatedField                       // a deprecated field has an invalid tag or is lost in the config URL
-	failBudget                                // a request or dial lacked the service's send budget as its deadline
-	failUnverifiedAccepted                    // a request reached a server whose certificate was not verified
-	failSkipIgnored                           // skiptlsverify did not let a request reach the server
-	failWarningCount                          // the insecure warning was not logged exactly once
-	failWarnedInjected                        // the insecure warning was logged for an injected client
-	failClientFieldOrder                      // a send used the wrong one of the client field and the injected client
-	failDeadlineChanged                       // a request or dial did not carry the caller's deadline
+	failNone                failureKind = iota // the check passed
+	failInit                                   // the fixture failed to initialize
+	failInitIO                                 // Initialize performed network I/O
+	failPanic                                  // Send panicked
+	failDefaultTransport                       // Send used http.DefaultTransport
+	failNotInjected                            // Send skipped the injected client or dialer
+	failUnexpectedIO                           // a service without network access performed I/O
+	failRejectedParams                         // reserved params were rejected as unknown keys
+	failInjectedAfterNil                       // the injected client was still used after SetHTTPClient(nil)
+	failNoFallbackRequest                      // no request went through the default client after SetHTTPClient(nil)
+	failSecretLeak                             // a secret appeared in errors or logs
+	failParamsPersisted                        // Send with params changed the service configuration
+	failNoDefaultRequest                       // no request went through the service's default client
+	failContextDropped                         // a request or dial did not carry the caller's context
+	failCancelIgnored                          // a request or dial did not end when the caller canceled
+	failNonStandardKey                         // a TLS option uses a key name other than the standard one
+	failMissingDescription                     // a config key has no description
+	failInvalidURLPart                         // a url tag names no part of a URL
+	failDeprecatedField                        // a deprecated field has an invalid tag or is lost in the config URL
+	failBudget                                 // a request or dial lacked the service's send budget as its deadline
+	failUnverifiedAccepted                     // a request reached a server whose certificate was not verified
+	failSkipIgnored                            // skiptlsverify did not let a request reach the server
+	failWarningCount                           // the insecure warning was not logged exactly once
+	failWarnedInjected                         // the insecure warning was logged for an injected client
+	failClientFieldOrder                       // a send used the wrong one of the client field and the injected client
+	failDeadlineChanged                        // a request or dial did not carry the caller's deadline
+	failNilClientUnreported                    // a send through a nil injected client did not report types.ErrNilHTTPClient
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -537,6 +541,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkParamsDoNotPersist, runParamsDoNotPersist},
 		{checkNilHTTPClient, runNilHTTPClient},
 		{checkTypedNilHTTPClient, runTypedNilHTTPClient},
+		{checkNilPointerHTTPClient, runNilPointerHTTPClient},
 		{checkClientFieldOrder, runClientFieldOrder},
 		{checkNoSecretLeaks, runNoSecretLeaks},
 		{checkNoSecretLeaksDefault, runNoSecretLeaksDefault},
@@ -1382,6 +1387,81 @@ func runTypedNilHTTPClient(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
 	return runResetHTTPClient(t, fx, (*http.Client)(nil))
+}
+
+// runNilPointerHTTPClient verifies that an injected client that is a nil
+// pointer of a type other than *http.Client fails the send with
+// types.ErrNilHTTPClient. It is injected through the router's options and
+// through SetHTTPClient. The send must not panic, and must not fall back to
+// the default client, which would bypass the client the caller meant to inject.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failNilClientUnreported, failDefaultTransport, failPanic, or
+//     failInit failure, or the zero value.
+func runNilPointerHTTPClient(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	if fx.kind != netHTTP {
+		return failure{}
+	}
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+		nilClient := (*mockTypes.MockHTTPClient)(nil)
+
+		// paths lists the ways a caller injects the nil client.
+		paths := []struct {
+			locate func() (types.Service, error)
+			name   string
+		}{
+			{name: "router options", locate: func() (types.Service, error) {
+				return env.locateWith(t, types.SenderOptions{HTTPClient: nilClient, DialContext: env.dial})
+			}},
+			{name: "SetHTTPClient", locate: func() (types.Service, error) {
+				service, err := env.locate(t)
+				if setter, ok := service.(types.HTTPClientSetter); ok && err == nil {
+					setter.SetHTTPClient(nilClient)
+				}
+
+				return service, err
+			}},
+		}
+
+		for _, path := range paths {
+			service, err := path.locate()
+			if err != nil {
+				result = fail(failInit, "initialization failed: %v", err)
+
+				return
+			}
+
+			defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
+
+			if result = env.send(service, nil); result.kind != failNone {
+				return
+			}
+
+			switch {
+			case defaultTransportHits.Load() > defaultBefore || lookupHits.Load() > lookupBefore:
+				result = fail(failDefaultTransport, "%s: Send fell back to the default client", path.name)
+			case !errors.Is(env.sendErr, types.ErrNilHTTPClient):
+				result = fail(failNilClientUnreported, "%s: Send returned %v", path.name, env.sendErr)
+			default:
+			}
+
+			if result.kind != failNone {
+				return
+			}
+		}
+	})
+
+	return result
 }
 
 // runResetHTTPClient injects a client, resets it with SetHTTPClient(reset), and

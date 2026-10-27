@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient/mocks"
 )
@@ -1584,15 +1585,51 @@ func TestParseResponse_NilBody(t *testing.T) {
 	assert.Equal(t, "test", result.Data, "Data mismatch")
 }
 
-// TestClient_NewWithHTTPClient_NilClient tests NewWithHTTPClient with nil client.
+// TestClient_NewWithHTTPClient_NilClient verifies that a client built with nil
+// or a nil *http.Client sends through a default client, and that one built
+// with a nil pointer of another type fails each request with
+// types.ErrNilHTTPClient instead of panicking.
 func TestClient_NewWithHTTPClient_NilClient(t *testing.T) {
 	t.Parallel()
 
-	// This should work but may panic when used - test the constructor
-	client := NewWithHTTPClient(nil)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", ContentType)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
 
-	require.NotNil(t, client, "NewWithHTTPClient(nil) should return non-nil client")
-	assert.NotNil(t, client.Headers(), "Headers() should not return nil")
+	// defaults lists the nil clients that select the default client.
+	defaults := []struct {
+		client types.HTTPClient
+		name   string
+	}{
+		{name: "nil", client: nil},
+		{name: "nil *http.Client", client: (*http.Client)(nil)},
+	}
+
+	for _, tt := range defaults {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var response struct {
+				OK bool `json:"ok"`
+			}
+
+			require.NoError(t, NewContextClient(tt.client).GetContext(t.Context(), server.URL, &response))
+			assert.True(t, response.OK)
+		})
+	}
+
+	t.Run("nil pointer of another type", func(t *testing.T) {
+		t.Parallel()
+
+		client := NewContextClient((*typesmocks.MockHTTPClient)(nil))
+
+		var response map[string]any
+
+		require.ErrorIs(t, client.GetContext(t.Context(), server.URL, &response), types.ErrNilHTTPClient)
+		require.ErrorIs(t, client.PostContext(t.Context(), server.URL, map[string]any{}, &response), types.ErrNilHTTPClient)
+	})
 }
 
 // TestError_Unwrap tests error unwrapping capabilities.

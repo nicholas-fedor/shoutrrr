@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -446,13 +444,12 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 		return service, fmt.Errorf("%s: %w", scheme, err)
 	}
 
-	// Inject custom HTTP client if provided and the service supports it.
+	// Inject the custom HTTP client if one is set and the service supports it.
+	// The service decides what a nil client means, and redacts the URLs in its
+	// own request errors.
 	if r.httpClient != nil {
-		if client, ok := r.httpClient.(*http.Client); ok && client == nil {
-			// skip typed-nil
-		} else if setter, ok := service.(types.HTTPClientSetter); ok {
-			// Redact the URLs in transport errors, which carry service credentials.
-			setter.SetHTTPClient(redact.HTTPClient(r.httpClient))
+		if setter, ok := service.(types.HTTPClientSetter); ok {
+			setter.SetHTTPClient(r.httpClient)
 		}
 	}
 
