@@ -165,7 +165,8 @@ func TestPropKeyResolverIsDefault(t *testing.T) {
 		{name: "string default in another case", key: "name", value: "shoutrrr", want: false},
 		{name: "default that does not parse, as written", key: "broken", value: "NaN", want: true},
 		{name: "default that does not parse, other value", key: "broken", value: "0", want: false},
-		{name: "no default", key: "plain", value: "No", want: false},
+		{name: "no default, zero value", key: "plain", value: "No", want: true},
+		{name: "no default, other value", key: "plain", value: "Yes", want: false},
 		{name: "no default, empty value", key: "plain", value: "", want: true},
 		{name: "unknown key", key: "unknown", value: "", want: false},
 		{name: "key in another case", key: "Enabled", value: "Yes", want: true},
@@ -299,6 +300,19 @@ func TestPropKeyResolverSetDefaultPropsEmptyLists(t *testing.T) {
 	assert.Nil(t, config.Strs)
 	assert.Nil(t, config.Props)
 	assert.Nil(t, config.Pairs)
+}
+
+// TestPropKeyResolverSetDefaultPropsZeroValues verifies that keyed int, uint,
+// enum, bool, and duration fields without a default are reset to their zero
+// values, rather than failing because an empty value does not parse as them.
+func TestPropKeyResolverSetDefaultPropsZeroValues(t *testing.T) {
+	t.Parallel()
+
+	config := &testStructNoDefaults{Duration: time.Second, Signed: -1, Unsigned: 1, Level: 2, Flag: true}
+
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(nil))
+	assert.Equal(t, testStructNoDefaults{}, *config)
 }
 
 // TestPropKeyResolverUpdateConfigFromParams verifies that params set the

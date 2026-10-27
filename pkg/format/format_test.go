@@ -98,6 +98,21 @@ type testStructListDefaults struct {
 	Pairs map[string]string `key:"pairs"`
 }
 
+// testStructNoDefaults is a service config with keyed fields of the kinds an
+// empty value does not parse as, none of them with a default.
+type testStructNoDefaults struct {
+	// Duration is a keyed duration.
+	Duration time.Duration `key:"duration"`
+	// Signed is a keyed int.
+	Signed int `key:"signed"`
+	// Unsigned is a keyed uint.
+	Unsigned uint `key:"unsigned"`
+	// Level is a keyed enum.
+	Level int `key:"level"`
+	// Flag is a keyed bool.
+	Flag bool `key:"flag"`
+}
+
 // errInvalidProp is the error subPropStruct returns for a value without its
 // "@" prefix.
 var errInvalidProp = errors.New("invalid value")
@@ -254,5 +269,32 @@ func (t *testStructListDefaults) GetURL() *url.URL {
 // Returns:
 //   - error: always nil.
 func (t *testStructListDefaults) SetURL(*url.URL) error {
+	return nil
+}
+
+// Enums returns the enum formatter of the Level field.
+//
+// Returns:
+//   - map[string]types.EnumFormatter: the enum formatters by field name.
+func (t *testStructNoDefaults) Enums() map[string]types.EnumFormatter {
+	return map[string]types.EnumFormatter{"Level": testEnum}
+}
+
+// GetURL returns an empty URL. The format tests do not use it.
+//
+// Returns:
+//   - *url.URL: an empty URL.
+func (t *testStructNoDefaults) GetURL() *url.URL {
+	return &url.URL{}
+}
+
+// SetURL ignores the URL. The format tests do not use it.
+//
+// Parameters:
+//   - *url.URL: unused.
+//
+// Returns:
+//   - error: always nil.
+func (t *testStructNoDefaults) SetURL(*url.URL) error {
 	return nil
 }

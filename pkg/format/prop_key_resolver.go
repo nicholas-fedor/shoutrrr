@@ -168,7 +168,9 @@ func (pkr *PropKeyResolver) Get(key string) (string, error) {
 // IsDefault returns whether the specified key value is the default value.
 // The value matches the default as written in its tag, or as the formatter
 // prints it, so a bool default of "yes" matches "Yes" and an enum default of
-// "high" matches "High".
+// "high" matches "High". A property without a default tag, or with an empty
+// one, defaults to its zero value, as [PropKeyResolver.SetDefaultProps] sets
+// it, so "0" and "No" match it.
 //
 // Parameters:
 //   - key: the property key, matched case-insensitively.
@@ -191,9 +193,13 @@ func (pkr *PropKeyResolver) IsDefault(key, value string) bool {
 		return false
 	}
 
+	// A new config holds the zero value, which is the default when the tag is
+	// empty.
 	defaults := reflect.New(pkr.confValue.Type()).Elem()
-	if valid, err := SetConfigField(defaults, field, field.DefaultValue); !valid || err != nil {
-		return false
+	if field.DefaultValue != "" {
+		if valid, err := SetConfigField(defaults, field, field.DefaultValue); !valid || err != nil {
+			return false
+		}
 	}
 
 	formatted, err := GetConfigFieldString(defaults, field)
@@ -297,13 +303,27 @@ func (pkr *PropKeyResolver) Set(key, value string) error {
 }
 
 // SetDefaultProps mutates the provided config, setting the tagged fields with their default values.
+// A field without a default tag, or with an empty one, is set to its zero value.
 // If the provided config is nil, the internal config will be updated instead.
-// The error returned is the first error that occurred; subsequent errors are discarded.
+// The error returned is the first error that occurred. Later errors are discarded.
+//
+// Parameters:
+//   - config: the config to update, or nil for the resolver's own config.
+//
+// Returns:
+//   - error: the first error from parsing a default value.
 func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 	var firstError error
 
 	confValue := pkr.configValueOrInternal(config)
 	for key, info := range pkr.keyFields {
+		// An empty value does not parse as a number, bool, duration, or enum.
+		if info.DefaultValue == "" {
+			confValue.FieldByName(info.Name).SetZero()
+
+			continue
+		}
+
 		if err := pkr.set(confValue, key, info.DefaultValue); err != nil && firstError == nil {
 			firstError = err
 		}
