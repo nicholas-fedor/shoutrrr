@@ -22,9 +22,9 @@ import (
 const (
 	// envValueTrue is the string value for boolean true in environment variables.
 	envValueTrue = "true"
-	// defaultServiceURL is the service URL used when SHOUTRRR_NTFY_URL is unset,
-	// matching the server that docker-compose.yaml starts.
-	defaultServiceURL = "ntfy://localhost:8080/shoutrrr-e2e-test"
+	// defaultPort is the host port docker-compose.yaml publishes the server on
+	// when NTFY_PORT is unset.
+	defaultPort = "8080"
 	// healthTimeout bounds the server health check.
 	healthTimeout = 2 * time.Second
 	// sendDelay spaces the tests out to respect ntfy's rate limits.
@@ -35,7 +35,9 @@ const (
 // tests. These tests connect to a real ntfy server and verify actual behavior.
 //
 // Environment variables:
-//   - SHOUTRRR_NTFY_URL: ntfy server URL (default: ntfy://localhost:8080/shoutrrr-e2e-test)
+//   - SHOUTRRR_NTFY_URL: ntfy server URL (default: ntfy://localhost:8080/shoutrrr-e2e-test,
+//     with the port NTFY_PORT names when it is set)
+//   - NTFY_PORT: the host port of the local server (optional, default 8080)
 //   - SHOUTRRR_NTFY_USERNAME: Basic auth username (optional)
 //   - SHOUTRRR_NTFY_PASSWORD: Basic auth password (optional)
 //   - SHOUTRRR_NTFY_DISABLE_TLS: Set to "true" to use HTTP instead of HTTPS (optional)
@@ -51,6 +53,36 @@ func TestNtfyServiceID(t *testing.T) {
 
 	service := &ntfy.Service{}
 	assert.Equal(t, "ntfy", service.GetID())
+}
+
+// TestParseEnvValue verifies that .env values follow Docker Compose's rules,
+// as the other readers of the file do. An unquoted value ends at a comment
+// that follows a space. A quoted value keeps everything inside its quotes.
+func TestParseEnvValue(t *testing.T) {
+	t.Parallel()
+
+	// tests lists raw values with the value each should give.
+	tests := []struct {
+		raw  string
+		want string
+	}{
+		{raw: "18080", want: "18080"},
+		{raw: "18080 # local server", want: "18080"},
+		{raw: "18080\t# local server", want: "18080"},
+		{raw: "value# not a comment", want: "value# not a comment"},
+		{raw: `"quoted # not a comment"`, want: "quoted # not a comment"},
+		{raw: `"quoted" # comment`, want: "quoted"},
+		{raw: `'single # not a comment' # comment`, want: "single # not a comment"},
+		{raw: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, parseEnvValue(tt.raw))
+		})
+	}
 }
 
 // requireServer skips the test when the ntfy server is not reachable, then
@@ -80,6 +112,27 @@ func uniqueMessage(text string) string {
 	return fmt.Sprintf("%s %d", text, time.Now().UnixNano())
 }
 
+// serverPort returns the host port the local server is published on.
+//
+// Returns:
+//   - string: NTFY_PORT, or 8080 when it is unset.
+func serverPort() string {
+	if port := os.Getenv("NTFY_PORT"); port != "" {
+		return port
+	}
+
+	return defaultPort
+}
+
+// defaultServiceURL returns the service URL used when SHOUTRRR_NTFY_URL is
+// unset, matching the server that docker-compose.yaml starts.
+//
+// Returns:
+//   - string: the service URL for the local server's port.
+func defaultServiceURL() string {
+	return "ntfy://localhost:" + serverPort() + "/shoutrrr-e2e-test"
+}
+
 // buildServiceURL constructs the ntfy service URL from environment variables.
 //
 // Returns:
@@ -87,7 +140,7 @@ func uniqueMessage(text string) string {
 func buildServiceURL() string {
 	baseURL := os.Getenv("SHOUTRRR_NTFY_URL")
 	if baseURL == "" {
-		baseURL = defaultServiceURL
+		baseURL = defaultServiceURL()
 	}
 
 	serviceURL, err := url.Parse(baseURL)
@@ -188,14 +241,42 @@ func loadEnvFile(filename string) {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			// Remove quotes if present
-			value = strings.Trim(value, `"'`)
+
+			value := parseEnvValue(parts[1])
 			if _, exists := os.LookupEnv(key); !exists {
 				_ = os.Setenv(key, value)
 			}
 		}
 	}
+}
+
+// parseEnvValue returns the value of a .env line from the text after its "=",
+// following Docker Compose's rules so it agrees with the other readers of the
+// file. A value in single or double quotes is the text inside them, and
+// anything after the closing quote is ignored. An unquoted value ends at a "#"
+// that follows a space or a tab.
+//
+// Parameters:
+//   - raw: the text after the "=".
+//
+// Returns:
+//   - string: the value.
+func parseEnvValue(raw string) string {
+	value := strings.TrimSpace(raw)
+
+	if value != "" && (value[0] == '"' || value[0] == '\'') {
+		if end := strings.IndexByte(value[1:], value[0]); end >= 0 {
+			return value[1 : end+1]
+		}
+	}
+
+	for i := 1; i < len(value); i++ {
+		if value[i] == '#' && (value[i-1] == ' ' || value[i-1] == '\t') {
+			return strings.TrimSpace(value[:i])
+		}
+	}
+
+	return value
 }
 
 // getNtfyBaseURL returns the base URL for the ntfy server using the
@@ -206,12 +287,12 @@ func loadEnvFile(filename string) {
 func getNtfyBaseURL() string {
 	baseURL := os.Getenv("SHOUTRRR_NTFY_URL")
 	if baseURL == "" {
-		baseURL = defaultServiceURL
+		baseURL = defaultServiceURL()
 	}
 
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return "http://localhost:8080"
+		return "http://localhost:" + serverPort()
 	}
 
 	scheme := "https"

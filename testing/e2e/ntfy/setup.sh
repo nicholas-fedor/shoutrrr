@@ -22,6 +22,8 @@
 #   The script automatically loads .env file from its directory if present.
 #   Required variables:
 #     None (uses defaults: localhost:8080)
+#   Optional variables:
+#     NTFY_PORT       Host port the server is published on (default: 8080)
 #
 
 set -euo pipefail
@@ -43,7 +45,10 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yaml"
 
 # Default values
-DEFAULT_NTFY_HOST="localhost:8080"
+DEFAULT_NTFY_PORT="8080"
+
+# The server's host and port, set from NTFY_PORT once the .env file is loaded
+NTFY_HOST=""
 
 # Verbose mode
 VERBOSE=false
@@ -104,13 +109,23 @@ usage() {
     echo "  ./setup.sh --verbose setup-all  # Run with verbose output"
 }
 
-# Load environment variables from .env file
+# Load environment variables from .env file. An NTFY_PORT already in the
+# environment wins over the file's, as it does for Docker Compose and the tests.
 load_env_file() {
     if [[ -f "$ENV_FILE" ]]; then
         debug "Loading environment variables from ${ENV_FILE}"
+
+        local inherited_port="${NTFY_PORT-}"
+        local port_inherited="${NTFY_PORT+set}"
+
         set -a
         source "$ENV_FILE"
         set +a
+
+        if [[ -n "$port_inherited" ]]; then
+            NTFY_PORT="$inherited_port"
+        fi
+
         info "Loaded environment variables from ${ENV_FILE}"
     else
         debug "No .env file found at ${ENV_FILE}"
@@ -150,7 +165,7 @@ check_requirements() {
 
 # Wait for the ntfy server to be ready
 wait_for_server() {
-    local base="${1:-http://${DEFAULT_NTFY_HOST}}"
+    local base="${1:-http://${NTFY_HOST}}"
     local max_attempts="${2:-30}"
     local attempt=1
 
@@ -200,7 +215,7 @@ start_server() {
     # Start the server
     if $COMPOSE_CMD up -d; then
         info "ntfy server started successfully"
-        info "Server is available at http://${DEFAULT_NTFY_HOST}"
+        info "Server is available at http://${NTFY_HOST}"
         info "Use 'docker logs ntfy -f' to watch the logs"
     else
         error "Failed to start ntfy server"
@@ -256,7 +271,7 @@ setup_all() {
     # Step 2: Wait for server to be ready
     echo ""
     info "=== Step 2/2: Waiting for server to be ready ==="
-    wait_for_server "http://${DEFAULT_NTFY_HOST}"
+    wait_for_server "http://${NTFY_HOST}"
 
     echo ""
     info "=========================================="
@@ -276,6 +291,13 @@ setup_all() {
 
 main() {
     load_env_file
+
+    local port="${NTFY_PORT:-$DEFAULT_NTFY_PORT}"
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+        error "NTFY_PORT must be a port number from 1 to 65535, not '${port}'"
+    fi
+
+    NTFY_HOST="localhost:${port}"
 
     # Parse command-line arguments
     local command="setup-all"
