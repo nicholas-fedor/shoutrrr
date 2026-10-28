@@ -39,8 +39,11 @@ access_rules:
     allow: all
   muc:
     allow: all
+  # Rooms come only from the CTL_ON_CREATE commands, which the access rules do
+  # not limit. A join to a missing room then fails instead of creating an open
+  # room under the expected name.
   muc_create:
-    allow: local
+    deny: all
 
 modules:
   mod_disco: {}

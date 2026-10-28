@@ -28,10 +28,16 @@ services:
     volumes:
       - ./ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml:ro
       - ./certs/server.pem:/opt/ejabberd/conf/server.pem:ro
+    # Healthy once the CTL_ON_CREATE commands have run. Making the secret room
+    # password-protected is the last of them, and a test that starts earlier
+    # can find an account missing or join a room before it is protected.
     healthcheck:
-      test: ["CMD", "ejabberdctl", "status"]
+      test: ["CMD-SHELL", "ejabberdctl get_room_options secret conference.localhost | grep -q '^password_protected.true'"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 20s
+      start_period: 60s
+      # Engines older than Docker Engine 25 ignore start_interval and check at
+      # the 10s interval during the start period instead.
+      start_interval: 1s
     restart: unless-stopped
