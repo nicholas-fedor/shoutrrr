@@ -43,7 +43,8 @@ Specialized generator for OAuth2 authentication in SMTP services.
 - Prints an authorization URL and exchanges the code the provider returns for tokens, with PKCE.
 - Receives the browser's redirect on a local server when the redirect URL is on the loopback interface, such as `http://127.0.0.1` or `http://localhost`, and picks a free port when the URL names none.
 - Accepts the redirect address or the code pasted on the terminal instead, for a browser on another machine or a redirect URL elsewhere.
-- Uses a loopback redirect on `127.0.0.1` with the `gmail` provider when the credentials file names the out-of-band redirect, which Google rejects.
+- Uses a loopback redirect on `127.0.0.1` with the `gmail` provider when the credentials file's first redirect is empty or the out-of-band one, which Google rejects.
+- Falls back to the paste prompt when it cannot listen on a loopback redirect's address, for example because another program holds its port.
 - Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service [gets a current access token](../../../services/email/smtp/index.md#oauth2-token-refresh) for each send.
 - Requests offline access with the consent prompt from Google with the `gmail` provider, so Google can return a refresh token.
 - Falls back to the access token as the password when the provider returns no refresh token, and warns that the URL stops working when that token expires.

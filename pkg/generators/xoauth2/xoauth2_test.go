@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -786,6 +787,39 @@ func TestLoopbackRedirectOutcomes(t *testing.T) {
 
 		require.ErrorIs(t, flow.result(t).err, context.Canceled)
 	})
+}
+
+// TestLoopbackListenFailure verifies that a loopback redirect whose port is
+// taken falls back to the paste flow. The user is told why, the configured
+// redirect is kept, and a pasted address with the flow's state completes it.
+func TestLoopbackListenFailure(t *testing.T) {
+	t.Parallel()
+
+	var listenConfig net.ListenConfig
+
+	taken, err := listenConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = taken.Close() })
+
+	redirect := "http://" + taken.Addr().String() + "/callback"
+	endpoint, tokenURL := newTokenServer(t, http.StatusOK, refreshBody)
+	flow := startRunOAuth2Flow(t, t.Context(), newTestConfig(tokenURL, redirect))
+
+	auth := flow.authRequest(t)
+	output := flow.waitFor(t, "Enter the verification code")
+	assert.Contains(t, output, "Cannot receive the browser's redirect")
+	assert.Equal(t, redirect, auth.Get("redirect_uri"))
+
+	flow.send(redirect + "?" + redirectQuery(auth.Get("state"), "code", testCode).Encode())
+	flow.waitFor(t, "Enter sender e-mail")
+	flow.send(testSender)
+
+	result := flow.result(t)
+	require.NoError(t, result.err)
+	assert.Equal(t, testCode, endpoint.lastForm().Get("code"))
+	assert.Equal(t, redirect, endpoint.lastForm().Get("redirect_uri"))
+	requirePKCE(t, auth, endpoint.lastForm())
 }
 
 // TestGenerateGmailLoopback verifies that the gmail provider replaces the

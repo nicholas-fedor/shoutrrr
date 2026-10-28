@@ -81,8 +81,9 @@ const (
 	// redirect's response to finish after the code arrived.
 	callbackShutdownTimeout = 5 * time.Second
 	// googleLoopbackRedirect is the redirect a Google credentials file is
-	// given when it names the copy and paste (out-of-band) redirect, which
-	// Google rejects. The port is chosen when the server starts.
+	// given when its first redirect is empty or the copy and paste
+	// (out-of-band) one, which Google rejects. The port is chosen when the
+	// server starts.
 	googleLoopbackRedirect = "http://127.0.0.1"
 	// successPage is the page the browser shows after a successful redirect.
 	successPage = "<!doctype html><title>Shoutrrr</title>" +
@@ -116,6 +117,9 @@ var (
 	// ErrNoAuthorizationCode indicates a pasted redirect address without a
 	// code.
 	ErrNoAuthorizationCode = errors.New("the redirect address has no authorization code")
+	// errLoopbackListen indicates that the local server could not listen on
+	// the loopback redirect's address, so the flow asks for a pasted address.
+	errLoopbackListen = errors.New("listening on the redirect's address")
 )
 
 // Generate generates a service URL from a set of user questions/answers.
@@ -218,7 +222,8 @@ func newLineReader(input io.Reader) *lineReader {
 // local server receives a loopback redirect such as http://127.0.0.1 on that
 // address. It picks a free port when the address names none. For a browser on
 // another machine, the user can paste the address the browser was sent to.
-// Pasting the code the browser shows works too. Any other redirect is pasted.
+// Pasting the code the browser shows works too. Any other redirect is pasted,
+// and so is a loopback redirect whose address the server cannot listen on.
 //
 // The configuration holds the refresh token and the client settings, so the
 // SMTP service can get a current access token for each send. A provider that
@@ -263,9 +268,21 @@ func runOAuth2Flow(
 		err  error
 	)
 
-	if redirect, ok := loopbackRedirect(flowConf.RedirectURL); ok {
+	redirect, loopback := loopbackRedirect(flowConf.RedirectURL)
+	if loopback {
 		code, err = authorizeLoopback(ctx, &flowConf, redirect, state, lines, output, opts)
-	} else {
+	}
+
+	if errors.Is(err, errLoopbackListen) {
+		// The redirect's port may be taken, or the loopback interface may be
+		// unavailable. Pasting the address still works, and the redirect is
+		// unchanged, since the server never started.
+		if _, writeErr := fmt.Fprintf(output, "Cannot receive the browser's redirect, so paste its address instead (%v).\n", err); writeErr != nil {
+			return nil, fmt.Errorf("writing to output: %w", writeErr)
+		}
+	}
+
+	if !loopback || errors.Is(err, errLoopbackListen) {
 		code, err = authorizePaste(&flowConf, state, lines, output, opts)
 	}
 
@@ -594,7 +611,8 @@ func loopbackRedirect(redirectURL string) (*url.URL, bool) {
 // Returns:
 //   - []net.Listener: the listeners.
 //   - string: the port they listen on.
-//   - error: the error from listening on the first address.
+//   - error: errLoopbackListen with the error from listening on the first
+//     address.
 func listenLoopback(ctx context.Context, redirect *url.URL) ([]net.Listener, string, error) {
 	hosts := []string{redirect.Hostname()}
 	if strings.EqualFold(hosts[0], "localhost") {
@@ -610,7 +628,7 @@ func listenLoopback(ctx context.Context, redirect *url.URL) ([]net.Listener, str
 
 	first, err := listenConfig.Listen(ctx, "tcp", net.JoinHostPort(hosts[0], port))
 	if err != nil {
-		return nil, "", fmt.Errorf("listening for the browser's redirect: %w", err)
+		return nil, "", fmt.Errorf("%w: %w", errLoopbackListen, err)
 	}
 
 	_, port, err = net.SplitHostPort(first.Addr().String())
@@ -834,7 +852,8 @@ func oauth2GeneratorFile(ctx context.Context, file string, lines *lineReader, ou
 //
 // Older Google desktop credentials name the copy and paste (out-of-band)
 // redirect first. Google rejects that redirect, so such a file is given a
-// loopback redirect on 127.0.0.1 instead.
+// loopback redirect on 127.0.0.1 instead. A file whose first redirect is empty
+// gets it too.
 //
 // Parameters:
 //   - ctx: bounds the authorization.
