@@ -40,7 +40,10 @@ The default generator that dynamically prompts for service configuration fields.
 Specialized generator for OAuth2 authentication in SMTP services.
 
 - Supports JSON credential files (specified as a positional argument after the service and generator) or interactive prompts for details like Client ID, Client Secret, and Auth URL. The `gmail` provider requires a credentials file.
-- Generates an authentication URL and exchanges the verification code for tokens.
+- Prints an authorization URL and exchanges the code the provider returns for tokens, with PKCE.
+- Receives the browser's redirect on a local server when the redirect URL is on the loopback interface, such as `http://127.0.0.1` or `http://localhost`, and picks a free port when the URL names none.
+- Accepts the redirect address or the code pasted on the terminal instead, for a browser on another machine or a redirect URL elsewhere.
+- Uses a loopback redirect on `127.0.0.1` with the `gmail` provider when the credentials file names the out-of-band redirect, which Google rejects.
 - Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service [gets a current access token](../../../services/email/smtp/index.md#oauth2-token-refresh) for each send.
 - Requests offline access with the consent prompt from Google with the `gmail` provider, so Google can return a refresh token.
 - Falls back to the access token as the password when the provider returns no refresh token, and warns that the URL stops working when that token expires.
@@ -165,9 +168,11 @@ Use this flag to view the full URL, including sensitive fields like tokens or pa
     ```text
     Generating URL for smtp using oauth2 generator
 
-    Visit the following URL to authenticate:
+    Open the following URL in a browser to authorize Shoutrrr:
     https://accounts.google.com/o/oauth2/auth?...
-    Enter verification code: 4/0AX4Xf...
+
+    Waiting for the browser to return to http://127.0.0.1:53682.
+    For a browser on another machine, paste the address it was sent to or the code it shows:
     Enter sender e-mail: user@example.com
     ```
 
