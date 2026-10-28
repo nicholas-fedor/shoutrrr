@@ -34,7 +34,10 @@ var generatorMap = map[string]func(config generatorConfig) types.Generator{
 		}
 	},
 	"oauth2": func(config generatorConfig) types.Generator {
-		return &xoauth2.Generator{}
+		return &xoauth2.Generator{
+			Input:  config.input,
+			Output: nil,
+		}
 	},
 	"telegram": func(config generatorConfig) types.Generator {
 		return &telegram.Generator{

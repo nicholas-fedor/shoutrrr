@@ -10,6 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -23,7 +26,31 @@ import (
 )
 
 // Generator is the XOAuth2 Generator implementation.
-type Generator struct{}
+type Generator struct {
+	// Input is the reader the answers are read from. Nil reads os.Stdin.
+	Input io.Reader
+	// Output is the writer the prompts go to. Nil writes to os.Stdout.
+	Output io.Writer
+}
+
+// lineReader reads the input one line at a time in its own goroutine, so the
+// flow can wait for a pasted line and for the browser's redirect at once. One
+// lineReader serves every prompt of a generation, so no prompt loses lines
+// that another read ahead.
+type lineReader struct {
+	// lines receives each input line, and is closed when the input ends.
+	lines chan string
+	// done is closed when the generation ends, so a pending send gives up.
+	done chan struct{}
+}
+
+// authResult is the outcome of the authorization step.
+type authResult struct {
+	// err is the reason the authorization failed, or nil.
+	err error
+	// code is the authorization code, when err is nil.
+	code string
+}
 
 // SMTP port constants.
 const (
@@ -45,6 +72,27 @@ const (
 	smtpTimeout = 10 * time.Second
 )
 
+// Settings of the local server that receives the browser's redirect.
+const (
+	// callbackReadHeaderTimeout bounds how long the server waits for a
+	// request's headers.
+	callbackReadHeaderTimeout = 10 * time.Second
+	// callbackShutdownTimeout bounds how long the server waits for the
+	// redirect's response to finish after the code arrived.
+	callbackShutdownTimeout = 5 * time.Second
+	// googleLoopbackRedirect is the redirect a Google credentials file is
+	// given when its first redirect is empty or the copy and paste
+	// (out-of-band) one, which Google rejects. The port is chosen when the
+	// server starts.
+	googleLoopbackRedirect = "http://127.0.0.1"
+	// successPage is the page the browser shows after a successful redirect.
+	successPage = "<!doctype html><title>Shoutrrr</title>" +
+		"<p>Authorization complete. You can close this window and return to the terminal.</p>"
+	// deniedPage is the page the browser shows when authorization was denied.
+	deniedPage = "<!doctype html><title>Shoutrrr</title>" +
+		"<p>Authorization was not granted. Return to the terminal for details.</p>"
+)
+
 // Errors returned while generating the configuration.
 var (
 	// ErrReadFileFailed indicates that a settings or credentials file could not
@@ -60,6 +108,18 @@ var (
 	// ErrCredentialsFileRequired indicates that the gmail provider was selected
 	// without a credentials file argument.
 	ErrCredentialsFileRequired = errors.New("the gmail provider needs a credentials file argument")
+	// ErrAuthorizationDenied indicates that the provider redirected with an
+	// error, such as access_denied when the user declined.
+	ErrAuthorizationDenied = errors.New("authorization was not granted")
+	// ErrStateMismatch indicates a pasted redirect address whose state is not
+	// the one this flow sent, so it may come from another authorization.
+	ErrStateMismatch = errors.New("the redirect address belongs to another authorization")
+	// ErrNoAuthorizationCode indicates a pasted redirect address without a
+	// code.
+	ErrNoAuthorizationCode = errors.New("the redirect address has no authorization code")
+	// errLoopbackListen indicates that the local server could not listen on
+	// the loopback redirect's address, so the flow asks for a pasted address.
+	errLoopbackListen = errors.New("listening on the redirect's address")
 )
 
 // Generate generates a service URL from a set of user questions/answers.
@@ -75,47 +135,95 @@ var (
 // Returns:
 //   - types.ServiceConfig: the SMTP configuration.
 //   - error: [ErrCredentialsFileRequired], a file error wrapping [ErrReadFileFailed]
-//     or [ErrUnmarshalFailed], or an input or token exchange error.
+//     or [ErrUnmarshalFailed], or an input, authorization, or token exchange error.
 func (g *Generator) Generate(
 	_ types.Service,
 	props map[string]string,
 	args []string,
 ) (types.ServiceConfig, error) {
-	if provider, found := props["provider"]; found {
-		if provider == "gmail" {
-			if len(args) == 0 {
-				return nil, ErrCredentialsFileRequired
-			}
+	input := g.Input
+	if input == nil {
+		input = os.Stdin
+	}
 
-			return oauth2GeneratorGmail(args[0])
-		}
+	output := g.Output
+	if output == nil {
+		output = os.Stdout
+	}
+
+	gmail := props["provider"] == "gmail"
+	if gmail && len(args) == 0 {
+		return nil, ErrCredentialsFileRequired
+	}
+
+	lines := newLineReader(input)
+	defer lines.stop()
+
+	ctx := context.Background()
+
+	if gmail {
+		return oauth2GeneratorGmail(ctx, args[0], lines, output)
 	}
 
 	if len(args) > 0 {
-		return oauth2GeneratorFile(args[0])
+		return oauth2GeneratorFile(ctx, args[0], lines, output)
 	}
 
-	return oauth2Generator()
+	return oauth2Generator(ctx, lines, output)
 }
 
-// generateOauth2Config completes the OAuth2 flow on the terminal and generates
-// the SMTP configuration.
-//
-// Parameters:
-//   - conf: the provider's OAuth2 settings.
-//   - host: the SMTP server host.
-//   - opts: extra parameters for the authorization URL, such as Google's
-//     offline access.
+// next returns the next input line.
 //
 // Returns:
-//   - *smtp.Config: the SMTP configuration.
-//   - error: an input or token exchange error.
-func generateOauth2Config(conf *oauth2.Config, host string, opts ...oauth2.AuthCodeOption) (*smtp.Config, error) {
-	return runOAuth2Flow(context.Background(), conf, host, os.Stdin, os.Stdout, opts...)
+//   - string: the line, without its line ending.
+//   - bool: false when the input has ended.
+func (l *lineReader) next() (string, bool) {
+	line, ok := <-l.lines
+
+	return line, ok
+}
+
+// stop ends the generation's use of the reader. A read that is still pending
+// on the input stays blocked until the input delivers a line or ends.
+func (l *lineReader) stop() {
+	close(l.done)
+}
+
+// newLineReader starts reading input one line at a time.
+//
+// Parameters:
+//   - input: the reader the lines come from.
+//
+// Returns:
+//   - *lineReader: the reader.
+func newLineReader(input io.Reader) *lineReader {
+	reader := &lineReader{lines: make(chan string), done: make(chan struct{})}
+
+	go func() {
+		defer close(reader.lines)
+
+		scanner := bufio.NewScanner(input)
+		for scanner.Scan() {
+			select {
+			case reader.lines <- scanner.Text():
+			case <-reader.done:
+				return
+			}
+		}
+	}()
+
+	return reader
 }
 
 // runOAuth2Flow asks the user to authorize Shoutrrr, exchanges the code for
 // tokens, and generates the SMTP configuration.
+//
+// Every authorization uses PKCE with an S256 challenge and a random state. A
+// local server receives a loopback redirect such as http://127.0.0.1 on that
+// address. It picks a free port when the address names none. For a browser on
+// another machine, the user can paste the address the browser was sent to.
+// Pasting the code the browser shows works too. Any other redirect is pasted,
+// and so is a loopback redirect whose address the server cannot listen on.
 //
 // The configuration holds the refresh token and the client settings, so the
 // SMTP service can get a current access token for each send. A provider that
@@ -123,71 +231,74 @@ func generateOauth2Config(conf *oauth2.Config, host string, opts ...oauth2.AuthC
 // until it expires, and the user is warned.
 //
 // Parameters:
-//   - ctx: bounds the token exchange.
-//   - conf: the provider's OAuth2 settings.
+//   - ctx: bounds the wait for the redirect and the token exchange.
+//   - conf: the provider's OAuth2 settings. It is not changed.
 //   - host: the SMTP server host.
-//   - input: the user's answers: the verification code, then the sender.
+//   - lines: the user's answers: a pasted code or address, then the sender.
 //   - output: receives the prompts and the warning.
 //   - opts: extra parameters for the authorization URL.
 //
 // Returns:
 //   - *smtp.Config: the SMTP configuration.
-//   - error: an input error wrapping [ErrScanFailed], or an error wrapping
-//     [ErrTokenExchangeFailed] and the provider's error.
+//   - error: an input error wrapping [ErrScanFailed], [ErrAuthorizationDenied],
+//     [ErrStateMismatch], [ErrNoAuthorizationCode], a local server error, or an
+//     error wrapping [ErrTokenExchangeFailed] and the provider's error.
 func runOAuth2Flow(
 	ctx context.Context,
 	conf *oauth2.Config,
 	host string,
-	input io.Reader,
+	lines *lineReader,
 	output io.Writer,
 	opts ...oauth2.AuthCodeOption,
 ) (*smtp.Config, error) {
-	scanner := bufio.NewScanner(input)
-
-	// Generate a random state value
 	stateBytes := make([]byte, StateLength)
 	if _, err := rand.Read(stateBytes); err != nil {
 		return nil, fmt.Errorf("generating random state: %w", err)
 	}
 
-	state := base64.URLEncoding.EncodeToString(stateBytes)
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+	verifier := oauth2.GenerateVerifier()
+	opts = append(opts, oauth2.S256ChallengeOption(verifier))
 
-	if _, err := fmt.Fprintf(
-		output,
-		"Visit the following URL to authenticate:\n%s\n\n",
-		conf.AuthCodeURL(state, opts...),
-	); err != nil {
-		return nil, fmt.Errorf("writing to output: %w", err)
+	// The loopback flow sets the redirect's port, so it works on a copy.
+	flowConf := *conf
+
+	var (
+		code string
+		err  error
+	)
+
+	redirect, loopback := loopbackRedirect(flowConf.RedirectURL)
+	if loopback {
+		code, err = authorizeLoopback(ctx, &flowConf, redirect, state, lines, output, opts)
 	}
 
-	var verCode string
-
-	if _, err := fmt.Fprint(output, "Enter verification code: "); err != nil {
-		return nil, fmt.Errorf("writing to output: %w", err)
+	if errors.Is(err, errLoopbackListen) {
+		// The redirect's port may be taken, or the loopback interface may be
+		// unavailable. Pasting the address still works, and the redirect is
+		// unchanged, since the server never started.
+		if _, writeErr := fmt.Fprintf(output, "Cannot receive the browser's redirect, so paste its address instead (%v).\n", err); writeErr != nil {
+			return nil, fmt.Errorf("writing to output: %w", writeErr)
+		}
 	}
 
-	if scanner.Scan() {
-		verCode = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("verification code: %w", ErrScanFailed)
+	if !loopback || errors.Is(err, errLoopbackListen) {
+		code, err = authorizePaste(&flowConf, state, lines, output, opts)
 	}
 
-	token, err := conf.Exchange(ctx, verCode)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := flowConf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		// The verification code is a credential, so the error leaves it out.
 		return nil, fmt.Errorf("%w: %w", ErrTokenExchangeFailed, err)
 	}
 
-	var sender string
-
-	if _, err := fmt.Fprint(output, "Enter sender e-mail: "); err != nil {
-		return nil, fmt.Errorf("writing to output: %w", err)
-	}
-
-	if scanner.Scan() {
-		sender = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("sender email: %w", ErrScanFailed)
+	sender, err := ask(lines, output, "Enter sender e-mail: ", "sender email")
+	if err != nil {
+		return nil, err
 	}
 
 	if token.RefreshToken == "" {
@@ -196,7 +307,372 @@ func runOAuth2Flow(
 		}
 	}
 
-	return newSMTPConfig(conf, token, host, sender), nil
+	return newSMTPConfig(&flowConf, token, host, sender), nil
+}
+
+// authorizeLoopback receives the authorization code on a local server at the
+// loopback redirect, or from a pasted line, whichever comes first.
+//
+// The server answers a request for another path with 404 Not Found. It answers
+// a request with another state with an error page. It does the same for a
+// request without a code or an error. The server keeps waiting after each of
+// these, so a stray or forged request cannot end the flow. Empty pasted lines
+// are ignored. Input that ends fails the flow, because the sender's address is
+// read from it afterward.
+//
+// Parameters:
+//   - ctx: bounds the wait.
+//   - conf: the flow's OAuth2 settings, whose redirect gets the server's port.
+//   - redirect: the loopback redirect.
+//   - state: the state sent with the authorization request.
+//   - lines: the user's input, which may paste the address or the code.
+//   - output: receives the authorization URL and the instructions.
+//   - opts: the authorization URL parameters.
+//
+// Returns:
+//   - string: the authorization code.
+//   - error: a local server error, [ErrAuthorizationDenied], a pasted address
+//     error, an input error wrapping [ErrScanFailed], or ctx's error.
+func authorizeLoopback(
+	ctx context.Context,
+	conf *oauth2.Config,
+	redirect *url.URL,
+	state string,
+	lines *lineReader,
+	output io.Writer,
+	opts []oauth2.AuthCodeOption,
+) (string, error) {
+	listeners, port, err := listenLoopback(ctx, redirect)
+	if err != nil {
+		return "", err
+	}
+
+	bound := *redirect
+	bound.Host = net.JoinHostPort(redirect.Hostname(), port)
+	conf.RedirectURL = bound.String()
+
+	path := bound.Path
+	if path == "" {
+		path = "/"
+	}
+
+	results := make(chan authResult, 1)
+
+	//nolint:exhaustruct_v5 // The other server settings keep their defaults.
+	server := &http.Server{Handler: callbackHandler(path, state, results), ReadHeaderTimeout: callbackReadHeaderTimeout}
+
+	for _, listener := range listeners {
+		go func() {
+			if err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+				sendResult(results, authResult{err: fmt.Errorf("receiving the browser's redirect: %w", err), code: ""})
+			}
+		}()
+	}
+
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), callbackShutdownTimeout)
+		defer cancel()
+
+		// The code has arrived or the flow failed, so a slow redirect response
+		// is cut off rather than reported.
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+		}
+	}()
+
+	if _, err := fmt.Fprintf(
+		output,
+		"Open the following URL in a browser to authorize Shoutrrr:\n%s\n\n"+
+			"Waiting for the browser to return to %s.\n"+
+			"For a browser on another machine, paste the address it was sent to or the code it shows: ",
+		conf.AuthCodeURL(state, opts...),
+		conf.RedirectURL,
+	); err != nil {
+		return "", fmt.Errorf("writing to output: %w", err)
+	}
+
+	for {
+		select {
+		case result := <-results:
+			// The prompt for a pasted line is still open, so the next prompt
+			// starts on its own line.
+			if _, err := fmt.Fprintln(output); err != nil {
+				return "", fmt.Errorf("writing to output: %w", err)
+			}
+
+			return result.code, result.err
+		case line, ok := <-lines.lines:
+			if !ok {
+				// The sender's address is read from the same input after the
+				// code, so the flow cannot complete without more input.
+				return "", fmt.Errorf("verification code: %w", ErrScanFailed)
+			}
+
+			if strings.TrimSpace(line) == "" {
+				// An empty line, such as Enter pressed while waiting, keeps
+				// the wait for the browser.
+				continue
+			}
+
+			return parsePasted(line, state)
+		case <-ctx.Done():
+			return "", fmt.Errorf("waiting for the browser: %w", ctx.Err())
+		}
+	}
+}
+
+// authorizePaste asks the user to paste the code or the address the browser
+// was sent to after authorizing.
+//
+// Parameters:
+//   - conf: the flow's OAuth2 settings.
+//   - state: the state sent with the authorization request.
+//   - lines: the user's input.
+//   - output: receives the authorization URL and the prompt.
+//   - opts: the authorization URL parameters.
+//
+// Returns:
+//   - string: the authorization code.
+//   - error: an input error wrapping [ErrScanFailed], or a pasted address error.
+func authorizePaste(
+	conf *oauth2.Config,
+	state string,
+	lines *lineReader,
+	output io.Writer,
+	opts []oauth2.AuthCodeOption,
+) (string, error) {
+	if _, err := fmt.Fprintf(
+		output,
+		"Visit the following URL to authorize Shoutrrr:\n%s\n\n",
+		conf.AuthCodeURL(state, opts...),
+	); err != nil {
+		return "", fmt.Errorf("writing to output: %w", err)
+	}
+
+	line, err := ask(lines, output, "Enter the verification code, or the address the browser was sent to: ", "verification code")
+	if err != nil {
+		return "", err
+	}
+
+	return parsePasted(line, state)
+}
+
+// callbackHandler answers the browser's redirect and passes the first valid
+// outcome to results. It compares the request's path with the redirect's
+// path as plain text, so any path the redirect URL names works.
+//
+// Parameters:
+//   - path: the redirect's path.
+//   - state: the state sent with the authorization request.
+//   - results: receives the code or the provider's error, once.
+//
+// Returns:
+//   - http.Handler: the handler.
+func callbackHandler(path, state string, results chan<- authResult) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != path {
+			http.NotFound(w, r)
+
+			return
+		}
+
+		query := r.URL.Query()
+		if query.Get("state") != state {
+			http.Error(w, "This address belongs to another authorization.", http.StatusBadRequest)
+
+			return
+		}
+
+		code, err := authorizationCode(query)
+		if errors.Is(err, ErrNoAuthorizationCode) {
+			http.Error(w, "This address has no authorization code.", http.StatusBadRequest)
+
+			return
+		}
+
+		// The outcome goes to the flow before the page is written, so a browser
+		// that left or reads slowly cannot hold it back.
+		sendResult(results, authResult{err: err, code: code})
+
+		page := successPage
+		if err != nil {
+			page = deniedPage
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		if _, writeErr := io.WriteString(w, page); writeErr != nil {
+			// The browser left before the page arrived, which changes nothing.
+			return
+		}
+	})
+}
+
+// sendResult passes result to results unless it already holds one, so only
+// the first outcome counts.
+//
+// Parameters:
+//   - results: the channel, with room for one result.
+//   - result: the outcome.
+func sendResult(results chan<- authResult, result authResult) {
+	select {
+	case results <- result:
+	default:
+	}
+}
+
+// parsePasted reads a pasted line as the address the browser was sent to, or
+// as the code itself when it is not an address with a query.
+//
+// Parameters:
+//   - line: the pasted line.
+//   - state: the state sent with the authorization request.
+//
+// Returns:
+//   - string: the authorization code.
+//   - error: [ErrStateMismatch] for an address with another state, or the
+//     error from reading the address's code.
+func parsePasted(line, state string) (string, error) {
+	line = strings.TrimSpace(line)
+
+	address, err := url.Parse(line)
+	if err != nil {
+		return line, nil //nolint:nilerr // A line that is not an address is the code itself.
+	}
+
+	if address.Scheme == "" || address.RawQuery == "" {
+		return line, nil
+	}
+
+	query := address.Query()
+	if query.Get("state") != state {
+		return "", ErrStateMismatch
+	}
+
+	return authorizationCode(query)
+}
+
+// authorizationCode reads the outcome of an authorization from the query of
+// the redirect.
+//
+// Parameters:
+//   - query: the redirect's query.
+//
+// Returns:
+//   - string: the authorization code.
+//   - error: [ErrAuthorizationDenied] with the provider's error, or
+//     [ErrNoAuthorizationCode].
+func authorizationCode(query url.Values) (string, error) {
+	if reason := query.Get("error"); reason != "" {
+		return "", fmt.Errorf("%w: %s", ErrAuthorizationDenied, reason)
+	}
+
+	code := query.Get("code")
+	if code == "" {
+		return "", ErrNoAuthorizationCode
+	}
+
+	return code, nil
+}
+
+// loopbackRedirect reports whether a redirect URL is an HTTP address on the
+// loopback interface, which a local server can receive.
+//
+// Parameters:
+//   - redirectURL: the configured redirect URL.
+//
+// Returns:
+//   - *url.URL: the parsed redirect.
+//   - bool: whether it is a loopback redirect.
+func loopbackRedirect(redirectURL string) (*url.URL, bool) {
+	redirect, err := url.Parse(redirectURL)
+	if err != nil || redirect.Scheme != "http" {
+		return nil, false
+	}
+
+	// Host names are case-insensitive, and url.Parse keeps the case it is given.
+	switch strings.ToLower(redirect.Hostname()) {
+	case "localhost", "127.0.0.1", "::1":
+		return redirect, true
+	default:
+		return nil, false
+	}
+}
+
+// listenLoopback listens on the redirect's address. Without a port, it picks a
+// free one. A browser may resolve localhost to 127.0.0.1 or ::1. So for
+// localhost it listens on 127.0.0.1 and also on ::1 with the same port where
+// IPv6 is available.
+//
+// Parameters:
+//   - ctx: bounds setting up the listeners.
+//   - redirect: the loopback redirect.
+//
+// Returns:
+//   - []net.Listener: the listeners.
+//   - string: the port they listen on.
+//   - error: errLoopbackListen with the error from listening on the first
+//     address.
+func listenLoopback(ctx context.Context, redirect *url.URL) ([]net.Listener, string, error) {
+	hosts := []string{redirect.Hostname()}
+	if strings.EqualFold(hosts[0], "localhost") {
+		hosts = []string{"127.0.0.1", "::1"}
+	}
+
+	port := redirect.Port()
+	if port == "" {
+		port = "0"
+	}
+
+	var listenConfig net.ListenConfig
+
+	first, err := listenConfig.Listen(ctx, "tcp", net.JoinHostPort(hosts[0], port))
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %w", errLoopbackListen, err)
+	}
+
+	_, port, err = net.SplitHostPort(first.Addr().String())
+	if err != nil {
+		_ = first.Close()
+
+		return nil, "", fmt.Errorf("reading the redirect server's port: %w", err)
+	}
+
+	listeners := []net.Listener{first}
+
+	for _, host := range hosts[1:] {
+		// IPv6 may be unavailable, and the first address is enough then.
+		if listener, err := listenConfig.Listen(ctx, "tcp", net.JoinHostPort(host, port)); err == nil {
+			listeners = append(listeners, listener)
+		}
+	}
+
+	return listeners, port, nil
+}
+
+// ask writes a prompt and reads the answer.
+//
+// Parameters:
+//   - lines: the user's input.
+//   - output: receives the prompt.
+//   - prompt: the prompt.
+//   - field: the answer's name, for the error.
+//
+// Returns:
+//   - string: the answer.
+//   - error: an output error, or an error wrapping [ErrScanFailed] when the
+//     input has ended.
+func ask(lines *lineReader, output io.Writer, prompt, field string) (string, error) {
+	if _, err := fmt.Fprint(output, prompt); err != nil {
+		return "", fmt.Errorf("writing to output: %w", err)
+	}
+
+	answer, ok := lines.next()
+	if !ok {
+		return "", fmt.Errorf("%s: %w", field, ErrScanFailed)
+	}
+
+	return answer, nil
 }
 
 // newSMTPConfig builds the SMTP configuration for an authorized sender.
@@ -266,123 +742,70 @@ func noRefreshTokenWarning(token *oauth2.Token) string {
 
 // oauth2Generator generates OAuth2 configuration from user input.
 //
+// Parameters:
+//   - ctx: bounds the authorization.
+//   - lines: the user's answers.
+//   - output: receives the prompts.
+//
 // Returns:
 //   - *smtp.Config: the SMTP configuration.
 //   - error: an output error, an error wrapping [ErrScanFailed] when input
-//     ends early, or a token exchange error.
-func oauth2Generator() (*smtp.Config, error) {
-	scanner := bufio.NewScanner(os.Stdin)
-
-	var clientID string
-
-	if _, err := fmt.Fprint(os.Stdout, "ClientID: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
+//     ends early, or an authorization or token exchange error.
+func oauth2Generator(ctx context.Context, lines *lineReader, output io.Writer) (*smtp.Config, error) {
+	// questions lists the settings asked for, in order, with their prompts.
+	questions := []struct {
+		prompt string
+		field  string
+	}{
+		{prompt: "ClientID: ", field: "clientID"},
+		{prompt: "ClientSecret: ", field: "clientSecret"},
+		{prompt: "AuthURL: ", field: "authURL"},
+		{prompt: "TokenURL: ", field: "tokenURL"},
+		{prompt: "RedirectURL: ", field: "redirectURL"},
+		{prompt: "Scopes: ", field: "scopes"},
+		{prompt: "SMTP Hostname: ", field: "hostname"},
 	}
 
-	if scanner.Scan() {
-		clientID = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("clientID: %w", ErrScanFailed)
-	}
+	answers := make([]string, len(questions))
 
-	var clientSecret string
+	for i, question := range questions {
+		answer, err := ask(lines, output, question.prompt, question.field)
+		if err != nil {
+			return nil, err
+		}
 
-	if _, err := fmt.Fprint(os.Stdout, "ClientSecret: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		clientSecret = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("clientSecret: %w", ErrScanFailed)
-	}
-
-	var authURL string
-
-	if _, err := fmt.Fprint(os.Stdout, "AuthURL: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		authURL = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("authURL: %w", ErrScanFailed)
-	}
-
-	var tokenURL string
-
-	if _, err := fmt.Fprint(os.Stdout, "TokenURL: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		tokenURL = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("tokenURL: %w", ErrScanFailed)
-	}
-
-	var redirectURL string
-
-	if _, err := fmt.Fprint(os.Stdout, "RedirectURL: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		redirectURL = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("redirectURL: %w", ErrScanFailed)
-	}
-
-	var scopes string
-
-	if _, err := fmt.Fprint(os.Stdout, "Scopes: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		scopes = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("scopes: %w", ErrScanFailed)
-	}
-
-	var hostname string
-
-	if _, err := fmt.Fprint(os.Stdout, "SMTP Hostname: "); err != nil {
-		return nil, fmt.Errorf("writing to stdout: %w", err)
-	}
-
-	if scanner.Scan() {
-		hostname = scanner.Text()
-	} else {
-		return nil, fmt.Errorf("hostname: %w", ErrScanFailed)
+		answers[i] = answer
 	}
 
 	conf := oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ClientID:     answers[0],
+		ClientSecret: answers[1],
 
 		Endpoint: oauth2.Endpoint{
-			AuthURL:   authURL,
-			TokenURL:  tokenURL,
+			AuthURL:   answers[2],
+			TokenURL:  answers[3],
 			AuthStyle: oauth2.AuthStyleAutoDetect,
 		},
-		RedirectURL: redirectURL,
-		Scopes:      strings.Split(scopes, ","),
+		RedirectURL: answers[4],
+		Scopes:      strings.Split(answers[5], ","),
 	}
 
-	return generateOauth2Config(&conf, hostname)
+	return runOAuth2Flow(ctx, &conf, answers[6], lines, output)
 }
 
 // oauth2GeneratorFile generates OAuth2 configuration from a JSON file.
 //
 // Parameters:
+//   - ctx: bounds the authorization.
 //   - file: the path of the JSON file with the provider's OAuth2 settings.
+//   - lines: the user's answers.
+//   - output: receives the prompts.
 //
 // Returns:
 //   - *smtp.Config: the SMTP configuration.
 //   - error: a file error wrapping [ErrReadFileFailed] or [ErrUnmarshalFailed] and
-//     the underlying error, or an input or token exchange error.
-func oauth2GeneratorFile(file string) (*smtp.Config, error) {
+//     the underlying error, or an input, authorization, or token exchange error.
+func oauth2GeneratorFile(ctx context.Context, file string, lines *lineReader, output io.Writer) (*smtp.Config, error) {
 	jsonData, err := os.ReadFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w: %w", file, ErrReadFileFailed, err)
@@ -422,19 +845,27 @@ func oauth2GeneratorFile(file string) (*smtp.Config, error) {
 		Scopes:      providerConfig.Scopes,
 	}
 
-	return generateOauth2Config(&conf, providerConfig.Hostname)
+	return runOAuth2Flow(ctx, &conf, providerConfig.Hostname, lines, output)
 }
 
 // oauth2GeneratorGmail generates OAuth2 configuration for Gmail using credentials file.
 //
+// Older Google desktop credentials name the copy and paste (out-of-band)
+// redirect first. Google rejects that redirect, so such a file is given a
+// loopback redirect on 127.0.0.1 instead. A file whose first redirect is empty
+// gets it too.
+//
 // Parameters:
+//   - ctx: bounds the authorization.
 //   - credFile: the path of the Google credentials file.
+//   - lines: the user's answers.
+//   - output: receives the prompts.
 //
 // Returns:
 //   - *smtp.Config: the SMTP configuration.
 //   - error: a file error wrapping [ErrReadFileFailed] and the underlying error, a
-//     credentials parsing error, or an input or token exchange error.
-func oauth2GeneratorGmail(credFile string) (*smtp.Config, error) {
+//     credentials parsing error, or an input, authorization, or token exchange error.
+func oauth2GeneratorGmail(ctx context.Context, credFile string, lines *lineReader, output io.Writer) (*smtp.Config, error) {
 	data, err := os.ReadFile(credFile)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w: %w", credFile, ErrReadFileFailed, err)
@@ -445,7 +876,11 @@ func oauth2GeneratorGmail(credFile string) (*smtp.Config, error) {
 		return nil, fmt.Errorf("%s: %w", credFile, err)
 	}
 
+	if conf.RedirectURL == "" || strings.HasPrefix(conf.RedirectURL, "urn:ietf:wg:oauth:2.0:oob") {
+		conf.RedirectURL = googleLoopbackRedirect
+	}
+
 	// Google returns a refresh token to web clients only with offline access,
 	// and again on a later grant only after the consent prompt.
-	return generateOauth2Config(conf, "smtp.gmail.com", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	return runOAuth2Flow(ctx, conf, "smtp.gmail.com", lines, output, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }
