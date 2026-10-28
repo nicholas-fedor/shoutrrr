@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 3c29007 by @renovate[bot] in [#1912](https://github.com/nicholas-fedor/shoutrrr/pull/1912)
+- Update dependency platformdirs to v4.14.0 by @renovate[bot] in [#1913](https://github.com/nicholas-fedor/shoutrrr/pull/1913)
 - Update dependency tzdata to v2026.6 by @renovate[bot] in [#1908](https://github.com/nicholas-fedor/shoutrrr/pull/1908)
 - Update dependency platformdirs to v4.13.7 by @renovate[bot] in [#1907](https://github.com/nicholas-fedor/shoutrrr/pull/1907)
 - Update module golang.org/x/net to v0.62.0 by @renovate[bot] in [#1902](https://github.com/nicholas-fedor/shoutrrr/pull/1902)
