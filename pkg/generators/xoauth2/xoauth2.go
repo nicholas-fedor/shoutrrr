@@ -473,17 +473,21 @@ func callbackHandler(path, state string, results chan<- authResult) http.Handler
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// The outcome goes to the flow before the page is written, so a browser
+		// that left or reads slowly cannot hold it back.
+		sendResult(results, authResult{err: err, code: code})
 
 		page := successPage
 		if err != nil {
 			page = deniedPage
 		}
 
-		//nolint:errcheck // The browser may have left, which does not change the outcome.
-		io.WriteString(w, page)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-		sendResult(results, authResult{err: err, code: code})
+		if _, writeErr := io.WriteString(w, page); writeErr != nil {
+			// The browser left before the page arrived, which changes nothing.
+			return
+		}
 	})
 }
 
