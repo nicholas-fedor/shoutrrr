@@ -2999,7 +2999,11 @@
 <p>Specialized generator for OAuth2 authentication in SMTP services.</p>
 <ul>
 <li>Supports JSON credential files (specified as a positional argument after the service and generator) or interactive prompts for details like Client ID, Client Secret, and Auth URL. The <code>gmail</code> provider requires a credentials file.</li>
-<li>Generates an authentication URL and exchanges the verification code for tokens.</li>
+<li>Prints an authorization URL and exchanges the code the provider returns for tokens, with PKCE.</li>
+<li>Receives the browser's redirect on a local server when the redirect URL is on the loopback interface, such as <code>http://127.0.0.1</code> or <code>http://localhost</code>, and picks a free port when the URL names none.</li>
+<li>Accepts the redirect address or the code pasted on the terminal instead, for a browser on another machine or a redirect URL elsewhere.</li>
+<li>Uses a loopback redirect on <code>127.0.0.1</code> with the <code>gmail</code> provider when the credentials file's first redirect is empty or the out-of-band one, which Google rejects.</li>
+<li>Falls back to the paste prompt when it cannot listen on a loopback redirect's address, for example because another program holds its port.</li>
 <li>Stores the refresh token with the client ID, client secret, and token URL, so the SMTP service <a href="../../../services/email/smtp/#oauth2-token-refresh">gets a current access token</a> for each send.</li>
 <li>Requests offline access with the consent prompt from Google with the <code>gmail</code> provider, so Google can return a refresh token.</li>
 <li>Falls back to the access token as the password when the provider returns no refresh token, and warns that the URL stops working when that token expires.</li>
@@ -3103,9 +3107,11 @@ WebhookID: 123456789
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>Generating URL for smtp using oauth2 generator
 
-Visit the following URL to authenticate:
+Open the following URL in a browser to authorize Shoutrrr:
 https://accounts.google.com/o/oauth2/auth?...
-Enter verification code: 4/0AX4Xf...
+
+Waiting for the browser to return to http://127.0.0.1:53682.
+For a browser on another machine, paste the address it was sent to or the code it shows:
 Enter sender e-mail: user@example.com
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>URL: smtp://user%40example.com@smtp.gmail.com:587/?auth=OAuth2&amp;clienthost=localhost&amp;encryption=Auto&amp;fromaddress=user%40example.com&amp;fromname=Shoutrrr&amp;subject=&amp;toaddresses=user%40example.com&amp;usehtml=Yes&amp;usestarttls=Yes&amp;timeout=10s&amp;clientid=1234.apps.googleusercontent.com&amp;clientsecret=REDACTED&amp;refreshtoken=REDACTED&amp;tokenurl=https%3A%2F%2Foauth2.googleapis.com%2Ftoken
@@ -3134,7 +3140,7 @@ Enter sender e-mail: user@example.com
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 23, 2026 19:13:50 UTC"><span class="timeago" datetime="2026-10-23T19:13:50+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 19:13:50 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 28, 2026 10:40:57 UTC"><span class="timeago" datetime="2026-10-28T10:40:57+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 28, 2026 10:40:57 UTC">2026-10-28</span>
   </span>
 
     
