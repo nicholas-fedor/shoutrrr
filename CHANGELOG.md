@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Exempt the e2e stack's gateway from ntfy's request limits by @nicholas-fedor in [#1915](https://github.com/nicholas-fedor/shoutrrr/pull/1915)
 - Wait for the e2e stack's accounts and rooms before running tests by @nicholas-fedor in [#1911](https://github.com/nicholas-fedor/shoutrrr/pull/1911)
 - Compare TLS settings instead of deep-comparing the default config by @nicholas-fedor in [#1879](https://github.com/nicholas-fedor/shoutrrr/pull/1879)
 - Check services against a shared service standard by @nicholas-fedor in [#1831](https://github.com/nicholas-fedor/shoutrrr/pull/1831)
