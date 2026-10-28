@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Wait for the e2e stack's accounts and rooms before running tests by @nicholas-fedor in [#1911](https://github.com/nicholas-fedor/shoutrrr/pull/1911)
 - Compare TLS settings instead of deep-comparing the default config by @nicholas-fedor in [#1879](https://github.com/nicholas-fedor/shoutrrr/pull/1879)
 - Check services against a shared service standard by @nicholas-fedor in [#1831](https://github.com/nicholas-fedor/shoutrrr/pull/1831)
 - Fix the js and wasm tests and run them in ci by @nicholas-fedor in [#1773](https://github.com/nicholas-fedor/shoutrrr/pull/1773)
@@ -83,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency tzdata to v2026.6 by @renovate[bot] in [#1908](https://github.com/nicholas-fedor/shoutrrr/pull/1908)
 - Update dependency platformdirs to v4.13.7 by @renovate[bot] in [#1907](https://github.com/nicholas-fedor/shoutrrr/pull/1907)
 - Update module golang.org/x/net to v0.62.0 by @renovate[bot] in [#1902](https://github.com/nicholas-fedor/shoutrrr/pull/1902)
 - Update step-security/harden-runner action to v2.22.3 by @renovate[bot] in [#1901](https://github.com/nicholas-fedor/shoutrrr/pull/1901)
