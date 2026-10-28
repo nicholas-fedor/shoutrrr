@@ -13,11 +13,16 @@ services:
   ntfy:
     image: binwiederhier/ntfy:latest@sha256:901e14503d3f605f445be0e68f2ac71f0aa73391897ce6ceb599f8c48d8b3792
     container_name: ntfy
+    # Connections to the published port reach the container from the compose
+    # network's gateway, whose address depends on the subnet Docker picks. The
+    # private ranges cover it, so back-to-back test runs are not rate-limited.
+    # The port is published on 127.0.0.1 only, so the exemption applies to this
+    # machine alone.
     command:
       - serve
-      - --visitor-request-limit-exempt-hosts=localhost,127.0.0.1,::1
+      - --visitor-request-limit-exempt-hosts=127.0.0.0/8,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     volumes:
       - ./data:/var/cache/ntfy
     healthcheck:
