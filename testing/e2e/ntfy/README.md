@@ -153,6 +153,7 @@ go test ./testing/e2e/ntfy/ -v -run TestNtfyTLS
 
 - Tests will skip if the ntfy server is not available
 - Tests include delays between executions to respect ntfy rate limits
+- The local server exempts this machine from its request limits, so back-to-back runs pass
 - All tests send actual messages to the ntfy server
 - Messages are verified via the ntfy API polling endpoint
 - Each test includes an "E2E Test:" prefix to identify test messages
