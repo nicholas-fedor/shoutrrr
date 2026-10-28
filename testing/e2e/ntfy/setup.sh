@@ -109,13 +109,23 @@ usage() {
     echo "  ./setup.sh --verbose setup-all  # Run with verbose output"
 }
 
-# Load environment variables from .env file
+# Load environment variables from .env file. An NTFY_PORT already in the
+# environment wins over the file's, as it does for Docker Compose and the tests.
 load_env_file() {
     if [[ -f "$ENV_FILE" ]]; then
         debug "Loading environment variables from ${ENV_FILE}"
+
+        local inherited_port="${NTFY_PORT-}"
+        local port_inherited="${NTFY_PORT+set}"
+
         set -a
         source "$ENV_FILE"
         set +a
+
+        if [[ -n "$port_inherited" ]]; then
+            NTFY_PORT="$inherited_port"
+        fi
+
         info "Loaded environment variables from ${ENV_FILE}"
     else
         debug "No .env file found at ${ENV_FILE}"

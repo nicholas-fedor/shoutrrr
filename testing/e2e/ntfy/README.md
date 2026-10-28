@@ -93,12 +93,13 @@ When another program already uses port 8080, publish the server on another port 
 ```bash
 cd testing/e2e/ntfy
 NTFY_PORT=18080 ./setup.sh setup-all
-NTFY_PORT=18080 go test -v ./...
+NTFY_PORT=18080 SHOUTRRR_NTFY_DISABLE_TLS=true go test -v ./...
 ```
 
-Docker Compose, the setup script, and the tests all read `NTFY_PORT`, from the environment or from the `.env` file.
+The local server serves plain HTTP, so the tests need `SHOUTRRR_NTFY_DISABLE_TLS=true`, from the environment or from the `.env` file.
+Docker Compose, the setup script, and the tests all read `NTFY_PORT`, from the environment or from the `.env` file, and a value in the environment wins.
 Setting it in `.env` keeps it for every run.
-If `SHOUTRRR_NTFY_URL` is set, it must use the same port.
+If `SHOUTRRR_NTFY_URL` is set, in the environment or in `.env`, it must use the same port, such as `ntfy://localhost:18080/shoutrrr-e2e-test`.
 
 ### Stopping the Server
 

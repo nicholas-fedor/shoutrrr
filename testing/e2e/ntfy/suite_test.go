@@ -55,6 +55,36 @@ func TestNtfyServiceID(t *testing.T) {
 	assert.Equal(t, "ntfy", service.GetID())
 }
 
+// TestParseEnvValue verifies that .env values follow Docker Compose's rules,
+// as the other readers of the file do. An unquoted value ends at a comment
+// that follows a space. A quoted value keeps everything inside its quotes.
+func TestParseEnvValue(t *testing.T) {
+	t.Parallel()
+
+	// tests lists raw values with the value each should give.
+	tests := []struct {
+		raw  string
+		want string
+	}{
+		{raw: "18080", want: "18080"},
+		{raw: "18080 # local server", want: "18080"},
+		{raw: "18080\t# local server", want: "18080"},
+		{raw: "value# not a comment", want: "value# not a comment"},
+		{raw: `"quoted # not a comment"`, want: "quoted # not a comment"},
+		{raw: `"quoted" # comment`, want: "quoted"},
+		{raw: `'single # not a comment' # comment`, want: "single # not a comment"},
+		{raw: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, parseEnvValue(tt.raw))
+		})
+	}
+}
+
 // requireServer skips the test when the ntfy server is not reachable, then
 // waits [sendDelay] to respect ntfy's rate limits.
 //
@@ -211,14 +241,42 @@ func loadEnvFile(filename string) {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			// Remove quotes if present
-			value = strings.Trim(value, `"'`)
+
+			value := parseEnvValue(parts[1])
 			if _, exists := os.LookupEnv(key); !exists {
 				_ = os.Setenv(key, value)
 			}
 		}
 	}
+}
+
+// parseEnvValue returns the value of a .env line from the text after its "=",
+// following Docker Compose's rules so it agrees with the other readers of the
+// file. A value in single or double quotes is the text inside them, and
+// anything after the closing quote is ignored. An unquoted value ends at a "#"
+// that follows a space or a tab.
+//
+// Parameters:
+//   - raw: the text after the "=".
+//
+// Returns:
+//   - string: the value.
+func parseEnvValue(raw string) string {
+	value := strings.TrimSpace(raw)
+
+	if value != "" && (value[0] == '"' || value[0] == '\'') {
+		if end := strings.IndexByte(value[1:], value[0]); end >= 0 {
+			return value[1 : end+1]
+		}
+	}
+
+	for i := 1; i < len(value); i++ {
+		if value[i] == '#' && (value[i-1] == ' ' || value[i-1] == '\t') {
+			return strings.TrimSpace(value[:i])
+		}
+	}
+
+	return value
 }
 
 // getNtfyBaseURL returns the base URL for the ntfy server using the
