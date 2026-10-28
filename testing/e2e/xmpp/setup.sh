@@ -78,8 +78,11 @@ ensure_certs() {
 
 # wait_for_server waits for the container's healthcheck, which passes once the
 # accounts and rooms from CTL_ON_CREATE exist and the secret room is protected.
+# The default of 240 one-second attempts covers the healthcheck's window before
+# Docker reports the container unhealthy. That window is a 60s start period,
+# then 12 failed checks 10s apart that can each take 5s.
 wait_for_server() {
-    local max_attempts="${1:-90}"
+    local max_attempts="${1:-240}"
     local attempt=1
     local health
 
@@ -105,7 +108,7 @@ wait_for_server() {
         ((attempt++))
     done
 
-    error "ejabberd did not become ready after ${max_attempts} attempts"
+    error "ejabberd did not become ready after ${max_attempts} attempts. Check: docker logs shoutrrr-xmpp-ejabberd"
 }
 
 start_server() {
