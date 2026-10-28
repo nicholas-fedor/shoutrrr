@@ -9,6 +9,7 @@ These tests send real XMPP chat and MUC messages against a local ejabberd contai
 ```
 
 That script generates self-signed TLS certificates if needed, starts ejabberd, and prints the environment variables required by the tests.
+It returns once the accounts and rooms exist and the protected room has its password, so the tests can start right away.
 
 Ports:
 

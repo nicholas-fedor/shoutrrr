@@ -76,20 +76,32 @@ ensure_certs() {
     fi
 }
 
+# wait_for_server waits for the container's healthcheck, which passes once the
+# accounts and rooms from CTL_ON_CREATE exist and the secret room is protected.
 wait_for_server() {
-    local max_attempts="${1:-30}"
+    local max_attempts="${1:-90}"
     local attempt=1
+    local health
 
     info "Waiting for ejabberd to be ready..."
 
     while [[ $attempt -le $max_attempts ]]; do
-        if docker exec shoutrrr-xmpp-ejabberd ejabberdctl status &> /dev/null; then
-            info "ejabberd is ready."
-            return 0
-        fi
+        health="$(docker inspect --format '{{.State.Health.Status}}' shoutrrr-xmpp-ejabberd 2> /dev/null || true)"
 
-        debug "Attempt ${attempt}/${max_attempts}: not ready yet..."
-        sleep 2
+        case "$health" in
+            healthy)
+                info "ejabberd is ready."
+                return 0
+                ;;
+            unhealthy)
+                error "ejabberd is unhealthy. Check: docker logs shoutrrr-xmpp-ejabberd"
+                ;;
+            *)
+                debug "Attempt ${attempt}/${max_attempts}: ${health:-not started} yet..."
+                ;;
+        esac
+
+        sleep 1
         ((attempt++))
     done
 
