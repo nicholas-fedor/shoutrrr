@@ -83,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.13.7 by @renovate[bot] in [#1907](https://github.com/nicholas-fedor/shoutrrr/pull/1907)
 - Update module golang.org/x/net to v0.62.0 by @renovate[bot] in [#1902](https://github.com/nicholas-fedor/shoutrrr/pull/1902)
 - Update step-security/harden-runner action to v2.22.3 by @renovate[bot] in [#1901](https://github.com/nicholas-fedor/shoutrrr/pull/1901)
 - Update matrixdotorg/synapse:latest docker digest to beaa16f by @renovate[bot] in [#1897](https://github.com/nicholas-fedor/shoutrrr/pull/1897)
