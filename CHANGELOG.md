@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Authorize through a loopback redirect with PKCE by @nicholas-fedor in [#1905](https://github.com/nicholas-fedor/shoutrrr/pull/1905)
 - Reject service URLs that end in an empty fragment by @nicholas-fedor in [#1899](https://github.com/nicholas-fedor/shoutrrr/pull/1899)
 - Fail requests through a nil injected client instead of panicking by @nicholas-fedor in [#1895](https://github.com/nicholas-fedor/shoutrrr/pull/1895)
 - Treat fields without a default as defaulting to their zero value by @nicholas-fedor in [#1893](https://github.com/nicholas-fedor/shoutrrr/pull/1893)
