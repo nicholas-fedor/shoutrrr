@@ -5,7 +5,8 @@
 # Usage:
 #   docker compose up -d
 #
-# API endpoint: http://localhost:8080
+# API endpoint: http://localhost:8080, or the port NTFY_PORT names, which can
+# also be set in the .env file beside this one.
 #
 # Note: No authentication is configured for local testing.
 
@@ -22,7 +23,7 @@ services:
       - serve
       - --visitor-request-limit-exempt-hosts=127.0.0.0/8,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:${NTFY_PORT:-8080}:80"
     volumes:
       - ./data:/var/cache/ntfy
     healthcheck:

@@ -79,12 +79,26 @@ A local ntfy server is required for e2e testing. The provided `docker-compose.ya
 
 ### ntfy Server Details
 
-| Field   | Value                             |
-|---------|-----------------------------------|
-| Host    | localhost                         |
-| Port    | 8080                              |
-| API URL | <http://localhost:8080>           |
-| Health  | <http://localhost:8080/v1/health> |
+| Field   | Value                               |
+|---------|-------------------------------------|
+| Host    | localhost                           |
+| Port    | 8080, or the port `NTFY_PORT` names |
+| API URL | <http://localhost:8080>             |
+| Health  | <http://localhost:8080/v1/health>   |
+
+### Using Another Port
+
+When another program already uses port 8080, publish the server on another port with `NTFY_PORT`:
+
+```bash
+cd testing/e2e/ntfy
+NTFY_PORT=18080 ./setup.sh setup-all
+NTFY_PORT=18080 go test -v ./...
+```
+
+Docker Compose, the setup script, and the tests all read `NTFY_PORT`, from the environment or from the `.env` file.
+Setting it in `.env` keeps it for every run.
+If `SHOUTRRR_NTFY_URL` is set, it must use the same port.
 
 ### Stopping the Server
 
@@ -112,6 +126,9 @@ SHOUTRRR_NTFY_URL=ntfy://localhost:8080/shoutrrr-e2e-test
 
 # Optional: TLS configuration
 # SHOUTRRR_NTFY_DISABLE_TLS=false
+
+# Optional: host port of the local server (default: 8080)
+# NTFY_PORT=8080
 ```
 
 ## Running the Tests
