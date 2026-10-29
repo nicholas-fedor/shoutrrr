@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"log"
+	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
@@ -52,6 +53,18 @@ type fakeConnector struct {
 	// without TLS.
 	tlsConfigs []*tls.Config
 }
+
+// warningContexts records the test value of the context each warning was
+// logged with, as a slog handler. It is safe for concurrent use.
+type warningContexts struct {
+	// values holds the test value of each warning's context.
+	values []any
+	// mu guards values.
+	mu sync.Mutex
+}
+
+// sendKey identifies the test value in a send's context.
+type sendKey struct{}
 
 // lifecycleURL is a broker URL for the lifecycle tests.
 const lifecycleURL = "mqtt://broker.example.invalid/test/topic"
@@ -390,6 +403,45 @@ func TestSendWarnings(t *testing.T) {
 	}
 }
 
+// TestConnectionWarningsContext verifies that the warnings a send logs while it
+// opens a connection carry the send's context, though the connection outlives
+// the send.
+func TestConnectionWarningsContext(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs whose connection logs one warning.
+	tests := map[string]string{
+		"plaintext": "mqtt://broker.example.invalid/t",
+		"insecure":  "mqtts://broker.example.invalid/t?skiptlsverify=yes",
+	}
+
+	for name, rawURL := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				serviceURL, err := url.Parse(rawURL)
+				require.NoError(t, err)
+
+				recorder := &warningContexts{}
+
+				service := &Service{}
+				require.NoError(t, service.Initialize(serviceURL, types.NewSlogLogger(slog.New(recorder))))
+
+				connector := &fakeConnector{}
+				service.connect = connector.connect
+
+				t.Cleanup(func() { _ = service.Close() })
+
+				ctx := context.WithValue(t.Context(), sendKey{}, "send")
+				require.NoError(t, service.SendContext(ctx, "message", nil))
+
+				assert.Equal(t, []any{"send"}, recorder.values)
+			})
+		})
+	}
+}
+
 // TestInitializeWarnings verifies that Initialize warns about a deprecated
 // key in the URL, and that initializing the service again lets each warning
 // appear again.
@@ -514,6 +566,47 @@ func warningLines(logs string) []string {
 
 	return lines
 }
+
+// Enabled reports whether level is Warn or above.
+//
+// Parameters:
+//   - level: the level of a record.
+//
+// Returns:
+//   - bool: true for warnings.
+func (*warningContexts) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelWarn
+}
+
+// Handle records the test value of the record's context.
+//
+// Parameters:
+//   - ctx: the context of the call.
+//
+// Returns:
+//   - error: always nil.
+//
+//nolint:gocritic // slog.Handler defines Handle with a Record value.
+func (w *warningContexts) Handle(ctx context.Context, _ slog.Record) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.values = append(w.values, ctx.Value(sendKey{}))
+
+	return nil
+}
+
+// WithAttrs returns w. The service adds no attributes to the handler.
+//
+// Returns:
+//   - slog.Handler: w.
+func (w *warningContexts) WithAttrs([]slog.Attr) slog.Handler { return w }
+
+// WithGroup returns w. The service adds no groups to the handler.
+//
+// Returns:
+//   - slog.Handler: w.
+func (w *warningContexts) WithGroup(string) slog.Handler { return w }
 
 // newLifecycleService initializes a service that creates its connections with
 // connector, and closes it when the test ends.
