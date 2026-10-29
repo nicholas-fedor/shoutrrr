@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Log leveled records through log/slog by @nicholas-fedor in [#1921](https://github.com/nicholas-fedor/shoutrrr/pull/1921)
 - Bring the remaining services under the service rules by @nicholas-fedor in [#1863](https://github.com/nicholas-fedor/shoutrrr/pull/1863)
 - Bring the chat services under the service rules by @nicholas-fedor in [#1861](https://github.com/nicholas-fedor/shoutrrr/pull/1861)
 - Bring Twilio and Telegram under the service rules by @nicholas-fedor in [#1859](https://github.com/nicholas-fedor/shoutrrr/pull/1859)
