@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Log every service message at a level by @nicholas-fedor in [#1923](https://github.com/nicholas-fedor/shoutrrr/pull/1923)
 - Log leveled records through log/slog by @nicholas-fedor in [#1921](https://github.com/nicholas-fedor/shoutrrr/pull/1921)
 - Bring the remaining services under the service rules by @nicholas-fedor in [#1863](https://github.com/nicholas-fedor/shoutrrr/pull/1863)
 - Bring the chat services under the service rules by @nicholas-fedor in [#1861](https://github.com/nicholas-fedor/shoutrrr/pull/1861)
