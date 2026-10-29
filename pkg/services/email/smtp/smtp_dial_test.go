@@ -62,7 +62,7 @@ func TestDialClient(t *testing.T) {
 
 			var dialed string
 
-			client, err := dialClient(t.Context(), &tt.config, func(ctx context.Context, network, address string) (net.Conn, error) {
+			client, _, err := dialClient(t.Context(), &tt.config, func(ctx context.Context, network, address string) (net.Conn, error) {
 				dialed = network + " " + address
 
 				return server.dial(ctx, network, address)
@@ -93,7 +93,7 @@ func TestDialClientDeadline(t *testing.T) {
 
 	var conn *deadlineConn
 
-	client, err := dialClient(ctx, &Config{Host: "localhost", Port: 2525}, func(ctx context.Context, network, address string) (net.Conn, error) {
+	client, _, err := dialClient(ctx, &Config{Host: "localhost", Port: 2525}, func(ctx context.Context, network, address string) (net.Conn, error) {
 		inner, err := server.dial(ctx, network, address)
 		conn = &deadlineConn{Conn: inner}
 
@@ -116,7 +116,7 @@ func TestDialClientErrors(t *testing.T) {
 	t.Run("dial error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525}, func(context.Context, string, string) (net.Conn, error) {
+		_, _, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525}, func(context.Context, string, string) (net.Conn, error) {
 			return nil, errBlocked
 		})
 
@@ -130,7 +130,7 @@ func TestDialClientErrors(t *testing.T) {
 		server := newFakeSMTP()
 		server.implicitTLS = true
 
-		_, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525, Encryption: EncImplicitTLS}, server.dial)
+		_, _, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525, Encryption: EncImplicitTLS}, server.dial)
 
 		require.ErrorIs(t, err, fail(FailConnectToServer, nil))
 
@@ -147,7 +147,7 @@ func TestDialClientErrors(t *testing.T) {
 
 		server := newFakeSMTP()
 
-		_, err := dialClient(ctx, &Config{Host: "localhost", Port: 2525}, func(ctx context.Context, network, address string) (net.Conn, error) {
+		_, _, err := dialClient(ctx, &Config{Host: "localhost", Port: 2525}, func(ctx context.Context, network, address string) (net.Conn, error) {
 			inner, err := server.dial(ctx, network, address)
 
 			return &deadlineConn{Conn: inner, err: errBlocked}, err
@@ -164,7 +164,7 @@ func TestDialClientErrors(t *testing.T) {
 		server := newFakeSMTP()
 		server.greeting = "554 5.3.2 Not accepting mail"
 
-		_, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525}, server.dial)
+		_, _, err := dialClient(t.Context(), &Config{Host: "localhost", Port: 2525}, server.dial)
 
 		require.ErrorIs(t, err, fail(FailCreateSMTPClient, nil))
 		assert.Positive(t, server.closes.Load())
@@ -176,7 +176,7 @@ func TestDialClientErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		_, err := dialClient(ctx, &Config{Host: "127.0.0.1", Port: 1}, nil)
+		_, _, err := dialClient(ctx, &Config{Host: "127.0.0.1", Port: 1}, nil)
 
 		require.ErrorIs(t, err, fail(FailConnectToServer, nil))
 		require.ErrorIs(t, err, context.Canceled)
@@ -203,7 +203,7 @@ func TestDialClientDefaultDialer(t *testing.T) {
 
 	address := listener.Addr().(*net.TCPAddr)
 
-	client, err := dialClient(t.Context(), &Config{Host: "127.0.0.1", Port: uint16(address.Port)}, nil)
+	client, _, err := dialClient(t.Context(), &Config{Host: "127.0.0.1", Port: uint16(address.Port)}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 

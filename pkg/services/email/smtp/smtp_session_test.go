@@ -2,6 +2,7 @@ package smtp
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/tls"
@@ -72,7 +73,7 @@ func parseMessage(t *testing.T, raw string) (*mail.Message, string) {
 func newTestSession(t *testing.T, server *fakeSMTP, config *Config) *session {
 	t.Helper()
 
-	client, err := dialClient(t.Context(), config, server.dial)
+	client, _, err := dialClient(t.Context(), config, server.dial)
 	require.NoError(t, err)
 
 	svc := &Service{}
@@ -626,6 +627,33 @@ func TestSessionRunRecipientFailures(t *testing.T) {
 		require.ErrorIs(t, err, fail(FailResetSession, nil))
 		assert.Equal(t, []string{"EHLO localhost", testMailFrom, "RCPT TO:<a@example.com>", "DATA", "RSET", "QUIT"}, server.received())
 	})
+}
+
+// TestSessionContextEnded verifies that once the send's context has ended,
+// deliver tries no recipient and reports the context's error, and quit closes
+// the connection without sending QUIT.
+func TestSessionContextEnded(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	config := newInitialConfig()
+	config.Host, config.Auth = "localhost", AuthNone
+	config.FromAddress = "sender@example.com"
+	config.ToAddresses = []string{"first@example.com", "second@example.com"}
+
+	session := newTestSession(t, server, config)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	errs := session.deliver(ctx, "Hello", "")
+	require.Len(t, errs, 1)
+	require.ErrorIs(t, errs[0], context.Canceled)
+
+	assert.Empty(t, session.quit(ctx, nil))
+	assert.True(t, session.closed)
+	assert.Empty(t, server.received())
+	assert.Equal(t, int32(1), server.closes.Load())
 }
 
 // TestSessionQuit verifies that a successful QUIT closes the connection once,

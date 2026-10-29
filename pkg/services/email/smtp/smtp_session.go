@@ -80,8 +80,9 @@ func (s *session) closeIfOpen(ctx context.Context) {
 
 // deliver sends the message to each configured recipient.
 //
-// The SMTP session is reset between recipients. A failed reset stops remaining
-// deliveries.
+// The SMTP session is reset between recipients. A failed reset stops the
+// remaining deliveries. A context that ended also stops them, before or right
+// after a reset, and its error is reported.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its log records.
@@ -94,19 +95,33 @@ func (s *session) deliver(ctx context.Context, message, boundary string) []error
 	var errs []error
 
 	for i, toAddress := range s.config.ToAddresses {
-		if err := s.sendMessage(toAddress, message, boundary); err != nil {
-			errs = append(errs, fail(FailSendRecipient, err, toAddress))
-		} else {
-			// The address is personal data, so the record leaves it out.
-			s.svc.Debug(ctx, "mail sent")
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, err)
+
+			break
 		}
 
-		if i < len(s.config.ToAddresses)-1 {
+		if i > 0 {
 			if err := s.client.Reset(); err != nil {
 				errs = append(errs, fail(FailResetSession, err))
 
 				break
 			}
+
+			// The context can end while the reset is answered. The next
+			// recipient is then not tried.
+			if err := ctx.Err(); err != nil {
+				errs = append(errs, err)
+
+				break
+			}
+		}
+
+		if err := s.sendMessage(toAddress, message, boundary); err != nil {
+			errs = append(errs, fail(FailSendRecipient, err, toAddress))
+		} else {
+			// The address is personal data, so the record leaves it out.
+			s.svc.Debug(ctx, "mail sent")
 		}
 	}
 
@@ -141,7 +156,9 @@ func (s *session) ehloName(ctx context.Context) string {
 // quit ends the SMTP session with QUIT.
 //
 // A successful [smtp.Client.Quit] already closes the connection, so Close is
-// not called again. When QUIT fails, the client is closed explicitly.
+// not called again. When QUIT fails, the client is closed explicitly. Once ctx
+// has ended, the connection's I/O fails at once, so the client is closed
+// without sending QUIT.
 // Errors matching [shortResponseErrorSubstring] are logged and ignored because
 // they do not affect delivery. Other QUIT errors are appended to errs.
 //
@@ -152,6 +169,12 @@ func (s *session) ehloName(ctx context.Context) string {
 // Returns:
 //   - The original error slice, possibly with a session-closure failure appended.
 func (s *session) quit(ctx context.Context, errs []error) []error {
+	if ctx.Err() != nil {
+		s.closeIfOpen(ctx)
+
+		return errs
+	}
+
 	err := s.client.Quit()
 	if err == nil {
 		s.closed = true
@@ -167,8 +190,7 @@ func (s *session) quit(ctx context.Context, errs []error) []error {
 		errs = append(errs, fail(FailClosingSession, err))
 	}
 
-	s.closeClient(ctx)
-	s.closed = true
+	s.closeIfOpen(ctx)
 
 	return errs
 }
