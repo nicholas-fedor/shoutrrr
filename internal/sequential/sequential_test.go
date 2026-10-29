@@ -112,6 +112,25 @@ func TestSendContextEnds(t *testing.T) {
 	}
 }
 
+// TestSendContextEndsAfterLastItem verifies that a context that ends during
+// the last item's request does not fail a send whose every item was sent.
+func TestSendContextEndsAfterLastItem(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	err := Send(ctx, []string{"a", "b"}, func(_ context.Context, item string) error {
+		if item == "b" {
+			cancel()
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err)
+}
+
 // TestSendCanceledBeforeStart verifies that a context that ended before the
 // first item sends none and reports its error.
 func TestSendCanceledBeforeStart(t *testing.T) {
