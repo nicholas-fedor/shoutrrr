@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Report a service timeout only when its budget runs out by @nicholas-fedor in [#1931](https://github.com/nicholas-fedor/shoutrrr/pull/1931)
 - Give each target of a send its share of the time by @nicholas-fedor in [#1929](https://github.com/nicholas-fedor/shoutrrr/pull/1929)
 - Stop a send when its context is canceled by @nicholas-fedor in [#1927](https://github.com/nicholas-fedor/shoutrrr/pull/1927)
 - Authorize through a loopback redirect with PKCE by @nicholas-fedor in [#1905](https://github.com/nicholas-fedor/shoutrrr/pull/1905)
