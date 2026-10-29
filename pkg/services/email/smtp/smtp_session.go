@@ -81,8 +81,8 @@ func (s *session) closeIfOpen(ctx context.Context) {
 // deliver sends the message to each configured recipient.
 //
 // The SMTP session is reset between recipients. A failed reset stops the
-// remaining deliveries. A context that ended also stops them before the next
-// reset, and its error is reported.
+// remaining deliveries. A context that ended also stops them, before or right
+// after a reset, and its error is reported.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its log records.
@@ -104,6 +104,14 @@ func (s *session) deliver(ctx context.Context, message, boundary string) []error
 		if i > 0 {
 			if err := s.client.Reset(); err != nil {
 				errs = append(errs, fail(FailResetSession, err))
+
+				break
+			}
+
+			// The context can end while the reset is answered. The next
+			// recipient is then not tried.
+			if err := ctx.Err(); err != nil {
+				errs = append(errs, err)
 
 				break
 			}

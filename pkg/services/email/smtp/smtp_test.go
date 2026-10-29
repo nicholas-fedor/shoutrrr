@@ -61,6 +61,18 @@ type fakeSMTP struct {
 	implicitTLS bool
 }
 
+// cancelAfterReset is a connection that ends a send's context once the client
+// has read the reply to its RSET command.
+type cancelAfterReset struct {
+	// Conn is the wrapped connection.
+	net.Conn
+
+	// cancel ends the send's context.
+	cancel context.CancelFunc
+	// reset is set once the client has written RSET.
+	reset atomic.Bool
+}
+
 // countingConn counts the client's closes of a connection.
 type countingConn struct {
 	// Conn is the wrapped connection.
@@ -392,6 +404,33 @@ func TestSendContextCanceled(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestSendContextCanceledAfterReset verifies that a context that ends while
+// the server answers RSET stops the send before the next recipient. The
+// second recipient gets no MAIL, and its address is not reported as failed.
+func TestSendContextCanceledAfterReset(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com,second@example.com&usestarttls=no"
+
+	server := newFakeSMTP()
+	service := newTestService(t, rawURL, server)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	service.SetDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := server.dial(ctx, network, addr)
+
+		return &cancelAfterReset{Conn: conn, cancel: cancel}, err
+	})
+
+	err := service.SendContext(ctx, "Hello", nil)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotContains(t, err.Error(), "second@example.com")
+	assert.Equal(t, 1, strings.Count(strings.Join(server.received(), "\n"), "MAIL FROM"))
 }
 
 // TestWithContextErr verifies that only a network timeout gains the error of a
@@ -888,7 +927,42 @@ func (s *fakeSMTP) serve(ctx context.Context, conn net.Conn) {
 // Close counts the close and closes the connection.
 //
 // Returns:
-//   - error: the close error.
+// Read reads from the wrapped connection, and ends the send's context once
+// RSET has been written, so the read that returns its reply cancels the send.
+//
+// Parameters:
+//   - p: the buffer to read into.
+//
+// Returns:
+//   - int: the number of bytes read.
+//   - error: the wrapped connection's error.
+func (c *cancelAfterReset) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if c.reset.Load() {
+		c.cancel()
+	}
+
+	return n, err
+}
+
+// Write writes to the wrapped connection, and notes when the client writes
+// RSET.
+//
+// Parameters:
+//   - p: the bytes to write.
+//
+// Returns:
+//   - int: the number of bytes written.
+//   - error: the wrapped connection's error.
+func (c *cancelAfterReset) Write(p []byte) (int, error) {
+	if bytes.HasPrefix(p, []byte("RSET")) {
+		c.reset.Store(true)
+	}
+
+	return c.Conn.Write(p)
+}
+
+// - error: the close error.
 func (c *countingConn) Close() error {
 	c.closes.Add(1)
 
