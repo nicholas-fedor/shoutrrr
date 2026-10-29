@@ -39,6 +39,8 @@ type recordingSession struct {
 	failures map[string]error
 	// onChat, when set, runs at each SendChat call.
 	onChat func()
+	// contexts holds the context of each SendChat and SendToRoom call.
+	contexts []context.Context
 	// chats holds the recipient and body of each SendChat call.
 	chats [][2]string
 	// rooms holds each SendToRoom call.
@@ -76,14 +78,15 @@ func (s *recordingSession) Close() error {
 // SendChat records the chat message and returns the failure for to, if any.
 //
 // Parameters:
-//   - ctx: unused.
+//   - ctx: the context of the call, which the session records.
 //   - to: the recipient JID.
 //   - body: the message body.
 //
 // Returns:
 //   - error: the failure configured for to, or nil.
-func (s *recordingSession) SendChat(_ context.Context, to, body string) error {
+func (s *recordingSession) SendChat(ctx context.Context, to, body string) error {
 	s.chats = append(s.chats, [2]string{to, body})
+	s.contexts = append(s.contexts, ctx)
 
 	if s.onChat != nil {
 		s.onChat()
@@ -96,7 +99,7 @@ func (s *recordingSession) SendChat(_ context.Context, to, body string) error {
 // any.
 //
 // Parameters:
-//   - ctx: unused.
+//   - ctx: the context of the call, which the session records.
 //   - room: the room JID.
 //   - nick: the nickname used to join.
 //   - password: the room password.
@@ -104,8 +107,12 @@ func (s *recordingSession) SendChat(_ context.Context, to, body string) error {
 //
 // Returns:
 //   - error: the failure configured for room, or nil.
-func (s *recordingSession) SendToRoom(_ context.Context, room, nick, password, body string) error {
+func (s *recordingSession) SendToRoom(
+	ctx context.Context,
+	room, nick, password, body string,
+) error {
 	s.rooms = append(s.rooms, roomSend{room: room, nick: nick, password: password, body: body})
+	s.contexts = append(s.contexts, ctx)
 
 	return s.failures[room]
 }
@@ -373,6 +380,21 @@ func TestSendContextErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "sending groupchat to alerts@conference.example.com")
 		assert.Len(t, session.chats, 2)
 		assert.Len(t, session.rooms, 2)
+	})
+
+	t.Run("targets share the session's context", func(t *testing.T) {
+		t.Parallel()
+
+		// The chats and rooms are written on one session, so a target cut
+		// short mid-write would break the stream for the targets after it.
+		session := &recordingSession{}
+		service := newTestService(t,
+			"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com&rooms=alerts@conference.example.com",
+			session)
+
+		require.NoError(t, service.SendContext(t.Context(), "hello", nil))
+		require.Len(t, session.contexts, 2)
+		assert.Equal(t, session.contexts[0], session.contexts[1])
 	})
 
 	t.Run("context ends during the chats", func(t *testing.T) {

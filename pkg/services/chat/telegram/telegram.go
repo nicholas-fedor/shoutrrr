@@ -149,13 +149,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	return sequential.Send(ctx, config.Chats, func(ctx context.Context, chat string) error {
-		if err := s.sendMessageToAPI(ctx, message, chat, &config); err != nil {
-			return fmt.Errorf("sending to chat %q: %w", chat, err)
-		}
+	return sequential.Send(
+		ctx,
+		config.Chats,
+		sequential.PerTarget(defaultHTTPTimeout),
+		func(ctx context.Context, chat string) error {
+			if err := s.sendMessageToAPI(ctx, message, chat, &config); err != nil {
+				return fmt.Errorf("sending to chat %q: %w", chat, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // ServiceTimeout reports the send budget the router gives Telegram. A send makes

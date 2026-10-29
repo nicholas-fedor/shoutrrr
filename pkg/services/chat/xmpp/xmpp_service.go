@@ -182,9 +182,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		})
 	}
 
-	return sequential.Send(ctx, sends, func(ctx context.Context, send func(context.Context) error) error {
-		return send(ctx)
-	})
+	return sequential.Send(
+		ctx,
+		sends,
+		sequential.SharedDeadline,
+		func(ctx context.Context, send func(context.Context) error) error {
+			return send(ctx)
+		},
+	)
 }
 
 // ServiceTimeout returns the session timeout used for an XMPP send.

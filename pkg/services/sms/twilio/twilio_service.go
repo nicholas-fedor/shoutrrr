@@ -119,13 +119,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return sequential.Send(ctx, config.ToNumbers, func(ctx context.Context, toNumber string) error {
-		if err := s.sendToRecipient(ctx, config, toNumber, message); err != nil {
-			return fmt.Errorf("sending to %s: %w", toNumber, err)
-		}
+	return sequential.Send(
+		ctx,
+		config.ToNumbers,
+		sequential.PerTarget(defaultHTTPTimeout),
+		func(ctx context.Context, toNumber string) error {
+			if err := s.sendToRecipient(ctx, config, toNumber, message); err != nil {
+				return fmt.Errorf("sending to %s: %w", toNumber, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // ServiceTimeout reports the send budget of Twilio. A send makes one request

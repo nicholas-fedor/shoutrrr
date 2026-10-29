@@ -176,17 +176,22 @@ func (s *Service) sendMessage(ctx context.Context, message string, config *Confi
 		return err
 	}
 
-	return sequential.Send(ctx, batchRecipients(config.Recipients), func(ctx context.Context, batch []string) error {
-		batchConfig := *config
-		batchConfig.Recipients = batch
+	return sequential.Send(
+		ctx,
+		batchRecipients(config.Recipients),
+		sequential.PerTarget(batchBudget),
+		func(ctx context.Context, batch []string) error {
+			batchConfig := *config
+			batchConfig.Recipients = batch
 
-		payload := createPayload(message, &batchConfig)
+			payload := createPayload(message, &batchConfig)
 
-		req, err := s.createRequest(ctx, &batchConfig, &payload)
-		if err != nil {
-			return err
-		}
+			req, err := s.createRequest(ctx, &batchConfig, &payload)
+			if err != nil {
+				return err
+			}
 
-		return s.sendRequest(req, &batchConfig)
-	})
+			return s.sendRequest(req, &batchConfig)
+		},
+	)
 }

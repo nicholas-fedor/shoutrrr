@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,8 @@ import (
 
 // capturedRequest records the parts of a request that an HTTP client received.
 type capturedRequest struct {
+	// deadline is the deadline of the request's context.
+	deadline time.Time
 	// method is the request method.
 	method string
 	// url is the full request URL.
@@ -66,7 +69,10 @@ func newRespondingClient(t *testing.T, responses ...cannedResponse) (*mocks.Mock
 		require.NoError(t, err)
 
 		response := responses[len(*captured)]
+		deadline, _ := req.Context().Deadline()
+
 		*captured = append(*captured, capturedRequest{
+			deadline:    deadline,
 			method:      req.Method,
 			url:         req.URL.String(),
 			contentType: req.Header.Get("Content-Type"),
@@ -431,6 +437,28 @@ func TestSendDefaultClient(t *testing.T) {
 	}
 }
 
+// TestSendShares verifies that each event's request may use an equal share of
+// the time left, so an event that does not answer cannot use up the others'
+// time. The first of two gets half of the budget, and the last gets the rest.
+func TestSendShares(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ok := cannedResponse{status: "200 OK", statusCode: http.StatusOK}
+		client, captured := newRespondingClient(t, ok, ok)
+
+		service := newTestService(t, "ifttt://webhookid/?events=a,b")
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+		budget := service.ServiceTimeout(nil)
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
+			requestDeadlines(*captured))
+	})
+}
+
 // TestServiceTimeout verifies that the send budget is [defaultTimeout] for
 // each event, counting events set by params, and at least [defaultTimeout].
 func TestServiceTimeout(t *testing.T) {
@@ -503,4 +531,20 @@ func TestSetHTTPClient(t *testing.T) {
 
 		assert.IsType(t, &http.Client{}, service.client.Client())
 	})
+}
+
+// requestDeadlines returns the deadline of each captured request.
+//
+// Parameters:
+//   - captured: the captured requests.
+//
+// Returns:
+//   - []time.Time: the deadlines, in order.
+func requestDeadlines(captured []capturedRequest) []time.Time {
+	deadlines := make([]time.Time, 0, len(captured))
+	for _, request := range captured {
+		deadlines = append(deadlines, request.deadline)
+	}
+
+	return deadlines
 }

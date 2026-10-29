@@ -32,12 +32,14 @@ type fakeHomeserver struct {
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
 	releaseFlows chan struct{}
-	// mu guards tokens and schemes.
+	// mu guards tokens, schemes, and deadlines.
 	mu sync.Mutex
 	// tokens records the Authorization header of each message sent.
 	tokens []string
 	// schemes records the URL scheme of each request.
 	schemes []string
+	// deadlines records the deadline of each request's context.
+	deadlines []time.Time
 }
 
 // Service test URLs.
@@ -48,8 +50,8 @@ const (
 	tokenURL = "matrix://:token@matrix.example.com/?rooms=!room:example.com"
 )
 
-// Do answers a Matrix API request: login flows, password login, and message
-// sends.
+// Do answers a Matrix API request: login flows, password login, the joined
+// rooms lookup, and message sends.
 //
 // Parameters:
 //   - req: the request.
@@ -64,8 +66,11 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		_ = req.Body.Close()
 	}
 
+	deadline, _ := req.Context().Deadline()
+
 	f.mu.Lock()
 	f.schemes = append(f.schemes, req.URL.Scheme)
+	f.deadlines = append(f.deadlines, deadline)
 	f.mu.Unlock()
 
 	if req.Method == http.MethodGet && req.URL.Path == apiLogin && f.releaseFlows != nil {
@@ -92,6 +97,9 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		f.logins.Add(1)
 
 		return homeserverResponse(http.StatusOK, `{"access_token":"access"}`), nil
+	case req.Method == http.MethodGet && req.URL.Path == apiJoinedRooms:
+		return homeserverResponse(http.StatusOK,
+			`{"joined_rooms":["!a:example.com","!b:example.com"]}`), nil
 	case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/send/"):
 		f.mu.Lock()
 		f.tokens = append(f.tokens, req.Header.Get("Authorization"))
@@ -101,6 +109,17 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	default:
 		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
 	}
+}
+
+// requestDeadlines returns the deadline of each request's context so far.
+//
+// Returns:
+//   - []time.Time: the deadlines, in order.
+func (f *fakeHomeserver) requestDeadlines() []time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]time.Time(nil), f.deadlines...)
 }
 
 // requestSchemes returns the URL scheme of each request so far and clears
@@ -363,6 +382,50 @@ func TestServiceTimeout(t *testing.T) {
 	}
 }
 
+// TestSendShares verifies that each room's requests may use an equal share of
+// the time left, so a room that does not answer cannot use up the other's
+// time. The first of two rooms gets half of the time, and the last gets the
+// rest. For joined rooms, the time is what is left after the lookup.
+func TestSendShares(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs with two rooms, with the number of requests before the
+	// room sends.
+	tests := []struct {
+		name   string
+		rawURL string
+		before int
+	}{
+		{
+			name:   "configured rooms",
+			rawURL: "matrix://:token@matrix.example.com/?rooms=!a:example.com,!b:example.com",
+		},
+		{name: "joined rooms", rawURL: "matrix://:token@matrix.example.com/", before: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				server := &fakeHomeserver{}
+				service, _ := newHomeserverService(t, server)
+				require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), nil))
+
+				start := time.Now()
+				budget := service.ServiceTimeout(nil)
+
+				require.NoError(t, service.SendContext(t.Context(), "message", nil))
+
+				deadlines := server.requestDeadlines()
+				require.Len(t, deadlines, tt.before+2)
+				assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
+					deadlines[tt.before:])
+			})
+		})
+	}
+}
+
 // TestSendBudget verifies that every request of a send, the login flows
 // lookup, the login, and the message, carries the budget that ServiceTimeout
 // reports when the caller sets no deadline, and the caller's deadline
@@ -385,19 +448,8 @@ func TestSendBudget(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				var deadlines []time.Time
-
 				server := &fakeHomeserver{}
-				httpClient := mocks.NewMockHTTPClient(t)
-				httpClient.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
-					deadline, _ := req.Context().Deadline()
-					deadlines = append(deadlines, deadline)
-
-					return server.Do(req)
-				})
-
-				service := &Service{}
-				service.SetHTTPClient(httpClient)
+				service, _ := newHomeserverService(t, server)
 				require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
 
 				ctx := t.Context()
@@ -413,7 +465,7 @@ func TestSendBudget(t *testing.T) {
 				}
 
 				require.NoError(t, service.SendContext(ctx, "message", nil))
-				assert.Equal(t, []time.Time{want, want, want}, deadlines)
+				assert.Equal(t, []time.Time{want, want, want}, server.requestDeadlines())
 			})
 		})
 	}
