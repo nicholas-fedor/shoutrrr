@@ -2333,7 +2333,8 @@ func runPlaintextWarning(t *testing.T, fx *fixture) failure {
 //   - fx: the fixture under test.
 //
 // Returns:
-//   - failure: a failUnleveledLog or failPanic failure, or the zero value.
+//   - failure: a failInit, failPanic, failUnleveledLog, or failSendFailed
+//     failure, or the zero value.
 func runLeveledLogs(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
@@ -2345,8 +2346,14 @@ func runLeveledLogs(t *testing.T, fx *fixture) failure {
 
 			service, err := env.locate(t)
 			if err != nil {
+				result = fail(failInit, "initialization failed: %v", err)
+
 				return
 			}
+
+			// A send that fails with a working transport is reported after the
+			// log lines are checked, so it cannot hide an unleveled line.
+			var sendErr error
 
 			for range 2 {
 				if result = env.send(service, nil); result.kind != failNone {
@@ -2354,9 +2361,9 @@ func runLeveledLogs(t *testing.T, fx *fixture) failure {
 				}
 
 				if !failTransport && fx.kind != netTCP && env.sendErr != nil {
-					result = fail(failSendFailed, "send failed with a working transport: %v", env.sendErr)
+					sendErr = env.sendErr
 
-					return
+					break
 				}
 			}
 
@@ -2374,6 +2381,10 @@ func runLeveledLogs(t *testing.T, fx *fixture) failure {
 
 					return
 				}
+			}
+
+			if sendErr != nil {
+				result = fail(failSendFailed, "send failed with a working transport: %v", sendErr)
 			}
 		})
 
