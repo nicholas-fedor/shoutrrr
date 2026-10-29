@@ -514,8 +514,8 @@ func TestParseChannelID(t *testing.T) {
 	require.ErrorIs(t, err, strconv.ErrRange)
 }
 
-// TestParseFields verifies that a JSON array becomes fields and that other
-// values are rejected.
+// TestParseFields verifies that a JSON array becomes fields, with member names
+// in any case, and that other values are rejected.
 func TestParseFields(t *testing.T) {
 	t.Parallel()
 
@@ -524,6 +524,10 @@ func TestParseFields(t *testing.T) {
 	fields, err := service.ParseFields(`[{"title":"Disk","text":"95%","inline":true},{"title":"Host","text":"db1","inline":false}]`)
 	require.NoError(t, err)
 	assert.Equal(t, []Field{{Title: "Disk", Text: "95%", Inline: true}, {Title: "Host", Text: "db1"}}, fields)
+
+	fields, err = service.ParseFields(`[{"Title":"Disk","TEXT":"95%","Inline":true}]`)
+	require.NoError(t, err)
+	assert.Equal(t, []Field{{Title: "Disk", Text: "95%", Inline: true}}, fields)
 
 	fields, err = service.ParseFields(`[]`)
 	require.NoError(t, err)

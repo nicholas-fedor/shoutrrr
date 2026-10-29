@@ -241,7 +241,7 @@ func (s *Service) ParseChannelID(channelStr string) (int, error) {
 //   - error: the decoding error.
 func (s *Service) ParseFields(fieldsStr string) ([]Field, error) {
 	var fields []Field
-	if err := json.Unmarshal([]byte(fieldsStr), &fields, jsonopts.Default); err != nil {
+	if err := json.Unmarshal([]byte(fieldsStr), &fields, jsonopts.UserInput); err != nil {
 		return nil, fmt.Errorf("unmarshaling fields JSON: %w", err)
 	}
 

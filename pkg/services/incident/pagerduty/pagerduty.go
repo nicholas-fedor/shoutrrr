@@ -269,7 +269,7 @@ func (s *Service) newEventPayload(
 	// Custom details must be a JSON object, so arrays, scalars, and null are rejected.
 	if payloadFields.Details != "" {
 		var details map[string]any
-		if err := json.Unmarshal([]byte(payloadFields.Details), &details, jsonopts.Default); err != nil || details == nil {
+		if err := json.Unmarshal([]byte(payloadFields.Details), &details, jsonopts.UserInput); err != nil || details == nil {
 			return EventPayload{}, fmt.Errorf("%w: %q", errInvalidDetails, payloadFields.Details)
 		}
 
@@ -407,7 +407,7 @@ func parseContexts(contextsStr string) ([]PagerDutyContext, error) {
 
 	// First, attempt to parse as JSON array
 	var result []PagerDutyContext
-	if err := json.Unmarshal([]byte(contextsStr), &result, jsonopts.Default); err == nil {
+	if err := json.Unmarshal([]byte(contextsStr), &result, jsonopts.UserInput); err == nil {
 		// Validate Type field and required fields for each context in JSON format
 		for _, ctx := range result {
 			if ctx.Type != contextTypeLink && ctx.Type != contextTypeImage {

@@ -219,6 +219,16 @@ Every service follows the same rules, so services behave alike for users and for
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
 
+### JSON
+
+- Encode and decode JSON with `encoding/json/v2` and the `jsonopts.Default` options from `internal/jsonopts`.
+- Tag each field with the member name the provider documents, in the same case.
+  Member names match exactly.
+- Add `omitzero` to a slice or map field when the provider reads a missing member differently from an empty one.
+  Without it, a nil slice or map encodes as `[]` or `{}`.
+- Decode JSON that users write with `jsonopts.UserInput`, such as a param or a provider file.
+  It reads input by the encoding/json rules, so names in another case and repeated names keep working.
+
 ### Timeouts
 
 - Run each send under `httpclient.BoundContext`, with the budget the service reports through `ServiceTimeout`.
@@ -258,7 +268,7 @@ Every service follows the same rules, so services behave alike for users and for
 - The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
 - The checks for skipping certificate verification and for the insecure warning run only against Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
 - Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
-  It also covers warning about old names.
+  It also covers warning about old names and the JSON rules.
 - Logging through the leveled methods has two checks.
   The `leveled_logs` contract check fails a service that logs a line without a level.
   The linter flags any call to the deprecated `Log` and `Logf` methods.

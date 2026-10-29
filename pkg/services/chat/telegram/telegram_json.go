@@ -108,9 +108,10 @@ type User struct {
 
 // updatesRequest is the body of a getUpdates request.
 type updatesRequest struct {
-	// AllowedUpdates lists the update types to receive. Null keeps the
-	// previous setting, and an empty list asks for the default types.
-	AllowedUpdates []string `json:"allowed_updates"`
+	// AllowedUpdates lists the update types to receive. Nil leaves the
+	// parameter out, so the previous setting stays. An empty list asks for
+	// the default types.
+	AllowedUpdates []string `json:"allowed_updates,omitzero"`
 	// Offset is the identifier of the first update to return. Updates before
 	// it are confirmed and no longer returned.
 	Offset int `json:"offset"`
@@ -152,7 +153,7 @@ type chosenInlineResult struct{}
 // optional fields is set.
 type Update struct {
 	// Message is a new incoming message of any kind, such as text or a photo.
-	Message *Message `json:"Message"`
+	Message *Message `json:"message"`
 	// EditedMessage is a new version of a message the bot knows of.
 	EditedMessage *Message `json:"edited_message"`
 	// ChannelPost is a new incoming channel post of any kind.
@@ -228,7 +229,7 @@ type callbackQuery struct {
 	// From is the user who pressed the button.
 	From *User `json:"from"`
 	// Message is the message the button belongs to.
-	Message *Message `json:"Message"`
+	Message *Message `json:"message"`
 	// Data is the button's callback data.
 	Data string `json:"data"`
 }

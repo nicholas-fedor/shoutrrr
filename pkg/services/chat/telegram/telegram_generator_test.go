@@ -28,12 +28,9 @@ const (
 var errUnexpectedRequest = errors.New("unexpected request to the Telegram API")
 
 // botInfoResponder answers getMe with a bot named mockbot.
-var botInfoResponder = httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
-	OK     bool
-	Result *User
-}{
+var botInfoResponder = httpmock.NewJsonResponderOrPanic(http.StatusOK, &userResponse{
 	OK:     true,
-	Result: &User{ID: 1, IsBot: true, Username: "mockbot"},
+	Result: User{ID: 1, IsBot: true, Username: "mockbot"},
 })
 
 // activateTelegramMock routes the default HTTP transport to httpmock for the
@@ -79,10 +76,7 @@ func TestGeneratorBuildsURLFromUpdates(t *testing.T) {
 	activateTelegramMock(t)
 
 	httpmock.RegisterResponder(http.MethodGet, generatorAPIBase+"getMe", botInfoResponder)
-	httpmock.RegisterResponder(http.MethodPost, generatorAPIBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
-		OK     bool
-		Result []Update
-	}{
+	httpmock.RegisterResponder(http.MethodPost, generatorAPIBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &updatesResponse{
 		OK: true,
 		Result: []Update{
 			{
@@ -181,10 +175,7 @@ func TestGeneratorUsesAPIURL(t *testing.T) {
 	const apiBase = "http://localhost:8081/bot" + generatorToken + "/"
 
 	httpmock.RegisterResponder(http.MethodGet, apiBase+"getMe", botInfoResponder)
-	httpmock.RegisterResponder(http.MethodPost, apiBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &struct {
-		OK     bool
-		Result []Update
-	}{
+	httpmock.RegisterResponder(http.MethodPost, apiBase+"getUpdates", httpmock.NewJsonResponderOrPanic(http.StatusOK, &updatesResponse{
 		OK: true,
 		Result: []Update{{
 			Message: &Message{

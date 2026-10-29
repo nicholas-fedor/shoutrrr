@@ -94,6 +94,11 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{name: "empty extras", rawURL: testServiceURL + "?extras=", want: Config{Host: testHost, Token: testToken}},
+		{
+			name:   "extras with a repeated key keep the last",
+			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"a":1,"a":"x"}`),
+			want:   Config{Host: testHost, Token: testToken, Extras: map[string]any{"a": "x"}},
+		},
 	}
 
 	for _, tt := range tests {

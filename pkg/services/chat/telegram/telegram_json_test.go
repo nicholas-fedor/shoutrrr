@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
 // htmlMessage contains characters that HTML parse mode must escape.
@@ -109,4 +111,26 @@ func TestPayloadMessageThreadID(t *testing.T) {
 			assert.Equal(t, tt.want, payload.MessageThreadID)
 		})
 	}
+}
+
+// TestUpdateUnmarshal verifies that an update decodes from the member names
+// the Bot API documents, which are lowercase and match the field tags exactly.
+func TestUpdateUnmarshal(t *testing.T) {
+	t.Parallel()
+
+	input := `{"update_id":7,` +
+		`"message":{"message_id":2,"text":"hi","chat":{"id":3,"type":"private"}},` +
+		`"callback_query":{"id":"q","data":"d","message":{"message_id":4,"text":"pick"}}}`
+
+	var update Update
+	require.NoError(t, json.Unmarshal([]byte(input), &update, jsonopts.Default))
+
+	assert.Equal(t, 7, update.UpdateID)
+	require.NotNil(t, update.Message)
+	assert.Equal(t, "hi", update.Message.Text)
+	require.NotNil(t, update.Message.Chat)
+	assert.Equal(t, int64(3), update.Message.Chat.ID)
+	require.NotNil(t, update.CallbackQuery)
+	require.NotNil(t, update.CallbackQuery.Message)
+	assert.Equal(t, "pick", update.CallbackQuery.Message.Text)
 }

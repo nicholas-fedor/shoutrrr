@@ -250,6 +250,32 @@ func startRunOAuth2Flow(t *testing.T, ctx context.Context, conf *oauth2.Config) 
 	})
 }
 
+// startGenerateFlow runs [Generator.Generate] in the background with props
+// and args.
+//
+// Parameters:
+//   - t: the test that owns the flow.
+//   - props: the generator props, such as the provider.
+//   - args: the generator arguments, such as a settings file.
+//
+// Returns:
+//   - *flowRun: the running flow.
+func startGenerateFlow(t *testing.T, props map[string]string, args []string) *flowRun {
+	t.Helper()
+
+	return startFlow(t, func(input io.Reader, output io.Writer) (*smtp.Config, error) {
+		config, err := (&Generator{Input: input, Output: output}).Generate(nil, props, args)
+		if err != nil {
+			return nil, err
+		}
+
+		smtpConfig, ok := config.(*smtp.Config)
+		require.True(t, ok)
+
+		return smtpConfig, nil
+	})
+}
+
 // newTestConfig returns OAuth2 settings for the fake endpoints with redirectURL.
 //
 // Parameters:
@@ -833,17 +859,7 @@ func TestGenerateGmailLoopback(t *testing.T) {
 		`"auth_uri":"`+testAuthURL+`","token_uri":"`+tokenURL+`",`+
 		`"redirect_uris":["urn:ietf:wg:oauth:2.0:oob","http://localhost"]}}`)
 
-	flow := startFlow(t, func(input io.Reader, output io.Writer) (*smtp.Config, error) {
-		config, err := (&Generator{Input: input, Output: output}).Generate(nil, map[string]string{"provider": "gmail"}, []string{credentials})
-		if err != nil {
-			return nil, err
-		}
-
-		smtpConfig, ok := config.(*smtp.Config)
-		require.True(t, ok)
-
-		return smtpConfig, nil
-	})
+	flow := startGenerateFlow(t, map[string]string{"provider": "gmail"}, []string{credentials})
 
 	auth := flow.authRequest(t)
 	assert.True(t, strings.HasPrefix(auth.Get("redirect_uri"), "http://127.0.0.1:"), auth.Get("redirect_uri"))
@@ -862,6 +878,36 @@ func TestGenerateGmailLoopback(t *testing.T) {
 	requirePKCE(t, auth, endpoint.lastForm())
 }
 
+// TestGenerateFileNamesInAnyCase verifies that a provider file whose member
+// names differ in case from the documented names still configures the flow,
+// because users write the file themselves.
+func TestGenerateFileNamesInAnyCase(t *testing.T) {
+	t.Parallel()
+
+	endpoint, tokenURL := newTokenServer(t, http.StatusOK, refreshBody)
+	file := createTempFile(t, `{"Client_ID":"client-id","CLIENT_SECRET":"client-secret",`+
+		`"Redirect_URL":"http://127.0.0.1","Auth_URL":"`+testAuthURL+`","TOKEN_URL":"`+tokenURL+`",`+
+		`"SMTP_Hostname":"smtp.example.com","Scopes":["mail"]}`)
+
+	flow := startGenerateFlow(t, map[string]string{}, []string{file})
+
+	auth := flow.authRequest(t)
+	assert.Equal(t, "client-id", auth.Get("client_id"))
+	assert.Equal(t, "mail", auth.Get("scope"))
+
+	status, _ := browse(t, auth.Get("redirect_uri"), redirectQuery(auth.Get("state"), "code", testCode))
+	assert.Equal(t, http.StatusOK, status)
+
+	flow.waitFor(t, "Enter sender e-mail")
+	flow.send(testSender)
+
+	result := flow.result(t)
+	require.NoError(t, result.err)
+	assert.Equal(t, "smtp.example.com", result.config.Host)
+	assert.Equal(t, "client-secret", result.config.ClientSecret)
+	requirePKCE(t, auth, endpoint.lastForm())
+}
+
 // TestGenerateInteractive verifies the interactive generator end to end with
 // every answer written at once, so the answers after the settings, the pasted
 // code and the sender, must not be lost to an earlier read.
@@ -870,17 +916,7 @@ func TestGenerateInteractive(t *testing.T) {
 
 	endpoint, tokenURL := newTokenServer(t, http.StatusOK, refreshBody)
 
-	flow := startFlow(t, func(input io.Reader, output io.Writer) (*smtp.Config, error) {
-		config, err := (&Generator{Input: input, Output: output}).Generate(nil, map[string]string{}, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		smtpConfig, ok := config.(*smtp.Config)
-		require.True(t, ok)
-
-		return smtpConfig, nil
-	})
+	flow := startGenerateFlow(t, map[string]string{}, nil)
 
 	flow.send(strings.Join([]string{
 		"client-id", "client-secret", testAuthURL, tokenURL,

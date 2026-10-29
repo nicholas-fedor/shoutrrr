@@ -47,7 +47,7 @@ func (b *DefaultPayloadBuilder) ParseExtras(
 		// Look for 'extras' key in parameters
 		if extrasStr, exists := (*params)["extras"]; exists && extrasStr != "" {
 			// Attempt to parse the JSON string into a map
-			if err := json.Unmarshal([]byte(extrasStr), &requestExtras, jsonopts.Default); err != nil {
+			if err := json.Unmarshal([]byte(extrasStr), &requestExtras, jsonopts.UserInput); err != nil {
 				// Return error for parsing failure
 				return nil, fmt.Errorf("%w", ErrExtrasUnmarshalFailed)
 			}

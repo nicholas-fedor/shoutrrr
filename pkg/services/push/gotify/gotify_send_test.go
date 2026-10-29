@@ -55,7 +55,7 @@ func TestSendRequestContext(t *testing.T) {
 			assert.Equal(t, testEndpoint, requests[0].url)
 			assert.Equal(t, "application/json", requests[0].contentType)
 			assert.Equal(t, tt.wantKey, requests[0].gotifyKey)
-			assert.JSONEq(t, `{"message":"Hello","title":"Backup","priority":5,"extras":null}`, requests[0].body)
+			assert.JSONEq(t, `{"message":"Hello","title":"Backup","priority":5}`, requests[0].body)
 		})
 	}
 }

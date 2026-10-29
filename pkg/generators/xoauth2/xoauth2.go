@@ -828,7 +828,7 @@ func oauth2GeneratorFile(ctx context.Context, file string, lines *lineReader, ou
 		Scopes []string `json:"scopes"`
 	}
 
-	if err := json.Unmarshal(jsonData, &providerConfig, jsonopts.Default); err != nil {
+	if err := json.Unmarshal(jsonData, &providerConfig, jsonopts.UserInput); err != nil {
 		return nil, fmt.Errorf("%s: %w: %w", file, ErrUnmarshalFailed, err)
 	}
 
