@@ -4,11 +4,11 @@ package util
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // EnvPrefix is the prefix of the environment variables that set CLI flags. A flag
@@ -115,19 +115,19 @@ func ApplyArgs(cmd *cobra.Command, args []string, names ...string) ([]string, er
 // Returns:
 //   - error: an error naming the environment variable whose value the flag rejected.
 func ApplyEnv(cmd *cobra.Command) error {
-	env := viper.New()
-	env.SetEnvPrefix(EnvPrefix)
-	env.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	env.AutomaticEnv()
-
 	var applyErr error
 
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		if applyErr != nil || flag.Changed || flag.Name == "help" || !env.IsSet(flag.Name) {
+		if applyErr != nil || flag.Changed || flag.Name == "help" {
 			return
 		}
 
-		if err := cmd.Flags().Set(flag.Name, env.GetString(flag.Name)); err != nil {
+		value := os.Getenv(EnvName(flag.Name))
+		if value == "" {
+			return
+		}
+
+		if err := cmd.Flags().Set(flag.Name, value); err != nil {
 			applyErr = fmt.Errorf("applying %s to the %s flag: %w", EnvName(flag.Name), flag.Name, err)
 		}
 	})

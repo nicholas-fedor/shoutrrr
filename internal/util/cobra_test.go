@@ -150,8 +150,9 @@ func TestLoadFlagsFromAltSourcesWithoutMessageFlag(t *testing.T) {
 	assert.Equal(t, []string{"logger://env"}, urls)
 }
 
-// TestApplyEnv verifies that ApplyEnv maps flag names to SHOUTRRR_ variables,
-// parses typed flags, ignores the help flag, and names the variable in errors.
+// TestApplyEnv verifies that ApplyEnv maps flag names to SHOUTRRR_ variables
+// and parses typed flags. It ignores the help flag, an empty variable, and a
+// flag set on the command line, and names the variable in errors.
 func TestApplyEnv(t *testing.T) {
 	t.Run("typed and dashed flags", func(t *testing.T) {
 		t.Setenv("SHOUTRRR_VERBOSE", "true")
@@ -178,6 +179,29 @@ func TestApplyEnv(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "SHOUTRRR_VERBOSE")
+	})
+
+	t.Run("an empty variable counts as unset", func(t *testing.T) {
+		t.Setenv("SHOUTRRR_MESSAGE", "")
+		t.Setenv("SHOUTRRR_VERBOSE", "")
+
+		cmd := newSendCommand()
+		require.NoError(t, ApplyEnv(cmd))
+
+		assert.False(t, cmd.Flags().Changed("message"))
+		assert.False(t, cmd.Flags().Changed("verbose"))
+	})
+
+	t.Run("a flag set on the command line keeps its value", func(t *testing.T) {
+		t.Setenv("SHOUTRRR_MESSAGE", "from the environment")
+
+		cmd := newSendCommand()
+		require.NoError(t, cmd.Flags().Set("message", "from the flag"))
+		require.NoError(t, ApplyEnv(cmd))
+
+		message, err := cmd.Flags().GetString("message")
+		require.NoError(t, err)
+		assert.Equal(t, "from the flag", message)
 	})
 }
 
