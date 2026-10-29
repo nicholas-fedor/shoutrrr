@@ -159,7 +159,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	// The resolver records the keys the URL set, so a scheme the URL set
 	// does not keep its default.
 	if !s.pkr.KeepsDefault(s.Config, nil, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+		s.warnings.DeprecatedKeys(context.Background(), s, []format.Deprecation{schemeKey})
 	}
 
 	return nil
@@ -201,14 +201,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config, err := s.sendConfig(params)
+	config, err := s.sendConfig(ctx, params)
 	if err != nil {
 		return err
 	}
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	if err := s.sendAPI(ctx, &config, message); err != nil {
@@ -346,23 +346,24 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 // about once.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - params: the send params, or nil.
 //
 // Returns:
 //   - Config: the config for this send.
 //   - error: a params error wrapping [ErrUpdateParamsFailed], or
 //     [ErrInvalidScheme].
-func (s *Service) sendConfig(params *types.Params) (Config, error) {
+func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
 	// A URL with an http scheme turns TLS off as it is read, so an http scheme
 	// with TLS on was set on the deprecated field directly.
 	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
-		s.warnings.DeprecatedFields(s, []format.Deprecation{schemeField})
+		s.warnings.DeprecatedFields(ctx, s, []format.Deprecation{schemeField})
 	}
 
 	if params != nil && hasKey(*params, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+		s.warnings.DeprecatedKeys(ctx, s, []format.Deprecation{schemeKey})
 	}
 
 	// The stored scheme turns TLS off before the params apply, so a disabletls

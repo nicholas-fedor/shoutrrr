@@ -172,7 +172,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return fmt.Errorf("parsing configuration URL: %w", err)
 	}
 
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
+	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
 	// Note: The MQTT client is lazily initialized on the first Send call,
 	// allowing runtime configuration changes to take effect before connection.
@@ -232,8 +232,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("syncing deprecated config fields: %w", err)
 	}
 
-	s.warnings.DeprecatedFields(s, deprecatedFields)
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(params))
+	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	// Apply any runtime parameter overrides to this send's configuration
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
@@ -475,7 +475,9 @@ func (s *Service) closeOwnedConnection() {
 //   - *tls.Config: new settings for the connection.
 func (s *Service) createTLSConfig(config *Config) *tls.Config {
 	if config.SkipTLSVerify {
-		s.warnings.Insecure(s)
+		// The connection outlives the send that opens it, so its warnings
+		// carry no send's context.
+		s.warnings.Insecure(context.Background(), s)
 
 		return transport.InsecureTLSConfig("")
 	}
@@ -575,7 +577,9 @@ func (s *Service) openConnectionLocked(config *Config) error {
 	// Enable TLS when using secure scheme and TLS is not disabled
 	useTLS := scheme == SchemeTLS && !config.DisableTLS
 	if !useTLS {
-		s.warnings.Plaintext(s)
+		// The connection outlives the send that opens it, so its warnings
+		// carry no send's context.
+		s.warnings.Plaintext(context.Background(), s)
 	}
 
 	// Build the broker URL

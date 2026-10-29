@@ -188,7 +188,7 @@ func TestCreateTLSConfig(t *testing.T) {
 	assert.True(t, unverified.InsecureSkipVerify)
 	assert.Equal(t, uint16(tls.VersionTLS12), unverified.MinVersion)
 	service.createTLSConfig(&Config{SkipTLSVerify: true})
-	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+	assert.Equal(t, "WARN skipping TLS certificate verification\n", logs.String())
 
 	assert.NotSame(t, verified, service.createTLSConfig(&Config{}))
 }

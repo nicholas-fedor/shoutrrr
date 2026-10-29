@@ -228,21 +228,21 @@ func TestInitialize(t *testing.T) {
 			rawURL:     testServiceURL + "?disabletlsverification=yes",
 			wantScheme: "https",
 			wantAPIURL: testEndpoint,
-			wantLog:    `Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead` + "\n",
+			wantLog:    `WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify` + "\n",
 		},
 		{
 			name:       "disabletls over the deprecated scheme",
 			rawURL:     testServiceURL + "?scheme=http&disabletls=no",
 			wantScheme: "https",
 			wantAPIURL: testEndpoint,
-			wantLog:    `Warning: key "scheme" is deprecated, use "disabletls" instead` + "\n",
+			wantLog:    `WARN config key is deprecated key=scheme replacement=disabletls` + "\n",
 		},
 		{
 			name:       "deprecated scheme",
 			rawURL:     testServiceURL + "?scheme=http",
 			wantScheme: "http",
 			wantAPIURL: "http://ntfy.sh/" + testTopic,
-			wantLog:    `Warning: key "scheme" is deprecated, use "disabletls" instead` + "\n",
+			wantLog:    `WARN config key is deprecated key=scheme replacement=disabletls` + "\n",
 		},
 	}
 
@@ -919,7 +919,7 @@ func TestSendClient(t *testing.T) {
 	service := &Service{}
 	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL), log.New(&logs, "", 0)))
 
-	assert.Same(t, service.client.Client(), service.sendClient(service.Config))
+	assert.Same(t, service.client.Client(), service.sendClient(t.Context(), service.Config))
 
 	insecure := *service.Config
 	insecure.SkipTLSVerify = true
@@ -928,7 +928,7 @@ func TestSendClient(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range clients {
-		wg.Go(func() { clients[i] = service.sendClient(&insecure) })
+		wg.Go(func() { clients[i] = service.sendClient(t.Context(), &insecure) })
 	}
 
 	wg.Wait()
@@ -938,7 +938,7 @@ func TestSendClient(t *testing.T) {
 	}
 
 	assertDefaultClient(t, clients[0], true)
-	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+	assert.Equal(t, "WARN skipping TLS certificate verification\n", logs.String())
 
 	var injectedLogs bytes.Buffer
 
@@ -947,7 +947,7 @@ func TestSendClient(t *testing.T) {
 
 	custom := mocks.NewMockHTTPClient(t)
 	injected.SetHTTPClient(custom)
-	assert.Same(t, custom, injected.sendClient(&insecure))
+	assert.Same(t, custom, injected.sendClient(t.Context(), &insecure))
 	assert.Empty(t, injectedLogs.String())
 }
 
@@ -972,17 +972,17 @@ func TestSendWarnings(t *testing.T) {
 	require.NoError(t, service.Send("Hello", params))
 
 	want := []string{
-		"Warning: config field DisableTLSVerification is deprecated, use SkipTLSVerify instead",
-		"Warning: config field Scheme is deprecated, use DisableTLS instead",
-		`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
-		`Warning: key "scheme" is deprecated, use "disabletls" instead`,
-		"Warning: sending without TLS",
+		"WARN config field is deprecated field=DisableTLSVerification replacement=SkipTLSVerify",
+		"WARN config field is deprecated field=Scheme replacement=DisableTLS",
+		`WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify`,
+		`WARN config key is deprecated key=scheme replacement=disabletls`,
+		"WARN sending without TLS",
 	}
 	assert.Equal(t, want, warningLines(logs.String()))
 
 	require.NoError(t, service.Initialize(parseTestURL(t, testServiceURL+"?disabletls=yes"), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Equal(t, slices.Concat(want, []string{"Warning: sending without TLS"}), warningLines(logs.String()))
+	assert.Equal(t, slices.Concat(want, []string{"WARN sending without TLS"}), warningLines(logs.String()))
 }
 
 // warningLines returns the logged lines that are warnings, leaving out the
@@ -997,7 +997,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}

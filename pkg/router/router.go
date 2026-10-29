@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/logbridge"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -387,13 +389,14 @@ func (r *ServiceRouter) SendItemsContext(
 }
 
 // SetLogger sets the logger that the services will use to write progress logs.
+// Each service's leveled records carry its ID as the "service" attribute.
 //
 // Parameters:
 //   - logger: the logger to set on all services.
 func (r *ServiceRouter) SetLogger(logger types.StdLogger) {
 	r.logger = logger
 	for _, service := range r.services {
-		service.SetLogger(logger)
+		service.SetLogger(serviceLogger(logger, service))
 	}
 }
 
@@ -430,9 +433,12 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 		return nil, err
 	}
 
+	logger := serviceLogger(r.logger, service)
+
 	if serviceURL.Scheme != scheme {
-		// Custom URLs can carry credentials and headers, so log only the scheme.
-		r.log("Got custom URL for service:", scheme)
+		// Custom URLs can carry credentials and headers, so log no part of
+		// them. The record carries only the service's ID.
+		logbridge.New(logger).Debug("got custom URL")
 
 		customURLService, ok := service.(types.CustomURLService)
 		if !ok {
@@ -450,10 +456,10 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 
 		serviceURL = convertedURL
 
-		r.log("Converted custom URL for service:", scheme)
+		logbridge.New(logger).Debug("converted custom URL")
 	}
 
-	err = service.Initialize(serviceURL, r.logger)
+	err = service.Initialize(serviceURL, logger)
 	if err != nil {
 		return service, fmt.Errorf("%s: %w", scheme, err)
 	}
@@ -474,18 +480,6 @@ func (r *ServiceRouter) initService(rawURL string) (types.Service, error) {
 	}
 
 	return service, nil
-}
-
-// log writes a log message if a logger is configured.
-//
-// Parameters:
-//   - v: the values to log.
-func (r *ServiceRouter) log(v ...any) {
-	if r.logger == nil {
-		return
-	}
-
-	r.logger.Println(v...)
 }
 
 // parentContext returns the context a send derives its per-service contexts from:
@@ -512,6 +506,21 @@ func newService(serviceScheme string) (types.Service, error) {
 	}
 
 	return serviceFactory(), nil
+}
+
+// serviceLogger returns the logger the router gives a service. Its leveled
+// records carry the service's ID as the "service" attribute, so a router with
+// several services shows which one logged. Text the service prints reaches
+// logger unchanged.
+//
+// Parameters:
+//   - logger: the router's logger. Nil discards the service's output.
+//   - service: the service that receives the logger.
+//
+// Returns:
+//   - types.StdLogger: the service's logger, or nil when logger is nil.
+func serviceLogger(logger types.StdLogger, service types.Service) types.StdLogger {
+	return logbridge.With(logger, logging.KeyService, service.GetID())
 }
 
 // sendBudget returns how long the router waits for one service.

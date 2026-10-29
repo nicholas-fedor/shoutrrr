@@ -80,7 +80,7 @@ func TestDefaultHTTPClient(t *testing.T) {
 		{
 			name:    "deprecated key",
 			rawURL:  testServiceURL + "?insecureskipverify=yes",
-			wantLog: `Warning: key "insecureskipverify" is deprecated, use "skiptlsverify" instead` + "\n",
+			wantLog: `WARN config key is deprecated key=insecureskipverify replacement=skiptlsverify` + "\n",
 		},
 	}
 

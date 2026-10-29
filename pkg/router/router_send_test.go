@@ -213,6 +213,7 @@ func TestZeroValueRouterSends(t *testing.T) {
 func TestFlushEmptyQueue(t *testing.T) {
 	service := mocks.NewMockService(t)
 	service.EXPECT().Initialize(mock.Anything, mock.Anything).Return(nil)
+	service.EXPECT().GetID().Return("flushsvc").Maybe()
 
 	registerService(t, "flushsvc", service)
 

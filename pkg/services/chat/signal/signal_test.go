@@ -815,11 +815,11 @@ func TestSendPlaintextWarning(t *testing.T) {
 
 	require.NoError(t, service.Send("Hello", nil))
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Equal(t, []string{"Warning: sending without TLS"}, warningLines(logs.String()))
+	assert.Equal(t, []string{"WARN sending without TLS"}, warningLines(logs.String()))
 
 	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Equal(t, []string{"Warning: sending without TLS", "Warning: sending without TLS"}, warningLines(logs.String()))
+	assert.Equal(t, []string{"WARN sending without TLS", "WARN sending without TLS"}, warningLines(logs.String()))
 }
 
 // warningLines returns the logged lines that are warnings, leaving out the
@@ -834,7 +834,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}

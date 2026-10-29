@@ -384,7 +384,7 @@ func TestSessionRunLogsStartTLS(t *testing.T) {
 	require.NoError(t, service.Send("Hello", nil))
 	assert.Equal(t,
 		"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted\n"+
-			"Warning: sending without TLS\n"+
+			"WARN sending without TLS\n"+
 			"Mail successfully sent to \"rec@example.com\"!\n"+
 			"Mail successfully sent to \"rec@example.com\"!\n",
 		logs.String())
@@ -668,7 +668,7 @@ func TestSessionWithoutRecipients(t *testing.T) {
 	config := newInitialConfig()
 	config.Host, config.FromAddress = "localhost", "sender@example.com"
 
-	err := newTestSession(t, server, config).run("Hello")
+	err := newTestSession(t, server, config).run(t.Context(), "Hello")
 
 	require.ErrorIs(t, err, fail(FailSendRecipient, nil))
 	require.ErrorIs(t, err, ErrToAddressMissing)

@@ -309,26 +309,26 @@ func TestSendWarnings(t *testing.T) {
 		{
 			name:   "plain mqtt",
 			rawURL: "mqtt://broker.example.invalid/t",
-			want:   []string{"Warning: sending without TLS"},
+			want:   []string{"WARN sending without TLS"},
 		},
 		{
 			name:   "TLS disabled",
 			rawURL: "mqtts://broker.example.invalid/t?disabletls=yes",
-			want:   []string{"Warning: sending without TLS"},
+			want:   []string{"WARN sending without TLS"},
 		},
 		{name: "TLS", rawURL: "mqtts://broker.example.invalid/t"},
 		{
 			name:   "verification skipped",
 			rawURL: "mqtts://broker.example.invalid/t?skiptlsverify=yes",
-			want:   []string{"Warning: skipping TLS certificate verification"},
+			want:   []string{"WARN skipping TLS certificate verification"},
 		},
 		{
 			name:   "deprecated verification key in params",
 			rawURL: "mqtts://broker.example.invalid/t",
 			params: &types.Params{"disabletlsverification": "yes"},
 			want: []string{
-				`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
-				"Warning: skipping TLS certificate verification",
+				`WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify`,
+				"WARN skipping TLS certificate verification",
 			},
 		},
 		{
@@ -336,8 +336,8 @@ func TestSendWarnings(t *testing.T) {
 			rawURL: "mqtts://broker.example.invalid/t",
 			setup:  func(service *Service) { service.Config.DisableTLSVerification = true },
 			want: []string{
-				"Warning: config field DisableTLSVerification is deprecated, use SkipTLSVerify instead",
-				"Warning: skipping TLS certificate verification",
+				"WARN config field is deprecated field=DisableTLSVerification replacement=SkipTLSVerify",
+				"WARN skipping TLS certificate verification",
 			},
 		},
 		{
@@ -345,7 +345,7 @@ func TestSendWarnings(t *testing.T) {
 			rawURL: "mqtt://broker.example.invalid:8883/t",
 			want: []string{
 				"Warning: Using MQTT scheme with TLS port 8883; TLS will not be used",
-				"Warning: sending without TLS",
+				"WARN sending without TLS",
 			},
 		},
 		{
@@ -415,8 +415,8 @@ func TestInitializeWarnings(t *testing.T) {
 		}
 
 		warnings := []string{
-			`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
-			"Warning: sending without TLS",
+			`WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify`,
+			"WARN sending without TLS",
 		}
 		assert.Equal(t, slices.Concat(warnings, warnings), warningLines(logs.String()))
 	})
@@ -495,7 +495,8 @@ func TestSendTLSSettings(t *testing.T) {
 	}
 }
 
-// warningLines returns the logged lines that are warnings.
+// warningLines returns the logged lines that are warnings. The shared
+// warnings start with "WARN ", and the port warnings start with "Warning: ".
 //
 // Parameters:
 //   - logs: the log output.
@@ -506,7 +507,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") || strings.HasPrefix(line, "Warning: ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}

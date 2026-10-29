@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -81,8 +82,9 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 // httpClientFunc adapts a function to [types.HTTPClient].
 type httpClientFunc func(*http.Request) (*http.Response, error)
 
-// logFunc adapts a function to [logging.Logger].
-type logFunc func(v ...any)
+// logFunc adapts a function that receives a warning's message to
+// [logging.Logger], as its own slog handler.
+type logFunc func(msg string)
 
 // sendOutcome is the result of a send that may panic.
 type sendOutcome struct {
@@ -939,6 +941,111 @@ func TestIntegrationMaskedURL(t *testing.T) {
 	}
 }
 
+// TestIntegrationServiceLogger verifies that the leveled records of the
+// router and its services carry the service's ID. The logger reaches the
+// services through the router's constructor or through SetLogger. It is a
+// plain logger or a slog logger. The generic service logs the plaintext
+// warning for an http custom URL. It also prints the response status, which
+// reaches a plain logger unchanged and a slog logger at Info.
+func TestIntegrationServiceLogger(t *testing.T) {
+	t.Parallel()
+
+	const customURL = "generic+http://example.invalid/hook"
+
+	ok := httpClientFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{Status: "200 OK", StatusCode: http.StatusOK, Body: http.NoBody, Header: http.Header{}}, nil
+	})
+	opts := types.SenderOptions{HTTPClient: ok}
+
+	t.Run("plain logger", func(t *testing.T) {
+		t.Parallel()
+
+		logs := &syncBuffer{}
+
+		serviceRouter, err := router.NewWithOptions(log.New(logs, "", 0), opts, customURL)
+		require.NoError(t, err)
+
+		for _, err := range serviceRouter.Send("message", nil) {
+			require.NoError(t, err)
+		}
+
+		assert.Equal(t,
+			"DEBUG got custom URL service=generic\n"+
+				"DEBUG converted custom URL service=generic\n"+
+				"WARN sending without TLS service=generic\n"+
+				"Server responded with status 200 OK\n",
+			logs.String())
+	})
+
+	t.Run("slog logger", func(t *testing.T) {
+		t.Parallel()
+
+		logs := &syncBuffer{}
+		logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{
+			AddSource: false,
+			Level:     slog.LevelDebug,
+			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+				if len(groups) == 0 && attr.Key == slog.TimeKey {
+					return slog.Attr{}
+				}
+
+				return attr
+			},
+		}))
+
+		serviceRouter, err := router.NewWithOptions(types.NewSlogLogger(logger), opts, customURL)
+		require.NoError(t, err)
+
+		for _, err := range serviceRouter.Send("message", nil) {
+			require.NoError(t, err)
+		}
+
+		assert.Equal(t,
+			`level=DEBUG msg="got custom URL" service=generic`+"\n"+
+				`level=DEBUG msg="converted custom URL" service=generic`+"\n"+
+				`level=WARN msg="sending without TLS" service=generic`+"\n"+
+				`level=INFO msg="Server responded with status 200 OK" service=generic`+"\n",
+			logs.String())
+	})
+
+	t.Run("warning source", func(t *testing.T) {
+		t.Parallel()
+
+		logs := &syncBuffer{}
+		logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{AddSource: true, Level: slog.LevelWarn}))
+
+		serviceRouter, err := router.NewWithOptions(types.NewSlogLogger(logger), opts, customURL)
+		require.NoError(t, err)
+
+		for _, err := range serviceRouter.Send("message", nil) {
+			require.NoError(t, err)
+		}
+
+		// The source is the service's call to the shared warning, not the
+		// library's logging code.
+		assert.Regexp(t, `level=WARN source=\S+/specialized/generic/generic\.go:\d+ msg="sending without TLS"`, logs.String())
+	})
+
+	t.Run("set logger", func(t *testing.T) {
+		t.Parallel()
+
+		logs := &syncBuffer{}
+
+		serviceRouter, err := router.NewWithOptions(nil, opts, customURL)
+		require.NoError(t, err)
+
+		serviceRouter.SetLogger(log.New(logs, "", 0))
+
+		for _, err := range serviceRouter.Send("message", nil) {
+			require.NoError(t, err)
+		}
+
+		assert.Equal(t,
+			"WARN sending without TLS service=generic\nServer responded with status 200 OK\n",
+			logs.String())
+	})
+}
+
 // TestIntegrationSkipTLSVerify verifies how each service that lets users skip
 // TLS certificate verification treats a server whose certificate cannot be
 // verified.
@@ -954,7 +1061,7 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 
 	var warning string
 
-	(&logging.Once{}).Insecure(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
+	(&logging.Once{}).Insecure(t.Context(), logFunc(func(msg string) { warning = msg }))
 	require.NotEmpty(t, warning)
 
 	for _, scheme := range skipVerifySchemes {
@@ -2161,7 +2268,7 @@ func runPlaintextWarning(t *testing.T, fx *fixture) failure {
 
 	var warning string
 
-	(&logging.Once{}).Plaintext(logFunc(func(v ...any) { warning = fmt.Sprint(v...) }))
+	(&logging.Once{}).Plaintext(t.Context(), logFunc(func(msg string) { warning = msg }))
 
 	synctest.Test(t, func(t *testing.T) {
 		logs := &syncBuffer{}
@@ -2723,11 +2830,44 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 //   - error: f's error.
 func (f httpClientFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
 
-// Log calls f with v.
+// Enabled reports true for every level.
+//
+// Returns:
+//   - bool: always true.
+func (logFunc) Enabled(context.Context, slog.Level) bool { return true }
+
+// Handle passes the record's message to f.
 //
 // Parameters:
-//   - v: the values to log.
-func (f logFunc) Log(v ...any) { f(v...) }
+//   - record: the warning's record.
+//
+// Returns:
+//   - error: always nil.
+//
+//nolint:gocritic // slog.Handler defines Handle with a Record value.
+func (f logFunc) Handle(_ context.Context, record slog.Record) error {
+	f(record.Message)
+
+	return nil
+}
+
+// Slog returns a slog logger with f as its handler.
+//
+// Returns:
+//   - *slog.Logger: the logger.
+func (f logFunc) Slog() *slog.Logger { return slog.New(f) }
+
+// WithAttrs returns f. The warnings add no attributes to the handler.
+//
+// Returns:
+//   - slog.Handler: f.
+func (f logFunc) WithAttrs([]slog.Attr) slog.Handler { return f }
+
+// WithGroup returns f. The warnings add no groups to the handler.
+//
+// Returns:
+//   - slog.Handler: f.
+func (f logFunc) WithGroup(string) slog.Handler { return f }
 
 // Read fills p with spaces.
 //

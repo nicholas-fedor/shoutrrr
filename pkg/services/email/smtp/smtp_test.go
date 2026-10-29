@@ -405,20 +405,20 @@ func TestSendLogsConnectionWarnings(t *testing.T) {
 		implicitTLS bool
 		want        string
 	}{
-		{name: "without TLS", rawURL: testServiceURL, want: "Warning: sending without TLS"},
-		{name: "skiptlsverify without TLS", rawURL: testServiceURL + "&skiptlsverify=yes", want: "Warning: sending without TLS"},
+		{name: "without TLS", rawURL: testServiceURL, want: "WARN sending without TLS"},
+		{name: "skiptlsverify without TLS", rawURL: testServiceURL + "&skiptlsverify=yes", want: "WARN sending without TLS"},
 		{
 			name:        "skiptlsverify in the URL",
 			rawURL:      implicitTLSURL + "&skiptlsverify=yes",
 			implicitTLS: true,
-			want:        "Warning: skipping TLS certificate verification",
+			want:        "WARN skipping TLS certificate verification",
 		},
 		{
 			name:        "skiptlsverify param",
 			rawURL:      implicitTLSURL,
 			params:      &types.Params{"skiptlsverify": "yes"},
 			implicitTLS: true,
-			want:        "Warning: skipping TLS certificate verification",
+			want:        "WARN skipping TLS certificate verification",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -454,7 +454,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}

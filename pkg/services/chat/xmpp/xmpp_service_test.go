@@ -452,14 +452,14 @@ func TestSendWarnings(t *testing.T) {
 		want   []string
 	}{
 		{name: "verified TLS", rawURL: chatURL},
-		{name: "skiptlsverify in the URL", rawURL: chatURL + "&skiptlsverify=yes", want: []string{"Warning: skipping TLS certificate verification"}},
+		{name: "skiptlsverify in the URL", rawURL: chatURL + "&skiptlsverify=yes", want: []string{"WARN skipping TLS certificate verification"}},
 		{
 			name:   "skiptlsverify param",
 			rawURL: chatURL,
 			params: &types.Params{"skiptlsverify": "yes"},
-			want:   []string{"Warning: skipping TLS certificate verification"},
+			want:   []string{"WARN skipping TLS certificate verification"},
 		},
-		{name: "TLS disabled", rawURL: chatURL + "&disabletls=yes", want: []string{"Warning: sending without TLS"}},
+		{name: "TLS disabled", rawURL: chatURL + "&disabletls=yes", want: []string{"WARN sending without TLS"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -479,7 +479,7 @@ func TestSendWarnings(t *testing.T) {
 
 			require.NoError(t, service.Initialize(parseTestURL(t, tt.rawURL), log.New(&logs, "", 0)))
 			require.NoError(t, service.Send("hello", tt.params))
-			assert.Equal(t, 2*len(tt.want), strings.Count(logs.String(), "Warning: "))
+			assert.Equal(t, 2*len(tt.want), strings.Count(logs.String(), "WARN "))
 		})
 	}
 }

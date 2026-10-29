@@ -1,65 +1,92 @@
 package logging
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"sync"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/logbridge"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
 // Logger receives the warnings. The standard service logger implements it.
 type Logger interface {
-	// Log writes v to the service's logger.
-	Log(v ...any)
+	// Slog returns the slog logger that receives the service's records.
+	//
+	// Returns:
+	//   - *slog.Logger: the logger.
+	Slog() *slog.Logger
 }
 
-// Once logs each warning at most once. The zero value is ready to use, and a
-// Once is safe for concurrent use. A Once must not be copied after first use.
+// Once logs each warning at most once, at [slog.LevelWarn]. The source of each
+// warning is the service's call to the Once method, for handlers that add the
+// source. The zero value is ready to use, and a Once is safe for concurrent
+// use. A Once must not be copied after first use.
 type Once struct {
 	// logged holds the keys of the warnings already logged.
 	logged sync.Map
 }
 
-// Warnings about a service's connections.
+// Attribute keys for log records.
+const (
+	// KeyField names a config field.
+	KeyField = "field"
+	// KeyKey names a config key in a URL or in params.
+	KeyKey = "key"
+	// KeyReplacement names what replaces a deprecated field or key.
+	KeyReplacement = "replacement"
+	// KeyService names the service that logged the record, by its ID.
+	KeyService = "service"
+)
+
+// Messages of the warnings.
 const (
 	// insecureWarning is logged when a send skips TLS certificate
 	// verification.
-	insecureWarning = "Warning: skipping TLS certificate verification"
+	insecureWarning = "skipping TLS certificate verification"
 	// plaintextWarning is logged when a send does not use TLS.
-	plaintextWarning = "Warning: sending without TLS"
+	plaintextWarning = "sending without TLS"
+	// deprecatedFieldWarning is logged when a deprecated config field is set.
+	deprecatedFieldWarning = "config field is deprecated"
+	// deprecatedKeyWarning is logged when a URL or params use a deprecated
+	// config key.
+	deprecatedKeyWarning = "config key is deprecated"
 )
 
 // DeprecatedFields logs a warning for each deprecated config field, once per
-// field.
+// field. The warning names the field and its replacement.
 //
 // Parameters:
+//   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 //   - deprecations: the deprecated fields that are set, such as those that
 //     [format.SyncDeprecatedFields] reports.
-func (o *Once) DeprecatedFields(logger Logger, deprecations []format.Deprecation) {
+func (o *Once) DeprecatedFields(ctx context.Context, logger Logger, deprecations []format.Deprecation) {
+	pc := logbridge.CallerPC(1)
+
 	for _, deprecation := range deprecations {
 		o.Do("field:"+deprecation.Name, func() {
-			logger.Log(fmt.Sprintf(
-				"Warning: config field %s is deprecated, use %s instead",
-				deprecation.Name, deprecation.Replacement,
-			))
+			logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, deprecatedFieldWarning,
+				KeyField, deprecation.Name, KeyReplacement, deprecation.Replacement)
 		})
 	}
 }
 
 // DeprecatedKeys logs a warning for each deprecated config key, once per key.
+// The warning names the key and its replacement.
 //
 // Parameters:
+//   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 //   - deprecations: the deprecated keys that a URL or params used, such as
 //     those that [format.PropKeyResolver.DeprecatedKeys] reports.
-func (o *Once) DeprecatedKeys(logger Logger, deprecations []format.Deprecation) {
+func (o *Once) DeprecatedKeys(ctx context.Context, logger Logger, deprecations []format.Deprecation) {
+	pc := logbridge.CallerPC(1)
+
 	for _, deprecation := range deprecations {
 		o.Do("key:"+deprecation.Name, func() {
-			logger.Log(fmt.Sprintf(
-				"Warning: key %q is deprecated, use %q instead",
-				deprecation.Name, deprecation.Replacement,
-			))
+			logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, deprecatedKeyWarning,
+				KeyKey, deprecation.Name, KeyReplacement, deprecation.Replacement)
 		})
 	}
 }
@@ -81,18 +108,24 @@ func (o *Once) Do(key string, warn func()) {
 // client, whose owner controls its TLS settings.
 //
 // Parameters:
+//   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
-func (o *Once) Insecure(logger Logger) {
-	o.Do("insecure", func() { logger.Log(insecureWarning) })
+func (o *Once) Insecure(ctx context.Context, logger Logger) {
+	pc := logbridge.CallerPC(1)
+
+	o.Do("insecure", func() { logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, insecureWarning) })
 }
 
 // Plaintext logs, once, that a send does not use TLS, so its connection and
 // any credentials it carries are not encrypted.
 //
 // Parameters:
+//   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
-func (o *Once) Plaintext(logger Logger) {
-	o.Do("plaintext", func() { logger.Log(plaintextWarning) })
+func (o *Once) Plaintext(ctx context.Context, logger Logger) {
+	pc := logbridge.CallerPC(1)
+
+	o.Do("plaintext", func() { logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, plaintextWarning) })
 }
 
 // Reset forgets the logged warnings, so each can be logged again.
