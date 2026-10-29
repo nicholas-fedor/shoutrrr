@@ -12,9 +12,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 )
 
-// FuzzDefaultMarshal checks that a request body marshaled with
-// [jsonopts.Default] holds the same JSON value as encoding/json produces, so
-// only the escaping of characters can differ. The seed corpus covers plain
+// FuzzDefaultMarshal checks that a request body without nil slices or maps
+// marshaled with [jsonopts.Default] holds the same JSON value as encoding/json
+// produces, so only the escaping of characters can differ. The seed corpus covers plain
 // text, HTML characters, invalid UTF-8, control characters, and the line and
 // paragraph separators.
 func FuzzDefaultMarshal(f *testing.F) {
@@ -49,7 +49,7 @@ func FuzzDefaultMarshal(f *testing.F) {
 	})
 }
 
-// FuzzDefaultUnmarshal checks that unmarshaling with [jsonopts.Default]
+// FuzzUserInputUnmarshal checks that unmarshaling with [jsonopts.UserInput]
 // accepts exactly the input encoding/json accepts and decodes the same value,
 // both into a struct and into an untyped value. Values are compared only
 // when both decodes succeed, because encoding/json keeps decoding the members
@@ -57,7 +57,7 @@ func FuzzDefaultMarshal(f *testing.F) {
 // and differently cased member names, repeated names, invalid UTF-8, a lone
 // surrogate escape, arrays, and null. The regression seeds under testdata/fuzz
 // repeat a name with a different value type and mistype a member before a valid one.
-func FuzzDefaultUnmarshal(f *testing.F) {
+func FuzzUserInputUnmarshal(f *testing.F) {
 	for _, seed := range []string{
 		`{"error_code":400,"message":"bad"}`,
 		`{"Error_Code":1,"MESSAGE":"x","message":"y"}`,
@@ -70,10 +70,12 @@ func FuzzDefaultUnmarshal(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
+		data := []byte(input)
+
 		var got, legacy response
 
-		err := json.Unmarshal([]byte(input), &got, jsonopts.Default)
-		legacyErr := jsonv1.Unmarshal([]byte(input), &legacy)
+		err := json.Unmarshal(data, &got, jsonopts.UserInput)
+		legacyErr := jsonv1.Unmarshal(data, &legacy)
 		require.Equal(t, legacyErr == nil, err == nil, "struct: v2 error %v, encoding/json error %v", err, legacyErr)
 
 		if err == nil {
@@ -82,8 +84,8 @@ func FuzzDefaultUnmarshal(f *testing.F) {
 
 		var gotValue, legacyValue any
 
-		err = json.Unmarshal([]byte(input), &gotValue, jsonopts.Default)
-		legacyErr = jsonv1.Unmarshal([]byte(input), &legacyValue)
+		err = json.Unmarshal(data, &gotValue, jsonopts.UserInput)
+		legacyErr = jsonv1.Unmarshal(data, &legacyValue)
 		require.Equal(t, legacyErr == nil, err == nil, "untyped: v2 error %v, encoding/json error %v", err, legacyErr)
 
 		if err == nil {

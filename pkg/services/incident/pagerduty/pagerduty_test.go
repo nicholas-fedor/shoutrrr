@@ -360,6 +360,20 @@ func TestNewEventPayloadOptionalFields(t *testing.T) {
 	assert.Nil(t, payload.Contexts)
 }
 
+// TestNewEventPayloadDetailsRepeatedKey verifies that a details prop that
+// repeats a key keeps the last value even when its type differs. encoding/json
+// reads such a prop the same way.
+func TestNewEventPayloadDetailsRepeatedKey(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+
+	payload, err := service.newEventPayload("message", &types.Params{"details": `{"key":1,"key":"value"}`})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"key": "value"}, payload.Payload.CustomDetails)
+}
+
 // TestSendRejectsInvalidEvents verifies that a send rejects params that make
 // an invalid event before any request.
 func TestSendRejectsInvalidEvents(t *testing.T) {
@@ -541,8 +555,8 @@ func TestSetHTTPClient(t *testing.T) {
 }
 
 // TestParseContexts verifies that parseContexts reads a JSON array of link
-// and image contexts, or the comma-separated type:value format, where text
-// contexts and empty entries are skipped.
+// and image contexts, with member names in any case, or the comma-separated
+// type:value format, where text contexts and empty entries are skipped.
 func TestParseContexts(t *testing.T) {
 	t.Parallel()
 
@@ -567,6 +581,14 @@ func TestParseContexts(t *testing.T) {
 		{
 			name:  "JSON array",
 			input: `[{"type":"link","href":"http://example.com","text":"Dashboard"},{"type":"image","src":"http://example.com/img.png"}]`,
+			want: []PagerDutyContext{
+				{Type: "link", Href: "http://example.com", Text: "Dashboard"},
+				{Type: "image", Src: "http://example.com/img.png"},
+			},
+		},
+		{
+			name:  "JSON array with names in another case",
+			input: `[{"Type":"link","HREF":"http://example.com","Text":"Dashboard"},{"TYPE":"image","Src":"http://example.com/img.png"}]`,
 			want: []PagerDutyContext{
 				{Type: "link", Href: "http://example.com", Text: "Dashboard"},
 				{Type: "image", Src: "http://example.com/img.png"},

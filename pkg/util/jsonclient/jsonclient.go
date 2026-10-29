@@ -1,5 +1,10 @@
 // Package jsonclient provides a JSON HTTP client for making HTTP requests
 // that automatically marshal and unmarshal JSON payloads.
+//
+// Request bodies are encoded with sorted map keys, and a nil slice or map
+// encodes as an empty array or object. Responses are decoded with member names
+// that match field names exactly. A repeated member name fails the decode.
+// Invalid UTF-8 is replaced with U+FFFD in both directions.
 package jsonclient
 
 import (

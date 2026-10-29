@@ -207,7 +207,7 @@ func TestSend(t *testing.T) {
 			rawURL:   testServiceURL,
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "title and priority params",
@@ -215,14 +215,14 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"title": "Backup", "priority": "5"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Backup","priority":5,"extras":null}`,
+			wantBody: `{"message":"Hello","title":"Backup","priority":5}`,
 		},
 		{
 			name:     "priority in the URL",
 			rawURL:   testServiceURL + "?priority=-2",
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":-2,"extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":-2}`,
 		},
 		{
 			name:     "zero priority param",
@@ -230,21 +230,21 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"priority": "0"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0,"extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
 			name:     "zero priority in the URL",
 			rawURL:   testServiceURL + "?priority=0",
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0,"extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
 			name:     "subpath",
 			rawURL:   "gotify://" + testHost + "/gotify/" + testToken,
 			message:  "Hello",
 			wantURL:  "https://" + testHost + "/gotify/message?token=" + testToken,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "extras param",
@@ -283,7 +283,7 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"date": "2023-12-25T10:00:00+02:00"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "invalid date param",
@@ -291,14 +291,14 @@ func TestSend(t *testing.T) {
 			params:   &types.Params{"date": "tomorrow"},
 			message:  "Hello",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "special characters",
 			rawURL:   testServiceURL,
 			message:  "Disk <90%> & \"temp\" ✓\nline two",
 			wantURL:  testEndpoint,
-			wantBody: `{"message":"Disk <90%> & \"temp\" ✓\nline two","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Disk <90%> & \"temp\" ✓\nline two","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "token in a header",
@@ -306,21 +306,21 @@ func TestSend(t *testing.T) {
 			message:  "Hello",
 			wantURL:  "https://" + testHost + "/message",
 			wantKey:  testToken,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "TLS disabled",
 			rawURL:   testServiceURL + "?disabletls=yes",
 			message:  "Hello",
 			wantURL:  "http://" + testHost + "/message?token=" + testToken,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 		{
 			name:     "Gotify 3 token",
 			rawURL:   "gotify://" + testHost + "/" + enhancedToken,
 			message:  "Hello",
 			wantURL:  "https://" + testHost + "/message?token=" + enhancedToken,
-			wantBody: `{"message":"Hello","title":"Shoutrrr notification","extras":null}`,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification"}`,
 		},
 	}
 
@@ -519,7 +519,7 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	requests := captured()
 	require.Len(t, requests, 2)
 	assert.Equal(t, testEndpoint, requests[1].url)
-	assert.JSONEq(t, `{"message":"Hello","title":"Shoutrrr notification","extras":null}`, requests[1].body)
+	assert.JSONEq(t, `{"message":"Hello","title":"Shoutrrr notification"}`, requests[1].body)
 }
 
 // TestSendContextCancellation verifies that the caller's context bounds the

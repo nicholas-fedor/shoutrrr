@@ -161,7 +161,7 @@ func (c *Config) processQueryParameters(
 				// Initialize extras map
 				c.Extras = make(map[string]any)
 				// Parse JSON string into map
-				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras, jsonopts.Default); err != nil {
+				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras, jsonopts.UserInput); err != nil {
 					return fmt.Errorf("%w: %w", ErrExtrasParseFailed, err)
 				}
 			}

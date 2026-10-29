@@ -29,6 +29,11 @@ func TestParseExtras(t *testing.T) {
 			params: &types.Params{"extras": `{"client::display":{"contentType":"text/markdown"}}`},
 			want:   map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
 		},
+		{
+			name:   "param extras with a repeated key keep the last",
+			params: &types.Params{"extras": `{"a":1,"a":"x"}`},
+			want:   map[string]any{"a": "x"},
+		},
 		{name: "no params", want: configExtras},
 		{name: "no extras param", params: &types.Params{"title": "Backup"}, want: configExtras},
 		{name: "empty extras param", params: &types.Params{"extras": ""}, want: configExtras},
@@ -97,8 +102,8 @@ func TestMessageRequestMarshalJSON(t *testing.T) {
 			request: MessageRequest{Message: "Hello", Title: "Backup", Priority: 5, Date: &date, Extras: map[string]any{"a": 1}},
 			want:    `{"message":"Hello","title":"Backup","priority":5,"extras":{"a":1}}`,
 		},
-		{name: "zero priority", request: MessageRequest{Message: "Hello", Title: "Backup"}, want: `{"message":"Hello","title":"Backup","priority":0,"extras":null}`},
-		{name: "priority left out", request: MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true}, want: `{"message":"Hello","title":"Backup","extras":null}`},
+		{name: "zero priority", request: MessageRequest{Message: "Hello", Title: "Backup"}, want: `{"message":"Hello","title":"Backup","priority":0}`},
+		{name: "priority left out", request: MessageRequest{Message: "Hello", Title: "Backup", omitPriority: true}, want: `{"message":"Hello","title":"Backup"}`},
 	}
 
 	for _, tt := range tests {

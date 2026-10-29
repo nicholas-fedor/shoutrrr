@@ -73,8 +73,9 @@ func (er *responseError) Error() string {
 	return fmt.Sprintf("server responded with %v (%v): %v", er.Name, er.Code, er.Description)
 }
 
-// MarshalJSON writes the message body Gotify accepts: the message, title,
-// and extras, and the priority unless the request leaves it out.
+// MarshalJSON writes the message body Gotify accepts. The body always holds
+// the message and title. It leaves out nil extras, and the priority when the
+// request leaves it out.
 //
 // Returns:
 //   - []byte: the JSON body.
@@ -82,7 +83,7 @@ func (er *responseError) Error() string {
 func (r MessageRequest) MarshalJSON() ([]byte, error) {
 	// body is the JSON body of a message.
 	type body struct {
-		Extras   map[string]any `json:"extras"`
+		Extras   map[string]any `json:"extras,omitzero"`
 		Priority *int           `json:"priority,omitzero"`
 		Message  string         `json:"message"`
 		Title    string         `json:"title"`
