@@ -33,14 +33,29 @@ type ServiceRouter struct {
 // DefaultTimeout is the send budget used when a service does not report a longer one.
 const DefaultTimeout = types.DefaultSendTimeout
 
+// Errors the router returns.
 var (
-	ErrNoSenders              = errors.New("error sending message: no senders")
-	ErrServiceTimeout         = errors.New("failed to send: timed out")
+	// ErrNoSenders is returned by a send on a nil router.
+	ErrNoSenders = errors.New("error sending message: no senders")
+	// ErrServiceTimeout reports a service whose send budget ran out while the
+	// caller's context was still live. It wraps the service's error when the
+	// service returned one. A part of a send with an earlier deadline of its
+	// own, such as one target of several, is reported with the service's error
+	// alone.
+	ErrServiceTimeout = errors.New("failed to send: timed out")
+	// ErrCustomURLsNotSupported reports a custom URL, such as
+	// generic+https://, for a service that does not accept one.
 	ErrCustomURLsNotSupported = errors.New("custom URLs are not supported by service")
-	ErrUnknownService         = errors.New("unknown service")
-	ErrParseURLFailed         = errors.New("failed to parse URL")
-	ErrSendFailed             = errors.New("failed to send message")
-	ErrCustomURLConversion    = errors.New("failed to convert custom URL")
+	// ErrUnknownService reports a URL scheme that names no service.
+	ErrUnknownService = errors.New("unknown service")
+	// ErrParseURLFailed reports a service URL that does not parse.
+	ErrParseURLFailed = errors.New("failed to parse URL")
+	// ErrSendFailed is not returned by the router. It stays exported for
+	// callers that refer to it.
+	ErrSendFailed = errors.New("failed to send message")
+	// ErrCustomURLConversion reports a custom URL that its service could not
+	// turn into a service URL.
+	ErrCustomURLConversion = errors.New("failed to convert custom URL")
 	// ErrEmptyFragment indicates a service URL that ends in a "#" with nothing
 	// after it. A parsed URL cannot tell that from a URL without one, so the
 	// "#", such as an MQTT wildcard written unescaped, would be lost.
@@ -628,8 +643,10 @@ func (r *ServiceRouter) sendToService(
 // failure in a *types.TargetError. A send cut short by the caller's context
 // reports that context's error, and one cut short by the service's budget reports
 // [ErrServiceTimeout]. A service error that matches [context.DeadlineExceeded]
-// while the caller's context is live is wrapped with [ErrServiceTimeout], so it
-// keeps what the service reported, such as which of its targets timed out.
+// is wrapped with [ErrServiceTimeout] only when the service's budget ran out
+// while the caller's context was live, so it keeps what the service reported.
+// An error from a part of the send whose own deadline came earlier, such as one
+// target of several, is returned as the service reported it.
 //
 // Parameters:
 //   - ctx: the caller's context the send derives from.
@@ -652,7 +669,10 @@ func awaitResult(
 			return nil
 		}
 
-		if errors.Is(res, context.DeadlineExceeded) && ctx.Err() == nil {
+		// The service's error and sendCtx's timer arrive at the same instant
+		// when the budget runs out, so the deadline decides, not sendCtx.Err.
+		budget, _ := sendCtx.Deadline()
+		if errors.Is(res, context.DeadlineExceeded) && ctx.Err() == nil && !time.Now().Before(budget) {
 			res = fmt.Errorf("%w: %v: %w", ErrServiceTimeout, serviceID, res)
 		}
 

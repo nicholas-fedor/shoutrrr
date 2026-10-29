@@ -3,11 +3,14 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
@@ -18,6 +21,16 @@ type budgetMock struct {
 	*mocks.MockService
 	*mocks.MockContextSender
 	*mocks.MockServiceTimeout
+}
+
+// pastDeadlineContext is a context whose deadline has passed but whose Done
+// channel never closes, so a result arriving with an expired budget is handled
+// by the result branch of awaitResult rather than racing the Done branch.
+type pastDeadlineContext struct {
+	context.Context //nolint:containedctx // The test context wraps one to change its deadline.
+
+	// deadline is the deadline the context reports.
+	deadline time.Time
 }
 
 func newBudgetMock(t *testing.T, id string, block func(context.Context) error) *budgetMock {
@@ -181,4 +194,65 @@ func TestSendWithoutServiceTimeoutUsesDefault(t *testing.T) {
 
 		requireTimeout(t, errs[0])
 	})
+}
+
+// Deadline reports the deadline that has passed.
+//
+// Returns:
+//   - time.Time: the deadline.
+//   - bool: always true.
+func (c pastDeadlineContext) Deadline() (time.Time, bool) {
+	return c.deadline, true
+}
+
+// TestAwaitResultTimeoutLabel verifies that a service error that matches
+// context.DeadlineExceeded is labeled ErrServiceTimeout only when the service's
+// budget ran out, and keeps the service's error. An error from a part of the
+// send whose own deadline came earlier is returned as the service reported it.
+func TestAwaitResultTimeoutLabel(t *testing.T) {
+	t.Parallel()
+
+	serviceErr := fmt.Errorf("sending to chat %q: %w", "hung", context.DeadlineExceeded)
+
+	// tests lists send contexts with whether the result should be labeled.
+	tests := []struct {
+		sendCtx context.Context //nolint:containedctx // Each case needs its own send context.
+		name    string
+		labeled bool
+	}{
+		{
+			name:    "budget ran out",
+			sendCtx: pastDeadlineContext{Context: t.Context(), deadline: time.Now().Add(-time.Second)},
+			labeled: true,
+		},
+		{
+			name:    "budget still live",
+			sendCtx: pastDeadlineContext{Context: t.Context(), deadline: time.Now().Add(time.Hour)},
+			labeled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := make(chan error, 1)
+			result <- serviceErr
+
+			err := awaitResult(t.Context(), tt.sendCtx, result, "telegram", 0)
+
+			var targetErr *types.TargetError
+
+			require.ErrorAs(t, err, &targetErr)
+			require.ErrorIs(t, err, serviceErr)
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+
+			if tt.labeled {
+				require.ErrorIs(t, err, ErrServiceTimeout)
+			} else {
+				require.NotErrorIs(t, err, ErrServiceTimeout)
+				assert.Equal(t, serviceErr, targetErr.Err)
+			}
+		})
+	}
 }
