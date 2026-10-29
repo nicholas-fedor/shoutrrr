@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Share one loop for the requests of a send by @nicholas-fedor in [#1925](https://github.com/nicholas-fedor/shoutrrr/pull/1925)
 - Share one color config across the colorizers by @nicholas-fedor in [#1919](https://github.com/nicholas-fedor/shoutrrr/pull/1919)
 - Add shared TLS, insecure client, and send budget helpers by @nicholas-fedor in [#1829](https://github.com/nicholas-fedor/shoutrrr/pull/1829)
 - Hold the HTTP clients of four services in the shared holder by @nicholas-fedor in [#1825](https://github.com/nicholas-fedor/shoutrrr/pull/1825)
