@@ -74,6 +74,8 @@
 //
 //   - EnumFormatter: Handles formatting of enumerated configuration values.
 //   - StdLogger: Standard logging interface used by services.
+//   - SlogLogger: A StdLogger that carries a *slog.Logger, so services log
+//     leveled records to it.
 //   - QueuedSender: Interface for senders that support message queuing.
 //   - CustomURLConfig: Interface for configurations that support custom URL
 //     resolution.

@@ -41,20 +41,22 @@
 //	var service Service
 //	service.Standard = standard.Standard{}
 //	service.SetLogger(logger)
-//	service.Log("Service initialized")
+//	service.Debug(ctx, "service initialized")
 //
 // ## Logger
 //
-// Logger provides methods for outputting non-fatal log information. It wraps the
-// types.StdLogger interface and provides Log and Logf methods:
+// Logger provides methods for outputting non-fatal log information. Debug,
+// Info, and Warn log leveled records with a constant message and key/value
+// attributes. A types.SlogLogger receives them in its slog logger, and any
+// other types.StdLogger receives each one as a line of text. Log and Logf
+// write text to the logger as it is:
 //
 //	logger := &standard.Logger{}
 //	logger.SetLogger(myLogger)
-//	logger.Log("Message without formatting")
-//	logger.Logf("Formatted message: %s", argument)
+//	logger.Warn(ctx, "response has no timestamp")
+//	logger.Debug(ctx, "request sent", "status", 200)
 //
-// When SetLogger is called with nil, a discard logger is used to prevent nil
-// pointer dereferences.
+// When SetLogger is called with nil, the logger discards everything.
 //
 // ## Templater
 //
@@ -121,7 +123,6 @@
 //
 //	func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 //	    s.SetLogger(logger)
-//	    s.Log("Initializing service")
 //	    // service-specific initialization
 //	    return nil
 //	}

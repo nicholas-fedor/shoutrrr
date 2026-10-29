@@ -131,9 +131,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	switch {
 	case config.DisableTLS:
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	case config.SkipTLSVerify:
-		s.warnings.Insecure(s)
+		s.warnings.Insecure(ctx, s)
 	default:
 	}
 

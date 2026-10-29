@@ -46,6 +46,7 @@ func TestCustomURLConversionFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			service := mocks.NewMockCustomURLService(t)
 			service.EXPECT().GetServiceURLFromCustom(mock.Anything).Return(nil, tt.converted)
+			service.EXPECT().GetID().Return("contracttest").Maybe()
 			registerService(t, "contracttest", service)
 
 			err := locateWithoutPanic(t, &ServiceRouter{}, "contracttest+https://"+routerTestSecret+"@hooks.example.invalid/hook")

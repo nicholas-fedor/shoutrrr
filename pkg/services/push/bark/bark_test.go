@@ -321,16 +321,16 @@ func TestSendWarnings(t *testing.T) {
 	require.NoError(t, service.Send("Message", params))
 
 	want := []string{
-		"Warning: config field Scheme is deprecated, use DisableTLS instead",
-		`Warning: key "scheme" is deprecated, use "disabletls" instead`,
-		"Warning: sending without TLS",
+		"WARN config field is deprecated field=Scheme replacement=DisableTLS",
+		`WARN config key is deprecated key=scheme replacement=disabletls`,
+		"WARN sending without TLS",
 	}
 	assert.Equal(t, want, warningLines(logs.String()))
 
 	require.NoError(t, service.Initialize(parseTestURL(t, "bark://:devicekey@hostname?scheme=http"), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("Message", nil))
 
-	again := []string{`Warning: key "scheme" is deprecated, use "disabletls" instead`, "Warning: sending without TLS"}
+	again := []string{`WARN config key is deprecated key=scheme replacement=disabletls`, "WARN sending without TLS"}
 	assert.Equal(t, slices.Concat(want, again), warningLines(logs.String()))
 }
 
@@ -345,7 +345,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}

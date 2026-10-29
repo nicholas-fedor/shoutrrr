@@ -140,7 +140,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	if err := s.send(ctx, message, &config); err != nil {
@@ -193,7 +193,7 @@ func (s *Service) send(ctx context.Context, message string, config *Config) erro
 	req.Header.Set("Authorization", "Bearer "+config.Token)
 	req.Header.Set("User-Agent", meta.UserAgent())
 
-	res, err := s.sendClient(config).Do(req)
+	res, err := s.sendClient(ctx, config).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request: %w", redact.URLError(err))
 	}
@@ -267,14 +267,15 @@ func nonEmptyTargets(targets []string) []string {
 // about, because its owner controls its TLS settings.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - config: the config for this send.
 //
 // Returns:
 //   - types.HTTPClient: the client to send through.
-func (s *Service) sendClient(config *Config) types.HTTPClient {
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
 	if !config.SkipTLSVerify {
 		return s.client.Client()
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
+	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 }

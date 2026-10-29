@@ -239,7 +239,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	// Prepare parameters for sending

@@ -189,6 +189,40 @@ the URL's position. It never contains the service URL, so it is safe to log, and
     }
     ```
 
+### Logging
+
+Services log what they do, such as a warning that a send skips TLS certificate verification.
+Every logger in the API is a `types.StdLogger`, which `*log.Logger` satisfies.
+`shoutrrr.SetLogger` sets the logger for `Send` and `SendContext`.
+`shoutrrr.NewSenderWithOptions`, `router.NewWithOptions`, and `ServiceRouter.SetLogger` set the logger for a sender.
+A nil logger discards everything.
+
+Services log leveled records.
+Each one has a level, a constant message, and key/value attributes.
+A sender adds the service's ID as the `service` attribute.
+
+To keep the levels, pass a `*slog.Logger` through `types.NewSlogLogger`.
+Its handler then receives each record, so it filters and formats them.
+
+!!! Example
+    ```go title="Log to slog"
+    handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})
+    shoutrrr.SetLogger(types.NewSlogLogger(slog.New(handler)))
+    ```
+
+A plain logger receives each record as one line, in the format of slog's default handler.
+It receives every level, because it cannot filter them.
+
+```text title="Plain Logger Output"
+WARN sending without TLS service=ntfy
+```
+
+`slog.NewLogLogger` also turns a slog handler into a plain logger, but it logs every line at the one level it is given.
+Use `types.NewSlogLogger` to keep each record's level.
+
+Text that a service prints, such as each notification the `logger` service writes, reaches a plain logger unchanged.
+A slog logger receives it as a record at `INFO`.
+
 ### Message Levels
 
 Services that support severity or priority can receive a semantic level through the `level` param.

@@ -92,12 +92,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
+	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
 	// The resolver records the keys the URL set, so a scheme the URL set
 	// does not keep its default.
 	if !s.pkr.KeepsDefault(s.Config, nil, "scheme") {
-		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+		s.warnings.DeprecatedKeys(context.Background(), s, []format.Deprecation{schemeKey})
 	}
 
 	return nil
@@ -139,14 +139,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config, err := s.sendConfig(params)
+	config, err := s.sendConfig(ctx, params)
 	if err != nil {
 		return err
 	}
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	// Execute the API request to send the notification
@@ -192,12 +192,13 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 // request headers.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to the client's warnings.
 //   - config: the configuration for this send.
 //
 // Returns:
 //   - jsonclient.ContextClient: a new client over the send's HTTP client.
-func (s *Service) newAPIClient(config *Config) jsonclient.ContextClient {
-	return jsonclient.NewContextClient(s.sendClient(config))
+func (s *Service) newAPIClient(ctx context.Context, config *Config) jsonclient.ContextClient {
+	return jsonclient.NewContextClient(s.sendClient(ctx, config))
 }
 
 // sendAPI sends a notification to the ntfy API.
@@ -213,7 +214,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	response := apiResponseError{}
 	request := message
 
-	client := s.newAPIClient(config)
+	client := s.newAPIClient(ctx, config)
 
 	// Prepare request headers
 	headers := client.Headers()
@@ -274,16 +275,17 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 // about, because its owner controls its TLS settings.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - config: the config for this send.
 //
 // Returns:
 //   - types.HTTPClient: the client to send through.
-func (s *Service) sendClient(config *Config) types.HTTPClient {
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
 	if !config.SkipTLSVerify {
 		return s.client.Client()
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
+	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 }
 
 // sendConfig returns the config for one send. Deprecated config fields and
@@ -293,12 +295,13 @@ func (s *Service) sendClient(config *Config) types.HTTPClient {
 // and param key is warned about once.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - params: the send params, or nil.
 //
 // Returns:
 //   - Config: the config for this send.
 //   - error: a params error, or [ErrInvalidScheme].
-func (s *Service) sendConfig(params *types.Params) (Config, error) {
+func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
 	deprecatedFields, err := format.SyncDeprecatedFields(&config)
@@ -306,18 +309,18 @@ func (s *Service) sendConfig(params *types.Params) (Config, error) {
 		return config, fmt.Errorf("syncing deprecated config fields: %w", err)
 	}
 
-	s.warnings.DeprecatedFields(s, deprecatedFields)
+	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 
 	// A URL with an http scheme turns TLS off as it is read, so an http scheme
 	// with TLS on was set on the deprecated field directly.
 	if strings.EqualFold(config.Scheme, schemeHTTP) && !config.DisableTLS {
-		s.warnings.DeprecatedFields(s, []format.Deprecation{schemeField})
+		s.warnings.DeprecatedFields(ctx, s, []format.Deprecation{schemeField})
 	}
 
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(params))
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	if hasParam(params, schemeKey.Name) {
-		s.warnings.DeprecatedKeys(s, []format.Deprecation{schemeKey})
+		s.warnings.DeprecatedKeys(ctx, s, []format.Deprecation{schemeKey})
 	}
 
 	// The stored scheme turns TLS off before the params apply, so a disabletls

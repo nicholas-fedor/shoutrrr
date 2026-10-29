@@ -195,7 +195,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		config: &config,
 		svc:    s,
 		closed: false,
-	}).run(message)
+	}).run(ctx, message)
 }
 
 // ServiceTimeout reports the SMTP session timeout.

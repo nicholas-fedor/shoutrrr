@@ -114,7 +114,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	return s.sendMessage(ctx, message, &config)

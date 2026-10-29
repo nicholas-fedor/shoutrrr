@@ -476,13 +476,13 @@ func TestSendClient(t *testing.T) {
 	service := &Service{Config: &Config{}}
 	service.SetLogger(log.New(&logs, "", 0))
 
-	assertDefaultClient(t, service.sendClient(&Config{}), false)
+	assertDefaultClient(t, service.sendClient(t.Context(), &Config{}), false)
 
 	clients := make([]types.HTTPClient, 8)
 
 	var wg sync.WaitGroup
 	for i := range clients {
-		wg.Go(func() { clients[i] = service.sendClient(&Config{SkipTLSVerify: true}) })
+		wg.Go(func() { clients[i] = service.sendClient(t.Context(), &Config{SkipTLSVerify: true}) })
 	}
 
 	wg.Wait()
@@ -492,7 +492,7 @@ func TestSendClient(t *testing.T) {
 	}
 
 	assertDefaultClient(t, clients[0], true)
-	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+	assert.Equal(t, "WARN skipping TLS certificate verification\n", logs.String())
 
 	var injectedLogs bytes.Buffer
 
@@ -501,7 +501,7 @@ func TestSendClient(t *testing.T) {
 
 	custom := mocks.NewMockHTTPClient(t)
 	injected.SetHTTPClient(custom)
-	assert.Same(t, custom, injected.sendClient(&Config{SkipTLSVerify: true}))
+	assert.Same(t, custom, injected.sendClient(t.Context(), &Config{SkipTLSVerify: true}))
 	assert.Empty(t, injectedLogs.String())
 }
 

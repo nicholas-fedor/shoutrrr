@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"context"
 	"errors"
 	"net/smtp"
 	"os"
@@ -164,11 +165,12 @@ func (s *session) quit(errs []error) []error {
 // sender is never sent as the null reverse-path.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - message: The notification body.
 //
 // Returns:
 //   - An error if there are no recipients or no sender, or if handshake, STARTTLS, authentication, or delivery fails.
-func (s *session) run(message string) error {
+func (s *session) run(ctx context.Context, message string) error {
 	s.config.restorePlusAddresses()
 
 	defer s.closeIfOpen()
@@ -200,7 +202,7 @@ func (s *session) run(message string) error {
 		return err
 	}
 
-	s.warnConnection()
+	s.warnConnection(ctx)
 
 	if err := s.auth(); err != nil {
 		return err
@@ -311,14 +313,17 @@ func (s *session) startTLS() error {
 // warnConnection logs, once per service instance, that the session sends
 // without TLS, or that its TLS connection skips certificate verification. It
 // runs after the TLS setup, so it reports what the session actually uses.
-func (s *session) warnConnection() {
+//
+// Parameters:
+//   - ctx: the context of the send, passed to the warnings.
+func (s *session) warnConnection(ctx context.Context) {
 	if _, usesTLS := s.client.TLSConnectionState(); !usesTLS {
-		s.svc.warnings.Plaintext(s.svc)
+		s.svc.warnings.Plaintext(ctx, s.svc)
 
 		return
 	}
 
 	if s.config.SkipTLSVerify {
-		s.svc.warnings.Insecure(s.svc)
+		s.svc.warnings.Insecure(ctx, s.svc)
 	}
 }

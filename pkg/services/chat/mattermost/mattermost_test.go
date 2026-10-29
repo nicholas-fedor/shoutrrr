@@ -430,11 +430,11 @@ func TestSendWarnsPlaintext(t *testing.T) {
 
 	require.NoError(t, service.Send("first", nil))
 	require.NoError(t, service.Send("second", nil))
-	assert.Equal(t, 1, strings.Count(logs.String(), "Warning: sending without TLS"))
+	assert.Equal(t, 1, strings.Count(logs.String(), "WARN sending without TLS"))
 
 	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("third", nil))
-	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
+	assert.Equal(t, 2, strings.Count(logs.String(), "WARN sending without TLS"))
 }
 
 // TestDefaultHTTPClient verifies that the default client has no request

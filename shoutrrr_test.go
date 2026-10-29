@@ -1,8 +1,10 @@
 package shoutrrr
 
 import (
+	"bytes"
 	"io"
 	"log"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -100,6 +102,34 @@ func TestSendClosesOneShotService(t *testing.T) {
 
 	// The broker reads packets in order, so the publish was recorded before the disconnect.
 	assert.Equal(t, int32(1), broker.Published())
+}
+
+// TestSetLoggerSlog verifies that a [types.SlogLogger] set with SetLogger
+// reaches the services that Send creates. The logger service writes the
+// message through it, which logs the message at Info with the service's ID.
+//
+//nolint:paralleltest // Sets the package's logger, which parallel sends read.
+func TestSetLoggerSlog(t *testing.T) {
+	previous := loadRootLogger()
+
+	t.Cleanup(func() { SetLogger(previous) })
+
+	var logs bytes.Buffer
+
+	SetLogger(types.NewSlogLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{
+		AddSource: false,
+		Level:     slog.LevelDebug,
+		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+			if len(groups) == 0 && attr.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+
+			return attr
+		},
+	}))))
+
+	require.NoError(t, Send("logger://", "message"))
+	assert.Equal(t, "level=INFO msg=message service=logger\n", logs.String())
 }
 
 // TestSetLoggerDuringSends verifies that SetLogger can run while sends are in

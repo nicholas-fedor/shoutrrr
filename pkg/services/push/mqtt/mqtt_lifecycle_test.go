@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"log"
+	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
@@ -52,6 +53,18 @@ type fakeConnector struct {
 	// without TLS.
 	tlsConfigs []*tls.Config
 }
+
+// warningContexts records the test value of the context each warning was
+// logged with, as a slog handler. It is safe for concurrent use.
+type warningContexts struct {
+	// values holds the test value of each warning's context.
+	values []any
+	// mu guards values.
+	mu sync.Mutex
+}
+
+// sendKey identifies the test value in a send's context.
+type sendKey struct{}
 
 // lifecycleURL is a broker URL for the lifecycle tests.
 const lifecycleURL = "mqtt://broker.example.invalid/test/topic"
@@ -309,26 +322,26 @@ func TestSendWarnings(t *testing.T) {
 		{
 			name:   "plain mqtt",
 			rawURL: "mqtt://broker.example.invalid/t",
-			want:   []string{"Warning: sending without TLS"},
+			want:   []string{"WARN sending without TLS"},
 		},
 		{
 			name:   "TLS disabled",
 			rawURL: "mqtts://broker.example.invalid/t?disabletls=yes",
-			want:   []string{"Warning: sending without TLS"},
+			want:   []string{"WARN sending without TLS"},
 		},
 		{name: "TLS", rawURL: "mqtts://broker.example.invalid/t"},
 		{
 			name:   "verification skipped",
 			rawURL: "mqtts://broker.example.invalid/t?skiptlsverify=yes",
-			want:   []string{"Warning: skipping TLS certificate verification"},
+			want:   []string{"WARN skipping TLS certificate verification"},
 		},
 		{
 			name:   "deprecated verification key in params",
 			rawURL: "mqtts://broker.example.invalid/t",
 			params: &types.Params{"disabletlsverification": "yes"},
 			want: []string{
-				`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
-				"Warning: skipping TLS certificate verification",
+				`WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify`,
+				"WARN skipping TLS certificate verification",
 			},
 		},
 		{
@@ -336,8 +349,8 @@ func TestSendWarnings(t *testing.T) {
 			rawURL: "mqtts://broker.example.invalid/t",
 			setup:  func(service *Service) { service.Config.DisableTLSVerification = true },
 			want: []string{
-				"Warning: config field DisableTLSVerification is deprecated, use SkipTLSVerify instead",
-				"Warning: skipping TLS certificate verification",
+				"WARN config field is deprecated field=DisableTLSVerification replacement=SkipTLSVerify",
+				"WARN skipping TLS certificate verification",
 			},
 		},
 		{
@@ -345,7 +358,7 @@ func TestSendWarnings(t *testing.T) {
 			rawURL: "mqtt://broker.example.invalid:8883/t",
 			want: []string{
 				"Warning: Using MQTT scheme with TLS port 8883; TLS will not be used",
-				"Warning: sending without TLS",
+				"WARN sending without TLS",
 			},
 		},
 		{
@@ -390,6 +403,45 @@ func TestSendWarnings(t *testing.T) {
 	}
 }
 
+// TestConnectionWarningsContext verifies that the warnings a send logs while it
+// opens a connection carry the send's context, though the connection outlives
+// the send.
+func TestConnectionWarningsContext(t *testing.T) {
+	t.Parallel()
+
+	// tests lists URLs whose connection logs one warning.
+	tests := map[string]string{
+		"plaintext": "mqtt://broker.example.invalid/t",
+		"insecure":  "mqtts://broker.example.invalid/t?skiptlsverify=yes",
+	}
+
+	for name, rawURL := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				serviceURL, err := url.Parse(rawURL)
+				require.NoError(t, err)
+
+				recorder := &warningContexts{}
+
+				service := &Service{}
+				require.NoError(t, service.Initialize(serviceURL, types.NewSlogLogger(slog.New(recorder))))
+
+				connector := &fakeConnector{}
+				service.connect = connector.connect
+
+				t.Cleanup(func() { _ = service.Close() })
+
+				ctx := context.WithValue(t.Context(), sendKey{}, "send")
+				require.NoError(t, service.SendContext(ctx, "message", nil))
+
+				assert.Equal(t, []any{"send"}, recorder.values)
+			})
+		})
+	}
+}
+
 // TestInitializeWarnings verifies that Initialize warns about a deprecated
 // key in the URL, and that initializing the service again lets each warning
 // appear again.
@@ -415,8 +467,8 @@ func TestInitializeWarnings(t *testing.T) {
 		}
 
 		warnings := []string{
-			`Warning: key "disabletlsverification" is deprecated, use "skiptlsverify" instead`,
-			"Warning: sending without TLS",
+			`WARN config key is deprecated key=disabletlsverification replacement=skiptlsverify`,
+			"WARN sending without TLS",
 		}
 		assert.Equal(t, slices.Concat(warnings, warnings), warningLines(logs.String()))
 	})
@@ -495,7 +547,8 @@ func TestSendTLSSettings(t *testing.T) {
 	}
 }
 
-// warningLines returns the logged lines that are warnings.
+// warningLines returns the logged lines that are warnings. The shared
+// warnings start with "WARN ", and the port warnings start with "Warning: ".
 //
 // Parameters:
 //   - logs: the log output.
@@ -506,13 +559,54 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") || strings.HasPrefix(line, "Warning: ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}
 
 	return lines
 }
+
+// Enabled reports whether level is Warn or above.
+//
+// Parameters:
+//   - level: the level of a record.
+//
+// Returns:
+//   - bool: true for warnings.
+func (*warningContexts) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelWarn
+}
+
+// Handle records the test value of the record's context.
+//
+// Parameters:
+//   - ctx: the context of the call.
+//
+// Returns:
+//   - error: always nil.
+//
+//nolint:gocritic // slog.Handler defines Handle with a Record value.
+func (w *warningContexts) Handle(ctx context.Context, _ slog.Record) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.values = append(w.values, ctx.Value(sendKey{}))
+
+	return nil
+}
+
+// WithAttrs returns w. The service adds no attributes to the handler.
+//
+// Returns:
+//   - slog.Handler: w.
+func (w *warningContexts) WithAttrs([]slog.Attr) slog.Handler { return w }
+
+// WithGroup returns w. The service adds no groups to the handler.
+//
+// Returns:
+//   - slog.Handler: w.
+func (w *warningContexts) WithGroup(string) slog.Handler { return w }
 
 // newLifecycleService initializes a service that creates its connections with
 // connector, and closes it when the test ends.

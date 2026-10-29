@@ -166,7 +166,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// The send's config decides the protocol, so an injected client is warned
 	// about too.
 	if cfg.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	if err := s.ensureLogin(ctx, cfg.apiScheme()); err != nil {

@@ -175,7 +175,7 @@ func parseSendResults(body []byte) ([]sendResult, error) {
 //     fails to read or exceeds [maxResponseBodySize] is logged without
 //     checking its recipient results.
 func (s *Service) sendRequest(req *http.Request, config *Config) error {
-	resp, err := s.sendClient(config).Do(req)
+	resp, err := s.sendClient(req.Context(), config).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
@@ -218,16 +218,17 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 // about, because its owner controls its TLS settings.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - config: the config for this send.
 //
 // Returns:
 //   - types.HTTPClient: the client to send through.
-func (s *Service) sendClient(config *Config) types.HTTPClient {
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
 	if !config.SkipTLSVerify {
 		return s.client.Client()
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
+	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 }
 
 // setAuthentication configures HTTP authentication headers on the request.

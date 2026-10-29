@@ -178,19 +178,19 @@ func TestCreateTLSConfig(t *testing.T) {
 	service := &Service{}
 	service.SetLogger(log.New(&logs, "", 0))
 
-	verified := service.createTLSConfig(&Config{})
+	verified := service.createTLSConfig(t.Context(), &Config{})
 	require.NotNil(t, verified)
 	assert.False(t, verified.InsecureSkipVerify)
 	assert.Equal(t, uint16(tls.VersionTLS12), verified.MinVersion)
 
-	unverified := service.createTLSConfig(&Config{SkipTLSVerify: true})
+	unverified := service.createTLSConfig(t.Context(), &Config{SkipTLSVerify: true})
 	require.NotNil(t, unverified)
 	assert.True(t, unverified.InsecureSkipVerify)
 	assert.Equal(t, uint16(tls.VersionTLS12), unverified.MinVersion)
-	service.createTLSConfig(&Config{SkipTLSVerify: true})
-	assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+	service.createTLSConfig(t.Context(), &Config{SkipTLSVerify: true})
+	assert.Equal(t, "WARN skipping TLS certificate verification\n", logs.String())
 
-	assert.NotSame(t, verified, service.createTLSConfig(&Config{}))
+	assert.NotSame(t, verified, service.createTLSConfig(t.Context(), &Config{}))
 }
 
 // TestCloseWithoutConnection verifies that Close succeeds, repeatedly, when no

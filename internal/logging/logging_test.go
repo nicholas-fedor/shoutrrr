@@ -1,7 +1,8 @@
 package logging
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -10,24 +11,104 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
-// recordingLogger records what is logged through it. It is safe for
-// concurrent use.
+// recordingLogger records the warnings logged through it. It is its own slog
+// handler, and is safe for concurrent use.
 type recordingLogger struct {
-	// mu guards lines.
+	// warnings holds each logged warning.
+	warnings []warning
+	// mu guards warnings.
 	mu sync.Mutex
-	// lines holds each logged message.
-	lines []string
 }
 
-// Log records v as one message.
+// warning is one warning a [recordingLogger] recorded.
+type warning struct {
+	// ctx is the context the warning was logged with.
+	ctx context.Context //nolint:containedctx // Recorded to check that warnings pass it on.
+	// msg is the message.
+	msg string
+	// source is the function the record names as its source.
+	source string
+	// attrs holds the attributes as key=value text.
+	attrs []string
+	// level is the level of the record.
+	level slog.Level
+}
+
+// contextKey identifies the test value in a context.
+type contextKey struct{}
+
+// Enabled reports true for every level.
+//
+// Returns:
+//   - bool: always true.
+func (*recordingLogger) Enabled(context.Context, slog.Level) bool { return true }
+
+// Handle records the warning.
 //
 // Parameters:
-//   - v: the values to log.
-func (l *recordingLogger) Log(v ...any) {
+//   - ctx: the context of the call.
+//   - record: the record.
+//
+// Returns:
+//   - error: always nil.
+//
+//nolint:gocritic // slog.Handler defines Handle with a Record value.
+func (l *recordingLogger) Handle(ctx context.Context, record slog.Record) error {
+	var attrs []string
+
+	record.Attrs(func(attr slog.Attr) bool {
+		attrs = append(attrs, attr.String())
+
+		return true
+	})
+
+	var source string
+	if frame := record.Source(); frame != nil {
+		source = frame.Function
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.lines = append(l.lines, fmt.Sprint(v...))
+	l.warnings = append(l.warnings, warning{
+		ctx: ctx, msg: record.Message, source: source, attrs: attrs, level: record.Level,
+	})
+
+	return nil
+}
+
+// Slog returns a slog logger with l as its handler.
+//
+// Returns:
+//   - *slog.Logger: the logger.
+func (l *recordingLogger) Slog() *slog.Logger { return slog.New(l) }
+
+// WithAttrs returns l. Once adds no attributes to the handler.
+//
+// Returns:
+//   - slog.Handler: l.
+func (l *recordingLogger) WithAttrs([]slog.Attr) slog.Handler { return l }
+
+// WithGroup returns l. Once adds no groups to the handler.
+//
+// Returns:
+//   - slog.Handler: l.
+func (l *recordingLogger) WithGroup(string) slog.Handler { return l }
+
+// messages returns the message of each recorded warning.
+//
+// Returns:
+//   - []string: the messages, in the order they were logged.
+func (l *recordingLogger) messages() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	messages := make([]string, 0, len(l.warnings))
+	for _, warning := range l.warnings {
+		messages = append(messages, warning.msg)
+	}
+
+	return messages
 }
 
 // TestOnceDo verifies that each key's warning runs once, that different keys
@@ -52,27 +133,43 @@ func TestOnceDo(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "a"}, calls)
 }
 
-// TestOnceDeprecations verifies the warning text for deprecated keys and
-// fields, and that each is logged once even when a key and a field share a
-// name.
+// TestOnceDeprecations verifies the message and attributes of the warnings for
+// deprecated keys and fields. Each warning is logged at Warn with the caller's
+// context. Its source is the caller's call to the Once method. Each is logged
+// once, even when a key and a field share a name.
 func TestOnceDeprecations(t *testing.T) {
 	t.Parallel()
 
 	var once Once
 
+	ctx := context.WithValue(t.Context(), contextKey{}, "send")
 	logger := &recordingLogger{}
 	keys := []format.Deprecation{{Name: "insecureskipverify", Replacement: "skiptlsverify"}}
 	fields := []format.Deprecation{{Name: "insecureskipverify", Replacement: "SkipTLSVerify"}}
 
-	once.DeprecatedKeys(logger, keys)
-	once.DeprecatedKeys(logger, keys)
-	once.DeprecatedFields(logger, fields)
-	once.DeprecatedFields(logger, fields)
+	once.DeprecatedKeys(ctx, logger, keys)
+	once.DeprecatedKeys(ctx, logger, keys)
+	once.DeprecatedFields(ctx, logger, fields)
+	once.DeprecatedFields(ctx, logger, fields)
 
-	assert.Equal(t, []string{
-		`Warning: key "insecureskipverify" is deprecated, use "skiptlsverify" instead`,
-		"Warning: config field insecureskipverify is deprecated, use SkipTLSVerify instead",
-	}, logger.lines)
+	const source = "github.com/nicholas-fedor/shoutrrr/internal/logging.TestOnceDeprecations"
+
+	assert.Equal(t, []warning{
+		{
+			ctx:    ctx,
+			msg:    "config key is deprecated",
+			source: source,
+			attrs:  []string{"key=insecureskipverify", "replacement=skiptlsverify"},
+			level:  slog.LevelWarn,
+		},
+		{
+			ctx:    ctx,
+			msg:    "config field is deprecated",
+			source: source,
+			attrs:  []string{"field=insecureskipverify", "replacement=SkipTLSVerify"},
+			level:  slog.LevelWarn,
+		},
+	}, logger.warnings)
 }
 
 // TestOnceConcurrent verifies that concurrent sends log a warning once. Run it
@@ -88,29 +185,34 @@ func TestOnceConcurrent(t *testing.T) {
 	logger := &recordingLogger{}
 
 	for range 8 {
-		wg.Go(func() { once.Do("insecure", func() { logger.Log("warning") }) })
+		wg.Go(func() { once.Insecure(t.Context(), logger) })
 	}
 
 	wg.Wait()
 
-	assert.Equal(t, []string{"warning"}, logger.lines)
+	assert.Equal(t, []string{"skipping TLS certificate verification"}, logger.messages())
 }
 
-// TestOnceConnectionWarnings verifies the text of the insecure and plaintext
-// warnings, and that each is logged once.
+// TestOnceConnectionWarnings verifies the messages of the insecure and
+// plaintext warnings. Each warning is logged at Warn with the caller's context
+// and the caller's call as its source. Each is logged once.
 func TestOnceConnectionWarnings(t *testing.T) {
 	t.Parallel()
 
 	var once Once
 
+	ctx := context.WithValue(t.Context(), contextKey{}, "send")
 	logger := &recordingLogger{}
 
-	once.Insecure(logger)
-	once.Insecure(logger)
-	once.Plaintext(logger)
-	once.Plaintext(logger)
+	once.Insecure(ctx, logger)
+	once.Insecure(ctx, logger)
+	once.Plaintext(ctx, logger)
+	once.Plaintext(ctx, logger)
 
-	assert.Equal(t, []string{insecureWarning, plaintextWarning}, logger.lines)
-	assert.Equal(t, "Warning: skipping TLS certificate verification", insecureWarning)
-	assert.Equal(t, "Warning: sending without TLS", plaintextWarning)
+	const source = "github.com/nicholas-fedor/shoutrrr/internal/logging.TestOnceConnectionWarnings"
+
+	assert.Equal(t, []warning{
+		{ctx: ctx, msg: "skipping TLS certificate verification", source: source, attrs: nil, level: slog.LevelWarn},
+		{ctx: ctx, msg: "sending without TLS", source: source, attrs: nil, level: slog.LevelWarn},
+	}, logger.warnings)
 }

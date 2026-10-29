@@ -432,11 +432,11 @@ func TestSendWarnsPlaintext(t *testing.T) {
 
 	require.NoError(t, service.Send("first", nil))
 	require.NoError(t, service.Send("second", nil))
-	assert.Equal(t, 1, strings.Count(logs.String(), "Warning: sending without TLS"))
+	assert.Equal(t, 1, strings.Count(logs.String(), "WARN sending without TLS"))
 
 	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL+"&disabletls=yes"), log.New(&logs, "", 0)))
 	require.NoError(t, service.Send("third", nil))
-	assert.Equal(t, 2, strings.Count(logs.String(), "Warning: sending without TLS"))
+	assert.Equal(t, 2, strings.Count(logs.String(), "WARN sending without TLS"))
 }
 
 // TestSendAppliesDisableTLSParam verifies that a disabletls send param decides
@@ -487,7 +487,7 @@ func TestSendAppliesDisableTLSParam(t *testing.T) {
 
 			// The login flows lookup, the login, and the message.
 			assert.Equal(t, []string{tt.wantScheme, tt.wantScheme, tt.wantScheme}, server.requestSchemes())
-			assert.Equal(t, tt.wantWarning, strings.Contains(logs.String(), "Warning: sending without TLS"))
+			assert.Equal(t, tt.wantWarning, strings.Contains(logs.String(), "WARN sending without TLS"))
 
 			require.NoError(t, service.Send("second", nil))
 

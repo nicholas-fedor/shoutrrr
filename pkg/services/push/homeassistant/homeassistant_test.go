@@ -581,7 +581,7 @@ func TestSendWarnings(t *testing.T) {
 
 		require.NoError(t, service.Send("Message", nil))
 		require.NoError(t, service.Send("Message", nil))
-		assert.Equal(t, "Warning: skipping TLS certificate verification\n", logs.String())
+		assert.Equal(t, "WARN skipping TLS certificate verification\n", logs.String())
 	})
 
 	t.Run("insecure with an injected client", func(t *testing.T) {
@@ -618,7 +618,7 @@ func TestSendWarnings(t *testing.T) {
 
 		require.NoError(t, service.Send("Message", nil))
 		require.NoError(t, service.Send("Message", nil))
-		assert.Equal(t, "Warning: sending without TLS\n", logs.String())
+		assert.Equal(t, "WARN sending without TLS\n", logs.String())
 
 		// Initializing the service again lets the warning appear again.
 		require.NoError(t, service.Initialize(
@@ -626,6 +626,6 @@ func TestSendWarnings(t *testing.T) {
 			log.New(&logs, "", 0),
 		))
 		require.NoError(t, service.Send("Message", nil))
-		assert.Equal(t, "Warning: sending without TLS\nWarning: sending without TLS\n", logs.String())
+		assert.Equal(t, "WARN sending without TLS\nWARN sending without TLS\n", logs.String())
 	})
 }

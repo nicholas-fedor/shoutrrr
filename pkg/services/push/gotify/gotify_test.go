@@ -768,7 +768,7 @@ func TestSendDefaultClientLoopback(t *testing.T) {
 func TestSendInsecureWarning(t *testing.T) {
 	t.Parallel()
 
-	const warning = "Warning: skipping TLS certificate verification\n"
+	const warning = "WARN skipping TLS certificate verification\n"
 
 	server, _ := newGotifyServer(t, true)
 	rawURL := "gotify://" + server.Listener.Addr().String() + "/" + testToken + "?skiptlsverify=yes"
@@ -804,7 +804,7 @@ func TestSendInsecureWarning(t *testing.T) {
 func TestSendPlaintextWarning(t *testing.T) {
 	t.Parallel()
 
-	const warning = "Warning: sending without TLS\n"
+	const warning = "WARN sending without TLS\n"
 
 	tests := []struct {
 		params *types.Params
@@ -854,8 +854,8 @@ func TestSendDeprecationWarnings(t *testing.T) {
 	require.NoError(t, service.Send("Hello", params))
 
 	assert.Equal(t,
-		"Warning: config field InsecureSkipVerify is deprecated, use SkipTLSVerify instead\n"+
-			`Warning: key "insecureskipverify" is deprecated, use "skiptlsverify" instead`+"\n"+
+		"WARN config field is deprecated field=InsecureSkipVerify replacement=SkipTLSVerify\n"+
+			`WARN config key is deprecated key=insecureskipverify replacement=skiptlsverify`+"\n"+
 			"Warning: ignoring the date param, because Gotify sets the date of each message\n",
 		logs.String())
 }

@@ -107,7 +107,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return fmt.Errorf("failed to set URL: %w", err)
 	}
 
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
+	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
 	// Inject default implementations for interfaces
 	s.urlBuilder = &DefaultURLBuilder{}
@@ -155,7 +155,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("input validation failed: %w", err)
 	}
 
-	config, extras, err := s.processConfig(params)
+	config, extras, err := s.processConfig(ctx, params)
 	if err != nil {
 		return fmt.Errorf("failed to process config: %w", err)
 	}
@@ -167,10 +167,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
-	return s.sendRequest(ctx, s.sendClient(&config), postURL, request, headers)
+	return s.sendRequest(ctx, s.sendClient(ctx, &config), postURL, request, headers)
 }
 
 // SetHTTPClient allows external injection of a custom HTTP client (for router propagation).
@@ -231,13 +231,14 @@ func (s *Service) buildRequest(
 // key, and the date is warned about once.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - params: the send params.
 //
 // Returns:
 //   - Config: the config for this send.
 //   - map[string]any: the extras for this send.
 //   - error: a params or priority error.
-func (s *Service) processConfig(params *types.Params) (Config, map[string]any, error) {
+func (s *Service) processConfig(ctx context.Context, params *types.Params) (Config, map[string]any, error) {
 	// Get reference to current configuration
 	config := *s.Config
 
@@ -246,11 +247,11 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 		return config, nil, fmt.Errorf("failed to sync deprecated config fields: %w", err)
 	}
 
-	s.warnings.DeprecatedFields(s, deprecatedFields)
+	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 
 	// Filter out 'extras' parameter as it's handled separately from other config updates
 	filteredParams := filterParams(params)
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(&filteredParams))
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(&filteredParams))
 
 	// Update configuration with filtered parameters (title, priority, etc.)
 	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
@@ -293,16 +294,17 @@ func (s *Service) processConfig(params *types.Params) (Config, map[string]any, e
 // about, because its owner controls its TLS settings.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - config: the config for this send.
 //
 // Returns:
 //   - types.HTTPClient: the client to send through.
-func (s *Service) sendClient(config *Config) types.HTTPClient {
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
 	if !config.SkipTLSVerify {
 		return s.client.Client()
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(s) })
+	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 }
 
 // sendRequest executes the HTTP POST request to the Gotify API endpoint.

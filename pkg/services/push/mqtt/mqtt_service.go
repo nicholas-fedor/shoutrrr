@@ -172,7 +172,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return fmt.Errorf("parsing configuration URL: %w", err)
 	}
 
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedKeys())
+	s.warnings.DeprecatedKeys(context.Background(), s, s.pkr.DeprecatedKeys())
 
 	// Note: The MQTT client is lazily initialized on the first Send call,
 	// allowing runtime configuration changes to take effect before connection.
@@ -232,8 +232,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("syncing deprecated config fields: %w", err)
 	}
 
-	s.warnings.DeprecatedFields(s, deprecatedFields)
-	s.warnings.DeprecatedKeys(s, s.pkr.DeprecatedParams(params))
+	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
 	// Apply any runtime parameter overrides to this send's configuration
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
@@ -249,7 +249,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		)
 	}
 
-	manager, sends, err := s.acquireConnection(&config) //nolint:contextcheck // The connection outlives the send.
+	manager, sends, err := s.acquireConnection(ctx, &config)
 	if err != nil {
 		return fmt.Errorf("initializing MQTT client: %w", err)
 	}
@@ -348,13 +348,15 @@ func (s *Service) SetDialContext(dial types.DialContextFunc) {
 // stops the idle timer until [Service.releaseConnection] is called.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to the warnings of a connection it
+//     opens. The connection's lifetime does not derive from it.
 //   - config: the send's configuration, used when a connection is opened.
 //
 // Returns:
 //   - ConnectionManager: the connection to publish through.
 //   - *sync.WaitGroup: the connection's sends, to pass to [Service.releaseConnection].
 //   - error: the failure to open a connection, which the next send retries.
-func (s *Service) acquireConnection(config *Config) (ConnectionManager, *sync.WaitGroup, error) {
+func (s *Service) acquireConnection(ctx context.Context, config *Config) (ConnectionManager, *sync.WaitGroup, error) {
 	s.clientMutex.Lock()
 	defer s.clientMutex.Unlock()
 
@@ -364,7 +366,7 @@ func (s *Service) acquireConnection(config *Config) (ConnectionManager, *sync.Wa
 	}
 
 	if s.connectionManager == nil {
-		if err := s.openConnectionLocked(config); err != nil {
+		if err := s.openConnectionLocked(ctx, config); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -469,13 +471,15 @@ func (s *Service) closeOwnedConnection() {
 // about it once. The dial fills in the server name from the broker URL.
 //
 // Parameters:
+//   - ctx: the context of the send that opens the connection, passed to the
+//     warning.
 //   - config: the configuration of the connection being opened.
 //
 // Returns:
 //   - *tls.Config: new settings for the connection.
-func (s *Service) createTLSConfig(config *Config) *tls.Config {
+func (s *Service) createTLSConfig(ctx context.Context, config *Config) *tls.Config {
 	if config.SkipTLSVerify {
-		s.warnings.Insecure(s)
+		s.warnings.Insecure(ctx, s)
 
 		return transport.InsecureTLSConfig("")
 	}
@@ -534,11 +538,13 @@ func (s *Service) getDefaultPortForScheme(scheme string) int {
 //   - TLS configuration for secure connections
 //
 // Parameters:
+//   - ctx: the context of the send that opens the connection, passed to its
+//     warnings. The connection's lifetime does not derive from it.
 //   - config: the configuration of the send that opens the connection.
 //
 // Returns:
 //   - error: the failure to create the connection manager.
-func (s *Service) openConnectionLocked(config *Config) error {
+func (s *Service) openConnectionLocked(ctx context.Context, config *Config) error {
 	// Determine the connection scheme based on URL scheme and port configuration.
 	// The URL scheme is the primary determinant, with port-based defaults as fallback.
 	// User-specified port overrides the default; scheme determines TLS handling.
@@ -575,7 +581,7 @@ func (s *Service) openConnectionLocked(config *Config) error {
 	// Enable TLS when using secure scheme and TLS is not disabled
 	useTLS := scheme == SchemeTLS && !config.DisableTLS
 	if !useTLS {
-		s.warnings.Plaintext(s)
+		s.warnings.Plaintext(ctx, s)
 	}
 
 	// Build the broker URL
@@ -623,7 +629,7 @@ func (s *Service) openConnectionLocked(config *Config) error {
 
 	// Configure TLS based on scheme and DisableTLS setting
 	if useTLS {
-		cliCfg.TlsCfg = s.createTLSConfig(config)
+		cliCfg.TlsCfg = s.createTLSConfig(ctx, config)
 	}
 
 	if s.dialContext != nil {
@@ -635,10 +641,11 @@ func (s *Service) openConnectionLocked(config *Config) error {
 		connect = newAutopahoConnection
 	}
 
-	// The connection lives until Close, an idle teardown, or a replacement after it ends.
-	ctx, cancel := context.WithCancel(context.Background())
+	// The connection lives until Close, an idle teardown, or a replacement after
+	// it ends, so its lifetime does not derive from the send's context.
+	lifetime, cancel := context.WithCancel(context.Background())
 
-	connectionManager, err := connect(ctx, &cliCfg)
+	connectionManager, err := connect(lifetime, &cliCfg) //nolint:contextcheck // The connection outlives the send.
 	if err != nil {
 		cancel()
 

@@ -226,6 +226,16 @@ Every service follows the same rules, so services behave alike for users and for
 - Add no timeouts to the requests within a send.
   An optional request whose failure the send survives, such as Zulip's limits lookup, may have a shorter deadline, so a slow answer leaves the rest of the budget to the send.
 
+### Logging
+
+- Log through the `Debug`, `Info`, and `Warn` methods of `standard.Logger`, with the context of the send.
+- Use a constant message that names the event, and put each value in an attribute.
+  Take the attribute keys from `internal/logging`, and add a key there when none fits.
+- Use `Debug` for detail that traces a send, such as a request that succeeded.
+- Use `Warn` for a problem that the send works around, such as a setting that weakens its security.
+- Log no error that the send returns, because the caller already receives it.
+- Keep URLs, credentials, and message bodies out of messages and attributes.
+
 ### Renamed Options
 
 - Keep a renamed key's old name in a `deprecatedkeys` tag.
@@ -239,7 +249,8 @@ Every service follows the same rules, so services behave alike for users and for
 
 - The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
 - The checks for skipping certificate verification and for the insecure warning run only against Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
-- Review covers the rules without a check, such as building TLS settings with the shared helpers, exporting no client types, and warning about old names.
+- Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
+  It also covers warning about old names and logging through the leveled methods.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 
