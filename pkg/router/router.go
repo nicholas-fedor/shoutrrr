@@ -39,9 +39,9 @@ var (
 	ErrNoSenders = errors.New("error sending message: no senders")
 	// ErrServiceTimeout reports a service whose send budget ran out while the
 	// caller's context was still live. It wraps the service's error when the
-	// service returned one. A part of a send with an earlier deadline of its
-	// own, such as one target of several, is reported with the service's error
-	// alone.
+	// router received that error before it stopped waiting. A part of a send
+	// with an earlier deadline of its own, such as one target of several, is
+	// reported with the service's error alone.
 	ErrServiceTimeout = errors.New("failed to send: timed out")
 	// ErrCustomURLsNotSupported reports a custom URL, such as
 	// generic+https://, for a service that does not accept one.
@@ -647,6 +647,10 @@ func (r *ServiceRouter) sendToService(
 // while the caller's context was live, so it keeps what the service reported.
 // An error from a part of the send whose own deadline came earlier, such as one
 // target of several, is returned as the service reported it.
+//
+// The service's error is kept only when its result is received. When the
+// result and the end of sendCtx are ready together, either one may be taken.
+// A result that arrives after awaitResult returns is dropped.
 //
 // Parameters:
 //   - ctx: the caller's context the send derives from.
