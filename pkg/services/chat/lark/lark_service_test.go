@@ -598,8 +598,9 @@ func TestServiceSendNetworkError(t *testing.T) {
 	assert.NotContains(t, err.Error(), "/hook/token")
 }
 
-// TestServiceSendLogging verifies that a successful send logs the host but
-// neither the webhook token nor the request body.
+// TestServiceSendLogging verifies that a successful send logs that the
+// notification was sent at Debug. The record holds neither the webhook token
+// nor the request body.
 func TestServiceSendLogging(t *testing.T) {
 	t.Parallel()
 
@@ -612,7 +613,7 @@ func TestServiceSendLogging(t *testing.T) {
 
 	require.NoError(t, service.Send("message", nil))
 
-	assert.Contains(t, logs.String(), "open.larksuite.com")
+	assert.Equal(t, "DEBUG notification sent\n", logs.String())
 	assert.NotContains(t, logs.String(), "token")
 	assert.NotContains(t, logs.String(), "msg_type")
 }

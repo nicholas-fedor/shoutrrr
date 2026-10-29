@@ -315,7 +315,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 		}()
 
 		// The body is not logged because it can echo the request, including its credentials.
-		s.Logf("Server responded with status %s", res.Status)
+		s.Debug(ctx, "response received", logging.KeyStatus, res.Status)
 	}
 
 	if res.StatusCode >= http.StatusBadRequest {

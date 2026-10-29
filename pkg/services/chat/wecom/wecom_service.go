@@ -232,13 +232,14 @@ func splitMentions(list string) []string {
 // handleResponse processes the API response and checks for errors.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its log records.
 //   - resp: the API response. At most [httpbody.MaxSize] bytes of its body are read.
 //
 // Returns:
 //   - error: [ErrSendFailed] for an error status or a nonzero error code, or the
 //     error from reading or decoding the body, which wraps [httpbody.ErrTooLarge]
 //     for an oversized body.
-func (s *Service) handleResponse(resp *http.Response) error {
+func (s *Service) handleResponse(ctx context.Context, resp *http.Response) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: unexpected status %s", ErrSendFailed, resp.Status)
 	}
@@ -262,7 +263,7 @@ func (s *Service) handleResponse(resp *http.Response) error {
 		)
 	}
 
-	s.Logf("Notification sent successfully to WeCom webhook")
+	s.Debug(ctx, "notification sent")
 
 	return nil
 }
@@ -323,5 +324,5 @@ func (s *Service) sendRequest(ctx context.Context, postURL string, payload []byt
 
 	defer func() { _ = resp.Body.Close() }()
 
-	return s.handleResponse(resp)
+	return s.handleResponse(ctx, resp)
 }

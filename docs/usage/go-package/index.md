@@ -220,7 +220,7 @@ WARN sending without TLS service=ntfy
 `slog.NewLogLogger` also turns a slog handler into a plain logger, but it logs every line at the one level it is given.
 Use `types.NewSlogLogger` to keep each record's level.
 
-Text that a service prints, such as each notification the `logger` service writes, reaches a plain logger unchanged.
+The `logger` service writes each notification as text, which reaches a plain logger unchanged.
 A slog logger receives it as a record at `INFO`.
 
 ### Message Levels

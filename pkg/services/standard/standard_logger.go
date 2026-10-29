@@ -12,12 +12,12 @@ import (
 // Logger provides a service's logging methods. Debug, Info, and Warn log
 // leveled records with key/value attributes. When the service was given a
 // [types.SlogLogger], they reach its slog logger. Any other logger receives
-// each record as one line of text, such as "WARN sending without TLS". Log
-// and Logf write text to the given logger as it is.
+// each record as one line of text, such as "WARN sending without TLS". The
+// deprecated Log and Logf write text to the given logger as it is.
 //
-// The zero value discards leveled records. Call SetLogger before Log or Logf.
+// The zero value discards everything.
 type Logger struct {
-	// logger receives the text that Log and Logf write.
+	// logger receives the text that Log and Logf write. Nil discards it.
 	logger types.StdLogger
 	// leveled receives the records that Debug, Info, and Warn log. Nil
 	// discards them.
@@ -48,14 +48,44 @@ func (sl *Logger) Info(ctx context.Context, msg string, args ...any) {
 	sl.logRecord(ctx, slog.LevelInfo, msg, args...)
 }
 
-// Log maps to the service loggers Logger.Print function.
+// Log writes v to the logger in the manner of [fmt.Print], as it is, without
+// a level.
+//
+// Parameters:
+//   - v: the values to write.
+//
+// Deprecated: Use [Logger.Debug], [Logger.Info], or [Logger.Warn], which log
+// leveled records with a constant message and key/value attributes.
 func (sl *Logger) Log(v ...any) {
-	sl.logger.Print(v...)
+	sl.Output().Print(v...)
 }
 
-// Logf maps to the service loggers Logger.Printf function.
+// Logf writes v formatted in the manner of [fmt.Printf] to the logger, as it
+// is, without a level.
+//
+// Parameters:
+//   - format: the format string.
+//   - v: the values to format.
+//
+// Deprecated: Use [Logger.Debug], [Logger.Info], or [Logger.Warn], which log
+// leveled records with a constant message and key/value attributes.
 func (sl *Logger) Logf(format string, v ...any) {
-	sl.logger.Printf(format, v...)
+	sl.Output().Printf(format, v...)
+}
+
+// Output returns the logger that receives text written as it is, without a
+// level, such as the notifications of the logger service. A plain logger
+// gets the text unchanged, and a [types.SlogLogger] logs it at Info.
+//
+// Returns:
+//   - types.StdLogger: the logger given to SetLogger, or a logger that
+//     discards everything when there is none.
+func (sl *Logger) Output() types.StdLogger {
+	if sl.logger == nil {
+		return util.DiscardLogger
+	}
+
+	return sl.logger
 }
 
 // SetLogger maps the specified logger to the logging methods.
@@ -63,12 +93,7 @@ func (sl *Logger) Logf(format string, v ...any) {
 // Parameters:
 //   - logger: the logger to use. A nil logger discards everything.
 func (sl *Logger) SetLogger(logger types.StdLogger) {
-	if logger == nil {
-		sl.logger = util.DiscardLogger
-	} else {
-		sl.logger = logger
-	}
-
+	sl.logger = logger
 	sl.leveled = logbridge.New(logger)
 }
 

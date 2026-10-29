@@ -173,15 +173,15 @@ func TestSendLogsResults(t *testing.T) {
 		body    string
 		wantLog string
 	}{
-		{name: "result array", body: sentBody, wantLog: "Message sent successfully at timestamp 1760500000000\n"},
+		{name: "result array", body: sentBody, wantLog: "DEBUG message sent timestamp=1760500000000\n"},
 		{
 			name:    "several results",
 			body:    `[{"timestamp":"1760500000000"},{"timestamp":"1760500000001"}]`,
-			wantLog: "Message sent successfully at timestamp 1760500000000\nMessage sent successfully at timestamp 1760500000001\n",
+			wantLog: "DEBUG message sent timestamp=1760500000000\nDEBUG message sent timestamp=1760500000001\n",
 		},
-		{name: "result object", body: `{"timestamp":1760500000000}`, wantLog: "Message sent successfully at timestamp 1760500000000\n"},
-		{name: "no timestamp", body: `[{}]`, wantLog: "Warning: response has no timestamp\n"},
-		{name: "not JSON", body: `sent`, wantLog: "Warning: failed to parse response: "},
+		{name: "result object", body: `{"timestamp":1760500000000}`, wantLog: "DEBUG message sent timestamp=1760500000000\n"},
+		{name: "no timestamp", body: `[{}]`, wantLog: "WARN response has no timestamp\n"},
+		{name: "not JSON", body: `sent`, wantLog: "WARN response not parsed, so the recipient results were not checked error="},
 	}
 
 	for _, tt := range tests {
@@ -285,7 +285,7 @@ func TestSendLargeResponse(t *testing.T) {
 		service.SetHTTPClient(client)
 
 		require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
-		assert.Equal(t, "Warning: response exceeds 1048576 bytes, so the recipient results were not checked\n", logs.String())
+		assert.Equal(t, "WARN response too large, so the recipient results were not checked limit=1048576\n", logs.String())
 	})
 }
 
@@ -307,7 +307,7 @@ func TestSendBodyReadError(t *testing.T) {
 		{
 			name:       "success status",
 			statusCode: http.StatusCreated,
-			wantLog:    "Warning: failed to read response body, so the recipient results were not checked: connection reset\n",
+			wantLog:    `WARN response not read, so the recipient results were not checked error="connection reset"` + "\n",
 		},
 		{name: "error status", statusCode: http.StatusBadRequest, wantErr: true},
 	}

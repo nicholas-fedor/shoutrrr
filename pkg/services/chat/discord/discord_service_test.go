@@ -398,8 +398,7 @@ func TestSendItemsContextFailures(t *testing.T) {
 }
 
 // TestSendItemBatchesFailures verifies that when several batches fail, every
-// batch is still sent, the first failure is returned, and the later failures
-// are logged.
+// batch is still sent and every failure is returned, with nothing logged.
 func TestSendItemBatchesFailures(t *testing.T) {
 	t.Parallel()
 
@@ -421,12 +420,17 @@ func TestSendItemBatchesFailures(t *testing.T) {
 	err := service.sendItemBatches(t.Context(), items, &types.Params{})
 
 	require.ErrorIs(t, err, ErrUnexpectedStatus)
-	assert.Equal(t, 1, strings.Count(logs.String(), ErrUnexpectedStatus.Error()))
+
+	var joined interface{ Unwrap() []error }
+
+	require.ErrorAs(t, err, &joined)
+	assert.Len(t, joined.Unwrap(), 2)
+	assert.Empty(t, logs.String())
 }
 
 // TestSendItemBatchesCanceled verifies that a canceled context stops the
-// batches that have not been sent yet and is returned unless a batch already
-// failed. The mock client fails the test on any request past those expected.
+// batches that have not been sent yet and is returned with any batch failure.
+// The mock client fails the test on any request past those expected.
 func TestSendItemBatchesCanceled(t *testing.T) {
 	t.Parallel()
 
@@ -480,7 +484,66 @@ func TestSendItemBatchesCanceled(t *testing.T) {
 		err := newTestService(t, client).sendItemBatches(ctx, items, &types.Params{})
 
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
-		require.NotErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
+
+// TestSendBatches verifies that every batch is sent after a failure, that
+// every failure is returned, and that a context that ends stops the remaining
+// batches and is reported once.
+func TestSendBatches(t *testing.T) {
+	t.Parallel()
+
+	batches := [][]types.MessageItem{{{Text: "a"}}, {{Text: "b"}}, {{Text: "c"}}}
+	errFirst := errors.New("first")
+	errThird := errors.New("third")
+
+	t.Run("failures", func(t *testing.T) {
+		t.Parallel()
+
+		var sent []string
+
+		err := sendBatches(t.Context(), batches, func(_ context.Context, batch []types.MessageItem) error {
+			sent = append(sent, batch[0].Text)
+
+			switch batch[0].Text {
+			case "a":
+				return errFirst
+			case "c":
+				return errThird
+			default:
+				return nil
+			}
+		})
+
+		assert.Equal(t, []string{"a", "b", "c"}, sent)
+		require.ErrorIs(t, err, errFirst)
+		require.ErrorIs(t, err, errThird)
+	})
+
+	t.Run("context ends", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		var sent int
+
+		err := sendBatches(ctx, batches, func(ctx context.Context, _ []types.MessageItem) error {
+			sent++
+
+			cancel()
+
+			return ctx.Err()
+		})
+
+		assert.Equal(t, 1, sent)
+		require.ErrorIs(t, err, context.Canceled)
+
+		var joined interface{ Unwrap() []error }
+
+		require.ErrorAs(t, err, &joined)
+		assert.Len(t, joined.Unwrap(), 1, "the context's error is reported once")
 	})
 }
 

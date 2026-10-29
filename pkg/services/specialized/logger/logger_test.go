@@ -125,6 +125,25 @@ func TestSendTemplateError(t *testing.T) {
 	assert.Empty(t, logs.String())
 }
 
+// TestSetLogger verifies that a logger set after Initialize receives the
+// later messages, and that a nil logger discards them.
+func TestSetLogger(t *testing.T) {
+	t.Parallel()
+
+	service, first := newTestService(t)
+
+	var second bytes.Buffer
+
+	service.SetLogger(log.New(&second, "", 0))
+	require.NoError(t, service.Send("to second", nil))
+
+	service.SetLogger(nil)
+	require.NoError(t, service.Send("discarded", nil))
+
+	assert.Empty(t, first.String())
+	assert.Equal(t, "to second\n", second.String())
+}
+
 // TestServiceTimeout verifies that the service reports the router's default
 // send budget.
 func TestServiceTimeout(t *testing.T) {

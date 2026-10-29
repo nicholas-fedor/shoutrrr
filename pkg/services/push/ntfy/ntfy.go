@@ -264,7 +264,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 		return fmt.Errorf("posting to ntfy API: %w", err)
 	}
 
-	s.Logf("NTFY API request succeeded")
+	s.Debug(ctx, "notification sent")
 
 	return nil
 }

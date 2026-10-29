@@ -250,7 +250,10 @@ Every service follows the same rules, so services behave alike for users and for
 - The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
 - The checks for skipping certificate verification and for the insecure warning run only against Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
 - Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
-  It also covers warning about old names and logging through the leveled methods.
+  It also covers warning about old names.
+- Logging through the leveled methods has two checks.
+  The `leveled_logs` contract check fails a service that logs a line without a level.
+  The linter flags any call to the deprecated `Log` and `Logf` methods.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

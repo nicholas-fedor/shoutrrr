@@ -273,14 +273,14 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 
 	if config.Date != "" {
 		s.warnings.Do("date", func() {
-			s.Log("Warning: ignoring the date param, because Gotify sets the date of each message")
+			s.Warn(ctx, "date param ignored, because Gotify sets the date of each message")
 		})
 	}
 
 	// Parse extras from parameters or fall back to config extras
 	extras, err := s.payloadBuilder.ParseExtras(params, &config)
 	if err != nil {
-		s.Logf("Failed to parse extras from params: %v", err)
+		s.Warn(ctx, "extras param not parsed, using the configured extras", logging.KeyError, err)
 
 		extras = config.Extras
 	}

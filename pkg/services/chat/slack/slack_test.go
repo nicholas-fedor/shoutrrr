@@ -317,7 +317,7 @@ func TestSendAPI(t *testing.T) {
 	assert.JSONEq(t,
 		`{"text":"","channel":"C0123456789","thread_ts":"1503435956.000247","icon_emoji":":robot_face:","attachments":[{"text":"Message"}]}`,
 		string(request.body))
-	assert.Equal(t, "Slack API warning: \"missing_charset\"\n", logs.String())
+	assert.Equal(t, "WARN API returned a warning warning=missing_charset\n", logs.String())
 }
 
 // TestSendAPIErrors verifies that an API send fails with the error code the

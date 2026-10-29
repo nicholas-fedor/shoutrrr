@@ -15,6 +15,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -281,8 +282,8 @@ func (s *Service) ParseMentions(message string) []string {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrEmptyMessage], a payload error, or [ErrSendFailed] wrapping the send
-//     error.
+//     [ErrEmptyMessage], the params failure, a payload error, or
+//     [ErrSendFailed] wrapping the send error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return s.SendContext(context.Background(), message, paramsPtr)
 }
@@ -298,8 +299,9 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrEmptyMessage], a payload error, or [ErrSendFailed] wrapping the send
-//     error. A request error matches ctx's error when ctx ends the request.
+//     [ErrEmptyMessage], the params failure, a payload error, or
+//     [ErrSendFailed] wrapping the send error. A request error matches ctx's
+//     error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -342,7 +344,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 
 	// Update config with filtered parameters
 	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
-		s.Logf("Failed to update params: %v", err)
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
 	// Create the payload
@@ -545,7 +547,7 @@ func (s *Service) doSend(ctx context.Context, payload []byte) error {
 		}()
 
 		// The body is not logged because it can echo the request, including its credentials.
-		s.Logf("Server responded with status %s", res.Status)
+		s.Debug(ctx, "response received", logging.KeyStatus, res.Status)
 	}
 
 	// Check for authentication failure (401 Unauthorized)

@@ -357,14 +357,14 @@ func TestSendWarnings(t *testing.T) {
 			name:   "mqtt scheme on the TLS port",
 			rawURL: "mqtt://broker.example.invalid:8883/t",
 			want: []string{
-				"Warning: Using MQTT scheme with TLS port 8883; TLS will not be used",
+				"WARN mqtt scheme on the TLS port, not using TLS port=8883",
 				"WARN sending without TLS",
 			},
 		},
 		{
 			name:   "mqtts scheme on the plain port",
 			rawURL: "mqtts://broker.example.invalid:1883/t",
-			want:   []string{"Warning: Using MQTTS scheme with non-TLS port 1883; TLS will be attempted"},
+			want:   []string{"WARN mqtts scheme on the plain MQTT port, attempting TLS port=1883"},
 		},
 	}
 
@@ -440,6 +440,42 @@ func TestConnectionWarningsContext(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestConnectErrorWarning verifies that a failed connection attempt, such as a
+// broker rejecting the credentials, is logged at Warn with its error. A send
+// that cannot connect reports only its context's error, so the warning is the
+// only report of why.
+func TestConnectErrorWarning(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			logs bytes.Buffer
+			cfg  *autopaho.ClientConfig
+		)
+
+		serviceURL, err := url.Parse(lifecycleURL)
+		require.NoError(t, err)
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(serviceURL, log.New(&logs, "", 0)))
+
+		service.connect = func(ctx context.Context, config *autopaho.ClientConfig) (ConnectionManager, error) {
+			cfg = config
+
+			return newFakeConnection(ctx), nil
+		}
+
+		t.Cleanup(func() { _ = service.Close() })
+
+		require.NoError(t, service.Send("message", nil))
+		require.NotNil(t, cfg)
+
+		cfg.OnConnectError(errors.New("bad user name or password"))
+
+		assert.Contains(t, logs.String(), `WARN connection attempt failed error="bad user name or password"`+"\n")
+	})
 }
 
 // TestInitializeWarnings verifies that Initialize warns about a deprecated
@@ -547,8 +583,7 @@ func TestSendTLSSettings(t *testing.T) {
 	}
 }
 
-// warningLines returns the logged lines that are warnings. The shared
-// warnings start with "WARN ", and the port warnings start with "Warning: ".
+// warningLines returns the logged lines that are warnings.
 //
 // Parameters:
 //   - logs: the log output.
@@ -559,7 +594,7 @@ func warningLines(logs string) []string {
 	var lines []string
 
 	for line := range strings.Lines(logs) {
-		if strings.HasPrefix(line, "WARN ") || strings.HasPrefix(line, "Warning: ") {
+		if strings.HasPrefix(line, "WARN ") {
 			lines = append(lines, strings.TrimSuffix(line, "\n"))
 		}
 	}
