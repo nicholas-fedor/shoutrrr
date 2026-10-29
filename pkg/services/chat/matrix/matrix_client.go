@@ -20,6 +20,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
@@ -515,9 +516,10 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 //   - rooms: the room aliases or IDs, or none for all joined rooms.
 //
 // Returns:
-//   - []error: one error for each room the message could not reach, or for a
-//     failed lookup of the joined rooms.
-func (c *client) sendMessage(ctx context.Context, message string, rooms []string) []error {
+//   - error: the errors of the rooms the message could not reach and ctx's
+//     error when it ended the send, joined. A failed lookup of the joined rooms
+//     returns its own error.
+func (c *client) sendMessage(ctx context.Context, message string, rooms []string) error {
 	if len(rooms) >= minSliceLength {
 		return c.sendToExplicitRooms(ctx, rooms, message)
 	}
@@ -548,7 +550,8 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 	return c.apiPut(ctx, path, request, &resEvent)
 }
 
-// sendToExplicitRooms sends a message to explicitly specified rooms and collects any errors.
+// sendToExplicitRooms sends a message to explicitly specified rooms, and keeps
+// sending after a room fails. Once ctx ends, it sends to no more rooms.
 //
 // A room that starts with ! is a room ID and is sent to as is. Any other room,
 // such as an alias, is joined first to get its ID.
@@ -559,17 +562,13 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 //   - message: the message.
 //
 // Returns:
-//   - []error: one error for each room that is empty or that the message
-//     could not reach.
-func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, message string) []error {
-	var errs []error
-
-	for _, room := range rooms {
+//   - error: the errors of the rooms that are empty or that the message could
+//     not reach, and ctx's error when it ended the send, joined.
+func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, message string) error {
+	return sequential.Send(ctx, rooms, func(ctx context.Context, room string) error {
 		room = strings.TrimSpace(room)
 		if room == "" {
-			errs = append(errs, fmt.Errorf("%w", ErrEmptyRoom))
-
-			continue
+			return ErrEmptyRoom
 		}
 
 		// Rooms identify the recipients, so the records leave them out.
@@ -578,9 +577,7 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 		if !strings.HasPrefix(room, "!") {
 			roomID, err := c.joinRoom(ctx, room)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("error joining room %v: %w", room, err))
-
-				continue
+				return fmt.Errorf("error joining room %v: %w", room, err)
 			}
 
 			if room != roomID {
@@ -591,46 +588,40 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 		}
 
 		if err := c.sendMessageToRoom(ctx, message, room); err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("failed to send message to room '%v': %w", room, err),
-			)
+			return fmt.Errorf("failed to send message to room '%v': %w", room, err)
 		}
-	}
 
-	return errs
+		return nil
+	})
 }
 
-// sendToJoinedRooms sends a message to all joined rooms and collects any errors.
+// sendToJoinedRooms sends a message to all joined rooms, and keeps sending
+// after a room fails. Once ctx ends, it sends to no more rooms.
 //
 // Parameters:
 //   - ctx: bounds the requests.
 //   - message: the message.
 //
 // Returns:
-//   - []error: one error for each room the message could not reach, or one
-//     for a failed lookup of the joined rooms.
-func (c *client) sendToJoinedRooms(ctx context.Context, message string) []error {
-	var errs []error
-
+//   - error: the errors of the rooms the message could not reach and ctx's
+//     error when it ended the send, joined. A failed lookup of the joined rooms
+//     returns its own error.
+func (c *client) sendToJoinedRooms(ctx context.Context, message string) error {
 	joinedRooms, err := c.getJoinedRooms(ctx)
 	if err != nil {
-		return append(errs, fmt.Errorf("failed to get joined rooms: %w", err))
+		return fmt.Errorf("failed to get joined rooms: %w", err)
 	}
 
-	for _, roomID := range joinedRooms {
+	return sequential.Send(ctx, joinedRooms, func(ctx context.Context, roomID string) error {
 		// Rooms identify the recipients, so the record leaves them out.
 		c.logger.Debug(ctx, "sending message")
 
 		if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("failed to send message to room '%v': %w", roomID, err),
-			)
+			return fmt.Errorf("failed to send message to room '%v': %w", roomID, err)
 		}
-	}
 
-	return errs
+		return nil
+	})
 }
 
 // setAuthorizationHeader sets the Authorization header with Bearer token if access token is available.

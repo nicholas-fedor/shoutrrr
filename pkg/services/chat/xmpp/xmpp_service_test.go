@@ -37,6 +37,8 @@ type roomSend struct {
 type recordingSession struct {
 	// failures maps a target JID to the error sending to it returns.
 	failures map[string]error
+	// onChat, when set, runs at each SendChat call.
+	onChat func()
 	// chats holds the recipient and body of each SendChat call.
 	chats [][2]string
 	// rooms holds each SendToRoom call.
@@ -82,6 +84,10 @@ func (s *recordingSession) Close() error {
 //   - error: the failure configured for to, or nil.
 func (s *recordingSession) SendChat(_ context.Context, to, body string) error {
 	s.chats = append(s.chats, [2]string{to, body})
+
+	if s.onChat != nil {
+		s.onChat()
+	}
 
 	return s.failures[to]
 }
@@ -289,7 +295,8 @@ func TestSendDialsConfiguredAddress(t *testing.T) {
 
 // TestSendContextErrors verifies that a send reports a dial or session error,
 // closes the connection when the session cannot be set up, keeps sending
-// after a failed target, and rejects invalid params before dialing.
+// after a failed target, stops once the context ends, and rejects invalid
+// params before dialing.
 func TestSendContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -366,6 +373,29 @@ func TestSendContextErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "sending groupchat to alerts@conference.example.com")
 		assert.Len(t, session.chats, 2)
 		assert.Len(t, session.rooms, 2)
+	})
+
+	t.Run("context ends during the chats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		session := &recordingSession{onChat: cancel}
+		service := newTestService(t,
+			"xmpp://alice:secret@xmpp.example.com/?to=bob@example.com,carol@example.com&rooms=alerts@conference.example.com,ops@conference.example.com",
+			session)
+
+		err := service.SendContext(ctx, "hello", nil)
+
+		require.ErrorIs(t, err, context.Canceled)
+
+		var joined interface{ Unwrap() []error }
+
+		require.ErrorAs(t, err, &joined)
+		assert.Len(t, joined.Unwrap(), 1, "the context's error is reported once")
+		assert.Len(t, session.chats, 1)
+		assert.Empty(t, session.rooms)
 	})
 
 	// rejectedParams lists params that fail the send before any dial.

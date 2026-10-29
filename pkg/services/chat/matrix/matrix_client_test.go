@@ -620,7 +620,7 @@ func TestSendMessage(t *testing.T) {
 
 			c, httpClient := newScriptedClient(t, failed("mock error"))
 
-			assert.Len(t, c.sendMessage(t.Context(), "test message", tt.rooms), 1)
+			assert.Equal(t, 1, errorCount(c.sendMessage(t.Context(), "test message", tt.rooms)))
 			require.Len(t, httpClient.requests, 1)
 			assert.Equal(t, tt.wantPath, httpClient.requests[0].URL.Path)
 		})
@@ -676,17 +676,33 @@ func TestSendToExplicitRooms(t *testing.T) {
 			t.Parallel()
 
 			c, httpClient := newScriptedClient(t, tt.replies...)
-			errs := c.sendToExplicitRooms(t.Context(), tt.rooms, "test message")
+			err := c.sendToExplicitRooms(t.Context(), tt.rooms, "test message")
 
-			assert.Len(t, errs, tt.wantErrs)
+			assert.Equal(t, tt.wantErrs, errorCount(err))
 			assert.Equal(t, tt.wantRequests, httpClient.requestCount())
 
 			if tt.wantErr != nil {
-				require.NotEmpty(t, errs)
-				require.ErrorIs(t, errs[0], tt.wantErr)
+				require.ErrorIs(t, err, tt.wantErr)
 			}
 		})
 	}
+}
+
+// TestSendToExplicitRoomsContextEnded verifies that a send whose context has
+// ended sends to no room and reports the context's error once. The scripted
+// client fails the test on any request.
+func TestSendToExplicitRoomsContextEnded(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	c, httpClient := newScriptedClient(t)
+	err := c.sendToExplicitRooms(ctx, []string{"!a:matrix.example.com", "!b:matrix.example.com"}, "test message")
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, errorCount(err))
+	assert.Zero(t, httpClient.requestCount())
 }
 
 // TestSendToJoinedRooms verifies that the message goes to every joined room and
@@ -717,7 +733,7 @@ func TestSendToJoinedRooms(t *testing.T) {
 			t.Parallel()
 
 			c, _ := newScriptedClient(t, tt.replies...)
-			assert.Len(t, c.sendToJoinedRooms(t.Context(), "test message"), tt.wantErrs)
+			assert.Equal(t, tt.wantErrs, errorCount(c.sendToJoinedRooms(t.Context(), "test message")))
 		})
 	}
 }
@@ -870,4 +886,23 @@ func TestDefaultHTTPClientDo(t *testing.T) {
 		_, err = (&DefaultHTTPClient{}).Do(req)
 		require.ErrorIs(t, err, context.Canceled)
 	})
+}
+
+// errorCount returns how many errors err holds.
+//
+// Parameters:
+//   - err: the error, which may join several.
+//
+// Returns:
+//   - int: 0 for nil, the number of joined errors, or 1 otherwise.
+func errorCount(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		return len(joined.Unwrap())
+	}
+
+	return 1
 }

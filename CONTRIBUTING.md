@@ -225,6 +225,9 @@ Every service follows the same rules, so services behave alike for users and for
 - Keep a caller's deadline as it is.
 - Add no timeouts to the requests within a send.
   An optional request whose failure the send survives, such as Zulip's limits lookup, may have a shorter deadline, so a slow answer leaves the rest of the budget to the send.
+- When a send makes one request per chat, recipient, or message batch, make them through `sequential.Send` from `internal/sequential`.
+  It keeps going after a request fails and returns every failure joined.
+  Once the context ends, it stops and reports the context's error once.
 
 ### Logging
 

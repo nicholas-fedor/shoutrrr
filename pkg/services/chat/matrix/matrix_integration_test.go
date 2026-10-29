@@ -524,7 +524,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 		{
 			name:         "unknown access token",
 			userInfo:     ":syt_revoked",
-			wantText:     []string{"1 error(s) sending message", "failed to get joined rooms", "Invalid access token passed."},
+			wantText:     []string{"sending message: ", "failed to get joined rooms", "Invalid access token passed."},
 			wantRequests: 1,
 		},
 		{
@@ -572,7 +572,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 			query:        "&rooms=!a:example.com,!b:example.com",
 			overrides:    map[string]apiReply{http.MethodPut + " " + sendPath("!a:example.com"): {statusCode: http.StatusBadGateway, body: "upstream down"}},
 			wantErr:      matrix.ErrUnexpectedStatus,
-			wantText:     []string{"1 error(s) sending message", "failed to send message to room '!a:example.com'"},
+			wantText:     []string{"sending message: ", "failed to send message to room '!a:example.com'"},
 			notWantText:  []string{"'!b:example.com'"},
 			wantRequests: 2,
 		},
@@ -586,7 +586,7 @@ func TestIntegrationSendErrors(t *testing.T) {
 			},
 			wantErr: matrix.ErrUnexpectedStatus,
 			wantText: []string{
-				"2 error(s) sending message",
+				"sending message: ",
 				"failed to send message to room '!a:example.com'",
 				"failed to send message to room '!b:example.com'",
 			},
