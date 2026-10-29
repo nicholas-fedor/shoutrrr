@@ -2,7 +2,10 @@ package smtp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -158,7 +161,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
 //     connection, or delivery error, a [FailTokenRefresh] failure when no
 //     access token could be obtained, or [ErrInvalidOAuth2Refresh] for invalid
-//     refresh settings in params.
+//     refresh settings in params. When ctx ends the session, the error also
+//     matches ctx's error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -185,17 +189,19 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		config.Password = accessToken
 	}
 
-	client, err := dialClient(ctx, &config, s.dialContext)
+	client, stopWatch, err := dialClient(ctx, &config, s.dialContext)
 	if err != nil {
-		return fail(FailGetSMTPClient, err)
+		return withContextErr(ctx, fail(FailGetSMTPClient, err))
 	}
 
-	return (&session{
+	defer stopWatch()
+
+	return withContextErr(ctx, (&session{
 		client: client,
 		config: &config,
 		svc:    s,
 		closed: false,
-	}).run(ctx, message)
+	}).run(ctx, message))
 }
 
 // ServiceTimeout reports the SMTP session timeout.
@@ -267,4 +273,35 @@ func effectiveTimeout(timeout time.Duration) time.Duration {
 	}
 
 	return timeout
+}
+
+// withContextErr adds ctx's error to a session's error when ctx ended the
+// session. The connection then fails with a network timeout, which does not
+// match ctx's error by itself. Any other error keeps its own cause, even when
+// ctx ended at the same moment. The connection's deadline is ctx's deadline.
+// Once that deadline has passed, ctx counts as ended even before its own timer
+// has fired.
+//
+// Parameters:
+//   - ctx: the send's context.
+//   - err: the session's error, or nil.
+//
+// Returns:
+//   - error: err, wrapped with ctx's error when err is a network timeout and
+//     ctx ended, or nil when err is nil.
+func withContextErr(ctx context.Context, err error) error {
+	if err == nil || !errors.Is(err, os.ErrDeadlineExceeded) {
+		return err
+	}
+
+	ctxErr := ctx.Err()
+	if deadline, ok := ctx.Deadline(); ctxErr == nil && ok && !time.Now().Before(deadline) {
+		ctxErr = context.DeadlineExceeded
+	}
+
+	if ctxErr == nil || errors.Is(err, ctxErr) {
+		return err
+	}
+
+	return fmt.Errorf("%w: %w", err, ctxErr)
 }

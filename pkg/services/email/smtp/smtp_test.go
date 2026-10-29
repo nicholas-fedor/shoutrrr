@@ -11,11 +11,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math/big"
 	"net"
 	"net/textproto"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/failures"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -337,6 +340,109 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
+// TestSendContextCanceled verifies that canceling a send ends a session that
+// waits on the server at once, instead of at its deadline, and that the error
+// matches the cancellation. A send canceled during its first recipient tries
+// no reset and no later recipient.
+func TestSendContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the command that the server stops answering, and the
+	// number of MAIL commands the server receives.
+	tests := []struct {
+		name   string
+		rawURL string
+		verb   string
+		want   failures.FailureID
+		mails  int
+	}{
+		{name: "EHLO", rawURL: testServiceURL, verb: "EHLO", want: FailHandshake, mails: 0},
+		{name: "DATA", rawURL: testServiceURL, verb: "DATA", want: FailOpenDataStream, mails: 1},
+		{
+			name:   "DATA of the first of two recipients",
+			rawURL: "smtp://localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com,second@example.com&usestarttls=no",
+			verb:   "DATA",
+			want:   FailOpenDataStream,
+			mails:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				server := newFakeSMTP()
+				server.replies[tt.verb] = []string{"hang"}
+				service := newTestService(t, tt.rawURL, server)
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				time.AfterFunc(time.Second, cancel)
+
+				start := time.Now()
+				err := service.SendContext(ctx, "Hello", nil)
+
+				require.ErrorIs(t, err, fail(tt.want, nil))
+				require.ErrorIs(t, err, context.Canceled)
+				require.NotErrorIs(t, err, fail(FailResetSession, nil))
+				assert.Equal(t, time.Second, time.Since(start))
+				assert.Equal(t, tt.mails, strings.Count(strings.Join(server.received(), "\n"), "MAIL FROM"))
+			})
+		})
+	}
+}
+
+// TestWithContextErr verifies that only a network timeout gains the error of a
+// context that ended, so a failure with its own cause, such as a rejected
+// login, keeps it even when the context ended at the same moment.
+func TestWithContextErr(t *testing.T) {
+	t.Parallel()
+
+	timeout := fmt.Errorf("reading reply: %w", os.ErrDeadlineExceeded)
+	rejected := errors.New("535 authentication failed")
+
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	expired, stop := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	t.Cleanup(stop)
+
+	// tests lists errors and contexts with the context error the result
+	// should match, if any.
+	tests := []struct {
+		ctx     context.Context //nolint:containedctx // Each case needs its own context.
+		err     error
+		wantCtx error
+		name    string
+	}{
+		{name: "timeout after cancel", ctx: canceled, err: timeout, wantCtx: context.Canceled},
+		{name: "timeout after deadline", ctx: expired, err: timeout, wantCtx: context.DeadlineExceeded},
+		{name: "timeout with a live context", ctx: t.Context(), err: timeout},
+		{name: "other error after cancel", ctx: canceled, err: rejected},
+		{name: "other error after deadline", ctx: expired, err: rejected},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := withContextErr(tt.ctx, tt.err)
+
+			require.ErrorIs(t, got, tt.err)
+
+			if tt.wantCtx != nil {
+				require.ErrorIs(t, got, tt.wantCtx)
+			} else {
+				assert.Equal(t, tt.err, got)
+			}
+		})
+	}
+
+	assert.NoError(t, withContextErr(canceled, nil))
+}
+
 // TestSendContextTimeout verifies what ends a session with a server that
 // stops answering. A send without a deadline is bounded by the session
 // timeout from the URL or a param. A caller's deadline applies as it is,
@@ -381,6 +487,7 @@ func TestSendContextTimeout(t *testing.T) {
 				err := service.SendContext(ctx, "Hello", tt.params)
 
 				require.ErrorIs(t, err, fail(FailHandshake, nil))
+				require.ErrorIs(t, err, context.DeadlineExceeded)
 				assert.Equal(t, tt.want, time.Since(start))
 			})
 		})
