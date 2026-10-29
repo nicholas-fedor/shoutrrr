@@ -1079,6 +1079,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#message_levels" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2905,6 +2916,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#message_levels" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3189,6 +3211,31 @@ the URL's position. It never contains the service URL, so it is safe to log, and
 <span class="p">}</span>
 </code></pre></div>
 </div>
+<h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
+<p>Services log what they do, such as a warning that a send skips TLS certificate verification.
+Every logger in the API is a <code>types.StdLogger</code>, which <code>*log.Logger</code> satisfies.
+<code>shoutrrr.SetLogger</code> sets the logger for <code>Send</code> and <code>SendContext</code>.
+<code>shoutrrr.NewSenderWithOptions</code>, <code>router.NewWithOptions</code>, and <code>ServiceRouter.SetLogger</code> set the logger for a sender.
+A nil logger discards everything.</p>
+<p>Services log leveled records.
+Each one has a level, a constant message, and key/value attributes.
+A sender adds the service's ID as the <code>service</code> attribute.</p>
+<p>To keep the levels, pass a <code>*slog.Logger</code> through <code>types.NewSlogLogger</code>.
+Its handler then receives each record, so it filters and formats them.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><span class="filename">Log to slog</span><pre><span></span><code><span class="nx">handler</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">slog</span><span class="p">.</span><span class="nx">NewTextHandler</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Stderr</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">slog</span><span class="p">.</span><span class="nx">HandlerOptions</span><span class="p">{</span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nx">slog</span><span class="p">.</span><span class="nx">LevelWarn</span><span class="p">})</span>
+<span class="nx">shoutrrr</span><span class="p">.</span><span class="nx">SetLogger</span><span class="p">(</span><span class="nx">types</span><span class="p">.</span><span class="nx">NewSlogLogger</span><span class="p">(</span><span class="nx">slog</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span><span class="nx">handler</span><span class="p">)))</span>
+</code></pre></div>
+</div>
+<p>A plain logger receives each record as one line, in the format of slog's default handler.
+It receives every level, because it cannot filter them.</p>
+<div class="highlight"><span class="filename">Plain Logger Output</span><pre><span></span><code>WARN sending without TLS service=ntfy
+</code></pre></div>
+<p><code>slog.NewLogLogger</code> also turns a slog handler into a plain logger, but it logs every line at the one level it is given.
+Use <code>types.NewSlogLogger</code> to keep each record's level.</p>
+<p>Text that a service prints, such as each notification the <code>logger</code> service writes, reaches a plain logger unchanged.
+A slog logger receives it as a record at <code>INFO</code>.</p>
 <h3 id="message_levels">Message Levels<a class="headerlink" href="#message_levels" title="Permanent link">&para;</a></h3>
 <p>Services that support severity or priority can receive a semantic level through the <code>level</code> param.
 Shoutrrr defines five levels: <code>Unknown</code>, <code>Debug</code>, <code>Info</code>, <code>Warning</code>, and <code>Error</code>.
@@ -3303,7 +3350,7 @@ The default is <code>Info</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 25, 2026 10:45:03 UTC"><span class="timeago" datetime="2026-10-25T10:45:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 25, 2026 10:45:03 UTC">2026-10-25</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 29, 2026 01:16:48 UTC"><span class="timeago" datetime="2026-10-29T01:16:48+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 01:16:48 UTC">2026-10-29</span>
   </span>
 
     
