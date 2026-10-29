@@ -29,6 +29,8 @@ import (
 
 // sentRequest records a request the mock HTTP client received.
 type sentRequest struct {
+	// deadline is the deadline of the request's context.
+	deadline time.Time
 	// contentType is the request's Content-Type header.
 	contentType string
 	// body is the request body.
@@ -79,7 +81,12 @@ func newAcceptingClient(t *testing.T, calls int) (*mocks.MockHTTPClient, *reques
 		}
 
 		recorder.mu.Lock()
-		recorder.requests = append(recorder.requests, sentRequest{contentType: req.Header.Get("Content-Type"), body: string(body)})
+		deadline, _ := req.Context().Deadline()
+		recorder.requests = append(recorder.requests, sentRequest{
+			deadline:    deadline,
+			contentType: req.Header.Get("Content-Type"),
+			body:        string(body),
+		})
 		recorder.mu.Unlock()
 
 		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
@@ -395,6 +402,28 @@ func TestSendItemsContextFailures(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "updating config from params")
 	})
+}
+
+// TestSendItemBatchesShareDeadline verifies that the batches of one message
+// share the send's deadline. A batch may wait out a rate limit, so giving each
+// batch only a share of the time would drop parts from the middle of the
+// message.
+func TestSendItemBatchesShareDeadline(t *testing.T) {
+	t.Parallel()
+
+	client, recorder := newAcceptingClient(t, 2)
+
+	items := make([]types.MessageItem, MaxEmbeds+1)
+	for i := range items {
+		items[i] = types.MessageItem{Text: "Item " + strconv.Itoa(i)}
+	}
+
+	service := newTestService(t, client)
+	require.NoError(t, service.sendItemBatches(t.Context(), items, &types.Params{}))
+
+	sent := recorder.sent()
+	require.Len(t, sent, 2)
+	assert.Equal(t, sent[0].deadline, sent[1].deadline)
 }
 
 // TestSendItemBatchesFailures verifies that when several batches fail, every

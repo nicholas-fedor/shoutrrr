@@ -128,13 +128,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	return sequential.Send(ctx, config.Targets, func(ctx context.Context, target string) error {
-		if err := s.doSend(ctx, &config, target, message); err != nil {
-			return fmt.Errorf("sending to target %q: %w", target, err)
-		}
+	return sequential.Send(
+		ctx,
+		config.Targets,
+		sequential.PerTarget(defaultHTTPTimeout),
+		func(ctx context.Context, target string) error {
+			if err := s.doSend(ctx, &config, target, message); err != nil {
+				return fmt.Errorf("sending to target %q: %w", target, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // ServiceTimeout reports the send budget of Pushbullet. A send makes one request

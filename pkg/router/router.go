@@ -627,7 +627,9 @@ func (r *ServiceRouter) sendToService(
 // awaitResult waits for the service result or for sendCtx to end, wrapping a
 // failure in a *types.TargetError. A send cut short by the caller's context
 // reports that context's error, and one cut short by the service's budget reports
-// [ErrServiceTimeout].
+// [ErrServiceTimeout]. A service error that matches [context.DeadlineExceeded]
+// while the caller's context is live is wrapped with [ErrServiceTimeout], so it
+// keeps what the service reported, such as which of its targets timed out.
 //
 // Parameters:
 //   - ctx: the caller's context the send derives from.
@@ -651,7 +653,7 @@ func awaitResult(
 		}
 
 		if errors.Is(res, context.DeadlineExceeded) && ctx.Err() == nil {
-			res = fmt.Errorf("%w: %v", ErrServiceTimeout, serviceID)
+			res = fmt.Errorf("%w: %v: %w", ErrServiceTimeout, serviceID, res)
 		}
 
 		return &types.TargetError{URL: serviceID, Index: index, Err: res}

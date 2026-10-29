@@ -144,13 +144,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	return sequential.Send(ctx, config.Events, func(ctx context.Context, event string) error {
-		if err := s.doSend(ctx, payload, s.createAPIURLForEvent(event)); err != nil {
-			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
-		}
+	return sequential.Send(
+		ctx,
+		config.Events,
+		sequential.PerTarget(defaultTimeout),
+		func(ctx context.Context, event string) error {
+			if err := s.doSend(ctx, payload, s.createAPIURLForEvent(event)); err != nil {
+				return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // ServiceTimeout reports the send budget of IFTTT. A send makes one request per

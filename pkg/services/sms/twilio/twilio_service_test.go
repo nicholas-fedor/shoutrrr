@@ -399,9 +399,11 @@ func TestSetHTTPClient(t *testing.T) {
 	}
 }
 
-// TestSendBudget verifies that the requests of a send without a caller
-// deadline share the budget that ServiceTimeout reports for all recipients,
-// and that a caller's deadline is kept as it is.
+// TestSendBudget verifies that each request of a send may use an equal share
+// of the time left, so a recipient that does not answer cannot use up the
+// others' time. Without a caller deadline, the time is the budget that
+// ServiceTimeout reports for all recipients. A caller's deadline is shared the same
+// way, and the last request keeps it as it is.
 func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
@@ -420,10 +422,11 @@ func TestSendBudget(t *testing.T) {
 		service.SetHTTPClient(client)
 
 		start := time.Now()
-		budget := start.Add(service.ServiceTimeout(nil))
+		budget := service.ServiceTimeout(nil)
 
 		require.NoError(t, service.Send("Message", nil))
-		assert.Equal(t, []time.Time{budget, budget}, deadlines, "both recipients share the budget")
+		assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)}, deadlines,
+			"the first recipient gets half of the budget and the last gets the rest")
 
 		deadlines = nil
 
@@ -431,6 +434,7 @@ func TestSendBudget(t *testing.T) {
 		defer cancel()
 
 		require.NoError(t, service.SendContext(ctx, "Message", nil))
-		assert.Equal(t, []time.Time{start.Add(time.Hour), start.Add(time.Hour)}, deadlines, "the caller's deadline applies")
+		assert.Equal(t, []time.Time{start.Add(30 * time.Minute), start.Add(time.Hour)}, deadlines,
+			"the caller's deadline is shared, and the last request keeps it")
 	})
 }

@@ -171,17 +171,21 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	batches := createItemsFromPlain(message, config.SplitLines, config.Title)
 	level := s.plainLevel(&config, params)
 
-	err := sequential.Send(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
-		// A batch sent as plain content has no embed to color, so it keeps
-		// its form.
-		if level != types.Unknown && !sendsAsContent(batch, config.Title) {
-			for i := range batch {
-				batch[i].Level = level
+	err := sequential.Send(
+		ctx,
+		batches,
+		sequential.SharedDeadline,
+		func(ctx context.Context, batch []types.MessageItem) error {
+			// A batch sent as plain content has no embed to color, so it keeps its form.
+			if level != types.Unknown && !sendsAsContent(batch, config.Title) {
+				for i := range batch {
+					batch[i].Level = level
+				}
 			}
-		}
 
-		return s.sendItems(ctx, batch, params)
-	})
+			return s.sendItems(ctx, batch, params)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to send discord notification: %w", err)
 	}
@@ -399,9 +403,10 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 		return s.sendItems(ctx, items, params)
 	}
 
-	return sequential.Send(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
-		return s.sendEmbedItems(ctx, batch, params)
-	})
+	return sequential.Send(ctx, batches, sequential.SharedDeadline,
+		func(ctx context.Context, batch []types.MessageItem) error {
+			return s.sendEmbedItems(ctx, batch, params)
+		})
 }
 
 // sendItems builds the webhook payload for items and sends it, as multipart when

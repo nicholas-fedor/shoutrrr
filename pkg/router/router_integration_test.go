@@ -954,6 +954,46 @@ func TestIntegrationMaskedURL(t *testing.T) {
 	}
 }
 
+// TestIntegrationItemTimeout verifies that a target that does not answer
+// fails when its share of the send's time runs out, that the next target is
+// still sent, and that the router's timeout error keeps which target timed out.
+func TestIntegrationItemTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var chats []string
+
+		client := httpClientFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+
+			if strings.Contains(string(body), `"chat_id":"hung"`) {
+				chats = append(chats, "hung")
+
+				<-req.Context().Done()
+
+				return nil, req.Context().Err()
+			}
+
+			chats = append(chats, "next")
+
+			return respond(fixtureFor(t, "telegram"), false)(req)
+		})
+
+		serviceRouter, err := router.NewWithOptions(nil, types.SenderOptions{HTTPClient: client},
+			"telegram://12345:SECRETtoken@telegram/?chats=hung,next")
+		require.NoError(t, err)
+
+		errs := serviceRouter.Send("message", nil)
+
+		require.Len(t, errs, 1)
+		require.ErrorIs(t, errs[0], router.ErrServiceTimeout)
+		require.ErrorIs(t, errs[0], context.DeadlineExceeded)
+		assert.Contains(t, errs[0].Error(), `sending to chat "hung"`)
+		assert.Equal(t, []string{"hung", "next"}, chats)
+	})
+}
+
 // TestIntegrationServiceLogger verifies that the leveled records of the
 // router and its services carry the service's ID. The logger reaches the
 // services through the router's constructor or through SetLogger. It is a

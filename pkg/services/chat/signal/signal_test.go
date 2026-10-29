@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,8 @@ import (
 
 // capturedRequest records the parts of a request that an HTTP client received.
 type capturedRequest struct {
+	// deadline is the deadline of the request's context.
+	deadline time.Time
 	// method is the request method.
 	method string
 	// url is the full request URL.
@@ -94,7 +97,10 @@ func newRecordingClient(t *testing.T, responses ...cannedResponse) (*mocks.MockH
 		body, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
 
+		deadline, _ := req.Context().Deadline()
+
 		captured = append(captured, capturedRequest{
+			deadline:      deadline,
 			method:        req.Method,
 			url:           req.URL.String(),
 			contentType:   req.Header.Get("Content-Type"),
@@ -741,6 +747,27 @@ func TestSendUsesCustomClientDialer(t *testing.T) {
 	require.ErrorIs(t, service.SendContext(t.Context(), "Hello", nil), errBlocked)
 }
 
+// TestSendShares verifies that each recipient batch's request may use an equal share of
+// the time left, so a batch that does not answer cannot use up the others'
+// time. The first of two gets half of the budget, and the last gets the rest.
+func TestSendShares(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		client, captured := newRecordingClient(t, accepted, accepted)
+
+		service := newTestService(t, testServiceURL+"/group.Z3JvdXAx")
+		service.SetHTTPClient(client)
+
+		start := time.Now()
+		budget := service.ServiceTimeout(nil)
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
+			requestDeadlines(*captured))
+	})
+}
+
 // TestServiceTimeout verifies that the send budget is one batch budget per
 // recipient batch, counting recipients set by params. The stored recipients
 // count when a param is invalid, and one batch budget applies before
@@ -870,4 +897,20 @@ func TestSetHTTPClient(t *testing.T) {
 			assertDefaultClient(t, service.client.Client(), false)
 		})
 	}
+}
+
+// requestDeadlines returns the deadline of each captured request.
+//
+// Parameters:
+//   - captured: the captured requests.
+//
+// Returns:
+//   - []time.Time: the deadlines, in order.
+func requestDeadlines(captured []capturedRequest) []time.Time {
+	deadlines := make([]time.Time, 0, len(captured))
+	for _, request := range captured {
+		deadlines = append(deadlines, request.deadline)
+	}
+
+	return deadlines
 }

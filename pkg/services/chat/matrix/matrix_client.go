@@ -565,34 +565,39 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 //   - error: the errors of the rooms that are empty or that the message could
 //     not reach, and ctx's error when it ended the send, joined.
 func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, message string) error {
-	return sequential.Send(ctx, rooms, func(ctx context.Context, room string) error {
-		room = strings.TrimSpace(room)
-		if room == "" {
-			return ErrEmptyRoom
-		}
-
-		// Rooms identify the recipients, so the records leave them out.
-		c.logger.Debug(ctx, "sending message")
-
-		if !strings.HasPrefix(room, "!") {
-			roomID, err := c.joinRoom(ctx, room)
-			if err != nil {
-				return fmt.Errorf("error joining room %v: %w", room, err)
+	return sequential.Send(
+		ctx,
+		rooms,
+		sequential.PerTarget(requestsPerRoom*defaultHTTPTimeout),
+		func(ctx context.Context, room string) error {
+			room = strings.TrimSpace(room)
+			if room == "" {
+				return ErrEmptyRoom
 			}
 
-			if room != roomID {
-				c.logger.Debug(ctx, "room alias resolved")
+			// Rooms identify the recipients, so the records leave them out.
+			c.logger.Debug(ctx, "sending message")
+
+			if !strings.HasPrefix(room, "!") {
+				roomID, err := c.joinRoom(ctx, room)
+				if err != nil {
+					return fmt.Errorf("error joining room %v: %w", room, err)
+				}
+
+				if room != roomID {
+					c.logger.Debug(ctx, "room alias resolved")
+				}
+
+				room = roomID
 			}
 
-			room = roomID
-		}
+			if err := c.sendMessageToRoom(ctx, message, room); err != nil {
+				return fmt.Errorf("failed to send message to room '%v': %w", room, err)
+			}
 
-		if err := c.sendMessageToRoom(ctx, message, room); err != nil {
-			return fmt.Errorf("failed to send message to room '%v': %w", room, err)
-		}
-
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // sendToJoinedRooms sends a message to all joined rooms, and keeps sending
@@ -612,16 +617,17 @@ func (c *client) sendToJoinedRooms(ctx context.Context, message string) error {
 		return fmt.Errorf("failed to get joined rooms: %w", err)
 	}
 
-	return sequential.Send(ctx, joinedRooms, func(ctx context.Context, roomID string) error {
-		// Rooms identify the recipients, so the record leaves them out.
-		c.logger.Debug(ctx, "sending message")
+	return sequential.Send(ctx, joinedRooms, sequential.PerTarget(defaultHTTPTimeout),
+		func(ctx context.Context, roomID string) error {
+			// Rooms identify the recipients, so the record leaves them out.
+			c.logger.Debug(ctx, "sending message")
 
-		if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
-			return fmt.Errorf("failed to send message to room '%v': %w", roomID, err)
-		}
+			if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
+				return fmt.Errorf("failed to send message to room '%v': %w", roomID, err)
+			}
 
-		return nil
-	})
+			return nil
+		})
 }
 
 // setAuthorizationHeader sets the Authorization header with Bearer token if access token is available.
