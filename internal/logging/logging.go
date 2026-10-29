@@ -29,14 +29,42 @@ type Once struct {
 
 // Attribute keys for log records.
 const (
+	// KeyAlias names a room alias that a service resolved.
+	KeyAlias = "alias"
+	// KeyCode holds a reason code that a server returned.
+	KeyCode = "code"
+	// KeyDevice names the device a session logged in as.
+	KeyDevice = "device"
+	// KeyError holds the error that a record reports.
+	KeyError = "error"
 	// KeyField names a config field.
 	KeyField = "field"
+	// KeyFlow names a login flow.
+	KeyFlow = "flow"
+	// KeyHomeserver names the server that a login reported.
+	KeyHomeserver = "homeserver"
 	// KeyKey names a config key in a URL or in params.
 	KeyKey = "key"
+	// KeyLimit holds a size limit in bytes.
+	KeyLimit = "limit"
+	// KeyPort holds a port number.
+	KeyPort = "port"
 	// KeyReplacement names what replaces a deprecated field or key.
 	KeyReplacement = "replacement"
+	// KeyRoom names a chat room.
+	KeyRoom = "room"
+	// KeyServer names the host a service connects to.
+	KeyServer = "server"
 	// KeyService names the service that logged the record, by its ID.
 	KeyService = "service"
+	// KeyStatus holds the status of an HTTP response, such as "200 OK".
+	KeyStatus = "status"
+	// KeyTimestamp holds a timestamp that a server returned.
+	KeyTimestamp = "timestamp"
+	// KeyTopic names a topic that a message was published to.
+	KeyTopic = "topic"
+	// KeyWarning holds a warning that a server returned.
+	KeyWarning = "warning"
 )
 
 // Messages of the warnings.

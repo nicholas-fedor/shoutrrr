@@ -471,7 +471,7 @@ func TestSendLogs(t *testing.T) {
 
 	require.NoError(t, service.Send("Hello", nil))
 	require.Error(t, service.Send("Hello", nil))
-	assert.Equal(t, "NTFY API request succeeded\n", logs.String())
+	assert.Equal(t, "DEBUG notification sent\n", logs.String())
 }
 
 // TestSendErrors verifies that a send reports ntfy's error response, other

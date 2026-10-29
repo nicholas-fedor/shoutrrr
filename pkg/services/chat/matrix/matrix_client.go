@@ -18,9 +18,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
-	"github.com/nicholas-fedor/shoutrrr/pkg/util"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
 // HTTPClient defines the interface for HTTP operations.
@@ -34,8 +34,10 @@ type HTTPClient interface {
 
 // client manages interactions with the Matrix API.
 type client struct {
-	// logger receives the client's progress messages.
-	logger types.StdLogger
+	// logger is the service's logger, which receives the client's progress
+	// records. A logger that the service is given later reaches the client
+	// through it.
+	logger *standard.Logger
 	// httpClient holds the service's HTTP client, which sends the API
 	// requests.
 	httpClient *httpclient.Holder
@@ -64,9 +66,6 @@ const (
 
 	// schemeHTTP is the URL scheme for HTTP.
 	schemeHTTP = "http"
-
-	// tokenHintLength is the length of the token hint shown in logs.
-	tokenHintLength = 3
 
 	// minSliceLength is the minimum length for slice operations.
 	minSliceLength = 1
@@ -157,8 +156,6 @@ func (c *client) apiDo(ctx context.Context, method, path string, request, respon
 	// If it's a M_LIMIT_EXCEEDED rate limited error, propagate it immediately.
 	// This allows the caller to handle rate limiting as appropriate
 	if isRateLimitedError(err) {
-		c.logf("Rate limited, returning error to caller: %v\n", err)
-
 		return err
 	}
 
@@ -385,15 +382,6 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	return resRoom.RoomID, nil
 }
 
-// logf logs a formatted message using the client's logger.
-//
-// Parameters:
-//   - format: the message format.
-//   - v: the format arguments.
-func (c *client) logf(format string, v ...any) {
-	c.logger.Printf(format, v...)
-}
-
 // login authenticates the client using a username and password.
 //
 // It asks the homeserver for its login flows and uses the password flow when
@@ -421,14 +409,14 @@ func (c *client) login(ctx context.Context, user, password string) error {
 
 		// Prefer password login when a user is configured
 		if flow.Type == flowLoginPassword && user != "" {
-			c.logf("Using login flow '%v'", flow.Type)
+			c.logger.Debug(ctx, "using login flow", logging.KeyFlow, flow.Type)
 
 			return c.loginPassword(ctx, user, password)
 		}
 
 		// Only use token login when no user is configured
 		if flow.Type == flowLoginToken && user == "" {
-			c.logf("Using login flow '%v'", flow.Type)
+			c.logger.Debug(ctx, "using login flow", logging.KeyFlow, flow.Type)
 
 			return c.loginToken(ctx, password)
 		}
@@ -454,7 +442,6 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 	response := apiResLogin{}
 
 	deviceID := generateDeviceID(user, c.apiURL.Host)
-	c.logf("Using device ID: %v\n", deviceID)
 
 	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
@@ -474,15 +461,9 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 
 	c.accessToken = response.AccessToken
 
-	tokenHint := ""
-	if len(response.AccessToken) > tokenHintLength {
-		tokenHint = response.AccessToken[:tokenHintLength]
-	}
-
-	c.logf("AccessToken: %v...\n", tokenHint)
-	c.logf("HomeServer: %v\n", response.HomeServer)
-	c.logf("User: %v\n", response.UserID)
-	c.logf("DeviceID: %v\n", response.DeviceID)
+	// The access token is a credential, so the record leaves it out.
+	c.logger.Debug(ctx, "logged in",
+		logging.KeyHomeserver, response.HomeServer, logging.KeyDevice, response.DeviceID)
 
 	return nil
 }
@@ -501,7 +482,6 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 	// For token-based login, use an empty user string in the device ID hash.
 	// This ensures all token-based logins to the same host reuse the same device.
 	deviceID := generateDeviceID("", c.apiURL.Host)
-	c.logf("Using device ID: %v\n", deviceID)
 
 	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
 	err := c.apiPost(
@@ -520,15 +500,9 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 
 	c.accessToken = response.AccessToken
 
-	tokenHint := ""
-	if len(response.AccessToken) > tokenHintLength {
-		tokenHint = response.AccessToken[:tokenHintLength]
-	}
-
-	c.logf("AccessToken: %v...\n", tokenHint)
-	c.logf("HomeServer: %v\n", response.HomeServer)
-	c.logf("User: %v\n", response.UserID)
-	c.logf("DeviceID: %v\n", response.DeviceID)
+	// The access token is a credential, so the record leaves it out.
+	c.logger.Debug(ctx, "logged in",
+		logging.KeyHomeserver, response.HomeServer, logging.KeyDevice, response.DeviceID)
 
 	return nil
 }
@@ -598,7 +572,7 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			continue
 		}
 
-		c.logf("Sending message to '%v'...\n", room)
+		c.logger.Debug(ctx, "sending message", logging.KeyRoom, room)
 
 		if !strings.HasPrefix(room, "!") {
 			roomID, err := c.joinRoom(ctx, room)
@@ -609,7 +583,7 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			}
 
 			if room != roomID {
-				c.logf("Resolved room alias '%v' to ID '%v'", room, roomID)
+				c.logger.Debug(ctx, "room alias resolved", logging.KeyAlias, room, logging.KeyRoom, roomID)
 			}
 
 			room = roomID
@@ -644,7 +618,7 @@ func (c *client) sendToJoinedRooms(ctx context.Context, message string) []error 
 	}
 
 	for _, roomID := range joinedRooms {
-		c.logf("Sending message to '%v'...\n", roomID)
+		c.logger.Debug(ctx, "sending message", logging.KeyRoom, roomID)
 
 		if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
 			errs = append(
@@ -804,14 +778,15 @@ func normalizeHostForDeviceID(host string) string {
 // Parameters:
 //   - host: the homeserver host, with an optional port.
 //   - disableTLS: connect over HTTP instead of HTTPS.
-//   - logger: receives the client's progress messages.
+//   - logger: the service's logger, which receives the client's progress
+//     records. Nil discards them.
 //   - httpClient: holds the HTTP client the API requests go through.
 //
 // Returns:
 //   - *client: the client, not yet logged in.
 //
 //nolint:exhaustruct_v5 // Intentional partial initialization
-func newClient(host string, disableTLS bool, logger types.StdLogger, httpClient *httpclient.Holder) *client {
+func newClient(host string, disableTLS bool, logger *standard.Logger, httpClient *httpclient.Holder) *client {
 	client := &client{
 		logger: logger,
 		apiURL: url.URL{
@@ -822,14 +797,14 @@ func newClient(host string, disableTLS bool, logger types.StdLogger, httpClient 
 	}
 
 	if client.logger == nil {
-		client.logger = util.DiscardLogger
+		client.logger = &standard.Logger{}
 	}
 
 	if disableTLS {
 		client.apiURL.Scheme = schemeHTTP
 	}
 
-	client.logger.Printf("Using server: %v\n", client.apiURL.String())
+	client.logger.Debug(context.Background(), "using server", logging.KeyServer, client.apiURL.Host)
 
 	return client
 }

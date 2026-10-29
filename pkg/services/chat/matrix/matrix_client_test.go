@@ -18,6 +18,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
 // failingTransport is a transport whose requests fail with err.
@@ -192,10 +193,13 @@ func newScriptedClient(t *testing.T, replies ...reply) (*client, *scriptedHTTPCl
 	holder := &httpclient.Holder{}
 	holder.Set(httpClient)
 
+	logger := &standard.Logger{}
+	logger.SetLogger(log.New(t.Output(), "", 0))
+
 	return &client{
 		apiURL:     url.URL{Scheme: "https", Host: "matrix.example.com"},
 		httpClient: holder,
-		logger:     log.New(t.Output(), "", 0),
+		logger:     logger,
 	}, httpClient
 }
 
@@ -478,15 +482,19 @@ func TestJoinRoom(t *testing.T) {
 	})
 }
 
-// TestLogf verifies that logf writes through the client's logger.
-func TestLogf(t *testing.T) {
+// TestLoginLog verifies that a login logs the homeserver and device it
+// reports at Debug, and leaves the access token out of the record.
+func TestLoginLog(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
 
-	(&client{logger: log.New(&output, "", 0)}).logf("test %s", "message")
+	c, _ := newScriptedClient(t, ok(`{"access_token":"mytoken123","home_server":"matrix.example.com","device_id":"TESTDEVICE"}`))
+	c.logger.SetLogger(log.New(&output, "", 0))
 
-	assert.Contains(t, output.String(), "test message")
+	require.NoError(t, c.loginPassword(t.Context(), "user", "password"))
+	assert.Equal(t, "DEBUG logged in homeserver=matrix.example.com device=TESTDEVICE\n", output.String())
+	assert.NotContains(t, output.String(), "myt")
 }
 
 // TestLogin verifies that login reports a failed flows request and unsupported

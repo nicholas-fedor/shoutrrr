@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -109,7 +110,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return nil
 	}
 
-	s.client = newClient(s.Config.Host, s.Config.DisableTLS, logger, &s.httpClient)
+	s.client = newClient(s.Config.Host, s.Config.DisableTLS, &s.Logger, &s.httpClient)
 
 	if s.Config.User == "" {
 		s.client.useToken(s.Config.Password)
@@ -178,15 +179,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	sendErrors := s.client.withScheme(cfg.apiScheme()).sendMessage(ctx, fullMessage, cfg.Rooms)
 	if len(sendErrors) > 0 {
-		for _, err := range sendErrors {
-			s.Logf("error sending message: %v", err)
-		}
-
-		return fmt.Errorf(
-			"%v error(s) sending message, with initial error: %w",
-			len(sendErrors),
-			sendErrors[0],
-		)
+		return fmt.Errorf("%d error(s) sending message: %w", len(sendErrors), errors.Join(sendErrors...))
 	}
 
 	return nil

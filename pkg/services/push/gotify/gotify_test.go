@@ -360,7 +360,8 @@ func TestSendLogsDroppedParams(t *testing.T) {
 
 	require.NoError(t, service.Send("Hello", &types.Params{"date": "tomorrow", "extras": "{invalid"}))
 	assert.Equal(t,
-		"Warning: ignoring the date param, because Gotify sets the date of each message\nFailed to parse extras from params: failed to unmarshal extras JSON\n",
+		"WARN date param ignored, because Gotify sets the date of each message\n"+
+			`WARN extras param not parsed, using the configured extras error="failed to unmarshal extras JSON"`+"\n",
 		logs.String())
 }
 
@@ -856,7 +857,7 @@ func TestSendDeprecationWarnings(t *testing.T) {
 	assert.Equal(t,
 		"WARN config field is deprecated field=InsecureSkipVerify replacement=SkipTLSVerify\n"+
 			`WARN config key is deprecated key=insecureskipverify replacement=skiptlsverify`+"\n"+
-			"Warning: ignoring the date param, because Gotify sets the date of each message\n",
+			"WARN date param ignored, because Gotify sets the date of each message\n",
 		logs.String())
 }
 

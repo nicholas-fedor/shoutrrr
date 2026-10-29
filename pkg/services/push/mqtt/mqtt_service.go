@@ -300,11 +300,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// Non-fatal codes (> 0 but < 0x80) and a recovered PUBCOMP are logged as
 	// warnings but don't fail
 	if resp != nil && resp.ReasonCode != 0 {
-		s.Logf("Warning: Publish completed with reason code %d", resp.ReasonCode)
+		s.Warn(ctx, "publish completed with a reason code", logging.KeyCode, resp.ReasonCode)
 	}
 
-	// Log successful publication for debugging and monitoring
-	s.Logf("Successfully published message to topic %q", config.Topic)
+	s.Debug(ctx, "message published", logging.KeyTopic, config.Topic)
 
 	return nil
 }
@@ -441,8 +440,9 @@ func (s *Service) closeIdleConnection(generation uint64) {
 	manager, cancel, sends := s.detachConnectionLocked()
 	s.clientMutex.Unlock()
 
+	// The idle timer runs after the sends, so no send's context applies.
 	if err := disconnect(manager, cancel, sends); err != nil {
-		s.Logf("Disconnecting idle MQTT connection: %v", err)
+		s.Warn(context.Background(), "disconnecting the idle connection failed", logging.KeyError, err)
 	}
 }
 
@@ -461,7 +461,7 @@ func (s *Service) closeOwnedConnection() {
 	s.clientMutex.Unlock()
 
 	if err := disconnect(manager, cancel, sends); err != nil {
-		s.Logf("Disconnecting MQTT connection: %v", err)
+		s.Warn(context.Background(), "disconnecting the connection failed", logging.KeyError, err)
 	}
 }
 
@@ -544,6 +544,8 @@ func (s *Service) getDefaultPortForScheme(scheme string) int {
 //
 // Returns:
 //   - error: the failure to create the connection manager.
+//
+//nolint:contextcheck // The connection outlives the send, so its lifetime starts from the background context.
 func (s *Service) openConnectionLocked(ctx context.Context, config *Config) error {
 	// Determine the connection scheme based on URL scheme and port configuration.
 	// The URL scheme is the primary determinant, with port-based defaults as fallback.
@@ -569,12 +571,12 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 	if scheme == SchemeTLS && !config.DisableTLS && port == DefaultPort {
 		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
 		s.warnings.Do("mqtts-port", func() {
-			s.Logf("Warning: Using MQTTS scheme with non-TLS port %d; TLS will be attempted", port)
+			s.Warn(ctx, "mqtts scheme on the plain MQTT port, attempting TLS", logging.KeyPort, port)
 		})
 	} else if scheme == Scheme && port == DefaultTLSPort {
 		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
 		s.warnings.Do("mqtt-port", func() {
-			s.Logf("Warning: Using MQTT scheme with TLS port %d; TLS will not be used", port)
+			s.Warn(ctx, "mqtt scheme on the TLS port, not using TLS", logging.KeyPort, port)
 		})
 	}
 
@@ -585,7 +587,8 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 	}
 
 	// Build the broker URL
-	brokerURL := (&url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, strconv.Itoa(port))}).String()
+	server := util.JoinURLHost(config.Host, strconv.Itoa(port))
+	brokerURL := (&url.URL{Scheme: scheme, Host: server}).String()
 
 	// Parse the broker URL for autopaho
 	serverURL, err := url.Parse(brokerURL)
@@ -597,6 +600,11 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		)
 	}
 
+	// The connection lives until Close, an idle teardown, or a replacement after
+	// it ends, so its lifetime does not derive from the send's context. Its
+	// callbacks run during that lifetime, so they log with it.
+	lifetime, cancel := context.WithCancel(context.Background())
+
 	// Create autopaho client configuration
 	//nolint:exhaustruct_v5 // autopaho.ClientConfig has many optional fields with library defaults
 	cliCfg := autopaho.ClientConfig{
@@ -607,13 +615,15 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		//nolint:exhaustruct_v5 // remaining fields use library defaults
 		ClientID: config.ClientID,
 		OnServerDisconnect: func(disconnect *paho.Disconnect) {
-			s.Logf("Server disconnected: reason code %d", disconnect.ReasonCode)
+			s.Warn(lifetime, "server disconnected", logging.KeyCode, disconnect.ReasonCode)
 		},
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
-			s.Logf("Connected to MQTT broker at %s", brokerURL)
+			s.Debug(lifetime, "connected", logging.KeyServer, server)
 		},
+		// A failed attempt is retried, and a send that cannot connect returns
+		// the error, so each attempt is detail.
 		OnConnectError: func(err error) {
-			s.Logf("Connection error: %v", err)
+			s.Debug(lifetime, "connection attempt failed", logging.KeyError, err)
 		},
 	}
 
@@ -641,11 +651,7 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		connect = newAutopahoConnection
 	}
 
-	// The connection lives until Close, an idle teardown, or a replacement after
-	// it ends, so its lifetime does not derive from the send's context.
-	lifetime, cancel := context.WithCancel(context.Background())
-
-	connectionManager, err := connect(lifetime, &cliCfg) //nolint:contextcheck // The connection outlives the send.
+	connectionManager, err := connect(lifetime, &cliCfg)
 	if err != nil {
 		cancel()
 

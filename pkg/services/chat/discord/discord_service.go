@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -122,8 +123,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the first
-//     failure among the message's batches, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the failures
+//     of the message's batches joined, or nil on success.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -138,8 +139,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the first
-//     failure among the message's batches, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the failures
+//     of the message's batches joined, or nil on success. Once ctx ends, the
+//     remaining batches are not sent, and ctx's error is reported once.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -152,43 +154,36 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	var firstErr error
-
 	if s.Config.JSON {
 		postURL := CreatePostURLFromConfig(s.Config)
 		if err := s.doSend(ctx, []byte(message), postURL); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
-	} else {
-		config := *s.Config
-		if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-			return fmt.Errorf("updating config from params: %w", err)
-		}
 
-		batches := createItemsFromPlain(message, config.SplitLines, config.Title)
-		level := s.plainLevel(&config, params)
-
-		for _, batch := range batches {
-			// A batch sent as plain content has no embed to color, so it keeps
-			// its form.
-			if level != types.Unknown && !sendsAsContent(batch, config.Title) {
-				for i := range batch {
-					batch[i].Level = level
-				}
-			}
-
-			if err := s.sendItems(ctx, batch, params); err != nil {
-				s.Log(err)
-
-				if firstErr == nil {
-					firstErr = err
-				}
-			}
-		}
+		return nil
 	}
 
-	if firstErr != nil {
-		return fmt.Errorf("failed to send discord notification: %w", firstErr)
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	batches := createItemsFromPlain(message, config.SplitLines, config.Title)
+	level := s.plainLevel(&config, params)
+
+	err := sendBatches(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
+		// A batch sent as plain content has no embed to color, so it keeps
+		// its form.
+		if level != types.Unknown && !sendsAsContent(batch, config.Title) {
+			for i := range batch {
+				batch[i].Level = level
+			}
+		}
+
+		return s.sendItems(ctx, batch, params)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send discord notification: %w", err)
 	}
 
 	return nil
@@ -383,9 +378,9 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     failure, the first batch's failure, ctx's error when ctx ended before
-//     every batch was sent and no batch failed, or nil when every batch is
-//     sent.
+//     failure, the failures of the batches joined, or nil when every batch is
+//     sent. Once ctx ends, the remaining batches are not sent, and ctx's error
+//     is reported once.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -404,29 +399,9 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 		return s.sendItems(ctx, items, params)
 	}
 
-	var firstErr error
-
-	for _, batch := range batches {
-		if err := ctx.Err(); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-
-			break
-		}
-
-		err := s.sendEmbedItems(ctx, batch, params)
-
-		switch {
-		case err == nil:
-		case firstErr == nil:
-			firstErr = err
-		default:
-			s.Log(err)
-		}
-	}
-
-	return firstErr
+	return sendBatches(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
+		return s.sendEmbedItems(ctx, batch, params)
+	})
 }
 
 // sendItems builds the webhook payload for items and sends it, as multipart when
@@ -535,6 +510,41 @@ func batchItems(items []types.MessageItem, title string, colors [types.MessageLe
 	}
 
 	return batches
+}
+
+// sendBatches sends each batch in order and keeps sending after a batch fails.
+// Once ctx ends, every remaining batch would fail with its error, so it stops
+// and reports that error once.
+//
+// Parameters:
+//   - ctx: bounds the sends.
+//   - batches: the batches to send.
+//   - send: sends one batch.
+//
+// Returns:
+//   - error: the failures joined, or nil when every batch is sent.
+func sendBatches(
+	ctx context.Context,
+	batches [][]types.MessageItem,
+	send func(context.Context, []types.MessageItem) error,
+) error {
+	var errs []error
+
+	for _, batch := range batches {
+		if err := ctx.Err(); err != nil {
+			if !errors.Is(errors.Join(errs...), err) {
+				errs = append(errs, err)
+			}
+
+			break
+		}
+
+		if err := send(ctx, batch); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.

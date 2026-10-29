@@ -184,6 +184,9 @@ const (
 	// checkPlaintextWarning verifies that a service with a disabletls option
 	// warns once when its sends go out without TLS.
 	checkPlaintextWarning = "plaintext_warning"
+	// checkLeveledLogs verifies that a service logs only leveled records,
+	// without "Warning:" in their messages.
+	checkLeveledLogs = "leveled_logs"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -229,6 +232,7 @@ const (
 	failClientFieldOrder                       // a send used the wrong one of the client field and the injected client
 	failDeadlineChanged                        // a request or dial did not carry the caller's deadline
 	failNilClientUnreported                    // a send through a nil injected client did not report types.ErrNilHTTPClient
+	failUnleveledLog                           // a service logged text without a level, or "Warning:" in a message
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -555,6 +559,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkSendBudget, runSendBudget},
 		{checkSendKeepsDeadline, runSendKeepsDeadline},
 		{checkPlaintextWarning, runPlaintextWarning},
+		{checkLeveledLogs, runLeveledLogs},
 	}
 
 	for _, check := range checks {
@@ -945,8 +950,7 @@ func TestIntegrationMaskedURL(t *testing.T) {
 // router and its services carry the service's ID. The logger reaches the
 // services through the router's constructor or through SetLogger. It is a
 // plain logger or a slog logger. The generic service logs the plaintext
-// warning for an http custom URL. It also prints the response status, which
-// reaches a plain logger unchanged and a slog logger at Info.
+// warning for an http custom URL, and the response status at Debug.
 func TestIntegrationServiceLogger(t *testing.T) {
 	t.Parallel()
 
@@ -973,7 +977,7 @@ func TestIntegrationServiceLogger(t *testing.T) {
 			"DEBUG got custom URL service=generic\n"+
 				"DEBUG converted custom URL service=generic\n"+
 				"WARN sending without TLS service=generic\n"+
-				"Server responded with status 200 OK\n",
+				`DEBUG response received service=generic status="200 OK"`+"\n",
 			logs.String())
 	})
 
@@ -1004,7 +1008,7 @@ func TestIntegrationServiceLogger(t *testing.T) {
 			`level=DEBUG msg="got custom URL" service=generic`+"\n"+
 				`level=DEBUG msg="converted custom URL" service=generic`+"\n"+
 				`level=WARN msg="sending without TLS" service=generic`+"\n"+
-				`level=INFO msg="Server responded with status 200 OK" service=generic`+"\n",
+				`level=DEBUG msg="response received" service=generic status="200 OK"`+"\n",
 			logs.String())
 	})
 
@@ -1041,7 +1045,7 @@ func TestIntegrationServiceLogger(t *testing.T) {
 		}
 
 		assert.Equal(t,
-			"WARN sending without TLS service=generic\nServer responded with status 200 OK\n",
+			"WARN sending without TLS service=generic\n"+`DEBUG response received service=generic status="200 OK"`+"\n",
 			logs.String())
 	})
 }
@@ -2301,6 +2305,63 @@ func runPlaintextWarning(t *testing.T, fx *fixture) failure {
 			result = fail(failWarningCount, "the plaintext warning was logged %d times over two sends", count)
 		}
 	})
+
+	return result
+}
+
+// runLeveledLogs verifies that a service logs only leveled records, over sends
+// that succeed and sends whose transport fails. A plain logger receives each
+// record as a line that starts with its level, so a line without one was
+// printed as text. The logger service's notification is the only text a
+// service prints.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failUnleveledLog or failPanic failure, or the zero value.
+func runLeveledLogs(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	var result failure
+
+	for _, failTransport := range []bool{false, true} {
+		synctest.Test(t, func(t *testing.T) {
+			env := newEnv(t, fx, failTransport)
+
+			service, err := env.locate(t)
+			if err != nil {
+				return
+			}
+
+			for range 2 {
+				if result = env.send(service, nil); result.kind != failNone {
+					return
+				}
+			}
+
+			for line := range strings.Lines(env.logs.String()) {
+				line = strings.TrimSuffix(line, "\n")
+				if fx.scheme == "logger" && line == "contract message" {
+					continue
+				}
+
+				leveled := strings.HasPrefix(line, "DEBUG ") ||
+					strings.HasPrefix(line, "INFO ") ||
+					strings.HasPrefix(line, "WARN ")
+				if !leveled || strings.Contains(line, "Warning:") {
+					result = fail(failUnleveledLog, "logged %q", line)
+
+					return
+				}
+			}
+		})
+
+		if result.kind != failNone {
+			break
+		}
+	}
 
 	return result
 }

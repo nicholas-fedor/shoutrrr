@@ -94,7 +94,7 @@ func (s *Service) doSend(data types.Params) error {
 		msg = wc.String()
 	}
 
-	s.Log(msg)
+	s.Output().Print(msg)
 
 	return nil
 }

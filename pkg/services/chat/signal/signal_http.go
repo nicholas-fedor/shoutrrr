@@ -15,6 +15,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -94,15 +95,16 @@ func (s *Service) createRequest(
 // that cannot be read is logged, because the API accepted the message.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its log records.
 //   - body: the raw response body.
 //
 // Returns:
 //   - error: [ErrSendFailed] wrapping [ErrRecipientsFailed] with each failed
 //     recipient and its reason, or nil.
-func (s *Service) handleSendResults(body []byte) error {
+func (s *Service) handleSendResults(ctx context.Context, body []byte) error {
 	results, err := parseSendResults(body)
 	if err != nil {
-		s.Logf("Warning: failed to parse response: %v", err)
+		s.Warn(ctx, "response not parsed, so the recipient results were not checked", logging.KeyError, err)
 
 		return nil
 	}
@@ -119,12 +121,12 @@ func (s *Service) handleSendResults(body []byte) error {
 		}
 
 		if result.Timestamp == nil {
-			s.Log("Warning: response has no timestamp")
+			s.Warn(ctx, "response has no timestamp")
 
 			continue
 		}
 
-		s.Logf("Message sent successfully at timestamp %d", *result.Timestamp)
+		s.Debug(ctx, "message sent", logging.KeyTimestamp, *result.Timestamp)
 	}
 
 	if len(failed) > 0 {
@@ -189,7 +191,7 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	truncated := errors.Is(err, httpbody.ErrTooLarge)
 	if err != nil && !truncated {
 		if accepted {
-			s.Logf("Warning: failed to read response body, so the recipient results were not checked: %v", err)
+			s.Warn(req.Context(), "response not read, so the recipient results were not checked", logging.KeyError, err)
 
 			return nil
 		}
@@ -204,12 +206,13 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	// The API accepted the message, but a cut body cannot be read for the
 	// per-recipient results.
 	if truncated {
-		s.Logf("Warning: response exceeds %d bytes, so the recipient results were not checked", httpbody.MaxSize)
+		s.Warn(req.Context(), "response too large, so the recipient results were not checked",
+			logging.KeyLimit, httpbody.MaxSize)
 
 		return nil
 	}
 
-	return s.handleSendResults(body)
+	return s.handleSendResults(req.Context(), body)
 }
 
 // sendClient returns the client for a send. A send that skips certificate

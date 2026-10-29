@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/failures"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 )
 
 // session is one SMTP conversation after a client has been dialed.
@@ -55,19 +56,25 @@ func (s *session) auth() error {
 }
 
 // closeClient closes the SMTP client and logs a warning if Close fails.
-func (s *session) closeClient() {
+//
+// Parameters:
+//   - ctx: the context of the send, passed to the warning.
+func (s *session) closeClient(ctx context.Context) {
 	if closeErr := s.client.Close(); closeErr != nil {
-		s.svc.Logf("Warning: Failed to close SMTP client connection: %v", closeErr)
+		s.svc.Warn(ctx, "closing the SMTP connection failed", logging.KeyError, closeErr)
 	}
 }
 
 // closeIfOpen closes the client when [session.quit] has not already done so.
-func (s *session) closeIfOpen() {
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warning.
+func (s *session) closeIfOpen(ctx context.Context) {
 	if s.closed {
 		return
 	}
 
-	s.closeClient()
+	s.closeClient(ctx)
 	s.closed = true
 }
 
@@ -77,20 +84,21 @@ func (s *session) closeIfOpen() {
 // deliveries.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its log records.
 //   - message: The notification body.
 //   - boundary: Multipart boundary used when HTML mail is enabled.
 //
 // Returns:
 //   - Failures encountered while sending to recipients or resetting the session.
-func (s *session) deliver(message, boundary string) []error {
+func (s *session) deliver(ctx context.Context, message, boundary string) []error {
 	var errs []error
 
 	for i, toAddress := range s.config.ToAddresses {
 		if err := s.sendMessage(toAddress, message, boundary); err != nil {
 			errs = append(errs, fail(FailSendRecipient, err, toAddress))
-			s.svc.Logf("Failed to send to %q: %v", toAddress, err)
 		} else {
-			s.svc.Logf("Mail successfully sent to %q!", toAddress)
+			// The address is personal data, so the record leaves it out.
+			s.svc.Debug(ctx, "mail sent")
 		}
 
 		if i < len(s.config.ToAddresses)-1 {
@@ -110,16 +118,19 @@ func (s *session) deliver(message, boundary string) []error {
 // When [Config.ClientHost] is "auto", the local hostname is used, falling back to
 // localhost if it cannot be determined.
 //
+// Parameters:
+//   - ctx: the context of the send, passed to its warning.
+//
 // Returns:
 //   - string: the EHLO hostname.
-func (s *session) ehloName() string {
+func (s *session) ehloName(ctx context.Context) string {
 	if s.config.ClientHost != "auto" {
 		return s.config.ClientHost
 	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		s.svc.Logf("Failed to get hostname, falling back to localhost: %v", err)
+		s.svc.Warn(ctx, "hostname unavailable, using localhost", logging.KeyError, err)
 
 		return "localhost"
 	}
@@ -135,11 +146,12 @@ func (s *session) ehloName() string {
 // they do not affect delivery. Other QUIT errors are appended to errs.
 //
 // Parameters:
+//   - ctx: the context of the send, passed to its warnings.
 //   - errs: Accumulated delivery errors to extend if QUIT fails.
 //
 // Returns:
 //   - The original error slice, possibly with a session-closure failure appended.
-func (s *session) quit(errs []error) []error {
+func (s *session) quit(ctx context.Context, errs []error) []error {
 	err := s.client.Quit()
 	if err == nil {
 		s.closed = true
@@ -148,12 +160,12 @@ func (s *session) quit(errs []error) []error {
 	}
 
 	if strings.Contains(err.Error(), shortResponseErrorSubstring) {
-		s.svc.Logf("Warning: Ignoring session closure error (delivery succeeded): %v", err)
+		s.svc.Warn(ctx, "session closure error ignored, because delivery succeeded", logging.KeyError, err)
 	} else {
 		errs = append(errs, fail(FailClosingSession, err))
 	}
 
-	s.closeClient()
+	s.closeClient(ctx)
 	s.closed = true
 
 	return errs
@@ -165,7 +177,7 @@ func (s *session) quit(errs []error) []error {
 // sender is never sent as the null reverse-path.
 //
 // Parameters:
-//   - ctx: the context of the send, passed to its warnings.
+//   - ctx: the context of the send, passed to its log records.
 //   - message: The notification body.
 //
 // Returns:
@@ -173,7 +185,7 @@ func (s *session) quit(errs []error) []error {
 func (s *session) run(ctx context.Context, message string) error {
 	s.config.restorePlusAddresses()
 
-	defer s.closeIfOpen()
+	defer s.closeIfOpen(ctx)
 
 	if len(s.config.ToAddresses) == 0 {
 		return fail(FailSendRecipient, ErrToAddressMissing, "")
@@ -183,7 +195,7 @@ func (s *session) run(ctx context.Context, message string) error {
 		return fail(FailSetSender, ErrFromAddressMissing)
 	}
 
-	if err := s.client.Hello(s.ehloName()); err != nil {
+	if err := s.client.Hello(s.ehloName(ctx)); err != nil {
 		return fail(FailHandshake, err)
 	}
 
@@ -198,7 +210,7 @@ func (s *session) run(ctx context.Context, message string) error {
 		boundary = generated
 	}
 
-	if err := s.startTLS(); err != nil {
+	if err := s.startTLS(ctx); err != nil {
 		return err
 	}
 
@@ -208,8 +220,8 @@ func (s *session) run(ctx context.Context, message string) error {
 		return err
 	}
 
-	errs := s.deliver(message, boundary)
-	errs = s.quit(errs)
+	errs := s.deliver(ctx, message, boundary)
+	errs = s.quit(ctx, errs)
 
 	if len(errs) > 0 {
 		return failures.Wrap(
@@ -284,9 +296,12 @@ func (s *session) sendMessage(toAddress, message, boundary string) error {
 // [Config.RequireStartTLS] is false, a warning is logged once and the session
 // continues unencrypted.
 //
+// Parameters:
+//   - ctx: the context of the send, passed to its warning.
+//
 // Returns:
 //   - An error if STARTTLS is required but unsupported or the upgrade fails.
-func (s *session) startTLS() error {
+func (s *session) startTLS(ctx context.Context) error {
 	if !s.config.UseStartTLS || useImplicitTLS(s.config.Encryption, s.config.Port) {
 		return nil
 	}
@@ -297,7 +312,7 @@ func (s *session) startTLS() error {
 		}
 
 		s.svc.warnings.Do("starttls-unsupported", func() {
-			s.svc.Logf("Warning: StartTLS enabled, but server does not support it. Connection is unencrypted")
+			s.svc.Warn(ctx, "server does not support STARTTLS")
 		})
 
 		return nil

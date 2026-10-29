@@ -383,10 +383,10 @@ func TestSessionRunLogsStartTLS(t *testing.T) {
 	require.NoError(t, service.Send("Hello", nil))
 	require.NoError(t, service.Send("Hello", nil))
 	assert.Equal(t,
-		"Warning: StartTLS enabled, but server does not support it. Connection is unencrypted\n"+
+		"WARN server does not support STARTTLS\n"+
 			"WARN sending without TLS\n"+
-			"Mail successfully sent to \"rec@example.com\"!\n"+
-			"Mail successfully sent to \"rec@example.com\"!\n",
+			"DEBUG mail sent\n"+
+			"DEBUG mail sent\n",
 		logs.String())
 }
 
@@ -643,7 +643,7 @@ func TestSessionQuit(t *testing.T) {
 		require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
 
 		assert.Equal(t, int32(1), server.closes.Load())
-		assert.NotContains(t, logs.String(), "Failed to close")
+		assert.NotContains(t, logs.String(), "closing the SMTP connection failed")
 	})
 
 	t.Run("short reply", func(t *testing.T) {
@@ -655,7 +655,7 @@ func TestSessionQuit(t *testing.T) {
 		server.replies["QUIT"] = []string{"22"}
 
 		require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
-		assert.Contains(t, logs.String(), `Warning: Ignoring session closure error (delivery succeeded): short response: "22"`+"\n")
+		assert.Contains(t, logs.String(), `WARN session closure error ignored, because delivery succeeded error="short response: \"22\""`+"\n")
 	})
 }
 
@@ -685,7 +685,10 @@ func TestSessionAuth(t *testing.T) {
 	config.Host, config.Auth = "localhost", AuthNone
 
 	session := newTestSession(t, server, config)
-	t.Cleanup(session.closeIfOpen)
+	// The test's context ends before cleanup runs, which the warning
+	// tolerates, because a context only carries values for log handlers.
+	ctx := t.Context()
+	t.Cleanup(func() { session.closeIfOpen(ctx) })
 
 	require.NoError(t, session.auth())
 	assert.Empty(t, server.received())
@@ -701,8 +704,8 @@ func TestSessionCloseIfOpen(t *testing.T) {
 
 	session := newTestSession(t, server, config)
 
-	session.closeIfOpen()
-	session.closeIfOpen()
+	session.closeIfOpen(t.Context())
+	session.closeIfOpen(t.Context())
 
 	assert.True(t, session.closed)
 	assert.Equal(t, int32(1), server.closes.Load())
@@ -716,8 +719,8 @@ func TestSessionEhloName(t *testing.T) {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	assert.Equal(t, "client.example.com", (&session{config: &Config{ClientHost: "client.example.com"}}).ehloName())
-	assert.Equal(t, hostname, (&session{config: &Config{ClientHost: "auto"}}).ehloName())
+	assert.Equal(t, "client.example.com", (&session{config: &Config{ClientHost: "client.example.com"}}).ehloName(t.Context()))
+	assert.Equal(t, hostname, (&session{config: &Config{ClientHost: "auto"}}).ehloName(t.Context()))
 }
 
 // withReplies returns a server constructor with the given scripted replies.

@@ -577,6 +577,22 @@ func TestIntegrationSendErrors(t *testing.T) {
 			wantRequests: 2,
 		},
 		{
+			name:     "both of two rooms fail",
+			userInfo: ":" + accessToken,
+			query:    "&rooms=!a:example.com,!b:example.com",
+			overrides: map[string]apiReply{
+				http.MethodPut + " " + sendPath("!a:example.com"): {statusCode: http.StatusBadGateway, body: "upstream down"},
+				http.MethodPut + " " + sendPath("!b:example.com"): {statusCode: http.StatusBadGateway, body: "upstream down"},
+			},
+			wantErr: matrix.ErrUnexpectedStatus,
+			wantText: []string{
+				"2 error(s) sending message",
+				"failed to send message to room '!a:example.com'",
+				"failed to send message to room '!b:example.com'",
+			},
+			wantRequests: 2,
+		},
+		{
 			name:     "blank room param",
 			userInfo: ":" + accessToken,
 			params:   &types.Params{"rooms": " "},
@@ -748,6 +764,23 @@ func TestIntegrationSetHTTPClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIntegrationSetLogger verifies that a logger set after Initialize, as the
+// router sets one, receives the records of the Matrix client that Initialize
+// built.
+func TestIntegrationSetLogger(t *testing.T) {
+	t.Parallel()
+
+	server := newHomeserver(t, nil)
+	service := newTestService(t, server, ":"+accessToken, "&rooms=!a:example.com")
+
+	var logs strings.Builder
+
+	service.SetLogger(log.New(&logs, "", 0))
+
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Contains(t, logs.String(), "DEBUG sending message room=!a:example.com\n")
 }
 
 // TestIntegrationPlaceholderURL verifies that the documentation placeholder

@@ -82,3 +82,5 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `Config.Scheme` | `pkg/services/push/ntfy` | `Config.DisableTLS` | Unreleased |
 | `HTTPTimeout` | `pkg/services/push/ntfy` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
 | `Config.DisableTLSVerification` | `pkg/services/push/mqtt` | `Config.SkipTLSVerify` | Unreleased |
+| `Logger.Log` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | Unreleased |
+| `Logger.Logf` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | Unreleased |

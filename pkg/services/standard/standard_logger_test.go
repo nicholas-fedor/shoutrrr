@@ -106,19 +106,28 @@ func TestLoggerLogf(t *testing.T) {
 	assert.Equal(t, "foo 7\n", out.String())
 }
 
-// TestLoggerSetLoggerNil verifies that a nil logger discards messages rather
-// than leaving Log and Logf without a logger.
-func TestLoggerSetLoggerNil(t *testing.T) {
+// TestLoggerOutput verifies that Output returns the logger given to
+// SetLogger, and the discard logger for a zero-value Logger or after
+// SetLogger(nil), so Log and Logf never lack a logger.
+func TestLoggerOutput(t *testing.T) {
 	t.Parallel()
 
-	logger := &Logger{}
-	logger.SetLogger(nil)
+	plain := log.New(&strings.Builder{}, "", 0)
 
-	assert.Same(t, util.DiscardLogger, logger.logger)
-	assert.NotPanics(t, func() {
-		logger.Log("discarded")
-		logger.Logf("discarded %d", 1)
-	})
+	given := &Logger{}
+	given.SetLogger(plain)
+	assert.Same(t, plain, given.Output())
+
+	discarding := &Logger{}
+	discarding.SetLogger(nil)
+
+	for _, logger := range []*Logger{{}, discarding} {
+		assert.Same(t, util.DiscardLogger, logger.Output())
+		assert.NotPanics(t, func() {
+			logger.Log("discarded")
+			logger.Logf("discarded %d", 1)
+		})
+	}
 }
 
 // TestLoggerLeveledPlain verifies that Debug, Info, and Warn write each record

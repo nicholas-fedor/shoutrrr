@@ -328,7 +328,7 @@ func TestSendSuccess(t *testing.T) {
 			require.NoError(t, json.Unmarshal(captured.body, &body))
 			assert.Equal(t, tt.wantBody, body)
 
-			assert.Contains(t, logs.String(), "Notification sent successfully")
+			assert.Equal(t, "DEBUG notification sent\n", logs.String())
 			assert.NotContains(t, logs.String(), "693axxx6")
 			assert.NotContains(t, logs.String(), "msgtype")
 		})

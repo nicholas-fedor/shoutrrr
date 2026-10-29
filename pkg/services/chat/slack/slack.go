@@ -12,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -168,7 +169,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 	}
 
 	if response.Warning != "" {
-		s.Logf("Slack API warning: %q", response.Warning)
+		s.Warn(ctx, "API returned a warning", logging.KeyWarning, response.Warning)
 	}
 
 	return nil
