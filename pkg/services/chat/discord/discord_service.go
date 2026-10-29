@@ -3,7 +3,6 @@ package discord
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -171,7 +171,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	batches := createItemsFromPlain(message, config.SplitLines, config.Title)
 	level := s.plainLevel(&config, params)
 
-	err := sendBatches(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
+	err := sequential.Send(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
 		// A batch sent as plain content has no embed to color, so it keeps
 		// its form.
 		if level != types.Unknown && !sendsAsContent(batch, config.Title) {
@@ -399,7 +399,7 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 		return s.sendItems(ctx, items, params)
 	}
 
-	return sendBatches(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
+	return sequential.Send(ctx, batches, func(ctx context.Context, batch []types.MessageItem) error {
 		return s.sendEmbedItems(ctx, batch, params)
 	})
 }
@@ -510,41 +510,6 @@ func batchItems(items []types.MessageItem, title string, colors [types.MessageLe
 	}
 
 	return batches
-}
-
-// sendBatches sends each batch in order and keeps sending after a batch fails.
-// Once ctx ends, every remaining batch would fail with its error, so it stops
-// and reports that error once.
-//
-// Parameters:
-//   - ctx: bounds the sends.
-//   - batches: the batches to send.
-//   - send: sends one batch.
-//
-// Returns:
-//   - error: the failures joined, or nil when every batch is sent.
-func sendBatches(
-	ctx context.Context,
-	batches [][]types.MessageItem,
-	send func(context.Context, []types.MessageItem) error,
-) error {
-	var errs []error
-
-	for _, batch := range batches {
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
-		}
-
-		if err := send(ctx, batch); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
 }
 
 // CreateItemsFromPlain converts plain text into MessageItems suitable for Discord's webhook payload.

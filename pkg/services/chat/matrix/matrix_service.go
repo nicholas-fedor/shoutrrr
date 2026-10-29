@@ -2,7 +2,6 @@ package matrix
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -177,9 +176,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// Create message with title if provided
 	fullMessage := createMessage(message, cfg.Title)
 
-	sendErrors := s.client.withScheme(cfg.apiScheme()).sendMessage(ctx, fullMessage, cfg.Rooms)
-	if len(sendErrors) > 0 {
-		return fmt.Errorf("%d error(s) sending message: %w", len(sendErrors), errors.Join(sendErrors...))
+	if err := s.client.withScheme(cfg.apiScheme()).sendMessage(ctx, fullMessage, cfg.Rooms); err != nil {
+		return fmt.Errorf("sending message: %w", err)
 	}
 
 	return nil

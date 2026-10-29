@@ -11,6 +11,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -143,26 +144,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	var errs []error
-
-	for _, event := range config.Events {
-		// Once ctx ends, every remaining request would fail with its error, so the
-		// send stops and reports that error once.
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
+	return sequential.Send(ctx, config.Events, func(ctx context.Context, event string) error {
+		if err := s.doSend(ctx, payload, s.createAPIURLForEvent(event)); err != nil {
+			return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
 		}
 
-		apiURL := s.createAPIURLForEvent(event)
-		if err := s.doSend(ctx, payload, apiURL); err != nil {
-			errs = append(errs, fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err))
-		}
-	}
-
-	return errors.Join(errs...)
+		return nil
+	})
 }
 
 // ServiceTimeout reports the send budget of IFTTT. A send makes one request per

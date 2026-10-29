@@ -2,7 +2,6 @@ package xmpp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -111,7 +111,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, a setup
-//     error, or the joined errors of the targets that failed.
+//     error, or the joined errors of the targets that failed. Once ctx ends,
+//     the remaining targets are skipped and ctx's error is reported once.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -155,22 +156,35 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	body := composeMessage(config.Title, message)
 
-	var errs []error
+	nick := config.mucNick()
+
+	// The chats and then the rooms make one list, so a context that ends
+	// partway is reported once.
+	sends := make([]func(context.Context) error, 0, len(config.To)+len(config.Rooms))
 
 	for _, to := range config.To {
-		if err := session.SendChat(ctx, to, body); err != nil {
-			errs = append(errs, fmt.Errorf("sending chat to %s: %w", to, err))
-		}
+		sends = append(sends, func(ctx context.Context) error {
+			if err := session.SendChat(ctx, to, body); err != nil {
+				return fmt.Errorf("sending chat to %s: %w", to, err)
+			}
+
+			return nil
+		})
 	}
 
-	nick := config.mucNick()
 	for _, room := range config.Rooms {
-		if err := session.SendToRoom(ctx, room, nick, config.RoomPassword, body); err != nil {
-			errs = append(errs, fmt.Errorf("sending groupchat to %s: %w", room, err))
-		}
+		sends = append(sends, func(ctx context.Context) error {
+			if err := session.SendToRoom(ctx, room, nick, config.RoomPassword, body); err != nil {
+				return fmt.Errorf("sending groupchat to %s: %w", room, err)
+			}
+
+			return nil
+		})
 	}
 
-	return errors.Join(errs...)
+	return sequential.Send(ctx, sends, func(ctx context.Context, send func(context.Context) error) error {
+		return send(ctx)
+	})
 }
 
 // ServiceTimeout returns the session timeout used for an XMPP send.

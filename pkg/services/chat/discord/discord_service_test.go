@@ -488,65 +488,6 @@ func TestSendItemBatchesCanceled(t *testing.T) {
 	})
 }
 
-// TestSendBatches verifies that every batch is sent after a failure, that
-// every failure is returned, and that a context that ends stops the remaining
-// batches and is reported once.
-func TestSendBatches(t *testing.T) {
-	t.Parallel()
-
-	batches := [][]types.MessageItem{{{Text: "a"}}, {{Text: "b"}}, {{Text: "c"}}}
-	errFirst := errors.New("first")
-	errThird := errors.New("third")
-
-	t.Run("failures", func(t *testing.T) {
-		t.Parallel()
-
-		var sent []string
-
-		err := sendBatches(t.Context(), batches, func(_ context.Context, batch []types.MessageItem) error {
-			sent = append(sent, batch[0].Text)
-
-			switch batch[0].Text {
-			case "a":
-				return errFirst
-			case "c":
-				return errThird
-			default:
-				return nil
-			}
-		})
-
-		assert.Equal(t, []string{"a", "b", "c"}, sent)
-		require.ErrorIs(t, err, errFirst)
-		require.ErrorIs(t, err, errThird)
-	})
-
-	t.Run("context ends", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(t.Context())
-		t.Cleanup(cancel)
-
-		var sent int
-
-		err := sendBatches(ctx, batches, func(ctx context.Context, _ []types.MessageItem) error {
-			sent++
-
-			cancel()
-
-			return ctx.Err()
-		})
-
-		assert.Equal(t, 1, sent)
-		require.ErrorIs(t, err, context.Canceled)
-
-		var joined interface{ Unwrap() []error }
-
-		require.ErrorAs(t, err, &joined)
-		assert.Len(t, joined.Unwrap(), 1, "the context's error is reported once")
-	})
-}
-
 // TestCreateItemsFromPlain verifies that plain text is split into chunks or
 // lines, batched, and kept whole and in order.
 func TestCreateItemsFromPlain(t *testing.T) {

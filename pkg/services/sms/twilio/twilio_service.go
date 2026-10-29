@@ -2,12 +2,12 @@ package twilio
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -119,26 +119,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	var errs []error
-
-	for _, toNumber := range config.ToNumbers {
-		// Once ctx ends, every remaining request would fail with its error, so the
-		// send stops and reports that error once.
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
+	return sequential.Send(ctx, config.ToNumbers, func(ctx context.Context, toNumber string) error {
+		if err := s.sendToRecipient(ctx, config, toNumber, message); err != nil {
+			return fmt.Errorf("sending to %s: %w", toNumber, err)
 		}
 
-		err := s.sendToRecipient(ctx, config, toNumber, message)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("sending to %s: %w", toNumber, err))
-		}
-	}
-
-	return errors.Join(errs...)
+		return nil
+	})
 }
 
 // ServiceTimeout reports the send budget of Twilio. A send makes one request

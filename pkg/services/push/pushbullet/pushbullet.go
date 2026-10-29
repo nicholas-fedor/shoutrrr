@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -127,25 +128,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	var errs []error
-
-	for _, target := range config.Targets {
-		// Once ctx ends, every remaining request would fail with its error, so the
-		// send stops and reports that error once.
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
-		}
-
+	return sequential.Send(ctx, config.Targets, func(ctx context.Context, target string) error {
 		if err := s.doSend(ctx, &config, target, message); err != nil {
-			errs = append(errs, fmt.Errorf("sending to target %q: %w", target, err))
+			return fmt.Errorf("sending to target %q: %w", target, err)
 		}
-	}
 
-	return errors.Join(errs...)
+		return nil
+	})
 }
 
 // ServiceTimeout reports the send budget of Pushbullet. A send makes one request

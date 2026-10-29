@@ -2,13 +2,13 @@ package signal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -176,19 +176,7 @@ func (s *Service) sendMessage(ctx context.Context, message string, config *Confi
 		return err
 	}
 
-	var errs []error
-
-	for _, batch := range batchRecipients(config.Recipients) {
-		// Once ctx ends, every remaining request would fail with its error, so the
-		// send stops and reports that error once.
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
-		}
-
+	return sequential.Send(ctx, batchRecipients(config.Recipients), func(ctx context.Context, batch []string) error {
 		batchConfig := *config
 		batchConfig.Recipients = batch
 
@@ -196,15 +184,9 @@ func (s *Service) sendMessage(ctx context.Context, message string, config *Confi
 
 		req, err := s.createRequest(ctx, &batchConfig, &payload)
 		if err != nil {
-			errs = append(errs, err)
-
-			continue
+			return err
 		}
 
-		if err := s.sendRequest(req, &batchConfig); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
+		return s.sendRequest(req, &batchConfig)
+	})
 }

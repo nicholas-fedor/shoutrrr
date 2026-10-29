@@ -9,6 +9,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -123,8 +124,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - error: [types.ErrServiceNotInitialized] before Initialize, a params
 //     error, [ErrMessageTooLong] for a text over [maxlength] UTF-16 code units
 //     with its title line, [ErrInvalidAPIURL] for an API URL set by the params,
-//     or the joined errors of the chats that failed. A request error matches
-//     ctx's error when ctx ends the request.
+//     or the joined errors of the chats that failed, each naming its chat. A
+//     chat that fails does not stop the chats after it. Once ctx ends, the
+//     remaining chats are skipped and ctx's error is reported once. A request
+//     error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -146,7 +149,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	return s.sendMessageForChatIDs(ctx, message, &config)
+	return sequential.Send(ctx, config.Chats, func(ctx context.Context, chat string) error {
+		if err := s.sendMessageToAPI(ctx, message, chat, &config); err != nil {
+			return fmt.Errorf("sending to chat %q: %w", chat, err)
+		}
+
+		return nil
+	})
 }
 
 // ServiceTimeout reports the send budget the router gives Telegram. A send makes
@@ -179,40 +188,6 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
-}
-
-// sendMessageForChatIDs sends the message to every chat in config, which includes
-// any chats set by the send params. A chat that fails does not stop the chats
-// after it. Once ctx ends, the remaining chats are skipped.
-//
-// Parameters:
-//   - ctx: cancellation and deadline for the requests.
-//   - message: the message to send.
-//   - config: the configuration for this send.
-//
-// Returns:
-//   - error: the joined errors of the chats that failed, each naming its
-//     chat, and ctx's error when it ended the send.
-func (s *Service) sendMessageForChatIDs(ctx context.Context, message string, config *Config) error {
-	var errs []error
-
-	for _, chat := range config.Chats {
-		// Once ctx ends, every remaining request would fail with its error, so the
-		// send stops and reports that error once.
-		if err := ctx.Err(); err != nil {
-			if !errors.Is(errors.Join(errs...), err) {
-				errs = append(errs, err)
-			}
-
-			break
-		}
-
-		if err := s.sendMessageToAPI(ctx, message, chat, config); err != nil {
-			errs = append(errs, fmt.Errorf("sending to chat %q: %w", chat, err))
-		}
-	}
-
-	return errors.Join(errs...)
 }
 
 // sendMessageToAPI sends a message to the Telegram API for a specific chat.
