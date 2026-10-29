@@ -956,7 +956,8 @@ func TestIntegrationMaskedURL(t *testing.T) {
 
 // TestIntegrationItemTimeout verifies that a target that does not answer
 // fails when its share of the send's time runs out, that the next target is
-// still sent, and that the router's timeout error keeps which target timed out.
+// still sent, and that the router reports that target's error as the service
+// did, not as a timeout of the whole send.
 func TestIntegrationItemTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -987,7 +988,7 @@ func TestIntegrationItemTimeout(t *testing.T) {
 		errs := serviceRouter.Send("message", nil)
 
 		require.Len(t, errs, 1)
-		require.ErrorIs(t, errs[0], router.ErrServiceTimeout)
+		require.NotErrorIs(t, errs[0], router.ErrServiceTimeout)
 		require.ErrorIs(t, errs[0], context.DeadlineExceeded)
 		assert.Contains(t, errs[0].Error(), `sending to chat "hung"`)
 		assert.Equal(t, []string{"hung", "next"}, chats)
