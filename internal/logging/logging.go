@@ -29,8 +29,6 @@ type Once struct {
 
 // Attribute keys for log records.
 const (
-	// KeyAlias names a room alias that a service resolved.
-	KeyAlias = "alias"
 	// KeyCode holds a reason code that a server returned.
 	KeyCode = "code"
 	// KeyDevice names the device a session logged in as.
@@ -51,8 +49,6 @@ const (
 	KeyPort = "port"
 	// KeyReplacement names what replaces a deprecated field or key.
 	KeyReplacement = "replacement"
-	// KeyRoom names a chat room.
-	KeyRoom = "room"
 	// KeyServer names the host a service connects to.
 	KeyServer = "server"
 	// KeyService names the service that logged the record, by its ID.

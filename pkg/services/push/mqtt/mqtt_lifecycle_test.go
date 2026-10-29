@@ -442,6 +442,42 @@ func TestConnectionWarningsContext(t *testing.T) {
 	}
 }
 
+// TestConnectErrorWarning verifies that a failed connection attempt, such as a
+// broker rejecting the credentials, is logged at Warn with its error. A send
+// that cannot connect reports only its context's error, so the warning is the
+// only report of why.
+func TestConnectErrorWarning(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			logs bytes.Buffer
+			cfg  *autopaho.ClientConfig
+		)
+
+		serviceURL, err := url.Parse(lifecycleURL)
+		require.NoError(t, err)
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(serviceURL, log.New(&logs, "", 0)))
+
+		service.connect = func(ctx context.Context, config *autopaho.ClientConfig) (ConnectionManager, error) {
+			cfg = config
+
+			return newFakeConnection(ctx), nil
+		}
+
+		t.Cleanup(func() { _ = service.Close() })
+
+		require.NoError(t, service.Send("message", nil))
+		require.NotNil(t, cfg)
+
+		cfg.OnConnectError(errors.New("bad user name or password"))
+
+		assert.Contains(t, logs.String(), `WARN connection attempt failed error="bad user name or password"`+"\n")
+	})
+}
+
 // TestInitializeWarnings verifies that Initialize warns about a deprecated
 // key in the URL, and that initializing the service again lets each warning
 // appear again.

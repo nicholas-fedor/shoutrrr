@@ -233,6 +233,7 @@ const (
 	failDeadlineChanged                        // a request or dial did not carry the caller's deadline
 	failNilClientUnreported                    // a send through a nil injected client did not report types.ErrNilHTTPClient
 	failUnleveledLog                           // a service logged text without a level, or "Warning:" in a message
+	failSendFailed                             // a send failed though its transport works
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -354,12 +355,13 @@ var fixtures = []fixture{
 		scheme:  "pushbullet",
 		url:     "pushbullet://SECRETpushbulletTOKENxxxxxxxxxxxxx",
 		secrets: []string{"SECRETpushbulletTOKENxxxxxxxxxxxxx"},
-		body:    `{"type":"note","body":"contract","title":"contract","active":true,"created":0}`,
+		body:    `{"type":"note","body":"contract message","title":"Shoutrrr notification","active":true,"created":0}`,
 	},
 	{
 		scheme:  "pushover",
 		url:     "pushover://:SECRETpushoverTOKEN@SECRETpushoverUSER/?devices=device",
 		secrets: []string{"SECRETpushoverTOKEN", "SECRETpushoverUSER"},
+		body:    `{"status":1}`,
 	},
 	{
 		scheme:  "rocketchat",
@@ -381,6 +383,7 @@ var fixtures = []fixture{
 		scheme:  "slack",
 		url:     "slack://AAAAAAAAA/BBBBBBBBB/SECRETslackTOKENxxxxxxxx",
 		secrets: []string{"SECRETslackTOKENxxxxxxxx"},
+		body:    "ok",
 	},
 	{
 		scheme:  "smtp",
@@ -460,6 +463,11 @@ var allowlist = map[string]map[string]knownFailure{
 		// Zulip's limits lookup is optional, so it is capped below the budget and
 		// a slow lookup leaves the message request the rest of the budget.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
+	},
+	checkLeveledLogs: {
+		// The fixture's password URL needs a login exchange, which one canned
+		// response cannot answer, so the check sees only failed Matrix sends.
+		"matrix": {"Matrix logs in first, which the fixture's single response cannot answer", failSendFailed},
 	},
 	checkSendKeepsDeadline: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
@@ -2315,6 +2323,11 @@ func runPlaintextWarning(t *testing.T, fx *fixture) failure {
 // printed as text. The logger service's notification is the only text a
 // service prints.
 //
+// With a working transport, the sends of HTTP services and of services without
+// network access must succeed, so their success paths are checked. The dialer
+// fails every TCP connection, so TCP services are checked on their failure
+// paths only. Their package tests cover sends to a server.
+//
 // Parameters:
 //   - t: the test for this case.
 //   - fx: the fixture under test.
@@ -2337,6 +2350,12 @@ func runLeveledLogs(t *testing.T, fx *fixture) failure {
 
 			for range 2 {
 				if result = env.send(service, nil); result.kind != failNone {
+					return
+				}
+
+				if !failTransport && fx.kind != netTCP && env.sendErr != nil {
+					result = fail(failSendFailed, "send failed with a working transport: %v", env.sendErr)
+
 					return
 				}
 			}

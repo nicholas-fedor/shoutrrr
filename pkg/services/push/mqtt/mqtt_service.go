@@ -620,10 +620,11 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
 			s.Debug(lifetime, "connected", logging.KeyServer, server)
 		},
-		// A failed attempt is retried, and a send that cannot connect returns
-		// the error, so each attempt is detail.
+		// A send that cannot connect returns only its context's error, so this
+		// warning is the only report of why, such as a broker rejecting the
+		// credentials. Each failed attempt is retried.
 		OnConnectError: func(err error) {
-			s.Debug(lifetime, "connection attempt failed", logging.KeyError, err)
+			s.Warn(lifetime, "connection attempt failed", logging.KeyError, err)
 		},
 	}
 

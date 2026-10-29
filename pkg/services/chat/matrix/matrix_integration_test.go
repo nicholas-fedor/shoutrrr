@@ -780,7 +780,7 @@ func TestIntegrationSetLogger(t *testing.T) {
 	service.SetLogger(log.New(&logs, "", 0))
 
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Contains(t, logs.String(), "DEBUG sending message room=!a:example.com\n")
+	assert.Contains(t, logs.String(), "DEBUG sending message\n")
 }
 
 // TestIntegrationPlaceholderURL verifies that the documentation placeholder

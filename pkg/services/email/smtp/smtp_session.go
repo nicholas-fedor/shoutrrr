@@ -160,7 +160,9 @@ func (s *session) quit(ctx context.Context, errs []error) []error {
 	}
 
 	if strings.Contains(err.Error(), shortResponseErrorSubstring) {
-		s.svc.Warn(ctx, "session closure error ignored, because delivery succeeded", logging.KeyError, err)
+		// The error quotes the server's reply, which can name recipients, so
+		// the record leaves it out.
+		s.svc.Warn(ctx, "session closure error ignored, because delivery succeeded")
 	} else {
 		errs = append(errs, fail(FailClosingSession, err))
 	}

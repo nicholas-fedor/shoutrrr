@@ -572,7 +572,8 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			continue
 		}
 
-		c.logger.Debug(ctx, "sending message", logging.KeyRoom, room)
+		// Rooms identify the recipients, so the records leave them out.
+		c.logger.Debug(ctx, "sending message")
 
 		if !strings.HasPrefix(room, "!") {
 			roomID, err := c.joinRoom(ctx, room)
@@ -583,7 +584,7 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 			}
 
 			if room != roomID {
-				c.logger.Debug(ctx, "room alias resolved", logging.KeyAlias, room, logging.KeyRoom, roomID)
+				c.logger.Debug(ctx, "room alias resolved")
 			}
 
 			room = roomID
@@ -618,7 +619,8 @@ func (c *client) sendToJoinedRooms(ctx context.Context, message string) []error 
 	}
 
 	for _, roomID := range joinedRooms {
-		c.logger.Debug(ctx, "sending message", logging.KeyRoom, roomID)
+		// Rooms identify the recipients, so the record leaves them out.
+		c.logger.Debug(ctx, "sending message")
 
 		if err := c.sendMessageToRoom(ctx, message, roomID); err != nil {
 			errs = append(

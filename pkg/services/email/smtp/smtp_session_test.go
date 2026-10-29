@@ -646,17 +646,27 @@ func TestSessionQuit(t *testing.T) {
 		assert.NotContains(t, logs.String(), "closing the SMTP connection failed")
 	})
 
-	t.Run("short reply", func(t *testing.T) {
-		t.Parallel()
+	// replies lists malformed replies to QUIT. The second one names a
+	// recipient, which the warning must not repeat.
+	replies := map[string]string{
+		"short reply":             "22",
+		"reply naming an address": "221Bye rec@example.com",
+	}
 
-		var logs bytes.Buffer
+	for name, reply := range replies {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-		server := newFakeSMTP()
-		server.replies["QUIT"] = []string{"22"}
+			var logs bytes.Buffer
 
-		require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
-		assert.Contains(t, logs.String(), `WARN session closure error ignored, because delivery succeeded error="short response: \"22\""`+"\n")
-	})
+			server := newFakeSMTP()
+			server.replies["QUIT"] = []string{reply}
+
+			require.NoError(t, newLoggingService(t, testServiceURL, server, log.New(&logs, "", 0)).Send("Hello", nil))
+			assert.Contains(t, logs.String(), "WARN session closure error ignored, because delivery succeeded\n")
+			assert.NotContains(t, logs.String(), reply)
+		})
+	}
 }
 
 // TestSessionWithoutRecipients verifies that a session without recipients
