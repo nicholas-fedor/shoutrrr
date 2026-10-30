@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
@@ -249,6 +250,34 @@ func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
 
 	assert.Equal(t, types.Params{"channel": "2", "name": "Other", "title": "Title"}, params)
 	assert.Equal(t, want, *service.Config)
+}
+
+// TestSendParams verifies which send params a send accepts. The payload
+// params, the reserved title, and the config keys in any case are accepted. A
+// misspelled param fails the send before any request.
+func TestSendParams(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL+"?channel=1")
+
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	require.ErrorIs(t, service.Send("Hello", &types.Params{"contnet": "x"}), format.ErrInvalidConfigKey)
+
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Hello", &types.Params{
+		"icon": "https://example.com/icon.png", "content": "Above", "footer": "Below",
+		"fields": `[{"title":"Disk","text":"95%","inline":true}]`, "update": "true", "id": "event-1",
+		types.TitleKey: "Title", "Color": "ff0000",
+	}))
+
+	assert.Contains(t, captured.body, `"event":"event-1"`)
+	assert.Contains(t, captured.body, `"update":true`)
+	assert.Contains(t, captured.body, `"title":"Title"`)
+	assert.Contains(t, captured.body, `"color":"ff0000"`)
+	assert.Contains(t, captured.body, `"footer":"Below"`)
 }
 
 // TestSendAPIKeyParam verifies that an apikey param applies to that send only,

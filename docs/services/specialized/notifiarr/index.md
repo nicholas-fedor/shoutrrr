@@ -40,6 +40,12 @@ notifiarr://[apikey]?name=[app_name]&channel=[channel_id]&thumbnail=[thumbnail_u
 
 --8<-- "docs/services/specialized/notifiarr/config.md"
 
+## Send Params
+
+Send params can set any of the configuration options above for one send.
+They can also fill the Discord embed with `title`, `icon`, `content`, `footer`, and `fields`, and set the event with `id` and `update`.
+Any other param fails the send, so a misspelled one is reported instead of ignored.
+
 ## Usage Examples
 
 ### Basic Notification
