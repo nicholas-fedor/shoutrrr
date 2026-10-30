@@ -139,7 +139,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("validating params: %w", err)
 	}
 
-	payload, err := createJSONToSend(config, message, params)
+	payload, err := createJSONToSend(config, message)
 	if err != nil {
 		return err
 	}

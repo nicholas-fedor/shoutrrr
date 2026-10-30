@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
@@ -119,7 +120,8 @@ func TestInitialize(t *testing.T) {
 
 // TestSend verifies the request a send makes: a POST to the Join push endpoint
 // with the API key, devices, and text in the query, and the title and icon
-// only when set, independently of each other.
+// only when set, independently of each other. Params override any config key,
+// in any case.
 func TestSend(t *testing.T) {
 	t.Parallel()
 
@@ -169,6 +171,22 @@ func TestSend(t *testing.T) {
 			},
 		},
 		{
+			name:   "devices param",
+			rawURL: "join://Token:apikey@join?devices=dev1",
+			params: &types.Params{"devices": "dev2,dev3"},
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev2,dev3"}, "text": {"Message"},
+			},
+		},
+		{
+			name:   "param in another case",
+			rawURL: "join://Token:apikey@join?devices=dev1",
+			params: &types.Params{"Title": "Alert"},
+			wantQuery: url.Values{
+				"apikey": {"apikey"}, "deviceIds": {"dev1"}, "text": {"Message"}, "title": {"Alert"},
+			},
+		},
+		{
 			name:   "params override the configured title and icon",
 			rawURL: "join://Token:apikey@join?devices=dev1&title=Configured&icon=configured",
 			params: &types.Params{"title": "Alert", "icon": "https://example.com/icon.png"},
@@ -195,6 +213,24 @@ func TestSend(t *testing.T) {
 			assert.Equal(t, tt.wantQuery, captured.query)
 		})
 	}
+}
+
+// TestSendParams verifies that an unknown param fails the send before any
+// request, and that params leave the stored config unchanged.
+func TestSendParams(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "join://Token:apikey@join?devices=dev1&title=Configured")
+	want := *service.Config
+
+	// The mock has no expectations, so a request fails the test.
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	require.ErrorIs(t, service.Send("Message", &types.Params{"titel": "Alert"}), format.ErrInvalidConfigKey)
+
+	client, _ := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+	require.NoError(t, service.Send("Message", &types.Params{"title": "Alert", "devices": "dev2"}))
+	assert.Equal(t, want, *service.Config)
 }
 
 // TestSendContextErrors verifies that a send fails with ErrSendFailed for an
