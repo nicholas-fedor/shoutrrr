@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Let the config resolver decide which send params set the config by @nicholas-fedor in [#1947](https://github.com/nicholas-fedor/shoutrrr/pull/1947)
 - Check skiptlsverify in the positive form when choosing a client by @nicholas-fedor in [#1939](https://github.com/nicholas-fedor/shoutrrr/pull/1939)
 - Keep only the JSON options the services need by @nicholas-fedor in [#1935](https://github.com/nicholas-fedor/shoutrrr/pull/1935)
 - Read flag environment variables without Viper by @nicholas-fedor in [#1933](https://github.com/nicholas-fedor/shoutrrr/pull/1933)
