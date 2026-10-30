@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -552,7 +553,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, payload []byte) er
 		}()
 
 		// The body is not logged because it can echo the request, including its credentials.
-		s.Debug(ctx, "response received", logging.KeyStatus, res.Status)
+		s.LogAttrs(ctx, slog.LevelDebug, "response received", slog.String(logging.KeyStatus, res.Status))
 	}
 
 	// Check for authentication failure (401 Unauthorized)

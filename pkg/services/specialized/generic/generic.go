@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
@@ -306,7 +307,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 		}()
 
 		// The body is not logged because it can echo the request, including its credentials.
-		s.Debug(ctx, "response received", logging.KeyStatus, res.Status)
+		s.LogAttrs(ctx, slog.LevelDebug, "response received", slog.String(logging.KeyStatus, res.Status))
 	}
 
 	if res.StatusCode >= http.StatusBadRequest {

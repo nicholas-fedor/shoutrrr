@@ -10,17 +10,17 @@ import (
 )
 
 // Logger provides a service's logging methods. Debug, Info, and Warn log
-// leveled records with key/value attributes. When the service was given a
-// [types.SlogLogger], they reach its slog logger. Any other logger receives
-// each record as one line of text, such as "WARN sending without TLS". The
-// deprecated Log and Logf write text to the given logger as it is.
+// leveled records with key/value attributes, and LogAttrs logs one with
+// [slog.Attr] values. When the service was given a [types.SlogLogger], they
+// reach its slog logger. Any other logger receives each record as one line of
+// text, such as "WARN sending without TLS". The deprecated Log and Logf write
+// text to the given logger as it is.
 //
 // The zero value discards everything.
 type Logger struct {
 	// logger receives the text that Log and Logf write. Nil discards it.
 	logger types.StdLogger
-	// leveled receives the records that Debug, Info, and Warn log. Nil
-	// discards them.
+	// leveled receives the leveled records. Nil discards them.
 	leveled *slog.Logger
 }
 
@@ -60,6 +60,23 @@ func (sl *Logger) Log(v ...any) {
 	sl.Output().Print(v...)
 }
 
+// LogAttrs logs msg with its attributes at level, as [slog.Logger.LogAttrs]
+// does. A record with attributes uses it, because a record the logger drops
+// then costs no allocation. Debug, Info, and Warn take their attributes as
+// interface values, and converting a string or most numbers to one allocates
+// even when the record is dropped.
+//
+// Parameters:
+//   - ctx: the context of the call, passed to the log handler.
+//   - level: the level of the record, [slog.LevelDebug], [slog.LevelInfo], or
+//     [slog.LevelWarn].
+//   - msg: the message, a constant that names the event.
+//   - attrs: the attributes.
+func (sl *Logger) LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
+	// The call one above this method is the service's call to LogAttrs.
+	logbridge.LogAttrs(ctx, sl.Slog(), 1, level, msg, attrs...)
+}
+
 // Logf writes v formatted in the manner of [fmt.Printf] to the logger, as it
 // is, without a level.
 //
@@ -97,8 +114,8 @@ func (sl *Logger) SetLogger(logger types.StdLogger) {
 	sl.leveled = logbridge.New(logger)
 }
 
-// Slog returns the slog logger that receives the records Debug, Info, and
-// Warn log.
+// Slog returns the slog logger that receives the records Debug, Info, Warn,
+// and LogAttrs log.
 //
 // Returns:
 //   - *slog.Logger: the logger, or a logger that discards every record when

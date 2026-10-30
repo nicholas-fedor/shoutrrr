@@ -6,7 +6,8 @@
 // format of slog's default handler, such as "WARN sending without TLS". [With]
 // adds attributes to every record, as the router does with the service's ID.
 //
-// [Log] logs a record with a given source, and [CallerPC] finds that source
-// further up the stack. Records then name the service's call, not the
-// library's logging code, as their source.
+// [Log] and [LogAttrs] log a record whose source is a call further up the
+// stack. Records then name the service's call, not the library's logging
+// code, as their source. LogAttrs takes [slog.Attr] values, so a record
+// that the logger drops costs no allocation.
 package logbridge

@@ -2,8 +2,10 @@ package standard
 
 import (
 	"context"
+	"errors"
 	"log"
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -130,8 +132,8 @@ func TestLoggerOutput(t *testing.T) {
 	}
 }
 
-// TestLoggerLeveledPlain verifies that Debug, Info, and Warn write each record
-// as one line to a plain logger, with every level included.
+// TestLoggerLeveledPlain verifies that Debug, Info, Warn, and LogAttrs write
+// each record as one line to a plain logger, with every level included.
 func TestLoggerLeveledPlain(t *testing.T) {
 	t.Parallel()
 
@@ -143,16 +145,18 @@ func TestLoggerLeveledPlain(t *testing.T) {
 	logger.Debug(t.Context(), "request sent", "status", 200)
 	logger.Info(t.Context(), "message sent")
 	logger.Warn(t.Context(), "response has no timestamp")
+	logger.LogAttrs(t.Context(), slog.LevelDebug, "response received", slog.String("status", "200 OK"))
 
 	assert.Equal(t,
-		"DEBUG request sent status=200\nINFO message sent\nWARN response has no timestamp\n",
+		"DEBUG request sent status=200\nINFO message sent\nWARN response has no timestamp\n"+
+			"DEBUG response received status=\"200 OK\"\n",
 		out.String())
 }
 
-// TestLoggerLeveledSlog verifies that Debug, Info, and Warn reach the slog
-// logger of a [types.SlogLogger] at their levels, filtered by its handler.
-// Each record carries the caller's context. Its source is the caller's
-// location.
+// TestLoggerLeveledSlog verifies that Debug, Info, Warn, and LogAttrs reach
+// the slog logger of a [types.SlogLogger] at their levels, filtered by its
+// handler. Each record carries the caller's context and attributes. Its source
+// is the caller's location.
 func TestLoggerLeveledSlog(t *testing.T) {
 	t.Parallel()
 
@@ -163,32 +167,62 @@ func TestLoggerLeveledSlog(t *testing.T) {
 	logger.SetLogger(types.NewSlogLogger(slog.New(handler)))
 
 	logger.Debug(ctx, "request sent")
+	logger.LogAttrs(ctx, slog.LevelDebug, "response received", slog.String("status", "200 OK"))
 	logger.Info(ctx, "message sent", "count", 2)
 
 	_, file, line, _ := runtime.Caller(0)
 
 	logger.Warn(ctx, "response has no timestamp")
+	logger.LogAttrs(ctx, slog.LevelWarn, "connection attempt failed", slog.Int("port", 8883))
 
-	require.Len(t, handler.records, 2)
+	require.Len(t, handler.records, 3)
 	assert.Equal(t, slog.LevelInfo, handler.records[0].Level)
 	assert.Equal(t, "message sent", handler.records[0].Message)
 	assert.Equal(t, slog.LevelWarn, handler.records[1].Level)
 	assert.Equal(t, "response has no timestamp", handler.records[1].Message)
-	assert.Equal(t, []context.Context{ctx, ctx}, handler.contexts)
+	assert.Equal(t, slog.LevelWarn, handler.records[2].Level)
+	assert.Equal(t, "connection attempt failed", handler.records[2].Message)
+	assert.Equal(t, []context.Context{ctx, ctx, ctx}, handler.contexts)
 
-	var attrs []slog.Attr
+	for i, want := range map[int][]slog.Attr{0: {slog.Int("count", 2)}, 2: {slog.Int("port", 8883)}} {
+		var attrs []slog.Attr
 
-	handler.records[0].Attrs(func(attr slog.Attr) bool {
-		attrs = append(attrs, attr)
+		handler.records[i].Attrs(func(attr slog.Attr) bool {
+			attrs = append(attrs, attr)
 
-		return true
-	})
-	assert.Equal(t, []slog.Attr{slog.Int("count", 2)}, attrs)
+			return true
+		})
+		assert.Equal(t, want, attrs)
+	}
 
-	source := handler.records[1].Source()
-	require.NotNil(t, source)
-	assert.Equal(t, filepath.Base(file), filepath.Base(source.File))
-	assert.Equal(t, line+2, source.Line)
+	for i, wantLine := range []int{line + 2, line + 3} {
+		source := handler.records[i+1].Source()
+		require.NotNil(t, source)
+		assert.Equal(t, filepath.Base(file), filepath.Base(source.File))
+		assert.Equal(t, wantLine, source.Line)
+	}
+}
+
+// TestLoggerLogAttrsDroppedAllocations verifies that a LogAttrs record costs
+// no allocation when it is dropped, with string, integer, and error
+// attributes, without a logger and with a slog logger whose level is Info. A
+// send logs such records at Debug, so they must stay free.
+//
+//nolint:paralleltest // testing.AllocsPerRun panics in a parallel test.
+func TestLoggerLogAttrsDroppedAllocations(t *testing.T) {
+	unset := &Logger{}
+	infoLevel := &Logger{}
+	infoLevel.SetLogger(types.NewSlogLogger(slog.New(&recordingHandler{level: slog.LevelInfo})))
+
+	status := http.StatusText(http.StatusOK)
+	err := errors.New("connection closed")
+
+	for _, logger := range []*Logger{unset, infoLevel} {
+		assert.Zero(t, testing.AllocsPerRun(100, func() {
+			logger.LogAttrs(t.Context(), slog.LevelDebug, "response received",
+				slog.String("status", status), slog.Int("port", 8443), slog.Any("error", err))
+		}))
+	}
 }
 
 // TestLoggerLeveledWithoutLogger verifies that Debug, Info, and Warn discard
@@ -211,7 +245,7 @@ func TestLoggerLeveledWithoutLogger(t *testing.T) {
 }
 
 // TestLoggerNilContext verifies that a record logged with a nil context
-// reaches the handler with the background context.
+// reaches the handler with the background context, through Warn and LogAttrs.
 func TestLoggerNilContext(t *testing.T) {
 	t.Parallel()
 
@@ -219,9 +253,10 @@ func TestLoggerNilContext(t *testing.T) {
 
 	logger := &Logger{}
 	logger.SetLogger(types.NewSlogLogger(slog.New(handler)))
-	logger.Warn(nil, "sending without TLS") //nolint:staticcheck // Checks that a nil context is replaced.
+	logger.Warn(nil, "sending without TLS")                           //nolint:staticcheck // Checks that a nil context is replaced.
+	logger.LogAttrs(nil, slog.LevelWarn, "connection attempt failed") //nolint:staticcheck // Checks that a nil context is replaced.
 
-	assert.Equal(t, []context.Context{context.Background()}, handler.contexts)
+	assert.Equal(t, []context.Context{context.Background(), context.Background()}, handler.contexts)
 }
 
 // TestLoggerSlog verifies that Slog returns the slog logger that receives the

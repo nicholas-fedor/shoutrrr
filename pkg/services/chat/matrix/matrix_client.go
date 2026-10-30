@@ -9,6 +9,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -410,14 +411,14 @@ func (c *client) login(ctx context.Context, user, password string) error {
 
 		// Prefer password login when a user is configured
 		if flow.Type == flowLoginPassword && user != "" {
-			c.logger.Debug(ctx, "using login flow", logging.KeyFlow, flow.Type)
+			c.logger.LogAttrs(ctx, slog.LevelDebug, "using login flow", slog.String(logging.KeyFlow, string(flow.Type)))
 
 			return c.loginPassword(ctx, user, password)
 		}
 
 		// Only use token login when no user is configured
 		if flow.Type == flowLoginToken && user == "" {
-			c.logger.Debug(ctx, "using login flow", logging.KeyFlow, flow.Type)
+			c.logger.LogAttrs(ctx, slog.LevelDebug, "using login flow", slog.String(logging.KeyFlow, string(flow.Type)))
 
 			return c.loginToken(ctx, password)
 		}
@@ -463,8 +464,8 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 	c.accessToken = response.AccessToken
 
 	// The access token is a credential, so the record leaves it out.
-	c.logger.Debug(ctx, "logged in",
-		logging.KeyHomeserver, response.HomeServer, logging.KeyDevice, response.DeviceID)
+	c.logger.LogAttrs(ctx, slog.LevelDebug, "logged in",
+		slog.String(logging.KeyHomeserver, response.HomeServer), slog.String(logging.KeyDevice, response.DeviceID))
 
 	return nil
 }
@@ -502,8 +503,8 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 	c.accessToken = response.AccessToken
 
 	// The access token is a credential, so the record leaves it out.
-	c.logger.Debug(ctx, "logged in",
-		logging.KeyHomeserver, response.HomeServer, logging.KeyDevice, response.DeviceID)
+	c.logger.LogAttrs(ctx, slog.LevelDebug, "logged in",
+		slog.String(logging.KeyHomeserver, response.HomeServer), slog.String(logging.KeyDevice, response.DeviceID))
 
 	return nil
 }
@@ -803,7 +804,8 @@ func newClient(host string, disableTLS bool, logger *standard.Logger, httpClient
 		client.apiURL.Scheme = schemeHTTP
 	}
 
-	client.logger.Debug(context.Background(), "using server", logging.KeyServer, client.apiURL.Host)
+	client.logger.LogAttrs(context.Background(), slog.LevelDebug, "using server",
+		slog.String(logging.KeyServer, client.apiURL.Host))
 
 	return client
 }

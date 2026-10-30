@@ -197,17 +197,7 @@ func TestLog(t *testing.T) {
 
 	var out bytes.Buffer
 
-	logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
-			if len(groups) == 0 && attr.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-
-			return attr
-		},
-	}))
+	logger := newSourceLogger(&out)
 
 	Log(t.Context(), logger, 0, slog.LevelDebug, "discarded")
 	assert.Empty(t, out.String())
@@ -229,22 +219,40 @@ func TestLogSkip(t *testing.T) {
 
 	var out bytes.Buffer
 
-	logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{
-		AddSource: true,
-		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
-			if len(groups) == 0 && attr.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-
-			return attr
-		},
-	}))
+	logger := newSourceLogger(&out)
 
 	_, file, line, _ := runtime.Caller(0)
 
 	logForCaller(logger)
 
 	assert.Equal(t, "level=WARN source="+file+":"+strconv.Itoa(line+2)+" msg=insecure\n", out.String())
+}
+
+// TestLogAttrs verifies that LogAttrs logs its attributes as given and names
+// as its source the call the given number of calls above the function that
+// calls LogAttrs. It replaces a nil context with the background context. A
+// disabled level logs nothing.
+func TestLogAttrs(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+
+	logger := newSourceLogger(&out)
+
+	LogAttrs(t.Context(), logger, 0, slog.LevelDebug, "discarded", slog.String("service", "ntfy"))
+	assert.Empty(t, out.String())
+
+	_, file, line, _ := runtime.Caller(0)
+
+	LogAttrs(nil, logger, 0, slog.LevelWarn, "sending without TLS", //nolint:staticcheck // Checks that a nil context is replaced.
+		slog.String("service", "ntfy"), slog.Int("port", 80))
+
+	logAttrsForCaller(logger)
+
+	assert.Equal(t,
+		"level=WARN source="+file+":"+strconv.Itoa(line+2)+` msg="sending without TLS" service=ntfy port=80`+"\n"+
+			"level=WARN source="+file+":"+strconv.Itoa(line+5)+" msg=insecure\n",
+		out.String())
 }
 
 // TestTextHandlerConcurrent verifies that loggers derived from one handler
@@ -369,6 +377,32 @@ func logForCaller(logger *slog.Logger) {
 	Log(context.Background(), logger, 1, slog.LevelWarn, "insecure")
 }
 
+// logAttrsForCaller logs a warning to logger with LogAttrs whose source is the
+// call to logAttrsForCaller, as a function that logs for its caller does.
+//
+// Parameters:
+//   - logger: the logger that receives the warning.
+func logAttrsForCaller(logger *slog.Logger) {
+	LogAttrs(context.Background(), logger, 1, slog.LevelWarn, "insecure")
+}
+
+// newSourceLogger returns a slog logger that writes records at Info and above
+// to out with slog's text handler, with each record's source. It leaves out
+// the time so the output can be compared.
+//
+// Parameters:
+//   - out: the buffer that receives the records.
+//
+// Returns:
+//   - *slog.Logger: the logger.
+func newSourceLogger(out *bytes.Buffer) *slog.Logger {
+	return slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
+		AddSource:   true,
+		Level:       slog.LevelInfo,
+		ReplaceAttr: dropTime,
+	}))
+}
+
 // newTextLogger returns a slog logger that writes records to out with slog's
 // text handler, leaving out the time so the output can be compared.
 //
@@ -379,14 +413,25 @@ func logForCaller(logger *slog.Logger) {
 //   - *slog.Logger: the logger.
 func newTextLogger(out *bytes.Buffer) *slog.Logger {
 	return slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
-		AddSource: false,
-		Level:     slog.LevelDebug,
-		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
-			if len(groups) == 0 && attr.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
-
-			return attr
-		},
+		AddSource:   false,
+		Level:       slog.LevelDebug,
+		ReplaceAttr: dropTime,
 	}))
+}
+
+// dropTime leaves the time out of a record written by slog's text handler, so
+// the output can be compared. It suits [slog.HandlerOptions.ReplaceAttr].
+//
+// Parameters:
+//   - groups: the groups of attr.
+//   - attr: the attribute.
+//
+// Returns:
+//   - slog.Attr: an empty attribute for the record's time, and attr otherwise.
+func dropTime(groups []string, attr slog.Attr) slog.Attr {
+	if len(groups) == 0 && attr.Key == slog.TimeKey {
+		return slog.Attr{}
+	}
+
+	return attr
 }

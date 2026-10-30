@@ -184,8 +184,8 @@ const (
 	// checkPlaintextWarning verifies that a service with a disabletls option
 	// warns once when its sends go out without TLS.
 	checkPlaintextWarning = "plaintext_warning"
-	// checkLeveledLogs verifies that a service logs only leveled records,
-	// without "Warning:" in their messages.
+	// checkLeveledLogs verifies that a service logs only leveled records at
+	// Debug, Info, or Warn, without "Warning:" in their messages.
 	checkLeveledLogs = "leveled_logs"
 	// checkConflictingKeys verifies that a URL giving one config key in two
 	// spellings is rejected.

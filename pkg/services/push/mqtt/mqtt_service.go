@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"strconv"
@@ -300,10 +301,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// Non-fatal codes (> 0 but < 0x80) and a recovered PUBCOMP are logged as
 	// warnings but don't fail
 	if resp != nil && resp.ReasonCode != 0 {
-		s.Warn(ctx, "publish completed with a reason code", logging.KeyCode, resp.ReasonCode)
+		s.LogAttrs(ctx, slog.LevelWarn, "publish completed with a reason code",
+			slog.Uint64(logging.KeyCode, uint64(resp.ReasonCode)))
 	}
 
-	s.Debug(ctx, "message published", logging.KeyTopic, config.Topic)
+	s.LogAttrs(ctx, slog.LevelDebug, "message published", slog.String(logging.KeyTopic, config.Topic))
 
 	return nil
 }
@@ -442,7 +444,8 @@ func (s *Service) closeIdleConnection(generation uint64) {
 
 	// The idle timer runs after the sends, so no send's context applies.
 	if err := disconnect(manager, cancel, sends); err != nil {
-		s.Warn(context.Background(), "disconnecting the idle connection failed", logging.KeyError, err)
+		s.LogAttrs(context.Background(), slog.LevelWarn, "disconnecting the idle connection failed",
+			slog.Any(logging.KeyError, err))
 	}
 }
 
@@ -461,7 +464,8 @@ func (s *Service) closeOwnedConnection() {
 	s.clientMutex.Unlock()
 
 	if err := disconnect(manager, cancel, sends); err != nil {
-		s.Warn(context.Background(), "disconnecting the connection failed", logging.KeyError, err)
+		s.LogAttrs(context.Background(), slog.LevelWarn, "disconnecting the connection failed",
+			slog.Any(logging.KeyError, err))
 	}
 }
 
@@ -571,12 +575,14 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 	if scheme == SchemeTLS && !config.DisableTLS && port == DefaultPort {
 		// MQTTS scheme on non-TLS port (1883) - warn but keep MQTTS scheme
 		s.warnings.Do("mqtts-port", func() {
-			s.Warn(ctx, "mqtts scheme on the plain MQTT port, attempting TLS", logging.KeyPort, port)
+			s.LogAttrs(ctx, slog.LevelWarn, "mqtts scheme on the plain MQTT port, attempting TLS",
+				slog.Int(logging.KeyPort, port))
 		})
 	} else if scheme == Scheme && port == DefaultTLSPort {
 		// MQTT scheme on TLS port (8883) - warn but keep MQTT scheme
 		s.warnings.Do("mqtt-port", func() {
-			s.Warn(ctx, "mqtt scheme on the TLS port, not using TLS", logging.KeyPort, port)
+			s.LogAttrs(ctx, slog.LevelWarn, "mqtt scheme on the TLS port, not using TLS",
+				slog.Int(logging.KeyPort, port))
 		})
 	}
 
@@ -615,16 +621,17 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		//nolint:exhaustruct_v5 // remaining fields use library defaults
 		ClientID: config.ClientID,
 		OnServerDisconnect: func(disconnect *paho.Disconnect) {
-			s.Warn(lifetime, "server disconnected", logging.KeyCode, disconnect.ReasonCode)
+			s.LogAttrs(lifetime, slog.LevelWarn, "server disconnected",
+				slog.Uint64(logging.KeyCode, uint64(disconnect.ReasonCode)))
 		},
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
-			s.Debug(lifetime, "connected", logging.KeyServer, server)
+			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, server))
 		},
 		// A send that cannot connect returns only its context's error, so this
 		// warning is the only report of why, such as a broker rejecting the
 		// credentials. Each failed attempt is retried.
 		OnConnectError: func(err error) {
-			s.Warn(lifetime, "connection attempt failed", logging.KeyError, err)
+			s.LogAttrs(lifetime, slog.LevelWarn, "connection attempt failed", slog.Any(logging.KeyError, err))
 		},
 	}
 

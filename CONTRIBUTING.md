@@ -254,6 +254,8 @@ Every service follows the same rules, so services behave alike for users and for
 ### Logging
 
 - Log through the `Debug`, `Info`, and `Warn` methods of `standard.Logger`, with the context of the send.
+- Log a record with attributes through `LogAttrs` with typed attributes, such as `slog.String` for a string and `slog.Any` for an error.
+  The arguments of `Debug`, `Info`, and `Warn` are interface values, and converting a string or most numbers to one allocates even when the record is dropped.
 - Use a constant message that names the event, and put each value in an attribute.
   Take the attribute keys from `internal/logging`, and add a key there when none fits.
 - Use `Debug` for detail that traces a send, such as a request that succeeded.
@@ -277,9 +279,10 @@ Every service follows the same rules, so services behave alike for users and for
   SMTP, XMPP, and MQTT dial their own connections and test it in their own packages.
 - Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
   It also covers warning about old names and the JSON rules.
-- Logging through the leveled methods has two checks.
-  The `leveled_logs` contract check fails a service that logs a line without a level.
+- Logging through the leveled methods has three checks.
+  The `leveled_logs` contract check fails a service that logs a line without a level, or at a level above Warn.
   The linter flags any call to the deprecated `Log` and `Logf` methods.
+  It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 
