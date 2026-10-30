@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/transport"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
@@ -66,12 +67,15 @@ var (
 // Parameters:
 //   - props: optional answers, such as the token, used instead of prompting.
 //     An apiurl property sets the Bot API server to talk to and to store in
-//     the configuration.
+//     the configuration. A skiptlsverify property skips verifying that
+//     server's certificate, and is stored too.
 //
 // Returns:
 //   - types.ServiceConfig: the Telegram configuration.
 //   - error: an error wrapping [generator.ErrInputClosed] when no token was read,
-//     [ErrInvalidAPIURL], a Telegram API error, or [ErrNoChatsSelected].
+//     [ErrInvalidAPIURL], an error wrapping [format.ErrInvalidBoolValue] for an
+//     invalid skiptlsverify property, a Telegram API error, or
+//     [ErrNoChatsSelected].
 func (g *Generator) Generate(
 	_ types.Service,
 	props map[string]string,
@@ -111,6 +115,28 @@ func (g *Generator) Generate(
 		return &Config{}, err
 	}
 
+	// A skiptlsverify property skips verifying the Bot API server's
+	// certificate, such as that of a proxy in front of a self-hosted server.
+	skipTLSVerify := false
+
+	if value, set := props["skiptlsverify"]; set {
+		parsed, ok := format.ParseBool(value, false)
+		if !ok {
+			return &Config{}, fmt.Errorf("skiptlsverify %q: %w", value, format.ErrInvalidBoolValue)
+		}
+
+		skipTLSVerify = parsed
+	}
+
+	// A nil round tripper keeps the default transport.
+	var roundTripper http.RoundTripper
+
+	if skipTLSVerify {
+		userDialog.Writelnf("Skipping TLS certificate verification of the Bot API server.")
+
+		roundTripper = transport.New(transport.InsecureTLSConfig(""))
+	}
+
 	userDialog.Writelnf("Fetching bot info...")
 
 	// Fetch the bot info with the default timeout, and switch to a client that
@@ -119,6 +145,10 @@ func (g *Generator) Generate(
 		token:      token,
 		apiURL:     apiURL,
 		httpClient: nil,
+	}
+
+	if roundTripper != nil {
+		g.client.httpClient = &http.Client{Transport: roundTripper, Timeout: defaultHTTPTimeout}
 	}
 
 	botInfo, err := g.client.GetBotInfo()
@@ -134,7 +164,7 @@ func (g *Generator) Generate(
 		format.ColorizeString("@", g.botName),
 	)
 
-	g.client.httpClient = &http.Client{Timeout: generatorHTTPTimeout}
+	g.client.httpClient = &http.Client{Transport: roundTripper, Timeout: generatorHTTPTimeout}
 	g.done = false
 	lastUpdate := 0
 
@@ -238,10 +268,11 @@ func (g *Generator) Generate(
 	userDialog.Writelnf("")
 
 	config = Config{
-		Notification: true,
-		Token:        token,
-		Chats:        g.chats,
-		APIURL:       apiURL,
+		Notification:  true,
+		Token:         token,
+		Chats:         g.chats,
+		APIURL:        apiURL,
+		SkipTLSVerify: skipTLSVerify,
 	}
 
 	return &config, nil

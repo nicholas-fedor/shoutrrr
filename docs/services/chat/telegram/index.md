@@ -16,6 +16,7 @@ Talk to [the botfather](https://core.telegram.org/bots#6-botfather).
 The `chats` param consists of one or more `Chat ID`s or `channel name`s.
 
 ### Public Channels
+
 The channel names can be retrieved in the telegram client in the `Channel info` section for public channels.
 Replace the `t.me/` prefix from the link with a `@`.
 
@@ -29,6 +30,7 @@ Replace the `t.me/` prefix from the link with a `@`.
     A `message_thread_id` param ([reference](https://core.telegram.org/bots/api#sendmessage)) can be added, with the format of `$chat_id:$message_thread_id`. [More info](https://stackoverflow.com/questions/74773675/how-to-get-topic-id-for-telegram-group-chat/75178418#75178418) on how to obtain the `message_thread_id`.
 
 ### Chats
+
 Private channels, Group chats and private chats are identified by `Chat ID`s. Unfortunatly, they are generally not visible in the
 telegram clients.
 The easiest way to retrieve them is by using the `shoutrrr generate telegram` command which will guide you through
@@ -36,19 +38,19 @@ creating a URL with your target chats.
 
 !!! tip
     You can use the `nickfedor/shoutrrr` image in docker to run it without download/installing the `shoutrrr` CLI using:
+
     ```
     docker run --rm -it nickfedor/shoutrrr generate telegram
     ```
 
 ### Asking @shoutrrrbot
+
 Another way of retrieving the Chat IDs, is by forwarding a message from the target chat to the [@shoutrrrbot](https://t.me/shoutrrrbot).
 It will reply with the Chat ID for the chat where the forwarded message was originally posted.
 Note that it will not work correctly for Group chats, as those messages are just seen as being posted by a user, not in a specific chat.
 Instead you can use the second method, which is to invite the @shoutrrrbot into your group chat and address a message to it (start the message with @shoutrrrbot). You can then safely kick the bot from the group.
 
 The bot should be constantly online, unless it's usage exceeds the free tier on GCP. It's source is available at [github.com/nicholas-fedor/shoutrrrbot](https://github.com/nicholas-fedor/shoutrrrbot).
-
-
 
 ## Sending to several chats
 
@@ -97,9 +99,18 @@ The URL must use `http` or `https` and have a host.
 It cannot hold userinfo, a query, or a fragment.
 The self-hosted server accepts only plain HTTP, so use `https` only behind a TLS proxy.
 
-To generate a URL for another server, pass the param to the generator:
+Every request carries the bot token in its path, so an `http` API URL sends the token unencrypted.
+Shoutrrr logs a warning the first time a send goes out that way.
+
+Set `skiptlsverify=yes` when the TLS proxy's certificate cannot be verified, such as a self-signed one.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+The option can also be passed as a send param, which applies to that send only.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send skips certificate verification through its own client.
+
+To generate a URL for another server, pass the params to the generator:
 
 ```bash
 shoutrrr generate telegram -g telegram -p apiurl=http://localhost:8081
+shoutrrr generate telegram -g telegram -p apiurl=https://tg.example.com -p skiptlsverify=yes
 ```
-

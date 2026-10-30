@@ -5,7 +5,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -13,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/generator"
 )
 
@@ -203,4 +207,51 @@ func TestGeneratorUsesAPIURL(t *testing.T) {
 	_, err = newTestGenerator([]string{generatorToken}, &output).Generate(nil, map[string]string{"apiurl": "ftp://x"}, nil)
 	require.ErrorIs(t, err, ErrInvalidAPIURL)
 	assert.Equal(t, calls, httpmock.GetTotalCallCount(), "an invalid API URL must fail before any request")
+}
+
+// TestGeneratorSkipTLSVerify verifies the skiptlsverify property against a Bot
+// API server whose certificate cannot be verified. With it, the generator
+// skips verification for its requests, says so, and stores the setting in the
+// generated URL. Without it, generation fails at the first request. An invalid
+// value fails before any request.
+func TestGeneratorSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		requests.Add(1)
+
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/getMe"):
+			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"username":"mockbot"}}`)
+		case strings.HasSuffix(req.URL.Path, "/getUpdates"):
+			_, _ = io.WriteString(w, `{"ok":true,"result":[{"update_id":1,"message":{"text":"hi!",`+
+				`"from":{"username":"mockUser"},"chat":{"type":"private","id":667,"username":"mockUser"}}}]}`)
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	var output bytes.Buffer
+
+	props := map[string]string{"apiurl": server.URL, "skiptlsverify": "yes"}
+	config, err := newTestGenerator([]string{generatorToken, "no"}, &output).Generate(nil, props, nil)
+
+	require.NoError(t, err, "output:\n%s", output.String())
+	assert.Equal(t,
+		"telegram://0:MockToken@telegram?apiurl="+url.QueryEscape(server.URL)+"&chats=667&preview=No&skiptlsverify=Yes",
+		config.GetURL().String())
+	assert.Contains(t, output.String(), "Skipping TLS certificate verification")
+
+	_, err = newTestGenerator([]string{generatorToken}, &output).Generate(nil, map[string]string{"apiurl": server.URL}, nil)
+	require.Error(t, err, "the server's certificate cannot be verified")
+
+	calls := requests.Load()
+
+	_, err = newTestGenerator([]string{generatorToken}, &output).
+		Generate(nil, map[string]string{"apiurl": server.URL, "skiptlsverify": "maybe"}, nil)
+	require.ErrorIs(t, err, format.ErrInvalidBoolValue)
+	assert.Equal(t, calls, requests.Load(), "an invalid skiptlsverify must fail before any request")
 }
