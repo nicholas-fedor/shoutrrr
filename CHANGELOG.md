@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add disabletls and skiptlsverify for self-hosted servers by @nicholas-fedor in [#1941](https://github.com/nicholas-fedor/shoutrrr/pull/1941)
 - Add skiptlsverify for servers with unverifiable certificates by @nicholas-fedor in [#1937](https://github.com/nicholas-fedor/shoutrrr/pull/1937)
 - Log every service message at a level by @nicholas-fedor in [#1923](https://github.com/nicholas-fedor/shoutrrr/pull/1923)
 - Log leveled records through log/slog by @nicholas-fedor in [#1921](https://github.com/nicholas-fedor/shoutrrr/pull/1921)
