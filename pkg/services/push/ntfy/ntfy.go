@@ -281,11 +281,11 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 // Returns:
 //   - types.HTTPClient: the client to send through.
 func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
-	if !config.SkipTLSVerify {
-		return s.client.Client()
+	if config.SkipTLSVerify {
+		return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
+	return s.client.Client()
 }
 
 // sendConfig returns the config for one send. Deprecated config fields and
