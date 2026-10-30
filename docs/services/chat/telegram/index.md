@@ -38,8 +38,9 @@ creating a URL with your target chats.
 
 !!! tip
     You can use the `nickfedor/shoutrrr` image in docker to run it without download/installing the `shoutrrr` CLI using:
+
     ```
-docker run --rm -it nickfedor/shoutrrr generate telegram
+    docker run --rm -it nickfedor/shoutrrr generate telegram
     ```
 
 ### Asking @shoutrrrbot
