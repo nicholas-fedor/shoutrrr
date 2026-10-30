@@ -235,9 +235,9 @@ func TestNewClient(t *testing.T) {
 	assert.Empty(t, c.accessToken)
 }
 
-// TestAPIRequestFailures verifies that GET and POST requests report transport
-// errors, Matrix API errors, error statuses without a Matrix error, invalid
-// JSON, and unreadable bodies. A body over [httpbody.MaxSize] still yields the
+// TestAPIRequestFailures verifies that requests with and without a body report
+// transport errors, Matrix API errors, error statuses without a Matrix error,
+// invalid JSON, and unreadable bodies. A body over [httpbody.MaxSize] still yields the
 // Matrix API error of an error status, and fails a success status as too large.
 func TestAPIRequestFailures(t *testing.T) {
 	t.Parallel()
@@ -260,6 +260,7 @@ func TestAPIRequestFailures(t *testing.T) {
 		{name: "error status without a Matrix error", reply: reply{status: http.StatusInternalServerError, body: "internal server error"}, wantErr: ErrUnexpectedStatus},
 		{name: "invalid JSON", reply: ok("not valid json"), wantText: "unmarshaling"},
 		{name: "unreadable body", reply: reply{status: http.StatusOK, rawBody: errorReadCloser{}}, wantText: "reading"},
+		{name: "unreadable error body", reply: reply{status: http.StatusInternalServerError, rawBody: errorReadCloser{}}, wantText: "reading"},
 		{
 			name: "oversized Matrix API error",
 			reply: reply{
@@ -271,13 +272,13 @@ func TestAPIRequestFailures(t *testing.T) {
 		{name: "oversized success body", reply: ok(`{}` + strings.Repeat(" ", httpbody.MaxSize)), wantErr: httpbody.ErrTooLarge, wantText: "reading"},
 	}
 
-	// methods lists the request functions under test.
+	// methods lists a GET request without a body and a POST request with one.
 	methods := map[string]func(*client, context.Context) error{
 		"GET": func(c *client, ctx context.Context) error {
-			return c.apiGet(ctx, apiLogin, &apiResLogin{})
+			return c.apiDo(ctx, http.MethodGet, apiLogin, nil, &apiResLogin{})
 		},
 		"POST": func(c *client, ctx context.Context) error {
-			return c.apiPost(ctx, apiLogin, nil, &apiResLogin{})
+			return c.apiDo(ctx, http.MethodPost, apiLogin, &struct{}{}, &apiResLogin{})
 		},
 	}
 
@@ -310,8 +311,8 @@ func TestAPIRequestFailures(t *testing.T) {
 }
 
 // TestAPIDo verifies that apiDo reports marshaling and request creation errors
-// without sending, sends JSON with the given method, and reports an empty body
-// as invalid JSON.
+// without sending, sends a request value as JSON with the given method, and
+// sends no body for a nil request.
 func TestAPIDo(t *testing.T) {
 	t.Parallel()
 
@@ -335,25 +336,29 @@ func TestAPIDo(t *testing.T) {
 		assert.Contains(t, err.Error(), "creating")
 	})
 
-	t.Run("method and content type", func(t *testing.T) {
+	t.Run("JSON request", func(t *testing.T) {
 		t.Parallel()
 
 		c, httpClient := newScriptedClient(t, ok(`{}`))
-		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, "/_matrix/client/v3/rooms/!room/send/m.room.message/txn", nil, &apiResLogin{}))
+		request := apiReqSend{MsgType: msgTypeText, Body: "test message"}
+		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, "/_matrix/client/v3/rooms/!room/send/m.room.message/txn", request, &apiResEvent{}))
 
 		require.Len(t, httpClient.requests, 1)
 		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
 		assert.Equal(t, "application/json", httpClient.requests[0].Header.Get("Content-Type"))
+		assert.JSONEq(t, `{"msgtype":"m.text","body":"test message"}`, httpClient.bodies[0])
 	})
 
-	t.Run("empty body", func(t *testing.T) {
+	t.Run("no request body", func(t *testing.T) {
 		t.Parallel()
 
-		c, _ := newScriptedClient(t, ok(""))
-		err := c.apiDo(t.Context(), http.MethodPost, apiLogin, nil, &apiResLogin{})
+		c, httpClient := newScriptedClient(t, ok(`{}`))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResRoom{}))
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unmarshaling")
+		require.Len(t, httpClient.requests, 1)
+		assert.Equal(t, http.MethodGet, httpClient.requests[0].Method)
+		assert.Empty(t, httpClient.requests[0].Header.Get("Content-Type"))
+		assert.Empty(t, httpClient.bodies[0])
 	})
 }
 
@@ -384,33 +389,6 @@ func TestAPIDoContextErrors(t *testing.T) {
 
 		c, _ := newScriptedClient(t, reply{err: context.DeadlineExceeded})
 		require.ErrorIs(t, c.apiDo(t.Context(), http.MethodPost, apiLogin, nil, &apiResLogin{}), context.DeadlineExceeded)
-	})
-}
-
-// TestAPIPut verifies that apiPut sends a PUT request and reports its failure.
-func TestAPIPut(t *testing.T) {
-	t.Parallel()
-
-	request := apiReqSend{MsgType: msgTypeText, Body: "test message"}
-	path := "/_matrix/client/v3/rooms/!room/send/m.room.message/txn1"
-
-	t.Run("success", func(t *testing.T) {
-		t.Parallel()
-
-		c, httpClient := newScriptedClient(t, ok(`{"event_id":"$eventid"}`))
-		require.NoError(t, c.apiPut(t.Context(), path, request, &apiResEvent{}))
-		require.Len(t, httpClient.requests, 1)
-		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
-	})
-
-	t.Run("failure", func(t *testing.T) {
-		t.Parallel()
-
-		c, _ := newScriptedClient(t, failed("PUT request failed"))
-		err := c.apiPut(t.Context(), path, request, &apiResEvent{})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "executing PUT")
 	})
 }
 

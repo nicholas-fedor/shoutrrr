@@ -9,6 +9,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -71,9 +72,6 @@ const (
 	// minSliceLength is the minimum length for slice operations.
 	minSliceLength = 1
 
-	// httpClientErrorStatus is the HTTP status code threshold for client errors.
-	httpClientErrorStatus = 400
-
 	// defaultHTTPTimeout is the part of the send budget for each request, and
 	// the timeout of [DefaultHTTPClient].
 	defaultHTTPTimeout = 10 * time.Second
@@ -134,124 +132,78 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// apiDo performs an HTTP request to the Matrix API.
-//
-// Parameters:
-//   - ctx: bounds the request.
-//   - method: the HTTP method.
-//   - path: the API path.
-//   - request: the value sent as the JSON request body. A nil value is sent as
-//     null.
-//   - response: the value the JSON response is decoded into. A nil value
-//     makes decoding a successful response fail.
-//
-// Returns:
-//   - error: the request error or the API's error, logged first when it is
-//     a rate limit error.
-func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
-	err := c.doSingleRequest(ctx, method, path, request, response)
-	if err == nil {
-		return nil
-	}
-
-	// If it's a M_LIMIT_EXCEEDED rate limited error, propagate it immediately.
-	// This allows the caller to handle rate limiting as appropriate
-	if isRateLimitedError(err) {
-		return err
-	}
-
-	// For non-retryable errors, return immediately
-	return err
-}
-
-// apiGet performs a GET request to the Matrix API with the provided context.
+// apiDo sends a request to the Matrix API and decodes its JSON response.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
-//   - path: the API path to request.
+//   - method: the HTTP method.
+//   - path: the API path.
+//   - request: the value sent as the JSON request body, or nil to send no
+//     body.
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
 //   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
-//     for an error status without one, or the request, read, or decoding error.
-//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
-//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
-func (c *client) apiGet(ctx context.Context, path string, response any) error {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		c.buildURL(path),
-		http.NoBody,
-	)
+//     for an error status without one, or the marshaling, request, read, or
+//     decoding error. Reading stops at [httpbody.MaxSize]. An error status is
+//     reported from the bytes read, and an oversized success body wraps
+//     [httpbody.ErrTooLarge].
+func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
+	var body io.Reader = http.NoBody
+
+	if request != nil {
+		encoded, err := json.Marshal(request, jsonopts.Default)
+		if err != nil {
+			return fmt.Errorf("marshaling %s request: %w", method, err)
+		}
+
+		body = bytes.NewReader(encoded)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.buildURL(path), body)
 	if err != nil {
-		return fmt.Errorf("creating GET request: %w", redact.URLError(err))
+		return fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
+	}
+
+	if request != nil {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	c.setAuthorizationHeader(req)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
+		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
 	}
 
 	defer func() { _ = res.Body.Close() }()
 
-	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
-	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
-		return fmt.Errorf("reading GET response body: %w", readErr)
-	}
+	resBody, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
 
 	// An error status is reported from the first bytes of an oversized body.
-	if res.StatusCode >= httpClientErrorStatus {
+	if res.StatusCode >= http.StatusBadRequest && (readErr == nil || errors.Is(readErr, httpbody.ErrTooLarge)) {
 		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
+		if err = json.Unmarshal(resBody, resError, jsonopts.Default); err == nil {
 			return resError
 		}
 
 		return fmt.Errorf(
 			"%w: %v (unmarshal error: %w)",
 			ErrUnexpectedStatus,
-			res.Status, err,
+			res.Status,
+			err,
 		)
 	}
 
 	if readErr != nil {
-		return fmt.Errorf("reading GET response body: %w", readErr)
+		return fmt.Errorf("reading %s response body: %w", method, readErr)
 	}
 
-	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
-		return fmt.Errorf("unmarshaling GET response: %w", err)
+	if err = json.Unmarshal(resBody, response, jsonopts.Default); err != nil {
+		return fmt.Errorf("unmarshaling %s response: %w", method, err)
 	}
 
 	return nil
-}
-
-// apiPost performs a POST request to the Matrix API with the provided context.
-//
-// Parameters:
-//   - ctx: bounds the request.
-//   - path: the API path.
-//   - request: the request body, encoded as JSON.
-//   - response: decodes the response body.
-//
-// Returns:
-//   - error: the request error or the API's error.
-func (c *client) apiPost(ctx context.Context, path string, request, response any) error {
-	return c.apiDo(ctx, http.MethodPost, path, request, response)
-}
-
-// apiPut performs a PUT request to the Matrix API with the provided context.
-//
-// Parameters:
-//   - ctx: bounds the request.
-//   - path: the API path.
-//   - request: the request body, encoded as JSON.
-//   - response: decodes the response body.
-//
-// Returns:
-//   - error: the request error or the API's error.
-func (c *client) apiPut(ctx context.Context, path string, request, response any) error {
-	return c.apiDo(ctx, http.MethodPut, path, request, response)
 }
 
 // buildURL returns a copy of the base API URL with the specified path set.
@@ -268,77 +220,6 @@ func (c *client) buildURL(path string) string {
 	return u.String()
 }
 
-// doSingleRequest performs a single HTTP request without retry logic.
-//
-// Parameters:
-//   - ctx: cancellation for the request, further bounded by the client's timeout.
-//   - method: the HTTP method.
-//   - path: the API path to request.
-//   - request: the value sent as the JSON request body.
-//   - response: the value the JSON response is decoded into.
-//
-// Returns:
-//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
-//     for an error status without one, or the request, read, or decoding error.
-//     Reading stops at [httpbody.MaxSize]. An error status is reported from the
-//     bytes read, and an oversized success body wraps [httpbody.ErrTooLarge].
-func (c *client) doSingleRequest(ctx context.Context, method, path string, request, response any) error {
-	body, err := json.Marshal(request, jsonopts.Default)
-	if err != nil {
-		return fmt.Errorf("marshaling %s request: %w", method, err)
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		method,
-		c.buildURL(path),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		return fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
-	}
-
-	req.Header.Set("Content-Type", contentType)
-	c.setAuthorizationHeader(req)
-
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	body, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
-	if readErr != nil && !errors.Is(readErr, httpbody.ErrTooLarge) {
-		return fmt.Errorf("reading %s response body: %w", method, readErr)
-	}
-
-	// An error status is reported from the first bytes of an oversized body.
-	if res.StatusCode >= httpClientErrorStatus {
-		resError := &apiResError{}
-		if err = json.Unmarshal(body, resError, jsonopts.Default); err == nil {
-			return resError
-		}
-
-		return fmt.Errorf(
-			"%w: %v (unmarshal error: %w)",
-			ErrUnexpectedStatus,
-			res.Status,
-			err,
-		)
-	}
-
-	if readErr != nil {
-		return fmt.Errorf("reading %s response body: %w", method, readErr)
-	}
-
-	if err = json.Unmarshal(body, response, jsonopts.Default); err != nil {
-		return fmt.Errorf("unmarshaling %s response: %w", method, err)
-	}
-
-	return nil
-}
-
 // getJoinedRooms retrieves the list of rooms the client has joined.
 //
 // Parameters:
@@ -350,7 +231,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 	response := apiResJoinedRooms{}
 
-	err := c.apiGet(ctx, apiJoinedRooms, &response)
+	err := c.apiDo(ctx, http.MethodGet, apiJoinedRooms, nil, &response)
 	if err != nil {
 		return []string{}, err
 	}
@@ -370,8 +251,9 @@ func (c *client) getJoinedRooms(ctx context.Context) ([]string, error) {
 func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 	resRoom := apiResRoom{}
 
-	err := c.apiPost(
+	err := c.apiDo(
 		ctx,
+		http.MethodPost,
 		fmt.Sprintf(apiRoomJoin, room),
 		&struct{}{},
 		&resRoom,
@@ -400,7 +282,7 @@ func (c *client) login(ctx context.Context, user, password string) error {
 	c.apiURL.RawQuery = ""
 
 	resLogin := apiResLoginFlows{}
-	if err := c.apiGet(ctx, apiLogin, &resLogin); err != nil {
+	if err := c.apiDo(ctx, http.MethodGet, apiLogin, nil, &resLogin); err != nil {
 		return fmt.Errorf("failed to get login flows: %w", err)
 	}
 
@@ -445,8 +327,9 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 	deviceID := generateDeviceID(user, c.apiURL.Host)
 
 	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
-	err := c.apiPost(
+	err := c.apiDo(
 		ctx,
+		http.MethodPost,
 		apiLogin,
 		apiReqLogin{
 			Type:       flowLoginPassword,
@@ -485,8 +368,9 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 	deviceID := generateDeviceID("", c.apiURL.Host)
 
 	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
-	err := c.apiPost(
+	err := c.apiDo(
 		ctx,
+		http.MethodPost,
 		apiLogin,
 		apiReqLogin{
 			Type:     flowLoginToken,
@@ -547,7 +431,7 @@ func (c *client) sendMessageToRoom(ctx context.Context, message, roomID string) 
 		Body:    message,
 	}
 
-	return c.apiPut(ctx, path, request, &resEvent)
+	return c.apiDo(ctx, http.MethodPut, path, request, &resEvent)
 }
 
 // sendToExplicitRooms sends a message to explicitly specified rooms, and keeps
@@ -638,25 +522,6 @@ func (c *client) setAuthorizationHeader(req *http.Request) {
 	if c.accessToken != "" {
 		req.Header.Set(authorizationHeader, bearerPrefix+c.accessToken)
 	}
-}
-
-// isRateLimitedError checks if the error is a rate limiting error.
-//
-// Parameters:
-//   - err: the error, or nil.
-//
-// Returns:
-//   - bool: true when err wraps a Matrix M_LIMIT_EXCEEDED error.
-func isRateLimitedError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if apiErr, ok := errors.AsType[*apiResError](err); ok {
-		return apiErr.IsRateLimited()
-	}
-
-	return false
 }
 
 // generateTransactionID generates a unique transaction ID using a timestamp

@@ -117,9 +117,6 @@ const (
 	flowLoginToken flowType = "m.login.token"
 	// idTypeUser is the Matrix identifier type for username-based authentication.
 	idTypeUser identifierType = "m.id.user"
-
-	// errCodeLimitExceeded is the Matrix error code for rate limiting.
-	errCodeLimitExceeded = "M_LIMIT_EXCEEDED"
 )
 
 // Error returns the error message from the Matrix API error response.
@@ -128,14 +125,6 @@ const (
 //   - string: the message.
 func (e *apiResError) Error() string {
 	return e.Message
-}
-
-// IsRateLimited checks if the error is a rate limiting error (M_LIMIT_EXCEEDED).
-//
-// Returns:
-//   - bool: true for a rate limiting error.
-func (e *apiResError) IsRateLimited() bool {
-	return e.Code == errCodeLimitExceeded
 }
 
 // newUserIdentifier creates a new Matrix user identifier for authentication.
