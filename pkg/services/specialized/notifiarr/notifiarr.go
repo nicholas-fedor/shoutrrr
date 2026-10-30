@@ -58,6 +58,23 @@ const (
 // requestTimeout is the send budget of Notifiarr.
 const requestTimeout = 30 * time.Second
 
+// Send params that fill the payload. The config resolver skips them, and the
+// payload code reads them from the params.
+const (
+	// iconParam sets the icon URL of the Discord embed.
+	iconParam = "icon"
+	// contentParam sets the text shown above the message.
+	contentParam = "content"
+	// footerParam sets the footer of the Discord embed.
+	footerParam = "footer"
+	// fieldsParam holds the fields of the Discord embed as a JSON array.
+	fieldsParam = "fields"
+	// updateParam asks Notifiarr to update the message with the same event ID.
+	updateParam = "update"
+	// idParam sets the event ID.
+	idParam = "id"
+)
+
 // Errors returned by the Notifiarr service.
 var (
 	// ErrSendFailed indicates a failure to send a notification to Notifiarr.
@@ -278,7 +295,8 @@ func (s *Service) ParseMentions(message string) []string {
 // Parameters:
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which may override configuration fields
-//     and set the Discord payload.
+//     and set the Discord payload. The reserved message and level params are
+//     accepted too. Any other param is an error.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
@@ -295,7 +313,8 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which may override configuration fields
-//     and set the Discord payload.
+//     and set the Discord payload. The reserved message and level params are
+//     accepted too. Any other param is an error.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
@@ -326,8 +345,9 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 		params = *paramsPtr
 	}
 
-	// Only config keys update the config. The other params fill the payload.
-	if err := s.pkr.UpdateConfigFromKnownParams(&config, paramsPtr); err != nil {
+	// The payload params fill the payload. Any other unknown param is an error.
+	if err := s.pkr.UpdateConfigFromParams(&config, paramsPtr,
+		iconParam, contentParam, footerParam, fieldsParam, updateParam, idParam); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -413,15 +433,15 @@ func (s *Service) buildDiscordPayload(
 	// Construct text payload with title, icon, content, description, and footer from params
 	textPayload := &TextPayload{
 		Title:       params[types.TitleKey],
-		Icon:        params["icon"],
-		Content:     params["content"],
+		Icon:        params[iconParam],
+		Content:     params[contentParam],
 		Description: message,
-		Footer:      params["footer"],
+		Footer:      params[footerParam],
 	}
 
 	if flags.fields {
 		// Parse JSON fields string into Field structs
-		fields, err := s.ParseFields(params["fields"])
+		fields, err := s.ParseFields(params[fieldsParam])
 		if err != nil {
 			return nil, fmt.Errorf("parsing fields: %w", err)
 		}
@@ -589,7 +609,7 @@ func ParseMention(mention string) (int, int) {
 //   - *bool: true or false for an update param of "true" or "false", or nil
 //     otherwise.
 func ParseUpdateFlag(params types.Params) *bool {
-	if updateStr, exists := params["update"]; exists && updateStr != "" {
+	if updateStr, exists := params[updateParam]; exists && updateStr != "" {
 		switch updateStr {
 		case "true":
 			return &[]bool{true}[0]
@@ -614,7 +634,7 @@ func buildNotificationData(updatePtr *bool, config *Config, params types.Params)
 	return NotificationData{
 		Update: updatePtr,
 		Name:   config.Name,
-		Event:  params["id"],
+		Event:  params[idParam],
 	}
 }
 
@@ -640,11 +660,11 @@ func checkPresenceFlags(
 		thumbnail:   config.Thumbnail != "",
 		image:       config.Image != "",
 		title:       params[types.TitleKey] != "",
-		icon:        params["icon"] != "",
-		content:     params["content"] != "",
+		icon:        params[iconParam] != "",
+		content:     params[contentParam] != "",
 		description: message != "",
-		footer:      params["footer"] != "",
-		fields:      params["fields"] != "",
+		footer:      params[footerParam] != "",
+		fields:      params[fieldsParam] != "",
 		mentions:    len(service.ParseMentions(message)) > 0,
 	}
 }
