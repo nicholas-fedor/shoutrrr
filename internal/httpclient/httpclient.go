@@ -124,6 +124,27 @@ func (h *Holder) Prefer(client types.HTTPClient) types.HTTPClient {
 	return h.Client()
 }
 
+// PreferInsecure returns client when it is set, and the result of
+// [Holder.InsecureClient] otherwise. It is [Holder.Prefer] for a send that
+// skips TLS certificate verification. A client the caller set through the
+// service's exported client field is used unchanged and without calling warn.
+// Its owner controls its TLS settings. Which values count as set is the same
+// as for Prefer.
+//
+// Parameters:
+//   - client: the service's exported client field, or nil.
+//   - warn: called when the insecure default client is returned. It may be nil.
+//
+// Returns:
+//   - types.HTTPClient: client, or the holder's insecure client when client is unset.
+func (h *Holder) PreferInsecure(client types.HTTPClient, warn func()) types.HTTPClient {
+	if set := normalize(client); set != nil {
+		return set
+	}
+
+	return h.InsecureClient(warn)
+}
+
 // Set stores the client to send through. A nil client, including a nil
 // *http.Client, clears it, so sends use the default client. A nil value of
 // another type, such as a nil pointer to a custom client, is stored: requests

@@ -301,7 +301,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := s.client.Prefer(s.HTTPClient).Do(httpReq)
+	httpResp, err := s.sendClient(ctx, config).Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrFailedAPIRequest, redact.URLError(err))
 	}
@@ -337,6 +337,26 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, message string) e
 	}
 
 	return nil
+}
+
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. A client set through [Service.HTTPClient] or
+// [Service.SetHTTPClient] is used unchanged and never warned about, because
+// its owner controls its TLS settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.client.PreferInsecure(s.HTTPClient, func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.client.Prefer(s.HTTPClient)
 }
 
 // sendConfig returns the config for one send. The stored scheme moves into

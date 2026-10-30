@@ -35,6 +35,7 @@
 //   - category: notification category (reserved for future use)
 //   - copy: text to copy to clipboard when notification is tapped
 //   - disabletls: send over HTTP instead of HTTPS (default: no)
+//   - skiptlsverify: skip verification of the server's TLS certificate (default: no)
 //   - scheme: deprecated, use disabletls. A scheme of "http" turns TLS off,
 //     and any value other than "http" or "https" is rejected.
 //
@@ -157,6 +158,7 @@
 // - Store device keys securely - avoid hardcoding them in source code or configuration files
 // - Device keys are device-specific and act as authentication tokens
 // - Be cautious with disabletls=yes - only use in trusted environments as it disables encryption
+// - Be cautious with skiptlsverify=yes - it keeps encryption but accepts any server certificate
 // - Validate icon URLs - ensure they point to trusted sources
 // - Consider message content - avoid sending sensitive information in notification messages
 // - Use appropriate notification sounds - avoid disruptive sounds in production environments
@@ -177,6 +179,7 @@
 //   - Copy field specifies text to copy to clipboard when notification is tapped
 //   - Server path defaults to "/" if not specified
 //   - Sends use HTTPS unless disabletls is set, and the first send over HTTP logs a warning
+//   - The first send that skips certificate verification through the default client logs a warning
 //   - A send without a deadline is bounded by a 30 second budget
 //   - Server response includes code, message, and timestamp upon delivery
 //   - Failed requests return structured error responses with error codes and descriptions
