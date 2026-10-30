@@ -87,7 +87,8 @@ generic+https://example.com/api/v1/postStuff
     Query variables in a `generic+` URL work as in a `generic://` URL.
     A variable that names a [Query/Param Prop](#queryparam_props) configures the service, such as `template=json`.
     The others are forwarded to the remote server.
-    The one exception is `disabletls`, which has no effect in a `generic+` URL, because its scheme decides whether TLS is used.
+    The one exception is `disabletls`, which has no effect in the query of a `generic+` URL, because its scheme decides whether TLS is used.
+    A `disabletls` send param still applies, as described under [TLS](#tls).
 
 !!! example
     ```url
@@ -111,7 +112,8 @@ If you need to pass a query variable that _is_ reserved, you can prefix it with 
 ## TLS
 
 A `generic://` URL sends over HTTPS unless it sets `disabletls=yes`.
-A `generic+` URL sends over HTTP when its scheme is `generic+http://` and over HTTPS otherwise.
+A `generic+` URL sends over HTTP when its scheme is `generic+http://` and over HTTPS otherwise, unless a send param overrides it.
+A `disabletls=yes` send param sends that request over HTTP even for a `generic+https://` URL, so the scheme alone does not guarantee encryption.
 Plain HTTP leaves the connection unencrypted.
 
 Set `skiptlsverify=yes` when the webhook server's certificate cannot be verified, such as a self-signed one.
