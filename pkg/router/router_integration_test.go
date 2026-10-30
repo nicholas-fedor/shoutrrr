@@ -512,9 +512,6 @@ var (
 	// standardKeys are the key names a TLS option may use. Deprecated keys are
 	// listed apart from Keys by the format package, so they are not checked.
 	standardKeys = []string{"skiptlsverify", "disabletls", "usestarttls", "starttls", "requirestarttls"}
-	// skipVerifySchemes lists the HTTP services that let users skip TLS
-	// certificate verification.
-	skipVerifySchemes = []string{"bark", "gotify", "homeassistant", "ntfy", "rocketchat", "signal"}
 )
 
 // TestMain blocks every path to the real network for this package. Requests through
@@ -1110,9 +1107,10 @@ func TestIntegrationServiceLogger(t *testing.T) {
 	})
 }
 
-// TestIntegrationSkipTLSVerify verifies how each service that lets users skip
-// TLS certificate verification treats a server whose certificate cannot be
-// verified.
+// TestIntegrationSkipTLSVerify verifies how each HTTP service that lets users
+// skip TLS certificate verification treats a server whose certificate cannot
+// be verified. [skipVerifyFixtures] picks the services by their skiptlsverify
+// key, so a service that adds the key is checked without an edit here.
 //
 //   - Without skiptlsverify, no request reaches the server.
 //   - With skiptlsverify in the URL or in the send params, requests reach it.
@@ -1128,10 +1126,8 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 	(&logging.Once{}).Insecure(t.Context(), logFunc(func(msg string) { warning = msg }))
 	require.NotEmpty(t, warning)
 
-	for _, scheme := range skipVerifySchemes {
-		fx := fixtureFor(t, scheme)
-
-		t.Run(scheme, func(t *testing.T) {
+	for _, fx := range skipVerifyFixtures(t) {
+		t.Run(fx.scheme, func(t *testing.T) {
 			t.Parallel()
 
 			var hits atomic.Int32
@@ -1165,11 +1161,51 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 			for _, check := range checks {
 				t.Run(check.name, func(t *testing.T) {
 					hits.Store(0)
-					assertContract(t, check.name, scheme, check.run(t, fx, tlsURLs, &hits, warning))
+					assertContract(t, check.name, fx.scheme, check.run(t, fx, tlsURLs, &hits, warning))
 				})
 			}
 		})
 	}
+}
+
+// skipVerifyFixtures returns the first contract fixture of each scheme whose
+// config has a skiptlsverify key and whose service sends over HTTP. XMPP,
+// SMTP, and MQTT implement types.DialContextSetter because they dial their own
+// TLS connections. Their packages test skipping verification.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - []*fixture: the fixtures, in the order of [fixtures].
+func skipVerifyFixtures(t *testing.T) []*fixture {
+	t.Helper()
+
+	var selected []*fixture
+
+	seen := map[string]bool{}
+
+	for i := range fixtures {
+		fx := &fixtures[i]
+		if seen[fx.scheme] {
+			continue
+		}
+
+		seen[fx.scheme] = true
+
+		service, err := locateDefault(t, fx.url, log.New(io.Discard, "", 0))
+		require.NoError(t, err, fx.scheme)
+
+		if _, dials := service.(types.DialContextSetter); dials {
+			continue
+		}
+
+		if hasKey(format.GetServiceConfig(service), "skiptlsverify") {
+			selected = append(selected, fx)
+		}
+	}
+
+	return selected
 }
 
 // fixtureURLFor returns the contract fixture URL for scheme.
