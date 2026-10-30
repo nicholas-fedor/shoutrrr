@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Log attributes without boxing them by @nicholas-fedor in [#1959](https://github.com/nicholas-fedor/shoutrrr/pull/1959)
 - Skip the caller lookup when nothing will be logged by @nicholas-fedor in [#1953](https://github.com/nicholas-fedor/shoutrrr/pull/1953)
 
 ### Changed
