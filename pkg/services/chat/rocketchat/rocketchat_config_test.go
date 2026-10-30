@@ -7,12 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // TestConfigGetURL verifies the URL built from a config with and without a
-// port, with the username as the userinfo and the channel as the path segment
-// after the tokens.
+// port. The username is the userinfo and the channel the path segment after
+// the tokens. The TLS keys appear in the query when they are set.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +52,14 @@ func TestConfigGetURL(t *testing.T) {
 			name:   "username",
 			config: &Config{UserName: "bot", Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB},
 			want:   "rocketchat://bot@rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB,
+		},
+		{
+			name: "TLS keys",
+			config: &Config{
+				Host: "rocketchat.my-domain.com", TokenA: testTokenA, TokenB: testTokenB,
+				DisableTLS: true, SkipTLSVerify: true,
+			},
+			want: "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB + "?disabletls=Yes&skiptlsverify=Yes",
 		},
 	}
 
@@ -198,8 +207,8 @@ func TestConfigSetURLClearsChannel(t *testing.T) {
 }
 
 // TestConfigURLRoundTrip verifies that a config restored from its own URL
-// keeps the username and the channel, whether the channel was given as a path
-// segment, a user recipient, or a URL fragment.
+// keeps the username, the TLS keys, and the channel. The channel may be given
+// as a path segment, a user recipient, or a URL fragment.
 func TestConfigURLRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +224,8 @@ func TestConfigURLRoundTrip(t *testing.T) {
 		{name: "channel as a fragment", rawURL: "rocketchat://" + base + "/#general"},
 		{name: "channel starting with @ as a fragment", rawURL: "rocketchat://" + base + "/#@team"},
 		{name: "username and port", rawURL: "rocketchat://bot@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB + "/general"},
+		{name: "disabletls", rawURL: "rocketchat://" + base + "/general?disabletls=yes"},
+		{name: "skiptlsverify", rawURL: "rocketchat://" + base + "?skiptlsverify=yes"},
 	}
 
 	for _, tt := range tests {
@@ -269,4 +280,29 @@ func TestConfigSetURLInvalidChannel(t *testing.T) {
 	before := *config
 	require.ErrorIs(t, config.SetURL(parseURL(t, "rocketchat://bot@other.example.com/a/b/general/other")), ErrInvalidChannel)
 	assert.Equal(t, before, *config)
+}
+
+// TestConfigSetURLQuery verifies that SetURL reads the TLS keys from the
+// query and resets them when a later URL leaves them out. An unknown key, a
+// malformed query, or an invalid value is rejected without changing the
+// config.
+func TestConfigSetURLQuery(t *testing.T) {
+	t.Parallel()
+
+	base := "rocketchat://rocketchat.my-domain.com/" + testTokenA + "/" + testTokenB
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseURL(t, base+"?disabletls=yes&skiptlsverify=yes")))
+	assert.True(t, config.DisableTLS)
+	assert.True(t, config.SkipTLSVerify)
+
+	before := *config
+	require.ErrorIs(t, config.SetURL(parseURL(t, base+"?disabeltls=yes")), format.ErrInvalidConfigKey)
+	require.ErrorIs(t, config.SetURL(parseURL(t, base+"?disabletls=%zz")), util.ErrInvalidQuery)
+	require.Error(t, config.SetURL(parseURL(t, base+"?disabletls=maybe")))
+	assert.Equal(t, before, *config, "a rejected URL leaves the config as it was")
+
+	require.NoError(t, config.SetURL(parseURL(t, base)))
+	assert.False(t, config.DisableTLS)
+	assert.False(t, config.SkipTLSVerify)
 }

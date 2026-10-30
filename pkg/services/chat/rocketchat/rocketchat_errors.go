@@ -4,7 +4,11 @@ import "errors"
 
 // Errors returned by the Rocket.Chat service.
 var (
-	// ErrInvalidURLScheme indicates the URL scheme is not valid for Rocket.Chat webhooks.
+	// ErrInvalidURLScheme indicates the URL scheme is not valid for Rocket.Chat
+	// webhooks. No function returns it.
+	//
+	// Deprecated: No Rocket.Chat function returns this error. The disabletls
+	// key sends over HTTP, so HTTPS is not the only scheme a send can use.
 	ErrInvalidURLScheme = errors.New("rocketchat: invalid URL scheme, only https is allowed")
 	// ErrNotificationFailed indicates a failure in sending the notification.
 	ErrNotificationFailed = errors.New("notification failed")

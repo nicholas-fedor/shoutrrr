@@ -7,6 +7,19 @@
 
 --8<-- "docs/services/chat/rocketchat/config.md"
 
+## TLS
+
+Rocket.Chat sends over HTTPS by default.
+Set `disabletls=yes` to send over HTTP instead, for a self-hosted server without TLS.
+That leaves the connection unencrypted.
+
+Set `skiptlsverify=yes` when the server's certificate cannot be verified, such as a self-signed one.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+
+Both options can also be passed as send params, which apply to that send only.
+A custom HTTP client set through `SetHTTPClient` or the `Client` field keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send goes out without TLS, and the first time a send skips certificate verification through its own client.
+
 ## Creating a Webhook in Rocket.chat
 
 1. Open up the chat Administration by clicking on *Administration* menu
@@ -56,6 +69,8 @@ params := (*types.Params)(
  &map[string]string{
   "username": "overwriteUserName",
   "channel": "overwriteChannel",
+  "disabletls": "no",
+  "skiptlsverify": "no",
  },
 )
 
@@ -63,5 +78,6 @@ service.Send("this is a message", params)
 ```
 
 This will overwrite any options, that you passed via URL.
+Any other parameter fails the send, apart from `title`, `message`, and `level`, which every service accepts.
 
 For more Rocket.chat Webhooks options see [official guide](https://docs.rocket.chat/guides/administrator-guides/integrations).

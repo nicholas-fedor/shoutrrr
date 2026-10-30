@@ -504,7 +504,7 @@ var (
 	standardKeys = []string{"skiptlsverify", "disabletls", "usestarttls", "starttls", "requirestarttls"}
 	// skipVerifySchemes lists the HTTP services that let users skip TLS
 	// certificate verification.
-	skipVerifySchemes = []string{"bark", "gotify", "homeassistant", "ntfy", "signal"}
+	skipVerifySchemes = []string{"bark", "gotify", "homeassistant", "ntfy", "rocketchat", "signal"}
 )
 
 // TestMain blocks every path to the real network for this package. Requests through
