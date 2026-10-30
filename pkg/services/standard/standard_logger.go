@@ -133,5 +133,5 @@ func (sl *Logger) Warn(ctx context.Context, msg string, args ...any) {
 func (sl *Logger) logRecord(ctx context.Context, level slog.Level, msg string, args ...any) {
 	// The call two above this method is the service's call to Debug, Info,
 	// or Warn.
-	logbridge.Log(ctx, sl.Slog(), logbridge.CallerPC(2), level, msg, args...) //nolint:mnd // Explained above.
+	logbridge.Log(ctx, sl.Slog(), 2, level, msg, args...) //nolint:mnd // Explained above.
 }

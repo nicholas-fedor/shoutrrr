@@ -87,41 +87,25 @@ func With(logger types.StdLogger, args ...any) types.StdLogger {
 	}
 }
 
-// CallerPC returns the location of a call further up the stack, for a
-// record's source.
-//
-// Parameters:
-//   - skip: how many calls above the function that calls CallerPC. With 1, it
-//     is the call to that function.
-//
-// Returns:
-//   - uintptr: the program counter of the call, for [slog.NewRecord].
-func CallerPC(skip int) uintptr {
-	// Skip runtime.Callers and CallerPC itself, as slog's documentation on
-	// wrapping output methods describes.
-	var pcs [1]uintptr
-
-	runtime.Callers(skip+2, pcs[:]) //nolint:mnd // The two frames explained above.
-
-	return pcs[0]
-}
-
-// Log logs a record to logger with sourcePC as its source, as slog's documentation
-// on wrapping output methods describes. A handler that adds the source then
-// shows the service's call instead of the library's logging code. Errors from
-// the handler are discarded, as [slog.Logger] discards them.
+// Log logs a record to logger with a call further up the stack as its source,
+// as slog's documentation on wrapping output methods describes. A handler that
+// adds the source then shows the service's call instead of the library's
+// logging code. Finding that call walks the stack, so a level the logger drops
+// returns before it. Errors from the handler are discarded, as [slog.Logger]
+// discards them.
 //
 // Parameters:
 //   - ctx: the context of the call, passed to the handler. Nil means the
 //     background context.
 //   - logger: the logger that receives the record.
-//   - sourcePC: the source of the record, from [CallerPC], or 0 for none.
+//   - skip: how many calls above the function that calls Log the source is.
+//     With 0, it is the call to Log.
 //   - level: the level of the record.
 //   - msg: the message.
 //   - args: attributes as key/value pairs or [slog.Attr] values.
 //
 //nolint:contextcheck // A nil context is replaced with the background context, as slog.Logger does.
-func Log(ctx context.Context, logger *slog.Logger, sourcePC uintptr, level slog.Level, msg string, args ...any) {
+func Log(ctx context.Context, logger *slog.Logger, skip int, level slog.Level, msg string, args ...any) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -130,7 +114,13 @@ func Log(ctx context.Context, logger *slog.Logger, sourcePC uintptr, level slog.
 		return
 	}
 
-	record := slog.NewRecord(time.Now(), level, msg, sourcePC)
+	// Skip runtime.Callers and Log itself, as slog's documentation on wrapping
+	// output methods describes.
+	var pcs [1]uintptr
+
+	runtime.Callers(skip+2, pcs[:]) //nolint:mnd // The two frames explained above.
+
+	record := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	record.Add(args...)
 
 	_ = logger.Handler().Handle(ctx, record) //nolint:errcheck // Discarded as slog.Logger discards it.

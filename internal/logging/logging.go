@@ -23,8 +23,13 @@ type Logger interface {
 // source. The zero value is ready to use, and a Once is safe for concurrent
 // use. A Once must not be copied after first use.
 type Once struct {
-	// logged holds the keys of the warnings already logged.
+	// logged holds the keys of the connection warnings and the [Once.Do]
+	// warnings already logged.
 	logged sync.Map
+	// fields holds the names of the deprecated fields already warned about.
+	fields sync.Map
+	// keys holds the names of the deprecated keys already warned about.
+	keys sync.Map
 }
 
 // Attribute keys for log records.
@@ -86,14 +91,7 @@ const (
 //   - deprecations: the deprecated fields that are set, such as those that
 //     [format.SyncDeprecatedFields] reports.
 func (o *Once) DeprecatedFields(ctx context.Context, logger Logger, deprecations []format.Deprecation) {
-	pc := logbridge.CallerPC(1)
-
-	for _, deprecation := range deprecations {
-		o.Do("field:"+deprecation.Name, func() {
-			logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, deprecatedFieldWarning,
-				KeyField, deprecation.Name, KeyReplacement, deprecation.Replacement)
-		})
-	}
+	logDeprecations(ctx, logger, &o.fields, deprecatedFieldWarning, KeyField, deprecations)
 }
 
 // DeprecatedKeys logs a warning for each deprecated config key, once per key.
@@ -105,14 +103,7 @@ func (o *Once) DeprecatedFields(ctx context.Context, logger Logger, deprecations
 //   - deprecations: the deprecated keys that a URL or params used, such as
 //     those that [format.PropKeyResolver.DeprecatedKeys] reports.
 func (o *Once) DeprecatedKeys(ctx context.Context, logger Logger, deprecations []format.Deprecation) {
-	pc := logbridge.CallerPC(1)
-
-	for _, deprecation := range deprecations {
-		o.Do("key:"+deprecation.Name, func() {
-			logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, deprecatedKeyWarning,
-				KeyKey, deprecation.Name, KeyReplacement, deprecation.Replacement)
-		})
-	}
+	logDeprecations(ctx, logger, &o.keys, deprecatedKeyWarning, KeyKey, deprecations)
 }
 
 // Do calls warn unless a warning with the same key was logged before. It
@@ -135,9 +126,10 @@ func (o *Once) Do(key string, warn func()) {
 //   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 func (o *Once) Insecure(ctx context.Context, logger Logger) {
-	pc := logbridge.CallerPC(1)
-
-	o.Do("insecure", func() { logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, insecureWarning) })
+	// The constant key keeps a repeated warning free of allocations.
+	if _, loaded := o.logged.LoadOrStore("insecure", struct{}{}); !loaded {
+		logbridge.Log(ctx, logger.Slog(), 1, slog.LevelWarn, insecureWarning)
+	}
 }
 
 // Plaintext logs, once, that a send does not use TLS, so its connection and
@@ -147,12 +139,49 @@ func (o *Once) Insecure(ctx context.Context, logger Logger) {
 //   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 func (o *Once) Plaintext(ctx context.Context, logger Logger) {
-	pc := logbridge.CallerPC(1)
-
-	o.Do("plaintext", func() { logbridge.Log(ctx, logger.Slog(), pc, slog.LevelWarn, plaintextWarning) })
+	// The constant key keeps a repeated warning free of allocations.
+	if _, loaded := o.logged.LoadOrStore("plaintext", struct{}{}); !loaded {
+		logbridge.Log(ctx, logger.Slog(), 1, slog.LevelWarn, plaintextWarning)
+	}
 }
 
 // Reset forgets the logged warnings, so each can be logged again.
 func (o *Once) Reset() {
 	o.logged.Clear()
+	o.fields.Clear()
+	o.keys.Clear()
+}
+
+// logDeprecations logs a warning for each deprecation that logged has not
+// recorded yet, and records it. The warning names the deprecated name and its
+// replacement. Its source is the service's call to the Once method that calls
+// logDeprecations.
+//
+// Parameters:
+//   - ctx: the context of the call, passed to the log handler.
+//   - logger: the service's logger.
+//   - logged: the names already warned about, for one kind of deprecation.
+//   - msg: the warning message.
+//   - nameKey: the attribute key of the deprecated name.
+//   - deprecations: the deprecations to warn about.
+func logDeprecations(
+	ctx context.Context,
+	logger Logger,
+	logged *sync.Map,
+	msg, nameKey string,
+	deprecations []format.Deprecation,
+) {
+	for _, deprecation := range deprecations {
+		// Load does not keep its key, so a name warned about before costs no
+		// allocation. LoadOrStore then decides the race between new warnings.
+		if _, warned := logged.Load(deprecation.Name); warned {
+			continue
+		}
+
+		if _, loaded := logged.LoadOrStore(deprecation.Name, struct{}{}); !loaded {
+			// Two calls up is the service's call to the Once method.
+			logbridge.Log(ctx, logger.Slog(), 2, slog.LevelWarn, msg, //nolint:mnd // Explained above.
+				nameKey, deprecation.Name, KeyReplacement, deprecation.Replacement)
+		}
+	}
 }
