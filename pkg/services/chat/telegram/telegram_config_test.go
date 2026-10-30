@@ -10,7 +10,7 @@ import (
 )
 
 // TestConfigQueryAPI verifies that the config rejects unknown query keys when
-// reading and parsing, and exposes its parse mode enum and seven query fields.
+// reading and parsing, and exposes its parse mode enum and eight query fields.
 func TestConfigQueryAPI(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +24,7 @@ func TestConfigQueryAPI(t *testing.T) {
 	require.Error(t, config.SetURL(parseURL(t, testServiceURL+"&foo=bar")))
 
 	assert.Len(t, config.Enums(), 1)
-	assert.Len(t, resolver.QueryFields(), 7)
+	assert.Len(t, resolver.QueryFields(), 8)
 }
 
 // TestConfigGetURLToken verifies that the config URL holds the bot ID and
@@ -42,14 +42,18 @@ func TestConfigGetURLToken(t *testing.T) {
 }
 
 // TestConfigAPIURLRoundTrip verifies that the config URL holds a configured API
-// URL, which reads back to the same config, and leaves out the empty default.
+// URL and skiptlsverify, which read back to the same config, and leaves out
+// the defaults.
 func TestConfigAPIURLRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	config := newTestService(t, testServiceURL+"&apiurl=http://localhost:8081").GetConfig()
-	assert.Equal(t, "http://localhost:8081", config.APIURL)
+	config := newTestService(t, testServiceURL+"&apiurl=https://localhost:8443&skiptlsverify=yes").GetConfig()
+	assert.Equal(t, "https://localhost:8443", config.APIURL)
+	assert.True(t, config.SkipTLSVerify)
 
 	assert.Equal(t, config, newTestService(t, config.GetURL().String()).GetConfig())
 
-	assert.NotContains(t, newTestService(t, testServiceURL).GetConfig().GetURL().String(), "apiurl")
+	defaultURL := newTestService(t, testServiceURL).GetConfig().GetURL().String()
+	assert.NotContains(t, defaultURL, "apiurl")
+	assert.NotContains(t, defaultURL, "skiptlsverify")
 }

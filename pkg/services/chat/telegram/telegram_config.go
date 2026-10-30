@@ -30,6 +30,10 @@ type Config struct {
 	Preview bool `default:"Yes" desc:"If disabled, no web page preview will be displayed for URLs" key:"preview"`
 	// Notification delivers the message with a sound.
 	Notification bool `default:"Yes" desc:"If disabled, sends Message silently" key:"notification"`
+	// SkipTLSVerify skips verification of the Bot API server's TLS
+	// certificate, such as the certificate of a proxy in front of a
+	// self-hosted server.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Service identity.
@@ -103,6 +107,19 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
 	}
+}
+
+// plaintextAPI reports whether the requests go to the Bot API server over
+// plain HTTP. The bot token is in every request path, so it then travels
+// unencrypted.
+//
+// Returns:
+//   - bool: true for an API URL with the http scheme in any case, and false
+//     for an https or empty API URL.
+func (c *Config) plaintextAPI() bool {
+	apiURL, err := url.Parse(c.APIURL)
+
+	return err == nil && apiURL.Scheme == "http"
 }
 
 // setURL updates the Config from a URL using the provided resolver.

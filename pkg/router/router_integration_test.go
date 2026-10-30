@@ -50,6 +50,9 @@ type fixture struct {
 	secrets []string
 	status  int    // response status for the injected client; defaults to 200
 	body    string // response body for the injected client; defaults to "{}"
+	// serverKey is the query key that holds the base URL of the server the
+	// service sends to, for a service that does not send to its URL host.
+	serverKey string
 }
 
 // env holds the injected client, dialer and logger for one contract case.
@@ -414,10 +417,11 @@ var fixtures = []fixture{
 		secrets: []string{"SECRETteamsSIG"},
 	},
 	{
-		scheme:  "telegram",
-		url:     "telegram://123456789:SECRETtelegramTOKENxxxxxxxxxxxxxxxx@telegram?chats=contract",
-		secrets: []string{"SECRETtelegramTOKENxxxxxxxxxxxxxxxx"},
-		body:    `{"ok":true,"result":{"message_id":1}}`,
+		scheme:    "telegram",
+		url:       "telegram://123456789:SECRETtelegramTOKENxxxxxxxxxxxxxxxx@telegram?chats=contract",
+		secrets:   []string{"SECRETtelegramTOKENxxxxxxxxxxxxxxxx"},
+		body:      `{"ok":true,"result":{"message_id":1}}`,
+		serverKey: "apiurl",
 	},
 	{
 		scheme:  "twilio",
@@ -1147,6 +1151,13 @@ func TestIntegrationSkipTLSVerify(t *testing.T) {
 			tlsURLs := skipVerifyURLs{
 				base: withURLHost(t, fx.url, server.Listener.Addr().String()),
 			}
+
+			// A service that does not send to its URL host names its server in
+			// a query key instead.
+			if fx.serverKey != "" {
+				tlsURLs.base = withURLQuery(t, fx.url, fx.serverKey, server.URL)
+			}
+
 			tlsURLs.skip = withURLQuery(t, tlsURLs.base, "skiptlsverify", "yes")
 
 			checks := []struct {

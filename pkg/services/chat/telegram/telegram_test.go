@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -610,6 +612,130 @@ func TestSendUsesAPIURL(t *testing.T) {
 			assert.Equal(t, []string{tc.wantURL}, urls)
 		})
 	}
+}
+
+// TestSendSkipTLSVerify verifies sends to a Bot API server whose certificate
+// cannot be verified, such as a self-hosted server behind a proxy with its own
+// certificate. Without skiptlsverify the send fails. With it in the URL or the
+// params, every chat's request goes through the insecure default client, and
+// the warning is logged once over two sends. An injected client is used
+// unchanged and never warned about.
+func TestSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and whether a client is
+	// injected, with the expected outcome of both sends.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		injected     bool
+		wantErr      bool
+		wantWarnings int
+	}{
+		{name: "verified by default", wantErr: true},
+		{name: "URL", query: "&skiptlsverify=yes", wantWarnings: 1},
+		{name: "params", params: &types.Params{"skiptlsverify": "yes"}, wantWarnings: 1},
+		{name: "injected client", query: "&skiptlsverify=yes", injected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int32
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+
+				_, _ = io.WriteString(w, sendSuccessBody)
+			}))
+			t.Cleanup(server.Close)
+
+			var logs strings.Builder
+
+			service := &Service{}
+			rawURL := testServiceURL + ",channel-2&apiurl=" + url.QueryEscape(server.URL) + tt.query
+			require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+
+			if tt.injected {
+				service.SetHTTPClient(server.Client())
+			}
+
+			for range 2 {
+				err := service.Send("Message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			wantRequests := int32(4)
+			if tt.wantErr {
+				wantRequests = 0
+			}
+
+			assert.Equal(t, wantRequests, requests.Load(), "two chats over two sends")
+			assert.Equal(t, tt.wantWarnings, strings.Count(logs.String(), insecureWarning))
+		})
+	}
+}
+
+// TestSendWarnsPlaintext verifies that sends to an http Bot API server, which
+// carry the bot token in their path, log the plaintext warning once, and again
+// after the service is initialized again. An https or default API URL logs
+// nothing.
+func TestSendWarnsPlaintext(t *testing.T) {
+	t.Parallel()
+
+	const plaintextWarning = "WARN sending without TLS"
+
+	// tests lists the URL query and the send params with the number of
+	// warnings over two sends.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		wantWarnings int
+	}{
+		{name: "default API URL"},
+		{name: "https API URL", query: "&apiurl=https://tg.example.com"},
+		{name: "http API URL", query: "&apiurl=http://localhost:8081", wantWarnings: 1},
+		{name: "http API URL as param", params: &types.Params{"apiurl": "http://localhost:8081"}, wantWarnings: 1},
+		{name: "uppercase http scheme", query: "&apiurl=HTTP://localhost:8081", wantWarnings: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs strings.Builder
+
+			service := &Service{}
+			require.NoError(t, service.Initialize(parseURL(t, testServiceURL+tt.query), log.New(&logs, "", 0)))
+			service.SetHTTPClient(&http.Client{Transport: respondWith(http.StatusOK, sendSuccessBody)})
+
+			require.NoError(t, service.Send("first", tt.params))
+			require.NoError(t, service.Send("second", tt.params))
+			assert.Equal(t, tt.wantWarnings, strings.Count(logs.String(), plaintextWarning))
+		})
+	}
+
+	t.Run("again after Initialize", func(t *testing.T) {
+		t.Parallel()
+
+		var logs strings.Builder
+
+		rawURL := testServiceURL + "&apiurl=http://localhost:8081"
+		service := &Service{}
+		service.SetHTTPClient(&http.Client{Transport: respondWith(http.StatusOK, sendSuccessBody)})
+
+		require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+		require.NoError(t, service.Send("first", nil))
+		require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+		require.NoError(t, service.Send("second", nil))
+
+		assert.Equal(t, 2, strings.Count(logs.String(), plaintextWarning))
+	})
 }
 
 // TestAPIURLValidation verifies that an API URL must be an http or https URL
