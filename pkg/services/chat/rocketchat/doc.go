@@ -18,6 +18,13 @@
 //   - TokenB: The second part of the webhook token (required)
 //   - Channel: The target channel or user (optional, can include # for channels or @ for users)
 //   - UserName: Override the webhook username (optional)
+//   - DisableTLS: Send over HTTP instead of HTTPS (disabletls, default no)
+//   - SkipTLSVerify: Skip verification of the server's TLS certificate (skiptlsverify, default no)
+//
+// The first send without TLS logs a warning, and so does the first send that
+// skips certificate verification through the default client. A client set
+// through SetHTTPClient or the deprecated Client field keeps its own TLS
+// settings.
 //
 // # Usage Example
 //
@@ -37,7 +44,10 @@
 //
 // The configuration URL format is:
 //
-//	rocketchat://[username@]host/tokenA/tokenB[/channel]
+//	rocketchat://[username@]host/tokenA/tokenB[/channel][?disabletls=yes][&skiptlsverify=yes]
+//
+// The query accepts only the config keys, and so do the send params, apart
+// from the username and channel params that override the URL fields.
 //
 // For more information about Rocket.Chat webhooks, visit: https://docs.rocket.chat/guides/administration/administration/integrations
 package rocketchat

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
@@ -188,19 +189,24 @@ func TestInitialize(t *testing.T) {
 	})
 }
 
-// TestSendRequest verifies the method, URL, headers, and payload a send posts,
-// with and without params overriding the configured username and channel.
+// TestSendRequest verifies the method, URL, headers, and payload a send posts.
+// Params can override the configured username and channel. A disabletls param
+// sends over HTTP, and the reserved title param is accepted.
 func TestSendRequest(t *testing.T) {
 	t.Parallel()
 
-	// tests lists params with the payload the send should post.
+	const httpsURL = "https://rocketchat.example.com:5055/hooks/tokenA/tokenB"
+
+	// tests lists params with the URL and payload the send should post.
 	tests := []struct {
 		name     string
 		params   *types.Params
+		wantURL  string
 		wantBody JSON
 	}{
 		{
 			name:     "config values",
+			wantURL:  httpsURL,
 			wantBody: JSON{Text: "test message", UserName: "defaultUser", Channel: "#defaultChannel"},
 		},
 		{
@@ -209,7 +215,20 @@ func TestSendRequest(t *testing.T) {
 				"username": "overrideUser",
 				"channel":  "#overrideChannel",
 			},
+			wantURL:  httpsURL,
 			wantBody: JSON{Text: "test message", UserName: "overrideUser", Channel: "#overrideChannel"},
+		},
+		{
+			name:     "disabletls param sends over HTTP",
+			params:   &types.Params{"disabletls": "yes", "username": "overrideUser"},
+			wantURL:  "http://rocketchat.example.com:5055/hooks/tokenA/tokenB",
+			wantBody: JSON{Text: "test message", UserName: "overrideUser", Channel: "#defaultChannel"},
+		},
+		{
+			name:     "reserved title param accepted",
+			params:   &types.Params{"title": "Ignored"},
+			wantURL:  httpsURL,
+			wantBody: JSON{Text: "test message", UserName: "defaultUser", Channel: "#defaultChannel"},
 		},
 	}
 
@@ -226,7 +245,7 @@ func TestSendRequest(t *testing.T) {
 			require.NoError(t, service.Send("test message", tt.params))
 
 			assert.Equal(t, http.MethodPost, captured.method)
-			assert.Equal(t, "https://rocketchat.example.com:5055/hooks/tokenA/tokenB", captured.url)
+			assert.Equal(t, tt.wantURL, captured.url)
 			assert.Equal(t, "application/json", captured.contentType)
 
 			var got JSON
@@ -371,6 +390,122 @@ func TestSendTLSServer(t *testing.T) {
 			assert.Equal(t, "/hooks/tokenA/tokenB", gotPath)
 		})
 	}
+}
+
+// TestSendUnknownParam verifies that a send param the config does not declare
+// fails the send before any request, as it does for other services.
+func TestSendUnknownParam(t *testing.T) {
+	t.Parallel()
+
+	var captured capturedRequest
+
+	service := newTestService(t, newCapturingClient(t, http.StatusOK, "", &captured))
+
+	require.ErrorIs(t, service.Send("test message", &types.Params{"disabeltls": "yes"}), format.ErrInvalidConfigKey)
+	assert.Empty(t, captured.url, "no request should be sent")
+}
+
+// TestSendPlaintextWarning verifies that sends over HTTP log the shared
+// plaintext warning once. It covers a client injected through SetHTTPClient,
+// because the URL decides the protocol. The warning appears again after the
+// service is initialized again.
+func TestSendPlaintextWarning(t *testing.T) {
+	t.Parallel()
+
+	var (
+		captured capturedRequest
+		logs     strings.Builder
+	)
+
+	service := &Service{}
+	rawURL := "rocketchat://rocketchat.example.com/" + testTokenA + "/" + testTokenB + "?disabletls=yes"
+	require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+	service.SetHTTPClient(newCapturingClient(t, http.StatusOK, "", &captured))
+
+	require.NoError(t, service.Send("test message", nil))
+	require.NoError(t, service.Send("test message", nil))
+
+	assert.Equal(t, "http://rocketchat.example.com/hooks/tokenA/tokenB", captured.url)
+	assert.Equal(t, []string{"WARN sending without TLS"}, warningLines(logs.String()))
+
+	require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+	require.NoError(t, service.Send("test message", nil))
+
+	assert.Equal(t, []string{"WARN sending without TLS", "WARN sending without TLS"}, warningLines(logs.String()))
+}
+
+// TestSendSkipTLSVerify verifies sends to a server whose certificate cannot be
+// verified. Without skiptlsverify the send fails. With it in the URL or the
+// params, the send goes through the insecure default client and warns once
+// over two sends. A client set through the deprecated Client field is used
+// unchanged and never warned about.
+func TestSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and whether the deprecated
+	// client field is set, with the expected outcome.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		clientField  bool
+		wantErr      bool
+		wantWarnings []string
+	}{
+		{name: "verified by default", wantErr: true},
+		{name: "URL", query: "?skiptlsverify=yes", wantWarnings: []string{insecureWarning}},
+		{name: "params", params: &types.Params{"skiptlsverify": "yes"}, wantWarnings: []string{insecureWarning}},
+		{name: "deprecated client field", query: "?skiptlsverify=yes", clientField: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(server.Close)
+
+			var logs strings.Builder
+
+			service := &Service{}
+			rawURL := "rocketchat://" + server.Listener.Addr().String() + "/" + testTokenA + "/" + testTokenB + tt.query
+			require.NoError(t, service.Initialize(parseURL(t, rawURL), log.New(&logs, "", 0)))
+
+			if tt.clientField {
+				service.Client = server.Client()
+			}
+
+			for range 2 {
+				err := service.Send("test message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			assert.Equal(t, tt.wantWarnings, warningLines(logs.String()))
+		})
+	}
+}
+
+// warningLines returns the logged lines that are warnings.
+//
+// Parameters:
+//   - logs: the log output.
+//
+// Returns:
+//   - []string: the warning lines in order.
+func warningLines(logs string) []string {
+	var lines []string
+
+	for line := range strings.Lines(logs) {
+		if strings.HasPrefix(line, "WARN ") {
+			lines = append(lines, strings.TrimSuffix(line, "\n"))
+		}
+	}
+
+	return lines
 }
 
 // TestSetHTTPClient verifies that SetHTTPClient stores a client in place of

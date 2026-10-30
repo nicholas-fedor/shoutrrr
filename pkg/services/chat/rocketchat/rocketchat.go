@@ -5,12 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
@@ -34,7 +37,18 @@ type Service struct {
 	// client holds the client from [Service.SetHTTPClient] and the default
 	// client.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 }
+
+// Send params that override URL fields. The config resolver does not accept
+// them as keys, so [CreateJSONPayload] reads them from the params.
+const (
+	// userNameParam overrides [Config.UserName] for one send.
+	userNameParam = "username"
+	// channelParam overrides [Config.Channel] for one send.
+	channelParam = "channel"
+)
 
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
@@ -63,6 +77,7 @@ func (s *Service) GetID() string {
 //   - error: the error from reading the URL, such as [ErrNotEnoughArguments].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.warnings.Reset()
 
 	s.Config = &Config{}
 
@@ -79,27 +94,30 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //
 // Parameters:
 //   - message: the message to send.
-//   - params: optional username and channel overrides.
+//   - params: optional username and channel overrides and config keys, such
+//     as disabletls and skiptlsverify.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
-//     request error, or an error for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
+//     payload, or request error, or an error for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
 
 // SendContext delivers a notification message to Rocket.Chat. A context
 // without a deadline is bounded by the budget that [Service.ServiceTimeout]
-// reports.
+// reports. The first send without TLS logs a warning, and so does the first
+// send that skips certificate verification through the default client.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
-//   - params: optional username and channel overrides.
+//   - params: optional username and channel overrides and config keys, such
+//     as disabletls and skiptlsverify. Any other key is an error.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
-//     request error, or an error for a non-success status. A request error
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
+//     payload, or request error, or an error for a non-success status. A request error
 //     matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -109,11 +127,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	var res *http.Response
+	// Params apply to this send only, so they update a copy of the service
+	// config.
+	configCopy := *s.Config
+	config := &configCopy
 
-	var err error
+	resolver := format.NewPropKeyResolver(config)
+	if err := resolver.UpdateConfigFromParams(config, configParams(params)); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
 
-	config := s.Config
 	serviceURL := buildURL(config)
 
 	json, err := CreateJSONPayload(config, message, params)
@@ -133,7 +156,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err = s.client.Prefer(s.Client).Do(req)
+	// Plain HTTP applies to an injected client too, because the URL decides it.
+	if config.DisableTLS {
+		s.warnings.Plaintext(ctx, s)
+	}
+
+	res, err := s.sendClient(ctx, config).Do(req)
 	if err != nil {
 		return fmt.Errorf("posting to %s: %w", util.JoinURLHost(config.Host, config.Port), redact.URLError(err))
 	}
@@ -172,17 +200,67 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.Client = nil
 }
 
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. A client set through [Service.Client] or
+// [Service.SetHTTPClient] is used unchanged and never warned about, because
+// its owner controls its TLS settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.client.PreferInsecure(s.Client, func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.client.Prefer(s.Client)
+}
+
+// configParams returns the send params the config resolver accepts as keys.
+//
+// It leaves out the username and channel params, which override URL fields
+// and are read by [CreateJSONPayload]. The resolver still rejects any other
+// unknown key.
+//
+// Parameters:
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - *types.Params: a copy of params without the URL field overrides, or nil
+//     when params is nil.
+func configParams(params *types.Params) *types.Params {
+	if params == nil {
+		return nil
+	}
+
+	keyParams := maps.Clone(*params)
+	delete(keyParams, userNameParam)
+	delete(keyParams, channelParam)
+
+	return &keyParams
+}
+
 // buildURL constructs the API URL for Rocket.Chat based on the Config.
 //
 // Parameters:
-//   - config: The configuration containing host, port, and token information
+//   - config: the configuration with the host, port, tokens, and TLS setting.
 //
 // Returns:
-//   - The complete Rocket.Chat webhook URL as a string
+//   - The complete Rocket.Chat webhook URL as a string, over HTTP when TLS is
+//     disabled and over HTTPS otherwise.
 func buildURL(config *Config) string {
+	scheme := "https"
+	if config.DisableTLS {
+		scheme = "http"
+	}
+
 	// The URL type escapes an IPv6 zone in the host, and the tokens are kept as
 	// written.
-	base := (&url.URL{Scheme: "https", Host: util.JoinURLHost(config.Host, config.Port)}).String()
+	base := (&url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, config.Port)}).String()
 
 	return fmt.Sprintf(
 		"%s/hooks/%s/%s",

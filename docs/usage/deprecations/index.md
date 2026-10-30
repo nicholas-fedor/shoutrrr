@@ -59,6 +59,7 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `DefaultHTTPClient` | `pkg/services/chat/matrix` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
 | `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | Unreleased |
 | `Service.Client` | `pkg/services/chat/rocketchat` | `Service.SetHTTPClient` | Unreleased |
+| `ErrInvalidURLScheme` | `pkg/services/chat/rocketchat` | None. No function returns it, and `disabletls` sends over HTTP. | Unreleased |
 | `Service.Client` | `pkg/services/push/pushover` | `Service.SetHTTPClient` | Unreleased |
 | `HTTPClient` | `pkg/services/chat/discord` | `types.HTTPClient` | Unreleased |
 | `DefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |

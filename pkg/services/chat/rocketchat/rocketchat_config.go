@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
@@ -16,17 +17,21 @@ type Config struct {
 	standard.EnumlessConfig
 
 	// UserName is the username to display for the message (optional).
-	UserName string `optional:"" url:"user"`
+	UserName string `desc:"Override webhook user" optional:"" url:"user"`
 	// Host is the Rocket.Chat server hostname (required).
-	Host string `url:"host"`
+	Host string `desc:"Rocket.Chat server host" url:"host"`
 	// Port is the Rocket.Chat server port (optional).
-	Port string `url:"port"`
+	Port string `desc:"Rocket.Chat server port" optional:"" url:"port"`
 	// TokenA is the first part of the webhook token (required).
-	TokenA string `sensitive:"true" url:"path1"`
+	TokenA string `desc:"Webhook integration ID" sensitive:"true" url:"path1"`
 	// Channel is the target channel or user (optional, can include # for channels or @ for users).
-	Channel string `url:"path3"`
+	Channel string `desc:"Override webhook channel, or @user for a direct message" optional:"" url:"path3"`
 	// TokenB is the second part of the webhook token (required).
-	TokenB string `sensitive:"true" url:"path2"`
+	TokenB string `desc:"Webhook token" sensitive:"true" url:"path2"`
+	// DisableTLS sends the webhook request over HTTP instead of HTTPS.
+	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"no" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.
@@ -48,11 +53,14 @@ const (
 // segment: a channel without its # prefix, which [Config.SetURL] restores, or
 // a user recipient with its @ prefix. A channel whose name starts with @ goes
 // in the URL fragment after a trailing slash instead, so it does not read back
-// as a user recipient.
+// as a user recipient. The query holds the config keys whose values differ
+// from their defaults.
 //
 // Returns:
 //   - A pointer to a url.URL struct representing the current configuration
 func (c *Config) GetURL() *url.URL {
+	resolver := format.NewPropKeyResolver(c)
+
 	path := fmt.Sprintf("/%s/%s", c.TokenA, c.TokenB)
 
 	var fragment string
@@ -74,6 +82,7 @@ func (c *Config) GetURL() *url.URL {
 		Fragment:   fragment,
 		Scheme:     Scheme,
 		ForceQuery: false,
+		RawQuery:   format.BuildQuery(&resolver),
 	}
 
 	return serviceURL
@@ -89,9 +98,11 @@ func (c *Config) GetURL() *url.URL {
 //     such as [ErrHostMissing] for a URL without a host,
 //     [ErrNotEnoughArguments] for a missing or empty integration ID or token,
 //     [ErrInvalidChannel] for a channel with a slash or path segments after
-//     the channel, or
+//     the channel,
 //     [util.ErrInvalidHost] for a host that is not a hostname or a bracketed
-//     IPv6 address
+//     IPv6 address, an error wrapping [util.ErrInvalidQuery] for a malformed
+//     query, or [format.ErrInvalidConfigKey] for an unknown query key. A
+//     rejected URL leaves the config unchanged.
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	userName := serviceURL.User.Username()
 
@@ -137,18 +148,39 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		return ErrInvalidChannel
 	}
 
-	c.Port = port
-	c.UserName = userName
-	c.Host = host
-	c.Channel = channel
+	next := *c
+	next.Port = port
+	next.UserName = userName
+	next.Host = host
+	next.Channel = channel
 
 	if len(path) > 1 {
-		c.TokenA = path[1]
+		next.TokenA = path[1]
 	}
 
 	if len(path) > TokenBIndex {
-		c.TokenB = path[TokenBIndex]
+		next.TokenB = path[TokenBIndex]
 	}
+
+	// The query keys start from their defaults, so a key the URL leaves out
+	// does not keep the value an earlier URL set.
+	resolver := format.NewPropKeyResolver(&next)
+	if err := resolver.SetDefaultProps(&next); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
+
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	for key, vals := range query {
+		if err := resolver.Set(key, vals[0]); err != nil {
+			return fmt.Errorf("setting query parameter %q: %w", key, err)
+		}
+	}
+
+	*c = next
 
 	return nil
 }
