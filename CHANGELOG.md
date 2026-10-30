@@ -61,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clear slice and map keys set from an empty value by @nicholas-fedor in [#1735](https://github.com/nicholas-fedor/shoutrrr/pull/1735)
 - Keep host credentials exact in ifttt, signalgrid, and pushbullet by @nicholas-fedor in [#1733](https://github.com/nicholas-fedor/shoutrrr/pull/1733)
 
+### Performance
+
+- Skip the caller lookup when nothing will be logged by @nicholas-fedor in [#1953](https://github.com/nicholas-fedor/shoutrrr/pull/1953)
+
 ### Changed
 
 - Decide whether a priority was set through the config resolver by @nicholas-fedor in [#1951](https://github.com/nicholas-fedor/shoutrrr/pull/1951)
