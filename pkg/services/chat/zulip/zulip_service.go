@@ -19,6 +19,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
+	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -67,8 +68,10 @@ type Service struct {
 	HTTPClient types.HTTPClient
 
 	// client holds the client from [Service.SetHTTPClient] and the default
-	// client.
+	// clients.
 	client httpclient.Holder
+	// warnings logs each warning about the service's settings once.
+	warnings logging.Once
 
 	// Config holds the settings read from the service URL. Each send works on
 	// a copy with its params applied.
@@ -227,6 +230,7 @@ func (s *Service) GetID() string {
 //     nil.
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
+	s.warnings.Reset()
 	s.Config = &Config{}
 
 	s.pkr = format.NewPropKeyResolver(s.Config)
@@ -263,7 +267,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Zulip. The router calls it with
 // its send deadline. A context without a deadline is bounded by the budget
-// that [Service.ServiceTimeout] reports.
+// that [Service.ServiceTimeout] reports. The first send that skips certificate
+// verification through the default client logs a warning.
 //
 // Parameters:
 //   - ctx: bounds the server limits lookup and the message request.
@@ -304,7 +309,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return err
 	}
 
-	contentMax, topicMax := s.limits(ctx)
+	// The limits lookup and the message go through the same client.
+	httpClient := s.sendClient(ctx, config)
+
+	contentMax, topicMax := s.limits(ctx, httpClient)
 
 	topicLength := len([]rune(config.Topic))
 	if topicLength > topicMax {
@@ -339,7 +347,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrMissingRecipient
 	}
 
-	return s.doSend(ctx, config, message)
+	return s.doSend(ctx, httpClient, config, message)
 }
 
 // SendWithContext delivers a notification message with the provided context.
@@ -399,13 +407,14 @@ func (s *Service) currentLimits() (contentMax, topicMax int) { //nolint:nonamedr
 //
 // Parameters:
 //   - ctx: cancellation for the request.
+//   - httpClient: the HTTP client of the send.
 //   - config: the configuration for this send.
 //   - message: the message to send.
 //
 // Returns:
 //   - error: [ErrResponseStatusFailure] for a status other than 200, with up to
 //     [maxErrorBodySize] bytes of the body, or the request error.
-func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
+func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, config *Config, message string) error {
 	apiURL := s.getAPIURL(config)
 
 	payload := CreatePayload(config, message)
@@ -422,7 +431,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	res, err := s.client.Prefer(s.HTTPClient).Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("making HTTP POST request: %w", redact.URLError(err))
 	}
@@ -454,11 +463,12 @@ func (s *Service) doSend(ctx context.Context, config *Config, message string) er
 //
 // Parameters:
 //   - ctx: bounds the request, further bounded by [registerTimeout].
+//   - httpClient: the HTTP client of the send that looks the limits up.
 //
 // Returns:
 //   - registerResponse: the limits the server reported, zero for any it did not.
 //   - bool: whether the server answered with a 200 status and a JSON body.
-func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
+func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient) (registerResponse, bool) {
 	var reg registerResponse
 
 	if err := validateHost(s.Config.Host); err != nil {
@@ -480,7 +490,7 @@ func (s *Service) fetchLimits(ctx context.Context) (registerResponse, bool) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	res, err := s.client.Prefer(s.HTTPClient).Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return reg, false
 	}
@@ -539,11 +549,13 @@ func (s *Service) getRegisterURL() string {
 //
 // Parameters:
 //   - ctx: bounds the limits request, or the wait for one in flight.
+//   - httpClient: the HTTP client of the send, used when it makes the
+//     request.
 //
 // Returns:
 //   - contentMax: the maximum message length in characters.
 //   - topicMax: the maximum topic length in characters.
-func (s *Service) limits(ctx context.Context) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
+func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
 	s.limitsMu.Lock()
 
 	if s.limitsFetched {
@@ -567,7 +579,7 @@ func (s *Service) limits(ctx context.Context) (contentMax, topicMax int) { //nol
 	s.limitsDone = done
 	s.limitsMu.Unlock()
 
-	reg, fetched := s.fetchLimits(ctx)
+	reg, fetched := s.fetchLimits(ctx, httpClient)
 
 	s.limitsMu.Lock()
 	defer s.limitsMu.Unlock()
@@ -586,4 +598,25 @@ func (s *Service) limits(ctx context.Context) (contentMax, topicMax int) { //nol
 	close(done)
 
 	return s.contentMaxSize, s.topicMaxLength
+}
+
+// sendClient returns the HTTP client for a send's requests, the limits lookup
+// included. A send that skips certificate verification uses the insecure
+// default client, and the first such send logs the shared warning. A client
+// set through [Service.HTTPClient] or [Service.SetHTTPClient] is used
+// unchanged and never warned about, because its owner controls its TLS
+// settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.client.PreferInsecure(s.HTTPClient, func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.client.Prefer(s.HTTPClient)
 }

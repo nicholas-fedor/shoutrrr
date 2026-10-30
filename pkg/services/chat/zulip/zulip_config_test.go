@@ -44,15 +44,16 @@ func TestConfigClone(t *testing.T) {
 	t.Parallel()
 
 	config := &Config{
-		BotMail:      testBotMail,
-		BotKey:       testBotKey,
-		Host:         testHost,
-		Type:         MessageTypeDirect,
-		Stream:       "general",
-		Topic:        "alerts",
-		Title:        "Disk",
-		To:           "alice@example.com",
-		ReadBySender: true,
+		BotMail:       testBotMail,
+		BotKey:        testBotKey,
+		Host:          testHost,
+		Type:          MessageTypeDirect,
+		Stream:        "general",
+		Topic:         "alerts",
+		Title:         "Disk",
+		To:            "alice@example.com",
+		ReadBySender:  true,
+		SkipTLSVerify: true,
 	}
 
 	clone := config.Clone()
@@ -203,10 +204,10 @@ func TestConfigGetURL(t *testing.T) {
 			config: Config{
 				BotMail: testBotMail, BotKey: testBotKey, Host: testHost + ":8443",
 				Type: MessageTypeDirect, Stream: "general", Topic: "alerts", Title: "Disk",
-				To: "alice@example.com,bob@example.com", ReadBySender: true,
+				To: "alice@example.com,bob@example.com", ReadBySender: true, SkipTLSVerify: true,
 			},
 			want: "zulip://bot%40example.com:" + testBotKey + "@" + testHost + ":8443" +
-				"?read_by_sender=true&stream=general&title=Disk&to=alice%40example.com%2Cbob%40example.com&topic=alerts&type=direct",
+				"?read_by_sender=Yes&skiptlsverify=Yes&stream=general&title=Disk&to=alice%40example.com%2Cbob%40example.com&topic=alerts&type=direct",
 		},
 	}
 
@@ -272,6 +273,6 @@ func TestConfigQueryResolver(t *testing.T) {
 
 	assert.Empty(t, config.Enums())
 	assert.Equal(t,
-		[]string{"read_by_sender", "stream", "title", "to", "topic", "type"},
+		[]string{"read_by_sender", "skiptlsverify", "stream", "title", "to", "topic", "type"},
 		format.GetConfigQueryResolver(config).QueryFields())
 }

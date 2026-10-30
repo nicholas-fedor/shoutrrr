@@ -115,6 +115,17 @@ User IDs are sent to Zulip as numbers.
     zulip://my-bot%40zulipchat.com:correcthorsebatterystable@example.zulipchat.com?type=direct&to=user1@example.com,user2@example.com
     ```
 
+## TLS
+
+Zulip sends over HTTPS.
+Set `skiptlsverify=yes` when the server's certificate cannot be verified, such as the self-signed one that Zulip's installer creates with `--self-signed-cert`.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+The setting also applies to the server-side limits request.
+
+The option can also be passed as a send param, which applies to that send only.
+A custom HTTP client set through `SetHTTPClient` or the `HTTPClient` field keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send skips certificate verification through its own client.
+
 ## Server-Side Limits
 
 The service fetches `max_message_length` and `max_topic_length` from Zulip's register endpoint on the first send (with 10s timeout). If the request fails or returns zero values, it falls back to 10,000 characters for content and 60 characters for topics. Like Zulip, the length checks count Unicode characters, not bytes.

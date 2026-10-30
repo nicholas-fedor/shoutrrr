@@ -23,6 +23,7 @@
 //   - Title: Notification title prepended to message content (optional)
 //   - To: Comma-separated user IDs or e-mail addresses for direct messages, not both (optional)
 //   - ReadBySender: Whether to mark sent DM read by the bot (optional, default false)
+//   - SkipTLSVerify: Skip verification of the server's TLS certificate (optional, default false)
 //
 // # Direct Messages
 //

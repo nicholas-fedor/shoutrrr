@@ -41,6 +41,8 @@ type Config struct {
 	To string `desc:"Comma-separated user IDs or emails for DMs" key:"to" optional:""`
 	// ReadBySender marks the message as read by its sender.
 	ReadBySender bool `default:"No" desc:"Mark the message read by its sender" key:"read_by_sender" optional:""`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Message types that [Config.Type] accepts.
@@ -59,17 +61,10 @@ const Scheme = "zulip"
 // Returns:
 //   - *Config: a copy with the same field values.
 func (c *Config) Clone() *Config {
-	return &Config{
-		BotMail:      c.BotMail,
-		BotKey:       c.BotKey,
-		Host:         c.Host,
-		Type:         c.Type,
-		Stream:       c.Stream,
-		Topic:        c.Topic,
-		Title:        c.Title,
-		To:           c.To,
-		ReadBySender: c.ReadBySender,
-	}
+	// Every field is a value, so a struct copy is a full copy.
+	clone := *c
+
+	return &clone
 }
 
 // GetURL returns a URL representation of its current field values.
@@ -99,41 +94,17 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // getURL constructs a URL from the Config's fields.
 //
 // Parameters:
-//   - resolver: unused. The query holds only the options that are set.
+//   - resolver: the resolver that builds the query from the options. Options
+//     at their defaults are left out.
 //
 // Returns:
 //   - *url.URL: the service URL, with the bot credentials as userinfo and the
 //     options as query parameters.
-func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
-	query := &url.Values{}
-	if c.Stream != "" {
-		query.Set("stream", c.Stream)
-	}
-
-	if c.Topic != "" {
-		query.Set("topic", c.Topic)
-	}
-
-	if c.Title != "" {
-		query.Set("title", c.Title)
-	}
-
-	if c.Type != "" {
-		query.Set("type", string(c.Type))
-	}
-
-	if c.To != "" {
-		query.Set("to", c.To)
-	}
-
-	if c.ReadBySender {
-		query.Set("read_by_sender", "true")
-	}
-
+func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	return &url.URL{
 		User:     url.UserPassword(c.BotMail, c.BotKey),
 		Host:     c.Host,
-		RawQuery: query.Encode(),
+		RawQuery: format.BuildQuery(resolver),
 		Scheme:   Scheme,
 	}
 }
