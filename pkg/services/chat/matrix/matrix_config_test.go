@@ -26,7 +26,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigGetURL verifies that GetURL encodes the scheme, host, and
-// credentials, and forces a query separator.
+// credentials and forces a query separator. Its subtest checks that a
+// skiptlsverify from the URL is written back.
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
@@ -40,6 +41,16 @@ func TestConfigGetURL(t *testing.T) {
 	assert.True(t, hasPassword)
 	assert.Equal(t, "testpass", password)
 	assert.True(t, result.ForceQuery)
+
+	t.Run("skiptlsverify round trip", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{}
+		require.NoError(t, config.SetURL(parseTestURL(t, "matrix://testuser:testpass@matrix.example.com?skiptlsverify=yes")))
+
+		assert.True(t, config.SkipTLSVerify)
+		assert.Equal(t, "skiptlsverify=Yes", config.GetURL().RawQuery)
+	})
 }
 
 // TestConfigSetURL verifies that SetURL reads the host and credentials and

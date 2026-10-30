@@ -5,7 +5,9 @@ import (
 	"context"
 	"io"
 	"log"
+	"maps"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -163,6 +165,54 @@ func homeserverResponse(status int, body string) *http.Response {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+// newTLSHomeserverService returns a service initialized for a password
+// login to a TLS server that answers through homeserver. The server's
+// certificate is self-signed, so only a client that skips verification or
+// trusts it can reach the server.
+//
+// Parameters:
+//   - t: the test.
+//   - homeserver: the fake homeserver that answers the requests.
+//   - query: query params appended to the service URL, each starting with &.
+//   - logger: the service's logger.
+//
+// Returns:
+//   - *Service: the service.
+//   - *httptest.Server: the server, closed when the test ends.
+func newTLSHomeserverService(
+	t *testing.T,
+	homeserver *fakeHomeserver,
+	query string,
+	logger types.StdLogger,
+) (*Service, *httptest.Server) {
+	t.Helper()
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		res, err := homeserver.Do(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+
+			return
+		}
+
+		defer func() { _ = res.Body.Close() }()
+
+		maps.Copy(w.Header(), res.Header)
+		w.WriteHeader(res.StatusCode)
+		_, _ = io.Copy(w, res.Body)
+	}))
+	// The rejected TLS handshakes of the verifying sends log through the test.
+	server.Config.ErrorLog = log.New(t.Output(), "", 0)
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	service := &Service{}
+	rawURL := "matrix://user:SECRETpassword@" + server.Listener.Addr().String() + "/?rooms=!room:example.com" + query
+	require.NoError(t, service.Initialize(parseTestURL(t, rawURL), logger))
+
+	return service, server
 }
 
 // newHomeserverService returns a service, not yet initialized, whose requests
@@ -324,6 +374,21 @@ func TestPlaceholderURLDropsClient(t *testing.T) {
 	httpClient.AssertNotCalled(t, "Do", mock.Anything)
 }
 
+// TestFailedInitializeDropsSession verifies that reinitializing with an
+// invalid URL leaves the service unable to send, instead of sending with the
+// earlier session's access token and a partly read config.
+func TestFailedInitializeDropsSession(t *testing.T) {
+	t.Parallel()
+
+	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL), nil))
+
+	require.ErrorIs(t, service.Initialize(parseTestURL(t, "matrix://user@matrix.example.com"), nil), ErrMissingCredentials)
+
+	require.ErrorIs(t, service.Send("message", nil), ErrClientNotInitialized)
+	httpClient.AssertNotCalled(t, "Do", mock.Anything)
+}
+
 // TestAccessTokenSkipsLogin verifies that an access token is used without a
 // login.
 func TestAccessTokenSkipsLogin(t *testing.T) {
@@ -338,8 +403,8 @@ func TestAccessTokenSkipsLogin(t *testing.T) {
 	assert.Equal(t, []string{"Bearer token"}, server.sentTokens())
 }
 
-// TestSendWithoutClient verifies that a service without a client reports
-// ErrClientNotInitialized.
+// TestSendWithoutClient verifies that a service without a homeserver to send
+// to reports ErrClientNotInitialized.
 func TestSendWithoutClient(t *testing.T) {
 	t.Parallel()
 
@@ -548,6 +613,72 @@ func TestSendAppliesDisableTLSParam(t *testing.T) {
 			assert.Equal(t, []string{"Bearer access", "Bearer access"}, server.sentTokens())
 		})
 	}
+}
+
+// TestSendSkipTLSVerify verifies sends to a homeserver whose certificate
+// cannot be verified. Without skiptlsverify the send fails. With it in the
+// URL or the params, the login and the message go through the insecure
+// default client, and the warning is logged once over two sends. An injected
+// client is used unchanged and never warned about.
+func TestSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and whether a client is
+	// injected, with the expected outcome of both sends.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		injected     bool
+		wantErr      bool
+		wantWarnings int
+	}{
+		{name: "verified by default", wantErr: true},
+		{name: "URL", query: "&skiptlsverify=yes", wantWarnings: 1},
+		{name: "params", params: &types.Params{"skiptlsverify": "yes"}, wantWarnings: 1},
+		{name: "injected client", query: "&skiptlsverify=yes", injected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var logs strings.Builder
+
+			homeserver := &fakeHomeserver{}
+			service, server := newTLSHomeserverService(t, homeserver, tt.query, log.New(&logs, "", 0))
+
+			if tt.injected {
+				service.SetHTTPClient(server.Client())
+			}
+
+			for range 2 {
+				err := service.Send("message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			wantLogins := int32(1)
+			if tt.wantErr {
+				wantLogins = 0
+			}
+
+			assert.Equal(t, wantLogins, homeserver.logins.Load())
+			assert.Equal(t, tt.wantWarnings, strings.Count(logs.String(), insecureWarning))
+		})
+	}
+
+	t.Run("params apply to one send", func(t *testing.T) {
+		t.Parallel()
+
+		homeserver := &fakeHomeserver{}
+		service, _ := newTLSHomeserverService(t, homeserver, "", log.New(t.Output(), "", 0))
+
+		require.NoError(t, service.Send("first", &types.Params{"skiptlsverify": "yes"}))
+		require.Error(t, service.Send("second", nil))
+		assert.Equal(t, []string{"Bearer access"}, homeserver.sentTokens())
+	})
 }
 
 // TestSendRejectsInvalidParamBeforeLogin verifies that an invalid send param

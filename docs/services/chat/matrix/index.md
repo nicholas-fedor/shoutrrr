@@ -8,13 +8,13 @@ Matrix is an open protocol for real-time communication. It is designed to allow 
 - __Token-based Authentication__: Use pre-generated access tokens or password-based login
 - __Room Management__: Send messages to specific rooms or all joined rooms
 - __Auto-Join__: Automatically accepts room invites when rooms are explicitly specified in the configuration
-- __TLS Support__: Secure connections with optional TLS disabling
+- __TLS Support__: Secure connections, with options to disable TLS or skip certificate verification
 - __Idempotent Sending__: Uses transaction IDs to prevent duplicate messages
 
 ## URL Format
 
 !!! Info ""
-    matrix://[__`user`__:__`password`__@]__`host`__[:__`port`__]/[?rooms=__`!roomID1`__[,__`roomAlias2`__]][&disabletls=yes]
+    matrix://[__`user`__:__`password`__@]__`host`__[:__`port`__]/[?rooms=__`!roomID1`__[,__`roomAlias2`__]][&disabletls=yes][&skiptlsverify=yes]
 
 If the port is omitted, the default port 443 (HTTPS) is used.
 
@@ -122,6 +122,12 @@ The first send without TLS logs a warning.
 !!! Warning "Security Risk"
     Disabling TLS exposes your credentials and messages in plain text over the network.
     Only use this option in trusted local networks or testing environments.
+
+Set `skiptlsverify=yes` when the homeserver's certificate cannot be verified, such as a self-signed one on its reverse proxy.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+A `skiptlsverify` send param also applies to that send only, including the login on the first send.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
+The first send that skips certificate verification through Shoutrrr's own client logs a warning.
 
 ## Examples
 

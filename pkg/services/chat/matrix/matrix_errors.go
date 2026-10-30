@@ -16,8 +16,9 @@ var (
 	// token is provided in the service configuration URL.
 	ErrMissingCredentials = errors.New("password or access token is required")
 
-	// ErrClientNotInitialized is returned when attempting to send a message
-	// but the Matrix client has not been properly initialized.
+	// ErrClientNotInitialized is returned when a send finds no homeserver to
+	// send to, because Initialize was given the documentation placeholder URL
+	// or was not called.
 	ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
 
 	// ErrUnsupportedLoginFlows is returned when none of the login flows
