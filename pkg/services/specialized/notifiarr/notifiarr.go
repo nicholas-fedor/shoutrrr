@@ -295,7 +295,8 @@ func (s *Service) ParseMentions(message string) []string {
 // Parameters:
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which may override configuration fields
-//     and set the Discord payload. Any other param is an error.
+//     and set the Discord payload. The reserved message and level params are
+//     accepted too. Any other param is an error.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
@@ -312,7 +313,8 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - paramsPtr: optional send params, which may override configuration fields
-//     and set the Discord payload. Any other param is an error.
+//     and set the Discord payload. The reserved message and level params are
+//     accepted too. Any other param is an error.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,

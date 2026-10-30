@@ -253,8 +253,9 @@ func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
 }
 
 // TestSendParams verifies which send params a send accepts. The payload
-// params, the reserved title, and the config keys in any case are accepted. A
-// misspelled param fails the send before any request.
+// params, the reserved title, message, and level params, and the config keys
+// in any case are accepted. A misspelled param fails the send before any
+// request.
 func TestSendParams(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +271,7 @@ func TestSendParams(t *testing.T) {
 	require.NoError(t, service.Send("Hello", &types.Params{
 		"icon": "https://example.com/icon.png", "content": "Above", "footer": "Below",
 		"fields": `[{"title":"Disk","text":"95%","inline":true}]`, "update": "true", "id": "event-1",
-		types.TitleKey: "Title", "Color": "ff0000",
+		types.TitleKey: "Title", types.MessageKey: "ignored", types.LevelKey: "Error", "Color": "ff0000",
 	}))
 
 	assert.Contains(t, captured.body, `"event":"event-1"`)
