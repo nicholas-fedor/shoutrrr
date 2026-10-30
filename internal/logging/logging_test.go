@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
@@ -209,25 +210,37 @@ func TestOnceDeprecations(t *testing.T) {
 	}, logger.warnings)
 }
 
-// TestOnceConcurrent verifies that concurrent sends log a warning once. Run it
-// with -race.
+// TestOnceConcurrent verifies that concurrent sends log each connection
+// warning once. Each round releases its sends together on a fresh Once, so
+// first calls race for the warning. Run it with -race.
 func TestOnceConcurrent(t *testing.T) {
 	t.Parallel()
 
-	var (
-		once Once
-		wg   sync.WaitGroup
-	)
+	for range 200 {
+		var (
+			once Once
+			wg   sync.WaitGroup
+		)
 
-	logger := &recordingLogger{}
+		logger := &recordingLogger{}
+		start := make(chan struct{})
 
-	for range 8 {
-		wg.Go(func() { once.Insecure(t.Context(), logger) })
+		for range 8 {
+			wg.Go(func() {
+				<-start
+				once.Insecure(t.Context(), logger)
+			})
+			wg.Go(func() {
+				<-start
+				once.Plaintext(t.Context(), logger)
+			})
+		}
+
+		close(start)
+		wg.Wait()
+
+		require.ElementsMatch(t, []string{"skipping TLS certificate verification", "sending without TLS"}, logger.messages())
 	}
-
-	wg.Wait()
-
-	assert.Equal(t, []string{"skipping TLS certificate verification"}, logger.messages())
 }
 
 // TestOnceConnectionWarnings verifies the messages of the insecure and
