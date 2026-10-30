@@ -173,7 +173,7 @@ func TestInitialize(t *testing.T) {
 
 	service := newTestService(t, testServiceURL+"?priority=3")
 
-	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, prioritySet: true}, service.Config)
+	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3}, service.Config)
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)
@@ -228,6 +228,21 @@ func TestSend(t *testing.T) {
 			name:     "zero priority param",
 			rawURL:   testServiceURL,
 			params:   &types.Params{"priority": "0"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
+		},
+		{
+			name:     "zero priority param in another case",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"PRIORITY": "0"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
+		},
+		{
+			name:     "zero priority in the URL in another case",
+			rawURL:   testServiceURL + "?Priority=0",
 			message:  "Hello",
 			wantURL:  testEndpoint,
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
@@ -941,6 +956,7 @@ func TestSendLevelPriority(t *testing.T) {
 		"error":               {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: float64(8)},
 		"priority in the URL": {rawURL: testServiceURL + "?priority=0", params: &types.Params{"level": "Error"}, wantPriority: float64(0)},
 		"priority param":      {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "3"}, wantPriority: float64(3)},
+		"zero priority param": {rawURL: testServiceURL, params: &types.Params{"level": "Error", "PRIORITY": "0"}, wantPriority: float64(0)},
 		"unknown level":       {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
 		"no params":           {rawURL: testServiceURL, params: nil, wantPriority: nil},
 	}

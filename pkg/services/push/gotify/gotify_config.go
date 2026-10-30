@@ -59,8 +59,9 @@ type Config struct {
 	// URL query.
 	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
 
-	// prioritySet is true when the URL or the send params set the priority, so
-	// a priority of 0 is sent instead of leaving the application default.
+	// prioritySet is true for a send whose URL, params, or level set the
+	// priority, so a priority of 0 is sent instead of leaving the application
+	// default. Each send sets it after the level applies.
 	prioritySet bool
 }
 
@@ -144,8 +145,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // processQueryParameters processes query parameters from URL.
 // This function handles both standard configuration parameters and the special 'extras'
-// JSON parameter, setting appropriate config fields through the resolver or direct assignment,
-// and notes a priority the query sets.
+// JSON parameter, setting appropriate config fields through the resolver or direct assignment.
 //
 // Parameters:
 //   - resolver: Configuration resolver for setting standard config properties
@@ -173,12 +173,6 @@ func (c *Config) processQueryParameters(
 
 	if err := format.ApplyQuery(resolver, configQuery); err != nil {
 		return fmt.Errorf("%w: %w", ErrConfigPropertyFailed, err)
-	}
-
-	for key := range configQuery {
-		if strings.EqualFold(key, "priority") {
-			c.prioritySet = true
-		}
 	}
 
 	return nil
@@ -219,7 +213,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
-	c.prioritySet = false
 
 	// The documentation dummy URL has no token.
 	if serviceURL.String() != "gotify://dummy@dummy.com" && !(&DefaultValidator{}).ValidateToken(c.Token) {

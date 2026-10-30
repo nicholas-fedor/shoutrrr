@@ -71,7 +71,7 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&skiptlsverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",
 			want: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
-				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
+				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
 			},
 		},
 		{
@@ -84,7 +84,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: testServiceURL + "?insecureskipverify=yes&skiptlsverify=no",
 			want:   Config{Host: testHost, Token: testToken},
 		},
-		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
 		{
 			name:   "extras",
 			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
@@ -105,8 +104,7 @@ func TestConfigSetURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// The priority from an earlier URL does not carry over.
-			config := &Config{prioritySet: true}
+			config := &Config{}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 
 			assert.Equal(t, tt.want, *config)
@@ -186,8 +184,7 @@ func TestConfigGetURL(t *testing.T) {
 			config: Config{
 				Host: testHost, Token: testToken, Priority: 5, Title: "Backup",
 				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z",
-				Extras:      map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
-				prioritySet: true,
+				Extras: map[string]any{"client::display": map[string]any{"contentType": "text/markdown"}},
 			},
 			want: testServiceURL + "?date=2023-12-25T10%3A00%3A00Z&disabletls=Yes&priority=5&skiptlsverify=Yes&title=Backup&useheader=Yes" +
 				"&extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
