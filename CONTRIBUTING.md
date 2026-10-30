@@ -242,6 +242,9 @@ Every service follows the same rules, so services behave alike for users and for
 - When a send makes several requests, such as one per chat, recipient, room, or message batch, make them through `sequential.Send` from `internal/sequential`.
   It keeps going after a request fails and returns every failure joined.
   Once the context ends, it stops and reports the context's error once.
+  SMTP's recipients are an exception, because they share one session.
+  A failed reset between recipients leaves the session unusable, so its loop stops there instead of going on.
+  Otherwise it follows the same rule, going on after a failed recipient and stopping once the context ends.
 - Pass `sequential.PerTarget` with the time one target is budgeted when the targets are independent, such as chats or recipients.
   Each target may use the longer of its budget and an equal share of the time left, so a target that does not answer cannot use up the time of the others.
   The last target keeps the deadline of the send.
