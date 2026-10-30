@@ -187,6 +187,9 @@ const (
 	// checkLeveledLogs verifies that a service logs only leveled records,
 	// without "Warning:" in their messages.
 	checkLeveledLogs = "leveled_logs"
+	// checkConflictingKeys verifies that a URL giving one config key in two
+	// spellings is rejected.
+	checkConflictingKeys = "conflicting_keys"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -234,6 +237,7 @@ const (
 	failNilClientUnreported                    // a send through a nil injected client did not report types.ErrNilHTTPClient
 	failUnleveledLog                           // a service logged text without a level, or "Warning:" in a message
 	failSendFailed                             // a send failed though its transport works
+	failConflictAccepted                       // a URL with one config key in two spellings was accepted
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -464,6 +468,12 @@ var allowlist = map[string]map[string]knownFailure{
 		// a slow lookup leaves the message request the rest of the budget.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failBudget},
 	},
+	checkConflictingKeys: {
+		// A custom query key reaches the webhook as written, and only the exact
+		// config key sets a prop, so another spelling is a webhook parameter.
+		"generic":   {"Generic passes a key in another case through to the webhook as a custom query parameter", failConflictAccepted},
+		"notifiarr": {"Notifiarr passes a key in another case through to the webhook as a custom query parameter", failConflictAccepted},
+	},
 	checkLeveledLogs: {
 		// The fixture's password URL needs a login exchange, which one canned
 		// response cannot answer, so the check sees only failed Matrix sends.
@@ -568,6 +578,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkSendKeepsDeadline, runSendKeepsDeadline},
 		{checkPlaintextWarning, runPlaintextWarning},
 		{checkLeveledLogs, runLeveledLogs},
+		{checkConflictingKeys, runConflictingKeys},
 	}
 
 	for _, check := range checks {
@@ -2297,6 +2308,46 @@ func runSendKeepsDeadline(t *testing.T, fx *fixture) failure {
 	})
 
 	return result
+}
+
+// runConflictingKeys verifies that a URL giving one config key in two
+// spellings fails to initialize with format.ErrConflictingKeys. The spellings
+// are the key and its upper case. The key is the first one with a non-empty
+// value, so the value is valid for both spellings. A service without such a
+// key passes.
+//
+// Parameters:
+//   - t: the test for this case.
+//   - fx: the fixture under test.
+//
+// Returns:
+//   - failure: a failConflictAccepted or failInit failure, or the zero value.
+func runConflictingKeys(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if config == nil {
+		return result
+	}
+
+	resolver := format.GetConfigQueryResolver(config)
+
+	for _, key := range resolver.QueryFields() {
+		value, err := resolver.Get(key)
+		if err != nil || value == "" {
+			continue
+		}
+
+		rawURL := withURLQuery(t, withURLQuery(t, fx.url, key, value), strings.ToUpper(key), value)
+
+		if _, err := locateDefault(t, rawURL, log.New(io.Discard, "", 0)); !errors.Is(err, format.ErrConflictingKeys) {
+			return fail(failConflictAccepted, "a URL with %q and %q was not rejected as conflicting: %v", key, strings.ToUpper(key), err)
+		}
+
+		return failure{}
+	}
+
+	return failure{}
 }
 
 // runPlaintextWarning verifies that a service with a disabletls key logs the

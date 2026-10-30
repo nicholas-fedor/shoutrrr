@@ -1,9 +1,9 @@
 package teams
 
 import (
-	"errors"
-	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -70,7 +70,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the Config from the query of a URL using the provided
-// resolver, skipping empty values and unknown keys.
+// resolver, applying only the config keys.
 //
 // Parameters:
 //   - resolver: the resolver that sets the config props from the query.
@@ -89,17 +89,16 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range query {
-		if len(vals) > 0 && vals[0] != "" {
-			if err := resolver.Set(key, vals[0]); err != nil {
-				if errors.Is(err, format.ErrInvalidConfigKey) {
-					continue
-				}
+	// The query also carries the workflow webhook's own parameters, such as
+	// sig, so only the config keys apply.
+	configKeys := resolver.QueryFields()
+	configQuery := url.Values{}
 
-				return fmt.Errorf("setting config value for key %q: %w", key, err)
-			}
+	for key, vals := range query {
+		if slices.Contains(configKeys, strings.ToLower(key)) {
+			configQuery[key] = vals
 		}
 	}
 
-	return nil
+	return format.ApplyQuery(resolver, configQuery)
 }

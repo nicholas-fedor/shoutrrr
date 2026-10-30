@@ -108,6 +108,11 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost},
 		},
 		{
+			name:   "keys in another case",
+			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?Stream=alerts&READ_BY_SENDER=yes",
+			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost, Stream: "alerts", ReadBySender: true},
+		},
+		{
 			name:   "host with a port",
 			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443",
 			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost + ":8443"},
@@ -139,8 +144,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL requires the bot e-mail address,
-// an API key, and a host, except in the docs command placeholder URL, and
-// rejects a read_by_sender value that is not a boolean.
+// an API key, and a host, except in the docs command placeholder URL. It also
+// rejects a read_by_sender value that is not a boolean and an unknown key.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +165,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 			wantErr: format.ErrInvalidBoolValue,
 		},
 		{name: "placeholder host with another user", rawURL: "zulip://bot@dummy.com", wantErr: ErrMissingAPIKey},
+		{
+			name:    "unknown key",
+			rawURL:  "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?strem=alerts",
+			wantErr: format.ErrInvalidConfigKey,
+		},
 	}
 
 	for _, tt := range tests {

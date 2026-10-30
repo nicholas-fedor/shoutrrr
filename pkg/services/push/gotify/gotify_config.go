@@ -3,6 +3,7 @@ package gotify
 import (
 	"encoding/json/v2"
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 
@@ -147,33 +148,32 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - query: URL query parameters to process
 //
 // Returns:
-//   - error: [ErrExtrasParseFailed] or [ErrConfigPropertyFailed] with the key
-//     and the cause, or nil.
+//   - error: [ErrExtrasParseFailed], or [ErrConfigPropertyFailed] wrapping
+//     the error of [format.ApplyQuery], which names the key, or nil.
 func (c *Config) processQueryParameters(
 	resolver types.ConfigQueryResolver,
 	query url.Values,
 ) error {
-	// Iterate through all query parameters
-	for key := range query {
-		if key == "extras" {
-			// Special handling for extras JSON parameter
-			if query.Get(key) != "" {
-				// Initialize extras map
-				c.Extras = make(map[string]any)
-				// Parse JSON string into map
-				if err := json.Unmarshal([]byte(query.Get(key)), &c.Extras, jsonopts.UserInput); err != nil {
-					return fmt.Errorf("%w: %w", ErrExtrasParseFailed, err)
-				}
-			}
-		} else {
-			// Standard parameter handling through resolver
-			if err := resolver.Set(key, query.Get(key)); err != nil {
-				return fmt.Errorf("%w %q: %w", ErrConfigPropertyFailed, key, err)
-			}
+	// extras holds JSON, which the config sets directly rather than through a
+	// config key.
+	if extras := query.Get("extras"); extras != "" {
+		c.Extras = make(map[string]any)
 
-			if strings.EqualFold(key, "priority") {
-				c.prioritySet = true
-			}
+		if err := json.Unmarshal([]byte(extras), &c.Extras, jsonopts.UserInput); err != nil {
+			return fmt.Errorf("%w: %w", ErrExtrasParseFailed, err)
+		}
+	}
+
+	configQuery := maps.Clone(query)
+	delete(configQuery, "extras")
+
+	if err := format.ApplyQuery(resolver, configQuery); err != nil {
+		return fmt.Errorf("%w: %w", ErrConfigPropertyFailed, err)
+	}
+
+	for key := range configQuery {
+		if strings.EqualFold(key, "priority") {
+			c.prioritySet = true
 		}
 	}
 

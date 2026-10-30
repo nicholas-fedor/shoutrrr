@@ -114,14 +114,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range query {
-		if len(vals) == 0 {
-			continue
-		}
-
-		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q: %w", key, err)
-		}
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
 	}
 
 	if isDummy {
