@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Check skiptlsverify in the positive form when choosing a client by @nicholas-fedor in [#1939](https://github.com/nicholas-fedor/shoutrrr/pull/1939)
 - Keep only the JSON options the services need by @nicholas-fedor in [#1935](https://github.com/nicholas-fedor/shoutrrr/pull/1935)
 - Read flag environment variables without Viper by @nicholas-fedor in [#1933](https://github.com/nicholas-fedor/shoutrrr/pull/1933)
 - Share one loop for the requests of a send by @nicholas-fedor in [#1925](https://github.com/nicholas-fedor/shoutrrr/pull/1925)
