@@ -74,6 +74,8 @@ func TestConfigSetURL(t *testing.T) {
 				DisableTLS: true, SkipTLSVerify: true, UseHeader: true, Date: "2023-12-25T10:00:00Z", prioritySet: true,
 			},
 		},
+		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
+		{name: "zero priority in another case", rawURL: testServiceURL + "?PRIORITY=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
 		{
 			name:   "deprecated key",
 			rawURL: testServiceURL + "?insecureskipverify=yes",
@@ -84,7 +86,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: testServiceURL + "?insecureskipverify=yes&skiptlsverify=no",
 			want:   Config{Host: testHost, Token: testToken},
 		},
-		{name: "zero priority", rawURL: testServiceURL + "?priority=0", want: Config{Host: testHost, Token: testToken, prioritySet: true}},
 		{
 			name:   "extras",
 			rawURL: testServiceURL + "?extras=" + url.QueryEscape(`{"client::display":{"contentType":"text/markdown"}}`),
@@ -105,7 +106,7 @@ func TestConfigSetURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// The priority from an earlier URL does not carry over.
+			// The priority flag from an earlier URL does not carry over.
 			config := &Config{prioritySet: true}
 			require.NoError(t, config.SetURL(parseTestURL(t, tt.rawURL)))
 

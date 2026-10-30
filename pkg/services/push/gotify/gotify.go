@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
@@ -182,6 +181,29 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
 }
 
+// applyLevel sets the priority of a message from its level param when neither
+// the service URL nor the send params set it. Debug uses 2, which shows only an
+// icon, warning uses 5, which adds a sound, and error uses 8, which adds
+// vibration. Info leaves the application's default priority.
+//
+// Parameters:
+//   - config: the config for this send, with params already applied.
+//   - params: the send params, or nil.
+func (s *Service) applyLevel(config *Config, params *types.Params) {
+	if params == nil {
+		return
+	}
+
+	level, ok := params.Level()
+	if !ok {
+		return
+	}
+
+	if levelPriority, mapped := levelPriorities[level]; mapped && !config.prioritySet && s.pkr.KeepsDefault(config, params, "priority") {
+		config.Priority = levelPriority
+	}
+}
+
 // buildRequest constructs the URL, payload, and headers for the HTTP request.
 //
 // Parameters:
@@ -256,15 +278,10 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
-	if params != nil {
-		for key := range *params {
-			if strings.EqualFold(key, "priority") {
-				config.prioritySet = true
-			}
-		}
-	}
+	s.applyLevel(&config, params)
 
-	applyLevel(&config, params)
+	// A priority the URL, the params, or the level set, even 0, is sent as it is.
+	config.prioritySet = config.prioritySet || !s.pkr.KeepsDefault(&config, params, "priority")
 
 	// Validate priority is within valid range (-2 to 10)
 	if err := s.validator.ValidatePriority(config.Priority); err != nil {
@@ -360,28 +377,4 @@ func (s *Service) validateInputs(message string, _ *types.Params) error {
 	}
 
 	return nil
-}
-
-// applyLevel sets the priority of a message from its level param when neither
-// the service URL nor the send params set it. Debug uses 2, which shows only an
-// icon, warning uses 5, which adds a sound, and error uses 8, which adds
-// vibration. Info leaves the application's default priority.
-//
-// Parameters:
-//   - config: the config for this send, with params already applied.
-//   - params: the send params, or nil.
-func applyLevel(config *Config, params *types.Params) {
-	if params == nil || config.prioritySet {
-		return
-	}
-
-	level, ok := params.Level()
-	if !ok {
-		return
-	}
-
-	if levelPriority, mapped := levelPriorities[level]; mapped {
-		config.Priority = levelPriority
-		config.prioritySet = true
-	}
 }

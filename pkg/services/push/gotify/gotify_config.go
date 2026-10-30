@@ -59,8 +59,10 @@ type Config struct {
 	// URL query.
 	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
 
-	// prioritySet is true when the URL or the send params set the priority, so
-	// a priority of 0 is sent instead of leaving the application default.
+	// prioritySet is true when the URL, the send params, or the level set the
+	// priority, so a priority of 0 is sent instead of leaving the application
+	// default. Reading a URL records whether that URL set it, and each send
+	// adds its params and level.
 	prioritySet bool
 }
 
@@ -144,8 +146,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // processQueryParameters processes query parameters from URL.
 // This function handles both standard configuration parameters and the special 'extras'
-// JSON parameter, setting appropriate config fields through the resolver or direct assignment,
-// and notes a priority the query sets.
+// JSON parameter, setting appropriate config fields through the resolver or direct assignment.
 //
 // Parameters:
 //   - resolver: Configuration resolver for setting standard config properties
@@ -155,7 +156,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - error: [ErrExtrasParseFailed], or [ErrConfigPropertyFailed] wrapping
 //     the error of [format.ApplyQuery], which names the key, or nil.
 func (c *Config) processQueryParameters(
-	resolver types.ConfigQueryResolver,
+	resolver *format.PropKeyResolver,
 	query url.Values,
 ) error {
 	// extras holds JSON, which the config sets directly rather than through a
@@ -175,11 +176,8 @@ func (c *Config) processQueryParameters(
 		return fmt.Errorf("%w: %w", ErrConfigPropertyFailed, err)
 	}
 
-	for key := range configQuery {
-		if strings.EqualFold(key, "priority") {
-			c.prioritySet = true
-		}
-	}
+	// A priority this URL sets under any spelling, even 0, is sent.
+	c.prioritySet = !resolver.KeepsDefault(c, nil, "priority")
 
 	return nil
 }
@@ -196,7 +194,7 @@ func (c *Config) processQueryParameters(
 //   - error: [ErrHostMissing] for a URL without a host, [ErrInvalidToken] for a
 //     missing token or one in neither Gotify token format, an error wrapping
 //     [util.ErrInvalidQuery] for a malformed query, or a query parameter error.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
 	if path != "" && path[len(path)-1] == '/' {
@@ -219,7 +217,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
-	c.prioritySet = false
 
 	// The documentation dummy URL has no token.
 	if serviceURL.String() != "gotify://dummy@dummy.com" && !(&DefaultValidator{}).ValidateToken(c.Token) {

@@ -233,6 +233,21 @@ func TestSend(t *testing.T) {
 			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
 		},
 		{
+			name:     "zero priority param in another case",
+			rawURL:   testServiceURL,
+			params:   &types.Params{"PRIORITY": "0"},
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
+		},
+		{
+			name:     "zero priority in the URL in another case",
+			rawURL:   testServiceURL + "?Priority=0",
+			message:  "Hello",
+			wantURL:  testEndpoint,
+			wantBody: `{"message":"Hello","title":"Shoutrrr notification","priority":0}`,
+		},
+		{
 			name:     "zero priority in the URL",
 			rawURL:   testServiceURL + "?priority=0",
 			message:  "Hello",
@@ -933,6 +948,7 @@ func TestSendLevelPriority(t *testing.T) {
 	tests := map[string]struct {
 		rawURL       string
 		params       *types.Params
+		setURL       string
 		wantPriority any
 	}{
 		"debug":               {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: float64(2)},
@@ -941,8 +957,13 @@ func TestSendLevelPriority(t *testing.T) {
 		"error":               {rawURL: testServiceURL, params: &types.Params{"level": "Error"}, wantPriority: float64(8)},
 		"priority in the URL": {rawURL: testServiceURL + "?priority=0", params: &types.Params{"level": "Error"}, wantPriority: float64(0)},
 		"priority param":      {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "3"}, wantPriority: float64(3)},
-		"unknown level":       {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
-		"no params":           {rawURL: testServiceURL, params: nil, wantPriority: nil},
+		"zero priority param": {rawURL: testServiceURL, params: &types.Params{"level": "Error", "PRIORITY": "0"}, wantPriority: float64(0)},
+		"priority from a later SetURL": {
+			rawURL: testServiceURL, setURL: testServiceURL + "?priority=0",
+			params: &types.Params{"level": "Error"}, wantPriority: float64(0),
+		},
+		"unknown level": {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
+		"no params":     {rawURL: testServiceURL, params: nil, wantPriority: nil},
 	}
 
 	for name, tc := range tests {
@@ -950,6 +971,10 @@ func TestSendLevelPriority(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tc.rawURL)
+			if tc.setURL != "" {
+				require.NoError(t, service.Config.SetURL(parseTestURL(t, tc.setURL)))
+			}
+
 			client, captured := newRecordingClient(t, sent)
 			service.SetHTTPClient(client)
 
