@@ -74,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Send every API request through one method by @nicholas-fedor in [#1972](https://github.com/nicholas-fedor/shoutrrr/pull/1972)
 - Decide whether a priority was set through the config resolver by @nicholas-fedor in [#1951](https://github.com/nicholas-fedor/shoutrrr/pull/1951)
 - Let the config resolver decide which send params set the config by @nicholas-fedor in [#1947](https://github.com/nicholas-fedor/shoutrrr/pull/1947)
 - Check skiptlsverify in the positive form when choosing a client by @nicholas-fedor in [#1939](https://github.com/nicholas-fedor/shoutrrr/pull/1939)
