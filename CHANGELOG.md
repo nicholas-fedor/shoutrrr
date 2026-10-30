@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add skiptlsverify for servers with unverifiable certificates by @nicholas-fedor in [#1966](https://github.com/nicholas-fedor/shoutrrr/pull/1966)
 - Add skiptlsverify for homeservers with unverifiable certificates by @nicholas-fedor in [#1962](https://github.com/nicholas-fedor/shoutrrr/pull/1962)
 - Add skiptlsverify to Mattermost and Generic by @nicholas-fedor in [#1961](https://github.com/nicholas-fedor/shoutrrr/pull/1961)
 - Add disabletls and skiptlsverify for self-hosted servers by @nicholas-fedor in [#1941](https://github.com/nicholas-fedor/shoutrrr/pull/1941)
