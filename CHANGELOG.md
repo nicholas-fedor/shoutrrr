@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject send params that are neither config keys nor payload params by @nicholas-fedor in [#1955](https://github.com/nicholas-fedor/shoutrrr/pull/1955)
 - Build Lark, IFTTT, and Join payloads from the send's config by @nicholas-fedor in [#1949](https://github.com/nicholas-fedor/shoutrrr/pull/1949)
 - Reject a config key given in two spellings by @nicholas-fedor in [#1943](https://github.com/nicholas-fedor/shoutrrr/pull/1943)
 - Report a service timeout only when its budget runs out by @nicholas-fedor in [#1931](https://github.com/nicholas-fedor/shoutrrr/pull/1931)
