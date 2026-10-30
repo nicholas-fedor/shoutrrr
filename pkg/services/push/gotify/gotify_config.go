@@ -59,9 +59,10 @@ type Config struct {
 	// URL query.
 	UseHeader bool `default:"No" desc:"Enable header-based authentication" key:"useheader"`
 
-	// prioritySet is true for a send whose URL, params, or level set the
+	// prioritySet is true when the URL, the send params, or the level set the
 	// priority, so a priority of 0 is sent instead of leaving the application
-	// default. Each send sets it after the level applies.
+	// default. Reading a URL records whether that URL set it, and each send
+	// adds its params and level.
 	prioritySet bool
 }
 
@@ -155,7 +156,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - error: [ErrExtrasParseFailed], or [ErrConfigPropertyFailed] wrapping
 //     the error of [format.ApplyQuery], which names the key, or nil.
 func (c *Config) processQueryParameters(
-	resolver types.ConfigQueryResolver,
+	resolver *format.PropKeyResolver,
 	query url.Values,
 ) error {
 	// extras holds JSON, which the config sets directly rather than through a
@@ -175,6 +176,9 @@ func (c *Config) processQueryParameters(
 		return fmt.Errorf("%w: %w", ErrConfigPropertyFailed, err)
 	}
 
+	// A priority this URL sets under any spelling, even 0, is sent.
+	c.prioritySet = !resolver.KeepsDefault(c, nil, "priority")
+
 	return nil
 }
 
@@ -190,7 +194,7 @@ func (c *Config) processQueryParameters(
 //   - error: [ErrHostMissing] for a URL without a host, [ErrInvalidToken] for a
 //     missing token or one in neither Gotify token format, an error wrapping
 //     [util.ErrInvalidQuery] for a malformed query, or a query parameter error.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	// Extract and clean the path from the URL
 	path := serviceURL.Path
 	if path != "" && path[len(path)-1] == '/' {

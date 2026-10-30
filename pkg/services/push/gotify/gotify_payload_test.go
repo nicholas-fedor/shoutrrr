@@ -81,6 +81,11 @@ func TestPrepareRequest(t *testing.T) {
 	assert.Equal(t,
 		&MessageRequest{Message: "Hello", Title: "Backup"},
 		builder.PrepareRequest("Hello", &Config{Title: "Backup", prioritySet: true}, nil, ""))
+
+	// A zero priority from a URL read by Config.SetURL is sent.
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, testServiceURL+"?priority=0")))
+	assert.False(t, builder.PrepareRequest("Hello", config, nil, "").omitPriority)
 }
 
 // TestMessageRequestMarshalJSON verifies the JSON body of a message: the

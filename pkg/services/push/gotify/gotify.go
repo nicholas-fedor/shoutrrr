@@ -199,7 +199,7 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 		return
 	}
 
-	if levelPriority, mapped := levelPriorities[level]; mapped && s.pkr.KeepsDefault(config, params, "priority") {
+	if levelPriority, mapped := levelPriorities[level]; mapped && !config.prioritySet && s.pkr.KeepsDefault(config, params, "priority") {
 		config.Priority = levelPriority
 	}
 }
@@ -281,7 +281,7 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 	s.applyLevel(&config, params)
 
 	// A priority the URL, the params, or the level set, even 0, is sent as it is.
-	config.prioritySet = !s.pkr.KeepsDefault(&config, params, "priority")
+	config.prioritySet = config.prioritySet || !s.pkr.KeepsDefault(&config, params, "priority")
 
 	// Validate priority is within valid range (-2 to 10)
 	if err := s.validator.ValidatePriority(config.Priority); err != nil {

@@ -173,7 +173,7 @@ func TestInitialize(t *testing.T) {
 
 	service := newTestService(t, testServiceURL+"?priority=3")
 
-	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3}, service.Config)
+	assert.Equal(t, &Config{Host: testHost, Token: testToken, Title: "Shoutrrr notification", Priority: 3, prioritySet: true}, service.Config)
 	assert.IsType(t, &DefaultURLBuilder{}, service.urlBuilder)
 	assert.IsType(t, &DefaultPayloadBuilder{}, service.payloadBuilder)
 	assert.IsType(t, &DefaultValidator{}, service.validator)
@@ -948,6 +948,7 @@ func TestSendLevelPriority(t *testing.T) {
 	tests := map[string]struct {
 		rawURL       string
 		params       *types.Params
+		setURL       string
 		wantPriority any
 	}{
 		"debug":               {rawURL: testServiceURL, params: &types.Params{"level": "Debug"}, wantPriority: float64(2)},
@@ -957,8 +958,12 @@ func TestSendLevelPriority(t *testing.T) {
 		"priority in the URL": {rawURL: testServiceURL + "?priority=0", params: &types.Params{"level": "Error"}, wantPriority: float64(0)},
 		"priority param":      {rawURL: testServiceURL, params: &types.Params{"level": "Error", "priority": "3"}, wantPriority: float64(3)},
 		"zero priority param": {rawURL: testServiceURL, params: &types.Params{"level": "Error", "PRIORITY": "0"}, wantPriority: float64(0)},
-		"unknown level":       {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
-		"no params":           {rawURL: testServiceURL, params: nil, wantPriority: nil},
+		"priority from a later SetURL": {
+			rawURL: testServiceURL, setURL: testServiceURL + "?priority=0",
+			params: &types.Params{"level": "Error"}, wantPriority: float64(0),
+		},
+		"unknown level": {rawURL: testServiceURL, params: &types.Params{"level": "critical"}, wantPriority: nil},
+		"no params":     {rawURL: testServiceURL, params: nil, wantPriority: nil},
 	}
 
 	for name, tc := range tests {
@@ -966,6 +971,10 @@ func TestSendLevelPriority(t *testing.T) {
 			t.Parallel()
 
 			service := newTestService(t, tc.rawURL)
+			if tc.setURL != "" {
+				require.NoError(t, service.Config.SetURL(parseTestURL(t, tc.setURL)))
+			}
+
 			client, captured := newRecordingClient(t, sent)
 			service.SetHTTPClient(client)
 
