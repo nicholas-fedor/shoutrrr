@@ -101,8 +101,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     error, or the send error, which matches ctx's error when ctx ends the
-//     request.
+//     error, [ErrDevicesMissing] when the params leave no devices, or the send
+//     error, which matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -119,6 +119,11 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	resolver := format.NewPropKeyResolver(config)
 	if err := resolver.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	// An empty devices param clears the devices, which the URL cannot do.
+	if len(config.Devices) == 0 {
+		return fmt.Errorf("updating config from params: %w", ErrDevicesMissing)
 	}
 
 	return s.sendToDevices(ctx, config, message)

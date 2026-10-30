@@ -215,8 +215,9 @@ func TestSend(t *testing.T) {
 	}
 }
 
-// TestSendParams verifies that an unknown param fails the send before any
-// request, and that params leave the stored config unchanged.
+// TestSendParams verifies that an unknown param or an empty devices param
+// fails the send before any request, and that params leave the stored config
+// unchanged.
 func TestSendParams(t *testing.T) {
 	t.Parallel()
 
@@ -226,6 +227,7 @@ func TestSendParams(t *testing.T) {
 	// The mock has no expectations, so a request fails the test.
 	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 	require.ErrorIs(t, service.Send("Message", &types.Params{"titel": "Alert"}), format.ErrInvalidConfigKey)
+	require.ErrorIs(t, service.Send("Message", &types.Params{"devices": ""}), ErrDevicesMissing)
 
 	client, _ := newRespondingClient(t, "200 OK", http.StatusOK)
 	service.SetHTTPClient(client)
