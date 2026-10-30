@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/logbridge"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -23,13 +24,16 @@ type Logger interface {
 // source. The zero value is ready to use, and a Once is safe for concurrent
 // use. A Once must not be copied after first use.
 type Once struct {
-	// logged holds the keys of the connection warnings and the [Once.Do]
-	// warnings already logged.
+	// logged holds the keys of the [Once.Do] warnings already logged.
 	logged sync.Map
 	// fields holds the names of the deprecated fields already warned about.
 	fields sync.Map
 	// keys holds the names of the deprecated keys already warned about.
 	keys sync.Map
+	// insecure is true once the insecure warning was logged.
+	insecure atomic.Bool
+	// plaintext is true once the plaintext warning was logged.
+	plaintext atomic.Bool
 }
 
 // Attribute keys for log records.
@@ -126,9 +130,9 @@ func (o *Once) Do(key string, warn func()) {
 //   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 func (o *Once) Insecure(ctx context.Context, logger Logger) {
-	// The constant key keeps a repeated warning free of allocations.
-	if _, loaded := o.logged.LoadOrStore("insecure", struct{}{}); !loaded {
-		logbridge.Log(ctx, logger.Slog(), 1, slog.LevelWarn, insecureWarning)
+	// A repeated call returns after reading the flag, without a function call.
+	if !o.insecure.Load() {
+		logOnce(ctx, logger, &o.insecure, insecureWarning)
 	}
 }
 
@@ -139,9 +143,9 @@ func (o *Once) Insecure(ctx context.Context, logger Logger) {
 //   - ctx: the context of the call, passed to the log handler.
 //   - logger: the service's logger.
 func (o *Once) Plaintext(ctx context.Context, logger Logger) {
-	// The constant key keeps a repeated warning free of allocations.
-	if _, loaded := o.logged.LoadOrStore("plaintext", struct{}{}); !loaded {
-		logbridge.Log(ctx, logger.Slog(), 1, slog.LevelWarn, plaintextWarning)
+	// A repeated call returns after reading the flag, without a function call.
+	if !o.plaintext.Load() {
+		logOnce(ctx, logger, &o.plaintext, plaintextWarning)
 	}
 }
 
@@ -150,6 +154,26 @@ func (o *Once) Reset() {
 	o.logged.Clear()
 	o.fields.Clear()
 	o.keys.Clear()
+	o.insecure.Store(false)
+	o.plaintext.Store(false)
+}
+
+// logOnce logs msg unless logged is already true, and sets it. Of concurrent
+// first calls, only the one that sets logged logs. The warning's source is the
+// service's call to the Once method that calls logOnce.
+//
+// Parameters:
+//   - ctx: the context of the call, passed to the log handler.
+//   - logger: the service's logger.
+//   - logged: whether this warning was logged.
+//   - msg: the warning message.
+func logOnce(ctx context.Context, logger Logger, logged *atomic.Bool, msg string) {
+	if !logged.CompareAndSwap(false, true) {
+		return
+	}
+
+	// Two calls up is the service's call to the Once method.
+	logbridge.Log(ctx, logger.Slog(), 2, slog.LevelWarn, msg) //nolint:mnd // Explained above.
 }
 
 // logDeprecations logs a warning for each deprecation that logged has not
