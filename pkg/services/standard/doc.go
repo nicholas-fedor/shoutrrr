@@ -47,14 +47,15 @@
 //
 // Logger provides methods for outputting non-fatal log information. Debug,
 // Info, and Warn log leveled records with a constant message and key/value
-// attributes. A types.SlogLogger receives them in its slog logger, and any
-// other types.StdLogger receives each one as a line of text. The deprecated
-// Log and Logf write text to the logger as it is:
+// attributes. LogAttrs logs one with slog.Attr values, which allocate nothing
+// when the record is dropped. A types.SlogLogger receives the records in its
+// slog logger, and any other types.StdLogger receives each one as a line of
+// text. The deprecated Log and Logf write text to the logger as it is:
 //
 //	logger := &standard.Logger{}
 //	logger.SetLogger(myLogger)
 //	logger.Warn(ctx, "response has no timestamp")
-//	logger.Debug(ctx, "request sent", "status", 200)
+//	logger.LogAttrs(ctx, slog.LevelDebug, "request sent", slog.Int("status", 200))
 //
 // When SetLogger is called with nil, the logger discards everything.
 //

@@ -114,14 +114,38 @@ func Log(ctx context.Context, logger *slog.Logger, skip int, level slog.Level, m
 		return
 	}
 
-	// Skip runtime.Callers and Log itself, as slog's documentation on wrapping
-	// output methods describes.
-	var pcs [1]uintptr
-
-	runtime.Callers(skip+2, pcs[:]) //nolint:mnd // The two frames explained above.
-
-	record := slog.NewRecord(time.Now(), level, msg, pcs[0])
+	record := slog.NewRecord(time.Now(), level, msg, callerPC(skip))
 	record.Add(args...)
+
+	_ = logger.Handler().Handle(ctx, record) //nolint:errcheck // Discarded as slog.Logger discards it.
+}
+
+// LogAttrs logs a record to logger as [Log] does, with attributes given as
+// [slog.Attr] values. Unlike the arguments of Log, they are not converted to
+// interface values, so a record that the logger drops costs no allocation.
+//
+// Parameters:
+//   - ctx: the context of the call, passed to the handler. Nil means the
+//     background context.
+//   - logger: the logger that receives the record.
+//   - skip: how many calls above the function that calls LogAttrs the source
+//     is. With 0, it is the call to LogAttrs.
+//   - level: the level of the record.
+//   - msg: the message.
+//   - attrs: the attributes.
+//
+//nolint:contextcheck // A nil context is replaced with the background context, as slog.Logger does.
+func LogAttrs(ctx context.Context, logger *slog.Logger, skip int, level slog.Level, msg string, attrs ...slog.Attr) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if !logger.Enabled(ctx, level) {
+		return
+	}
+
+	record := slog.NewRecord(time.Now(), level, msg, callerPC(skip))
+	record.AddAttrs(attrs...)
 
 	_ = logger.Handler().Handle(ctx, record) //nolint:errcheck // Discarded as slog.Logger discards it.
 }
@@ -257,4 +281,26 @@ func builtinAttrDropper(level slog.Level, msg string) func([]string, slog.Attr) 
 			return attr
 		}
 	}
+}
+
+// callerPC returns the program counter of the source of the record that [Log]
+// or [LogAttrs] logs. Log and LogAttrs call it only for a record the logger
+// handles, because walking the stack costs more than the level check. They
+// keep the level check in their own bodies, so a dropped record costs no
+// further call.
+//
+// Parameters:
+//   - skip: how many calls above the function that calls Log or LogAttrs the
+//     source is.
+//
+// Returns:
+//   - uintptr: the program counter of the source.
+func callerPC(skip int) uintptr {
+	// Skip runtime.Callers, callerPC, and Log or LogAttrs, as slog's
+	// documentation on wrapping output methods describes.
+	var pcs [1]uintptr
+
+	runtime.Callers(skip+3, pcs[:]) //nolint:mnd // The three frames explained above.
+
+	return pcs[0]
 }

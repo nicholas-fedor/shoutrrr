@@ -180,8 +180,8 @@ func logDeprecations(
 
 		if _, loaded := logged.LoadOrStore(deprecation.Name, struct{}{}); !loaded {
 			// Two calls up is the service's call to the Once method.
-			logbridge.Log(ctx, logger.Slog(), 2, slog.LevelWarn, msg, //nolint:mnd // Explained above.
-				nameKey, deprecation.Name, KeyReplacement, deprecation.Replacement)
+			logbridge.LogAttrs(ctx, logger.Slog(), 2, slog.LevelWarn, msg, //nolint:mnd // Explained above.
+				slog.String(nameKey, deprecation.Name), slog.String(KeyReplacement, deprecation.Replacement))
 		}
 	}
 }

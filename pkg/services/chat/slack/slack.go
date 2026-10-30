@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -169,7 +170,7 @@ func (s *Service) sendAPI(ctx context.Context, config *Config, payload *MessageP
 	}
 
 	if response.Warning != "" {
-		s.Warn(ctx, "API returned a warning", logging.KeyWarning, response.Warning)
+		s.LogAttrs(ctx, slog.LevelWarn, "API returned a warning", slog.String(logging.KeyWarning, response.Warning))
 	}
 
 	return nil

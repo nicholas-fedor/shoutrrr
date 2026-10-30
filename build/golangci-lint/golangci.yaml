@@ -463,6 +463,28 @@ linters:
       ignore-missing-subtests: true
 
     ####################################################################################################
+    # https://golangci-lint.run/docs/linters/configuration/#sloglint
+    sloglint:
+      # Report key/value pairs, so records carry typed slog.Attr values. Converting a key/value
+      # argument to an interface allocates even when the logger drops the record.
+      # Default: false
+      attr-only: true
+      # Check the leveled methods that services and the shared warnings log through.
+      custom-funcs:
+        - name: "(*github.com/nicholas-fedor/shoutrrr/pkg/services/standard.Logger).Debug"
+          msg-pos: 1
+          args-pos: 2
+        - name: "(*github.com/nicholas-fedor/shoutrrr/pkg/services/standard.Logger).Info"
+          msg-pos: 1
+          args-pos: 2
+        - name: "(*github.com/nicholas-fedor/shoutrrr/pkg/services/standard.Logger).Warn"
+          msg-pos: 1
+          args-pos: 2
+        - name: "github.com/nicholas-fedor/shoutrrr/internal/logbridge.Log"
+          msg-pos: 4
+          args-pos: 5
+
+    ####################################################################################################
     # https://golangci-lint.run/docs/linters/configuration/#testifylint
     testifylint:
       enable-all: true
@@ -614,6 +636,11 @@ linters:
           - varnamelen
           - wrapcheck
           - bodyclose
+      # Tests log key/value pairs to check the methods that take them.
+      - path: _test\.go
+        linters:
+          - sloglint
+        text: "key-value pairs should not be used"
       # Exclude dupword from running on doc.go files.
       - path: "doc.go$"
         linters:

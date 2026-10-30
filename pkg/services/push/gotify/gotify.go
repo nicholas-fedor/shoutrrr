@@ -3,6 +3,7 @@ package gotify
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -297,7 +298,8 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 	// Parse extras from parameters or fall back to config extras
 	extras, err := s.payloadBuilder.ParseExtras(params, &config)
 	if err != nil {
-		s.Warn(ctx, "extras param not parsed, using the configured extras", logging.KeyError, err)
+		s.LogAttrs(ctx, slog.LevelWarn, "extras param not parsed, using the configured extras",
+			slog.Any(logging.KeyError, err))
 
 		extras = config.Extras
 	}

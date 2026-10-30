@@ -3,6 +3,7 @@ package smtp
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/smtp"
 	"os"
 	"strings"
@@ -61,7 +62,7 @@ func (s *session) auth() error {
 //   - ctx: the context of the send, passed to the warning.
 func (s *session) closeClient(ctx context.Context) {
 	if closeErr := s.client.Close(); closeErr != nil {
-		s.svc.Warn(ctx, "closing the SMTP connection failed", logging.KeyError, closeErr)
+		s.svc.LogAttrs(ctx, slog.LevelWarn, "closing the SMTP connection failed", slog.Any(logging.KeyError, closeErr))
 	}
 }
 
@@ -145,7 +146,7 @@ func (s *session) ehloName(ctx context.Context) string {
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		s.svc.Warn(ctx, "hostname unavailable, using localhost", logging.KeyError, err)
+		s.svc.LogAttrs(ctx, slog.LevelWarn, "hostname unavailable, using localhost", slog.Any(logging.KeyError, err))
 
 		return "localhost"
 	}

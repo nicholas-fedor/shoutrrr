@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -104,7 +105,8 @@ func (s *Service) createRequest(
 func (s *Service) handleSendResults(ctx context.Context, body []byte) error {
 	results, err := parseSendResults(body)
 	if err != nil {
-		s.Warn(ctx, "response not parsed, so the recipient results were not checked", logging.KeyError, err)
+		s.LogAttrs(ctx, slog.LevelWarn, "response not parsed, so the recipient results were not checked",
+			slog.Any(logging.KeyError, err))
 
 		return nil
 	}
@@ -126,7 +128,7 @@ func (s *Service) handleSendResults(ctx context.Context, body []byte) error {
 			continue
 		}
 
-		s.Debug(ctx, "message sent", logging.KeyTimestamp, *result.Timestamp)
+		s.LogAttrs(ctx, slog.LevelDebug, "message sent", slog.Int64(logging.KeyTimestamp, int64(*result.Timestamp)))
 	}
 
 	if len(failed) > 0 {
@@ -191,7 +193,8 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	truncated := errors.Is(err, httpbody.ErrTooLarge)
 	if err != nil && !truncated {
 		if accepted {
-			s.Warn(req.Context(), "response not read, so the recipient results were not checked", logging.KeyError, err)
+			s.LogAttrs(req.Context(), slog.LevelWarn, "response not read, so the recipient results were not checked",
+				slog.Any(logging.KeyError, err))
 
 			return nil
 		}
@@ -206,8 +209,8 @@ func (s *Service) sendRequest(req *http.Request, config *Config) error {
 	// The API accepted the message, but a cut body cannot be read for the
 	// per-recipient results.
 	if truncated {
-		s.Warn(req.Context(), "response too large, so the recipient results were not checked",
-			logging.KeyLimit, httpbody.MaxSize)
+		s.LogAttrs(req.Context(), slog.LevelWarn, "response too large, so the recipient results were not checked",
+			slog.Int(logging.KeyLimit, httpbody.MaxSize))
 
 		return nil
 	}
