@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
-	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // HTTPClient defines the interface for HTTP operations.
@@ -40,9 +40,8 @@ type client struct {
 	// records. A logger that the service is given later reaches the client
 	// through it.
 	logger *standard.Logger
-	// httpClient holds the service's HTTP client, which sends the API
-	// requests.
-	httpClient *httpclient.Holder
+	// httpClient sends the API requests.
+	httpClient types.HTTPClient
 	// accessToken authenticates the requests after login, or is empty before.
 	accessToken string
 	// apiURL is the homeserver's base URL.
@@ -190,7 +189,7 @@ func (c *client) apiGet(ctx context.Context, path string, response any) error {
 
 	c.setAuthorizationHeader(req)
 
-	res, err := c.httpClient.Client().Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing GET request: %w", redact.URLError(err))
 	}
@@ -302,7 +301,7 @@ func (c *client) doSingleRequest(ctx context.Context, method, path string, reque
 	req.Header.Set("Content-Type", contentType)
 	c.setAuthorizationHeader(req)
 
-	res, err := c.httpClient.Client().Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
 	}
@@ -641,29 +640,6 @@ func (c *client) setAuthorizationHeader(req *http.Request) {
 	}
 }
 
-// useToken sets the access token for the client.
-//
-// Parameters:
-//   - token: the access token.
-func (c *client) useToken(token string) {
-	c.accessToken = token
-}
-
-// withScheme returns a copy of the client that sends its requests with
-// scheme. The copy shares the HTTP client and starts with the access token.
-//
-// Parameters:
-//   - scheme: the URL scheme, http or https.
-//
-// Returns:
-//   - *client: the copy.
-func (c *client) withScheme(scheme string) *client {
-	scoped := *c
-	scoped.apiURL.Scheme = scheme
-
-	return &scoped
-}
-
 // isRateLimitedError checks if the error is a rate limiting error.
 //
 // Parameters:
@@ -773,39 +749,27 @@ func normalizeHostForDeviceID(host string) string {
 	return host
 }
 
-// newClient creates a new Matrix client with the specified host and TLS settings.
+// newClient creates a Matrix API client for one send.
 //
 // Parameters:
 //   - host: the homeserver host, with an optional port.
-//   - disableTLS: connect over HTTP instead of HTTPS.
+//   - scheme: the URL scheme of the requests, http or https.
+//   - httpClient: the HTTP client that sends the requests.
 //   - logger: the service's logger, which receives the client's progress
 //     records. Nil discards them.
-//   - httpClient: holds the HTTP client the API requests go through.
 //
 // Returns:
-//   - *client: the client, not yet logged in.
+//   - *client: the client, without an access token.
 //
-//nolint:exhaustruct_v5 // Intentional partial initialization
-func newClient(host string, disableTLS bool, logger *standard.Logger, httpClient *httpclient.Holder) *client {
-	client := &client{
-		logger: logger,
-		apiURL: url.URL{
-			Host:   host,
-			Scheme: schemeHTTPS,
-		},
+//nolint:exhaustruct_v5 // The access token is set after the client is created.
+func newClient(host, scheme string, httpClient types.HTTPClient, logger *standard.Logger) *client {
+	if logger == nil {
+		logger = &standard.Logger{}
+	}
+
+	return &client{
+		logger:     logger,
 		httpClient: httpClient,
+		apiURL:     url.URL{Scheme: scheme, Host: host},
 	}
-
-	if client.logger == nil {
-		client.logger = &standard.Logger{}
-	}
-
-	if disableTLS {
-		client.apiURL.Scheme = schemeHTTP
-	}
-
-	client.logger.LogAttrs(context.Background(), slog.LevelDebug, "using server",
-		slog.String(logging.KeyServer, client.apiURL.Host))
-
-	return client
 }

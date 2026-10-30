@@ -42,6 +42,8 @@
 //     to all joined rooms.
 //   - title: notification title to prepend to the message
 //   - disabletls: set to "yes" or "true" to disable TLS (not recommended)
+//   - skiptlsverify: set to "yes" or "true" to skip verification of the
+//     homeserver's TLS certificate, such as a self-signed one
 //
 // # Templates
 //
@@ -131,7 +133,7 @@
 // Common error scenarios:
 //   - ErrMissingHost: No Matrix server host provided
 //   - ErrMissingCredentials: No password or access token provided
-//   - ErrClientNotInitialized: Client failed to initialize
+//   - ErrClientNotInitialized: No homeserver to send to
 //   - ErrUnsupportedLoginFlows: Server doesn't support password or token login
 //   - ErrUnexpectedStatus: Unexpected HTTP response from server
 //

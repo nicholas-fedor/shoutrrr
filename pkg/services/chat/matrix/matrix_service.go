@@ -3,6 +3,7 @@ package matrix
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -19,23 +20,28 @@ type Service struct {
 	// Standard provides logging and the other shared service functionality.
 	standard.Standard
 
-	// httpClient holds the injected HTTP client and the default client, which
-	// the API client sends through.
+	// httpClient holds the injected HTTP client and the default clients. Each
+	// send picks one for its login and room requests.
 	httpClient httpclient.Holder
 	// warnings logs each warning about the service's settings once.
 	warnings logging.Once
 
 	// Config holds the homeserver, the credentials, and the rooms.
 	Config *Config
-	// client is the Matrix API client Initialize builds.
-	client *client
+	// accessToken authenticates the room requests. It is the configured
+	// access token, or the token of the password login once a send has
+	// logged in.
+	accessToken string
 	// loginGate holds one token while a send runs the password login, so only one
 	// login runs at a time and waiting sends can give up when their context ends.
 	loginGate chan struct{}
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
-	// loggedIn reports whether the client holds an access token from a password login.
+	// loggedIn reports whether accessToken holds the token of a password login.
 	loggedIn bool
+	// ready reports whether Initialize configured a homeserver to send to. It is
+	// false before Initialize and for the documentation placeholder URL.
+	ready bool
 }
 
 // Scheme identifies this service in configuration URLs.
@@ -89,6 +95,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		User:           "",
 		Password:       "",
 		DisableTLS:     false,
+		SkipTLSVerify:  false,
 		Host:           "",
 		Rooms:          nil,
 		Title:          "",
@@ -99,21 +106,24 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 		return err
 	}
 
-	s.client = nil
+	s.accessToken = ""
 	s.loggedIn = false
+	s.ready = false
 	s.loginGate = make(chan struct{}, 1)
 
 	// The dummy.com placeholder URL, which config validation also accepts without
-	// credentials, configures the service without a client.
+	// credentials, configures no homeserver to send to.
 	if serviceURL.Hostname() == "dummy.com" || serviceURL.Host == "" {
 		return nil
 	}
 
-	s.client = newClient(s.Config.Host, s.Config.DisableTLS, &s.Logger, &s.httpClient)
+	s.ready = true
 
 	if s.Config.User == "" {
-		s.client.useToken(s.Config.Password)
+		s.accessToken = s.Config.Password
 	}
+
+	s.LogAttrs(context.Background(), slog.LevelDebug, "using server", slog.String(logging.KeyServer, s.Config.Host))
 
 	return nil
 }
@@ -134,7 +144,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 // SendContext delivers a notification message to Matrix rooms. The router calls it
 // with its send deadline, and a context without a deadline is bounded by the
 // budget that [Service.ServiceTimeout] reports. The first send logs in when a
-// user is configured, and the first send without TLS logs a warning.
+// user is configured. The first send without TLS logs a warning, and so does
+// the first send that skips certificate verification through the default
+// client.
 //
 // Parameters:
 //   - ctx: bounds the login and the room requests.
@@ -149,7 +161,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return types.ErrServiceNotInitialized
 	}
 
-	if s.client == nil {
+	if !s.ready {
 		return ErrClientNotInitialized
 	}
 
@@ -169,14 +181,18 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		s.warnings.Plaintext(ctx, s)
 	}
 
-	if err := s.ensureLogin(ctx, cfg.apiScheme()); err != nil {
+	// One API client carries the send's protocol and HTTP client to the login
+	// and the room requests.
+	api := newClient(cfg.Host, cfg.apiScheme(), s.sendClient(ctx, &cfg), &s.Logger)
+
+	if err := s.ensureLogin(ctx, api); err != nil {
 		return err
 	}
 
 	// Create message with title if provided
 	fullMessage := createMessage(message, cfg.Title)
 
-	if err := s.client.withScheme(cfg.apiScheme()).sendMessage(ctx, fullMessage, cfg.Rooms); err != nil {
+	if err := api.sendMessage(ctx, fullMessage, cfg.Rooms); err != nil {
 		return fmt.Errorf("sending message: %w", err)
 	}
 
@@ -247,18 +263,21 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient.Set(client)
 }
 
-// ensureLogin logs in with the configured user and password once, on the first
-// send. A failed login is retried on the next send. A send that waits for another
+// ensureLogin gives api the access token for the send. With a user
+// configured, the first send logs in with the user and password through api. A
+// failed login is retried on the next send. A send that waits for another
 // send's login stops waiting when ctx ends.
 //
 // Parameters:
 //   - ctx: cancellation for waiting on and running the login.
-//   - scheme: the URL scheme of the send, which the login uses too.
+//   - api: the API client of the send, which the login uses too.
 //
 // Returns:
-//   - error: the login failure or ctx's error, or nil when no login is needed.
-func (s *Service) ensureLogin(ctx context.Context, scheme string) error {
+//   - error: the login failure or ctx's error, or nil when api holds the token.
+func (s *Service) ensureLogin(ctx context.Context, api *client) error {
 	if s.Config.User == "" {
+		api.accessToken = s.accessToken
+
 		return nil
 	}
 
@@ -271,19 +290,39 @@ func (s *Service) ensureLogin(ctx context.Context, scheme string) error {
 	defer func() { <-s.loginGate }()
 
 	if s.loggedIn {
+		api.accessToken = s.accessToken
+
 		return nil
 	}
 
-	loginClient := s.client.withScheme(scheme)
-	if err := loginClient.login(ctx, s.Config.User, s.Config.Password); err != nil {
+	if err := api.login(ctx, s.Config.User, s.Config.Password); err != nil {
 		return fmt.Errorf("logging in to Matrix: %w", err)
 	}
 
-	// Later sends copy the shared client, so it keeps the access token.
-	s.client.accessToken = loginClient.accessToken
+	s.accessToken = api.accessToken
 	s.loggedIn = true
 
 	return nil
+}
+
+// sendClient returns the HTTP client for a send's requests, the login
+// included. A send that skips certificate verification uses the insecure
+// default client, and the first such send logs the shared warning. An injected
+// client is used unchanged and never warned about, because its owner controls
+// its TLS settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.httpClient.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.httpClient.Client()
 }
 
 // createMessage creates the full message body by prepending the title if provided.

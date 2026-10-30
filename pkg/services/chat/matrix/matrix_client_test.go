@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
-	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 )
 
@@ -190,15 +189,12 @@ func newScriptedClient(t *testing.T, replies ...reply) (*client, *scriptedHTTPCl
 		}
 	})
 
-	holder := &httpclient.Holder{}
-	holder.Set(httpClient)
-
 	logger := &standard.Logger{}
 	logger.SetLogger(log.New(t.Output(), "", 0))
 
 	return &client{
 		apiURL:     url.URL{Scheme: "https", Host: "matrix.example.com"},
-		httpClient: holder,
+		httpClient: httpClient,
 		logger:     logger,
 	}, httpClient
 }
@@ -225,18 +221,18 @@ func loginRequest(t *testing.T, httpClient *scriptedHTTPClient) apiReqLogin {
 	return request
 }
 
-// TestNewClient verifies the API scheme for each TLS setting and that a nil
-// logger is replaced.
+// TestNewClient verifies that the client sends to the host with the given
+// scheme through the given HTTP client, and that a nil logger is replaced.
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
-	secure := newClient("matrix.example.com", false, nil, &httpclient.Holder{})
-	require.NotNil(t, secure)
-	assert.Equal(t, "https", secure.apiURL.Scheme)
-	assert.Equal(t, "matrix.example.com", secure.apiURL.Host)
-	assert.NotNil(t, secure.logger)
+	httpClient := &scriptedHTTPClient{t: t}
+	c := newClient("matrix.example.com", "http", httpClient, nil)
 
-	assert.Equal(t, "http", newClient("matrix.example.com", true, nil, &httpclient.Holder{}).apiURL.Scheme)
+	assert.Equal(t, url.URL{Scheme: "http", Host: "matrix.example.com"}, c.apiURL)
+	assert.Same(t, httpClient, c.httpClient)
+	assert.NotNil(t, c.logger)
+	assert.Empty(t, c.accessToken)
 }
 
 // TestAPIRequestFailures verifies that GET and POST requests report transport
@@ -771,16 +767,6 @@ func TestSetAuthorizationHeader(t *testing.T) {
 			assert.Equal(t, tt.want, req.Header.Get("Authorization"))
 		})
 	}
-}
-
-// TestUseToken verifies that useToken stores the access token.
-func TestUseToken(t *testing.T) {
-	t.Parallel()
-
-	c := &client{}
-	c.useToken("my-token")
-
-	assert.Equal(t, "my-token", c.accessToken)
 }
 
 // TestGenerateTransactionID verifies that transaction IDs are unique and use

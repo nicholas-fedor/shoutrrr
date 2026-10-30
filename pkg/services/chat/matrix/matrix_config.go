@@ -31,6 +31,8 @@ type Config struct {
 	Rooms []string `desc:"Room aliases, or with ! prefix, room IDs" key:"rooms,room" optional:""`
 	// DisableTLS connects to the homeserver over HTTP instead of HTTPS.
 	DisableTLS bool `default:"No" desc:"Connect over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the homeserver's TLS certificate.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // GetURL returns a URL representation of it's current field values.
@@ -98,8 +100,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	// Skip credential validation and query parameter parsing for dummy URLs
-	// used in docs generation. Query params (rooms, title, disabletls) are
-	// intentionally ignored for dummy.com to avoid validation errors.
+	// used in docs generation. Every query param is ignored for dummy.com, so
+	// the placeholder never fails validation.
 	if serviceURL.Hostname() == "dummy.com" {
 		c.User = serviceURL.User.Username()
 		if password, ok := serviceURL.User.Password(); ok {

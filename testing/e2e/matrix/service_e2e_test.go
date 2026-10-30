@@ -54,7 +54,7 @@ func TestMatrixInitialization(t *testing.T) {
 }
 
 // TestMatrixSend verifies that messages reach a real Matrix room, with or
-// without a title, and that a service without a client fails to send.
+// without a title, and that a service without a homeserver fails to send.
 //
 //nolint:paralleltest // Sends to a live server one message at a time.
 func TestMatrixSend(t *testing.T) {
@@ -70,7 +70,7 @@ func TestMatrixSend(t *testing.T) {
 	})
 
 	t.Run("fails when the client is not initialized", func(t *testing.T) {
-		// The documentation dummy URL initializes the service without a client.
+		// The documentation dummy URL initializes the service without a homeserver.
 		service := newService(t, "matrix://:dummy@dummy.com")
 
 		require.Error(t, service.Send("This should fail", nil))
