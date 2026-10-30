@@ -37,6 +37,9 @@ type Config struct {
 	RequestMethod string `default:"POST" desc:"The HTTP method of the request" key:"method"`
 	// DisableTLS sends the request over HTTP instead of HTTPS.
 	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the webhook server's TLS
+	// certificate.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Service identity and webhook defaults.

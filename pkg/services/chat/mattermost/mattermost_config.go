@@ -32,6 +32,8 @@ type Config struct {
 	Token string `desc:"Webhook token" sensitive:"true" url:"path1"`
 	// DisableTLS sends the webhook request over HTTP instead of HTTPS.
 	DisableTLS bool `default:"No" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Scheme is the identifying part of this service's configuration URL.

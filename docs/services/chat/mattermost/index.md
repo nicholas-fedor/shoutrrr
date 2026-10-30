@@ -3,9 +3,22 @@
 ## URL Format
 
 !!! info ""
-    mattermost://[__`username`__@]__`mattermost-host`__/__`token`__[/__`channel`__][?icon=__`smiley`__&disabletls=__`yes`__]
+    mattermost://[__`username`__@]__`mattermost-host`__/__`token`__[/__`channel`__][?icon=__`smiley`__&disabletls=__`yes`__&skiptlsverify=__`yes`__]
 
 --8<-- "docs/services/chat/mattermost/config.md"
+
+## TLS
+
+Mattermost sends over HTTPS by default.
+Set `disabletls=yes` to send over HTTP instead, for a self-hosted server without TLS.
+That leaves the connection unencrypted.
+
+Set `skiptlsverify=yes` when the server's certificate cannot be verified, such as a self-signed one.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+
+Both options can also be passed as send params, which apply to that send only.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send goes out without TLS, and the first time a send skips certificate verification through its own client.
 
 ## Creating a Webhook in MatterMost
 
@@ -74,11 +87,12 @@ You can also pass parameters to the `Send` function. The following example conta
 
 ```go
 params := &types.Params{
-    "username":   "overwriteUserName",
-    "channel":    "overwriteChannel",
-    "icon":       "overwriteIcon",
-    "title":      "overwriteTitle",
-    "disabletls": "yes",
+    "username":      "overwriteUserName",
+    "channel":       "overwriteChannel",
+    "icon":          "overwriteIcon",
+    "title":         "overwriteTitle",
+    "disabletls":    "yes",
+    "skiptlsverify": "yes",
 }
 
 err := service.Send("this is a message", params)

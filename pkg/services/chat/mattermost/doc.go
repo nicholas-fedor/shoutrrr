@@ -19,6 +19,7 @@
 //   - Icon: Use an emoji or URL as the message icon (optional)
 //   - Title: Notification title (optional, not used in webhook mode)
 //   - DisableTLS: Use plain HTTP instead of HTTPS (optional, default: false)
+//   - SkipTLSVerify: Skip verification of the server's TLS certificate (optional, default: false)
 //
 // # Usage Example
 //
