@@ -266,7 +266,7 @@ Every service follows the same rules, so services behave alike for users and for
 ### Enforcement
 
 - The contract checks in `pkg/router/router_integration_test.go` cover most of these rules for every registered service.
-- The checks for skipping certificate verification and for the insecure warning run only against Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
+- The checks for skipping certificate verification and for the insecure warning run only against Bark, Gotify, Home Assistant, ntfy, and Signal, the HTTP services that let users skip it.
 - Review covers the rules without a check, such as building TLS settings with the shared helpers and exporting no client types.
   It also covers warning about old names and the JSON rules.
 - Logging through the leveled methods has two checks.

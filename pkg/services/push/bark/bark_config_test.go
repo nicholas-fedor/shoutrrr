@@ -226,7 +226,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 func TestConfigGetURL(t *testing.T) {
 	t.Parallel()
 
-	rawURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&disabletls=Yes&group=GROUP&title=TITLE&url=URL"
+	rawURL := "bark://:device-key@example.com:2225/?badge=5&category=CAT&disabletls=Yes&group=GROUP&skiptlsverify=Yes&title=TITLE&url=URL"
 	config := &Config{}
 	require.NoError(t, config.SetURL(parseTestURL(t, rawURL)))
 
@@ -295,6 +295,6 @@ func TestConfigQueryResolver(t *testing.T) {
 		config := &Config{}
 
 		assert.Empty(t, config.Enums())
-		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 10)
+		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 11)
 	})
 }

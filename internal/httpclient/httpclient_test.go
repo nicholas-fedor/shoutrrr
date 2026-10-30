@@ -256,6 +256,56 @@ func TestHolderPrefer(t *testing.T) {
 	}
 }
 
+// TestHolderPreferInsecure verifies that PreferInsecure returns a set client
+// over the holder's without a warning, and the holder's insecure client
+// otherwise. That is the injected client without a warning, or the insecure
+// default client with one.
+func TestHolderPreferInsecure(t *testing.T) {
+	t.Parallel()
+
+	injected := &http.Client{}
+	field := &http.Client{}
+
+	// tests lists the clients passed to PreferInsecure and set in the holder,
+	// with the client PreferInsecure should return. A nil want stands for the
+	// insecure default client, the only result that warns.
+	tests := []struct {
+		client   types.HTTPClient
+		injected types.HTTPClient
+		want     types.HTTPClient
+		name     string
+	}{
+		{name: "set client", client: field, injected: injected, want: field},
+		{name: "set client without an injected one", client: field, want: field},
+		{name: "nil with an injected client", injected: injected, want: injected},
+		{name: "nil *http.Client with an injected client", client: (*http.Client)(nil), injected: injected, want: injected},
+		{name: "nil without an injected client"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var holder Holder
+
+			holder.Set(tt.injected)
+
+			warned := false
+			got := holder.PreferInsecure(tt.client, func() { warned = true })
+
+			assert.Equal(t, tt.want == nil, warned)
+
+			if tt.want != nil {
+				assert.Same(t, tt.want, got)
+
+				return
+			}
+
+			assert.Same(t, holder.InsecureClient(nil), got)
+		})
+	}
+}
+
 // TestHolderNilPointerClients verifies how a holder sends through an injected
 // client that is a nil value of a type other than *http.Client. Requests go
 // to the client, so a nil receiver that works keeps working. A runtime panic
@@ -456,8 +506,9 @@ func TestHolderConcurrentClient(t *testing.T) {
 }
 
 // TestHolderConcurrentUse verifies that every Holder method can run at the
-// same time, which the race detector checks. Every Client, Prefer, and
-// InsecureClient result is the injected client or a default client.
+// same time, which the race detector checks. Every Client, Prefer,
+// InsecureClient, and PreferInsecure result is the injected client or a
+// default client.
 func TestHolderConcurrentUse(t *testing.T) {
 	t.Parallel()
 
@@ -478,7 +529,7 @@ func TestHolderConcurrentUse(t *testing.T) {
 	for g := range goroutines {
 		wg.Go(func() {
 			for i := range iterations {
-				switch (g + i) % 5 {
+				switch (g + i) % 6 {
 				case 0:
 					holder.Set(injected)
 				case 1:
@@ -487,6 +538,8 @@ func TestHolderConcurrentUse(t *testing.T) {
 					results[g] = append(results[g], holder.Prefer(nil))
 				case 3:
 					insecureResults[g] = append(insecureResults[g], holder.InsecureClient(func() {}))
+				case 4:
+					insecureResults[g] = append(insecureResults[g], holder.PreferInsecure(nil, func() {}))
 				default:
 					results[g] = append(results[g], holder.Client())
 				}

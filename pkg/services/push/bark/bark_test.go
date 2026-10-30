@@ -334,6 +334,64 @@ func TestSendWarnings(t *testing.T) {
 	assert.Equal(t, slices.Concat(want, again), warningLines(logs.String()))
 }
 
+// TestSendSkipTLSVerify verifies sends to a server whose certificate cannot be
+// verified. Without skiptlsverify the send fails. With it in the URL or the
+// params, the send goes through the insecure default client and warns once
+// over two sends. A client set through the deprecated HTTPClient field is used
+// unchanged and never warned about.
+func TestSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and whether the deprecated
+	// client field is set, with the expected outcome.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		clientField  bool
+		wantErr      bool
+		wantWarnings []string
+	}{
+		{name: "verified by default", query: "", params: nil, clientField: false, wantErr: true, wantWarnings: nil},
+		{name: "URL", query: "?skiptlsverify=yes", params: nil, clientField: false, wantErr: false, wantWarnings: []string{insecureWarning}},
+		{
+			name: "params", query: "", params: &types.Params{"skiptlsverify": "yes"}, clientField: false,
+			wantErr: false, wantWarnings: []string{insecureWarning},
+		},
+		{name: "deprecated client field", query: "?skiptlsverify=yes", params: nil, clientField: true, wantErr: false, wantWarnings: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, successBody)
+			}))
+			t.Cleanup(server.Close)
+
+			var logs bytes.Buffer
+
+			service := &Service{}
+			rawURL := "bark://:devicekey@" + server.Listener.Addr().String() + tt.query
+			require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+
+			if tt.clientField {
+				service.HTTPClient = server.Client()
+			}
+
+			for range 2 {
+				err := service.Send("Message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			assert.Equal(t, tt.wantWarnings, warningLines(logs.String()))
+		})
+	}
+}
+
 // warningLines returns the logged lines that are warnings.
 //
 // Parameters:

@@ -49,6 +49,8 @@ type Config struct {
 	Badge int64 `default:"0" desc:"The number displayed next to App icon" key:"badge"`
 	// DisableTLS sends over HTTP whatever Scheme says.
 	DisableTLS bool `default:"no" desc:"Send over HTTP instead of HTTPS" key:"disabletls"`
+	// SkipTLSVerify skips verification of the server's TLS certificate.
+	SkipTLSVerify bool `default:"no" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
 // Scheme is the URL scheme identifier for the Bark service.
