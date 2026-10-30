@@ -280,6 +280,7 @@ func TestConfigSetURLResolverError(t *testing.T) {
 	errRejected := errors.New("rejected")
 
 	resolver := typesmocks.NewMockConfigQueryResolver(t)
+	resolver.EXPECT().QueryFields().Return([]string{"foo"}).Once()
 	resolver.EXPECT().Set("foo", "SECRETvalue").Return(errRejected).Once()
 
 	err := (&Config{}).setURL(resolver, parseConfigURL(t, "smtp://dummy@dummy.com?foo=SECRETvalue"))

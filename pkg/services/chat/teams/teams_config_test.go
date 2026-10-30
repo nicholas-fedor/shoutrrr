@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 )
 
 // failingResolver is a config resolver whose Set always returns err.
@@ -40,12 +38,12 @@ func (failingResolver) Get(string) (string, error) {
 	return "", nil
 }
 
-// QueryFields returns no fields.
+// QueryFields returns the title key, so the title query value reaches Set.
 //
 // Returns:
-//   - []string: always nil.
+//   - []string: the title key.
 func (failingResolver) QueryFields() []string {
-	return nil
+	return []string{"title"}
 }
 
 // Set returns the resolver's error.
@@ -137,38 +135,16 @@ func TestConfigSetURLResetsFields(t *testing.T) {
 	assert.Equal(t, Config{Host: testWorkflowURL}, *config)
 }
 
-// TestConfigSetURLResolverError verifies that setURL skips invalid config keys
-// and returns any other resolver error.
+// TestConfigSetURLResolverError verifies that setURL returns the resolver's
+// error for a config key, naming the key.
 func TestConfigSetURLResolverError(t *testing.T) {
 	t.Parallel()
 
-	// tests lists resolver errors with the error that setURL should return.
-	tests := []struct {
-		name        string
-		resolverErr error
-		wantErr     error
-	}{
-		{name: "invalid config key is skipped", resolverErr: format.ErrInvalidConfigKey},
-		{name: "other error is returned", resolverErr: errResolverSet, wantErr: errResolverSet},
-	}
+	config := &Config{}
+	err := config.setURL(failingResolver{err: errResolverSet}, mustParseURL(t, "teams://?title=Test"))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			config := &Config{}
-			err := config.setURL(failingResolver{err: tt.resolverErr}, mustParseURL(t, "teams://?title=Test"))
-
-			if tt.wantErr == nil {
-				assert.NoError(t, err)
-
-				return
-			}
-
-			require.ErrorIs(t, err, tt.wantErr)
-			assert.ErrorContains(t, err, `"title"`)
-		})
-	}
+	require.ErrorIs(t, err, errResolverSet)
+	assert.ErrorContains(t, err, `"title"`)
 }
 
 // TestConfigGetURL verifies that GetURL builds a teams URL whose query

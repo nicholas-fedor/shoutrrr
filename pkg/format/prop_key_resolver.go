@@ -30,9 +30,16 @@ type PropKeyResolver struct {
 	keys             []string
 }
 
+// Errors returned when config props are read or set.
 var (
-	ErrInvalidConfigKey    = errors.New("not a valid config key")
+	// ErrInvalidConfigKey indicates a key that names no config prop.
+	ErrInvalidConfigKey = errors.New("not a valid config key")
+	// ErrInvalidValueForType indicates a value that does not parse as its
+	// prop's type.
 	ErrInvalidValueForType = errors.New("invalid value for type")
+	// ErrConflictingKeys indicates a URL query or send params that give one
+	// config key in two spellings, such as disabletls and DisableTLS.
+	ErrConflictingKeys = errors.New("config key given in more than one spelling")
 )
 
 // NewPropKeyResolver creates a new PropKeyResolver and initializes it using the provided config.
@@ -338,6 +345,8 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 // The reserved params set by [types.Params] helpers (title, message and level) are
 // applied when the config declares them and skipped otherwise, so every service
 // accepts them. Any other param without a matching key is an error.
+// Params that give one key in two spellings, such as disabletls and DisableTLS,
+// are rejected with [ErrConflictingKeys] before any is applied.
 // Params are applied in key order, with deprecated keys first, so a
 // replacement key wins when params hold both.
 // The error returned is the first error that occurred; subsequent errors are discarded.
@@ -357,6 +366,10 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	keys := slices.SortedFunc(maps.Keys(*params), func(a, b string) int {
 		return cmp.Or(cmp.Compare(pkr.deprecatedOrder(a), pkr.deprecatedOrder(b)), strings.Compare(a, b))
 	})
+
+	if err := checkSpellings(keys, pkr.keys); err != nil {
+		return err
+	}
 
 	for _, key := range keys {
 		if pkr.isUndeclaredReserved(key) {

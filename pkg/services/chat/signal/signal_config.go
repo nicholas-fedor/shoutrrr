@@ -218,13 +218,7 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 		return err
 	}
 
-	for key, vals := range query {
-		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting config property %q from URL query: %w", key, err)
-		}
-	}
-
-	return nil
+	return format.ApplyQuery(resolver, query)
 }
 
 // setURL updates the Config from a URL using the provided resolver. A URL

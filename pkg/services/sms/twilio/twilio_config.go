@@ -1,7 +1,6 @@
 package twilio
 
 import (
-	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -116,11 +115,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range query {
-		err := resolver.Set(key, vals[0])
-		if err != nil {
-			return fmt.Errorf("setting query parameter %q: %w", key, err)
-		}
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
 	}
 
 	if serviceURL.String() != "twilio://dummy@dummy.com" {

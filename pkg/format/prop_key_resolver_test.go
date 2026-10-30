@@ -341,6 +341,26 @@ func TestPropKeyResolverUpdateConfigFromParams(t *testing.T) {
 	require.NoError(t, resolver.UpdateConfigFromParams(nil, nil))
 }
 
+// TestPropKeyResolverConflictingParams verifies that params giving one key
+// in two spellings are rejected before any is applied, while an unknown key in
+// two spellings is reported as unknown.
+func TestPropKeyResolverConflictingParams(t *testing.T) {
+	t.Parallel()
+
+	config := &testStruct{}
+	resolver := NewPropKeyResolver(config)
+
+	err := resolver.UpdateConfigFromParams(nil, &types.Params{"str": "a", "STR": "b", "signed": "3"})
+	require.ErrorIs(t, err, ErrConflictingKeys)
+	require.ErrorContains(t, err, `"STR" and "str"`)
+	assert.Empty(t, config.Str)
+	assert.Zero(t, config.Signed)
+
+	err = resolver.UpdateConfigFromParams(nil, &types.Params{"foo": "1", "FOO": "1"})
+	require.ErrorIs(t, err, ErrInvalidConfigKey)
+	require.NotErrorIs(t, err, ErrConflictingKeys)
+}
+
 // TestPropKeyResolverReservedParams verifies that the reserved title,
 // message, and level params are skipped when the config does not declare
 // them, applied when it does, and that other unknown params are still

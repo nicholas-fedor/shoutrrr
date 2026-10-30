@@ -151,18 +151,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range query {
-		if key == "thread_id" {
-			// Trim whitespace from thread_id
-			c.ThreadID = strings.TrimSpace(vals[0])
-
-			continue
-		}
-
-		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting config value for key %s: %w", key, err)
-		}
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
 	}
+
+	// A thread ID copied from a client can carry surrounding whitespace.
+	c.ThreadID = strings.TrimSpace(c.ThreadID)
 
 	return nil
 }

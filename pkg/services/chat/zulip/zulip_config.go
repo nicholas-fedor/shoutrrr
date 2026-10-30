@@ -141,14 +141,15 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 // setURL updates the Config from a URL.
 //
 // Parameters:
-//   - resolver: unused. The options are read from the query directly.
+//   - resolver: the resolver that sets the options from the query.
 //   - serviceURL: the service URL.
 //
 // Returns:
 //   - error: [ErrMissingBotMail], [ErrMissingAPIKey], [ErrMissingHost], a
-//     query wrapping [util.ErrInvalidQuery], or a read_by_sender value that is
-//     not a boolean.
-func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
+//     query wrapping [util.ErrInvalidQuery], or the error of
+//     [format.ApplyQuery], such as an unknown key or a read_by_sender value
+//     that is not a boolean.
+func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
 	var isSet bool
 
 	c.BotMail = serviceURL.User.Username()
@@ -175,23 +176,13 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 		return err
 	}
 
-	c.Stream = query.Get("stream")
-	c.Topic = query.Get("topic")
-	c.Title = query.Get("title")
-	c.Type = MessageType(query.Get("type"))
-	c.To = query.Get("to")
-	c.ReadBySender = false
-
-	if raw := query.Get("read_by_sender"); raw != "" {
-		value, ok := format.ParseBool(raw, false)
-		if !ok {
-			return fmt.Errorf("parsing read_by_sender %q: %w", raw, format.ErrInvalidBoolValue)
-		}
-
-		c.ReadBySender = value
+	// The options start from their defaults, so an option the URL leaves out
+	// does not keep the value an earlier URL set.
+	if err := resolver.SetDefaultProps(c); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
 	}
 
-	return nil
+	return format.ApplyQuery(resolver, query)
 }
 
 // CreateConfigFromURL creates a new Config from a URL for use within the zulip service.
@@ -205,7 +196,8 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 //   - error: the reason the URL is not a valid Zulip URL, or nil.
 func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	config := Config{}
-	err := config.setURL(nil, serviceURL)
+	resolver := format.NewPropKeyResolver(&config)
+	err := config.setURL(&resolver, serviceURL)
 
 	return &config, err
 }

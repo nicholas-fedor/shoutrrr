@@ -34,6 +34,78 @@ func newTestStructResolver(t *testing.T) (*testStruct, *PropKeyResolver) {
 	return config, &resolver
 }
 
+// TestApplyQuery verifies that ApplyQuery sets the config props from a URL
+// query whose keys match in any case. One key in two spellings is rejected
+// before any value is applied. Errors name the first failing key in sorted
+// order, so they do not depend on map order. Unknown keys in two spellings are
+// left to the resolver, and a deprecated key loses to its replacement.
+func TestApplyQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("keys in any case", func(t *testing.T) {
+		t.Parallel()
+
+		config, resolver := newTestStructResolver(t)
+
+		require.NoError(t, ApplyQuery(resolver, url.Values{"Str": {"a"}, "SIGNED": {"2"}}))
+		assert.Equal(t, "a", config.Str)
+		assert.Equal(t, 2, config.Signed)
+	})
+
+	t.Run("one key in two spellings", func(t *testing.T) {
+		t.Parallel()
+
+		config, resolver := newTestStructResolver(t)
+		before := *config
+
+		err := ApplyQuery(resolver, url.Values{"str": {"a"}, "Str": {"b"}, "signed": {"3"}})
+		require.ErrorIs(t, err, ErrConflictingKeys)
+		require.ErrorContains(t, err, `"Str" and "str"`)
+		assert.Equal(t, before, *config, "no value is applied")
+	})
+
+	t.Run("first invalid key in sorted order", func(t *testing.T) {
+		t.Parallel()
+
+		for range 20 {
+			_, resolver := newTestStructResolver(t)
+
+			err := ApplyQuery(resolver, url.Values{"zz": {"1"}, "aa": {"1"}, "mm": {"1"}})
+			require.ErrorIs(t, err, ErrInvalidConfigKey)
+			assert.ErrorContains(t, err, `setting query parameter "aa"`)
+		}
+	})
+
+	t.Run("unknown key in two spellings", func(t *testing.T) {
+		t.Parallel()
+
+		_, resolver := newTestStructResolver(t)
+
+		err := ApplyQuery(resolver, url.Values{"foo": {"1"}, "FOO": {"1"}})
+		require.ErrorIs(t, err, ErrInvalidConfigKey)
+		require.NotErrorIs(t, err, ErrConflictingKeys)
+	})
+
+	t.Run("deprecated key and its replacement", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			query url.Values
+			want  bool
+		}{
+			{query: url.Values{"insecure": {"yes"}, "skipverify": {"no"}}, want: false},
+			{query: url.Values{"insecure": {"no"}, "skipverify": {"yes"}}, want: true},
+		} {
+			config := &deprecatedConfig{}
+			resolver := NewPropKeyResolver(config)
+			require.NoError(t, resolver.SetDefaultProps(config))
+
+			require.NoError(t, ApplyQuery(&resolver, tt.query))
+			assert.Equal(t, tt.want, config.SkipVerify, tt.query)
+		}
+	})
+}
+
 // TestBuildQuery verifies that the query holds only the keyed values that
 // differ from their defaults.
 func TestBuildQuery(t *testing.T) {

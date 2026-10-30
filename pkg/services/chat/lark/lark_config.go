@@ -1,7 +1,6 @@
 package lark
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -114,11 +113,5 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	for key, vals := range query {
-		if err := resolver.Set(key, vals[0]); err != nil {
-			return fmt.Errorf("setting query parameter %q: %w", key, err)
-		}
-	}
-
-	return nil
+	return format.ApplyQuery(resolver, query)
 }

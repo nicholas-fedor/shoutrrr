@@ -1,7 +1,10 @@
 package format
 
 import (
+	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -10,6 +13,40 @@ import (
 // KeyPrefix is the prefix used to escape custom URL query keys that conflict with service config prop keys.
 // It consists of two underscore characters ("__").
 const KeyPrefix = "__"
+
+// ApplyQuery sets the config props from a service URL's query.
+//
+// Keys match the config keys case-insensitively. A query that gives one key in
+// two spellings, such as disabletls and DisableTLS, is rejected before any
+// value is applied, because neither spelling is the one the user meant. The
+// keys are applied in sorted order, each with its first value. The first error
+// reported then does not depend on map order. A deprecated key and its
+// replacement are different keys. The replacement wins, as
+// [PropKeyResolver.Set] documents.
+//
+// Parameters:
+//   - cqr: the resolver bound to the config.
+//   - query: the parsed URL query, such as the result of util.ParseURLQuery.
+//
+// Returns:
+//   - error: an error wrapping [ErrConflictingKeys] for a key in two
+//     spellings, or the first key's [ErrInvalidConfigKey] or value error,
+//     naming the key.
+func ApplyQuery(cqr types.ConfigQueryResolver, query url.Values) error {
+	keys := slices.Sorted(maps.Keys(query))
+
+	if err := checkSpellings(keys, cqr.QueryFields()); err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		if err := cqr.Set(key, query[key][0]); err != nil {
+			return fmt.Errorf("setting query parameter %q: %w", key, err)
+		}
+	}
+
+	return nil
+}
 
 // BuildQuery converts the fields of a config object to a delimited query string.
 func BuildQuery(cqr types.ConfigQueryResolver) string {
@@ -92,4 +129,34 @@ func EscapeKey(key string) string {
 // UnescapeKey removes the KeyPrefix from custom URL query keys that conflict with service config prop keys.
 func UnescapeKey(key string) string {
 	return strings.TrimPrefix(key, KeyPrefix)
+}
+
+// checkSpellings reports a config key that keys hold in more than one
+// spelling. Keys that are not config keys are left to the caller, which
+// rejects or ignores them.
+//
+// Parameters:
+//   - keys: the query or param keys, in a fixed order.
+//   - configKeys: the config keys in lower case, as QueryFields returns them.
+//
+// Returns:
+//   - error: an error wrapping [ErrConflictingKeys] that names the first two
+//     spellings of one key, or nil.
+func checkSpellings(keys, configKeys []string) error {
+	spellings := make(map[string]string, len(keys))
+
+	for _, key := range keys {
+		lower := strings.ToLower(key)
+		if !slices.Contains(configKeys, lower) {
+			continue
+		}
+
+		if first, found := spellings[lower]; found {
+			return fmt.Errorf("%w: %q and %q", ErrConflictingKeys, first, key)
+		}
+
+		spellings[lower] = key
+	}
+
+	return nil
 }
