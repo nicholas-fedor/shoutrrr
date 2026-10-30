@@ -2,6 +2,7 @@ package logbridge
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"log/slog"
 	"runtime"
@@ -213,25 +214,37 @@ func TestLog(t *testing.T) {
 
 	_, file, line, _ := runtime.Caller(0)
 
-	Log(nil, logger, CallerPC(0), slog.LevelWarn, "sending without TLS", "service", "ntfy") //nolint:staticcheck // Checks that a nil context is replaced.
+	Log(nil, logger, 0, slog.LevelWarn, "sending without TLS", "service", "ntfy") //nolint:staticcheck // Checks that a nil context is replaced.
 
 	assert.Equal(t,
 		"level=WARN source="+file+":"+strconv.Itoa(line+2)+` msg="sending without TLS" service=ntfy`+"\n",
 		out.String())
 }
 
-// TestCallerPC verifies that CallerPC names the call the given number of
-// calls above the function that calls it.
-func TestCallerPC(t *testing.T) {
+// TestLogSkip verifies that Log names as its source the call the given number
+// of calls above the function that calls Log, as a function that logs for its
+// caller needs.
+func TestLogSkip(t *testing.T) {
 	t.Parallel()
 
-	_, file, line, _ := runtime.Caller(0)
-	pc := callerOf()
+	var out bytes.Buffer
 
-	frame, _ := runtime.CallersFrames([]uintptr{pc}).Next()
-	assert.Equal(t, "github.com/nicholas-fedor/shoutrrr/internal/logbridge.TestCallerPC", frame.Function)
-	assert.Equal(t, file, frame.File)
-	assert.Equal(t, line+1, frame.Line)
+	logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{
+		AddSource: true,
+		ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+			if len(groups) == 0 && attr.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+
+			return attr
+		},
+	}))
+
+	_, file, line, _ := runtime.Caller(0)
+
+	logForCaller(logger)
+
+	assert.Equal(t, "level=WARN source="+file+":"+strconv.Itoa(line+2)+" msg=insecure\n", out.String())
 }
 
 // TestTextHandlerConcurrent verifies that loggers derived from one handler
@@ -347,13 +360,13 @@ func TestWith(t *testing.T) {
 	})
 }
 
-// callerOf returns the location of the call to callerOf, as a function that
-// logs for its caller would.
+// logForCaller logs a warning to logger whose source is the call to
+// logForCaller, as a function that logs for its caller does.
 //
-// Returns:
-//   - uintptr: the program counter of the call to callerOf.
-func callerOf() uintptr {
-	return CallerPC(1)
+// Parameters:
+//   - logger: the logger that receives the warning.
+func logForCaller(logger *slog.Logger) {
+	Log(context.Background(), logger, 1, slog.LevelWarn, "insecure")
 }
 
 // newTextLogger returns a slog logger that writes records to out with slog's

@@ -133,10 +133,39 @@ func TestOnceDo(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "a"}, calls)
 }
 
+// TestOnceReset verifies that Reset lets every kind of warning be logged
+// again, including the connection and deprecation warnings.
+func TestOnceReset(t *testing.T) {
+	t.Parallel()
+
+	var once Once
+
+	logger := &recordingLogger{}
+	deprecations := []format.Deprecation{{Name: "insecureskipverify", Replacement: "skiptlsverify"}}
+
+	logAll := func() {
+		once.Insecure(t.Context(), logger)
+		once.Plaintext(t.Context(), logger)
+		once.DeprecatedKeys(t.Context(), logger, deprecations)
+		once.DeprecatedFields(t.Context(), logger, deprecations)
+	}
+
+	logAll()
+	once.Reset()
+	logAll()
+
+	want := []string{
+		"skipping TLS certificate verification", "sending without TLS",
+		"config key is deprecated", "config field is deprecated",
+	}
+	assert.Equal(t, append(want, want...), logger.messages())
+}
+
 // TestOnceDeprecations verifies the message and attributes of the warnings for
 // deprecated keys and fields. Each warning is logged at Warn with the caller's
-// context. Its source is the caller's call to the Once method. Each is logged
-// once, even when a key and a field share a name.
+// context. Its source is the caller's call to the Once method, also when an
+// earlier deprecation in the list was logged before. Each is logged once, even
+// when a key and a field share a name.
 func TestOnceDeprecations(t *testing.T) {
 	t.Parallel()
 
@@ -151,6 +180,7 @@ func TestOnceDeprecations(t *testing.T) {
 	once.DeprecatedKeys(ctx, logger, keys)
 	once.DeprecatedFields(ctx, logger, fields)
 	once.DeprecatedFields(ctx, logger, fields)
+	once.DeprecatedKeys(ctx, logger, []format.Deprecation{keys[0], {Name: "disabletlsverification", Replacement: "skiptlsverify"}})
 
 	const source = "github.com/nicholas-fedor/shoutrrr/internal/logging.TestOnceDeprecations"
 
@@ -167,6 +197,13 @@ func TestOnceDeprecations(t *testing.T) {
 			msg:    "config field is deprecated",
 			source: source,
 			attrs:  []string{"field=insecureskipverify", "replacement=SkipTLSVerify"},
+			level:  slog.LevelWarn,
+		},
+		{
+			ctx:    ctx,
+			msg:    "config key is deprecated",
+			source: source,
+			attrs:  []string{"key=disabletlsverification", "replacement=skiptlsverify"},
 			level:  slog.LevelWarn,
 		},
 	}, logger.warnings)
@@ -215,4 +252,26 @@ func TestOnceConnectionWarnings(t *testing.T) {
 		{ctx: ctx, msg: "skipping TLS certificate verification", source: source, attrs: nil, level: slog.LevelWarn},
 		{ctx: ctx, msg: "sending without TLS", source: source, attrs: nil, level: slog.LevelWarn},
 	}, logger.warnings)
+}
+
+// TestOnceLoggedSkipsWork verifies that a warning already logged returns
+// without allocating, for the connection and deprecation warnings alike, so
+// the sends that repeat it stay cheap.
+//
+//nolint:paralleltest // testing.AllocsPerRun panics in a parallel test.
+func TestOnceLoggedSkipsWork(t *testing.T) {
+	var once Once
+
+	logger := &recordingLogger{}
+	deprecations := []format.Deprecation{{Name: "insecureskipverify", Replacement: "skiptlsverify"}}
+
+	once.Insecure(t.Context(), logger)
+	once.Plaintext(t.Context(), logger)
+	once.DeprecatedKeys(t.Context(), logger, deprecations)
+	once.DeprecatedFields(t.Context(), logger, deprecations)
+
+	assert.Zero(t, testing.AllocsPerRun(100, func() { once.Insecure(t.Context(), logger) }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { once.Plaintext(t.Context(), logger) }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { once.DeprecatedKeys(t.Context(), logger, deprecations) }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { once.DeprecatedFields(t.Context(), logger, deprecations) }))
 }
