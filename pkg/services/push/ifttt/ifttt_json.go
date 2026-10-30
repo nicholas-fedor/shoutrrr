@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
 // jsonPayload represents the notification payload sent to the IFTTT webhook API.
@@ -30,37 +29,22 @@ const (
 
 // createJSONToSend generates a JSON payload for the IFTTT webhook API.
 //
-// The payload starts from the configured values and the value params. A
-// non-empty title then replaces the field that titlevalue selects, and the
-// message replaces the field that messagevalue selects.
+// The payload starts from the values of the send's config, which hold the
+// value params. A non-empty title then replaces the field that titlevalue
+// selects, and the message replaces the field that messagevalue selects.
 //
 // Parameters:
 //   - config: The config for this send, with params already applied.
 //   - message: The notification message.
-//   - params: The send params, or nil for none.
 //
 // Returns:
 //   - []byte: The JSON payload.
 //   - error: The marshaling error.
-func createJSONToSend(config *Config, message string, params *types.Params) ([]byte, error) {
+func createJSONToSend(config *Config, message string) ([]byte, error) {
 	payload := jsonPayload{
 		Value1: config.Value1,
 		Value2: config.Value2,
 		Value3: config.Value3,
-	}
-
-	if params != nil {
-		if value, found := (*params)["value1"]; found {
-			payload.Value1 = value
-		}
-
-		if value, found := (*params)["value2"]; found {
-			payload.Value2 = value
-		}
-
-		if value, found := (*params)["value3"]; found {
-			payload.Value3 = value
-		}
 	}
 
 	if config.Title != "" {

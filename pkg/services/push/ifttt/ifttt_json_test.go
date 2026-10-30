@@ -5,19 +5,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// TestCreateJSONToSend verifies the webhook payload: the configured values,
-// overridden by value params, with the message in the value field that
-// messagevalue selects and a non-empty title in the field titlevalue selects.
+// TestCreateJSONToSend verifies the webhook payload. It holds the configured
+// values, with the message in the value field that messagevalue selects and a
+// non-empty title in the field titlevalue selects.
 func TestCreateJSONToSend(t *testing.T) {
 	t.Parallel()
 
-	// tests lists configs and params with the payload each should produce.
+	// tests lists configs with the payload each should produce.
 	tests := []struct {
-		params *types.Params
 		name   string
 		want   string
 		config Config
@@ -43,15 +40,8 @@ func TestCreateJSONToSend(t *testing.T) {
 			want:   `{"value1":"hello","value2":"b","value3":"c"}`,
 		},
 		{
-			name:   "params override the configured values",
-			config: Config{UseMessageAsValue: 2, Value1: "a", Value2: "b", Value3: "c"},
-			params: &types.Params{"value1": "x", "value3": "z"},
-			want:   `{"value1":"x","value2":"hello","value3":"z"}`,
-		},
-		{
-			name:   "the message wins over a value param in its field",
-			config: Config{UseMessageAsValue: 1},
-			params: &types.Params{"value1": "x", "value2": "y"},
+			name:   "the message wins over a configured value in its field",
+			config: Config{UseMessageAsValue: 1, Value1: "x", Value2: "y"},
 			want:   `{"value1":"hello","value2":"y","value3":""}`,
 		},
 		{
@@ -70,9 +60,8 @@ func TestCreateJSONToSend(t *testing.T) {
 			want:   `{"value1":"","value2":"hello","value3":""}`,
 		},
 		{
-			name:   "title overrides the configured value and value param in its field",
-			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 1, Title: "Title", Value1: "a"},
-			params: &types.Params{"value1": "x"},
+			name:   "title overrides the configured value in its field",
+			config: Config{UseMessageAsValue: 2, UseTitleAsValue: 1, Title: "Title", Value1: "x"},
 			want:   `{"value1":"Title","value2":"hello","value3":""}`,
 		},
 		{
@@ -91,7 +80,7 @@ func TestCreateJSONToSend(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload, err := createJSONToSend(&tt.config, "hello", tt.params)
+			payload, err := createJSONToSend(&tt.config, "hello")
 
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.want, string(payload))

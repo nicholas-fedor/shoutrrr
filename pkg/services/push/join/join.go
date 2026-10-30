@@ -96,10 +96,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
-//   - params: optional title and icon overrides.
+//   - params: optional overrides for the config keys, such as title, icon,
+//     and devices. Any other key is an error.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
+//     error, [ErrDevicesMissing] when the params leave no devices, or the send
 //     error, which matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -109,25 +111,22 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config := s.Config
+	// Params apply to this send only, so they update a copy of the service
+	// config.
+	configCopy := *s.Config
+	config := &configCopy
 
-	if params == nil {
-		params = &types.Params{}
+	resolver := format.NewPropKeyResolver(config)
+	if err := resolver.UpdateConfigFromParams(config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	title, found := (*params)["title"]
-	if !found {
-		title = config.Title
+	// An empty devices param clears the devices, which the URL cannot do.
+	if len(config.Devices) == 0 {
+		return fmt.Errorf("updating config from params: %w", ErrDevicesMissing)
 	}
 
-	icon, found := (*params)["icon"]
-	if !found {
-		icon = config.Icon
-	}
-
-	devices := strings.Join(config.Devices, ",")
-
-	return s.sendToDevices(ctx, devices, message, title, icon)
+	return s.sendToDevices(ctx, config, message)
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
@@ -143,15 +142,14 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
-//   - devices: the comma-separated device IDs.
+//   - config: the config for this send, with the devices, API key, title, and
+//     icon. An empty title or icon is left out.
 //   - message: the message to send.
-//   - title: the notification title, or empty for none.
-//   - icon: the notification icon URL, or empty for none.
 //
 // Returns:
 //   - error: the request error, or [ErrSendFailed] for a non-success status.
-func (s *Service) sendToDevices(ctx context.Context, devices, message, title, icon string) error {
-	config := s.Config
+func (s *Service) sendToDevices(ctx context.Context, config *Config, message string) error {
+	devices := strings.Join(config.Devices, ",")
 
 	apiURL, err := url.Parse(hookURL)
 	if err != nil {
@@ -163,12 +161,12 @@ func (s *Service) sendToDevices(ctx context.Context, devices, message, title, ic
 	data.Set("apikey", config.APIKey)
 	data.Set("text", message)
 
-	if title != "" {
-		data.Set("title", title)
+	if config.Title != "" {
+		data.Set("title", config.Title)
 	}
 
-	if icon != "" {
-		data.Set("icon", icon)
+	if config.Icon != "" {
+		data.Set("icon", config.Icon)
 	}
 
 	apiURL.RawQuery = data.Encode()

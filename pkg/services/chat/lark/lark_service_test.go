@@ -318,7 +318,7 @@ func TestServiceSendBodySizeLimit(t *testing.T) {
 	service := newTestService(t, fullURL)
 	// An empty text is left out of the body, so a one-byte message measures
 	// the body around the text.
-	base, err := service.preparePayload("a", service.Config, nil)
+	base, err := service.preparePayload("a", service.Config)
 	require.NoError(t, err)
 
 	// fill is the text message that makes the body exactly the limit.
@@ -367,7 +367,8 @@ func TestServiceSendBodySizeLimit(t *testing.T) {
 }
 
 // TestServiceSendPayload verifies the request the service sends for text
-// messages, titled post messages, and post messages with a link.
+// messages, titled post messages, and post messages with a link. The title
+// and link may come from the service URL or the params, in any case.
 func TestServiceSendPayload(t *testing.T) {
 	t.Parallel()
 
@@ -375,6 +376,7 @@ func TestServiceSendPayload(t *testing.T) {
 	// produce. A nil wantPost means a text message.
 	tests := []struct {
 		name        string
+		query       string
 		params      *types.Params
 		wantMsgType MsgType
 		wantPost    *Post
@@ -398,6 +400,30 @@ func TestServiceSendPayload(t *testing.T) {
 			}},
 		},
 		{
+			name:        "post message with title and link from the URL",
+			query:       "&title=title&link=https%3A%2F%2Fexample.com",
+			wantMsgType: MsgTypePost,
+			wantPost: &Post{En: &Message{
+				Title: "title",
+				Content: [][]Item{
+					{{Tag: TagValueTextContent, Text: "message"}},
+					{{Tag: TagValueLink, Text: "More Info", Link: "https://example.com"}},
+				},
+			}},
+		},
+		{
+			name:        "link param in another case",
+			params:      &types.Params{"title": "title", "Link": "https://example.com"},
+			wantMsgType: MsgTypePost,
+			wantPost: &Post{En: &Message{
+				Title: "title",
+				Content: [][]Item{
+					{{Tag: TagValueTextContent, Text: "message"}},
+					{{Tag: TagValueLink, Text: "More Info", Link: "https://example.com"}},
+				},
+			}},
+		},
+		{
 			name:        "post message with title and link",
 			params:      &types.Params{"title": "title", "link": "https://example.com"},
 			wantMsgType: MsgTypePost,
@@ -416,7 +442,7 @@ func TestServiceSendPayload(t *testing.T) {
 			t.Parallel()
 
 			client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
-			service := newTestService(t, fullURL)
+			service := newTestService(t, fullURL+tt.query)
 			service.SetHTTPClient(client)
 
 			require.NoError(t, service.Send("message", tt.params))
@@ -645,7 +671,7 @@ func TestServiceDoSendMissingHost(t *testing.T) {
 	service := &Service{}
 	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
-	err := service.doSend(t.Context(), &Config{Path: "token"}, "message", nil)
+	err := service.doSend(t.Context(), &Config{Path: "token"}, "message")
 	require.ErrorIs(t, err, ErrMissingHost)
 }
 

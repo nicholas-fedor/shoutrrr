@@ -163,7 +163,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrNoPath
 	}
 
-	return s.doSend(ctx, &config, message, params)
+	return s.doSend(ctx, &config, message)
 }
 
 // ServiceTimeout reports the send budget of Lark.
@@ -187,21 +187,20 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
-//   - config: the configuration for this send.
+//   - config: the configuration for this send, with the params applied.
 //   - message: the message to send.
-//   - params: the send params, which may set the title and link.
 //
 // Returns:
 //   - error: [ErrMissingHost], a payload error, [ErrLargeMessage] for a
 //     request body over [maxBodySize] bytes, or the send error.
-func (s *Service) doSend(ctx context.Context, config *Config, message string, params *types.Params) error {
+func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
 	if config.Host == "" {
 		return ErrMissingHost
 	}
 
 	postURL := fmt.Sprintf(apiFormat, config.Host, config.Path)
 
-	payload, err := s.preparePayload(message, config, params)
+	payload, err := s.preparePayload(message, config)
 	if err != nil {
 		return err
 	}
@@ -238,31 +237,27 @@ func (s *Service) genSign(secret string, timestamp int64) (string, error) {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
-// getRequestBody constructs the request body for the Lark API, supporting rich content via params.
+// getRequestBody constructs the request body for the Lark API.
 //
 // Without a title the body is a text message. With one it is a post, with a
-// "More Info" link when the params set link. A secret adds the timestamp and
+// "More Info" link when the config sets one. A secret adds the timestamp and
 // the signature.
 //
 // Parameters:
 //   - message: the message to send.
-//   - title: the post title, or empty for a text message.
-//   - secret: the signing secret, or empty for an unsigned request.
-//   - params: the send params, which may set link.
+//   - config: the configuration for this send, with the title, link, and
+//     secret.
 //
 // Returns:
 //   - *RequestBody: the request body.
-func (s *Service) getRequestBody(
-	message, title, secret string,
-	params *types.Params,
-) *RequestBody {
+func (s *Service) getRequestBody(message string, config *Config) *RequestBody {
 	body := &RequestBody{}
 
-	if secret != "" {
+	if config.Secret != "" {
 		ts := time.Now().Unix()
 		body.Timestamp = strconv.FormatInt(ts, 10)
 
-		sign, err := s.genSign(secret, ts)
+		sign, err := s.genSign(config.Secret, ts)
 		if err != nil {
 			sign = "" // Fallback to empty string on error
 		}
@@ -270,7 +265,7 @@ func (s *Service) getRequestBody(
 		body.Sign = sign
 	}
 
-	if title == "" {
+	if config.Title == "" {
 		body.MsgType = MsgTypeText
 		body.Content.Text = message
 	} else {
@@ -278,20 +273,14 @@ func (s *Service) getRequestBody(
 		//nolint:exhaustruct_v5 // Item fields are populated inline; Link is optional
 		content := [][]Item{{{Tag: TagValueTextContent, Text: message}}}
 
-		if params != nil {
-			if link, ok := (*params)["link"]; ok && link != "" {
-				content = append(
-					content,
-
-					[]Item{{Tag: TagValueLink, Text: "More Info", Link: link}},
-				)
-			}
+		if config.Link != "" {
+			content = append(content, []Item{{Tag: TagValueLink, Text: "More Info", Link: config.Link}})
 		}
 
 		//nolint:exhaustruct_v5 // Post fields are populated inline; Zh is optional
 		body.Content.Post = &Post{
 			En: &Message{
-				Title:   title,
+				Title:   config.Title,
 				Content: content,
 			},
 		}
@@ -343,18 +332,14 @@ func (s *Service) handleResponse(ctx context.Context, resp *http.Response) error
 //
 // Parameters:
 //   - message: the message to send.
-//   - config: the configuration for this send, with the title and the secret.
-//   - params: the send params.
+//   - config: the configuration for this send, with the title, link, and
+//     secret.
 //
 // Returns:
 //   - []byte: the JSON payload.
 //   - error: the encoding error.
-func (s *Service) preparePayload(
-	message string,
-	config *Config,
-	params *types.Params,
-) ([]byte, error) {
-	body := s.getRequestBody(message, config.Title, config.Secret, params)
+func (s *Service) preparePayload(message string, config *Config) ([]byte, error) {
+	body := s.getRequestBody(message, config)
 
 	data, err := json.Marshal(body, jsonopts.Default)
 	if err != nil {
