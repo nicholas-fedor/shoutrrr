@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Name SMTP's recipient loop as an exception to sequential.Send by @nicholas-fedor in [#1957](https://github.com/nicholas-fedor/shoutrrr/pull/1957)
 - Document every declaration in pkg/types, MQTT, XMPP, and Logger by @nicholas-fedor in [#1867](https://github.com/nicholas-fedor/shoutrrr/pull/1867)
 - Document every declaration in five HTTP services by @nicholas-fedor in [#1847](https://github.com/nicholas-fedor/shoutrrr/pull/1847)
 - Document every declaration in five HTTP services by @nicholas-fedor in [#1823](https://github.com/nicholas-fedor/shoutrrr/pull/1823)
