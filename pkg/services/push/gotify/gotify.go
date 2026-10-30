@@ -300,11 +300,11 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 // Returns:
 //   - types.HTTPClient: the client to send through.
 func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
-	if !config.SkipTLSVerify {
-		return s.client.Client()
+	if config.SkipTLSVerify {
+		return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
 	}
 
-	return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
+	return s.client.Client()
 }
 
 // sendRequest executes the HTTP POST request to the Gotify API endpoint.
