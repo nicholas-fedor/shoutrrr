@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
 
@@ -41,8 +40,8 @@ type Service struct {
 	warnings logging.Once
 }
 
-// Send params that override URL fields. The config resolver does not accept
-// them as keys, so [CreateJSONPayload] reads them from the params.
+// Send params that override URL fields. The config resolver skips them, and
+// [CreateJSONPayload] reads them from the params.
 const (
 	// userNameParam overrides [Config.UserName] for one send.
 	userNameParam = "username"
@@ -133,7 +132,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	config := &configCopy
 
 	resolver := format.NewPropKeyResolver(config)
-	if err := resolver.UpdateConfigFromParams(config, configParams(params)); err != nil {
+	if err := resolver.UpdateConfigFromParams(config, params, userNameParam, channelParam); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -218,30 +217,6 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	}
 
 	return s.client.Prefer(s.Client)
-}
-
-// configParams returns the send params the config resolver accepts as keys.
-//
-// It leaves out the username and channel params, which override URL fields
-// and are read by [CreateJSONPayload]. The resolver still rejects any other
-// unknown key.
-//
-// Parameters:
-//   - params: the send params, or nil for none.
-//
-// Returns:
-//   - *types.Params: a copy of params without the URL field overrides, or nil
-//     when params is nil.
-func configParams(params *types.Params) *types.Params {
-	if params == nil {
-		return nil
-	}
-
-	keyParams := maps.Clone(*params)
-	delete(keyParams, userNameParam)
-	delete(keyParams, channelParam)
-
-	return &keyParams
 }
 
 // buildURL constructs the API URL for Rocket.Chat based on the Config.

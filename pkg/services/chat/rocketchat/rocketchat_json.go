@@ -37,11 +37,11 @@ func CreateJSONPayload(config *Config, message string, params *types.Params) ([]
 	}
 
 	if params != nil {
-		if value, found := (*params)["username"]; found {
+		if value, found := (*params)[userNameParam]; found {
 			payload.UserName = value
 		}
 
-		if value, found := (*params)["channel"]; found {
+		if value, found := (*params)[channelParam]; found {
 			payload.Channel = value
 		}
 	}

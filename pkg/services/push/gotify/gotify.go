@@ -249,18 +249,18 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 
 	s.warnings.DeprecatedFields(ctx, s, deprecatedFields)
 
-	// Filter out 'extras' parameter as it's handled separately from other config updates
-	filteredParams := filterParams(params)
-	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(&filteredParams))
+	s.warnings.DeprecatedKeys(ctx, s, s.pkr.DeprecatedParams(params))
 
-	// Update configuration with filtered parameters (title, priority, etc.)
-	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
+	// The extras param fills the payload, which ParseExtras reads.
+	if err := s.pkr.UpdateConfigFromParams(&config, params, extrasKey); err != nil {
 		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
 	}
 
-	for key := range filteredParams {
-		if strings.EqualFold(key, "priority") {
-			config.prioritySet = true
+	if params != nil {
+		for key := range *params {
+			if strings.EqualFold(key, "priority") {
+				config.prioritySet = true
+			}
 		}
 	}
 
@@ -360,29 +360,6 @@ func (s *Service) validateInputs(message string, _ *types.Params) error {
 	}
 
 	return nil
-}
-
-// filterParams filters out 'extras' parameters from the given params.
-//
-// Parameters:
-//   - params: the send params, or nil.
-//
-// Returns:
-//   - types.Params: a copy of params without extras.
-func filterParams(params *types.Params) types.Params {
-	if params == nil {
-		return types.Params{}
-	}
-
-	filtered := make(types.Params)
-
-	for k, v := range *params {
-		if k != "extras" {
-			filtered[k] = v
-		}
-	}
-
-	return filtered
 }
 
 // applyLevel sets the priority of a message from its level param when neither

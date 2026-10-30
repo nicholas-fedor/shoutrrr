@@ -10,7 +10,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -225,15 +224,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	}
 
 	// Only config keys update the config. The other params fill the payload.
-	configParams := types.Params{}
-
-	for key, value := range params {
-		if slices.Contains(s.pkr.QueryFields(), strings.ToLower(key)) {
-			configParams[key] = value
-		}
-	}
-
-	if err := s.pkr.UpdateConfigFromParams(&config, &configParams); err != nil {
+	if err := s.pkr.UpdateConfigFromKnownParams(&config, paramsPtr); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 

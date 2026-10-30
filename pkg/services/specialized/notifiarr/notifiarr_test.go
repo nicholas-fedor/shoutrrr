@@ -251,6 +251,21 @@ func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {
 	assert.Equal(t, want, *service.Config)
 }
 
+// TestSendAPIKeyParam verifies that an apikey param applies to that send only,
+// as the other config keys do. The request goes to its API key.
+func TestSendAPIKeyParam(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("Hello", &types.Params{"apikey": "otherkey456"}))
+
+	assert.Equal(t, APIBaseURL+"/otherkey456", captured.url)
+	assert.Equal(t, testAPIKey, service.Config.APIKey)
+}
+
 // TestSendLogsStatusWithoutBody verifies that a send logs the response status
 // but not the response body.
 func TestSendLogsStatusWithoutBody(t *testing.T) {

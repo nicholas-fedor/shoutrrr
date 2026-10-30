@@ -361,6 +361,52 @@ func TestPropKeyResolverConflictingParams(t *testing.T) {
 	require.NotErrorIs(t, err, ErrConflictingKeys)
 }
 
+// TestPropKeyResolverPayloadKeys verifies that the payload keys passed to
+// UpdateConfigFromParams are skipped only in their exact spelling, even when
+// one names a config key. Any other unknown param is still an error.
+func TestPropKeyResolverPayloadKeys(t *testing.T) {
+	t.Parallel()
+
+	config := &testStruct{}
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	require.NoError(t, resolver.UpdateConfigFromParams(nil, &types.Params{
+		"username": "bot", "str": "payload", "signed": "4",
+	}, "username", "str"))
+	assert.Equal(t, "notempty", config.Str, "a payload key does not set the config")
+	assert.Equal(t, 4, config.Signed)
+
+	err := resolver.UpdateConfigFromParams(nil, &types.Params{"UserName": "bot"}, "username")
+	require.ErrorIs(t, err, ErrInvalidConfigKey)
+
+	err = resolver.UpdateConfigFromParams(nil, &types.Params{"other": "x"}, "username")
+	require.ErrorIs(t, err, ErrInvalidConfigKey)
+}
+
+// TestPropKeyResolverUpdateConfigFromKnownParams verifies that only params
+// whose keys are config keys, in any case, update the config, and that the
+// rest, including the reserved title, are ignored. One key in two spellings
+// is still rejected.
+func TestPropKeyResolverUpdateConfigFromKnownParams(t *testing.T) {
+	t.Parallel()
+
+	config := &testStruct{}
+	resolver := NewPropKeyResolver(config)
+	require.NoError(t, resolver.SetDefaultProps(config))
+
+	require.NoError(t, resolver.UpdateConfigFromKnownParams(nil, &types.Params{
+		"Str": "val", "SIGNED": "5", "content": "payload", types.TitleKey: "title",
+	}))
+	assert.Equal(t, "val", config.Str)
+	assert.Equal(t, 5, config.Signed)
+
+	err := resolver.UpdateConfigFromKnownParams(nil, &types.Params{"str": "a", "STR": "b"})
+	require.ErrorIs(t, err, ErrConflictingKeys)
+
+	require.NoError(t, resolver.UpdateConfigFromKnownParams(nil, nil))
+}
+
 // TestPropKeyResolverReservedParams verifies that the reserved title,
 // message, and level params are skipped when the config does not declare
 // them, applied when it does, and that other unknown params are still
