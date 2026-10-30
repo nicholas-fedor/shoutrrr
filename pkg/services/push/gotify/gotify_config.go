@@ -70,6 +70,10 @@ const (
 	Scheme = "gotify"
 )
 
+// extrasKey names the extras JSON in the URL query and the send params. It is
+// not a config key, so the query and the params are read for it directly.
+const extrasKey = "extras"
+
 // GetURL returns a URL representation of the current configuration. A value
 // set through a deprecated field is written under its replacement's key.
 //
@@ -156,7 +160,7 @@ func (c *Config) processQueryParameters(
 ) error {
 	// extras holds JSON, which the config sets directly rather than through a
 	// config key.
-	if extras := query.Get("extras"); extras != "" {
+	if extras := query.Get(extrasKey); extras != "" {
 		c.Extras = make(map[string]any)
 
 		if err := json.Unmarshal([]byte(extras), &c.Extras, jsonopts.UserInput); err != nil {
@@ -165,7 +169,7 @@ func (c *Config) processQueryParameters(
 	}
 
 	configQuery := maps.Clone(query)
-	delete(configQuery, "extras")
+	delete(configQuery, extrasKey)
 
 	if err := format.ApplyQuery(resolver, configQuery); err != nil {
 		return fmt.Errorf("%w: %w", ErrConfigPropertyFailed, err)

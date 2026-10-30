@@ -326,24 +326,8 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 		params = *paramsPtr
 	}
 
-	// Filter params to only include valid config keys for config updates
-	validConfigKeys := map[string]bool{
-		"name":      true,
-		"channel":   true,
-		"color":     true,
-		"thumbnail": true,
-		"image":     true,
-	}
-	filteredParams := types.Params{}
-
-	for k, v := range params {
-		if validConfigKeys[k] {
-			filteredParams[k] = v
-		}
-	}
-
-	// Update config with filtered parameters
-	if err := s.pkr.UpdateConfigFromParams(&config, &filteredParams); err != nil {
+	// Only config keys update the config. The other params fill the payload.
+	if err := s.pkr.UpdateConfigFromKnownParams(&config, paramsPtr); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
@@ -354,7 +338,7 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	}
 
 	// Send the notification
-	if err := s.doSend(ctx, payload); err != nil {
+	if err := s.doSend(ctx, &config, payload); err != nil {
 		return fmt.Errorf("%w: %w", ErrSendFailed, err)
 	}
 
@@ -517,14 +501,15 @@ func (s *Service) createPayload(
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
+//   - config: the config for this send, with the API key.
 //   - payload: the JSON payload.
 //
 // Returns:
 //   - error: the request error, [ErrAuthenticationFailed] for a 401 status, or
 //     [ErrUnexpectedStatus] for another non-success status.
-func (s *Service) doSend(ctx context.Context, payload []byte) error {
+func (s *Service) doSend(ctx context.Context, config *Config, payload []byte) error {
 	// Build the API URL with API key
-	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, s.Config.APIKey)
+	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, config.APIKey)
 
 	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))

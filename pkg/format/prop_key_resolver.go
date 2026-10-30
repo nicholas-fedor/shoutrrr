@@ -339,12 +339,43 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 	return firstError
 }
 
+// UpdateConfigFromKnownParams mutates the provided config from the params
+// whose keys are config keys and ignores the rest. Keys match in any case. A
+// service whose other params fill its payload, such as a webhook body, uses
+// it. The params are applied as [PropKeyResolver.UpdateConfigFromParams]
+// applies them.
+//
+// Parameters:
+//   - config: the config to update, or nil for the resolver's own config.
+//   - params: the send params, or nil for none.
+//
+// Returns:
+//   - error: an error wrapping [ErrConflictingKeys] for one key in two
+//     spellings, or the first value error.
+func (pkr *PropKeyResolver) UpdateConfigFromKnownParams(config types.ServiceConfig, params *types.Params) error {
+	if params == nil {
+		return nil
+	}
+
+	known := types.Params{}
+
+	for key, value := range *params {
+		if _, found := pkr.keyFields[strings.ToLower(key)]; found {
+			known[key] = value
+		}
+	}
+
+	return pkr.UpdateConfigFromParams(config, &known)
+}
+
 // UpdateConfigFromParams mutates the provided config, updating the values from its corresponding params.
 // If the provided config is nil, the internal config will be updated instead.
 //
 // The reserved params set by [types.Params] helpers (title, message and level) are
 // applied when the config declares them and skipped otherwise, so every service
-// accepts them. Any other param without a matching key is an error.
+// accepts them. The params named in payloadKeys fill the service's payload and
+// are skipped too. They match exactly, as the payload reads them. Any other
+// param without a matching key is an error.
 // Params that give one key in two spellings, such as disabletls and DisableTLS,
 // are rejected with [ErrConflictingKeys] before any is applied.
 // Params are applied in key order, with deprecated keys first, so a
@@ -353,6 +384,7 @@ func (pkr *PropKeyResolver) SetDefaultProps(config types.ServiceConfig) error {
 func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	config types.ServiceConfig,
 	params *types.Params,
+	payloadKeys ...string,
 ) error {
 	var firstError error
 
@@ -372,7 +404,7 @@ func (pkr *PropKeyResolver) UpdateConfigFromParams(
 	}
 
 	for _, key := range keys {
-		if pkr.isUndeclaredReserved(key) {
+		if pkr.isUndeclaredReserved(key) || slices.Contains(payloadKeys, key) {
 			continue
 		}
 

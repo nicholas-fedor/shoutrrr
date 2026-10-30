@@ -217,6 +217,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Give every key a `desc` tag, which the docs and the CLI show.
 - Read the URL query with `format.ApplyQuery`.
   It matches keys in any case and rejects a key given in two spellings.
+- Apply send params with `UpdateConfigFromParams`, naming the params that fill the payload instead, such as a username.
+  When every param that is not a config key fills the payload, as in a webhook body, use `UpdateConfigFromKnownParams`.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.

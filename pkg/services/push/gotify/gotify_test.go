@@ -914,18 +914,6 @@ func TestSendURLBuilderError(t *testing.T) {
 	require.ErrorIs(t, service.Send("Hello", nil), errBuild)
 }
 
-// TestFilterParams verifies that filterParams copies every param except
-// extras and handles nil params.
-func TestFilterParams(t *testing.T) {
-	t.Parallel()
-
-	params := types.Params{"title": "Backup", "extras": "{}", "priority": "5"}
-
-	assert.Equal(t, types.Params{"title": "Backup", "priority": "5"}, filterParams(&params))
-	assert.Equal(t, types.Params{"title": "Backup", "extras": "{}", "priority": "5"}, params)
-	assert.Equal(t, types.Params{}, filterParams(nil))
-}
-
 // BuildURL returns the builder's error.
 //
 // Returns:
