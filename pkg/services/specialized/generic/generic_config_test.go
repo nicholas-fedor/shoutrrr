@@ -44,7 +44,8 @@ func TestDefaultConfig(t *testing.T) {
 
 // TestConfigFromWebhookURL verifies that a webhook URL's query sets the
 // config props, headers, and extra data, the remaining query stays on the
-// webhook URL, and an http scheme disables TLS.
+// webhook URL, an escaped key is forwarded to the webhook, and the scheme
+// alone decides whether TLS is disabled.
 func TestConfigFromWebhookURL(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +78,28 @@ func TestConfigFromWebhookURL(t *testing.T) {
 		assert.Equal(t, "http://example.com/webhook", config.WebhookURL().String())
 	})
 
+	t.Run("skiptlsverify", func(t *testing.T) {
+		t.Parallel()
+
+		config, _, err := ConfigFromWebhookURL(parseTestURL(t,
+			"https://example.com/webhook?skiptlsverify=yes&__skiptlsverify=passed"))
+		require.NoError(t, err)
+
+		assert.True(t, config.SkipTLSVerify)
+		assert.Equal(t, "https://example.com/webhook?skiptlsverify=passed", config.WebhookURL().String())
+	})
+
+	// The scheme decides TLS for a webhook URL, so disabletls has no effect.
+	t.Run("disabletls with https scheme", func(t *testing.T) {
+		t.Parallel()
+
+		config, _, err := ConfigFromWebhookURL(parseTestURL(t, "https://example.com/webhook?disabletls=yes"))
+		require.NoError(t, err)
+
+		assert.False(t, config.DisableTLS)
+		assert.Equal(t, "https://example.com/webhook", config.WebhookURL().String())
+	})
+
 	t.Run("invalid prop value", func(t *testing.T) {
 		t.Parallel()
 
@@ -88,20 +111,24 @@ func TestConfigFromWebhookURL(t *testing.T) {
 
 // TestConfigSetURL verifies that SetURL reads the config props, headers, and
 // extra data from the query and keeps the rest of the URL as the webhook URL,
-// with escaped keys passed through to the webhook.
+// with escaped keys passed through to the webhook. The skiptlsverify key is a
+// config prop, so the webhook receives it only when escaped.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
 	// tests lists service URLs with the webhook URL and template each should
 	// produce.
 	tests := []struct {
-		name         string
-		rawURL       string
-		wantWebhook  string
-		wantTemplate string
+		name           string
+		rawURL         string
+		wantWebhook    string
+		wantTemplate   string
+		wantSkipVerify bool
 	}{
 		{name: "path and query", rawURL: "generic://example.com/path?foo=bar", wantWebhook: "https://example.com/path?foo=bar"},
 		{name: "disabletls", rawURL: "generic://example.com?disabletls=yes", wantWebhook: "http://example.com"},
+		{name: "skiptlsverify", rawURL: "generic://example.com/hook?skiptlsverify=yes", wantWebhook: "https://example.com/hook", wantSkipVerify: true},
+		{name: "escaped skiptlsverify", rawURL: "generic://example.com/hook?__skiptlsverify=yes", wantWebhook: "https://example.com/hook?skiptlsverify=yes"},
 		{name: "escaped prop key", rawURL: "generic://example.com/?__template=passed", wantWebhook: "https://example.com/?template=passed"},
 		{
 			name:         "escaped and plain prop keys",
@@ -120,6 +147,7 @@ func TestConfigSetURL(t *testing.T) {
 
 			assert.Equal(t, tt.wantWebhook, config.WebhookURL().String())
 			assert.Equal(t, tt.wantTemplate, config.Template)
+			assert.Equal(t, tt.wantSkipVerify, config.SkipTLSVerify)
 		})
 	}
 
@@ -153,6 +181,7 @@ func TestConfigGetURL(t *testing.T) {
 				"&contenttype=a%2Fb&template=f&title=t",
 		},
 		{name: "escaped prop key", rawURL: "generic://example.com/?__template=passed", want: "generic://example.com/?__template=passed"},
+		{name: "skiptlsverify", rawURL: "generic://example.com/hook?skiptlsverify=yes", want: "generic://example.com/hook?skiptlsverify=Yes"},
 	}
 
 	for _, tt := range tests {
@@ -176,7 +205,7 @@ func TestConfigQueryResolver(t *testing.T) {
 
 	assert.Empty(t, config.Enums())
 	assert.Equal(t,
-		[]string{"contenttype", "disabletls", "messagekey", "method", "template", "title", "titlekey"},
+		[]string{"contenttype", "disabletls", "messagekey", "method", "skiptlsverify", "template", "title", "titlekey"},
 		format.GetConfigQueryResolver(config).QueryFields())
 }
 

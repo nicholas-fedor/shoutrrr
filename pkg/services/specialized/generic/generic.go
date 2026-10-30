@@ -192,7 +192,9 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 
 // SendContext delivers a notification message to a generic webhook endpoint.
 // A context without a deadline is bounded by the budget that
-// [Service.ServiceTimeout] reports. The first send without TLS logs a warning.
+// [Service.ServiceTimeout] reports. The first send without TLS logs a warning,
+// and so does the first send that skips certificate verification through the
+// default client.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
@@ -296,7 +298,7 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 	}
 
 	// Send the HTTP request
-	res, err := s.client.Client().Do(req)
+	res, err := s.sendClient(ctx, config).Do(req)
 	if err != nil {
 		return fmt.Errorf("sending HTTP request: %w", redact.URLError(err))
 	}
@@ -316,6 +318,25 @@ func (s *Service) doSend(ctx context.Context, config *Config, params types.Param
 	}
 
 	return nil
+}
+
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.client.Client()
 }
 
 // createSendParams constructs parameters for sending a notification.

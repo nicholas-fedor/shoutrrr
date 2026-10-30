@@ -25,6 +25,8 @@
 //   - contenttype: HTTP Content-Type header (default: "application/json")
 //   - method: HTTP method (default: "POST")
 //   - disabletls: set to "yes" to use HTTP instead of HTTPS
+//   - skiptlsverify: set to "yes" to skip verification of the server's TLS
+//     certificate, such as a self-signed one
 //   - titlekey: JSON key for title field (default: "title")
 //   - messagekey: JSON key for message field (default: "message")
 //   - @HeaderName: custom HTTP headers (e.g., @Authorization=Bearer token)
@@ -54,7 +56,11 @@
 //
 //	https://example.com/webhook → generic+https://example.com/webhook
 //
-// Note: Query parameters cannot be used with the shortcut format.
+// Query parameters that name configuration options, such as template or
+// skiptlsverify, configure the service. The others are forwarded to the
+// webhook. Prefix a key with "__" to forward it even when it names an option,
+// such as __template=passed. The disabletls option has no effect here,
+// because the scheme of the shortcut URL decides whether TLS is used.
 //
 // # Examples
 //
@@ -134,6 +140,7 @@
 // # Security Considerations
 //
 // - Use HTTPS whenever possible (avoid disabletls=yes in production)
+// - Use skiptlsverify=yes only for a server whose certificate cannot be verified
 // - Store API keys and tokens securely, not in URLs
 // - Validate webhook endpoints before deployment
 // - Consider rate limiting and authentication requirements of target services

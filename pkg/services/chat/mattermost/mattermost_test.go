@@ -437,6 +437,60 @@ func TestSendWarnsPlaintext(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(logs.String(), "WARN sending without TLS"))
 }
 
+// TestSendSkipTLSVerify verifies sends to a server whose certificate cannot be
+// verified. Without skiptlsverify the send fails. With it in the URL or the
+// params, the send goes through the insecure default client and warns once
+// over two sends. An injected client is used unchanged and never warned about.
+func TestSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and whether a client is
+	// injected, with the expected outcome.
+	tests := []struct {
+		params       *types.Params
+		name         string
+		query        string
+		injected     bool
+		wantErr      bool
+		wantWarnings int
+	}{
+		{name: "verified by default", wantErr: true},
+		{name: "URL", query: "?skiptlsverify=yes", wantWarnings: 1},
+		{name: "params", params: &types.Params{"skiptlsverify": "yes"}, wantWarnings: 1},
+		{name: "injected client", query: "?skiptlsverify=yes", injected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(server.Close)
+
+			var logs strings.Builder
+
+			service := &Service{}
+			rawURL := "mattermost://" + server.Listener.Addr().String() + "/token" + tt.query
+			require.NoError(t, service.Initialize(parseTestURL(t, rawURL), log.New(&logs, "", 0)))
+
+			if tt.injected {
+				service.SetHTTPClient(server.Client())
+			}
+
+			for range 2 {
+				err := service.Send("Message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			assert.Equal(t, tt.wantWarnings, strings.Count(logs.String(), insecureWarning))
+		})
+	}
+}
+
 // TestDefaultHTTPClient verifies that the default client has no request
 // timeout, since the send budget bounds each send, and sends through
 // http.DefaultTransport, so it honors the proxy environment variables.

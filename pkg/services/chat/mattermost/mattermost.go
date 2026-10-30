@@ -91,13 +91,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Mattermost. A context without
 // a deadline is bounded by the budget that [Service.ServiceTimeout] reports.
-// The first send without TLS logs a warning.
+// The first send without TLS logs a warning, and so does the first send that
+// skips certificate verification through the default client.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
 //   - params: optional overrides for configuration fields, including the
-//     username and channel params and disabletls.
+//     username and channel params, disabletls, and skiptlsverify.
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
@@ -143,7 +144,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	req.Header.Set("Content-Type", "application/json")
 
-	res, err := s.client.Client().Do(req)
+	res, err := s.sendClient(ctx, config).Do(req)
 	if err != nil {
 		return fmt.Errorf("executing POST request to Mattermost API: %w", redact.URLError(err))
 	}
@@ -164,6 +165,25 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
+}
+
+// sendClient returns the client for a send. A send that skips certificate
+// verification uses the insecure default client, and the first such send logs
+// the shared warning. An injected client is used unchanged and never warned
+// about, because its owner controls its TLS settings.
+//
+// Parameters:
+//   - ctx: the context of the send, passed to its warnings.
+//   - config: the config for this send.
+//
+// Returns:
+//   - types.HTTPClient: the client to send through.
+func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClient {
+	if config.SkipTLSVerify {
+		return s.client.InsecureClient(func() { s.warnings.Insecure(ctx, s) })
+	}
+
+	return s.client.Client()
 }
 
 // buildURL constructs the API URL for Mattermost based on the Config.

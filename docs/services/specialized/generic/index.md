@@ -84,7 +84,11 @@ generic+https://example.com/api/v1/postStuff
 ```
 
 !!! Note
-    Any query variables added to the URL will be escaped so that they can be forwarded to the remote server. That means that you cannot use `?template=json` with the  `generic+https://`, just use `generic://` instead!
+    Query variables in a `generic+` URL work as in a `generic://` URL.
+    A variable that names a [Query/Param Prop](#queryparam_props) configures the service, such as `template=json`.
+    The others are forwarded to the remote server.
+    The one exception is `disabletls`, which has no effect in the query of a `generic+` URL, because its scheme decides whether TLS is used.
+    A `disabletls` send param still applies, as described under [TLS](#tls).
 
 !!! example
     ```url
@@ -94,18 +98,31 @@ generic+https://example.com/api/v1/postStuff
 ## Forwarded query variables
 
 All query variables that are not listed in the [Query/Param Props](#queryparam_props) section will be forwarded to the target endpoint.
-If you need to pass a query variable that _is_ reserved, you can prefix it with an underscore (`_`).
+If you need to pass a query variable that _is_ reserved, you can prefix it with two underscores (`__`).
 
 !!! Example
     The URL `generic+https://example.com/api/v1/postStuff?contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff` using the `Content-Type: text/plain` header.
-    If instead escaped, `generic+https://example.com/api/v1/postStuff?_contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff?contenttype=text/plain` using the `Content-Type: application/json` header (as it's the default).
+    If instead escaped, `generic+https://example.com/api/v1/postStuff?__contenttype=text/plain` would send a POST message to `https://example.com/api/v1/postStuff?contenttype=text/plain` using the `Content-Type: application/json` header (as it's the default).
 
 !!! example
     ```url
     generic://webhook.example.com/alert?template=json&disabletls=yes&method=POST&titlekey=alert_title&messagekey=alert_message
     ```
 
-With `disabletls=yes`, the request goes over plain HTTP and the first send without TLS logs a warning.
+## TLS
+
+A `generic://` URL sends over HTTPS unless it sets `disabletls=yes`.
+A `generic+` URL sends over HTTP when its scheme is `generic+http://` and over HTTPS otherwise, unless a send param overrides it.
+A `disabletls=yes` send param sends that request over HTTP even for a `generic+https://` URL, so the scheme alone does not guarantee encryption.
+Plain HTTP leaves the connection unencrypted.
+
+Set `skiptlsverify=yes` when the webhook server's certificate cannot be verified, such as a self-signed one.
+The connection stays encrypted, but Shoutrrr does not check which server it talks to.
+Use `__skiptlsverify` to forward a `skiptlsverify` query variable to the webhook instead.
+
+Both options can also be passed as send params, which apply to that send only.
+A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
+Shoutrrr logs a warning the first time a send goes out without TLS, and the first time a send skips certificate verification through its own client.
 
 ## URL Format
 

@@ -75,6 +75,11 @@ func TestConfigSetURL(t *testing.T) {
 			},
 		},
 		{
+			name:   "skiptlsverify",
+			rawURL: "mattermost://home.lan:8065/token?skiptlsverify=yes",
+			want:   Config{Host: "home.lan:8065", Token: "token", SkipTLSVerify: true},
+		},
+		{
 			name:   "icon emoji",
 			rawURL: "mattermost://AAAAAAAAA/BBBBBBBBB?icon=test",
 			want:   Config{Icon: "test", Host: "AAAAAAAAA", Token: "BBBBBBBBB"},
@@ -192,6 +197,11 @@ func TestConfigGetURL(t *testing.T) {
 			rawURL: "mattermost://watchtower@home.lan:8065/token/channel?disabletls=yes",
 			want:   "mattermost://watchtower@home.lan:8065/token/channel?disabletls=Yes",
 		},
+		{
+			name:   "skiptlsverify is normalized",
+			rawURL: "mattermost://home.lan:8065/token?skiptlsverify=yes",
+			want:   "mattermost://home.lan:8065/token?skiptlsverify=Yes",
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,7 +225,7 @@ func TestConfigGetURL(t *testing.T) {
 }
 
 // TestConfigQueryResolver verifies the config's query props: an unknown key
-// is rejected, the defaults apply cleanly, and there are five keys and no
+// is rejected, the defaults apply cleanly, and there are six keys and no
 // enums.
 func TestConfigQueryResolver(t *testing.T) {
 	t.Parallel()
@@ -245,6 +255,6 @@ func TestConfigQueryResolver(t *testing.T) {
 		config := &Config{}
 
 		assert.Empty(t, config.Enums())
-		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 5)
+		assert.Len(t, format.GetConfigQueryResolver(config).QueryFields(), 6)
 	})
 }
