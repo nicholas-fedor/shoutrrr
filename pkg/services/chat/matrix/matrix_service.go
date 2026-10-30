@@ -102,14 +102,16 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
-		return err
-	}
-
+	// The earlier session ends before the URL is read, so a URL that fails to
+	// read leaves no session to send with.
 	s.accessToken = ""
 	s.loggedIn = false
 	s.ready = false
 	s.loginGate = make(chan struct{}, 1)
+
+	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
+		return err
+	}
 
 	// The dummy.com placeholder URL, which config validation also accepts without
 	// credentials, configures no homeserver to send to.

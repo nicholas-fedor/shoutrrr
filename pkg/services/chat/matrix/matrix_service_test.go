@@ -374,6 +374,21 @@ func TestPlaceholderURLDropsClient(t *testing.T) {
 	httpClient.AssertNotCalled(t, "Do", mock.Anything)
 }
 
+// TestFailedInitializeDropsSession verifies that reinitializing with an
+// invalid URL leaves the service unable to send, instead of sending with the
+// earlier session's access token and a partly read config.
+func TestFailedInitializeDropsSession(t *testing.T) {
+	t.Parallel()
+
+	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+	require.NoError(t, service.Initialize(parseTestURL(t, tokenURL), nil))
+
+	require.ErrorIs(t, service.Initialize(parseTestURL(t, "matrix://user@matrix.example.com"), nil), ErrMissingCredentials)
+
+	require.ErrorIs(t, service.Send("message", nil), ErrClientNotInitialized)
+	httpClient.AssertNotCalled(t, "Do", mock.Anything)
+}
+
 // TestAccessTokenSkipsLogin verifies that an access token is used without a
 // login.
 func TestAccessTokenSkipsLogin(t *testing.T) {
