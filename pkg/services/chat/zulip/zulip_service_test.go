@@ -1094,10 +1094,10 @@ func TestDoSendRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
 
 	// The mock has no expectations, so a request fails the test.
-	service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
+	service := &Service{}
 	config := &Config{BotMail: "SECRETbot@example.com", BotKey: testBotKey, Host: "bad host", Stream: "general", Topic: "alerts"}
 
-	err := service.doSend(t.Context(), config, "Hello")
+	err := service.doSend(t.Context(), mocks.NewMockHTTPClient(t), config, "Hello")
 
 	_, isURLErr := errors.AsType[*url.Error](err)
 	require.True(t, isURLErr, "error %v is not a *url.Error", err)

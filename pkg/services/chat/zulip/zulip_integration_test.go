@@ -452,6 +452,96 @@ func TestIntegrationSendServerLimits(t *testing.T) {
 	}
 }
 
+// TestIntegrationSendSkipTLSVerify verifies sends to a server whose
+// certificate cannot be verified. Without skiptlsverify the send fails and no
+// request reaches the server. With it in the URL or the params, the limits
+// lookup and the messages go through the insecure default client, and the
+// warning is logged once over two sends. A client set through the deprecated
+// HTTPClient field or SetHTTPClient is used unchanged and never warned about.
+func TestIntegrationSendSkipTLSVerify(t *testing.T) {
+	t.Parallel()
+
+	const insecureWarning = "WARN skipping TLS certificate verification"
+
+	// tests lists the URL query, the send params, and how a client is set,
+	// with the expected outcome of both sends.
+	tests := []struct {
+		params       *types.Params
+		setClient    func(service *zulip.Service, client *http.Client)
+		name         string
+		query        string
+		wantErr      bool
+		wantWarnings int
+	}{
+		{name: "verified by default", wantErr: true},
+		{name: "URL", query: "&skiptlsverify=yes", wantWarnings: 1},
+		{name: "params", params: &types.Params{"skiptlsverify": "yes"}, wantWarnings: 1},
+		{
+			name:      "deprecated client field",
+			query:     "&skiptlsverify=yes",
+			setClient: func(service *zulip.Service, client *http.Client) { service.HTTPClient = client },
+		},
+		{
+			name:      "injected client",
+			query:     "&skiptlsverify=yes",
+			setClient: func(service *zulip.Service, client *http.Client) { service.SetHTTPClient(client) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := newFakeZulip(t, defaultLimits, cannedResponse{statusCode: http.StatusOK, body: `{"result":"success"}`})
+
+			parsed, err := url.Parse(serviceURL(fake.server, "?stream=general"+tt.query))
+			require.NoError(t, err)
+
+			var logs strings.Builder
+
+			service := &zulip.Service{}
+			require.NoError(t, service.Initialize(parsed, log.New(&logs, "", 0)))
+
+			if tt.setClient != nil {
+				tt.setClient(service, fake.server.Client())
+			}
+
+			for range 2 {
+				err := service.Send("message", tt.params)
+				require.Equal(t, tt.wantErr, err != nil, "send error: %v", err)
+			}
+
+			wantRequests := 2
+			if tt.wantErr {
+				wantRequests = 0
+			}
+
+			assert.Len(t, fake.Messages(), wantRequests)
+			assert.Len(t, fake.Registers(), min(wantRequests, 1), "the limits are looked up through the send's client")
+			assert.Equal(t, tt.wantWarnings, strings.Count(logs.String(), insecureWarning))
+		})
+	}
+
+	t.Run("warns again after Initialize", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeZulip(t, defaultLimits, cannedResponse{statusCode: http.StatusOK, body: `{"result":"success"}`})
+
+		parsed, err := url.Parse(serviceURL(fake.server, "?stream=general&skiptlsverify=yes"))
+		require.NoError(t, err)
+
+		var logs strings.Builder
+
+		service := &zulip.Service{}
+		require.NoError(t, service.Initialize(parsed, log.New(&logs, "", 0)))
+		require.NoError(t, service.Send("first", nil))
+		require.NoError(t, service.Initialize(parsed, log.New(&logs, "", 0)))
+		require.NoError(t, service.Send("second", nil))
+
+		assert.Equal(t, 2, strings.Count(logs.String(), insecureWarning))
+	})
+}
+
 // TestIntegrationSendErrorStatus verifies that a send reports an error status
 // from the messages endpoint as ErrResponseStatusFailure with the status and
 // any response body, without the bot API key.
