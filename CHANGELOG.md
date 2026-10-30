@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Check repeated connection warnings with atomic flags by @nicholas-fedor in [#1970](https://github.com/nicholas-fedor/shoutrrr/pull/1970)
 - Log attributes without boxing them by @nicholas-fedor in [#1959](https://github.com/nicholas-fedor/shoutrrr/pull/1959)
 - Skip the caller lookup when nothing will be logged by @nicholas-fedor in [#1953](https://github.com/nicholas-fedor/shoutrrr/pull/1953)
 
