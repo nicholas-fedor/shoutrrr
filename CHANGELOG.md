@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add skiptlsverify to Mattermost and Generic by @nicholas-fedor in [#1961](https://github.com/nicholas-fedor/shoutrrr/pull/1961)
 - Add disabletls and skiptlsverify for self-hosted servers by @nicholas-fedor in [#1941](https://github.com/nicholas-fedor/shoutrrr/pull/1941)
 - Add skiptlsverify for servers with unverifiable certificates by @nicholas-fedor in [#1937](https://github.com/nicholas-fedor/shoutrrr/pull/1937)
 - Log every service message at a level by @nicholas-fedor in [#1923](https://github.com/nicholas-fedor/shoutrrr/pull/1923)
@@ -110,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update binwiederhier/ntfy:latest docker digest to 6f0c9ab by @renovate[bot] in [#1963](https://github.com/nicholas-fedor/shoutrrr/pull/1963)
 - Update matrixdotorg/synapse:latest docker digest to 3c29007 by @renovate[bot] in [#1912](https://github.com/nicholas-fedor/shoutrrr/pull/1912)
 - Update dependency platformdirs to v4.14.0 by @renovate[bot] in [#1913](https://github.com/nicholas-fedor/shoutrrr/pull/1913)
 - Update dependency tzdata to v2026.6 by @renovate[bot] in [#1908](https://github.com/nicholas-fedor/shoutrrr/pull/1908)
