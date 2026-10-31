@@ -118,6 +118,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "empty key", rawURL: "pagerduty://events.pagerduty.com/", wantErr: errMissingIntegrationKey},
 		{name: "short key", rawURL: "pagerduty://events.pagerduty.com/invalid-key", wantErr: errInvalidIntegrationKey},
 		{name: "non-hex key", rawURL: "pagerduty://events.pagerduty.com/" + "z1b2c3d4e5f678901234567890abcdef", wantErr: errInvalidIntegrationKey},
+		{name: "31-character key", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey[:31], wantErr: errInvalidIntegrationKey},
+		{name: "33-character key", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "a", wantErr: errInvalidIntegrationKey},
 		{name: "port out of range", rawURL: "pagerduty://events.pagerduty.com:70000/" + testIntegrationKey},
 		{name: "unknown prop", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
 		{name: "unbracketed IPv6 host", rawURL: "pagerduty://2001:db8::1/" + testIntegrationKey, wantErr: util.ErrInvalidHost},

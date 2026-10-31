@@ -126,9 +126,9 @@ func TestEntityGetPropValue(t *testing.T) {
 	})
 }
 
-// TestIsOpsGenieID verifies that only lowercase hex IDs in the 8-4-4-4-12
+// TestOpsGenieIDPattern verifies that only lowercase hex IDs in the 8-4-4-4-12
 // layout count as OpsGenie IDs.
-func TestIsOpsGenieID(t *testing.T) {
+func TestOpsGenieIDPattern(t *testing.T) {
 	t.Parallel()
 
 	// tests lists candidate strings and whether each is an ID.
@@ -147,10 +147,7 @@ func TestIsOpsGenieID(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
-			isID, err := isOpsGenieID(tt.input)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, isID)
+			assert.Equal(t, tt.want, opsGenieIDPattern.MatchString(tt.input))
 		})
 	}
 }

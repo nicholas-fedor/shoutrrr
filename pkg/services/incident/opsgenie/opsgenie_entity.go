@@ -33,9 +33,6 @@ var (
 	ErrInvalidEntityFormat = errors.New(
 		"invalid entity, should have two elements separated by colon",
 	)
-	// ErrInvalidEntityIDName indicates an identifier that could not be checked
-	// against the Opsgenie ID format.
-	ErrInvalidEntityIDName = errors.New("invalid entity, cannot parse id/name")
 	// ErrUnexpectedEntityType indicates an entity type that cannot take the
 	// identifier, or that the field does not accept.
 	ErrUnexpectedEntityType = errors.New("invalid entity, unexpected entity type")
@@ -43,6 +40,10 @@ var (
 	// username.
 	ErrMissingEntityIdentity = errors.New("invalid entity, should have either ID, name or username")
 )
+
+// opsGenieIDPattern matches an Opsgenie ID. An ID is lowercase hexadecimal in
+// the 8-4-4-4-12 layout, such as 4513b7ea-3b91-438f-b7e4-e3e54af9147c.
+var opsGenieIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // GetPropValue serializes an entity back into a string in the format "type:identifier".
 //
@@ -95,13 +96,8 @@ func (e *Entity) SetFromProp(propValue string) error {
 		return fmt.Errorf("%w: %q", ErrMissingEntityIdentity, propValue)
 	}
 
-	isID, err := isOpsGenieID(identifier)
-	if err != nil {
-		return fmt.Errorf("%w: %q", ErrInvalidEntityIDName, identifier)
-	}
-
 	switch {
-	case isID:
+	case opsGenieIDPattern.MatchString(identifier):
 		e.ID = identifier
 	case e.Type == "user":
 		e.Username = identifier
@@ -112,24 +108,4 @@ func (e *Entity) SetFromProp(propValue string) error {
 	}
 
 	return nil
-}
-
-// isOpsGenieID checks if a string matches the OpsGenie ID format (e.g., 4513b7ea-3b91-438f-b7e4-e3e54af9147c).
-//
-// Parameters:
-//   - str: the identifier to check.
-//
-// Returns:
-//   - bool: true when str is in the ID format.
-//   - error: the error from compiling the pattern.
-func isOpsGenieID(str string) (bool, error) {
-	matched, err := regexp.MatchString(
-		`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-		str,
-	)
-	if err != nil {
-		return false, fmt.Errorf("matching OpsGenie ID format for %q: %w", str, err)
-	}
-
-	return matched, nil
 }
