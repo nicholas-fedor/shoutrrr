@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fall back to the 429 body's retry_after by @nicholas-fedor in [#1984](https://github.com/nicholas-fedor/shoutrrr/pull/1984)
 - Send webhooks to Discord API v10 by @nicholas-fedor in [#1982](https://github.com/nicholas-fedor/shoutrrr/pull/1982)
 - Read Retry-After the same way in Discord and Matrix by @nicholas-fedor in [#1976](https://github.com/nicholas-fedor/shoutrrr/pull/1976)
 - Reject send params that are neither config keys nor payload params by @nicholas-fedor in [#1955](https://github.com/nicholas-fedor/shoutrrr/pull/1955)
