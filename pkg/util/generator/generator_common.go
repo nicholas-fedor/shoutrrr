@@ -59,6 +59,10 @@ var errNotANumber = errors.New("not a number")
 // This error is returned when boolean parsing fails to recognize the input.
 var errInvalidBoolFormat = errors.New("answer must be yes or no")
 
+// numberPattern is the pattern [UserDialog.QueryInt] finds a decimal or a
+// prefixed hexadecimal number with.
+var numberPattern = regexp.MustCompile(`^((0x|#)([0-9a-fA-F]+))|(-?\d+)$`)
+
 // NewUserDialog initializes a new UserDialog instance with safe defaults.
 //
 // If the provided props map is nil, an empty map is created to prevent nil
@@ -206,12 +210,10 @@ func (ud *UserDialog) QueryBool(prompt, key string) bool {
 // Returns:
 //   - int64: the parsed integer value; 0 if parsing fails
 func (ud *UserDialog) QueryInt(prompt, key string, bitSize int) int64 {
-	validator := regexp.MustCompile(`^((0x|#)([0-9a-fA-F]+))|(-?\d+)$`)
-
 	var value int64
 
 	ud.QueryString(prompt, func(answer string) error {
-		groups := validator.FindStringSubmatch(answer)
+		groups := numberPattern.FindStringSubmatch(answer)
 		if len(groups) < 1 {
 			return errNotANumber
 		}

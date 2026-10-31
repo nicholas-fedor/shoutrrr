@@ -42,17 +42,19 @@ type Config struct {
 	Port uint16 `default:"443" desc:"The PagerDuty API port." url:"port"`
 }
 
-// Service identity, URL defaults, and the integration key format.
+// Service identity and URL defaults.
 const (
 	// Scheme is the identifying part of this service's configuration URL.
 	Scheme = "pagerduty"
-	// integrationKeyRegex validates that integration keys are 32-character hexadecimal strings.
-	integrationKeyRegex = `^[a-fA-F0-9]{32}$`
 	// defaultHost is the Events API v2 host used when the URL has no host.
 	defaultHost = "events.pagerduty.com"
 	// defaultPort is the HTTPS port used when the URL has no port.
 	defaultPort = 443
 )
+
+// integrationKeyPattern matches an integration key, which is 32 hexadecimal
+// characters.
+var integrationKeyPattern = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
 
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
 //
@@ -130,10 +132,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.IntegrationKey = serviceURL.Path[1:]
 
-	// Validate integration key format
-	if matched, err := regexp.MatchString(integrationKeyRegex, c.IntegrationKey); err != nil {
-		return fmt.Errorf("failed to validate integration key: %w", err)
-	} else if !matched {
+	if !integrationKeyPattern.MatchString(c.IntegrationKey) {
 		return errInvalidIntegrationKey
 	}
 
