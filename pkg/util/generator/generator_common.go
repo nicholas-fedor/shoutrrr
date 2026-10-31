@@ -1,13 +1,13 @@
 // Package generator provides common utilities for interactive CLI generators.
 //
 // The generator package facilitates question/answer-based user interaction through
-// the UserDialog type. It supports capturing various input types including strings,
-// integers, booleans, and regex patterns with built-in validation. The package is
-// designed to support service configuration generation in CLI applications.
+// the UserDialog type. It supports capturing strings and booleans, with regex
+// patterns for built-in validation. The package is designed to support service
+// configuration generation in CLI applications.
 //
 // Key features:
 //   - Interactive prompts with validation
-//   - Support for multiple input types (string, int, bool)
+//   - Support for string and bool input
 //   - Regex pattern matching for input validation
 //   - Property-based input for non-interactive usage
 //   - Colored output for better user experience
@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strconv"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/color"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -51,17 +50,9 @@ var errInvalidFormat = errors.New("invalid format")
 // This error is returned when validation requires at least one character of input.
 var errRequired = errors.New("field is required")
 
-// errNotANumber indicates that the input could not be parsed as a number.
-// This error is returned when parsing integer input fails.
-var errNotANumber = errors.New("not a number")
-
 // errInvalidBoolFormat indicates that a boolean answer was not "yes" or "no".
 // This error is returned when boolean parsing fails to recognize the input.
 var errInvalidBoolFormat = errors.New("answer must be yes or no")
-
-// numberPattern is the pattern [UserDialog.QueryInt] finds a decimal or a
-// prefixed hexadecimal number with.
-var numberPattern = regexp.MustCompile(`^((0x|#)([0-9a-fA-F]+))|(-?\d+)$`)
 
 // NewUserDialog initializes a new UserDialog instance with safe defaults.
 //
@@ -189,52 +180,6 @@ func (ud *UserDialog) QueryBool(prompt, key string) bool {
 			format.ColorizeTrue("yes"),
 			format.ColorizeFalse("no"),
 		)
-	}, key)
-
-	return value
-}
-
-// QueryInt prompts the user with the given prompt and returns the answer as an integer.
-//
-// The method supports decimal, hexadecimal (with 0x or # prefix), and negative numbers.
-// Hexadecimal input with # prefix (e.g., #ffa080) is explicitly treated as base 16.
-//
-// If a property with the given key exists in the UserDialog's props map,
-// the property value is validated and used instead of prompting interactively.
-//
-// Parameters:
-//   - prompt: the message displayed to the user
-//   - key: the property key for looking up pre-defined values
-//   - bitSize: the integer type bit size (0 for int, 8 for int8, 16 for int16, etc.)
-//
-// Returns:
-//   - int64: the parsed integer value; 0 if parsing fails
-func (ud *UserDialog) QueryInt(prompt, key string, bitSize int) int64 {
-	var value int64
-
-	ud.QueryString(prompt, func(answer string) error {
-		groups := numberPattern.FindStringSubmatch(answer)
-		if len(groups) < 1 {
-			return errNotANumber
-		}
-
-		number := groups[0]
-
-		base := 0
-		if groups[2] == "#" {
-			// Explicitly treat #ffa080 as hexadecimal
-			base = 16
-			number = groups[3]
-		}
-
-		var err error
-
-		value, err = strconv.ParseInt(number, base, bitSize)
-		if err != nil {
-			return fmt.Errorf("parsing integer from %q: %w", answer, err)
-		}
-
-		return nil
 	}, key)
 
 	return value
