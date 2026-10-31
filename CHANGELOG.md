@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate the docs placeholder URL like any other service URL by @nicholas-fedor in [#1992](https://github.com/nicholas-fedor/shoutrrr/pull/1992)
 - Check the webhook ID and token when the URL is read by @nicholas-fedor in [#1988](https://github.com/nicholas-fedor/shoutrrr/pull/1988)
 - Fall back to the 429 body's retry_after by @nicholas-fedor in [#1984](https://github.com/nicholas-fedor/shoutrrr/pull/1984)
 - Send webhooks to Discord API v10 by @nicholas-fedor in [#1982](https://github.com/nicholas-fedor/shoutrrr/pull/1982)
