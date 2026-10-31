@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/matrix"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
@@ -70,10 +71,10 @@ func TestMatrixSend(t *testing.T) {
 	})
 
 	t.Run("fails when the client is not initialized", func(t *testing.T) {
-		// The documentation dummy URL initializes the service without a homeserver.
-		service := newService(t, "matrix://:dummy@dummy.com")
+		// A service given only a config has no homeserver to send to.
+		service := &matrix.Service{Config: &matrix.Config{Host: "localhost"}}
 
-		require.Error(t, service.Send("This should fail", nil))
+		require.ErrorIs(t, service.Send("This should fail", nil), matrix.ErrClientNotInitialized)
 	})
 }
 

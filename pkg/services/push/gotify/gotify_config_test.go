@@ -65,7 +65,6 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: testHost, Path: "/push/gotify/", Token: testToken},
 		},
 		{name: "Gotify 3 token", rawURL: "gotify://" + testHost + "/" + enhancedToken, want: Config{Host: testHost, Token: enhancedToken}},
-		{name: "documentation dummy URL", rawURL: "gotify://dummy@dummy.com", want: Config{Host: "dummy.com"}},
 		{
 			name:   "query settings",
 			rawURL: testServiceURL + "?priority=5&title=Backup&disabletls=yes&skiptlsverify=yes&useheader=yes&date=2023-12-25T10:00:00Z",

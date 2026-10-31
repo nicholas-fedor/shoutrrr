@@ -218,8 +218,7 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
 
-	// The documentation dummy URL has no token.
-	if serviceURL.String() != "gotify://dummy@dummy.com" && !(&DefaultValidator{}).ValidateToken(c.Token) {
+	if !(&DefaultValidator{}).ValidateToken(c.Token) {
 		return ErrInvalidToken
 	}
 

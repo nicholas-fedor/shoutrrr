@@ -357,11 +357,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	// Validate that a topic was provided (skip for the dummy URL used in docs
-	// generation, with either MQTT scheme)
-	isDummy := (serviceURL.Scheme == Scheme || serviceURL.Scheme == SchemeTLS) &&
-		serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
-	if !isDummy && c.Topic == "" {
+	if c.Topic == "" {
 		return ErrTopicRequired
 	}
 

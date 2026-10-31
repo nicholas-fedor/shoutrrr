@@ -89,8 +89,7 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 // setURL updates the configuration from a URL using the provided resolver.
 //
 // Google Chat webhook URLs always carry a key and a token, so both are
-// required. A URL without a host uses [DefaultHost]. The documentation dummy
-// URL, <scheme>://dummy@dummy.com, is accepted without them.
+// required. A URL without a host uses [DefaultHost].
 //
 // Parameters:
 //   - types.ConfigQueryResolver: unused.
@@ -111,10 +110,6 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 
 	c.Key = query.Get("key")
 	c.Token = query.Get("token")
-
-	if serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com" {
-		return nil
-	}
 
 	if c.Host == "" {
 		c.Host = DefaultHost

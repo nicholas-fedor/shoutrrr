@@ -42,7 +42,7 @@ func TestConfigURLRoundTrip(t *testing.T) {
 }
 
 // TestConfigSetURL verifies the host, path, and query values that SetURL
-// stores for valid URLs, including the defaults for documentation URLs.
+// stores for valid URLs.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -73,9 +73,9 @@ func TestConfigSetURL(t *testing.T) {
 			want:   Config{Host: larkHost, Path: "token"},
 		},
 		{
-			name:   "dummy user defaults host and path",
-			rawURL: "lark://dummy@invalid.com",
-			want:   Config{Host: larkHost, Path: "token"},
+			name:   "user named dummy keeps the feishu host",
+			rawURL: "lark://dummy@open.feishu.cn/token",
+			want:   Config{Host: feishuHost, Path: "token"},
 		},
 	}
 
@@ -104,6 +104,8 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 	}{
 		{name: "invalid host", rawURL: "lark://invalid.com/token", wantErr: ErrInvalidHost},
 		{name: "no path", rawURL: "lark://open.larksuite.com", wantErr: ErrNoPath},
+		{name: "user named dummy on an invalid host", rawURL: "lark://dummy@invalid.com/token", wantErr: ErrInvalidHost},
+		{name: "user named dummy without a path", rawURL: "lark://dummy@open.larksuite.com", wantErr: ErrNoPath},
 		{name: "unknown query key", rawURL: "lark://open.larksuite.com/token?secret=sss&foo=bar", wantErr: format.ErrInvalidConfigKey},
 	}
 

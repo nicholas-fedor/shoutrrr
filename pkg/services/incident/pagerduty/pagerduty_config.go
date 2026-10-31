@@ -113,8 +113,7 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // setURL updates the Config from a URL using the provided resolver.
 //
 // A URL without a host uses the PagerDuty events host, and a URL without a
-// port uses port 443. Only the documentation dummy URL,
-// pagerduty://dummy@dummy.com, is accepted without validation.
+// port uses port 443.
 //
 // Parameters:
 //   - resolver: Resolver used to apply the query props.
@@ -125,11 +124,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     hostname or a bracketed IPv6 address ([util.ErrInvalidHost]), an invalid
 //     port, a malformed query ([util.ErrInvalidQuery]), or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// Skip validation for the dummy URL used in docs generation
-	if serviceURL.String() == "pagerduty://dummy@dummy.com" {
-		return nil
-	}
-
 	if len(serviceURL.Path) <= 1 {
 		return errMissingIntegrationKey
 	}

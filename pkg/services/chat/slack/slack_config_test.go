@@ -76,11 +76,6 @@ func TestConfigSetURL(t *testing.T) {
 				BotName: "testbot", Color: "3f00fe",
 			},
 		},
-		{
-			name:   "docs command placeholder",
-			rawURL: "slack://dummy@dummy.com",
-			want:   Config{Token: Token{raw: "dummy"}, Channel: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {

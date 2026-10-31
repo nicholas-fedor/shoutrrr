@@ -108,8 +108,7 @@ func TestGetID(t *testing.T) {
 }
 
 // TestInitialize verifies that Initialize applies the default props, keeps an
-// injected client, accepts the docs dummy URL, and rejects a URL without a
-// client key.
+// injected client, and rejects a URL without a client key.
 func TestInitialize(t *testing.T) {
 	t.Parallel()
 
@@ -130,12 +129,6 @@ func TestInitialize(t *testing.T) {
 		require.NoError(t, service.Initialize(parseTestURL(t, "signalgrid://key@channel"), log.New(t.Output(), "", 0)))
 
 		assert.Same(t, client, service.client.Client())
-	})
-
-	t.Run("docs dummy URL", func(t *testing.T) {
-		t.Parallel()
-
-		require.NoError(t, (&Service{}).Initialize(parseTestURL(t, dummyServiceURL), log.New(t.Output(), "", 0)))
 	})
 
 	t.Run("missing client key", func(t *testing.T) {

@@ -361,19 +361,6 @@ func TestLoginWaitEndsWithContext(t *testing.T) {
 	assert.Equal(t, int32(1), server.logins.Load())
 }
 
-// TestPlaceholderURLDropsClient verifies that reinitializing with the
-// documentation placeholder URL drops the previous client.
-func TestPlaceholderURLDropsClient(t *testing.T) {
-	t.Parallel()
-
-	service, httpClient := newHomeserverService(t, &fakeHomeserver{})
-	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
-	require.NoError(t, service.Initialize(parseTestURL(t, "matrix://dummy@dummy.com"), nil))
-
-	require.ErrorIs(t, service.Send("message", nil), ErrClientNotInitialized)
-	httpClient.AssertNotCalled(t, "Do", mock.Anything)
-}
-
 // TestFailedInitializeDropsSession verifies that reinitializing with an
 // invalid URL leaves the service unable to send, instead of sending with the
 // earlier session's access token and a partly read config.

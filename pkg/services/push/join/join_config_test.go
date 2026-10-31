@@ -53,11 +53,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "join://Token:apikey@join?devices=dev1&title=new+title&icon=https%3A%2F%2Fexample.com%2Ficon.png",
 			want:   Config{APIKey: "apikey", Devices: []string{"dev1"}, Title: "new title", Icon: "https://example.com/icon.png"},
 		},
-		{
-			name:   "dummy URL without devices or key",
-			rawURL: "join://dummy@dummy.com",
-			want:   Config{},
-		},
 	}
 
 	for _, tt := range tests {

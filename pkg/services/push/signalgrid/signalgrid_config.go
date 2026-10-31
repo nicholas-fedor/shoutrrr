@@ -28,9 +28,6 @@ type Config struct {
 const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "signalgrid"
-
-	// dummyServiceURL is the placeholder URL used by documentation generation.
-	dummyServiceURL = "signalgrid://dummy@dummy.com"
 )
 
 // Enums returns the fields that use an EnumFormatter for their values.
@@ -93,8 +90,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
 //     a query parameter is invalid, or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	isDummy := serviceURL.String() == dummyServiceURL
-
 	if serviceURL.User != nil {
 		c.ClientKey = serviceURL.User.Username()
 	} else {
@@ -116,10 +111,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	if err := format.ApplyQuery(resolver, query); err != nil {
 		return err
-	}
-
-	if isDummy {
-		return nil
 	}
 
 	if c.ClientKey == "" {

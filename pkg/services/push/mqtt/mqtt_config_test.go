@@ -315,20 +315,6 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 	})
 }
 
-// TestConfigSetURLAcceptsDummyURL verifies that the URL used to build an empty
-// config for documentation skips the topic check for both MQTT schemes and no
-// other.
-func TestConfigSetURLAcceptsDummyURL(t *testing.T) {
-	t.Parallel()
-
-	for _, rawURL := range []string{"mqtt://dummy@dummy.com", "mqtts://dummy@dummy.com"} {
-		require.NoError(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), rawURL)
-	}
-
-	// The same placeholder with another scheme is not the docs dummy URL.
-	require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "ftp://dummy@dummy.com")), ErrTopicRequired)
-}
-
 // TestConfigKeepsTLSScheme verifies that a config parsed from an mqtts URL
 // builds an mqtts URL again.
 func TestConfigKeepsTLSScheme(t *testing.T) {

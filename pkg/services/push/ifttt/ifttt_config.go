@@ -153,14 +153,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if serviceURL.String() != "ifttt://dummy@dummy.com" {
-		if len(c.Events) < MinLength {
-			return ErrMissingEvents
-		}
+	if len(c.Events) < MinLength {
+		return ErrMissingEvents
+	}
 
-		if len(c.WebHookID) < MinLength {
-			return ErrMissingWebhookID
-		}
+	if len(c.WebHookID) < MinLength {
+		return ErrMissingWebhookID
 	}
 
 	return nil

@@ -61,14 +61,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestMatrixServiceID verifies the service ID of a service initialized from
-// the documentation dummy URL, which needs no server.
+// TestMatrixServiceID verifies the service ID, which needs no server.
 func TestMatrixServiceID(t *testing.T) {
 	t.Parallel()
 
-	service := newService(t, "matrix://:dummy@dummy.com")
-
-	assert.Equal(t, "matrix", service.GetID())
+	assert.Equal(t, "matrix", (&matrix.Service{}).GetID())
 }
 
 // Write writes p to the current test's output, or discards it between tests.

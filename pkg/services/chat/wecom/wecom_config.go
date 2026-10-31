@@ -104,13 +104,6 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
 //     query parameter error, [ErrEmptyKey], or [ErrInvalidKey].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// Handle dummy URL used for documentation generation
-	if serviceURL.String() == "wecom://dummy@dummy.com" {
-		c.Key = "dummy-webhook-key"
-
-		return nil
-	}
-
 	// Extract key from host
 	c.Key = serviceURL.Host
 

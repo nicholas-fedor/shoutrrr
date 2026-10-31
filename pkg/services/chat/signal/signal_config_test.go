@@ -140,13 +140,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "signal:///" + testSource + "/" + testRecipient + "?host=",
 			want:   defaults(func(*Config) {}),
 		},
-		{
-			name:   "docs command placeholder",
-			rawURL: "signal://dummy@dummy.com",
-			want: defaults(func(c *Config) {
-				c.Source, c.Recipients = "+1234567890", []string{"+0987654321"}
-			}),
-		},
 	}
 
 	for _, tt := range tests {

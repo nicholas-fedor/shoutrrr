@@ -98,11 +98,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "opsgenie://api.opsgenie.com/" + testAPIKey + "?alias=Life is+too%20short+for+no+alias",
 			want:   Config{Host: "api.opsgenie.com", Port: 443, APIKey: testAPIKey, Alias: "Life is too short for no alias"},
 		},
-		{
-			name:   "dummy URL without an API key",
-			rawURL: "opsgenie://dummy@dummy.com",
-			want:   Config{Host: "dummy.com", Port: 443},
-		},
 	}
 
 	for _, tt := range tests {

@@ -82,16 +82,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "xmpp://alice:secret@xmpp.example.com/?to=,bob@example.com,&rooms=",
 			want:   Config{Host: "xmpp.example.com", Port: DefaultPort, User: "alice", Password: "secret", To: []string{"bob@example.com"}, scheme: Scheme},
 		},
-		{
-			name:   "dummy docs URL",
-			rawURL: "xmpp://dummy@dummy.com",
-			want:   Config{Host: "dummy.com", Port: DefaultPort, User: "dummy", scheme: Scheme},
-		},
-		{
-			name:   "dummy xmpps docs URL",
-			rawURL: "xmpps://dummy@dummy.com",
-			want:   Config{Host: "dummy.com", Port: DefaultTLSPort, User: "dummy", scheme: SchemeTLS},
-		},
 	}
 
 	for _, tt := range tests {
@@ -134,8 +124,6 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing password", rawURL: "xmpp://alice@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingPassword},
 		{name: "missing user", rawURL: "xmpp://:secret@xmpp.example.com/?to=bob@example.com", wantErr: ErrMissingUser},
 		{name: "missing host", rawURL: "xmpp://alice:secret@/?to=bob@example.com", wantErr: ErrMissingHost},
-		{name: "dummy.com host without a password", rawURL: "xmpp://alice@dummy.com/?to=bob@example.com", wantErr: ErrMissingPassword},
-		{name: "dummy.com host without targets", rawURL: "xmpps://alice:secret@dummy.com/", wantErr: ErrMissingTargets},
 		{name: "unbracketed IPv6 host", rawURL: "xmpp://alice:secret@2001:db8::1/?to=bob@example.com", wantErr: util.ErrInvalidHost},
 		{name: "disabletls on xmpps", rawURL: "xmpps://alice:secret@xmpp.example.com/?to=bob@example.com&disabletls=yes", wantErr: ErrDisableTLSOnXMPPS},
 		{name: "invalid recipient JID", rawURL: "xmpp://alice:secret@xmpp.example.com/?to=not-a-jid", wantErr: ErrInvalidRecipientJID},

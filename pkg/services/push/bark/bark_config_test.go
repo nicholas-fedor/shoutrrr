@@ -156,11 +156,6 @@ func TestConfigSetURL(t *testing.T) {
 				Copy:       "COPY",
 			},
 		},
-		{
-			name:   "dummy URL without a device key",
-			rawURL: "bark://dummy.com",
-			want:   Config{Host: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {

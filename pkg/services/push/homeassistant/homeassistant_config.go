@@ -42,9 +42,6 @@ const (
 	// Scheme identifies this service in configuration URLs.
 	Scheme = "homeassistant"
 
-	// dummyServiceURL is the placeholder URL used by documentation generation.
-	dummyServiceURL = "homeassistant://dummy@dummy.example"
-
 	// defaultTLSPort is used when the port is omitted and TLS is enabled.
 	defaultTLSPort = 443
 
@@ -241,8 +238,6 @@ func (c *Config) setPort(rawPort string) error {
 //     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
 //     a query parameter is invalid, or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	isDummy := serviceURL.String() == dummyServiceURL
-
 	if serviceURL.User != nil {
 		c.Token = serviceURL.User.Username()
 	} else {
@@ -269,10 +264,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	if err := format.ApplyQuery(resolver, query); err != nil {
 		return err
-	}
-
-	if isDummy {
-		return nil
 	}
 
 	if c.Token == "" {

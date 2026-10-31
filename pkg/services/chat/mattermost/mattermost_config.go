@@ -116,19 +116,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrNotEnoughArguments] for a path without a token, except in the
-//     docs dummy URL.
+//   - error: [ErrNotEnoughArguments] for a path without a token.
 func (c *Config) parsePath(serviceURL *url.URL) error {
 	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
-	isDummy := serviceURL.String() == "mattermost://dummy@dummy.com"
-
-	if !isDummy && (len(path) < 1 || path[0] == "") {
+	if path[0] == "" {
 		return ErrNotEnoughArguments
 	}
 
-	if len(path) > 0 && path[0] != "" {
-		c.Token = path[0]
-	}
+	c.Token = path[0]
 
 	if len(path) > 1 && path[1] != "" {
 		c.Channel = path[1]

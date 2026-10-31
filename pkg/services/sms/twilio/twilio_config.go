@@ -119,11 +119,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if serviceURL.String() != "twilio://dummy@dummy.com" {
-		return c.validate()
-	}
-
-	return nil
+	return c.validate()
 }
 
 // validate checks that all required Config fields are present and consistent.

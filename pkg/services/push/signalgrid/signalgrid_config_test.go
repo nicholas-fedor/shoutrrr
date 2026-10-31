@@ -72,11 +72,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "signalgrid://key@channel?type=warn",
 			want:   Config{ClientKey: "key", Channel: "channel", Type: TypeWARN},
 		},
-		{
-			name:   "docs dummy URL",
-			rawURL: dummyServiceURL,
-			want:   Config{ClientKey: "dummy", Channel: "dummy.com", Type: TypeINFO},
-		},
 	}
 
 	for _, tt := range tests {

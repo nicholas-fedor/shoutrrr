@@ -59,11 +59,6 @@ func TestConfigSetURL(t *testing.T) {
 				Title:             "Title",
 			},
 		},
-		{
-			name:   "dummy URL without events",
-			rawURL: "ifttt://dummy@dummy.com",
-			want:   Config{WebHookID: "dummy.com", UseMessageAsValue: DefaultMessageValue},
-		},
 	}
 
 	for _, tt := range tests {

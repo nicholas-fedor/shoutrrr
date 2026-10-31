@@ -92,11 +92,6 @@ func TestConfigSetURL(t *testing.T) {
 				ToNumbers:  []string{testMessagingServiceSID},
 			},
 		},
-		{
-			name:   "dummy URL without credentials",
-			rawURL: "twilio://dummy@dummy.com",
-			want:   Config{AccountSID: "dummy", FromNumber: "dummycom"},
-		},
 	}
 
 	for _, tt := range tests {

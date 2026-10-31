@@ -304,14 +304,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Scheme = schemeHTTPS
 	}
 
-	if serviceURL.String() != "ntfy://dummy@dummy.com" {
-		if c.Topic == "" {
-			return ErrTopicRequired
-		}
+	if c.Topic == "" {
+		return ErrTopicRequired
+	}
 
-		if !isValidTopicPath(c.Topic) {
-			return ErrInvalidTopic
-		}
+	if !isValidTopicPath(c.Topic) {
+		return ErrInvalidTopic
 	}
 
 	return nil

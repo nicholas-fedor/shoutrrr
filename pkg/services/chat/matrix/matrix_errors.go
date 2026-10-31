@@ -17,8 +17,7 @@ var (
 	ErrMissingCredentials = errors.New("password or access token is required")
 
 	// ErrClientNotInitialized is returned when a send finds no homeserver to
-	// send to, because Initialize was given the documentation placeholder URL
-	// or was not called.
+	// send to, because Initialize failed or the Config was set without it.
 	ErrClientNotInitialized = errors.New("client not initialized; cannot send message")
 
 	// ErrUnsupportedLoginFlows is returned when none of the login flows

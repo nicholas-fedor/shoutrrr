@@ -131,7 +131,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // setURL updates the Config from a URL using the provided resolver.
 //
 // A URL without a host uses [DefaultHost], and one without a port uses 443.
-// The documentation dummy URL is accepted without an API key.
 //
 // Parameters:
 //   - resolver: the resolver that sets the alert props from the query.
@@ -151,15 +150,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.Host = host
 
-	if serviceURL.String() != "opsgenie://dummy@dummy.com" {
-		c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
-		if c.APIKey == "" {
-			return ErrAPIKeyMissing
-		}
+	c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
+	if c.APIKey == "" {
+		return ErrAPIKeyMissing
+	}
 
-		if c.Host == "" {
-			c.Host = DefaultHost
-		}
+	if c.Host == "" {
+		c.Host = DefaultHost
 	}
 
 	if port != "" {

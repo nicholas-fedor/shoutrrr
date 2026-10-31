@@ -701,6 +701,48 @@ func TestIntegrationMissingHost(t *testing.T) {
 	}
 }
 
+// TestIntegrationPlaceholderURL verifies that services read a URL by its
+// values and give no particular URL its own handling. Each scheme must give
+// the placeholder URL <scheme>://dummy@dummy.com the same result as a URL of
+// the same shape with another user and host, and when both are accepted, the
+// same config URL with those values swapped.
+func TestIntegrationPlaceholderURL(t *testing.T) {
+	t.Parallel()
+
+	// swap turns the placeholder's user and host into the other URL's.
+	swap := strings.NewReplacer("dummy.com", "dummx.com", "dummy", "dumm1")
+
+	for _, scheme := range router.SupportedSchemas() {
+		t.Run(scheme, func(t *testing.T) {
+			t.Parallel()
+
+			serviceRouter, err := router.NewWithOptions(log.New(io.Discard, "", 0), types.SenderOptions{})
+			require.NoError(t, err)
+
+			placeholder, placeholderErr := serviceRouter.Locate(scheme + "://dummy@dummy.com")
+			closeService(t, placeholder)
+
+			other, otherErr := serviceRouter.Locate(scheme + "://dumm1@dummx.com")
+			closeService(t, other)
+
+			require.Equal(t, otherErr == nil, placeholderErr == nil,
+				"placeholder error %v, other URL error %v", placeholderErr, otherErr)
+
+			if placeholderErr == nil {
+				// Both URLs are parsed from their strings, so a config URL built
+				// with an opaque part compares the same as its parsed form.
+				want, err := url.Parse(format.GetServiceConfig(other).GetURL().String())
+				require.NoError(t, err)
+
+				got, err := url.Parse(swap.Replace(format.GetServiceConfig(placeholder).GetURL().String()))
+				require.NoError(t, err)
+
+				assertSameURL(t, want, got)
+			}
+		})
+	}
+}
+
 // TestIntegrationMalformedQuery verifies that every service that reads its URL
 // query rejects a query pair with a malformed escape or a literal semicolon,
 // which url.URL.Query would drop without an error, including in the webhook URL
