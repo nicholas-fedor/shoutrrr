@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -114,6 +115,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		Scheme:   Scheme,
 		RawQuery: format.BuildQuery(resolver),
 	}
+}
+
+// sendBudget returns the send budget that [Service.ServiceTimeout] describes,
+// for a config with the send's params applied.
+//
+// Returns:
+//   - time.Duration: the budget for the send.
+func (c *Config) sendBudget() time.Duration {
+	return defaultTimeout * time.Duration(max(1, len(c.Events)))
 }
 
 // setURL updates the config from a service URL and validates it.

@@ -523,6 +523,29 @@ func TestSendBudget(t *testing.T) {
 	}
 }
 
+// TestSendBudgetFromParams verifies that rooms set by params set the send's
+// budget, though the service URL names one room. The login requests carry the
+// budget for two rooms. The first room's message gets half of it, and the
+// last room's message keeps the rest.
+func TestSendBudgetFromParams(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		server := &fakeHomeserver{}
+		service, _ := newHomeserverService(t, server)
+		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+		params := types.Params{"rooms": "!first:example.com,!second:example.com"}
+		start := time.Now()
+		budget := service.ServiceTimeout(&params)
+
+		require.NoError(t, service.Send("message", &params))
+		assert.Equal(t,
+			[]time.Time{start.Add(budget), start.Add(budget), start.Add(budget / 2), start.Add(budget)},
+			server.requestDeadlines())
+	})
+}
+
 // TestSendWarnsPlaintext verifies that sends without TLS log the plaintext
 // warning once, and again after the service is initialized again.
 func TestSendWarnsPlaintext(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -120,6 +121,15 @@ func (c *Config) plaintextAPI() bool {
 	apiURL, err := url.Parse(c.APIURL)
 
 	return err == nil && apiURL.Scheme == "http"
+}
+
+// sendBudget returns the send budget that [Service.ServiceTimeout] describes,
+// for a config with the send's params applied.
+//
+// Returns:
+//   - time.Duration: the budget for the send.
+func (c *Config) sendBudget() time.Duration {
+	return defaultHTTPTimeout * time.Duration(max(1, len(c.Chats)))
 }
 
 // setURL updates the Config from a URL using the provided resolver.

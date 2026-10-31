@@ -459,6 +459,29 @@ func TestSendShares(t *testing.T) {
 	})
 }
 
+// TestSendSharesFromParams verifies that events set by params set the send's
+// budget. Two events from params share the budget for two events, though the
+// service URL names one.
+func TestSendSharesFromParams(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ok := cannedResponse{status: "200 OK", statusCode: http.StatusOK}
+		client, captured := newRespondingClient(t, ok, ok)
+
+		service := newTestService(t, "ifttt://webhookid/?events=a")
+		service.SetHTTPClient(client)
+
+		params := types.Params{"events": "a,b"}
+		start := time.Now()
+		budget := service.ServiceTimeout(&params)
+
+		require.NoError(t, service.Send("Message", &params))
+		assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
+			requestDeadlines(*captured))
+	})
+}
+
 // TestServiceTimeout verifies that the send budget is [defaultTimeout] for
 // each event, counting events set by params, and at least [defaultTimeout].
 func TestServiceTimeout(t *testing.T) {

@@ -120,13 +120,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return types.ErrServiceNotInitialized
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
+	defer cancel()
 
 	return sequential.Send(
 		ctx,
@@ -143,16 +143,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout reports the send budget of Pushbullet. A send makes one request
-// per target, one after another, so the budget allows [defaultHTTPTimeout] for
-// each.
+// per target in turn, so the budget allows 10 seconds for each.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields. An invalid param fails
 //     the send itself, so the stored targets set the budget.
 //
 // Returns:
-//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of targets,
-//     and at least [defaultHTTPTimeout].
+//   - time.Duration: 10 seconds for each target, and at least 10 seconds.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultHTTPTimeout
@@ -163,7 +161,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		config = *s.Config
 	}
 
-	return defaultHTTPTimeout * time.Duration(max(1, len(config.Targets)))
+	return config.sendBudget()
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client restores

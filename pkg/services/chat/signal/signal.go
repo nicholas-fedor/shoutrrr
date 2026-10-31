@@ -104,13 +104,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return types.ErrServiceNotInitialized
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
+	defer cancel()
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
@@ -121,7 +121,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout reports Signal's send budget. A send makes one request per
-// recipient batch, one after another, and each batch adds [batchBudget].
+// recipient batch in turn, and each batch adds 30 seconds.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields, which may set the
@@ -129,8 +129,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //     recipients set the budget.
 //
 // Returns:
-//   - time.Duration: [batchBudget] multiplied by the number of recipient
-//     batches, and at least [batchBudget].
+//   - time.Duration: 30 seconds for each recipient batch, and at least 30
+//     seconds.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return batchBudget
@@ -141,7 +141,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		config = *s.Config
 	}
 
-	return batchBudget * time.Duration(max(1, len(batchRecipients(config.Recipients))))
+	return config.sendBudget()
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,
