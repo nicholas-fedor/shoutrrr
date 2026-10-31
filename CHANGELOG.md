@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Compile the patterns that compiled on every call once by @nicholas-fedor in [#2000](https://github.com/nicholas-fedor/shoutrrr/pull/2000)
 - Build each webhook request once per send by @nicholas-fedor in [#1996](https://github.com/nicholas-fedor/shoutrrr/pull/1996)
 - Send a pre-encoded body for room joins by @nicholas-fedor in [#1978](https://github.com/nicholas-fedor/shoutrrr/pull/1978)
 - Check repeated connection warnings with atomic flags by @nicholas-fedor in [#1970](https://github.com/nicholas-fedor/shoutrrr/pull/1970)
