@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -120,6 +121,11 @@ const (
 	opaqueIDCharsetLen = byte(len(opaqueIDCharset))
 )
 
+// emptyJSONObject is the request body of a room join, which takes no fields. A
+// request only reads its body, so concurrent joins share it. It is held as an
+// interface value, so passing it as a request does not box the slice again.
+var emptyJSONObject any = jsontext.Value(`{}`)
+
 // Do performs the HTTP request.
 //
 // Parameters:
@@ -150,8 +156,8 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 //   - ctx: cancellation and deadline for the request and the waits.
 //   - method: the HTTP method.
 //   - path: the API path.
-//   - request: the value sent as the JSON request body, or nil to send no
-//     body.
+//   - request: the value sent as the JSON request body, sent byte for byte
+//     when it is a [jsontext.Value], or nil to send no body.
 //   - response: the value the JSON response is decoded into.
 //
 // Returns:
@@ -164,7 +170,12 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
 	var body []byte
 
-	if request != nil {
+	switch request := request.(type) {
+	case nil:
+	case jsontext.Value:
+		// Raw JSON goes out as it is, which skips the encoder's check and copy.
+		body = request
+	default:
 		var err error
 		if body, err = json.Marshal(request, jsonopts.Default); err != nil {
 			return fmt.Errorf("marshaling %s request: %w", method, err)
@@ -241,7 +252,7 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 		ctx,
 		http.MethodPost,
 		fmt.Sprintf(apiRoomJoin, room),
-		&struct{}{},
+		emptyJSONObject,
 		&resRoom,
 	)
 	if err != nil {
