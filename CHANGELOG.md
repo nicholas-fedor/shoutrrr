@@ -119,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update axllent/mailpit docker tag to v1.33.0 by @renovate[bot] in [#1980](https://github.com/nicholas-fedor/shoutrrr/pull/1980)
 - Update binwiederhier/ntfy:latest docker digest to 6f0c9ab by @renovate[bot] in [#1963](https://github.com/nicholas-fedor/shoutrrr/pull/1963)
 - Update matrixdotorg/synapse:latest docker digest to 3c29007 by @renovate[bot] in [#1912](https://github.com/nicholas-fedor/shoutrrr/pull/1912)
 - Update dependency platformdirs to v4.14.0 by @renovate[bot] in [#1913](https://github.com/nicholas-fedor/shoutrrr/pull/1913)
