@@ -745,7 +745,7 @@ func TestExecuteWithTransportRetry(t *testing.T) {
 				req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com", strings.NewReader("test"))
 				require.NoError(t, err)
 
-				resp, err := executeWithTransportRetry(ctx, client, []byte("test"), req, sleeper)
+				resp, err := executeWithTransportRetry(ctx, client, req, sleeper)
 				if resp != nil {
 					_ = resp.Body.Close()
 				}
@@ -779,10 +779,64 @@ func TestExecuteWithTransportRetryStopsOnCancel(t *testing.T) {
 
 		start := time.Now()
 
-		_, err = executeWithTransportRetry(ctx, client, nil, req, RealSleeper{})
+		_, err = executeWithTransportRetry(ctx, client, req, RealSleeper{})
 
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Equal(t, 10*time.Millisecond, time.Since(start), "the one second backoff ends at the cancel")
+	})
+}
+
+// TestRetryRequest verifies that a retry gets a copy of the request with the
+// same URL and headers and a fresh body. A request without a body to replay
+// keeps the body it has, and a failed replay ends the retry with its error.
+func TestRetryRequest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fresh body", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, testWebhookURL, strings.NewReader("payload"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		_, err = io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		next, err := retryRequest(t.Context(), req)
+		require.NoError(t, err)
+		assert.NotSame(t, req, next)
+		assert.Equal(t, testWebhookURL, next.URL.String())
+		assert.Equal(t, "application/json", next.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(next.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "payload", string(body))
+	})
+
+	t.Run("no body to replay", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, testWebhookURL, http.NoBody)
+		require.NoError(t, err)
+
+		req.GetBody = nil
+
+		next, err := retryRequest(t.Context(), req)
+		require.NoError(t, err)
+		assert.Equal(t, http.NoBody, next.Body)
+	})
+
+	t.Run("body that cannot be replayed", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, testWebhookURL, strings.NewReader("payload"))
+		require.NoError(t, err)
+
+		errReplay := errors.New("replay failed")
+		req.GetBody = func() (io.ReadCloser, error) { return nil, errReplay }
+
+		_, err = retryRequest(t.Context(), req)
+		require.ErrorIs(t, err, errReplay)
 	})
 }
 

@@ -1342,11 +1342,45 @@ func TestIntegrationSendRetries(t *testing.T) {
 				require.Len(t, sent, tt.wantRequests)
 
 				for _, req := range sent {
+					assert.Equal(t, testPostURL, req.url)
+					assert.Equal(t, "application/json", req.header.Get("Content-Type"))
+					assert.NotEmpty(t, req.header.Get("User-Agent"))
 					assert.JSONEq(t, `{"content":"Test message"}`, string(req.body))
 				}
 			})
 		})
 	}
+}
+
+// TestIntegrationSendRetriesFiles verifies that every attempt of a multipart
+// send carries the whole request. The send fails once in transport and once
+// on a rate limit, and each of its three requests holds the payload_json part
+// and the file.
+func TestIntegrationSendRetriesFiles(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		client, hook := newWebhook(t,
+			reply{err: timeoutError{}},
+			reply{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"0"}}},
+			noContent,
+		)
+		service := newService(t, testServiceURL, client)
+		items := []types.MessageItem{{Text: "With file", File: &types.File{Name: "report.txt", Data: []byte("report body")}}}
+
+		require.NoError(t, service.SendItemsContext(t.Context(), items, nil))
+
+		sent := hook.sent()
+		require.Len(t, sent, 3)
+
+		for _, req := range sent {
+			assert.Equal(t, testPostURL, req.url)
+
+			payloadJSON, files := readMultipart(t, req)
+			assert.Contains(t, payloadJSON, "With file")
+			assert.Equal(t, []sentFile{{field: "files[0]", name: "report.txt", data: []byte("report body")}}, files)
+		}
+	})
 }
 
 // TestIntegrationSendStatusErrors verifies that error statuses other than
