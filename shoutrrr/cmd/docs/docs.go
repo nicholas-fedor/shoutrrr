@@ -4,6 +4,7 @@ package docs
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -61,7 +62,8 @@ func Run(rootCmd *cobra.Command, args []string) {
 // It is extracted from Run to enable unit testing without calling os.Exit.
 //
 // Parameters:
-//   - rootCmd: The cobra command containing the parsed flags.
+//   - rootCmd: The cobra command containing the parsed flags. The docs go to
+//     its output, which is stdout unless the command sets another.
 //   - args: The list of service schemes to document.
 //
 // Returns:
@@ -75,18 +77,19 @@ func runDocs(rootCmd *cobra.Command, args []string) cmd.ExitError {
 		}
 	}
 
-	return printDocs(formatType, args)
+	return printDocs(rootCmd.OutOrStdout(), formatType, args)
 }
 
 // printDocs generates documentation for the specified services in the requested format.
 //
 // Parameters:
+//   - out: receives the rendered documentation.
 //   - docFormat: The output format ("console" or "markdown").
 //   - services: The list of service schemes to document.
 //
 // Returns:
 //   - cmd.ExitError: An ExitError indicating success or failure with an appropriate exit code.
-func printDocs(docFormat string, services []string) cmd.ExitError {
+func printDocs(out io.Writer, docFormat string, services []string) cmd.ExitError {
 	var renderer format.TreeRenderer
 
 	// Select the appropriate renderer based on the requested format.
@@ -114,7 +117,7 @@ func printDocs(docFormat string, services []string) cmd.ExitError {
 		// config already has, so the service is not initialized with a URL.
 		config := format.GetServiceConfig(service)
 		configNode := format.GetConfigFormat(config)
-		_, _ = fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme))
+		_, _ = fmt.Fprint(out, renderer.RenderTree(configNode, scheme))
 	}
 
 	return cmd.ErrNil
