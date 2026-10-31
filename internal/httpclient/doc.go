@@ -12,4 +12,6 @@
 // [BoundContext] bounds a send whose context has no deadline, such as a direct
 // Send call without the router. [RetryAfter] reads the wait that a
 // rate-limited response asks for, so services read the header alike.
+// [Duration] turns a wait that a response body gives as a count of a unit
+// into a [time.Duration] the same way.
 package httpclient

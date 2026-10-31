@@ -27,12 +27,11 @@ func RetryAfter(header http.Header) (time.Duration, bool) {
 	}
 
 	// For digits, ParseInt fails only with a range error, returning the
-	// largest int64. Parsing as int64 keeps the value in the type of a
-	// duration, so no conversion can overflow.
+	// largest int64, which Duration turns into the longest wait.
 	if strings.Trim(value, "0123456789") == "" {
 		seconds, _ := strconv.ParseInt(value, 10, 64) //nolint:errcheck // Digits fail only with a range error, which returns the largest int64.
 
-		return time.Duration(min(seconds, int64(math.MaxInt64/time.Second))) * time.Second, true
+		return Duration(float64(seconds), time.Second)
 	}
 
 	if date, err := http.ParseTime(value); err == nil {
@@ -40,4 +39,30 @@ func RetryAfter(header http.Header) (time.Duration, bool) {
 	}
 
 	return 0, false
+}
+
+// Duration returns count units as a [time.Duration], such as a wait that a
+// response body gives in seconds with a fraction. A count too large for a
+// duration becomes the longest one, because converting an out-of-range float
+// to an integer has no defined result.
+//
+// Parameters:
+//   - count: the number of units, with a fraction.
+//   - unit: the length of one unit, such as [time.Second]. It must be
+//     positive.
+//
+// Returns:
+//   - time.Duration: the duration, zero or more.
+//   - bool: false when count is negative or NaN.
+func Duration(count float64, unit time.Duration) (time.Duration, bool) {
+	// A NaN count fails every comparison, so this rejects it too.
+	if !(count >= 0) {
+		return 0, false
+	}
+
+	if count >= float64(math.MaxInt64/unit) {
+		return math.MaxInt64, true
+	}
+
+	return time.Duration(count * float64(unit)), true
 }

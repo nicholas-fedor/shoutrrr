@@ -580,7 +580,7 @@ func TestRetryWait(t *testing.T) {
 		{name: "unusable header falls back to body", header: "-0", retryAfterMS: 300, want: 300 * time.Millisecond},
 		{name: "unusable header without body", header: "later", want: noRetry},
 		{name: "body only", retryAfterMS: 2500, want: 2500 * time.Millisecond},
-		{name: "huge body", retryAfterMS: math.MaxInt64, want: time.Duration(int64(math.MaxInt64/time.Millisecond)) * time.Millisecond},
+		{name: "huge body", retryAfterMS: math.MaxInt64, want: math.MaxInt64},
 		{name: "nothing", want: noRetry},
 	}
 

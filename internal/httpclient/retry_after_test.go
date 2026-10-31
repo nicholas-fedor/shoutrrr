@@ -20,7 +20,8 @@ func TestRetryAfter(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		now := time.Now()
-		longest := time.Duration(int64(math.MaxInt64/time.Second)) * time.Second
+
+		var longest time.Duration = math.MaxInt64
 
 		// tests lists a Retry-After value, empty for no header, with the wait
 		// it should give, or false when it gives none.
@@ -55,4 +56,42 @@ func TestRetryAfter(t *testing.T) {
 			assert.Equal(t, tt.want, wait, tt.name)
 		}
 	})
+}
+
+// TestDuration verifies that a count of a unit becomes that duration. A count
+// too large for a duration becomes the longest one in any unit. A negative or
+// NaN count gives none.
+func TestDuration(t *testing.T) {
+	t.Parallel()
+
+	// tests lists a count and unit with the duration each should give, or
+	// false when it gives none.
+	tests := []struct {
+		name   string
+		count  float64
+		unit   time.Duration
+		want   time.Duration
+		wantOK bool
+	}{
+		{name: "whole seconds", count: 7, unit: time.Second, want: 7 * time.Second, wantOK: true},
+		{name: "fractional seconds", count: 2.5, unit: time.Second, want: 2500 * time.Millisecond, wantOK: true},
+		{name: "milliseconds", count: 1500, unit: time.Millisecond, want: 1500 * time.Millisecond, wantOK: true},
+		{name: "zero", count: 0, unit: time.Second, want: 0, wantOK: true},
+		{name: "too large in seconds", count: 1e30, unit: time.Second, want: math.MaxInt64, wantOK: true},
+		{name: "too large in nanoseconds", count: math.MaxInt64, unit: time.Nanosecond, want: math.MaxInt64, wantOK: true},
+		{name: "infinite", count: math.Inf(1), unit: time.Second, want: math.MaxInt64, wantOK: true},
+		{name: "negative", count: -1, unit: time.Second},
+		{name: "negative zero", count: math.Copysign(0, -1), unit: time.Second, want: 0, wantOK: true},
+		{name: "NaN", count: math.NaN(), unit: time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := Duration(tt.count, tt.unit)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

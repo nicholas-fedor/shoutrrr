@@ -13,7 +13,8 @@
 //   - Line splitting for multi-line messages
 //   - Multiple embeds per message
 //   - Timestamp support in embeds
-//   - Rate limiting with exponential backoff and Retry-After header handling
+//   - Rate limiting that waits for the Retry-After header or the body's
+//     retry_after, with exponential backoff when neither gives a wait
 //
 // # URL Format
 //
@@ -83,5 +84,6 @@
 //   - Thread IDs can be obtained via Discord's Developer Mode
 //   - Message content is limited by Discord's API constraints (2000 chars per message)
 //   - Rate limiting applies as per Discord's webhook limits with automatic retry handling
-//   - The service implements exponential backoff and respects Retry-After headers
+//   - The service respects the Retry-After header and the body's retry_after,
+//     and backs off exponentially when neither gives a wait
 package discord

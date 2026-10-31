@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
@@ -80,6 +81,13 @@ type MultipartRequestPreparer struct {
 	payload *WebhookPayload
 	// files are sent as the files[n] form parts, in order.
 	files []types.File
+}
+
+// rateLimitBody is the part of a 429 response body that sets the wait.
+type rateLimitBody struct {
+	// RetryAfter is how many seconds to wait before the next request, with a
+	// fraction. It is nil when the body has no retry_after or holds null.
+	RetryAfter *float64 `json:"retry_after"`
 }
 
 // HTTP settings for requests to Discord.
@@ -332,12 +340,7 @@ func executeWithTransportRetry(
 		res, err := httpClient.Do(newReq)
 		if err != nil {
 			if isTransientError(err) && transportAttempt < maxTransportRetries {
-				wait := time.Duration(
-					math.Min(
-						math.Pow(backoffBase, float64(transportAttempt))*float64(baseBackoff),
-						float64(maxBackoff),
-					),
-				)
+				wait := backoff(transportAttempt)
 
 				if err := sleepContext(ctx, sleeper, wait); err != nil {
 					return nil, fmt.Errorf("making HTTP POST request: %w", err)
@@ -386,14 +389,7 @@ func handleServerError(
 		return ErrMaxRetries
 	}
 
-	wait := time.Duration(
-		math.Min(
-			math.Pow(backoffBase, float64(attempt))*float64(baseBackoff),
-			float64(maxBackoff),
-		),
-	)
-
-	if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
+	if err := waitWithTimeout(ctx, backoff(attempt), startTime, sleeper); err != nil {
 		_ = res.Body.Close()
 
 		return err
@@ -469,12 +465,8 @@ func sendWithRetry(
 		// Handle rate limit response
 		if res.StatusCode == http.StatusTooManyRequests {
 			if err := handleRateLimitResponse(ctx, res, attempt, startTime, sleeper); err != nil {
-				_ = res.Body.Close()
-
 				return err
 			}
-
-			_ = res.Body.Close()
 
 			continue
 		}
@@ -584,12 +576,9 @@ func sleepContext(ctx context.Context, sleeper Sleeper, duration time.Duration) 
 	return nil
 }
 
-// handleRateLimitResponse handles rate limiting logic for 429 responses.
-//
-// It waits for the Retry-After duration, in whole seconds or until an HTTP
-// date, or an exponential backoff when the response has no usable Retry-After,
-// before the next attempt. After the last attempt it returns [ErrMaxRetries]
-// without waiting.
+// handleRateLimitResponse handles rate limiting logic for 429 responses. It
+// waits for the response's wait before the next attempt, and after the last
+// attempt it returns [ErrMaxRetries] without waiting.
 //
 // Parameters:
 //   - ctx: bounds the wait.
@@ -608,34 +597,72 @@ func handleRateLimitResponse(
 	startTime time.Time,
 	sleeper Sleeper,
 ) error {
-	if attempt >= maxRetries {
-		_ = res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
+	if attempt >= maxRetries {
 		return ErrMaxRetries
 	}
 
+	return waitWithTimeout(ctx, rateLimitWait(res, attempt), startTime, sleeper)
+}
+
+// rateLimitWait returns how long to wait before retrying a 429. The
+// Retry-After header comes first, in whole seconds or until an HTTP date. The
+// body's retry_after in seconds with a fraction is the fallback. An
+// exponential backoff applies when neither gives a wait.
+//
+// Parameters:
+//   - res: the 429 response, whose body is read.
+//   - attempt: the attempt that got the response, from zero.
+//
+// Returns:
+//   - time.Duration: the wait, zero or more.
+func rateLimitWait(res *http.Response, attempt int) time.Duration {
 	if wait, ok := httpclient.RetryAfter(res.Header); ok {
-		if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
-			_ = res.Body.Close()
-
-			return err
-		}
-
-		_ = res.Body.Close()
-
-		return nil // Continue retry
-	}
-	// Fallback to exponential backoff
-	wait := time.Duration(
-		math.Min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)),
-	)
-	if err := waitWithTimeout(ctx, wait, startTime, sleeper); err != nil {
-		_ = res.Body.Close()
-
-		return err
+		return wait
 	}
 
-	_ = res.Body.Close()
+	if wait, ok := bodyRetryAfter(res.Body); ok {
+		return wait
+	}
 
-	return nil // Continue retry
+	return backoff(attempt)
+}
+
+// bodyRetryAfter reads the retry_after of a 429 response body, in seconds
+// with a fraction. A value too long for a [time.Duration] becomes the longest
+// one.
+//
+// Parameters:
+//   - body: the response body, read up to [httpbody.MaxSize].
+//
+// Returns:
+//   - time.Duration: the wait, zero or more.
+//   - bool: false when the body gives no usable retry_after. That covers a
+//     body that cannot be read or decoded and one without the field. A null
+//     or negative value gives none either.
+func bodyRetryAfter(body io.Reader) (time.Duration, bool) {
+	data, err := httpbody.Read(body, httpbody.MaxSize)
+	if err != nil {
+		return 0, false
+	}
+
+	var parsed rateLimitBody
+	if err := json.Unmarshal(data, &parsed, jsonopts.Default); err != nil || parsed.RetryAfter == nil {
+		return 0, false
+	}
+
+	return httpclient.Duration(*parsed.RetryAfter, time.Second)
+}
+
+// backoff returns the exponential backoff before a retry, which doubles from
+// 1 second with each attempt, up to 64 seconds.
+//
+// Parameters:
+//   - attempt: the attempt that failed, from zero.
+//
+// Returns:
+//   - time.Duration: the wait.
+func backoff(attempt int) time.Duration {
+	return time.Duration(math.Min(math.Pow(backoffBase, float64(attempt))*float64(baseBackoff), float64(maxBackoff)))
 }
