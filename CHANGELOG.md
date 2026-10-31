@@ -128,6 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module go.yaml.in/yaml/v3 to v3.0.6 by @renovate[bot] in [#2006](https://github.com/nicholas-fedor/shoutrrr/pull/2006)
+- Update binwiederhier/ntfy:latest docker digest to fb48c41 by @renovate[bot] in [#2005](https://github.com/nicholas-fedor/shoutrrr/pull/2005)
 - Update dependency platformdirs to v4.14.2 by @renovate[bot] in [#1998](https://github.com/nicholas-fedor/shoutrrr/pull/1998)
 - Update dependency watchdog to v7 by @renovate[bot] in [#1990](https://github.com/nicholas-fedor/shoutrrr/pull/1990)
 - Update axllent/mailpit docker tag to v1.33.0 by @renovate[bot] in [#1980](https://github.com/nicholas-fedor/shoutrrr/pull/1980)
