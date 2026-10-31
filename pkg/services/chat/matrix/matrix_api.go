@@ -76,6 +76,10 @@ type apiResError struct {
 	Message string `json:"error"`
 	// Code is the Matrix error code, such as M_FORBIDDEN.
 	Code string `json:"errcode"`
+	// RetryAfterMS is how many milliseconds a rate-limited client waits before
+	// it tries again. The spec deprecates it in favor of the Retry-After
+	// header.
+	RetryAfterMS int64 `json:"retry_after_ms"`
 }
 
 // flow represents a Matrix login flow type.

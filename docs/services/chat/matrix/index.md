@@ -56,6 +56,15 @@ This provides:
 - __Deduplication__: If a request is retried, the server recognizes the same transaction ID and doesn't create duplicate messages
 - __Reliability__: Safe to retry failed requests without worrying about message duplication
 
+### Rate Limits
+
+A homeserver that rate-limits a request answers with a 429 status and says how long to wait.
+Shoutrrr waits that long and sends the request again, up to three times.
+It reads the wait from the `Retry-After` header, in seconds or as a date, and falls back to the deprecated `retry_after_ms` field of the error body.
+A wait that would end after the send's deadline fails the request at once.
+Waits count toward the send's time budget, and each room keeps its share of it.
+A message send keeps its transaction ID, so a retry cannot post the message twice.
+
 ### Authorization Header
 
 The service passes the access token via the `Authorization: Bearer <token>` HTTP header, which is the recommended method per the v3 specification.

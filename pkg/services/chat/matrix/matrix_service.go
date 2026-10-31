@@ -223,7 +223,8 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 // password login when a user is configured, then a join and a message for each
 // configured room. Without configured rooms, the send looks up the joined rooms
 // and is budgeted for one message, so sends to many joined rooms need configured
-// rooms or a longer router timeout.
+// rooms or a longer router timeout. Waits for rate limits count toward the
+// budget, so a request is retried only while the budget has room for the wait.
 //
 // Parameters:
 //   - params: per-send parameters, which may set the rooms.

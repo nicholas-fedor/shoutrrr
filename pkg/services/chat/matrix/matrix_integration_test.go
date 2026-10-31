@@ -554,13 +554,16 @@ func TestIntegrationSendErrors(t *testing.T) {
 			wantRequests: 1,
 		},
 		{
-			name:     "rate limited",
+			// The homeserver asks for a minute, which would end after the
+			// room's share of the send's deadline, so the send fails without
+			// waiting.
+			name:     "rate limited past the deadline",
 			userInfo: ":" + accessToken,
 			query:    "&rooms=!ops:example.com",
 			overrides: map[string]apiReply{
 				http.MethodPut + " " + sendPath("!ops:example.com"): {
 					statusCode: http.StatusTooManyRequests,
-					body:       `{"errcode":"M_LIMIT_EXCEEDED","error":"Too many requests","retry_after_ms":2000}`,
+					body:       `{"errcode":"M_LIMIT_EXCEEDED","error":"Too many requests","retry_after_ms":60000}`,
 				},
 			},
 			wantText:     []string{"Too many requests"},

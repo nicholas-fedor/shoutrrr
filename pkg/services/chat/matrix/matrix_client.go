@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,6 +78,14 @@ const (
 	// the timeout of [DefaultHTTPClient].
 	defaultHTTPTimeout = 10 * time.Second
 
+	// maxRateLimitRetries is how many times a rate-limited request is sent
+	// again. It bounds the retries of a homeserver that keeps asking for
+	// short waits.
+	maxRateLimitRetries = 3
+	// noRetry is the negative wait that marks a response that may not be
+	// retried.
+	noRetry time.Duration = -1
+
 	// transactionIDRandLen is the length of random bytes in transaction ID.
 	transactionIDRandLen = 8
 
@@ -132,10 +142,12 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// apiDo sends a request to the Matrix API and decodes its JSON response.
+// apiDo sends a request to the Matrix API and decodes its JSON response. A
+// rate-limited request is sent again, up to three times, after the wait the
+// homeserver asks for, when that wait fits before ctx's deadline.
 //
 // Parameters:
-//   - ctx: cancellation and deadline for the request.
+//   - ctx: cancellation and deadline for the request and the waits.
 //   - method: the HTTP method.
 //   - path: the API path.
 //   - request: the value sent as the JSON request body, or nil to send no
@@ -144,66 +156,40 @@ func (c *DefaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
 //
 // Returns:
 //   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
-//     for an error status without one, or the marshaling, request, read, or
-//     decoding error. Reading stops at [httpbody.MaxSize]. An error status is
-//     reported from the bytes read, and an oversized success body wraps
-//     [httpbody.ErrTooLarge].
+//     for an error status without one, the rate limit's error joined with
+//     ctx's error when ctx ends during a wait, or the marshaling, request,
+//     read, or decoding error. Reading
+//     stops at [httpbody.MaxSize]. An error status is reported from the bytes
+//     read, and an oversized success body wraps [httpbody.ErrTooLarge].
 func (c *client) apiDo(ctx context.Context, method, path string, request, response any) error {
-	var body io.Reader = http.NoBody
+	var body []byte
 
 	if request != nil {
-		encoded, err := json.Marshal(request, jsonopts.Default)
-		if err != nil {
+		var err error
+		if body, err = json.Marshal(request, jsonopts.Default); err != nil {
 			return fmt.Errorf("marshaling %s request: %w", method, err)
 		}
-
-		body = bytes.NewReader(encoded)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.buildURL(path), body)
-	if err != nil {
-		return fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
-	}
+	retryAfter, err := c.send(ctx, method, path, body, response)
 
-	if request != nil {
-		req.Header.Set("Content-Type", contentType)
-	}
+	for retries := 0; retries < maxRateLimitRetries && retryFits(ctx, retryAfter); retries++ {
+		c.logger.LogAttrs(ctx, slog.LevelDebug, "rate limited, waiting to retry", slog.Duration(logging.KeyWait, retryAfter))
 
-	c.setAuthorizationHeader(req)
+		timer := time.NewTimer(retryAfter)
 
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
-	}
+		select {
+		case <-ctx.Done():
+			timer.Stop()
 
-	defer func() { _ = res.Body.Close() }()
-
-	resBody, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
-
-	// An error status is reported from the first bytes of an oversized body.
-	if res.StatusCode >= http.StatusBadRequest && (readErr == nil || errors.Is(readErr, httpbody.ErrTooLarge)) {
-		resError := &apiResError{}
-		if err = json.Unmarshal(resBody, resError, jsonopts.Default); err == nil {
-			return resError
+			return fmt.Errorf("waiting to retry %s request after %w: %w", method, err, ctx.Err())
+		case <-timer.C:
 		}
 
-		return fmt.Errorf(
-			"%w: %v (unmarshal error: %w)",
-			ErrUnexpectedStatus,
-			res.Status,
-			err,
-		)
+		retryAfter, err = c.send(ctx, method, path, body, response)
 	}
 
-	if readErr != nil {
-		return fmt.Errorf("reading %s response body: %w", method, readErr)
-	}
-
-	if err = json.Unmarshal(resBody, response, jsonopts.Default); err != nil {
-		return fmt.Errorf("unmarshaling %s response: %w", method, err)
-	}
-
-	return nil
+	return err
 }
 
 // buildURL returns a copy of the base API URL with the specified path set.
@@ -390,6 +376,84 @@ func (c *client) loginToken(ctx context.Context, token string) error {
 		slog.String(logging.KeyHomeserver, response.HomeServer), slog.String(logging.KeyDevice, response.DeviceID))
 
 	return nil
+}
+
+// send makes one request to the Matrix API and decodes its JSON response.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - method: the HTTP method.
+//   - path: the API path.
+//   - body: the JSON request body, or nil to send none.
+//   - response: the value the JSON response is decoded into.
+//
+// Returns:
+//   - time.Duration: for a rate-limited request, the wait the homeserver
+//     asks for, from the Retry-After header or else retry_after_ms. It is
+//     negative for any other request, and for a 429 that gives no wait.
+//   - error: the Matrix API error for an error status, [ErrUnexpectedStatus]
+//     for an error status without one, or the request, read, or decoding
+//     error. Reading stops at [httpbody.MaxSize].
+func (c *client) send(ctx context.Context, method, path string, body []byte, response any) (time.Duration, error) {
+	var reader io.Reader = http.NoBody
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.buildURL(path), reader)
+	if err != nil {
+		return noRetry, fmt.Errorf("creating %s request: %w", method, redact.URLError(err))
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	c.setAuthorizationHeader(req)
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return noRetry, fmt.Errorf("executing %s request: %w", method, redact.URLError(err))
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	resBody, readErr := httpbody.Read(res.Body, httpbody.MaxSize)
+
+	// An error status is reported from the first bytes of an oversized body.
+	if res.StatusCode >= http.StatusBadRequest && (readErr == nil || errors.Is(readErr, httpbody.ErrTooLarge)) {
+		resError := &apiResError{}
+		err = json.Unmarshal(resBody, resError, jsonopts.Default)
+
+		// A proxy in front of the homeserver can answer a 429 with its own
+		// body, so the Retry-After header counts even when the body is not a
+		// Matrix error.
+		wait := noRetry
+		if res.StatusCode == http.StatusTooManyRequests {
+			wait = retryWait(res.Header, resError)
+		}
+
+		if err != nil {
+			return wait, fmt.Errorf(
+				"%w: %v (unmarshal error: %w)",
+				ErrUnexpectedStatus,
+				res.Status,
+				err,
+			)
+		}
+
+		return wait, resError
+	}
+
+	if readErr != nil {
+		return noRetry, fmt.Errorf("reading %s response body: %w", method, readErr)
+	}
+
+	if err = json.Unmarshal(resBody, response, jsonopts.Default); err != nil {
+		return noRetry, fmt.Errorf("unmarshaling %s response: %w", method, err)
+	}
+
+	return noRetry, nil
 }
 
 // sendMessage sends a message to the specified rooms or all joined rooms if none are specified.
@@ -612,6 +676,66 @@ func normalizeHostForDeviceID(host string) string {
 
 	// Non-default port, keep it for uniqueness.
 	return host
+}
+
+// retryFits reports whether a retry may follow a wait. It may when the
+// homeserver asked for a wait and the wait ends before ctx's deadline. A room
+// request's deadline is the room's share of the send's budget, so its wait
+// cannot take time from later rooms. A wait spends the time of every request
+// that shares ctx, such as the message after a room join, or the rooms after
+// a login.
+//
+// Parameters:
+//   - ctx: the context of the request, whose deadline bounds the wait.
+//   - wait: the wait the homeserver asks for, or a negative wait for none.
+//
+// Returns:
+//   - bool: true when the retry may follow the wait.
+func retryFits(ctx context.Context, wait time.Duration) bool {
+	if wait < 0 {
+		return false
+	}
+
+	deadline, hasDeadline := ctx.Deadline()
+
+	return !hasDeadline || wait < time.Until(deadline)
+}
+
+// retryWait returns the wait that a rate-limited response asks for. The
+// Retry-After header comes first, in seconds or as an HTTP date, as the spec
+// prefers it. The deprecated retry_after_ms of the error body is the
+// fallback. A wait too long to fit in a [time.Duration] becomes the longest
+// one, even when the seconds overflow an int64.
+//
+// Parameters:
+//   - header: the response headers.
+//   - resError: the decoded error body.
+//
+// Returns:
+//   - time.Duration: the wait, zero or more, or a negative wait when neither
+//     gives one.
+func retryWait(header http.Header, resError *apiResError) time.Duration {
+	if value := header.Get("Retry-After"); value != "" {
+		// RFC 9110 delay-seconds are digits only, so a signed value such as +5
+		// or -0 is not a delay. For digits, ParseInt fails only with a range
+		// error, returning the largest int64. Parsing as int64 keeps the value
+		// in the type of a duration, so no conversion can overflow.
+		if strings.Trim(value, "0123456789") == "" {
+			seconds, _ := strconv.ParseInt(value, 10, 64) //nolint:errcheck // Digits fail only with a range error, which returns the largest int64.
+
+			return time.Duration(min(seconds, int64(math.MaxInt64/time.Second))) * time.Second
+		}
+
+		if date, err := http.ParseTime(value); err == nil {
+			return max(time.Until(date), 0)
+		}
+	}
+
+	if resError.RetryAfterMS > 0 {
+		return time.Duration(min(resError.RetryAfterMS, int64(math.MaxInt64/time.Millisecond))) * time.Millisecond
+	}
+
+	return noRetry
 }
 
 // newClient creates a Matrix API client for one send.

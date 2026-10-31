@@ -68,6 +68,8 @@ const (
 	KeyTimestamp = "timestamp"
 	// KeyTopic names a topic that a message was published to.
 	KeyTopic = "topic"
+	// KeyWait holds how long a send waits before it retries a request.
+	KeyWait = "wait"
 	// KeyWarning holds a warning that a server returned.
 	KeyWarning = "warning"
 )
