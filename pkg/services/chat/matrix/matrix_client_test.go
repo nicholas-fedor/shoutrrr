@@ -3,6 +3,7 @@ package matrix
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"io"
@@ -320,8 +321,8 @@ func TestAPIRequestFailures(t *testing.T) {
 }
 
 // TestAPIDo verifies that apiDo reports marshaling and request creation errors
-// without sending, sends a request value as JSON with the given method, and
-// sends no body for a nil request.
+// without sending, sends a request value as JSON with the given method, sends
+// raw JSON byte for byte, and sends no body for a nil request.
 func TestAPIDo(t *testing.T) {
 	t.Parallel()
 
@@ -356,6 +357,18 @@ func TestAPIDo(t *testing.T) {
 		assert.Equal(t, http.MethodPut, httpClient.requests[0].Method)
 		assert.Equal(t, "application/json", httpClient.requests[0].Header.Get("Content-Type"))
 		assert.JSONEq(t, `{"msgtype":"m.text","body":"test message"}`, httpClient.bodies[0])
+	})
+
+	t.Run("raw JSON request", func(t *testing.T) {
+		t.Parallel()
+
+		c, httpClient := newScriptedClient(t, ok(`{}`))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodPost, apiLogin, jsontext.Value(`{ "kept": "as is" }`), &apiResLogin{}))
+
+		require.Len(t, httpClient.requests, 1)
+		assert.Equal(t, "application/json", httpClient.requests[0].Header.Get("Content-Type"))
+		//nolint:testifylint // The bytes must match exactly, which JSONEq would not check.
+		assert.Equal(t, `{ "kept": "as is" }`, httpClient.bodies[0], "the request is sent byte for byte")
 	})
 
 	t.Run("no request body", func(t *testing.T) {
