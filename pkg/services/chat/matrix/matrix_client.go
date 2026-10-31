@@ -705,7 +705,7 @@ func retryFits(ctx context.Context, wait time.Duration) bool {
 // Retry-After header comes first, in seconds or as an HTTP date, as the spec
 // prefers it. The deprecated retry_after_ms of the error body is the
 // fallback. A wait too long to fit in a [time.Duration] becomes the longest
-// one, even when the seconds overflow a uint64.
+// one, even when the seconds overflow an int64.
 //
 // Parameters:
 //   - header: the response headers.
@@ -716,9 +716,11 @@ func retryFits(ctx context.Context, wait time.Duration) bool {
 //     gives one.
 func retryWait(header http.Header, resError *apiResError) time.Duration {
 	if value := header.Get("Retry-After"); value != "" {
-		// ParseUint returns the largest uint64 with its range error.
-		if seconds, err := strconv.ParseUint(value, 10, 64); err == nil || errors.Is(err, strconv.ErrRange) {
-			return time.Duration(min(seconds, uint64(math.MaxInt64/time.Second))) * time.Second
+		// ParseInt returns the largest int64 with its range error, and a
+		// negative value asks for no wait. Parsing as int64 keeps the value in
+		// the type of a duration, so no conversion can overflow.
+		if seconds, err := strconv.ParseInt(value, 10, 64); (err == nil || errors.Is(err, strconv.ErrRange)) && seconds >= 0 {
+			return time.Duration(min(seconds, int64(math.MaxInt64/time.Second))) * time.Second
 		}
 
 		if date, err := http.ParseTime(value); err == nil {
