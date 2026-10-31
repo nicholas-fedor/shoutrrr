@@ -19,8 +19,8 @@ var (
 	// ErrInvalidScheme indicates an invalid URL scheme; must be https.
 	ErrInvalidScheme = errors.New("invalid URL scheme: must be https")
 
-	// ErrInvalidHost indicates an invalid host; must be discord.com.
-	ErrInvalidHost = errors.New("invalid host: must be discord.com")
+	// ErrInvalidHost indicates a host other than discord.com.
+	ErrInvalidHost = errors.New("invalid host: must be " + hooksHost)
 
 	// ErrInvalidWebhookID indicates an invalid webhook ID.
 	ErrInvalidWebhookID = errors.New("invalid webhook ID")

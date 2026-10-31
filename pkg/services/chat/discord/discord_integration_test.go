@@ -136,8 +136,11 @@ const (
 	// testServiceURL is the service URL for webhook test-webhook with token
 	// test-token.
 	testServiceURL = "discord://test-token@test-webhook"
+	// testHooksBaseURL is the webhook base URL the tests expect, written out
+	// so that the tests pin the API version.
+	testHooksBaseURL = "https://discord.com/api/v10/webhooks"
 	// testPostURL is the webhook API URL for testServiceURL.
-	testPostURL = "https://discord.com/api/webhooks/test-webhook/test-token"
+	testPostURL = testHooksBaseURL + "/test-webhook/test-token"
 	// testMessage is the message the tests send when its text does not matter.
 	testMessage = "Test message"
 )
@@ -272,7 +275,7 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			name:     "numeric webhook ID and token",
 			rawURL:   "discord://123@456",
 			message:  testMessage,
-			wantURL:  "https://discord.com/api/webhooks/456/123",
+			wantURL:  testHooksBaseURL + "/456/123",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{

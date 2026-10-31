@@ -55,8 +55,19 @@ const (
 	// MaxSearchRunes is the maximum number of runes to search for a split
 	// position.
 	MaxSearchRunes = 100
-	// HooksBaseURL is the base URL of the webhook endpoints.
-	HooksBaseURL = "https://discord.com/api/webhooks"
+	// HooksBaseURL is the base URL of the webhook endpoints, on Discord API
+	// v10. A URL without a version reaches Discord's default version. That
+	// default is the deprecated v6, which reports rate-limit waits in
+	// milliseconds.
+	HooksBaseURL = "https://" + hooksHost + hooksPath
+)
+
+// The parts of [HooksBaseURL] that a webhook URL is checked against.
+const (
+	// hooksHost is the host of the webhook endpoints.
+	hooksHost = "discord.com"
+	// hooksPath is the path of the webhook endpoints, with the API version.
+	hooksPath = "/api/v10/webhooks"
 )
 
 // limits are the chunk limits for splitting a plain message into items.
@@ -572,8 +583,8 @@ func createItemsFromPlain(plain string, splitLines bool, title string) [][]types
 //   - The URL is not empty.
 //   - It parses as a request URI.
 //   - Its scheme is https.
-//   - Its host is discord.com.
-//   - Its path starts with /api/webhooks/.
+//   - Its host is the host of [HooksBaseURL].
+//   - Its path starts with the path of [HooksBaseURL] and a slash.
 //   - Exactly two non-empty segments, the webhook ID and the token, follow
 //     [HooksBaseURL].
 //
@@ -597,11 +608,11 @@ func validateDiscordWebhookURL(postURL string) error {
 		return ErrInvalidScheme
 	}
 
-	if parsedURL.Host != "discord.com" {
+	if parsedURL.Host != hooksHost {
 		return ErrInvalidHost
 	}
 
-	if !strings.HasPrefix(parsedURL.Path, "/api/webhooks/") {
+	if !strings.HasPrefix(parsedURL.Path, hooksPath+"/") {
 		return ErrInvalidURLPrefix
 	}
 
