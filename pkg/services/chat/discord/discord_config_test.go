@@ -205,6 +205,7 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 		{name: "webhook ID not a number", rawURL: "discord://token@webhook", wantErr: ErrInvalidWebhookID},
 		{name: "webhook ID past 64 bits", rawURL: "discord://token@18446744073709551616", wantErr: ErrInvalidWebhookID},
 		{name: "webhook ID with a port", rawURL: "discord://token@123:80", wantErr: ErrInvalidWebhookID},
+		{name: "thread ID not a number", rawURL: "discord://token@123?thread_id=thread-123", wantErr: ErrInvalidThreadID},
 		{name: "no token", rawURL: "discord://@123", wantErr: ErrMissingToken},
 		{name: "blank token", rawURL: "discord://%20%20@123", wantErr: ErrMissingToken},
 		{name: "extra path", rawURL: "discord://token@123/invalid", wantErr: ErrIllegalURLArgument},
@@ -225,9 +226,10 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 	}
 }
 
-// TestConfigValidate verifies the webhook ID and token rules: a webhook ID
-// that is a number of up to 64 bits and a token that is not blank, with
-// surrounding spaces ignored.
+// TestConfigValidate verifies the webhook ID, token, and thread ID rules. The
+// webhook ID must be a number of up to 64 bits. The token must not be blank.
+// The thread ID must be empty or a number of up to 64 bits. Surrounding
+// spaces are ignored.
 func TestConfigValidate(t *testing.T) {
 	t.Parallel()
 
@@ -248,6 +250,10 @@ func TestConfigValidate(t *testing.T) {
 		{name: "webhook ID past 64 bits", config: Config{WebhookID: "18446744073709551616", Token: "test-token"}, wantErr: ErrInvalidWebhookID},
 		{name: "no token", config: Config{WebhookID: "123456789"}, wantErr: ErrMissingToken},
 		{name: "blank token", config: Config{WebhookID: "123456789", Token: "  "}, wantErr: ErrMissingToken},
+		{name: "thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: " 987654321 "}},
+		{name: "blank thread ID", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}},
+		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "thread-1"}, wantErr: ErrInvalidThreadID},
+		{name: "thread ID past 64 bits", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "18446744073709551616"}, wantErr: ErrInvalidThreadID},
 	}
 
 	for _, tt := range tests {
@@ -264,9 +270,9 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
-// TestCreatePostURLFromConfig verifies the webhook API URL, including the
-// thread ID, with surrounding spaces trimmed and the token path-escaped, and
-// that an invalid config gives no URL.
+// TestCreatePostURLFromConfig verifies the webhook API URL with its thread
+// ID. Surrounding spaces are trimmed and the token is path-escaped. An invalid
+// config gives no URL, and the cases include a thread ID that is not a number.
 func TestCreatePostURLFromConfig(t *testing.T) {
 	t.Parallel()
 
@@ -283,7 +289,7 @@ func TestCreatePostURLFromConfig(t *testing.T) {
 		{name: "spaces around webhook ID and token", config: Config{WebhookID: "  123456789  ", Token: "  test-token  "}, want: testWebhookURL},
 		{name: "spaces around thread", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  987654321  "}, want: testWebhookURLWithThread},
 		{name: "no webhook ID or token", config: Config{}, want: ""},
-		{name: "thread with reserved characters", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "a b&c"}, want: testWebhookURL + "?thread_id=a+b%26c"},
+		{name: "thread ID not a number", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "a b&c"}, want: ""},
 		{name: "blank thread", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  "}, want: testWebhookURL},
 		{name: "token with reserved characters", config: Config{WebhookID: "123456789", Token: "a/b?c#d%"}, want: testHooksBaseURL + "/123456789/a%2Fb%3Fc%23d%25"},
 		{name: "webhook ID not a number", config: Config{WebhookID: "webhook", Token: "test-token"}, want: ""},

@@ -30,6 +30,9 @@ To send messages to a specific thread in a Discord channel, include the `thread_
 
 You can obtain the `thread_id` by right-clicking a thread in Discord and selecting "Copy ID" (requires Developer Mode to be enabled in Discord settings). For more details on threads, see Discord's [thread documentation](https://discord.com/developers/docs/resources/channel#thread-object). Learn how to enable Developer Mode in Discord's [support article](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-).
 
+The thread ID is a number, and Shoutrrr rejects a thread ID that is not one.
+A `thread_id` send param sends that message to another thread, in JSON mode too.
+
 ## Webhook Customization
 
 You can customize the webhook's appearance by overriding the default username and avatar that were set when creating the webhook.

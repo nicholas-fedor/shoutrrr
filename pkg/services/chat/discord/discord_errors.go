@@ -17,6 +17,10 @@ var (
 	// snowflake, a number of up to 64 bits.
 	ErrInvalidWebhookID = errors.New("invalid webhook ID")
 
+	// ErrInvalidThreadID indicates a thread ID that is not a Discord
+	// snowflake, a number of up to 64 bits.
+	ErrInvalidThreadID = errors.New("invalid thread ID")
+
 	// ErrRateLimited indicates rate limiting by Discord.
 	ErrRateLimited = errors.New("rate limited by Discord")
 

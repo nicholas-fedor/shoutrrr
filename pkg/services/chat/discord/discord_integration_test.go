@@ -293,13 +293,6 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
-			name:     "thread ID with punctuation",
-			rawURL:   testServiceURL + "?thread_id=thread-123_456.789",
-			message:  testMessage,
-			wantURL:  testPostURL + "?thread_id=thread-123_456.789",
-			wantBody: `{"content":"Test message"}`,
-		},
-		{
 			name:     "thread ID with surrounding spaces",
 			rawURL:   testServiceURL + "?thread_id=%20%20123456789%20%20",
 			message:  testMessage,
@@ -347,10 +340,10 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 		},
 		{
 			name:     "thread with username and avatar",
-			rawURL:   testServiceURL + "?thread_id=custom-thread",
+			rawURL:   testServiceURL + "?thread_id=555666777",
 			params:   &types.Params{"username": "ThreadBot", "avatar": "https://example.com/thread-avatar.png"},
 			message:  "Thread message with custom appearance",
-			wantURL:  testPostURL + "?thread_id=custom-thread",
+			wantURL:  testPostURL + "?thread_id=555666777",
 			wantBody: `{"content":"Thread message with custom appearance","username":"ThreadBot","avatar_url":"https://example.com/thread-avatar.png"}`,
 		},
 		{
@@ -473,15 +466,17 @@ func TestIntegrationSendParamsApplyToOneSend(t *testing.T) {
 	assert.JSONEq(t, `{"content":"Second"}`, string(sent[1].body))
 }
 
-// TestIntegrationSendJSONMode verifies that JSON mode, enabled by the json
-// query option or the /raw path, posts the message unchanged as the request
-// body, even when it is not valid JSON.
+// TestIntegrationSendJSONMode verifies that JSON mode posts the message
+// unchanged as the request body, even when it is not valid JSON. The json
+// query option, the /raw path, and a json param each turn it on. The request
+// goes to the thread that the URL or the params name.
 func TestIntegrationSendJSONMode(t *testing.T) {
 	t.Parallel()
 
 	// tests lists JSON mode service URLs and messages with the URL the request
 	// should go to.
 	tests := []struct {
+		params  *types.Params
 		name    string
 		rawURL  string
 		message string
@@ -511,6 +506,20 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 			message: `{"content": "Thread JSON message"}`,
 			wantURL: testPostURL + "?thread_id=987654321",
 		},
+		{
+			name:    "json from params",
+			rawURL:  testServiceURL,
+			params:  &types.Params{"json": "yes"},
+			message: `{"content": "Raw JSON message"}`,
+			wantURL: testPostURL,
+		},
+		{
+			name:    "thread from params replaces the URL's",
+			rawURL:  testServiceURL + "?json=true&thread_id=987654321",
+			params:  &types.Params{"thread_id": "444555666"},
+			message: `{"content": "Thread JSON message"}`,
+			wantURL: testPostURL + "?thread_id=444555666",
+		},
 	}
 
 	for _, tt := range tests {
@@ -519,7 +528,7 @@ func TestIntegrationSendJSONMode(t *testing.T) {
 
 			client, hook := newWebhook(t, noContent)
 
-			require.NoError(t, newService(t, tt.rawURL, client).Send(tt.message, nil))
+			require.NoError(t, newService(t, tt.rawURL, client).Send(tt.message, tt.params))
 
 			sent := hook.sent()
 			require.Len(t, sent, 1)
@@ -759,13 +768,13 @@ func TestIntegrationSendItemsEmbeds(t *testing.T) {
 		},
 		{
 			name:   "embed sent to the thread from the URL",
-			rawURL: testServiceURL + "?thread_id=embed-thread",
+			rawURL: testServiceURL + "?thread_id=888999000",
 			items: []types.MessageItem{{
 				Text:   "Thread message with rich embed",
 				Fields: []types.Field{{Key: "Thread", Value: "Yes"}, {Key: "Type", Value: "Test"}},
 				Level:  types.Info,
 			}},
-			wantURL: testPostURL + "?thread_id=embed-thread",
+			wantURL: testPostURL + "?thread_id=888999000",
 			wantBody: `{"embeds":[{
 				"description":"Thread message with rich embed",
 				"color":2394367,
@@ -903,7 +912,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 		},
 		{
 			name:   "files with an embed, username, and thread",
-			rawURL: testServiceURL + "?thread_id=file-thread",
+			rawURL: testServiceURL + "?thread_id=111000222",
 			params: types.Params{"username": "FileBot"},
 			items: []types.MessageItem{
 				{
@@ -914,7 +923,7 @@ func TestIntegrationSendItemsFiles(t *testing.T) {
 				},
 				{Text: "Second file in thread", File: &types.File{Name: "file2.txt", Data: []byte("content 2")}},
 			},
-			wantURL: testPostURL + "?thread_id=file-thread",
+			wantURL: testPostURL + "?thread_id=111000222",
 			wantPayload: `{
 				"embeds":[
 					{"description":"First file in thread","color":16761921,"footer":{"text":"Warning"},"fields":[{"name":"Build","value":"42"}]},
@@ -1417,8 +1426,10 @@ func TestIntegrationSendStatusErrors(t *testing.T) {
 	}
 }
 
-// TestIntegrationRejectedBeforeSending verifies that sends with an unknown
-// param or no items fail without a request. The mock client has no
+// TestIntegrationRejectedBeforeSending verifies that plain and rich sends fail
+// without a request when their input is invalid. An unknown param fails, and
+// so does a thread ID param that is not a number. A rich send without items
+// fails too. The mock client has no
 // expectations, so a request fails the test.
 func TestIntegrationRejectedBeforeSending(t *testing.T) {
 	t.Parallel()
@@ -1451,6 +1462,24 @@ func TestIntegrationRejectedBeforeSending(t *testing.T) {
 				return service.SendItemsContext(t.Context(), items, types.Params{"invalid_key": "value"})
 			},
 			wantText: "updating config from params",
+		},
+		{
+			name: "thread ID param not a number",
+			send: func(_ *testing.T, service *discord.Service) error {
+				return service.Send(testMessage, &types.Params{"thread_id": "thread-1"})
+			},
+			wantErr:  discord.ErrInvalidThreadID,
+			wantText: "invalid thread ID",
+		},
+		{
+			name: "thread ID param not a number in a rich send",
+			send: func(t *testing.T, service *discord.Service) error {
+				t.Helper()
+
+				return service.SendItemsContext(t.Context(), []types.MessageItem{{Text: "Item"}}, types.Params{"thread_id": "thread-1"})
+			},
+			wantErr:  discord.ErrInvalidThreadID,
+			wantText: "invalid thread ID",
 		},
 		{
 			name: "single item without text",
