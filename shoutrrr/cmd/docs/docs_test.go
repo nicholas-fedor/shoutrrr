@@ -1,6 +1,9 @@
 package docs
 
 import (
+	"bytes"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -73,6 +76,7 @@ func Test_runDocs(t *testing.T) {
 				Use: "docs",
 			}
 			rootCmd.Flags().StringP("format", "f", "console", "Output format")
+			rootCmd.SetOut(io.Discard)
 
 			// Set the format flag value
 			if err := rootCmd.Flags().Set("format", tt.formatFlag); err != nil {
@@ -106,14 +110,39 @@ func Test_runDocs_FlagError(t *testing.T) {
 	assert.Contains(t, got.Message, "Error getting format flag", "Error message should indicate flag retrieval failure")
 }
 
-// Test_printDocs tests the printDocs function with various scenarios.
+// Test_runDocs_WritesToCommandOutput verifies that runDocs writes the docs to
+// the command's output.
+func Test_runDocs_WritesToCommandOutput(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+
+	rootCmd := &cobra.Command{
+		Use: "docs",
+	}
+	rootCmd.Flags().StringP("format", "f", "console", "Output format")
+	rootCmd.SetOut(&out)
+
+	got := runDocs(rootCmd, []string{"discord"})
+
+	assert.Equal(t, cmd.ExSuccess, got.ExitCode)
+	assert.Contains(t, out.String(), "WebhookID")
+}
+
+// Test_printDocs tests the printDocs function with various scenarios. The
+// every-service cases cover services that reject a placeholder service URL,
+// since the docs come from each service's zero config.
 func Test_printDocs(t *testing.T) {
 	t.Parallel()
 
+	// tests lists each format and service list with the exit code, the error
+	// message text, and text from representative headings and fields that the
+	// output should contain. A failed run writes nothing.
 	tests := []struct {
 		name       string
 		docFormat  string
 		services   []string
+		wantOutput []string
 		wantExit   int
 		wantErrMsg string
 	}{
@@ -121,6 +150,7 @@ func Test_printDocs(t *testing.T) {
 			name:       "console render success",
 			docFormat:  "console",
 			services:   []string{"discord"},
+			wantOutput: []string{"WebhookID", "<URL: Host> <Required>", "<Default: 0x50D9ff>"},
 			wantExit:   cmd.ExSuccess,
 			wantErrMsg: "",
 		},
@@ -128,6 +158,7 @@ func Test_printDocs(t *testing.T) {
 			name:       "markdown render success",
 			docFormat:  "markdown",
 			services:   []string{"slack"},
+			wantOutput: []string{"### URL Fields", "### Query/Param Props", "* __Channel__ - Channel to send messages to"},
 			wantExit:   cmd.ExSuccess,
 			wantErrMsg: "",
 		},
@@ -135,6 +166,7 @@ func Test_printDocs(t *testing.T) {
 			name:       "multiple services console",
 			docFormat:  "console",
 			services:   []string{"discord", "slack"},
+			wantOutput: []string{"WebhookID", "API Bot token"},
 			wantExit:   cmd.ExSuccess,
 			wantErrMsg: "",
 		},
@@ -142,6 +174,23 @@ func Test_printDocs(t *testing.T) {
 			name:       "multiple services markdown",
 			docFormat:  "markdown",
 			services:   []string{"smtp", "telegram"},
+			wantOutput: []string{"* __Host__ - SMTP server hostname", "* __chats__ - Chat IDs"},
+			wantExit:   cmd.ExSuccess,
+			wantErrMsg: "",
+		},
+		{
+			name:       "every service console",
+			docFormat:  "console",
+			services:   services,
+			wantOutput: []string{"WebhookID", "SMTP authentication method", "API Bot token"},
+			wantExit:   cmd.ExSuccess,
+			wantErrMsg: "",
+		},
+		{
+			name:       "every service markdown",
+			docFormat:  "markdown",
+			services:   services,
+			wantOutput: []string{"* __WebhookID__ (__Required__)", "* __Host__ - SMTP server hostname", "* __chats__ - Chat IDs"},
 			wantExit:   cmd.ExSuccess,
 			wantErrMsg: "",
 		},
@@ -172,15 +221,41 @@ func Test_printDocs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := printDocs(tt.docFormat, tt.services)
+			var out bytes.Buffer
+
+			got := printDocs(&out, tt.docFormat, tt.services)
 
 			assert.Equal(t, tt.wantExit, got.ExitCode, "Exit code mismatch")
 
 			if tt.wantErrMsg != "" {
 				assert.Contains(t, got.Message, tt.wantErrMsg, "Error message should contain expected text")
 			}
+
+			if tt.wantExit != cmd.ExSuccess {
+				assert.Empty(t, out.String())
+			}
+
+			for _, want := range tt.wantOutput {
+				assert.Contains(t, out.String(), want)
+			}
 		})
 	}
+}
+
+// Test_printDocs_EveryServiceSections verifies that the markdown docs for
+// every service have both sections for each service, so no service is left
+// out. The console format has no headings, and a service without fields
+// renders nothing there.
+func Test_printDocs_EveryServiceSections(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+
+	got := printDocs(&out, "markdown", services)
+
+	assert.Equal(t, cmd.ExSuccess, got.ExitCode)
+	assert.Equal(t, len(services), strings.Count(out.String(), "### URL Fields\n"))
+	assert.Equal(t, len(services), strings.Count(out.String(), "### Query/Param Props\n"))
 }
 
 // Test_printDocs_EdgeCases tests edge cases for printDocs.
@@ -188,22 +263,25 @@ func Test_printDocs_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		docFormat string
-		services  []string
-		wantExit  int
+		name       string
+		docFormat  string
+		services   []string
+		wantOutput string
+		wantExit   int
 	}{
 		{
-			name:      "empty services slice",
-			docFormat: "console",
-			services:  []string{},
-			wantExit:  cmd.ExSuccess,
+			name:       "empty services slice",
+			docFormat:  "console",
+			services:   []string{},
+			wantOutput: "",
+			wantExit:   cmd.ExSuccess,
 		},
 		{
-			name:      "case insensitive service lookup",
-			docFormat: "console",
-			services:  []string{"DISCORD"},
-			wantExit:  cmd.ExSuccess,
+			name:       "case insensitive service lookup",
+			docFormat:  "console",
+			services:   []string{"DISCORD"},
+			wantOutput: "WebhookID",
+			wantExit:   cmd.ExSuccess,
 		},
 	}
 
@@ -211,8 +289,16 @@ func Test_printDocs_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := printDocs(tt.docFormat, tt.services)
+			var out bytes.Buffer
+
+			got := printDocs(&out, tt.docFormat, tt.services)
 			assert.Equal(t, tt.wantExit, got.ExitCode, "Exit code mismatch")
+
+			if tt.wantOutput == "" {
+				assert.Empty(t, out.String())
+			} else {
+				assert.Contains(t, out.String(), tt.wantOutput)
+			}
 		})
 	}
 }
