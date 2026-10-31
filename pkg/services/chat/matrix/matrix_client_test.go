@@ -545,9 +545,9 @@ func TestAPIDoLogsRateLimitWait(t *testing.T) {
 	})
 }
 
-// TestRetryWait verifies that a usable Retry-After header sets the wait, and
-// that the deprecated retry_after_ms is the fallback when the header is
-// missing or unusable. A retry_after_ms too long for a duration becomes the
+// TestRetryWait verifies that a usable Retry-After header sets the wait, even a
+// zero wait from 0 seconds or a past date, and that the deprecated
+// retry_after_ms is the fallback when the header is missing or unusable. A retry_after_ms too long for a duration becomes the
 // longest wait. [httpclient.RetryAfter] covers how the header is read.
 func TestRetryWait(t *testing.T) {
 	t.Parallel()
@@ -562,6 +562,8 @@ func TestRetryWait(t *testing.T) {
 	}{
 		{name: "header", header: "7", want: 7 * time.Second},
 		{name: "header wins over body", header: "1", retryAfterMS: 5000, want: time.Second},
+		{name: "zero header wins over body", header: "0", retryAfterMS: 5000, want: 0},
+		{name: "past date wins over body", header: time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat), retryAfterMS: 5000, want: 0},
 		{name: "unusable header falls back to body", header: "-0", retryAfterMS: 300, want: 300 * time.Millisecond},
 		{name: "unusable header without body", header: "later", want: noRetry},
 		{name: "body only", retryAfterMS: 2500, want: 2500 * time.Millisecond},
