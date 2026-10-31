@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Read Retry-After the same way in Discord and Matrix by @nicholas-fedor in [#1976](https://github.com/nicholas-fedor/shoutrrr/pull/1976)
 - Reject send params that are neither config keys nor payload params by @nicholas-fedor in [#1955](https://github.com/nicholas-fedor/shoutrrr/pull/1955)
 - Build Lark, IFTTT, and Join payloads from the send's config by @nicholas-fedor in [#1949](https://github.com/nicholas-fedor/shoutrrr/pull/1949)
 - Reject a config key given in two spellings by @nicholas-fedor in [#1943](https://github.com/nicholas-fedor/shoutrrr/pull/1943)
