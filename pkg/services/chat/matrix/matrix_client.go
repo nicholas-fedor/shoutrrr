@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -731,7 +730,9 @@ func retryWait(header http.Header, resError *apiResError) time.Duration {
 	}
 
 	if resError.RetryAfterMS > 0 {
-		return time.Duration(min(resError.RetryAfterMS, int64(math.MaxInt64/time.Millisecond))) * time.Millisecond
+		wait, _ := httpclient.Duration(float64(resError.RetryAfterMS), time.Millisecond)
+
+		return wait
 	}
 
 	return noRetry

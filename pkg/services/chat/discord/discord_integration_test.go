@@ -1182,15 +1182,17 @@ func TestIntegrationSendItemsEmbedLimits(t *testing.T) {
 }
 
 // TestIntegrationSendRetries verifies how a send started with SendContext
-// retries with the service's default sleeper: it waits for Retry-After or an
-// exponential backoff on rate limits and server errors, retries transient
-// transport errors, resends the same payload each time, and reports the
-// failure once retries run out, the wait cannot fit the deadline, or the
-// context is canceled. The fake clock checks the total wait.
+// retries with the service's default sleeper. A rate limit waits for
+// Retry-After first and the body's retry_after second. Without either it
+// backs off exponentially, as a server error does. A transient transport
+// error is retried, and each retry resends the same payload. The send fails
+// when the retries run out or a wait cannot fit the deadline. It also fails
+// when the context is canceled. The fake clock checks the total wait.
 func TestIntegrationSendRetries(t *testing.T) {
 	t.Parallel()
 
-	rateLimited := reply{status: http.StatusTooManyRequests, body: `{"message": "You are being rate limited.", "retry_after": 1}`}
+	rateLimited := reply{status: http.StatusTooManyRequests, body: `{"message": "You are being rate limited.", "retry_after": 2.5}`}
+	rateLimitedNoHint := reply{status: http.StatusTooManyRequests, body: `{"message": "You are being rate limited."}`}
 	serverError := reply{status: http.StatusInternalServerError, body: `{"message": "Server error"}`}
 	timeout := reply{err: timeoutError{}}
 
@@ -1211,8 +1213,14 @@ func TestIntegrationSendRetries(t *testing.T) {
 			wantRequests: 2,
 		},
 		{
-			name:         "rate limit without Retry-After backs off then succeeds",
+			name:         "retry_after in the body then success",
 			replies:      []reply{rateLimited, noContent},
+			wantElapsed:  2500 * time.Millisecond,
+			wantRequests: 2,
+		},
+		{
+			name:         "rate limit without a wait backs off then succeeds",
+			replies:      []reply{rateLimitedNoHint, noContent},
 			wantElapsed:  time.Second,
 			wantRequests: 2,
 		},
@@ -1236,7 +1244,7 @@ func TestIntegrationSendRetries(t *testing.T) {
 		},
 		{
 			name:         "rate limit backoff until retries run out",
-			replies:      repeatReply(rateLimited, 6),
+			replies:      repeatReply(rateLimitedNoHint, 6),
 			wantErr:      discord.ErrMaxRetries,
 			wantElapsed:  31 * time.Second,
 			wantRequests: 6,

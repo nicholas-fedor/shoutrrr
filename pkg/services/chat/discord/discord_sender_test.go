@@ -539,24 +539,35 @@ func TestSleepContext(t *testing.T) {
 }
 
 // TestHandleRateLimitResponse verifies the wait for a 429. Retry-After in whole
-// seconds sets it, exponential backoff applies when the header is absent or
-// invalid, such as a fraction, and ErrRateLimited is returned when Retry-After
-// exceeds the retry limit.
+// seconds sets it. The body's retry_after in seconds sets it when the header
+// is absent or invalid, such as a fraction. Exponential backoff applies when
+// the body has no usable retry_after either. ErrRateLimited is returned
+// when the wait exceeds the retry limit.
 func TestHandleRateLimitResponse(t *testing.T) {
 	t.Parallel()
 
-	// tests lists Retry-After values and attempts with the wait to expect, or
-	// the error when no wait should happen.
+	// tests lists Retry-After values, bodies, and attempts with the wait to
+	// expect, or the error when no wait should happen.
 	tests := []struct {
 		wantErr    error
 		name       string
 		retryAfter string
+		body       string
 		attempt    int
 		wantWait   time.Duration
 	}{
 		{name: "Retry-After", retryAfter: "2", wantWait: 2 * time.Second},
 		{name: "invalid Retry-After", retryAfter: "invalid", wantWait: time.Second},
 		{name: "fractional Retry-After", retryAfter: "1.5", wantWait: time.Second},
+		{name: "body retry_after", body: `{"message":"You are being rate limited.","retry_after":2.5}`, wantWait: 2500 * time.Millisecond},
+		{name: "header wins over body", retryAfter: "1", body: `{"retry_after":2.5}`, wantWait: time.Second},
+		{name: "fractional header falls back to body", retryAfter: "1.5", body: `{"retry_after":3}`, wantWait: 3 * time.Second},
+		{name: "zero body retry_after", body: `{"retry_after":0}`},
+		{name: "body without retry_after", body: `{"message":"You are being rate limited."}`, wantWait: time.Second},
+		{name: "null body retry_after", body: `{"retry_after":null}`, wantWait: time.Second},
+		{name: "negative body retry_after", body: `{"retry_after":-1}`, wantWait: time.Second},
+		{name: "invalid body", body: "not json", wantWait: time.Second},
+		{name: "body retry_after beyond the retry limit", body: `{"retry_after":1e30}`, wantErr: ErrRateLimited},
 		{name: "backoff", attempt: 2, wantWait: 4 * time.Second},
 		{name: "longer backoff", attempt: 4, wantWait: 16 * time.Second},
 		{name: "last attempt", attempt: maxRetries, wantErr: ErrMaxRetries},
@@ -574,11 +585,14 @@ func TestHandleRateLimitResponse(t *testing.T) {
 			}
 
 			sleeper := mocks.NewMockSleeper(t)
-			if tt.wantWait > 0 {
+			if tt.wantErr == nil {
 				sleeper.EXPECT().Sleep(tt.wantWait).Return().Once()
 			}
 
-			err := handleRateLimitResponse(t.Context(), statusResponse(http.StatusTooManyRequests, header), tt.attempt, time.Now(), sleeper)
+			res := statusResponse(http.StatusTooManyRequests, header)
+			res.Body = io.NopCloser(strings.NewReader(tt.body))
+
+			err := handleRateLimitResponse(t.Context(), res, tt.attempt, time.Now(), sleeper)
 
 			if tt.wantErr == nil {
 				require.NoError(t, err)
@@ -604,6 +618,28 @@ func TestHandleRateLimitResponseDate(t *testing.T) {
 
 		require.NoError(t, handleRateLimitResponse(t.Context(), statusResponse(http.StatusTooManyRequests, header), 0, time.Now(), sleeper))
 	})
+}
+
+// TestBackoff verifies that the backoff doubles from 1 second with each attempt
+// and stops at 64 seconds.
+func TestBackoff(t *testing.T) {
+	t.Parallel()
+
+	// tests lists attempts with the backoff each should give.
+	tests := []struct {
+		attempt int
+		want    time.Duration
+	}{
+		{attempt: 0, want: time.Second},
+		{attempt: 1, want: 2 * time.Second},
+		{attempt: 4, want: 16 * time.Second},
+		{attempt: 6, want: 64 * time.Second},
+		{attempt: 10, want: 64 * time.Second},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, backoff(tt.attempt), "attempt %d", tt.attempt)
+	}
 }
 
 // TestIsTransientError verifies which errors count as transient.
