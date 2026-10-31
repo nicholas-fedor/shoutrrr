@@ -1203,8 +1203,8 @@ func TestIntegrationSendRetries(t *testing.T) {
 	}{
 		{
 			name:         "Retry-After then success",
-			replies:      []reply{{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"1.5"}}}, noContent},
-			wantElapsed:  1500 * time.Millisecond,
+			replies:      []reply{{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"2"}}}, noContent},
+			wantElapsed:  2 * time.Second,
 			wantRequests: 2,
 		},
 		{

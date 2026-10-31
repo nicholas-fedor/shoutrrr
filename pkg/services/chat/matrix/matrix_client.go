@@ -15,11 +15,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
+	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/logging"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
@@ -704,8 +704,8 @@ func retryFits(ctx context.Context, wait time.Duration) bool {
 // retryWait returns the wait that a rate-limited response asks for. The
 // Retry-After header comes first, in seconds or as an HTTP date, as the spec
 // prefers it. The deprecated retry_after_ms of the error body is the
-// fallback. A wait too long to fit in a [time.Duration] becomes the longest
-// one, even when the seconds overflow an int64.
+// fallback, and a value too long for a [time.Duration] becomes the longest
+// wait.
 //
 // Parameters:
 //   - header: the response headers.
@@ -715,20 +715,8 @@ func retryFits(ctx context.Context, wait time.Duration) bool {
 //   - time.Duration: the wait, zero or more, or a negative wait when neither
 //     gives one.
 func retryWait(header http.Header, resError *apiResError) time.Duration {
-	if value := header.Get("Retry-After"); value != "" {
-		// RFC 9110 delay-seconds are digits only, so a signed value such as +5
-		// or -0 is not a delay. For digits, ParseInt fails only with a range
-		// error, returning the largest int64. Parsing as int64 keeps the value
-		// in the type of a duration, so no conversion can overflow.
-		if strings.Trim(value, "0123456789") == "" {
-			seconds, _ := strconv.ParseInt(value, 10, 64) //nolint:errcheck // Digits fail only with a range error, which returns the largest int64.
-
-			return time.Duration(min(seconds, int64(math.MaxInt64/time.Second))) * time.Second
-		}
-
-		if date, err := http.ParseTime(value); err == nil {
-			return max(time.Until(date), 0)
-		}
+	if wait, ok := httpclient.RetryAfter(header); ok {
+		return wait
 	}
 
 	if resError.RetryAfterMS > 0 {

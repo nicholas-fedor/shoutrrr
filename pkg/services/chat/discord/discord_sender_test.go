@@ -538,9 +538,10 @@ func TestSleepContext(t *testing.T) {
 	})
 }
 
-// TestHandleRateLimitResponse verifies the wait for a 429: the Retry-After
-// value, exponential backoff when it is absent or invalid, and ErrRateLimited
-// when Retry-After exceeds the retry limit.
+// TestHandleRateLimitResponse verifies the wait for a 429. Retry-After in whole
+// seconds sets it, exponential backoff applies when the header is absent or
+// invalid, such as a fraction, and ErrRateLimited is returned when Retry-After
+// exceeds the retry limit.
 func TestHandleRateLimitResponse(t *testing.T) {
 	t.Parallel()
 
@@ -555,6 +556,7 @@ func TestHandleRateLimitResponse(t *testing.T) {
 	}{
 		{name: "Retry-After", retryAfter: "2", wantWait: 2 * time.Second},
 		{name: "invalid Retry-After", retryAfter: "invalid", wantWait: time.Second},
+		{name: "fractional Retry-After", retryAfter: "1.5", wantWait: time.Second},
 		{name: "backoff", attempt: 2, wantWait: 4 * time.Second},
 		{name: "longer backoff", attempt: 4, wantWait: 16 * time.Second},
 		{name: "last attempt", attempt: maxRetries, wantErr: ErrMaxRetries},
@@ -587,6 +589,21 @@ func TestHandleRateLimitResponse(t *testing.T) {
 			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+}
+
+// TestHandleRateLimitResponseDate verifies that a Retry-After holding an HTTP
+// date waits until that date.
+func TestHandleRateLimitResponseDate(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		header := http.Header{"Retry-After": []string{time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)}}
+
+		sleeper := mocks.NewMockSleeper(t)
+		sleeper.EXPECT().Sleep(3 * time.Second).Return().Once()
+
+		require.NoError(t, handleRateLimitResponse(t.Context(), statusResponse(http.StatusTooManyRequests, header), 0, time.Now(), sleeper))
+	})
 }
 
 // TestIsTransientError verifies which errors count as transient.

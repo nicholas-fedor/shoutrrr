@@ -545,51 +545,44 @@ func TestAPIDoLogsRateLimitWait(t *testing.T) {
 	})
 }
 
-// TestRetryWait verifies the wait read from a rate-limited response. The
-// Retry-After header wins, as seconds or an HTTP date, and retry_after_ms is the
-// fallback. A date in the past waits zero, and a value too large for a
-// duration, or for an int64, becomes the longest one. A header that is neither
-// form, including a signed number such as +5 or -0, is ignored.
+// TestRetryWait verifies that a usable Retry-After header sets the wait, even a
+// zero wait from 0 seconds or a past date, and that the deprecated
+// retry_after_ms is the fallback when the header is missing or unusable. A retry_after_ms too long for a duration becomes the
+// longest wait. [httpclient.RetryAfter] covers how the header is read.
 func TestRetryWait(t *testing.T) {
 	t.Parallel()
 
-	synctest.Test(t, func(t *testing.T) {
-		now := time.Now()
+	// tests lists a Retry-After value and a retry_after_ms value with the wait
+	// each should give.
+	tests := []struct {
+		name         string
+		header       string
+		retryAfterMS int64
+		want         time.Duration
+	}{
+		{name: "header", header: "7", want: 7 * time.Second},
+		{name: "header wins over body", header: "1", retryAfterMS: 5000, want: time.Second},
+		{name: "zero header wins over body", header: "0", retryAfterMS: 5000, want: 0},
+		{name: "past date wins over body", header: time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat), retryAfterMS: 5000, want: 0},
+		{name: "unusable header falls back to body", header: "-0", retryAfterMS: 300, want: 300 * time.Millisecond},
+		{name: "unusable header without body", header: "later", want: noRetry},
+		{name: "body only", retryAfterMS: 2500, want: 2500 * time.Millisecond},
+		{name: "huge body", retryAfterMS: math.MaxInt64, want: time.Duration(int64(math.MaxInt64/time.Millisecond)) * time.Millisecond},
+		{name: "nothing", want: noRetry},
+	}
 
-		// tests lists a Retry-After value and a retry_after_ms value with the
-		// wait each should give.
-		tests := []struct {
-			name         string
-			header       string
-			retryAfterMS int64
-			want         time.Duration
-		}{
-			{name: "seconds", header: "7", want: 7 * time.Second},
-			{name: "zero seconds", header: "0", want: 0},
-			{name: "future date", header: now.Add(4 * time.Second).UTC().Format(http.TimeFormat), want: 4 * time.Second},
-			{name: "past date", header: now.Add(-time.Hour).UTC().Format(http.TimeFormat), want: 0},
-			{name: "huge seconds", header: "99999999999999999", want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
-			{name: "seconds past int64", header: "99999999999999999999", retryAfterMS: 1000, want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
-			{name: "negative seconds", header: "-5", retryAfterMS: 300, want: 300 * time.Millisecond},
-			{name: "plus sign", header: "+5", retryAfterMS: 300, want: 300 * time.Millisecond},
-			{name: "negative zero", header: "-0", retryAfterMS: 300, want: 300 * time.Millisecond},
-			{name: "header wins over body", header: "1", retryAfterMS: 5000, want: time.Second},
-			{name: "unparsable header falls back to body", header: "soon", retryAfterMS: 1000, want: time.Second},
-			{name: "neither form", header: "later", want: noRetry},
-			{name: "body only", retryAfterMS: 2500, want: 2500 * time.Millisecond},
-			{name: "huge body", retryAfterMS: math.MaxInt64, want: time.Duration(int64(math.MaxInt64/time.Millisecond)) * time.Millisecond},
-			{name: "nothing", want: noRetry},
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		for _, tt := range tests {
 			header := http.Header{}
 			if tt.header != "" {
 				header.Set("Retry-After", tt.header)
 			}
 
-			assert.Equal(t, tt.want, retryWait(header, &apiResError{RetryAfterMS: tt.retryAfterMS}), tt.name)
-		}
-	})
+			assert.Equal(t, tt.want, retryWait(header, &apiResError{RetryAfterMS: tt.retryAfterMS}))
+		})
+	}
 }
 
 // TestAPIDoContextErrors verifies that apiDo returns the context's error when
