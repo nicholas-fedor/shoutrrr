@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Retry rate-limited requests after the homeserver's wait by @nicholas-fedor in [#1974](https://github.com/nicholas-fedor/shoutrrr/pull/1974)
 - Add skiptlsverify and warn about http Bot API URLs by @nicholas-fedor in [#1968](https://github.com/nicholas-fedor/shoutrrr/pull/1968)
 - Add skiptlsverify for servers with unverifiable certificates by @nicholas-fedor in [#1966](https://github.com/nicholas-fedor/shoutrrr/pull/1966)
 - Add skiptlsverify for homeservers with unverifiable certificates by @nicholas-fedor in [#1962](https://github.com/nicholas-fedor/shoutrrr/pull/1962)
