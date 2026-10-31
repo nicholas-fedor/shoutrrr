@@ -63,11 +63,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "pushbullet://" + testToken + "/iam@email.com/device?title=Great+News",
 			want:   Config{Token: testToken, Targets: []string{"iam@email.com", "device"}, Title: "Great News"},
 		},
-		{
-			name:   "dummy URL with a short token",
-			rawURL: "pushbullet://dummy@dummy.com",
-			want:   Config{Token: "dummy.com", Targets: []string{""}},
-		},
 	}
 
 	for _, tt := range tests {

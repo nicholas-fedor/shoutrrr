@@ -108,11 +108,6 @@ func TestConfigSetURL(t *testing.T) {
 			url:  "rocketchat://bot@rocketchat.my-domain.com:5055/" + testTokenA + "/" + testTokenB,
 			want: Config{UserName: "bot", Host: "rocketchat.my-domain.com", Port: "5055", TokenA: testTokenA, TokenB: testTokenB},
 		},
-		{
-			name: "dummy URL needs no tokens",
-			url:  "rocketchat://dummy@dummy.com",
-			want: Config{UserName: "dummy", Host: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {

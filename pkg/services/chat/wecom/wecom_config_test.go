@@ -87,8 +87,8 @@ func TestConfigURLRoundTripKeepsFields(t *testing.T) {
 	}
 }
 
-// TestConfigSetURL verifies the fields SetURL sets from the key, the query
-// parameters, and the documentation dummy URL.
+// TestConfigSetURL verifies the fields SetURL sets from the key and the query
+// parameters.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -107,11 +107,6 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "mention query parameters",
 			rawURL: fullURL + "?mentioned_list=@all&mentioned_mobile_list=13800001111",
 			want:   Config{Key: testKey, MentionedList: "@all", MentionedMobileList: "13800001111"},
-		},
-		{
-			name:   "documentation dummy URL",
-			rawURL: "wecom://dummy@dummy.com",
-			want:   Config{Key: "dummy-webhook-key"},
 		},
 	}
 

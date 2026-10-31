@@ -785,21 +785,3 @@ func TestIntegrationSetLogger(t *testing.T) {
 	require.NoError(t, service.Send("Hello", nil))
 	assert.Contains(t, logs.String(), "DEBUG sending message\n")
 }
-
-// TestIntegrationPlaceholderURL verifies that the documentation placeholder
-// URL configures the service, including a password, without a client, so a
-// send reports ErrClientNotInitialized.
-func TestIntegrationPlaceholderURL(t *testing.T) {
-	t.Parallel()
-
-	placeholder, err := url.Parse("matrix://dummy:pass@dummy.com")
-	require.NoError(t, err)
-
-	service := &matrix.Service{}
-	require.NoError(t, service.Initialize(placeholder, log.New(t.Output(), "", 0)))
-
-	assert.Equal(t, "dummy.com", service.Config.Host)
-	assert.Equal(t, "dummy", service.Config.User)
-	assert.Equal(t, "pass", service.Config.Password)
-	require.ErrorIs(t, service.SendContext(t.Context(), "Hello", nil), matrix.ErrClientNotInitialized)
-}

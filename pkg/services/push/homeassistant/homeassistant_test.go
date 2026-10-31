@@ -148,12 +148,6 @@ func TestInitialize(t *testing.T) {
 		assert.Empty(t, logs.String())
 	})
 
-	t.Run("docs dummy URL", func(t *testing.T) {
-		t.Parallel()
-
-		require.NoError(t, (&Service{}).Initialize(parseTestURL(t, dummyServiceURL), log.New(t.Output(), "", 0)))
-	})
-
 	t.Run("missing token", func(t *testing.T) {
 		t.Parallel()
 

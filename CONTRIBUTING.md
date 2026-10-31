@@ -217,6 +217,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Give every key a `desc` tag, which the docs and the CLI show.
 - Read the URL query with `format.ApplyQuery`.
   It matches keys in any case and rejects a key given in two spellings.
+- Read a service URL by its values, and give no particular URL, host, or user its own handling.
+  A tool that needs a service's fields without a URL, such as the `docs` command, reads the zero config of a new service with `format.GetServiceConfig`.
 - Apply send params with `UpdateConfigFromParams`, naming the params that fill the payload instead, such as a username.
   When every param that is not a config key fills the payload, as in a webhook body, use `UpdateConfigFromKnownParams`.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
@@ -283,6 +285,7 @@ Every service follows the same rules, so services behave alike for users and for
   The `leveled_logs` contract check fails a service that logs a line without a level, or at a level above Warn.
   The linter flags any call to the deprecated `Log` and `Logf` methods.
   It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
+- `TestIntegrationPlaceholderURL` fails a service that treats `<scheme>://dummy@dummy.com` differently from a URL of the same shape.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

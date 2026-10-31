@@ -9,8 +9,8 @@ import (
 )
 
 // TestConfigSetURL verifies that SetURL reads the host, path, key, and token
-// from a service URL, applies the default host when the URL omits it, requires
-// both the key and the token, and accepts the documentation dummy URL.
+// from a service URL, applies the default host when the URL omits it, and
+// requires both the key and the token.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -30,16 +30,6 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "omitted host",
 			rawURL: "googlechat:///v1/spaces/FOO/messages?key=bar&token=baz",
 			want:   Config{Host: "chat.googleapis.com", Path: "/v1/spaces/FOO/messages", Key: "bar", Token: "baz"},
-		},
-		{
-			name:   "documentation dummy URL",
-			rawURL: "googlechat://dummy@dummy.com",
-			want:   Config{Host: "dummy.com"},
-		},
-		{
-			name:   "hangouts documentation dummy URL",
-			rawURL: "hangouts://dummy@dummy.com",
-			want:   Config{Host: "dummy.com"},
 		},
 		{
 			name:    "no query",

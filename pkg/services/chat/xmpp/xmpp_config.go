@@ -185,9 +185,6 @@ func (c *Config) mucNick() string {
 
 // setURL updates the configuration from a URL representation.
 //
-// The docs dummy URL, <scheme>://dummy@dummy.com, skips credential and target
-// validation so generated documentation can initialize the service.
-//
 // Parameters:
 //   - resolver: Resolver used to apply query keys onto the config.
 //   - serviceURL: The XMPP configuration URL to parse.
@@ -196,8 +193,6 @@ func (c *Config) mucNick() string {
 //   - error: an error if the URL is invalid, including a malformed query
 //     ([util.ErrInvalidQuery]), or required fields are missing.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	dummy := isDummyURL(serviceURL)
-
 	c.scheme = serviceURL.Scheme
 	if c.scheme == "" {
 		c.scheme = Scheme
@@ -243,10 +238,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	c.To = compactStrings(c.To)
 	c.Rooms = compactStrings(c.Rooms)
-
-	if dummy {
-		return nil
-	}
 
 	return c.validate()
 }
@@ -354,18 +345,6 @@ func defaultPort(scheme string) uint16 {
 	}
 
 	return DefaultPort
-}
-
-// isDummyURL reports whether serviceURL is the docs-generator placeholder.
-//
-// Parameters:
-//   - serviceURL: The URL to inspect.
-//
-// Returns:
-//   - bool: true when the URL is exactly <scheme>://dummy@dummy.com, for either
-//     scheme.
-func isDummyURL(serviceURL *url.URL) bool {
-	return serviceURL.String() == serviceURL.Scheme+"://dummy@dummy.com"
 }
 
 // isEmpty reports whether value is the empty string.

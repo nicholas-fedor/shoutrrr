@@ -99,20 +99,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     [ErrMissingHost] for a URL without a host, an error wrapping
 //     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// Skip credential validation and query parameter parsing for dummy URLs
-	// used in docs generation. Every query param is ignored for dummy.com, so
-	// the placeholder never fails validation.
-	if serviceURL.Hostname() == "dummy.com" {
-		c.User = serviceURL.User.Username()
-		if password, ok := serviceURL.User.Password(); ok {
-			c.Password = password
-		}
-
-		c.Host = serviceURL.Host
-
-		return nil
-	}
-
 	c.User = serviceURL.User.Username()
 
 	password, ok := serviceURL.User.Password()

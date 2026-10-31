@@ -112,16 +112,14 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	}
 
 	path := strings.Split(serviceURL.Path, "/")
-	if serviceURL.String() != "rocketchat://dummy@dummy.com" {
-		// A Rocket.Chat server has no default host.
-		if host == "" {
-			return ErrHostMissing
-		}
+	// A Rocket.Chat server has no default host.
+	if host == "" {
+		return ErrHostMissing
+	}
 
-		// The webhook URL needs both the integration ID and the token.
-		if len(path) < MinPathParts || path[1] == "" || path[TokenBIndex] == "" {
-			return ErrNotEnoughArguments
-		}
+	// The webhook URL needs both the integration ID and the token.
+	if len(path) < MinPathParts || path[1] == "" || path[TokenBIndex] == "" {
+		return ErrNotEnoughArguments
 	}
 
 	// A URL without a channel segment, or with an empty one, names no channel.

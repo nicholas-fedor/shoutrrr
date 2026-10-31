@@ -123,11 +123,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "zulip://" + testBotMail + ":@" + testHost,
 			want:   Config{BotMail: testBotMail, Host: testHost},
 		},
-		{
-			name:   "docs command placeholder",
-			rawURL: "zulip://dummy@dummy.com",
-			want:   Config{BotMail: "dummy", Host: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -145,8 +140,8 @@ func TestConfigSetURL(t *testing.T) {
 }
 
 // TestConfigSetURLErrors verifies that SetURL requires the bot e-mail address,
-// an API key, and a host, except in the docs command placeholder URL. It also
-// rejects a read_by_sender value that is not a boolean and an unknown key.
+// an API key, and a host. It also rejects a read_by_sender value that is not a
+// boolean and an unknown key.
 func TestConfigSetURLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -159,13 +154,11 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "no bot e-mail address", rawURL: "zulip://:" + testBotKey + "@" + testHost, wantErr: ErrMissingBotMail},
 		{name: "no API key", rawURL: "zulip://" + testBotMail + "@" + testHost, wantErr: ErrMissingAPIKey},
 		{name: "no host", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@", wantErr: ErrMissingHost},
-		{name: "placeholder user on another host", rawURL: "zulip://dummy@" + testHost, wantErr: ErrMissingAPIKey},
 		{
 			name:    "invalid read_by_sender",
 			rawURL:  "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?read_by_sender=maybe",
 			wantErr: format.ErrInvalidBoolValue,
 		},
-		{name: "placeholder host with another user", rawURL: "zulip://bot@dummy.com", wantErr: ErrMissingAPIKey},
 		{
 			name:    "unknown key",
 			rawURL:  "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?strem=alerts",
@@ -236,32 +229,6 @@ func TestCreateConfigFromURL(t *testing.T) {
 
 	_, err = CreateConfigFromURL(parseTestURL(t, "zulip://"+testBotMail+"@"+testHost))
 	require.ErrorIs(t, err, ErrMissingAPIKey)
-}
-
-// TestIsDummyURL verifies that only the docs command placeholder URL counts
-// as the dummy URL.
-func TestIsDummyURL(t *testing.T) {
-	t.Parallel()
-
-	// tests lists URLs with whether each is the placeholder.
-	tests := []struct {
-		rawURL string
-		want   bool
-	}{
-		{rawURL: "zulip://dummy@dummy.com", want: true},
-		{rawURL: "zulip://dummy:key@dummy.com?stream=general", want: true},
-		{rawURL: testServiceURL},
-		{rawURL: "zulip://dummy@" + testHost},
-		{rawURL: "zulip://bot@dummy.com"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.rawURL, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, isDummyURL(parseTestURL(t, tt.rawURL)))
-		})
-	}
 }
 
 // TestConfigQueryResolver verifies the config's query keys and that it has

@@ -104,14 +104,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// The token is the host as written, which cannot hold a port or brackets
 	// that url.URL.Hostname would strip.
 	token := serviceURL.Host
-	if serviceURL.String() != "pushbullet://dummy@dummy.com" {
-		if strings.ContainsAny(token, ":[]") {
-			return fmt.Errorf("access token: %w", util.ErrInvalidHost)
-		}
+	if strings.ContainsAny(token, ":[]") {
+		return fmt.Errorf("access token: %w", util.ErrInvalidHost)
+	}
 
-		if err := validateToken(token); err != nil {
-			return err
-		}
+	if err := validateToken(token); err != nil {
+		return err
 	}
 
 	c.Token = token

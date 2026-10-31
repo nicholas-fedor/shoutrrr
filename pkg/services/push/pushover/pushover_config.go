@@ -120,14 +120,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return ErrInvalidTimestamp
 	}
 
-	if serviceURL.String() != "pushover://dummy@dummy.com" {
-		if len(c.User) < 1 {
-			return ErrUserMissing
-		}
+	if len(c.User) < 1 {
+		return ErrUserMissing
+	}
 
-		if len(c.Token) < 1 {
-			return ErrTokenMissing
-		}
+	if len(c.Token) < 1 {
+		return ErrTokenMissing
 	}
 
 	return nil

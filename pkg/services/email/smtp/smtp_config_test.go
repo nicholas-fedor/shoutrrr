@@ -211,11 +211,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL:   "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com",
 			override: func(c *Config) { c.Port = DefaultSMTPPort },
 		},
-		{
-			name:     "docs command placeholder",
-			rawURL:   "smtp://dummy@dummy.com",
-			override: func(c *Config) { c.Host, c.Username, c.FromAddress, c.ToAddresses = "dummy.com", "dummy", "", nil },
-		},
 	}
 
 	for _, tt := range tests {
@@ -283,7 +278,7 @@ func TestConfigSetURLResolverError(t *testing.T) {
 	resolver.EXPECT().QueryFields().Return([]string{"foo"}).Once()
 	resolver.EXPECT().Set("foo", "SECRETvalue").Return(errRejected).Once()
 
-	err := (&Config{}).setURL(resolver, parseConfigURL(t, "smtp://dummy@dummy.com?foo=SECRETvalue"))
+	err := (&Config{}).setURL(resolver, parseConfigURL(t, "smtp://user@mail.example.com?foo=SECRETvalue"))
 
 	require.ErrorIs(t, err, errRejected)
 	assert.EqualError(t, err, `setting query parameter "foo": rejected`)

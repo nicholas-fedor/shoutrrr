@@ -202,11 +202,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	c.Host = serviceURL.Host
 	c.Path = serviceURL.Path
 
-	// Skip validation for dummy URLs used in docs generation
-	if serviceURL.Hostname() == "dummy.com" {
-		return nil
-	}
-
 	// Validate required fields
 	if c.DeviceKey == "" {
 		return ErrMissingDeviceKey

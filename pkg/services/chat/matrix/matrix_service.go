@@ -39,8 +39,8 @@ type Service struct {
 	pkr format.PropKeyResolver
 	// loggedIn reports whether accessToken holds the token of a password login.
 	loggedIn bool
-	// ready reports whether Initialize configured a homeserver to send to. It is
-	// false before Initialize and for the documentation placeholder URL.
+	// ready reports whether the last Initialize succeeded, so a homeserver is
+	// configured to send to.
 	ready bool
 }
 
@@ -111,12 +111,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 
 	if err := s.Config.setURL(&s.pkr, serviceURL); err != nil {
 		return err
-	}
-
-	// The dummy.com placeholder URL, which config validation also accepts without
-	// credentials, configures no homeserver to send to.
-	if serviceURL.Hostname() == "dummy.com" || serviceURL.Host == "" {
-		return nil
 	}
 
 	s.ready = true

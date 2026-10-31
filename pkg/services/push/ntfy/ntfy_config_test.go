@@ -212,11 +212,6 @@ func TestConfigSetURL(t *testing.T) {
 		{name: "in alias", rawURL: testServiceURL + "?in=10m", want: defaultConfig(func(c *Config) { c.Delay = "10m" })},
 		{name: "numeric priority", rawURL: testServiceURL + "?priority=1", want: defaultConfig(func(c *Config) { c.Priority = PriorityMin })},
 		{name: "urgent priority", rawURL: testServiceURL + "?priority=urgent", want: defaultConfig(func(c *Config) { c.Priority = PriorityMax })},
-		{
-			name:   "docs command placeholder",
-			rawURL: "ntfy://dummy@dummy.com",
-			want:   defaultConfig(func(c *Config) { c.Host, c.Topic, c.Username = "dummy.com", "", "dummy" }),
-		},
 	}
 
 	for _, tt := range tests {

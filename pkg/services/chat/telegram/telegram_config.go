@@ -136,10 +136,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	password, _ := serviceURL.User.Password()
 
 	token := serviceURL.User.Username() + ":" + password
-	if serviceURL.String() != "telegram://dummy@dummy.com" {
-		if !IsTokenValid(token) {
-			return ErrInvalidToken
-		}
+	if !IsTokenValid(token) {
+		return ErrInvalidToken
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -151,10 +149,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if serviceURL.String() != "telegram://dummy@dummy.com" {
-		if len(c.Chats) < 1 {
-			return ErrNoChannelsDefined
-		}
+	if len(c.Chats) < 1 {
+		return ErrNoChannelsDefined
 	}
 
 	if err := validateAPIURL(c.APIURL); err != nil {

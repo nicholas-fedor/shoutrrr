@@ -100,11 +100,6 @@ func TestConfigSetURL(t *testing.T) {
 				Token:    "atoken",
 			},
 		},
-		{
-			name:   "dummy URL without a token",
-			rawURL: "mattermost://dummy@dummy.com",
-			want:   Config{UserName: "dummy", Host: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {

@@ -86,11 +86,6 @@ func TestConfigSetURL(t *testing.T) {
 				SkipTLSVerify: true,
 			},
 		},
-		{
-			name:   "docs dummy URL",
-			rawURL: dummyServiceURL,
-			want:   Config{Token: "dummy", Host: "dummy.example"},
-		},
 	}
 
 	for _, tt := range tests {

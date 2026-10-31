@@ -93,18 +93,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
-	// Handle documentation generation or empty host
-	if c.Host == "" || (serviceURL.User != nil && serviceURL.User.Username() == "dummy") {
-		c.Host = "open.larksuite.com"
+	// A URL without a host uses Lark's host.
+	if c.Host == "" {
+		c.Host = larkHost
 	} else if c.Host != larkHost && c.Host != feishuHost {
 		return ErrInvalidHost
 	}
 
 	c.Path = strings.Trim(serviceURL.Path, "/")
-	// Handle documentation generation with empty path
-	if c.Path == "" && (serviceURL.User != nil && serviceURL.User.Username() == "dummy") {
-		c.Path = "token"
-	} else if c.Path == "" {
+	if c.Path == "" {
 		return ErrNoPath
 	}
 

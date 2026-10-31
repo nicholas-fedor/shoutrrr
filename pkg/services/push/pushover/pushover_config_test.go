@@ -67,11 +67,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "pushover://:apptoken@usertoken?key=" + testEncryptionKey,
 			want:   Config{User: "usertoken", Token: "apptoken", EncryptionKey: testEncryptionKey},
 		},
-		{
-			name:   "dummy URL without a token",
-			rawURL: "pushover://dummy@dummy.com",
-			want:   Config{User: "dummy.com"},
-		},
 	}
 
 	for _, tt := range tests {

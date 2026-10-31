@@ -235,16 +235,6 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 //     invalid source, [ErrNoRecipients] when the query clears the recipients,
 //     or [ErrInvalidRecipient] for an invalid recipient
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	if serviceURL.String() == "signal://dummy@dummy.com" {
-		c.Host = DefaultHost
-		c.Port = 8080
-		c.Source = "+1234567890"
-		c.Recipients = []string{"+0987654321"}
-		c.DisableTLS = false
-
-		return nil
-	}
-
 	c.parseAuth(serviceURL)
 
 	if err := c.parseHostPort(serviceURL); err != nil {

@@ -96,14 +96,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if serviceURL.String() != "join://dummy@dummy.com" {
-		if len(c.Devices) < 1 {
-			return ErrDevicesMissing
-		}
+	if len(c.Devices) < 1 {
+		return ErrDevicesMissing
+	}
 
-		if len(c.APIKey) < 1 {
-			return ErrAPIKeyMissing
-		}
+	if len(c.APIKey) < 1 {
+		return ErrAPIKeyMissing
 	}
 
 	return nil

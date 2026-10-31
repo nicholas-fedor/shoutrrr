@@ -118,12 +118,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Channel = serviceURL.Hostname()
 	}
 
-	if serviceURL.String() != "slack://dummy@dummy.com" {
-		if err := c.Token.SetFromProp(token); err != nil {
-			return err
-		}
-	} else {
-		c.Token.raw = token // Set raw token without validation
+	if err := c.Token.SetFromProp(token); err != nil {
+		return err
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)

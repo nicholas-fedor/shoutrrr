@@ -127,19 +127,16 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 	c.BotKey, isSet = serviceURL.User.Password()
 	c.Host = serviceURL.Host
 
-	// Allow dummy URL during documentation generation
-	if !isDummyURL(serviceURL) {
-		if c.BotMail == "" {
-			return ErrMissingBotMail
-		}
+	if c.BotMail == "" {
+		return ErrMissingBotMail
+	}
 
-		if !isSet {
-			return ErrMissingAPIKey
-		}
+	if !isSet {
+		return ErrMissingAPIKey
+	}
 
-		if c.Host == "" {
-			return ErrMissingHost
-		}
+	if c.Host == "" {
+		return ErrMissingHost
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -171,17 +168,4 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	err := config.setURL(&resolver, serviceURL)
 
 	return &config, err
-}
-
-// isDummyURL checks if the given URL is the dummy URL used for documentation generation.
-// It compares URL components instead of string comparison to avoid issues with
-// URL formatting differences.
-//
-// Parameters:
-//   - u: the URL to check.
-//
-// Returns:
-//   - bool: whether the host is dummy.com and the username is dummy.
-func isDummyURL(u *url.URL) bool {
-	return u.Host == "dummy.com" && u.User.Username() == "dummy"
 }
