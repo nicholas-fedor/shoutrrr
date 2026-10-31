@@ -42,6 +42,16 @@ type Service struct {
 	pkr format.PropKeyResolver
 }
 
+// sendState holds what one send resolves once and every request of the send
+// uses.
+type sendState struct {
+	// postURL is the webhook URL built from config.
+	postURL string
+	// config is the service config with the send's params applied, checked
+	// as described on [Config].
+	config Config
+}
+
 // Message limits and the webhook endpoint.
 const (
 	// ChunkSize is the maximum size of a single message chunk.
@@ -124,8 +134,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the failures
-//     of the message's batches joined, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the send's
+//     failures joined.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -140,11 +150,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the failures
-//     of the message's batches joined, or nil on success. Once ctx ends, the
-//     remaining batches are not sent, and ctx's error is reported once.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the send's
+//     failures joined. A send that ctx ends reports ctx's error once.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	if err := s.ready(); err != nil {
+	send, err := s.prepareSend(params)
+	if err != nil {
 		return err
 	}
 
@@ -155,38 +165,32 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	if s.Config.JSON {
+	if send.config.JSON {
 		preparer := &JSONRequestPreparer{payload: []byte(message)}
 
-		err := sendWithRetry(ctx, preparer, CreatePostURLFromConfig(s.Config), s.client.Prefer(s.HTTPClient), s.Sleeper)
-		if err != nil {
+		if err = sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper); err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 
 		return nil
 	}
 
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return fmt.Errorf("updating config from params: %w", err)
-	}
+	batches := createItemsFromPlain(message, send.config.SplitLines, send.config.Title)
+	level := s.plainLevel(&send.config, params)
 
-	batches := createItemsFromPlain(message, config.SplitLines, config.Title)
-	level := s.plainLevel(&config, params)
-
-	err := sequential.Send(
+	err = sequential.Send(
 		ctx,
 		batches,
 		sequential.SharedDeadline,
 		func(ctx context.Context, batch []types.MessageItem) error {
 			// A batch sent as plain content has no embed to color, so it keeps its form.
-			if level != types.Unknown && !sendsAsContent(batch, config.Title) {
+			if level != types.Unknown && !sendsAsContent(batch, send.config.Title) {
 				for i := range batch {
 					batch[i].Level = level
 				}
 			}
 
-			return s.sendItems(ctx, batch, params)
+			return s.sendItems(ctx, send, batch)
 		},
 	)
 	if err != nil {
@@ -203,8 +207,8 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
-//     failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the send
+//     failure.
 //
 // Deprecated: Use [Service.SendItemsContext], which the router calls for rich
 // messages. This method's *types.Params parameter does not match
@@ -224,29 +228,32 @@ func (s *Service) SendItems(items []types.MessageItem, params *types.Params) err
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
-//     failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the send
+//     failure.
 func (s *Service) SendItemsContext(ctx context.Context, items []types.MessageItem, params types.Params) error {
 	return s.sendItemBatches(ctx, items, &params)
 }
 
-// ServiceTimeout reports the send budget the router gives Discord: the sender's
-// retry limit. Discord's rate limits tell clients to wait for the Retry-After
-// duration, which can last minutes, and a long message is sent as several
-// batches, each with its own retries. Healthy sends finish well before it.
+// ServiceTimeout reports the send budget the router gives Discord, which is
+// the sender's retry limit of 5 minutes.
+//
+// Discord's rate limits can ask a client to wait minutes for the Retry-After
+// duration. A long message is sent as several batches, and each batch has its
+// own retries. Healthy sends finish well before the limit.
 //
 // Parameters:
 //   - params: unused. The retry limit does not depend on send parameters.
 //
 // Returns:
-//   - time.Duration: [maxRetryTimeout].
+//   - time.Duration: 5 minutes.
 func (*Service) ServiceTimeout(*types.Params) time.Duration {
 	return maxRetryTimeout
 }
 
-// SetHTTPClient sets a custom HTTP client for the service. A nil client restores
-// the default client. It clears the deprecated HTTPClient field, so the sends
-// use this client until that field is set again.
+// SetHTTPClient sets a custom HTTP client for the service.
+//
+// A nil client restores the default client. It clears the deprecated HTTPClient
+// field, so the sends use this client until that field is set again.
 //
 // Parameters:
 //   - client: the HTTP client, or nil for the default client. A nil
@@ -256,11 +263,12 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.HTTPClient = nil
 }
 
-// plainLevel returns the level that colors the embeds of a plain message. A
-// send with a level param uses the color configured for that level, such as
-// colorError, unless the service URL or the send params set the plain color.
-// A message short enough to go out as plain content has no embed, so the
-// level leaves it as it is.
+// plainLevel returns the level that colors the embeds of a plain message.
+//
+// A send with a level param uses the color configured for that level, such as
+// colorError. A plain color set by the service URL or the send params wins
+// over the level. A message short enough to go out as plain content has no
+// embed, so the level leaves it as it is.
 //
 // Parameters:
 //   - config: the config for this send, with params already applied.
@@ -282,68 +290,46 @@ func (s *Service) plainLevel(config *Config, params *types.Params) types.Message
 	return level
 }
 
-// ready checks that the service has a config with a valid webhook ID and
-// token. Send params cannot change either, so one check covers the send.
+// prepareSend resolves the config and the webhook URL for one send.
 //
-// Returns:
-//   - error: [types.ErrServiceNotInitialized] without a config. An invalid
-//     webhook ID or token gives an error such as [ErrInvalidWebhookID].
-//     Otherwise nil.
-func (s *Service) ready() error {
-	if s.Config == nil {
-		return types.ErrServiceNotInitialized
-	}
-
-	return s.Config.validate()
-}
-
-// sendConfig returns a copy of the service config with params applied.
+// The config is a copy of the service config with params applied, checked as
+// reading a service URL checks it.
 //
 // Parameters:
 //   - params: per-send parameters.
 //
 // Returns:
-//   - Config: the config for this send.
-//   - error: the failure applying params, or nil.
-func (s *Service) sendConfig(params *types.Params) (Config, error) {
-	config := *s.Config
-	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
-		return Config{}, fmt.Errorf("updating config from params: %w", err)
+//   - *sendState: the config and webhook URL for this send.
+//   - error: [types.ErrServiceNotInitialized] without a config, or the
+//     failure applying params or checking the config.
+func (s *Service) prepareSend(params *types.Params) (*sendState, error) {
+	if s.Config == nil {
+		return nil, types.ErrServiceNotInitialized
 	}
 
-	return config, nil
-}
-
-// sendEmbedItems sends items with an embed for each of them, as multipart
-// when any item carries a file.
-//
-// Parameters:
-//   - ctx: bounds the request and its retries.
-//   - items: the message items to send, at least one and at most [MaxEmbeds].
-//   - params: per-send parameters, applied to a copy of the config.
-//
-// Returns:
-//   - error: the params or send failure, or nil on success.
-func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	config, err := s.sendConfig(params)
-	if err != nil {
-		return err
+	send := &sendState{postURL: "", config: *s.Config}
+	if err := s.pkr.UpdateConfigFromParams(&send.config, params); err != nil {
+		return nil, fmt.Errorf("updating config from params: %w", err)
 	}
 
-	payload := createEmbedPayload(items, config.Title, config.LevelColors())
+	if err := send.config.validate(); err != nil {
+		return nil, err
+	}
 
-	return s.sendPayload(ctx, &config, &payload, items)
+	send.postURL = send.config.postURL()
+
+	return send, nil
 }
 
-// sendItemBatches sends items in batches that each fit one Discord message:
-// at most [MaxEmbeds] embeds whose text, with the title on the first, stays
-// within [TotalChunkSize] characters. Items that fit in one batch are sent as
-// [Service.sendItems] sends them. Otherwise every batch is sent as embeds, so a
-// batch of one plain item matches the others and gets the embed length limit.
-// A failed batch does not stop the batches after it, and failures other than
-// the first are logged. Once ctx ends, the remaining batches are not sent. A
-// context without a deadline is bounded by the budget that
-// [Service.ServiceTimeout] reports.
+// sendItemBatches sends items in batches that each fit one Discord message.
+//
+// A batch holds at most [MaxEmbeds] embeds, and their text stays within
+// [TotalChunkSize] characters with the title counted on the first. Items that
+// fit in one batch go out as one message, where a single plain item is sent
+// as the message content. Otherwise every batch is sent as embeds, so a batch
+// of one plain item matches the others and gets the embed length limit. A
+// failed batch does not stop the batches after it. A context without a
+// deadline is bounded by the budget that [Service.ServiceTimeout] reports.
 //
 // Parameters:
 //   - ctx: bounds the requests and their retries.
@@ -351,31 +337,27 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //   - params: per-send parameters, applied to a copy of the config.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     failure, the failures of the batches joined, or nil when every batch is
-//     sent. Once ctx ends, the remaining batches are not sent, and ctx's error
-//     is reported once.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the send's
+//     failures joined. A send that ctx ends reports ctx's error once.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	if err := s.ready(); err != nil {
+	send, err := s.prepareSend(params)
+	if err != nil {
 		return err
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config, err := s.sendConfig(params)
-	if err != nil {
-		return err
-	}
-
-	batches := batchItems(items, config.Title, config.LevelColors())
+	batches := batchItems(items, send.config.Title, send.config.LevelColors())
 	if len(batches) <= 1 {
-		return s.sendItems(ctx, items, params)
+		return s.sendItems(ctx, send, items)
 	}
 
 	return sequential.Send(ctx, batches, sequential.SharedDeadline,
 		func(ctx context.Context, batch []types.MessageItem) error {
-			return s.sendEmbedItems(ctx, batch, params)
+			payload := createEmbedPayload(batch, send.config.Title, send.config.LevelColors())
+
+			return s.sendPayload(ctx, send, &payload, batch)
 		})
 }
 
@@ -384,23 +366,18 @@ func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
+//   - send: the config and webhook URL for this send.
 //   - items: the message items to send.
-//   - params: per-send parameters, applied to a copy of the config.
 //
 // Returns:
 //   - error: the payload or send failure, or nil on success.
-func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	config, err := s.sendConfig(params)
-	if err != nil {
-		return err
-	}
-
-	payload, err := CreatePayloadFromItems(items, config.Title, config.LevelColors())
+func (s *Service) sendItems(ctx context.Context, send *sendState, items []types.MessageItem) error {
+	payload, err := CreatePayloadFromItems(items, send.config.Title, send.config.LevelColors())
 	if err != nil {
 		return fmt.Errorf("creating payload: %w", err)
 	}
 
-	return s.sendPayload(ctx, &config, &payload, items)
+	return s.sendPayload(ctx, send, &payload, items)
 }
 
 // sendPayload sends payload with the configured username and avatar, as
@@ -408,7 +385,7 @@ func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, para
 //
 // Parameters:
 //   - ctx: bounds the request and its retries.
-//   - config: the config for this send.
+//   - send: the config and webhook URL for this send.
 //   - payload: the webhook payload built from items.
 //   - items: the message items, whose files are attached.
 //
@@ -416,14 +393,15 @@ func (s *Service) sendItems(ctx context.Context, items []types.MessageItem, para
 //   - error: the marshaling or send failure, or nil on success.
 func (s *Service) sendPayload(
 	ctx context.Context,
-	config *Config,
+	send *sendState,
 	payload *WebhookPayload,
 	items []types.MessageItem,
 ) error {
-	payload.Username = config.Username
-	payload.AvatarURL = config.Avatar
+	payload.Username = send.config.Username
+	payload.AvatarURL = send.config.Avatar
 
-	files := make([]types.File, 0, len(items))
+	// Most sends carry no files, so the slice is only made for one that does.
+	var files []types.File
 
 	for _, item := range items {
 		if item.File != nil {
@@ -444,13 +422,15 @@ func (s *Service) sendPayload(
 		preparer = &JSONRequestPreparer{payload: payloadBytes}
 	}
 
-	return sendWithRetry(ctx, preparer, CreatePostURLFromConfig(config), s.client.Prefer(s.HTTPClient), s.Sleeper)
+	return sendWithRetry(ctx, preparer, send.postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
 }
 
-// batchItems groups items into batches that each fit one Discord message: at
-// most [MaxEmbeds] items whose embeds, with the title on the first, stay within
-// [TotalChunkSize] characters. An item over that total alone gets a batch of
-// its own, which [createEmbedPayload] shortens to fit.
+// batchItems groups items into batches that each fit one Discord message.
+//
+// A batch holds at most [MaxEmbeds] items, and their embeds stay within
+// [TotalChunkSize] characters with the title counted on the first. An item
+// over that total gets a batch of its own, and its embed is shortened to fit
+// when the payload is built.
 //
 // Parameters:
 //   - items: the message items.
@@ -458,7 +438,7 @@ func (s *Service) sendPayload(
 //   - colors: the embed color for each message level.
 //
 // Returns:
-//   - [][]types.MessageItem: the batches, in order, or none for no items.
+//   - [][]types.MessageItem: the batches in order, or none for no items.
 func batchItems(items []types.MessageItem, title string, colors [types.MessageLevelCount]uint) [][]types.MessageItem {
 	budget := TotalChunkSize - utf8.RuneCountInString(util.Ellipsis(title, maxEmbedTitle))
 
@@ -501,10 +481,11 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 	return createItemsFromPlain(plain, splitLines, "")
 }
 
-// createItemsFromPlain converts plain text into batches of MessageItems, one batch
-// per webhook request. Discord counts the title on a batch's first embed toward the
-// same total text limit as the descriptions, so each batch's budget is reduced by
-// the title's length.
+// createItemsFromPlain converts plain text into batches of MessageItems, one
+// batch per webhook request.
+//
+// Discord counts the title on a batch's first embed toward the same total text
+// limit as the descriptions, so each batch's budget is reduced by the title's length.
 //
 // Parameters:
 //   - plain: the message text.

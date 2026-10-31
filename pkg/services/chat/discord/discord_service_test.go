@@ -351,7 +351,7 @@ func TestSendItemsContext(t *testing.T) {
 		t.Parallel()
 
 		client, recorder := newAcceptingClient(t, 1)
-		require.NoError(t, newTestService(t, client).sendItems(t.Context(), []types.MessageItem{{Text: "Simple message"}}, &types.Params{}))
+		require.NoError(t, newTestService(t, client).SendItemsContext(t.Context(), []types.MessageItem{{Text: "Simple message"}}, types.Params{}))
 
 		assert.Equal(t, "application/json", recorder.sent()[0].contentType)
 	})
@@ -362,7 +362,7 @@ func TestSendItemsContext(t *testing.T) {
 		client, recorder := newAcceptingClient(t, 1)
 		items := []types.MessageItem{{Text: "Message with file", File: &types.File{Name: "test.txt", Data: []byte("file content")}}}
 
-		require.NoError(t, newTestService(t, client).sendItems(t.Context(), items, &types.Params{}))
+		require.NoError(t, newTestService(t, client).SendItemsContext(t.Context(), items, types.Params{}))
 
 		sent := recorder.sent()[0]
 		assert.True(t, strings.HasPrefix(sent.contentType, "multipart/form-data"), "content type %q", sent.contentType)
@@ -373,7 +373,7 @@ func TestSendItemsContext(t *testing.T) {
 		t.Parallel()
 
 		client, recorder := newAcceptingClient(t, 1)
-		require.NoError(t, newTestService(t, client).sendItems(t.Context(), []types.MessageItem{{Text: "Test message"}}, &types.Params{"username": "CustomBot"}))
+		require.NoError(t, newTestService(t, client).SendItemsContext(t.Context(), []types.MessageItem{{Text: "Test message"}}, types.Params{"username": "CustomBot"}))
 
 		assert.Contains(t, recorder.sent()[0].body, `"username":"CustomBot"`)
 	})
@@ -387,14 +387,14 @@ func TestSendItemsContextFailures(t *testing.T) {
 	t.Run("no items", func(t *testing.T) {
 		t.Parallel()
 
-		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItems(t.Context(), []types.MessageItem{}, &types.Params{})
+		err := newTestService(t, mocks.NewMockHTTPClient(t)).SendItemsContext(t.Context(), []types.MessageItem{}, types.Params{})
 		require.ErrorIs(t, err, ErrEmptyMessage)
 	})
 
 	t.Run("unknown param", func(t *testing.T) {
 		t.Parallel()
 
-		err := newTestService(t, mocks.NewMockHTTPClient(t)).sendItems(t.Context(), []types.MessageItem{{Text: "Test message"}}, &types.Params{"invalid_key": "value"})
+		err := newTestService(t, mocks.NewMockHTTPClient(t)).SendItemsContext(t.Context(), []types.MessageItem{{Text: "Test message"}}, types.Params{"invalid_key": "value"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "updating config from params")
 	})
