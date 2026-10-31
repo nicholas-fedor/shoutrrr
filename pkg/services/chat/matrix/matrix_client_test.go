@@ -548,8 +548,8 @@ func TestAPIDoLogsRateLimitWait(t *testing.T) {
 // TestRetryWait verifies the wait read from a rate-limited response. The
 // Retry-After header wins, as seconds or an HTTP date, and retry_after_ms is the
 // fallback. A date in the past waits zero, and a value too large for a
-// duration, or for a uint64, becomes the longest one. A header that is neither form, or a
-// negative one, is ignored.
+// duration, or for an int64, becomes the longest one. A header that is neither
+// form, including a signed number such as +5 or -0, is ignored.
 func TestRetryWait(t *testing.T) {
 	t.Parallel()
 
@@ -569,8 +569,10 @@ func TestRetryWait(t *testing.T) {
 			{name: "future date", header: now.Add(4 * time.Second).UTC().Format(http.TimeFormat), want: 4 * time.Second},
 			{name: "past date", header: now.Add(-time.Hour).UTC().Format(http.TimeFormat), want: 0},
 			{name: "huge seconds", header: "99999999999999999", want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
-			{name: "seconds past uint64", header: "99999999999999999999", retryAfterMS: 1000, want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
+			{name: "seconds past int64", header: "99999999999999999999", retryAfterMS: 1000, want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
 			{name: "negative seconds", header: "-5", retryAfterMS: 300, want: 300 * time.Millisecond},
+			{name: "plus sign", header: "+5", retryAfterMS: 300, want: 300 * time.Millisecond},
+			{name: "negative zero", header: "-0", retryAfterMS: 300, want: 300 * time.Millisecond},
 			{name: "header wins over body", header: "1", retryAfterMS: 5000, want: time.Second},
 			{name: "unparsable header falls back to body", header: "soon", retryAfterMS: 1000, want: time.Second},
 			{name: "neither form", header: "later", want: noRetry},

@@ -716,10 +716,13 @@ func retryFits(ctx context.Context, wait time.Duration) bool {
 //     gives one.
 func retryWait(header http.Header, resError *apiResError) time.Duration {
 	if value := header.Get("Retry-After"); value != "" {
-		// ParseInt returns the largest int64 with its range error, and a
-		// negative value asks for no wait. Parsing as int64 keeps the value in
-		// the type of a duration, so no conversion can overflow.
-		if seconds, err := strconv.ParseInt(value, 10, 64); (err == nil || errors.Is(err, strconv.ErrRange)) && seconds >= 0 {
+		// RFC 9110 delay-seconds are digits only, so a signed value such as +5
+		// or -0 is not a delay. For digits, ParseInt fails only with a range
+		// error, returning the largest int64. Parsing as int64 keeps the value
+		// in the type of a duration, so no conversion can overflow.
+		if strings.Trim(value, "0123456789") == "" {
+			seconds, _ := strconv.ParseInt(value, 10, 64) //nolint:errcheck // Digits fail only with a range error, which returns the largest int64.
+
 			return time.Duration(min(seconds, int64(math.MaxInt64/time.Second))) * time.Second
 		}
 
