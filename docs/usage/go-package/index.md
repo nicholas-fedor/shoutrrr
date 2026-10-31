@@ -152,7 +152,7 @@ Services that do not implement `RichSender` fall back to plain text automaticall
         {Text: "Deployment complete", Level: types.Info},
         {Text: "Rollback available", Level: types.Warning},
     }
-    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://token@webhookid")
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://TOKEN@WEBHOOK_ID")
     if err != nil {
         log.Fatal(err)
     }
@@ -234,7 +234,7 @@ The default is `Info`.
     params := types.Params{}
     params.SetLevel(types.Warning)
     params.SetTitle("Disk usage high")
-    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://token@webhookid")
+    sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, "discord://TOKEN@WEBHOOK_ID")
     if err != nil {
         log.Fatal(err)
     }

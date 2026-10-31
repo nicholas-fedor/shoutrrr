@@ -5,13 +5,11 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
-	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/internal/sequential"
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -59,15 +57,7 @@ const (
 	// v10. A URL without a version reaches Discord's default version. That
 	// default is the deprecated v6, which reports rate-limit waits in
 	// milliseconds.
-	HooksBaseURL = "https://" + hooksHost + hooksPath
-)
-
-// The parts of [HooksBaseURL] that a webhook URL is checked against.
-const (
-	// hooksHost is the host of the webhook endpoints.
-	hooksHost = "discord.com"
-	// hooksPath is the path of the webhook endpoints, with the API version.
-	hooksPath = "/api/v10/webhooks"
+	HooksBaseURL = "https://discord.com/api/v10/webhooks"
 )
 
 // limits are the chunk limits for splitting a plain message into items.
@@ -154,8 +144,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     of the message's batches joined, or nil on success. Once ctx ends, the
 //     remaining batches are not sent, and ctx's error is reported once.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	if s.Config == nil {
-		return types.ErrServiceNotInitialized
+	if err := s.ready(); err != nil {
+		return err
 	}
 
 	if message == "" {
@@ -166,8 +156,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	defer cancel()
 
 	if s.Config.JSON {
-		postURL := CreatePostURLFromConfig(s.Config)
-		if err := s.doSend(ctx, []byte(message), postURL); err != nil {
+		preparer := &JSONRequestPreparer{payload: []byte(message)}
+
+		err := sendWithRetry(ctx, preparer, CreatePostURLFromConfig(s.Config), s.client.Prefer(s.HTTPClient), s.Sleeper)
+		if err != nil {
 			return fmt.Errorf("sending JSON message: %w", err)
 		}
 
@@ -264,54 +256,6 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.HTTPClient = nil
 }
 
-// doSend executes an HTTP POST request to deliver the payload to Discord.
-//
-// Parameters:
-//   - ctx: bounds the request and its retries.
-//   - payload: the JSON request body.
-//   - postURL: the webhook URL.
-//
-// Returns:
-//   - error: the validation or request failure, or nil on success.
-func (s *Service) doSend(ctx context.Context, payload []byte, postURL string) error {
-	if err := validateDiscordWebhookURL(postURL); err != nil {
-		return err
-	}
-
-	preparer := &JSONRequestPreparer{payload: payload}
-
-	return sendWithRetry(ctx, preparer, postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
-}
-
-// doSendMultipart executes an HTTP POST request with multipart/form-data to deliver
-// payload and files to Discord.
-//
-// Parameters:
-//   - ctx: bounds the request and its retries.
-//   - payload: the webhook payload sent as the JSON form part.
-//   - files: the files attached to the request.
-//   - postURL: the webhook URL.
-//
-// Returns:
-//   - error: the validation or request failure, or nil on success.
-func (s *Service) doSendMultipart(
-	ctx context.Context,
-	payload *WebhookPayload,
-	files []types.File,
-	postURL string,
-) error {
-	if err := validateDiscordWebhookURL(postURL); err != nil {
-		return err
-	}
-
-	preparer := &MultipartRequestPreparer{
-		payload: payload,
-		files:   files,
-	}
-
-	return sendWithRetry(ctx, preparer, postURL, s.client.Prefer(s.HTTPClient), s.Sleeper)
-}
-
 // plainLevel returns the level that colors the embeds of a plain message. A
 // send with a level param uses the color configured for that level, such as
 // colorError, unless the service URL or the send params set the plain color.
@@ -336,6 +280,21 @@ func (s *Service) plainLevel(config *Config, params *types.Params) types.Message
 	}
 
 	return level
+}
+
+// ready checks that the service has a config with a valid webhook ID and
+// token. Send params cannot change either, so one check covers the send.
+//
+// Returns:
+//   - error: [types.ErrServiceNotInitialized] without a config. An invalid
+//     webhook ID or token gives an error such as [ErrInvalidWebhookID].
+//     Otherwise nil.
+func (s *Service) ready() error {
+	if s.Config == nil {
+		return types.ErrServiceNotInitialized
+	}
+
+	return s.Config.validate()
 }
 
 // sendConfig returns a copy of the service config with params applied.
@@ -397,8 +356,8 @@ func (s *Service) sendEmbedItems(ctx context.Context, items []types.MessageItem,
 //     sent. Once ctx ends, the remaining batches are not sent, and ctx's error
 //     is reported once.
 func (s *Service) sendItemBatches(ctx context.Context, items []types.MessageItem, params *types.Params) error {
-	if s.Config == nil {
-		return types.ErrServiceNotInitialized
+	if err := s.ready(); err != nil {
+		return err
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
@@ -464,8 +423,6 @@ func (s *Service) sendPayload(
 	payload.Username = config.Username
 	payload.AvatarURL = config.Avatar
 
-	postURL := CreatePostURLFromConfig(config)
-
 	files := make([]types.File, 0, len(items))
 
 	for _, item := range items {
@@ -474,16 +431,20 @@ func (s *Service) sendPayload(
 		}
 	}
 
+	var preparer RequestPreparer
+
 	if len(files) > 0 {
-		return s.doSendMultipart(ctx, payload, files, postURL)
+		preparer = &MultipartRequestPreparer{payload: payload, files: files}
+	} else {
+		payloadBytes, err := json.Marshal(payload, jsonopts.Default)
+		if err != nil {
+			return fmt.Errorf("marshaling payload to JSON: %w", err)
+		}
+
+		preparer = &JSONRequestPreparer{payload: payloadBytes}
 	}
 
-	payloadBytes, err := json.Marshal(payload, jsonopts.Default)
-	if err != nil {
-		return fmt.Errorf("marshaling payload to JSON: %w", err)
-	}
-
-	return s.doSend(ctx, payloadBytes, postURL)
+	return sendWithRetry(ctx, preparer, CreatePostURLFromConfig(config), s.client.Prefer(s.HTTPClient), s.Sleeper)
 }
 
 // batchItems groups items into batches that each fit one Discord message: at
@@ -576,50 +537,4 @@ func createItemsFromPlain(plain string, splitLines bool, title string) [][]types
 	}
 
 	return batches
-}
-
-// validateDiscordWebhookURL validates the Discord webhook URL for security and correctness.
-// It checks these in order:
-//   - The URL is not empty.
-//   - It parses as a request URI.
-//   - Its scheme is https.
-//   - Its host is the host of [HooksBaseURL].
-//   - Its path starts with the path of [HooksBaseURL] and a slash.
-//   - Exactly two non-empty segments, the webhook ID and the token, follow
-//     [HooksBaseURL].
-//
-// Parameters:
-//   - postURL: the webhook URL.
-//
-// Returns:
-//   - error: the error of the first failed check, such as [ErrInvalidHost], or
-//     nil for a valid URL.
-func validateDiscordWebhookURL(postURL string) error {
-	if postURL == "" {
-		return ErrEmptyURL
-	}
-
-	parsedURL, err := url.ParseRequestURI(postURL)
-	if err != nil {
-		return fmt.Errorf("invalid URL: %w", redact.URLError(err))
-	}
-
-	if parsedURL.Scheme != "https" {
-		return ErrInvalidScheme
-	}
-
-	if parsedURL.Host != hooksHost {
-		return ErrInvalidHost
-	}
-
-	if !strings.HasPrefix(parsedURL.Path, hooksPath+"/") {
-		return ErrInvalidURLPrefix
-	}
-
-	parts := strings.Split(strings.TrimPrefix(postURL, HooksBaseURL+"/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return ErrMalformedURL
-	}
-
-	return nil
 }

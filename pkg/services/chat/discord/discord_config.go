@@ -1,8 +1,8 @@
 package discord
 
 import (
-	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -12,6 +12,10 @@ import (
 )
 
 // Config holds the settings required for sending Discord notifications.
+//
+// Reading a service URL checks the webhook ID and token. Each send checks
+// them again, so a Config built in code with an invalid webhook ID or token
+// fails before any request, with an error such as [ErrInvalidWebhookID].
 type Config struct {
 	// EnumlessConfig provides the empty enum set, since Discord has no enum
 	// fields.
@@ -121,10 +125,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrIllegalURLArgument] for a path other than /raw,
-//     [ErrMissingWebhookID] or [ErrMissingToken] for a missing webhook ID or
-//     token, an error wrapping [util.ErrInvalidQuery] for a malformed query, or
-//     a query prop error.
+//   - error: [ErrIllegalURLArgument] for a path other than /raw. An invalid
+//     webhook ID or token gives an error such as [ErrInvalidWebhookID]. A
+//     malformed query gives an error wrapping [util.ErrInvalidQuery], and an
+//     invalid query value gives a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.WebhookID = serviceURL.Host
 	c.Token = serviceURL.User.Username()
@@ -138,12 +142,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 	}
 
-	if c.WebhookID == "" {
-		return ErrMissingWebhookID
-	}
-
-	if len(c.Token) < 1 {
-		return ErrMissingToken
+	if err := c.validate(); err != nil {
+		return err
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -161,36 +161,57 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return nil
 }
 
+// validate checks the webhook ID and token, with surrounding whitespace
+// ignored. The webhook ID is a Discord snowflake, a number of up to 64 bits.
+// The token can be any text that is not blank.
+//
+// Returns:
+//   - error: [ErrMissingWebhookID] or [ErrMissingToken] for a blank webhook
+//     ID or token. [ErrInvalidWebhookID] for a webhook ID that is not a
+//     snowflake. Otherwise nil.
+func (c *Config) validate() error {
+	webhookID := strings.TrimSpace(c.WebhookID)
+	if webhookID == "" {
+		return ErrMissingWebhookID
+	}
+
+	if _, err := strconv.ParseUint(webhookID, 10, 64); err != nil {
+		return ErrInvalidWebhookID
+	}
+
+	if strings.TrimSpace(c.Token) == "" {
+		return ErrMissingToken
+	}
+
+	return nil
+}
+
 // CreatePostURLFromConfig builds a POST URL from the Discord configuration.
 // The webhook ID, token, and thread ID are trimmed of surrounding whitespace.
+// The token is path-escaped, so it cannot change the URL's path or start its
+// query.
 //
 // Parameters:
 //   - config: the configuration with the webhook ID, token, and thread ID.
 //
 // Returns:
 //   - string: the webhook URL under [HooksBaseURL], with a thread_id query
-//     parameter when the config sets a thread ID. It is empty when the config
-//     lacks a webhook ID or a token.
+//     parameter when the config sets a thread ID that is not blank. It is
+//     empty when the webhook ID or token is invalid, such as a webhook ID that
+//     is not a number.
 func CreatePostURLFromConfig(config *Config) string {
-	if config.WebhookID == "" || config.Token == "" {
-		return "" // Invalid cases are caught in doSend
+	if config.validate() != nil {
+		return ""
 	}
-	// Trim whitespace to prevent malformed URLs
+
+	// A valid webhook ID is all digits, so only the token needs escaping.
 	webhookID := strings.TrimSpace(config.WebhookID)
-	token := strings.TrimSpace(config.Token)
+	token := url.PathEscape(strings.TrimSpace(config.Token))
 
-	postURL := fmt.Sprintf("%s/%s/%s", HooksBaseURL, webhookID, token)
-
-	query := url.Values{}
-
-	if config.ThreadID != "" {
-		// Append thread_id as a query parameter
-		query.Set("thread_id", strings.TrimSpace(config.ThreadID))
+	threadID := strings.TrimSpace(config.ThreadID)
+	if threadID == "" {
+		return HooksBaseURL + "/" + webhookID + "/" + token
 	}
 
-	if len(query) > 0 {
-		return postURL + "?" + query.Encode()
-	}
-
-	return postURL
+	return HooksBaseURL + "/" + webhookID + "/" + token + "?thread_id=" + url.QueryEscape(threadID)
 }

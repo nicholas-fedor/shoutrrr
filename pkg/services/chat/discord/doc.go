@@ -24,7 +24,7 @@
 //
 // Where:
 //   - token: The webhook token from Discord
-//   - webhookid: The webhook ID from Discord
+//   - webhookid: The webhook ID from Discord, a number
 //   - Optional parameters: thread_id, username, avatar, etc.
 //
 // # Basic Usage

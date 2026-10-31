@@ -208,11 +208,11 @@ func TestJSONRequestPreparer(t *testing.T) {
 	payload := []byte(`{"content":"test message"}`)
 	preparer := &JSONRequestPreparer{payload: payload}
 
-	req, err := preparer.PrepareRequest(t.Context(), testWebhookURLAlt)
+	req, err := preparer.PrepareRequest(t.Context(), testWebhookURL)
 	require.NoError(t, err)
 
 	assert.Equal(t, http.MethodPost, req.Method)
-	assert.Equal(t, testWebhookURLAlt, req.URL.String())
+	assert.Equal(t, testWebhookURL, req.URL.String())
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
 	body, err := io.ReadAll(req.Body)
@@ -222,7 +222,7 @@ func TestJSONRequestPreparer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, err = preparer.PrepareRequest(ctx, testWebhookURLAlt)
+	_, err = preparer.PrepareRequest(ctx, testWebhookURL)
 	require.NoError(t, err, "building a request does not check the context")
 }
 
@@ -247,11 +247,11 @@ func TestMultipartRequestPreparer(t *testing.T) {
 
 			preparer := &MultipartRequestPreparer{payload: &WebhookPayload{Content: "test message"}, files: tt.files}
 
-			req, err := preparer.PrepareRequest(t.Context(), testWebhookURLAlt)
+			req, err := preparer.PrepareRequest(t.Context(), testWebhookURL)
 			require.NoError(t, err)
 
 			assert.Equal(t, http.MethodPost, req.Method)
-			assert.Equal(t, testWebhookURLAlt, req.URL.String())
+			assert.Equal(t, testWebhookURL, req.URL.String())
 			assert.True(t, strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data"))
 
 			body, err := io.ReadAll(req.Body)
