@@ -7,11 +7,15 @@ import (
 	"errors"
 	"io"
 	"log"
+	"maps"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +40,8 @@ type reply struct {
 	rawBody io.ReadCloser
 	// err, when set, is returned as the transport error instead of a response.
 	err error
+	// header, when set, holds response headers besides the JSON Content-Type.
+	header http.Header
 }
 
 // scriptedHTTPClient answers requests with scripted replies, in order, and
@@ -103,10 +109,13 @@ func (s *scriptedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		responseBody = io.NopCloser(strings.NewReader(next.body))
 	}
 
+	header := http.Header{"Content-Type": []string{"application/json"}}
+	maps.Copy(header, next.header)
+
 	return &http.Response{
 		StatusCode: next.status,
 		Status:     http.StatusText(next.status),
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Header:     header,
 		Body:       responseBody,
 	}, nil
 }
@@ -359,6 +368,225 @@ func TestAPIDo(t *testing.T) {
 		assert.Equal(t, http.MethodGet, httpClient.requests[0].Method)
 		assert.Empty(t, httpClient.requests[0].Header.Get("Content-Type"))
 		assert.Empty(t, httpClient.bodies[0])
+	})
+}
+
+// rateLimited returns a 429 reply in the Matrix error format. A non-empty
+// retryAfter sets the Retry-After header.
+//
+// Parameters:
+//   - retryAfter: the Retry-After header value, or empty for none.
+//
+// Returns:
+//   - reply: the reply.
+func rateLimited(retryAfter string) reply {
+	var header http.Header
+	if retryAfter != "" {
+		header = http.Header{"Retry-After": []string{retryAfter}}
+	}
+
+	return reply{
+		status: http.StatusTooManyRequests,
+		body:   `{"errcode":"M_LIMIT_EXCEEDED","error":"Too many requests"}`,
+		header: header,
+	}
+}
+
+// TestAPIDoRetriesRateLimits verifies that a rate-limited request is sent again
+// with the same body after the wait the homeserver asks for. [TestRetryWait]
+// covers how the wait is read.
+func TestAPIDoRetriesRateLimits(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		request := apiReqSend{MsgType: msgTypeText, Body: "test message"}
+
+		c, httpClient := newScriptedClient(t, rateLimited("2"), ok(`{"event_id":"$event"}`))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodPut, apiSendMessage, request, &apiResEvent{}))
+
+		assert.Equal(t, 2*time.Second, time.Since(start))
+		require.Equal(t, 2, httpClient.requestCount())
+		assert.Equal(t, httpClient.bodies[0], httpClient.bodies[1], "the retry carries the same body")
+	})
+}
+
+// TestAPIDoRetriesProxyRateLimit verifies that a 429 whose body is not a
+// Matrix error, as a proxy in front of the homeserver can send, is retried
+// after the wait of its Retry-After header.
+func TestAPIDoRetriesProxyRateLimit(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		proxyLimit := reply{
+			status: http.StatusTooManyRequests,
+			body:   "<html>Too Many Requests</html>",
+			header: http.Header{"Retry-After": []string{"3"}},
+		}
+
+		c, httpClient := newScriptedClient(t, proxyLimit, ok(`{"joined_rooms":[]}`))
+		require.NoError(t, c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResJoinedRooms{}))
+
+		assert.Equal(t, 3*time.Second, time.Since(start))
+		assert.Equal(t, 2, httpClient.requestCount())
+	})
+}
+
+// TestAPIDoFailsRateLimitAtOnce verifies that a request fails at once with the
+// Matrix error when the homeserver gives no usable wait, when the wait would
+// end after the context's deadline, and for an error status other than 429
+// that carries a wait.
+func TestAPIDoFailsRateLimitAtOnce(t *testing.T) {
+	t.Parallel()
+
+	// tests lists the reply and the context's deadline, or zero for none.
+	tests := []struct {
+		name     string
+		reply    reply
+		deadline time.Duration
+	}{
+		{name: "no hint", reply: rateLimited("")},
+		{name: "past the deadline", reply: rateLimited("2"), deadline: time.Second},
+		{
+			name: "other error status",
+			reply: reply{
+				status: http.StatusServiceUnavailable,
+				body:   `{"errcode":"M_UNKNOWN","error":"Unavailable"}`,
+				header: http.Header{"Retry-After": []string{"1"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				if tt.deadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tt.deadline)
+					defer cancel()
+				}
+
+				start := time.Now()
+				c, httpClient := newScriptedClient(t, tt.reply)
+
+				err := c.apiDo(ctx, http.MethodGet, apiJoinedRooms, nil, &apiResRoom{})
+
+				_, isAPIErr := errors.AsType[*apiResError](err)
+				assert.True(t, isAPIErr, "error %v is not the Matrix error", err)
+				assert.Equal(t, 1, httpClient.requestCount())
+				assert.Zero(t, time.Since(start))
+			})
+		})
+	}
+}
+
+// TestAPIDoRateLimitBounds verifies that a wait for a rate limit stops when the
+// context ends with an error that keeps the Matrix error, and that a request rate-limited on every attempt fails after
+// three retries.
+func TestAPIDoRateLimitBounds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("context ends during the wait", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			time.AfterFunc(time.Second, cancel)
+
+			start := time.Now()
+			c, httpClient := newScriptedClient(t, rateLimited("5"))
+
+			err := c.apiDo(ctx, http.MethodGet, apiJoinedRooms, nil, &apiResRoom{})
+			require.ErrorIs(t, err, context.Canceled)
+
+			_, isAPIErr := errors.AsType[*apiResError](err)
+			assert.True(t, isAPIErr, "error %v does not carry the Matrix error", err)
+			assert.Equal(t, 1, httpClient.requestCount())
+			assert.Equal(t, time.Second, time.Since(start))
+		})
+	})
+
+	t.Run("gives up after three retries", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			start := time.Now()
+			c, httpClient := newScriptedClient(t,
+				rateLimited("1"), rateLimited("1"), rateLimited("1"), rateLimited("1"))
+
+			_, isAPIErr := errors.AsType[*apiResError](c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResRoom{}))
+			assert.True(t, isAPIErr)
+			assert.Equal(t, 4, httpClient.requestCount())
+			assert.Equal(t, 3*time.Second, time.Since(start))
+		})
+	})
+}
+
+// TestAPIDoLogsRateLimitWait verifies that a wait for a rate limit logs a
+// Debug record with the wait.
+func TestAPIDoLogsRateLimitWait(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		var logs strings.Builder
+
+		c, _ := newScriptedClient(t, rateLimited("2"), ok(`{"joined_rooms":[]}`))
+		c.logger = &standard.Logger{}
+		c.logger.SetLogger(log.New(&logs, "", 0))
+
+		require.NoError(t, c.apiDo(t.Context(), http.MethodGet, apiJoinedRooms, nil, &apiResRoom{}))
+		assert.Equal(t, "DEBUG rate limited, waiting to retry wait=2s\n", logs.String())
+	})
+}
+
+// TestRetryWait verifies the wait read from a rate-limited response. The
+// Retry-After header wins, as seconds or an HTTP date, and retry_after_ms is the
+// fallback. A date in the past waits zero, and a value too large for a
+// duration, or for a uint64, becomes the longest one. A header that is neither form, or a
+// negative one, is ignored.
+func TestRetryWait(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+
+		// tests lists a Retry-After value and a retry_after_ms value with the
+		// wait each should give.
+		tests := []struct {
+			name         string
+			header       string
+			retryAfterMS int64
+			want         time.Duration
+		}{
+			{name: "seconds", header: "7", want: 7 * time.Second},
+			{name: "zero seconds", header: "0", want: 0},
+			{name: "future date", header: now.Add(4 * time.Second).UTC().Format(http.TimeFormat), want: 4 * time.Second},
+			{name: "past date", header: now.Add(-time.Hour).UTC().Format(http.TimeFormat), want: 0},
+			{name: "huge seconds", header: "99999999999999999", want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
+			{name: "seconds past uint64", header: "99999999999999999999", retryAfterMS: 1000, want: time.Duration(int64(math.MaxInt64/time.Second)) * time.Second},
+			{name: "negative seconds", header: "-5", retryAfterMS: 300, want: 300 * time.Millisecond},
+			{name: "header wins over body", header: "1", retryAfterMS: 5000, want: time.Second},
+			{name: "unparsable header falls back to body", header: "soon", retryAfterMS: 1000, want: time.Second},
+			{name: "neither form", header: "later", want: noRetry},
+			{name: "body only", retryAfterMS: 2500, want: 2500 * time.Millisecond},
+			{name: "huge body", retryAfterMS: math.MaxInt64, want: time.Duration(int64(math.MaxInt64/time.Millisecond)) * time.Millisecond},
+			{name: "nothing", want: noRetry},
+		}
+
+		for _, tt := range tests {
+			header := http.Header{}
+			if tt.header != "" {
+				header.Set("Retry-After", tt.header)
+			}
+
+			assert.Equal(t, tt.want, retryWait(header, &apiResError{RetryAfterMS: tt.retryAfterMS}), tt.name)
+		}
 	})
 }
 
