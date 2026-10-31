@@ -106,7 +106,9 @@ func Test_runDocs_FlagError(t *testing.T) {
 	assert.Contains(t, got.Message, "Error getting format flag", "Error message should indicate flag retrieval failure")
 }
 
-// Test_printDocs tests the printDocs function with various scenarios.
+// Test_printDocs tests the printDocs function with various scenarios. The
+// every-service cases cover services that reject a placeholder service URL,
+// since the docs come from each service's zero config.
 func Test_printDocs(t *testing.T) {
 	t.Parallel()
 
@@ -142,6 +144,20 @@ func Test_printDocs(t *testing.T) {
 			name:       "multiple services markdown",
 			docFormat:  "markdown",
 			services:   []string{"smtp", "telegram"},
+			wantExit:   cmd.ExSuccess,
+			wantErrMsg: "",
+		},
+		{
+			name:       "every service console",
+			docFormat:  "console",
+			services:   services,
+			wantExit:   cmd.ExSuccess,
+			wantErrMsg: "",
+		},
+		{
+			name:       "every service markdown",
+			docFormat:  "markdown",
+			services:   services,
 			wantExit:   cmd.ExSuccess,
 			wantErrMsg: "",
 		},

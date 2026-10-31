@@ -4,8 +4,6 @@ package docs
 
 import (
 	"fmt"
-	"log"
-	"net/url"
 	"os"
 	"strings"
 
@@ -105,9 +103,6 @@ func printDocs(docFormat string, services []string) cmd.ExitError {
 		return cmd.InvalidUsage("invalid format")
 	}
 
-	// Create a logger for service initialization.
-	logger := log.New(os.Stderr, "", 0)
-
 	// Generate documentation for each requested service.
 	for _, scheme := range services {
 		service, err := serviceRouter.NewService(scheme)
@@ -115,18 +110,8 @@ func printDocs(docFormat string, services []string) cmd.ExitError {
 			return cmd.InvalidUsage("failed to init service: " + err.Error())
 		}
 
-		// Initialize the service to populate Config.
-		dummyURL, err := url.Parse(scheme + "://dummy@dummy.com")
-		if err != nil {
-			return cmd.InvalidUsage("failed to parse URL: " + err.Error())
-		}
-
-		if err := service.Initialize(dummyURL, logger); err != nil {
-			return cmd.InvalidUsage(
-				fmt.Sprintf("failed to initialize service %q: %v\n", scheme, err),
-			)
-		}
-
+		// The docs describe the config's fields, which a new service's zero
+		// config already has, so the service is not initialized with a URL.
 		config := format.GetServiceConfig(service)
 		configNode := format.GetConfigFormat(config)
 		_, _ = fmt.Fprint(os.Stdout, renderer.RenderTree(configNode, scheme))
