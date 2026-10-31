@@ -799,7 +799,7 @@ func TestHandleServerError(t *testing.T) {
 func TestPrepareRequestRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
 
-	const postURL = "https://discord.com/api/webhooks/123/SECRETtoken%zz"
+	const postURL = testHooksBaseURL + "/123/SECRETtoken%zz"
 
 	// preparers lists the request preparers under test.
 	preparers := map[string]RequestPreparer{

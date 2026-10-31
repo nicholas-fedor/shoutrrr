@@ -14,10 +14,13 @@ import (
 
 // Webhook API URLs for the test webhook ID and token.
 const (
+	// testHooksBaseURL is the webhook base URL the tests expect, written out
+	// so that the tests pin the API version.
+	testHooksBaseURL = "https://discord.com/api/v10/webhooks"
 	// testWebhookURL is the API URL for webhook 123456789 with token test-token.
-	testWebhookURL = "https://discord.com/api/webhooks/123456789/test-token"
+	testWebhookURL = testHooksBaseURL + "/123456789/test-token"
 	// testWebhookURLWithThread is testWebhookURL posting to thread 987654321.
-	testWebhookURLWithThread = "https://discord.com/api/webhooks/123456789/test-token?thread_id=987654321"
+	testWebhookURLWithThread = testWebhookURL + "?thread_id=987654321"
 )
 
 // parseTestURL parses rawURL and fails the test if it is invalid.
@@ -236,7 +239,7 @@ func TestCreatePostURLFromConfig(t *testing.T) {
 		{name: "spaces around webhook ID and token", config: Config{WebhookID: "  123456789  ", Token: "  test-token  "}, want: testWebhookURL},
 		{name: "spaces around thread", config: Config{WebhookID: "123456789", Token: "test-token", ThreadID: "  987654321  "}, want: testWebhookURLWithThread},
 		{name: "no webhook ID or token", config: Config{}, want: ""},
-		{name: "long webhook ID and token", config: Config{WebhookID: longID, Token: longToken}, want: "https://discord.com/api/webhooks/" + longID + "/" + longToken},
+		{name: "long webhook ID and token", config: Config{WebhookID: longID, Token: longToken}, want: testHooksBaseURL + "/" + longID + "/" + longToken},
 	}
 
 	for _, tt := range tests {

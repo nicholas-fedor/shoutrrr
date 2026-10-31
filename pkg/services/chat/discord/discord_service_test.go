@@ -46,7 +46,7 @@ type requestRecorder struct {
 }
 
 // testWebhookURLAlt is a valid webhook API URL for the doSend tests.
-const testWebhookURLAlt = "https://discord.com/api/webhooks/123/abc"
+const testWebhookURLAlt = testHooksBaseURL + "/123/abc"
 
 // sent returns the requests received so far.
 //
@@ -708,10 +708,11 @@ func TestDoSend(t *testing.T) {
 		wantErr error
 	}{
 		{name: "empty URL", postURL: "", wantErr: ErrEmptyURL},
-		{name: "http scheme", postURL: "http://discord.com/api/webhooks/123/abc", wantErr: ErrInvalidScheme},
-		{name: "other host", postURL: "https://example.com/api/webhooks/123/abc", wantErr: ErrInvalidHost},
+		{name: "http scheme", postURL: "http://discord.com/api/v10/webhooks/123/abc", wantErr: ErrInvalidScheme},
+		{name: "other host", postURL: "https://example.com/api/v10/webhooks/123/abc", wantErr: ErrInvalidHost},
 		{name: "other path", postURL: "https://discord.com/api/invalid/123/abc", wantErr: ErrInvalidURLPrefix},
-		{name: "no webhook ID or token", postURL: "https://discord.com/api/webhooks//", wantErr: ErrMalformedURL},
+		{name: "unversioned path", postURL: "https://discord.com/api/webhooks/123/abc", wantErr: ErrInvalidURLPrefix},
+		{name: "no webhook ID or token", postURL: testHooksBaseURL + "//", wantErr: ErrMalformedURL},
 	}
 
 	for _, tt := range invalid {
