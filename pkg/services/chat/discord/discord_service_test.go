@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"io"
 	"log"
 	"maps"
@@ -44,9 +43,6 @@ type requestRecorder struct {
 	// requests holds the requests in the order received.
 	requests []sentRequest
 }
-
-// testWebhookURLAlt is a valid webhook API URL for the doSend tests.
-const testWebhookURLAlt = testHooksBaseURL + "/123/abc"
 
 // sent returns the requests received so far.
 //
@@ -642,10 +638,10 @@ func TestInitialize(t *testing.T) {
 		t.Parallel()
 
 		service := &Service{}
-		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@webhook?username=TestBot"), log.New(t.Output(), "", 0)))
+		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@123456789?username=TestBot"), log.New(t.Output(), "", 0)))
 
 		require.NotNil(t, service.Config)
-		assert.Equal(t, "webhook", service.Config.WebhookID)
+		assert.Equal(t, "123456789", service.Config.WebhookID)
 		assert.Equal(t, "token", service.Config.Token)
 		assert.Equal(t, "TestBot", service.Config.Username)
 		assert.Equal(t, uint(0x50d9ff), service.Config.Color, "the default color applies")
@@ -659,7 +655,7 @@ func TestInitialize(t *testing.T) {
 
 		sleeper := mocks.NewMockSleeper(t)
 		service := &Service{Sleeper: sleeper}
-		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@webhook"), log.New(t.Output(), "", 0)))
+		require.NoError(t, service.Initialize(parseTestURL(t, "discord://token@123456789"), log.New(t.Output(), "", 0)))
 
 		assert.Same(t, sleeper, service.Sleeper)
 	})
@@ -678,107 +674,33 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "discord", (&Service{}).GetID())
 }
 
-// TestDoSend verifies that doSend posts a valid webhook URL, rejects other URLs
-// without a request, and reports a failed request.
-func TestDoSend(t *testing.T) {
+// TestSendChecksConfig verifies that both send entries check a config built
+// without a service URL and fail before any request when it is invalid.
+func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{"content":"test"}`)
-
-	t.Run("success", func(t *testing.T) {
-		t.Parallel()
-
-		client, recorder := newAcceptingClient(t, 1)
-		require.NoError(t, (&Service{HTTPClient: client}).doSend(t.Context(), payload, testWebhookURLAlt))
-
-		assert.Equal(t, string(payload), recorder.sent()[0].body)
-	})
-
-	t.Run("request fails", func(t *testing.T) {
-		t.Parallel()
-
-		client := newFailingClient(t, errors.New("network error"))
-		require.Error(t, (&Service{HTTPClient: client}).doSend(t.Context(), payload, testWebhookURLAlt))
-	})
-
-	// invalid lists URLs doSend must reject with the error each should produce.
-	invalid := []struct {
-		name    string
-		postURL string
-		wantErr error
+	// sends lists the send entries, each called on a service whose mock HTTP
+	// client has no expectations, so a request fails the test.
+	sends := []struct {
+		name string
+		send func(ctx context.Context, service *Service) error
 	}{
-		{name: "empty URL", postURL: "", wantErr: ErrEmptyURL},
-		{name: "http scheme", postURL: "http://discord.com/api/v10/webhooks/123/abc", wantErr: ErrInvalidScheme},
-		{name: "other host", postURL: "https://example.com/api/v10/webhooks/123/abc", wantErr: ErrInvalidHost},
-		{name: "other path", postURL: "https://discord.com/api/invalid/123/abc", wantErr: ErrInvalidURLPrefix},
-		{name: "unversioned path", postURL: "https://discord.com/api/webhooks/123/abc", wantErr: ErrInvalidURLPrefix},
-		{name: "no webhook ID or token", postURL: testHooksBaseURL + "//", wantErr: ErrMalformedURL},
+		{name: "SendContext", send: func(ctx context.Context, service *Service) error {
+			return service.SendContext(ctx, "message", nil)
+		}},
+		{name: "SendItemsContext", send: func(ctx context.Context, service *Service) error {
+			return service.SendItemsContext(ctx, []types.MessageItem{{Text: "message"}}, types.Params{})
+		}},
 	}
 
-	for _, tt := range invalid {
+	for _, tt := range sends {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			service := &Service{HTTPClient: mocks.NewMockHTTPClient(t)}
-			require.ErrorIs(t, service.doSend(t.Context(), payload, tt.postURL), tt.wantErr)
+			service := newTestService(t, mocks.NewMockHTTPClient(t))
+			service.Config.WebhookID = "webhook"
+
+			require.ErrorIs(t, tt.send(t.Context(), service), ErrInvalidWebhookID)
 		})
 	}
-}
-
-// TestDoSendMultipart verifies that doSendMultipart posts multipart form data,
-// with or without files, and reports a failed request.
-func TestDoSendMultipart(t *testing.T) {
-	t.Parallel()
-
-	// tests lists files to attach with whether the body should name a file.
-	tests := []struct {
-		name      string
-		files     []types.File
-		wantFiles bool
-	}{
-		{name: "with a file", files: []types.File{{Name: "test.txt", Data: []byte("file content")}}, wantFiles: true},
-		{name: "without files", files: []types.File{}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client, recorder := newAcceptingClient(t, 1)
-			payload := WebhookPayload{Content: "Message"}
-
-			require.NoError(t, (&Service{HTTPClient: client}).doSendMultipart(t.Context(), &payload, tt.files, testWebhookURLAlt))
-
-			sent := recorder.sent()[0]
-			assert.True(t, strings.HasPrefix(sent.contentType, "multipart/form-data"), "content type %q", sent.contentType)
-			assert.Contains(t, sent.body, "payload_json")
-			assert.Equal(t, tt.wantFiles, strings.Contains(sent.body, "files[0]"))
-		})
-	}
-
-	t.Run("request fails", func(t *testing.T) {
-		t.Parallel()
-
-		client := newFailingClient(t, errors.New("network error"))
-		payload := WebhookPayload{Content: "Test message"}
-
-		require.Error(t, (&Service{HTTPClient: client}).doSendMultipart(t.Context(), &payload, []types.File{}, testWebhookURLAlt))
-	})
-}
-
-// TestSendRedactsUnparsableWebhookURL verifies that a token that makes the
-// webhook API URL unparsable fails the send without the token in the error.
-func TestSendRedactsUnparsableWebhookURL(t *testing.T) {
-	t.Parallel()
-
-	service := &Service{}
-	require.NoError(t, service.Initialize(parseTestURL(t, "discord://SECRETtoken%25zz@123456789012345678"), log.New(t.Output(), "", 0)))
-	// The mock has no expectations, so a request fails the test.
-	service.HTTPClient = mocks.NewMockHTTPClient(t)
-
-	err := service.Send("message", nil)
-
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
-	assert.NotContains(t, err.Error(), "SECRETtoken")
 }

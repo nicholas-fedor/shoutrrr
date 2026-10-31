@@ -201,7 +201,7 @@ for i, err := range sender.Send("Hello world (or slack channel) !", &params) { /
 ```go
 urls := []string{
     "slack://hook:T00000000-B00000000-XXXXXXXXXXXXXXXXXXXXXXXX@webhook",
-    "discord://token@channel",
+    "discord://TOKEN@WEBHOOK_ID",
 }
 sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
 if err != nil {
@@ -264,7 +264,7 @@ customClient := &http.Client{
 sender, err := shoutrrr.NewSenderWithOptions(
     nil,
     types.SenderOptions{HTTPClient: customClient, DialContext: dial},
-    "discord://token@channel",
+    "discord://TOKEN@WEBHOOK_ID",
 )
 if err != nil {
     log.Fatal(err)

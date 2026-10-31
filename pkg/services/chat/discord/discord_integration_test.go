@@ -133,14 +133,14 @@ type roundTripFunc func(req *http.Request) (*http.Response, error)
 
 // Service URLs and messages shared by the tests.
 const (
-	// testServiceURL is the service URL for webhook test-webhook with token
-	// test-token.
-	testServiceURL = "discord://test-token@test-webhook"
+	// testServiceURL is the service URL for webhook 123456789012345678 with
+	// token test-token.
+	testServiceURL = "discord://test-token@123456789012345678"
 	// testHooksBaseURL is the webhook base URL the tests expect, written out
 	// so that the tests pin the API version.
 	testHooksBaseURL = "https://discord.com/api/v10/webhooks"
 	// testPostURL is the webhook API URL for testServiceURL.
-	testPostURL = testHooksBaseURL + "/test-webhook/test-token"
+	testPostURL = testHooksBaseURL + "/123456789012345678/test-token"
 	// testMessage is the message the tests send when its text does not matter.
 	testMessage = "Test message"
 )
@@ -276,6 +276,13 @@ func TestIntegrationSendPlainRequest(t *testing.T) {
 			rawURL:   "discord://123@456",
 			message:  testMessage,
 			wantURL:  testHooksBaseURL + "/456/123",
+			wantBody: `{"content":"Test message"}`,
+		},
+		{
+			name:     "token with reserved characters",
+			rawURL:   "discord://a%2Fb%3Fc%25zz@456",
+			message:  testMessage,
+			wantURL:  testHooksBaseURL + "/456/a%2Fb%3Fc%25zz",
 			wantBody: `{"content":"Test message"}`,
 		},
 		{
@@ -1496,7 +1503,7 @@ func TestIntegrationInitializeRejectsPaths(t *testing.T) {
 		rawURL string
 	}{
 		{name: "webhook API URL", rawURL: "http://discord.com/api/webhooks/test/test"},
-		{name: "nested path", rawURL: "discord://token@webhook/invalid/path"},
+		{name: "nested path", rawURL: "discord://token@123/invalid/path"},
 		{name: "no scheme", rawURL: "token@webhook"},
 	}
 

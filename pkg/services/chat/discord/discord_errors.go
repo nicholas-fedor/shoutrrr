@@ -13,26 +13,9 @@ var (
 	// ErrUnexpectedStatus indicates an unexpected HTTP response status code.
 	ErrUnexpectedStatus = errors.New("unexpected response status code")
 
-	// ErrInvalidURLPrefix indicates the URL must start with Discord webhook base URL.
-	ErrInvalidURLPrefix = errors.New("URL must start with Discord webhook base URL")
-
-	// ErrInvalidScheme indicates an invalid URL scheme; must be https.
-	ErrInvalidScheme = errors.New("invalid URL scheme: must be https")
-
-	// ErrInvalidHost indicates a host other than discord.com.
-	ErrInvalidHost = errors.New("invalid host: must be " + hooksHost)
-
-	// ErrInvalidWebhookID indicates an invalid webhook ID.
+	// ErrInvalidWebhookID indicates a webhook ID that is not a Discord
+	// snowflake, a number of up to 64 bits.
 	ErrInvalidWebhookID = errors.New("invalid webhook ID")
-
-	// ErrInvalidToken indicates an invalid token.
-	ErrInvalidToken = errors.New("invalid token")
-
-	// ErrEmptyURL indicates an empty URL was provided.
-	ErrEmptyURL = errors.New("empty URL provided")
-
-	// ErrMalformedURL indicates a malformed URL missing webhook ID or token.
-	ErrMalformedURL = errors.New("malformed URL: missing webhook ID or token")
 
 	// ErrRateLimited indicates rate limiting by Discord.
 	ErrRateLimited = errors.New("rate limited by Discord")

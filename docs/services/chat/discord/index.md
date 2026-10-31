@@ -19,6 +19,8 @@ Shoutrrr takes only the webhook ID and token from it, and sends to Discord API v
 A request to the URL as Discord shows it would use Discord's default version.
 That default is v6, which Discord has deprecated.
 
+The webhook ID is a number, and Shoutrrr rejects a service URL whose webhook ID is not one.
+
 ### Thread Support
 
 To send messages to a specific thread in a Discord channel, include the `thread_id` query parameter in the service URL with the ID of the target thread. For example:
@@ -34,7 +36,7 @@ You can customize the webhook's appearance by overriding the default username an
 
 !!! example "Custom Username and Avatar"
     ```bash
-    shoutrrr send --url "discord://token@webhookid?username=MyBot&avatar=https://example.com/avatar.png" --message "Hello from custom bot!"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?username=MyBot&avatar=https://example.com/avatar.png" --message "Hello from custom bot!"
     ```
 
 ## Message Content
@@ -43,7 +45,7 @@ For simple text messages without embeds, Shoutrrr now uses Discord's `content` f
 
 !!! example "Simple Text Message"
     ```bash
-    shoutrrr send --url "discord://token@webhookid" --message "Hello, World!"
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID" --message "Hello, World!"
     ```
 
     This sends a plain text message using the `content` field instead of an embed.
@@ -78,7 +80,7 @@ When `splitLines` is enabled (default), each line of the input becomes a separat
 
 !!! example "Long Message Chunking"
     ```bash
-    shoutrrr send --url "discord://token@webhookid?splitLines=false" --message "This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."
+    shoutrrr send --url "discord://TOKEN@WEBHOOK_ID?splitLines=false" --message "This is a very long message that will be automatically split into multiple chunks if it exceeds Discord's 2000 character limit per message."
     ```
 
 !!! note ""
