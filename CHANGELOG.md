@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Check each send's config before any request by @nicholas-fedor in [#2013](https://github.com/nicholas-fedor/shoutrrr/pull/2013)
 - Reject unknown send params in Google Chat and check every service by @nicholas-fedor in [#2011](https://github.com/nicholas-fedor/shoutrrr/pull/2011)
 - Resolve and check each send's config once by @nicholas-fedor in [#1994](https://github.com/nicholas-fedor/shoutrrr/pull/1994)
 - Validate the docs placeholder URL like any other service URL by @nicholas-fedor in [#1992](https://github.com/nicholas-fedor/shoutrrr/pull/1992)
