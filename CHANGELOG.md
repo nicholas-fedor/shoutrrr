@@ -131,6 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency platformdirs to v4.14.3 by @renovate[bot] in [#2015](https://github.com/nicholas-fedor/shoutrrr/pull/2015)
 - Update dependency python-dateutil to v4 by @renovate[bot] in [#2009](https://github.com/nicholas-fedor/shoutrrr/pull/2009)
 - Update module go.yaml.in/yaml/v3 to v3.0.6 by @renovate[bot] in [#2006](https://github.com/nicholas-fedor/shoutrrr/pull/2006)
 - Update binwiederhier/ntfy:latest docker digest to fb48c41 by @renovate[bot] in [#2005](https://github.com/nicholas-fedor/shoutrrr/pull/2005)
