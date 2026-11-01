@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 )
@@ -179,6 +180,37 @@ func TestServiceSendRequest(t *testing.T) {
 	assert.Equal(t, testAPIURL, captured.url)
 	assert.Equal(t, "application/json", captured.contentType)
 	assert.JSONEq(t, `{"text":"Test Message"}`, captured.body)
+}
+
+// TestServiceSendParams verifies that the reserved title, message, and level
+// params send as usual. Any other param fails before a request, since Google
+// Chat has no options a send can set.
+func TestServiceSendParams(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reserved params", func(t *testing.T) {
+		t.Parallel()
+
+		client, captured := newCapturingClient(t)
+
+		params := types.Params{}
+		params.SetTitle("Title")
+		params.SetMessage("Ignored")
+		params.SetLevel(types.Warning)
+
+		require.NoError(t, newTestService(t, client).Send("Test Message", &params))
+		assert.JSONEq(t, `{"text":"Test Message"}`, captured.body)
+	})
+
+	t.Run("unknown param", func(t *testing.T) {
+		t.Parallel()
+
+		// The mock has no expectations, so a request fails the test.
+		service := newTestService(t, mocks.NewMockHTTPClient(t))
+
+		err := service.Send("Message", &types.Params{"thread": "spaces/AAA/threads/BBB"})
+		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
+	})
 }
 
 // TestServiceSendStatus verifies that a 2xx response is a success and any other
