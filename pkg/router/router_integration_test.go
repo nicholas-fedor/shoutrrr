@@ -1709,11 +1709,19 @@ func runCheckedConfig(t *testing.T, fx *fixture) failure {
 
 		field.Set(reflect.New(field.Type().Elem()))
 
+		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
+
 		if result = env.send(service, nil); result.kind != failNone {
 			return
 		}
 
-		requests, dials := len(env.client.Calls), env.dials.Load()
+		// A request through http.DefaultTransport or another uninjected transport
+		// counts as a request too.
+		requests := int64(len(env.client.Calls)) +
+			defaultTransportHits.Load() - defaultBefore +
+			lookupHits.Load() - lookupBefore
+		dials := env.dials.Load()
+
 		if env.sendErr == nil || requests > 0 || dials > 0 {
 			result = fail(failUncheckedConfig, "a send with a zero config returned %v after %d request(s) and %d dial(s)",
 				env.sendErr, requests, dials)
