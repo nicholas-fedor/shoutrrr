@@ -25,8 +25,9 @@ type Config struct {
 	Title string `default:"Shoutrrr notification" desc:"Notification title, optionally set by the sender" key:"title"`
 
 	// Targets lists the devices, e-mail addresses, and #channels to push to,
-	// written as the path of the service URL. A URL without a path gives one
-	// empty target, which pushes to all of the token user's devices.
+	// written as the path of the service URL. An empty target pushes to all of
+	// the token user's devices. A URL without a path gives one, and a send
+	// without targets pushes to all devices too.
 	Targets []string `url:"path"`
 }
 
@@ -38,6 +39,10 @@ const ExpectedTokenLength = 34
 
 // ErrTokenIncorrectSize indicates that the token has an incorrect size.
 var ErrTokenIncorrectSize = errors.New("token has incorrect size")
+
+// allDevices is the target list of a send without targets. Its one empty
+// target pushes to all of the token user's devices. Sends only read it.
+var allDevices = []string{""}
 
 // GetURL returns a URL representation of the Config's current field values.
 //
@@ -86,7 +91,20 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // Returns:
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
-	return defaultHTTPTimeout * time.Duration(max(1, len(c.Targets)))
+	return defaultHTTPTimeout * time.Duration(len(c.sendTargets()))
+}
+
+// sendTargets returns the targets a send pushes to. A config without targets
+// pushes to all devices, as a URL without a path does.
+//
+// Returns:
+//   - []string: the targets, which the caller must not change.
+func (c *Config) sendTargets() []string {
+	if len(c.Targets) == 0 {
+		return allDevices
+	}
+
+	return c.Targets
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -96,9 +114,8 @@ func (c *Config) sendBudget() time.Duration {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [util.ErrInvalidHost] for an access token with a colon or
-//     brackets, a token error, an error wrapping [util.ErrInvalidQuery] for a
-//     malformed query, or a query prop error.
+//   - error: an access token error, an error wrapping [util.ErrInvalidQuery]
+//     for a malformed query, or a query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	path := serviceURL.Path
 	if path != "" && path[0] == '/' {
@@ -113,16 +130,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	// The token is the host as written, which cannot hold a port or brackets
 	// that url.URL.Hostname would strip.
-	token := serviceURL.Host
-	if strings.ContainsAny(token, ":[]") {
-		return fmt.Errorf("access token: %w", util.ErrInvalidHost)
-	}
-
-	if err := validateToken(token); err != nil {
+	if err := validateToken(serviceURL.Host); err != nil {
 		return err
 	}
 
-	c.Token = token
+	c.Token = serviceURL.Host
 	c.Targets = targets
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -133,15 +145,21 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return format.ApplyQuery(resolver, query)
 }
 
-// validateToken checks if the token meets the expected length requirement.
+// validateToken checks the access token. Reading a service URL and each send
+// run it, so a config built in code fails before a request.
 //
 // Parameters:
 //   - token: the access token.
 //
 // Returns:
-//   - error: [ErrTokenIncorrectSize] for a token that is not
+//   - error: an error wrapping [util.ErrInvalidHost] for a token with a colon
+//     or brackets, or [ErrTokenIncorrectSize] for a token that is not
 //     [ExpectedTokenLength] characters long.
 func validateToken(token string) error {
+	if strings.ContainsAny(token, ":[]") {
+		return fmt.Errorf("access token: %w", util.ErrInvalidHost)
+	}
+
 	if len(token) != ExpectedTokenLength {
 		return ErrTokenIncorrectSize
 	}

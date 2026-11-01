@@ -136,7 +136,7 @@ func (c *Config) GetURL() *url.URL {
 // Returns:
 //   - *url.URL: the masked config URL.
 func (c *Config) MaskedURL() *url.URL {
-	webhookURL := *c.webhookURL
+	webhookURL := c.webhook()
 
 	if webhookURL.User != nil {
 		webhookURL.User = url.User(format.MaskedValue)
@@ -184,7 +184,7 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 //     disabled and https otherwise.
 func (c *Config) WebhookURL() *url.URL {
 	// Copy the URL to modify
-	webhookURL := *c.webhookURL
+	webhookURL := c.webhook()
 	// Set default HTTPS scheme
 	webhookURL.Scheme = DefaultWebhookScheme
 
@@ -206,9 +206,9 @@ func (c *Config) WebhookURL() *url.URL {
 //     the custom headers and extra data in its query.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	// Copy webhook URL
-	serviceURL := *c.webhookURL
+	serviceURL := c.webhook()
 	// Get existing query params
-	webhookQuery := c.webhookURL.Query()
+	webhookQuery := serviceURL.Query()
 	// Build query with config fields
 	serviceQuery := format.BuildQueryWithCustomFields(resolver, webhookQuery)
 	// Add custom headers and extra data
@@ -232,8 +232,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //     an error wrapping [util.ErrInvalidQuery] for a malformed query, or a
 //     query prop error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	if serviceURL.Hostname() == "" {
-		return ErrHostMissing
+	if err := validateWebhook(serviceURL); err != nil {
+		return err
 	}
 
 	// Copy service URL
@@ -265,6 +265,19 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return nil
 }
 
+// webhook returns a copy of the webhook URL. A config built in code without
+// one gives an empty URL.
+//
+// Returns:
+//   - url.URL: the webhook URL.
+func (c *Config) webhook() url.URL {
+	if c.webhookURL == nil {
+		return url.URL{}
+	}
+
+	return *c.webhookURL
+}
+
 // maskedValues returns a copy of values with each value replaced by
 // [format.MaskedValue].
 //
@@ -280,4 +293,22 @@ func maskedValues(values map[string]string) map[string]string {
 	}
 
 	return masked
+}
+
+// validateWebhook checks that a webhook URL has a host to send to. Reading a
+// service URL checks the URL first, so a rejected URL leaves the config
+// unchanged. Each send checks the config's webhook URL, so a config built in
+// code fails before a request.
+//
+// Parameters:
+//   - webhookURL: the webhook URL, or nil for a config built in code.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a webhook URL without a host, or nil.
+func validateWebhook(webhookURL *url.URL) error {
+	if webhookURL == nil || webhookURL.Hostname() == "" {
+		return ErrHostMissing
+	}
+
+	return nil
 }

@@ -148,6 +148,7 @@ func TestInitializeRejectsInvalidURLs(t *testing.T) {
 	}{
 		{name: "no arguments", rawURL: "telegram://"},
 		{name: "invalid token format", rawURL: "telegram://invalid-token"},
+		{name: "invalid token with chats", rawURL: "telegram://invalid-token@telegram/?chats=1"},
 		{name: "token without chats", rawURL: "telegram://12345:mock-token@telegram"},
 	}
 
@@ -314,6 +315,47 @@ func TestSendUsesChatsFromParams(t *testing.T) {
 
 	require.NoError(t, service.Send("Message", &types.Params{"chats": "channel-9"}))
 	assert.Equal(t, []string{"channel-9"}, chats)
+}
+
+// TestSendChecksConfig verifies that a send checks its config after applying
+// its params, as reading a service URL does. An invalid config then fails
+// before any request.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes and params with the error the send must
+	// return.
+	tests := []struct {
+		params  *types.Params
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "invalid token", change: func(config *Config) { config.Token = "invalid" }, wantErr: ErrInvalidToken},
+		{name: "no chats", change: func(config *Config) { config.Chats = nil }, wantErr: ErrNoChannelsDefined},
+		{name: "chats cleared by a param", params: &types.Params{"chats": ""}, wantErr: ErrNoChannelsDefined},
+		{name: "invalid API URL", change: func(config *Config) { config.APIURL = "ftp://bot.example" }, wantErr: ErrInvalidAPIURL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newSendingService(t, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				t.Errorf("unexpected request to %s", req.URL.Path)
+
+				return newResponse(req, http.StatusOK, sendSuccessBody), nil
+			}))
+
+			if tt.change != nil {
+				config := *service.Config
+				tt.change(&config)
+				service.Config = &config
+			}
+
+			require.ErrorIs(t, service.Send("Message", tt.params), tt.wantErr)
+		})
+	}
 }
 
 // TestSendMessageLength verifies that the length limit counts UTF-16 code

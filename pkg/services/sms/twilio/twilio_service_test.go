@@ -206,6 +206,22 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send with a config built in code
+// without recipients fails before any request, as reading a URL without them
+// does.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+	config := *service.Config
+	config.ToNumbers = nil
+	service.Config = &config
+
+	require.ErrorIs(t, service.Send("Message", nil), ErrToNumbersMissing)
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the next send has no title.
 func TestSendParamsLeaveConfigUnchanged(t *testing.T) {

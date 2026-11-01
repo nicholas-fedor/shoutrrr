@@ -210,15 +210,35 @@ func TestConfigQueryResolver(t *testing.T) {
 }
 
 // TestConfigSetURLMissingHost verifies that SetURL rejects a URL without a
-// host, since a generic webhook has no default host.
+// host, since a generic webhook has no default host. A rejected URL leaves the
+// config as it was, query props included.
 func TestConfigSetURLMissingHost(t *testing.T) {
 	t.Parallel()
 
-	for _, rawURL := range []string{"generic:///webhook", "generic://:8080/webhook", "generic:/%2F%20"} {
+	for _, rawURL := range []string{"generic:///webhook?title=Changed", "generic://:8080/webhook", "generic:/%2F%20"} {
 		config, resolver := DefaultConfig()
+		require.NoError(t, config.setURL(&resolver, parseTestURL(t, "generic://example.com/webhook?title=Kept")))
+
+		before := config.GetURL().String()
 
 		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), ErrHostMissing, rawURL)
+		assert.Equal(t, before, config.GetURL().String(), rawURL)
 	}
+}
+
+// TestConfigZeroValue verifies that a config built in code without a webhook
+// reads back without panicking. Its URL is rejected for the missing host, as a
+// send with that config is.
+func TestConfigZeroValue(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+
+	assert.Equal(t, "https:", config.WebhookURL().String())
+	assert.NotNil(t, config.MaskedURL())
+
+	configURL := config.GetURL()
+	require.ErrorIs(t, (&Config{}).SetURL(configURL), ErrHostMissing)
 }
 
 // TestConfigMaskedURL verifies that the masked URL replaces the userinfo, a

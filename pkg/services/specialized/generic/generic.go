@@ -231,6 +231,10 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if err := validateWebhook(config.webhookURL); err != nil {
+		return err
+	}
+
 	// Plain HTTP applies to an injected client too, because the URL decides it.
 	if config.DisableTLS {
 		s.warnings.Plaintext(ctx, s)

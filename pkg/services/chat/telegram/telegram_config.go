@@ -112,15 +112,15 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 
 // plaintextAPI reports whether the requests go to the Bot API server over
 // plain HTTP. The bot token is in every request path, so it then travels
-// unencrypted.
+// unencrypted. It reads an API URL that has passed the config's checks.
 //
 // Returns:
 //   - bool: true for an API URL with the http scheme in any case, and false
 //     for an https or empty API URL.
 func (c *Config) plaintextAPI() bool {
-	apiURL, err := url.Parse(c.APIURL)
-
-	return err == nil && apiURL.Scheme == "http"
+	// A checked API URL starts with its scheme, so the prefix names it without
+	// parsing the URL again.
+	return len(c.APIURL) >= len("http:") && strings.EqualFold(c.APIURL[:len("http:")], "http:")
 }
 
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
@@ -145,6 +145,8 @@ func (c *Config) sendBudget() time.Duration {
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 
+	// The token is checked before the query is applied, so a URL with an
+	// invalid token leaves the config unchanged.
 	token := serviceURL.User.Username() + ":" + password
 	if !IsTokenValid(token) {
 		return ErrInvalidToken
@@ -159,17 +161,36 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if len(c.Chats) < 1 {
-		return ErrNoChannelsDefined
-	}
+	// The token is kept only once the whole config passes, so a rejected URL
+	// leaves no token behind.
+	read := *c
+	read.Token = token
 
-	if err := validateAPIURL(c.APIURL); err != nil {
+	if err := read.validate(); err != nil {
 		return err
 	}
 
 	c.Token = token
 
 	return nil
+}
+
+// validate checks the bot token, the chats, and the API URL. Reading a service
+// URL and each send run it, so a config built in code fails before a request.
+//
+// Returns:
+//   - error: [ErrInvalidToken] for an invalid bot token, [ErrNoChannelsDefined]
+//     when no chats are set, or [ErrInvalidAPIURL]. Otherwise nil.
+func (c *Config) validate() error {
+	if !IsTokenValid(c.Token) {
+		return ErrInvalidToken
+	}
+
+	if len(c.Chats) < 1 {
+		return ErrNoChannelsDefined
+	}
+
+	return validateAPIURL(c.APIURL)
 }
 
 // validateAPIURL checks that an API URL is an http or https URL with a host

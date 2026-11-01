@@ -96,8 +96,22 @@ func TestTokenAccessors(t *testing.T) {
 	assert.Equal(t, "Bearer xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456", bot.Authorization())
 }
 
+// TestTokenZeroValue verifies that a token that was never set gives empty forms
+// instead of panicking. A config built in code without a token holds one.
+func TestTokenZeroValue(t *testing.T) {
+	t.Parallel()
+
+	var token Token
+
+	assert.Empty(t, token.TypeIdentifier())
+	assert.Equal(t, "https://hooks.slack.com/services/", token.WebhookURL())
+	assert.Equal(t, "Bearer -", token.Authorization())
+	assert.Nil(t, token.UserInfo())
+}
+
 // TestTokenProp verifies that a token reads and writes its normalized form as
-// a config property, and that a nil token reads as empty.
+// a config property and keeps its value when a new one is rejected. A nil
+// token reads as empty.
 func TestTokenProp(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +123,8 @@ func TestTokenProp(t *testing.T) {
 	assert.Equal(t, "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N", value)
 
 	require.ErrorIs(t, token.SetFromProp("invalid"), ErrInvalidToken)
+	require.ErrorIs(t, token.SetFromProp("AAAAAAAAA/BBBBBBBBB-123456789123456789123456"), ErrMismatchedTokenSeparators)
+	assert.Equal(t, "xoxb:123456789012-1234567890123-4mt0t4l1YL3g1T5L4cK70k3N", token.String(), "a rejected value must keep the token")
 
 	var empty *Token
 

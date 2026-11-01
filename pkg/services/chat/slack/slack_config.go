@@ -130,6 +130,20 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return format.ApplyQuery(resolver, query)
 }
 
+// validate checks that the config has a token. Reading a service URL rejects a
+// malformed token as it parses it. Each send runs this check, so a config built
+// in code without a token fails before a request.
+//
+// Returns:
+//   - error: [ErrInvalidToken] for a config without a token, or nil.
+func (c *Config) validate() error {
+	if c.Token.String() == "" {
+		return ErrInvalidToken
+	}
+
+	return nil
+}
+
 // CreateConfigFromURL to use within the slack service.
 //
 // Parameters:

@@ -339,6 +339,19 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send with a config built in code
+// without a webhook fails before any request, as reading a URL without a host
+// does.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, "generic://example.com/webhook")
+	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	service.Config = &Config{}
+
+	require.ErrorIs(t, service.Send("Message", nil), ErrHostMissing)
+}
+
 // TestSendLeavesParamsAndConfigUnchanged verifies that a send neither adds the
 // message to the caller's params nor keeps param overrides in the config.
 func TestSendLeavesParamsAndConfigUnchanged(t *testing.T) {

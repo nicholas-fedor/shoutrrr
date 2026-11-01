@@ -125,12 +125,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if err := validateToken(config.Token); err != nil {
+		return err
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
 
 	return sequential.Send(
 		ctx,
-		config.Targets,
+		config.sendTargets(),
 		sequential.PerTarget(defaultHTTPTimeout),
 		func(ctx context.Context, target string) error {
 			if err := s.doSend(ctx, &config, target, message); err != nil {

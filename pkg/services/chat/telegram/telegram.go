@@ -144,16 +144,16 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if err := config.validate(); err != nil {
+		return err
+	}
+
 	if textLength(message, &config) > maxlength {
 		return ErrMessageTooLong
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
-
-	if err := validateAPIURL(config.APIURL); err != nil {
-		return err
-	}
 
 	// The bot token is in every request path, so an http API URL sends it in
 	// the clear, whichever client carries the request.

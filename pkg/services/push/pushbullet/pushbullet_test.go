@@ -248,6 +248,36 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send checks the access token of a
+// config built in code before any request. A config without targets pushes to
+// all devices, as a URL without a path does.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("invalid token", func(t *testing.T) {
+		t.Parallel()
+
+		service := newServiceWithConfig(&Config{Token: "short", Title: "", Targets: []string{"device"}})
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+		require.ErrorIs(t, service.Send("Message", nil), ErrTokenIncorrectSize)
+	})
+
+	t.Run("no targets", func(t *testing.T) {
+		t.Parallel()
+
+		service := newServiceWithConfig(&Config{Token: testToken, Title: "Title", Targets: nil})
+		client, captured := newRespondingClient(t, cannedResponse{statusCode: http.StatusOK, body: noteResponse(t, "Message", "Title")})
+		service.SetHTTPClient(client)
+
+		require.NoError(t, service.Send("Message", nil))
+		require.Len(t, *captured, 1)
+		assert.JSONEq(t,
+			`{"type":"note","title":"Title","body":"Message","email":"","channel_tag":"","device_iden":""}`,
+			(*captured)[0].body)
+	})
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the stored config and the next send keep the
 // configured title.
