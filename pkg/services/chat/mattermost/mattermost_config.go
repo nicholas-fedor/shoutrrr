@@ -117,23 +117,27 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a URL without a host, an error wrapping
-//     [util.ErrInvalidQuery] for a malformed query, a query parameter error,
-//     or [ErrNotEnoughArguments] for a path without a token.
+//   - error: [ErrHostMissing] for a URL without a host, [ErrNotEnoughArguments]
+//     for a path without a token, an error wrapping [util.ErrInvalidQuery] for
+//     a malformed query, or a query parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// The host is checked first, so a URL without one leaves the config
-	// unchanged.
-	if err := validateHost(serviceURL.Host); err != nil {
+	// The path holds the token and an optional channel.
+	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+
+	// The host and token are checked on a copy first, so a URL without them
+	// leaves the config unchanged.
+	next := *c
+	next.Host = serviceURL.Host
+	next.Token = path[0]
+
+	if err := next.validate(); err != nil {
 		return err
 	}
 
-	c.Host = serviceURL.Host
+	c.Host = next.Host
 	c.UserName = serviceURL.User.Username()
-
-	// The path holds the token and an optional channel. A URL without a
-	// channel clears one an earlier URL set.
-	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
-	c.Token = path[0]
+	c.Token = next.Token
+	// A URL without a channel clears one an earlier URL set.
 	c.Channel = ""
 
 	if len(path) > 1 {
@@ -145,11 +149,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if err := format.ApplyQuery(resolver, query); err != nil {
-		return err
-	}
-
-	return c.validate()
+	return format.ApplyQuery(resolver, query)
 }
 
 // validate checks that the config names a webhook, which needs a server host
@@ -157,32 +157,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // in code fails before a request.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a config without a host,
-//     [ErrNotEnoughArguments] for a config without a token, or nil.
+//   - error: [ErrHostMissing] for a host without a hostname, such as an empty
+//     host or a port alone, [ErrNotEnoughArguments] for a config without a
+//     token, or nil.
 func (c *Config) validate() error {
-	if err := validateHost(c.Host); err != nil {
-		return err
+	// A Mattermost server has no default host.
+	if (&url.URL{Host: c.Host}).Hostname() == "" {
+		return ErrHostMissing
 	}
 
 	if c.Token == "" {
 		return ErrNotEnoughArguments
-	}
-
-	return nil
-}
-
-// validateHost checks that a host names a Mattermost server, which has no
-// default host.
-//
-// Parameters:
-//   - host: the host, with an optional port.
-//
-// Returns:
-//   - error: [ErrHostMissing] for a host without a hostname, such as an empty
-//     host or a port alone, or nil.
-func validateHost(host string) error {
-	if (&url.URL{Host: host}).Hostname() == "" {
-		return ErrHostMissing
 	}
 
 	return nil
