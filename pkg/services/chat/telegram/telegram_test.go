@@ -511,8 +511,8 @@ func TestSendBudget(t *testing.T) {
 		budget = service.ServiceTimeout(&params)
 
 		require.NoError(t, service.Send("Message", &params))
-		require.Len(t, deadlines, 3)
-		assert.Equal(t, start.Add(budget), deadlines[2], "the chats from params set the budget")
+		assert.Equal(t, []time.Time{start.Add(budget / 3), start.Add(budget / 2), start.Add(budget)}, deadlines,
+			"the chats from params set the budget, and each chat shares the time left")
 	})
 }
 
