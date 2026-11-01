@@ -768,6 +768,28 @@ func TestSendShares(t *testing.T) {
 	})
 }
 
+// TestSendSharesFromParams verifies that recipients set by params set the
+// send's budget. Two batches from params share the budget for two batches,
+// though the service URL names one recipient.
+func TestSendSharesFromParams(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		client, captured := newRecordingClient(t, accepted, accepted)
+
+		service := newTestService(t, testServiceURL)
+		service.SetHTTPClient(client)
+
+		params := types.Params{"recipients": testRecipient + ",group.Z3JvdXAx"}
+		start := time.Now()
+		budget := service.ServiceTimeout(&params)
+
+		require.NoError(t, service.Send("Message", &params))
+		assert.Equal(t, []time.Time{start.Add(budget / 2), start.Add(budget)},
+			requestDeadlines(*captured))
+	})
+}
+
 // TestServiceTimeout verifies that the send budget is one batch budget per
 // recipient batch, counting recipients set by params. The stored recipients
 // count when a param is invalid, and one batch budget applies before

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -219,6 +220,15 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 	}
 
 	return format.ApplyQuery(resolver, query)
+}
+
+// sendBudget returns the send budget that [Service.ServiceTimeout] describes,
+// for a config with the send's params applied.
+//
+// Returns:
+//   - time.Duration: the budget for the send.
+func (c *Config) sendBudget() time.Duration {
+	return batchBudget * time.Duration(max(1, len(batchRecipients(c.Recipients))))
 }
 
 // setURL updates the Config from a URL using the provided resolver. A URL

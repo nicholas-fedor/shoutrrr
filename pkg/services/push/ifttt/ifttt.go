@@ -123,9 +123,6 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return types.ErrServiceNotInitialized
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	// Params apply to this send only, so they update a copy of the service config.
 	configCopy := *s.Config
 	config := &configCopy
@@ -133,6 +130,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if err := s.pkr.UpdateConfigFromParams(config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
+	defer cancel()
 
 	// Params can change the value fields, so they get the checks the URL gets.
 	if err := config.validateValueFields(); err != nil {
@@ -159,7 +159,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout reports the send budget of IFTTT. A send makes one request per
-// event, one after another, so the budget allows [defaultTimeout] for each.
+// event in turn, so the budget allows 10 seconds for each.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields, which may set the
@@ -167,8 +167,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 //     the budget.
 //
 // Returns:
-//   - time.Duration: [defaultTimeout] multiplied by the number of events, and at
-//     least [defaultTimeout].
+//   - time.Duration: 10 seconds for each event, and at least 10 seconds.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultTimeout
@@ -179,7 +178,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		config = *s.Config
 	}
 
-	return defaultTimeout * time.Duration(max(1, len(config.Events)))
+	return config.sendBudget()
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,

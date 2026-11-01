@@ -161,15 +161,15 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrClientNotInitialized
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	// Make a per-call copy of the config to avoid mutating the shared s.Config
 	cfg := *s.Config
 
 	if err := s.pkr.UpdateConfigFromParams(&cfg, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, cfg.sendBudget())
+	defer cancel()
 
 	// The send's config decides the protocol, so an injected client is warned
 	// about too.
@@ -212,19 +212,19 @@ func (s *Service) SendWithContext(ctx context.Context, message string, params *t
 	return s.SendContext(ctx, message, params)
 }
 
-// ServiceTimeout reports the send budget of Matrix. A send makes sequential
-// requests, and the budget allows [defaultHTTPTimeout] for each: two for the
-// password login when a user is configured, then a join and a message for each
-// configured room. Without configured rooms, the send looks up the joined rooms
-// and is budgeted for one message, so sends to many joined rooms need configured
-// rooms or a longer router timeout. Waits for rate limits count toward the
+// ServiceTimeout reports the send budget of Matrix. A send makes its requests
+// in turn, and the budget allows 10 seconds for each. A password login takes
+// two requests when a user is configured. Each configured room then takes a
+// join and a message. Without configured rooms, the send looks up the joined
+// rooms and is budgeted for one message. Sends to many joined rooms therefore
+// need configured rooms or a longer router timeout. Waits for rate limits count toward the
 // budget, so a request is retried only while the budget has room for the wait.
 //
 // Parameters:
 //   - params: per-send parameters, which may set the rooms.
 //
 // Returns:
-//   - time.Duration: [defaultHTTPTimeout] multiplied by the number of requests.
+//   - time.Duration: 10 seconds for each request.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultHTTPTimeout * minRequestsPerSend
@@ -238,16 +238,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		}
 	}
 
-	requests := minRequestsPerSend
-	if len(config.Rooms) > 0 {
-		requests = requestsPerRoom * len(config.Rooms)
-	}
-
-	if config.User != "" {
-		requests += loginRequests
-	}
-
-	return defaultHTTPTimeout * time.Duration(requests)
+	return config.sendBudget()
 }
 
 // SetHTTPClient sets a custom HTTP client for the service, which the API client

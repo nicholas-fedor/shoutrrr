@@ -148,7 +148,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrMessageTooLong
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
 
 	if err := validateAPIURL(config.APIURL); err != nil {
@@ -178,15 +178,14 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 }
 
 // ServiceTimeout reports the send budget the router gives Telegram. A send makes
-// one request per chat, one after another, each bounded by the client timeout.
+// one request per chat in turn, and each request gets 10 seconds.
 //
 // Parameters:
 //   - params: optional overrides for configuration fields, which may set the chats.
 //     An invalid param fails the send itself, so the stored chats set the budget.
 //
 // Returns:
-//   - time.Duration: the client timeout multiplied by the number of chats, and at
-//     least one client timeout.
+//   - time.Duration: 10 seconds for each chat, and at least 10 seconds.
 func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 	if s.Config == nil {
 		return defaultHTTPTimeout
@@ -197,7 +196,7 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 		config = *s.Config
 	}
 
-	return defaultHTTPTimeout * time.Duration(max(1, len(config.Chats)))
+	return config.sendBudget()
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,

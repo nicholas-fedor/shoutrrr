@@ -469,8 +469,9 @@ func TestSendStopsWhenContextEnds(t *testing.T) {
 // TestSendBudget verifies that each request of a send may use an equal share
 // of the time left, so a chat that does not answer cannot use up the
 // others' time. Without a caller deadline, the time is the budget that
-// ServiceTimeout reports for all chats. A caller's deadline is shared the same
-// way, and the last request keeps it as it is.
+// ServiceTimeout reports for all chats. Chats that params set count too. A
+// caller's deadline is shared the same way, and the last request keeps it as
+// it is.
 func TestSendBudget(t *testing.T) {
 	t.Parallel()
 
@@ -503,6 +504,15 @@ func TestSendBudget(t *testing.T) {
 		require.NoError(t, service.SendContext(ctx, "Message", nil))
 		assert.Equal(t, []time.Time{start.Add(30 * time.Minute), start.Add(time.Hour)}, deadlines,
 			"the caller's deadline is shared, and the last request keeps it")
+
+		deadlines = nil
+
+		params := types.Params{"chats": "channel-1,channel-2,channel-3"}
+		budget = service.ServiceTimeout(&params)
+
+		require.NoError(t, service.Send("Message", &params))
+		assert.Equal(t, []time.Time{start.Add(budget / 3), start.Add(budget / 2), start.Add(budget)}, deadlines,
+			"the chats from params set the budget, and each chat shares the time left")
 	})
 }
 
