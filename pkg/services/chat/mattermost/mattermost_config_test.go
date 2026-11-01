@@ -141,6 +141,50 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}
 }
 
+// TestConfigSetURLRejectedLeavesConfig verifies that a URL without a host or
+// a token leaves the config as it was, since both are checked before anything
+// is read.
+func TestConfigSetURLRejectedLeavesConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists rejected URLs with the error each produces.
+	tests := []struct {
+		wantErr error
+		name    string
+		rawURL  string
+	}{
+		{name: "no host", rawURL: "mattermost://changed@:8065/changed/channel?title=Changed", wantErr: ErrHostMissing},
+		{name: "no token", rawURL: "mattermost://changed@other.example.com?title=Changed", wantErr: ErrNotEnoughArguments},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseTestURL(t, "mattermost://kept@mattermost.example.com/kept/channel?title=Kept")))
+
+			before := *config
+
+			require.ErrorIs(t, config.SetURL(parseTestURL(t, tt.rawURL)), tt.wantErr)
+			assert.Equal(t, before, *config)
+		})
+	}
+}
+
+// TestConfigSetURLClearsChannel verifies that a URL without a channel clears
+// the channel an earlier URL set, so the webhook's own channel is used again.
+func TestConfigSetURLClearsChannel(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "mattermost://mattermost.example.com/token/channel")))
+	require.Equal(t, "channel", config.Channel)
+
+	require.NoError(t, config.SetURL(parseTestURL(t, "mattermost://mattermost.example.com/token")))
+	assert.Empty(t, config.Channel)
+}
+
 // TestCreateConfigFromURL verifies that CreateConfigFromURL returns the parsed
 // config, or no config and the parse error.
 func TestCreateConfigFromURL(t *testing.T) {

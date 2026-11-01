@@ -9,8 +9,8 @@ import (
 )
 
 // TestConfigSetURL verifies that SetURL reads the host, path, key, and token
-// from a service URL, applies the default host when the URL omits it, and
-// requires both the key and the token.
+// from a service URL and applies the default host when the URL omits it. The
+// key, the token, and a webhook path are required.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +60,16 @@ func TestConfigSetURL(t *testing.T) {
 			name:    "empty token",
 			rawURL:  "googlechat://chat.googleapis.com/v1/spaces/FOO/messages?key=bar&token=",
 			wantErr: ErrMissingToken,
+		},
+		{
+			name:    "no path",
+			rawURL:  "googlechat://chat.googleapis.com?key=bar&token=baz",
+			wantErr: ErrMissingPath,
+		},
+		{
+			name:    "root path",
+			rawURL:  "googlechat://chat.googleapis.com/?key=bar&token=baz",
+			wantErr: ErrMissingPath,
 		},
 	}
 

@@ -37,10 +37,8 @@ type Config struct {
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "rocketchat"
 
-// Constants for URL path parsing and validation.
+// Constants for URL path parsing.
 const (
-	// MinPathParts is the minimum number of path parts required (including empty first slash).
-	MinPathParts = 3
 	// TokenBIndex is the index for TokenB in the URL path.
 	TokenBIndex = 2
 	// ChannelIndex is the index for Channel in the URL path.
@@ -112,15 +110,6 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	}
 
 	path := strings.Split(serviceURL.Path, "/")
-	// A Rocket.Chat server has no default host.
-	if host == "" {
-		return ErrHostMissing
-	}
-
-	// The webhook URL needs both the integration ID and the token.
-	if len(path) < MinPathParts || path[1] == "" || path[TokenBIndex] == "" {
-		return ErrNotEnoughArguments
-	}
 
 	// A URL without a channel segment, or with an empty one, names no channel.
 	var channel string
@@ -138,11 +127,9 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 		}
 	}
 
-	// The channel path segment GetURL writes holds neither a slash, which only a
-	// fragment can carry, nor further segments, though a trailing slash is fine.
-	// The config is left unchanged when the URL is rejected.
-	if strings.Contains(channel, "/") ||
-		len(path) > ChannelIndex+1 && strings.Join(path[ChannelIndex+1:], "") != "" {
+	// The channel path segment GetURL writes holds no further segments, though
+	// a trailing slash is fine.
+	if len(path) > ChannelIndex+1 && strings.Join(path[ChannelIndex+1:], "") != "" {
 		return ErrInvalidChannel
 	}
 
@@ -151,6 +138,9 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	next.UserName = userName
 	next.Host = host
 	next.Channel = channel
+	// A token the path leaves out is empty, not the one an earlier URL set.
+	next.TokenA = ""
+	next.TokenB = ""
 
 	if len(path) > 1 {
 		next.TokenA = path[1]
@@ -158,6 +148,12 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 
 	if len(path) > TokenBIndex {
 		next.TokenB = path[TokenBIndex]
+	}
+
+	// The URL is read into a copy, so a rejected URL leaves the config
+	// unchanged.
+	if err := next.validate(); err != nil {
+		return err
 	}
 
 	// The query keys start from their defaults, so a key the URL leaves out
@@ -177,6 +173,33 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	}
 
 	*c = next
+
+	return nil
+}
+
+// validate checks that the config names a webhook and a channel it can post
+// to. Reading a service URL and each send run it, so a config built in code
+// fails before a request.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a config without a host,
+//     [ErrNotEnoughArguments] without the integration ID or the token,
+//     [ErrInvalidChannel] for a channel with a slash, or nil.
+func (c *Config) validate() error {
+	// A Rocket.Chat server has no default host.
+	if c.Host == "" {
+		return ErrHostMissing
+	}
+
+	// The webhook URL needs both the integration ID and the token.
+	if c.TokenA == "" || c.TokenB == "" {
+		return ErrNotEnoughArguments
+	}
+
+	// A channel name cannot hold a slash, which only a URL fragment can carry.
+	if strings.Contains(c.Channel, "/") {
+		return ErrInvalidChannel
+	}
 
 	return nil
 }

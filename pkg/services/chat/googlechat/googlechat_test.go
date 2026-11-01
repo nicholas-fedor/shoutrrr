@@ -182,6 +182,47 @@ func TestServiceSendRequest(t *testing.T) {
 	assert.JSONEq(t, `{"text":"Test Message"}`, captured.body)
 }
 
+// TestServiceSendChecksConfig verifies that a send checks a config built in
+// code as reading a URL does. A config without a key, token, or webhook path
+// fails before any request. A config without a host posts to [DefaultHost].
+func TestServiceSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingKey},
+		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrMissingToken},
+		{name: "no path", change: func(config *Config) { config.Path = "" }, wantErr: ErrMissingPath},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The mock has no expectations, so a request fails the test.
+			service := newTestService(t, mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
+
+	t.Run("no host", func(t *testing.T) {
+		t.Parallel()
+
+		client, captured := newCapturingClient(t)
+		service := newTestService(t, client)
+		service.Config.Host = ""
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, testAPIURL, captured.url)
+	})
+}
+
 // TestServiceSendParams verifies that the reserved title, message, and level
 // params send as usual. Any other param fails before a request, since Google
 // Chat has no options a send can set.

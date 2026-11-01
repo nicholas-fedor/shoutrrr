@@ -520,18 +520,13 @@ var allowlist = map[string]map[string]knownFailure{
 		// These services check a config when they read its URL but not when they
 		// send, so a config built in code reaches the network unchecked.
 		"bark":          {uncheckedRequest, failUncheckedConfig},
-		"googlechat":    {uncheckedRequest, failUncheckedConfig},
-		"hangouts":      {uncheckedRequest, failUncheckedConfig},
 		"homeassistant": {uncheckedRequest, failUncheckedConfig},
-		"matrix":        {uncheckedRequest, failUncheckedConfig},
-		"mattermost":    {uncheckedRequest, failUncheckedConfig},
 		"mqtt":          {uncheckedDial, failUncheckedConfig},
 		"mqtts":         {uncheckedDial, failUncheckedConfig},
 		"notifiarr":     {uncheckedRequest, failUncheckedConfig},
 		"ntfy":          {uncheckedRequest, failUncheckedConfig},
 		"opsgenie":      {uncheckedRequest, failUncheckedConfig},
 		"pushover":      {uncheckedRequest, failUncheckedConfig},
-		"rocketchat":    {uncheckedRequest, failUncheckedConfig},
 		"signalgrid":    {uncheckedRequest, failUncheckedConfig},
 		"smtp":          {uncheckedDial, failUncheckedConfig},
 	},

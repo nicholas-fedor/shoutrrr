@@ -97,8 +97,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //     as disabletls and skiptlsverify.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
-//     payload, or request error, or an error for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, the payload or request error, or
+//     an error for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -115,9 +116,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     as disabletls and skiptlsverify. Any other key is an error.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
-//     payload, or request error, or an error for a non-success status. A request error
-//     matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, the payload or request error, or
+//     an error for a non-success status. A request error matches ctx's error
+//     when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -134,6 +136,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	resolver := format.NewPropKeyResolver(config)
 	if err := resolver.UpdateConfigFromParams(config, params, userNameParam, channelParam); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return err
 	}
 
 	serviceURL := buildURL(config)
@@ -233,14 +239,10 @@ func buildURL(config *Config) string {
 		scheme = "http"
 	}
 
-	// The URL type escapes an IPv6 zone in the host, and the tokens are kept as
-	// written.
+	// The URL type escapes an IPv6 zone in the host. Each token is escaped as
+	// one path segment, so a slash, question mark, or hash in it cannot change
+	// the webhook path or start a query or fragment.
 	base := (&url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, config.Port)}).String()
 
-	return fmt.Sprintf(
-		"%s/hooks/%s/%s",
-		base,
-		config.TokenA,
-		config.TokenB,
-	)
+	return base + "/hooks/" + url.PathEscape(config.TokenA) + "/" + url.PathEscape(config.TokenB)
 }

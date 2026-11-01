@@ -110,28 +110,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-// parsePath extracts Token and Channel from the URL path and validates arguments.
-//
-// Parameters:
-//   - serviceURL: the service URL.
-//
-// Returns:
-//   - error: [ErrNotEnoughArguments] for a path without a token.
-func (c *Config) parsePath(serviceURL *url.URL) error {
-	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
-	if path[0] == "" {
-		return ErrNotEnoughArguments
-	}
-
-	c.Token = path[0]
-
-	if len(path) > 1 && path[1] != "" {
-		c.Channel = path[1]
-	}
-
-	return nil
-}
-
 // setURL updates the Config from a URL using the provided resolver.
 //
 // Parameters:
@@ -139,20 +117,31 @@ func (c *Config) parsePath(serviceURL *url.URL) error {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrHostMissing] for a URL without a host, a path error such as
-//     [ErrNotEnoughArguments], an error wrapping [util.ErrInvalidQuery] for a
-//     malformed query, or a query parameter error.
+//   - error: [ErrHostMissing] for a URL without a host, [ErrNotEnoughArguments]
+//     for a path without a token, an error wrapping [util.ErrInvalidQuery] for
+//     a malformed query, or a query parameter error.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	// A Mattermost server has no default host.
-	if serviceURL.Hostname() == "" {
-		return ErrHostMissing
+	// The path holds the token and an optional channel.
+	path := strings.Split(strings.Trim(serviceURL.Path, "/"), "/")
+
+	// The host and token are checked on a copy first, so a URL without them
+	// leaves the config unchanged.
+	next := *c
+	next.Host = serviceURL.Host
+	next.Token = path[0]
+
+	if err := next.validate(); err != nil {
+		return err
 	}
 
-	c.Host = serviceURL.Host
+	c.Host = next.Host
 	c.UserName = serviceURL.User.Username()
+	c.Token = next.Token
+	// A URL without a channel clears one an earlier URL set.
+	c.Channel = ""
 
-	if err := c.parsePath(serviceURL); err != nil {
-		return err
+	if len(path) > 1 {
+		c.Channel = path[1]
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -161,4 +150,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	return format.ApplyQuery(resolver, query)
+}
+
+// validate checks that the config names a webhook, which needs a server host
+// and a token. Reading a service URL and each send run it, so a config built
+// in code fails before a request.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a host without a hostname, such as an empty
+//     host or a port alone, [ErrNotEnoughArguments] for a config without a
+//     token, or nil.
+func (c *Config) validate() error {
+	// A Mattermost server has no default host.
+	if (&url.URL{Host: c.Host}).Hostname() == "" {
+		return ErrHostMissing
+	}
+
+	if c.Token == "" {
+		return ErrNotEnoughArguments
+	}
+
+	return nil
 }
