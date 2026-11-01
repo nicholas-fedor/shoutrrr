@@ -12,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
 	"github.com/nicholas-fedor/shoutrrr/internal/jsonopts"
 	"github.com/nicholas-fedor/shoutrrr/internal/redact"
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
@@ -25,6 +26,8 @@ type Service struct {
 	Config *Config
 	// client holds the injected HTTP client and the default client.
 	client httpclient.Holder
+	// pkr applies send params to a copy of the config.
+	pkr format.PropKeyResolver
 }
 
 // ErrUnexpectedStatus indicates an unexpected HTTP status code from the Google Chat API.
@@ -59,6 +62,7 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 
 	s.Config = &Config{}
+	s.pkr = format.NewPropKeyResolver(s.Config)
 
 	return s.Config.SetURL(serviceURL)
 }
@@ -69,11 +73,12 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //
 // Parameters:
 //   - message: the message to send.
-//   - params: unused, because Google Chat takes no send parameters.
+//   - params: per-send parameters. Google Chat has no options a send can set.
+//     Any param other than the reserved title, message, and level fails.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the request
-//     error, or [ErrUnexpectedStatus] for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the params
+//     or send failure. A non-success status gives [ErrUnexpectedStatus].
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -85,28 +90,32 @@ func (s *Service) Send(message string, params *types.Params) error {
 // Parameters:
 //   - ctx: cancellation and deadline for the request.
 //   - message: the message to send.
-//   - params: unused, because Google Chat takes no send parameters.
+//   - params: per-send parameters. Google Chat has no options a send can set.
+//     Any param other than the reserved title, message, and level fails.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the request
-//     error, which matches ctx's error when ctx ends the request, or
-//     [ErrUnexpectedStatus] for a non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the params
+//     or send failure. A non-success status gives [ErrUnexpectedStatus], and a
+//     request that ctx ends reports ctx's error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
 	}
 
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating config from params: %w", err)
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
-
-	config := s.Config
 
 	jsonBody, err := json.Marshal(JSON{Text: message}, jsonopts.Default)
 	if err != nil {
 		return fmt.Errorf("marshaling message to JSON: %w", err)
 	}
 
-	postURL := getAPIURL(config)
+	postURL := getAPIURL(&config)
 	jsonBuffer := bytes.NewBuffer(jsonBody)
 
 	req, err := http.NewRequestWithContext(

@@ -221,6 +221,8 @@ Every service follows the same rules, so services behave alike for users and for
   A tool that needs a service's fields without a URL, such as the `docs` command, reads the zero config of a new service with `format.GetServiceConfig`.
 - Apply send params with `UpdateConfigFromParams`, naming the params that fill the payload instead, such as a username.
   When every param that is not a config key fills the payload, as in a webhook body, use `UpdateConfigFromKnownParams`.
+  Any other param then fails the send, so a misspelled param is reported instead of ignored.
+- Apply a send's params once, at the start of the send, and use that config for every request and branch of the send.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
@@ -286,6 +288,9 @@ Every service follows the same rules, so services behave alike for users and for
   The linter flags any call to the deprecated `Log` and `Logf` methods.
   It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
 - `TestIntegrationPlaceholderURL` fails a service that treats `<scheme>://dummy@dummy.com` differently from a URL of the same shape.
+- The `unknown_params` contract check sends a param that no service uses, and fails a service that accepts it.
+  Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.
+  Generic and the logger are listed as exceptions, because their params fill a webhook body and a message template.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

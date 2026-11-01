@@ -193,6 +193,9 @@ const (
 	// checkConflictingKeys verifies that a URL giving one config key in two
 	// spellings is rejected.
 	checkConflictingKeys = "conflicting_keys"
+	// checkUnknownParams verifies that a send param that is neither a config
+	// key nor reserved fails the send.
+	checkUnknownParams = "unknown_params"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -211,36 +214,37 @@ const (
 
 // Failure kinds, one per distinct way a check can fail.
 const (
-	failNone                failureKind = iota // the check passed
-	failInit                                   // the fixture failed to initialize
-	failInitIO                                 // Initialize performed network I/O
-	failPanic                                  // Send panicked
-	failDefaultTransport                       // Send used http.DefaultTransport
-	failNotInjected                            // Send skipped the injected client or dialer
-	failUnexpectedIO                           // a service without network access performed I/O
-	failRejectedParams                         // reserved params were rejected as unknown keys
-	failInjectedAfterNil                       // the injected client was still used after SetHTTPClient(nil)
-	failNoFallbackRequest                      // no request went through the default client after SetHTTPClient(nil)
-	failSecretLeak                             // a secret appeared in errors or logs
-	failParamsPersisted                        // Send with params changed the service configuration
-	failNoDefaultRequest                       // no request went through the service's default client
-	failContextDropped                         // a request or dial did not carry the caller's context
-	failCancelIgnored                          // a request or dial did not end when the caller canceled
-	failNonStandardKey                         // a TLS option uses a key name other than the standard one
-	failMissingDescription                     // a config key has no description
-	failInvalidURLPart                         // a url tag names no part of a URL
-	failDeprecatedField                        // a deprecated field has an invalid tag or is lost in the config URL
-	failBudget                                 // a request or dial lacked the service's send budget as its deadline
-	failUnverifiedAccepted                     // a request reached a server whose certificate was not verified
-	failSkipIgnored                            // skiptlsverify did not let a request reach the server
-	failWarningCount                           // the insecure warning was not logged exactly once
-	failWarnedInjected                         // the insecure warning was logged for an injected client
-	failClientFieldOrder                       // a send used the wrong one of the client field and the injected client
-	failDeadlineChanged                        // a request or dial did not carry the caller's deadline
-	failNilClientUnreported                    // a send through a nil injected client did not report types.ErrNilHTTPClient
-	failUnleveledLog                           // a service logged text without a level, or "Warning:" in a message
-	failSendFailed                             // a send failed though its transport works
-	failConflictAccepted                       // a URL with one config key in two spellings was accepted
+	failNone                 failureKind = iota // the check passed
+	failInit                                    // the fixture failed to initialize
+	failInitIO                                  // Initialize performed network I/O
+	failPanic                                   // Send panicked
+	failDefaultTransport                        // Send used http.DefaultTransport
+	failNotInjected                             // Send skipped the injected client or dialer
+	failUnexpectedIO                            // a service without network access performed I/O
+	failRejectedParams                          // reserved params were rejected as unknown keys
+	failInjectedAfterNil                        // the injected client was still used after SetHTTPClient(nil)
+	failNoFallbackRequest                       // no request went through the default client after SetHTTPClient(nil)
+	failSecretLeak                              // a secret appeared in errors or logs
+	failParamsPersisted                         // Send with params changed the service configuration
+	failNoDefaultRequest                        // no request went through the service's default client
+	failContextDropped                          // a request or dial did not carry the caller's context
+	failCancelIgnored                           // a request or dial did not end when the caller canceled
+	failNonStandardKey                          // a TLS option uses a key name other than the standard one
+	failMissingDescription                      // a config key has no description
+	failInvalidURLPart                          // a url tag names no part of a URL
+	failDeprecatedField                         // a deprecated field has an invalid tag or is lost in the config URL
+	failBudget                                  // a request or dial lacked the service's send budget as its deadline
+	failUnverifiedAccepted                      // a request reached a server whose certificate was not verified
+	failSkipIgnored                             // skiptlsverify did not let a request reach the server
+	failWarningCount                            // the insecure warning was not logged exactly once
+	failWarnedInjected                          // the insecure warning was logged for an injected client
+	failClientFieldOrder                        // a send used the wrong one of the client field and the injected client
+	failDeadlineChanged                         // a request or dial did not carry the caller's deadline
+	failNilClientUnreported                     // a send through a nil injected client did not report types.ErrNilHTTPClient
+	failUnleveledLog                            // a service logged text without a level, or "Warning:" in a message
+	failSendFailed                              // a send failed though its transport works
+	failConflictAccepted                        // a URL with one config key in two spellings was accepted
+	failUnknownParamAccepted                    // a send with an unknown param did not fail as an unknown config key
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -492,6 +496,12 @@ var allowlist = map[string]map[string]knownFailure{
 		// deadline and a slow lookup leaves the message request the rest.
 		"zulip": {"Zulip caps its optional limits lookup at 10s by design", failDeadlineChanged},
 	},
+	checkUnknownParams: {
+		// Generic sends every param that is not a config key as a field of the
+		// webhook body, and the logger uses its params as template data.
+		"generic": {"Generic sends params that are not config keys in the webhook body by design", failUnknownParamAccepted},
+		"logger":  {"The logger uses its params as data for its message template by design", failUnknownParamAccepted},
+	},
 }
 
 var (
@@ -580,6 +590,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkPlaintextWarning, runPlaintextWarning},
 		{checkLeveledLogs, runLeveledLogs},
 		{checkConflictingKeys, runConflictingKeys},
+		{checkUnknownParams, runUnknownParams},
 	}
 
 	for _, check := range checks {
@@ -1580,6 +1591,39 @@ func runReservedParams(t *testing.T, fx *fixture) failure {
 		if errors.Is(env.sendErr, format.ErrInvalidConfigKey) ||
 			(env.sendErr != nil && strings.Contains(env.sendErr.Error(), format.ErrInvalidConfigKey.Error())) {
 			result = fail(failRejectedParams, "rejected reserved params: %v", env.sendErr)
+		}
+	})
+
+	return result
+}
+
+// runUnknownParams verifies that a send with a param that is neither a config
+// key nor reserved fails as an unknown config key, so a misspelled param is
+// reported instead of ignored.
+func runUnknownParams(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		params := types.Params{"contract_unknown": "value"}
+
+		if result = env.send(service, &params); result.kind != failNone {
+			return
+		}
+
+		if !errors.Is(env.sendErr, format.ErrInvalidConfigKey) &&
+			(env.sendErr == nil || !strings.Contains(env.sendErr.Error(), format.ErrInvalidConfigKey.Error())) {
+			result = fail(failUnknownParamAccepted, "an unknown param did not fail the send: %v", env.sendErr)
 		}
 	})
 
