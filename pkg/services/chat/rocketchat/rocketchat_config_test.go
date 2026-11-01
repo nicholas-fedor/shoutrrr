@@ -126,7 +126,8 @@ func TestConfigSetURL(t *testing.T) {
 
 // TestConfigSetURLNotEnoughArguments verifies that SetURL rejects URLs
 // without both tokens, including an empty integration ID or token, since the
-// webhook URL needs both.
+// webhook URL needs both. A config that already holds tokens rejects them too
+// and keeps its values.
 func TestConfigSetURLNotEnoughArguments(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +151,14 @@ func TestConfigSetURLNotEnoughArguments(t *testing.T) {
 			require.NoError(t, err)
 
 			require.ErrorIs(t, (&Config{}).SetURL(serviceURL), ErrNotEnoughArguments)
+
+			config := &Config{}
+			require.NoError(t, config.SetURL(parseURL(t, "rocketchat://kept.example.com/"+testTokenA+"/"+testTokenB)))
+
+			before := *config
+
+			require.ErrorIs(t, config.SetURL(serviceURL), ErrNotEnoughArguments)
+			assert.Equal(t, before, *config)
 		})
 	}
 }

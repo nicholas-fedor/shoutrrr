@@ -3,6 +3,7 @@ package googlechat
 import (
 	"errors"
 	"net/url"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -16,7 +17,7 @@ type Config struct {
 	// enum fields.
 	standard.EnumlessConfig
 
-	// Host is the webhook host.
+	// Host is the webhook host. An empty host uses [DefaultHost].
 	Host string `default:"chat.googleapis.com"`
 	// Path is the webhook path, such as /v1/spaces/SPACE/messages.
 	Path string
@@ -40,6 +41,9 @@ var (
 	ErrMissingKey = errors.New("missing field 'key'")
 	// ErrMissingToken indicates a service URL without the webhook token.
 	ErrMissingToken = errors.New("missing field 'token'")
+	// ErrMissingPath indicates a service URL without the webhook path, such as
+	// /v1/spaces/SPACE_ID/messages.
+	ErrMissingPath = errors.New("missing webhook path")
 )
 
 // GetURL returns the URL representation of the configuration.
@@ -58,8 +62,8 @@ func (c *Config) GetURL() *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: the error from reading the URL, such as [ErrMissingKey] or
-//     [ErrMissingToken].
+//   - error: the error from reading the URL, such as [ErrMissingKey],
+//     [ErrMissingToken], or [ErrMissingPath].
 func (c *Config) SetURL(serviceURL *url.URL) error {
 	resolver := format.NewPropKeyResolver(c)
 
@@ -87,9 +91,7 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 }
 
 // setURL updates the configuration from a URL using the provided resolver.
-//
-// Google Chat webhook URLs always carry a key and a token, so both are
-// required. A URL without a host uses [DefaultHost].
+// A URL without a host uses [DefaultHost].
 //
 // Parameters:
 //   - types.ConfigQueryResolver: unused.
@@ -97,10 +99,10 @@ func (c *Config) getURL(_ types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
-//     or [ErrMissingKey] or [ErrMissingToken] when the URL lacks the key or the
-//     token, or has it empty.
+//     or the error from the config's checks, such as [ErrMissingKey].
 func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
+	c.Host = c.webhookHost()
 	c.Path = serviceURL.Path
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -111,10 +113,17 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	c.Key = query.Get("key")
 	c.Token = query.Get("token")
 
-	if c.Host == "" {
-		c.Host = DefaultHost
-	}
+	return c.validate()
+}
 
+// validate checks that the config names a webhook. A Google Chat webhook URL
+// always carries a space path, a key, and a token. Reading a service URL and
+// each send run this check, so a config built in code fails before a request.
+//
+// Returns:
+//   - error: [ErrMissingKey] or [ErrMissingToken] for an empty key or token,
+//     or [ErrMissingPath] for a path without a segment. Otherwise nil.
+func (c *Config) validate() error {
 	if c.Key == "" {
 		return ErrMissingKey
 	}
@@ -123,5 +132,22 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 		return ErrMissingToken
 	}
 
+	if strings.Trim(c.Path, "/") == "" {
+		return ErrMissingPath
+	}
+
 	return nil
+}
+
+// webhookHost returns the host a webhook request goes to. A config without a
+// host uses [DefaultHost], as a URL without one does.
+//
+// Returns:
+//   - string: the config's host, or [DefaultHost] when it is empty.
+func (c *Config) webhookHost() string {
+	if c.Host == "" {
+		return DefaultHost
+	}
+
+	return c.Host
 }

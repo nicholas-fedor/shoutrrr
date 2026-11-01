@@ -56,8 +56,8 @@ func (s *Service) GetID() string {
 //   - logger: the logger for service output.
 //
 // Returns:
-//   - error: the error from reading the URL, such as [ErrMissingKey] or
-//     [ErrMissingToken].
+//   - error: the error from reading the URL, such as [ErrMissingKey],
+//     [ErrMissingToken], or [ErrMissingPath].
 func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error {
 	s.SetLogger(logger)
 
@@ -77,8 +77,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //     Any param other than the reserved title, message, and level fails.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, or the params
-//     or send failure. A non-success status gives [ErrUnexpectedStatus].
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the error
+//     from the params, the config's checks, or the send. A non-success status
+//     gives [ErrUnexpectedStatus].
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -94,9 +95,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     Any param other than the reserved title, message, and level fails.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, or the params
-//     or send failure. A non-success status gives [ErrUnexpectedStatus], and a
-//     request that ctx ends reports ctx's error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the error
+//     from the params, the config's checks, or the send. A non-success status
+//     gives [ErrUnexpectedStatus], and a request that ctx ends reports ctx's
+//     error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -105,6 +107,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return err
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
@@ -167,7 +173,7 @@ func getAPIURL(config *Config) *url.URL {
 
 	return &url.URL{
 		Path:     config.Path,
-		Host:     config.Host,
+		Host:     config.webhookHost(),
 		Scheme:   "https",
 		RawQuery: query.Encode(),
 	}

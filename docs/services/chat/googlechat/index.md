@@ -14,7 +14,8 @@ The shoutrrr service URL should look like this:
 
 In other words the incoming webhook URL with `https` replaced by `googlechat`.
 
-Both `key` and `token` are required, since Google Chat includes them in every webhook URL.
+The space path, `key`, and `token` are all required.
+Google Chat includes them in every webhook URL.
 The host can be left out, as in `googlechat:///v1/spaces/FOO/messages?key=bar&token=baz`, in which case `chat.googleapis.com` is used.
 
 Google Chat was previously known as Hangouts Chat. Using `hangouts` in

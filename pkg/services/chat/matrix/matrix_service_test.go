@@ -705,6 +705,38 @@ func TestSendRejectsInvalidParamBeforeLogin(t *testing.T) {
 	httpClient.AssertNotCalled(t, "Do", mock.Anything)
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without credentials or a homeserver host fails
+// before the login makes any request.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingCredentials},
+		{name: "no password", change: func(config *Config) { config.Password = "" }, wantErr: ErrMissingCredentials},
+		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service, httpClient := newHomeserverService(t, &fakeHomeserver{})
+			require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("message", nil), tt.wantErr)
+			httpClient.AssertNotCalled(t, "Do", mock.Anything)
+		})
+	}
+}
+
 // TestDefaultHTTPClient verifies that the default client has no request
 // timeout, since the send budget bounds each send, and sends through
 // http.DefaultTransport, so it honors the proxy environment variables.

@@ -107,6 +107,8 @@ func TestConfigSetURLRejectsIncompleteURLs(t *testing.T) {
 		{name: "no host", rawURL: "matrix://testuser:testpass@", wantErr: ErrMissingHost},
 		{name: "no password", rawURL: "matrix://testuser@matrix.example.com", wantErr: ErrMissingCredentials},
 		{name: "no user info", rawURL: "matrix://matrix.example.com", wantErr: ErrMissingCredentials},
+		{name: "empty password", rawURL: "matrix://testuser:@matrix.example.com", wantErr: ErrMissingCredentials},
+		{name: "empty access token", rawURL: "matrix://:@matrix.example.com", wantErr: ErrMissingCredentials},
 	}
 
 	for _, tt := range tests {

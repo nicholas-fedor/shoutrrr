@@ -405,6 +405,39 @@ func TestSendUnknownParam(t *testing.T) {
 	assert.Empty(t, captured.url, "no request should be sent")
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without a host, an integration ID, or a token
+// fails before any request. So does a config with a slash in its channel.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
+		{name: "no integration ID", change: func(config *Config) { config.TokenA = "" }, wantErr: ErrNotEnoughArguments},
+		{name: "no token", change: func(config *Config) { config.TokenB = "" }, wantErr: ErrNotEnoughArguments},
+		{name: "channel with a slash", change: func(config *Config) { config.Channel = "#team/general" }, wantErr: ErrInvalidChannel},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var captured capturedRequest
+
+			service := newTestService(t, newCapturingClient(t, http.StatusOK, "", &captured))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("test message", nil), tt.wantErr)
+			assert.Empty(t, captured.url, "no request should be sent")
+		})
+	}
+}
+
 // TestSendPlaintextWarning verifies that sends over HTTP log the shared
 // plaintext warning once. It covers a client injected through SetHTTPClient,
 // because the URL decides the protocol. The warning appears again after the
@@ -630,6 +663,11 @@ func TestBuildURL(t *testing.T) {
 			config: &Config{Host: "::1", Port: "8443", TokenA: "a", TokenB: "b"},
 			want:   "https://[::1]:8443/hooks/a/b",
 		},
+		{
+			name:   "tokens with URL delimiters",
+			config: &Config{Host: "rocketchat.example.com", TokenA: "a/b", TokenB: "c?d#e%f"},
+			want:   "https://rocketchat.example.com/hooks/a%2Fb/c%3Fd%23e%25f",
+		},
 	}
 
 	for _, tt := range tests {
@@ -641,20 +679,19 @@ func TestBuildURL(t *testing.T) {
 	}
 }
 
-// TestSendRedactsUnparsableURL verifies that tokens that make the webhook URL
-// unparsable fail the send without either token in the error.
+// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
+// unparsable fails the send without either token in the error.
 func TestSendRedactsUnparsableURL(t *testing.T) {
 	t.Parallel()
 
-	serviceURL, err := url.Parse("rocketchat://rocketchat.example.com/SECRETtokenA%25zz/SECRETtokenB")
-	require.NoError(t, err)
-
-	service := &Service{}
-	require.NoError(t, service.Initialize(serviceURL, log.New(t.Output(), "", 0)))
+	service := newTestService(t, nil)
+	service.Config.Host = "bad host"
+	service.Config.TokenA = "SECRETtokenA"
+	service.Config.TokenB = "SECRETtokenB"
 	// The mock has no expectations, so a request fails the test.
 	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
 
-	err = service.Send("message", nil)
+	err := service.Send("message", nil)
 
 	_, isURLErr := errors.AsType[*url.Error](err)
 	require.True(t, isURLErr, "error %v is not a *url.Error", err)

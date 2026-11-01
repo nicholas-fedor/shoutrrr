@@ -114,23 +114,13 @@ func (c *Config) sendBudget() time.Duration {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrMissingCredentials] for a URL without a password,
-//     [ErrMissingHost] for a URL without a host, an error wrapping
-//     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
+//     query prop error, or the error from the config's checks, such as
+//     [ErrMissingCredentials].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.User = serviceURL.User.Username()
-
-	password, ok := serviceURL.User.Password()
-	if !ok {
-		return ErrMissingCredentials
-	}
-
-	c.Password = password
+	c.Password, _ = serviceURL.User.Password()
 	c.Host = serviceURL.Host
-
-	if c.Host == "" {
-		return ErrMissingHost
-	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -146,6 +136,26 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		if room != "" && room[0] != '#' && room[0] != '!' {
 			c.Rooms[r] = "#" + room
 		}
+	}
+
+	return c.validate()
+}
+
+// validate checks that the config has credentials and names a homeserver.
+// An empty password or access token cannot authenticate. Reading a service
+// URL and each send run it, so a config built in code fails before the login
+// or any request.
+//
+// Returns:
+//   - error: [ErrMissingCredentials] for a config without a password or
+//     access token, [ErrMissingHost] for a config without a host, or nil.
+func (c *Config) validate() error {
+	if c.Password == "" {
+		return ErrMissingCredentials
+	}
+
+	if c.Host == "" {
+		return ErrMissingHost
 	}
 
 	return nil
