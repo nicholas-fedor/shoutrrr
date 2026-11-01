@@ -90,12 +90,14 @@ var _ types.ConfigProp = &Token{}
 //   - string: "Bearer " followed by the token with a dash after the type
 //     identifier, such as "Bearer xoxb-123-456-abc".
 func (t *Token) Authorization() string {
+	typeIdentifier, parts := t.split()
+
 	stringBuilder := strings.Builder{}
 	stringBuilder.WriteString("Bearer ")
 	stringBuilder.Grow(len(t.raw))
-	stringBuilder.WriteString(t.raw[:TypeIdentifierLength])
+	stringBuilder.WriteString(typeIdentifier)
 	stringBuilder.WriteRune('-')
-	stringBuilder.WriteString(t.raw[TypeIdentifierOffset:])
+	stringBuilder.WriteString(parts)
 
 	return stringBuilder.String()
 }
@@ -141,6 +143,10 @@ func (t *Token) SetFromProp(propValue string) error {
 		return ErrInvalidToken
 	}
 
+	if match[tokenMatchSep1] != match[tokenMatchSep2] {
+		return ErrMismatchedTokenSeparators
+	}
+
 	typeIdentifier := match[tokenMatchType]
 	if typeIdentifier == "" {
 		typeIdentifier = HookTokenIdentifier
@@ -148,10 +154,6 @@ func (t *Token) SetFromProp(propValue string) error {
 
 	t.raw = fmt.Sprintf("%s:%s-%s-%s",
 		typeIdentifier, match[tokenMatchPart1], match[tokenMatchPart2], match[tokenMatchPart3])
-
-	if match[tokenMatchSep1] != match[tokenMatchSep2] {
-		return ErrMismatchedTokenSeparators
-	}
 
 	return nil
 }
@@ -170,16 +172,24 @@ func (t *Token) String() string {
 //   - string: [HookTokenIdentifier], or the API token type such as
 //     [BotTokenIdentifier].
 func (t *Token) TypeIdentifier() string {
-	return t.raw[:TypeIdentifierLength]
+	typeIdentifier, _ := t.split()
+
+	return typeIdentifier
 }
 
 // UserInfo returns a url.Userinfo struct populated from the token.
 //
 // Returns:
 //   - *url.Userinfo: the type identifier as the username and the three parts
-//     as the password.
+//     as the password, or nil for a token that was never set.
 func (t *Token) UserInfo() *url.Userinfo {
-	return url.UserPassword(t.raw[:TypeIdentifierLength], t.raw[TypeIdentifierOffset:])
+	if t.raw == "" {
+		return nil
+	}
+
+	typeIdentifier, parts := t.split()
+
+	return url.UserPassword(typeIdentifier, parts)
 }
 
 // WebhookURL returns the corresponding Webhook URL for the token.
@@ -187,12 +197,14 @@ func (t *Token) UserInfo() *url.Userinfo {
 // Returns:
 //   - string: [webhookBase] followed by the three parts joined by slashes.
 func (t *Token) WebhookURL() string {
+	_, parts := t.split()
+
 	stringBuilder := strings.Builder{}
 	stringBuilder.WriteString(webhookBase)
-	stringBuilder.Grow(len(t.raw) - TypeIdentifierOffset)
+	stringBuilder.Grow(len(parts))
 
-	for i := TypeIdentifierOffset; i < len(t.raw); i++ {
-		c := t.raw[i]
+	for i := range len(parts) {
+		c := parts[i]
 		if c == '-' {
 			c = '/'
 		}
@@ -201,6 +213,20 @@ func (t *Token) WebhookURL() string {
 	}
 
 	return stringBuilder.String()
+}
+
+// split returns the type identifier of the token and its three parts joined
+// by dashes. A token that was never set gives two empty strings.
+//
+// Returns:
+//   - string: the type identifier.
+//   - string: the three parts.
+func (t *Token) split() (string, string) {
+	if len(t.raw) < TypeIdentifierOffset {
+		return "", ""
+	}
+
+	return t.raw[:TypeIdentifierLength], t.raw[TypeIdentifierOffset:]
 }
 
 // ParseToken parses and normalizes a token string.

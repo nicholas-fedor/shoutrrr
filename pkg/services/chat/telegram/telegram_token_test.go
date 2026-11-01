@@ -27,6 +27,10 @@ func TestIsTokenValid(t *testing.T) {
 		{name: "empty secret", token: "123:"},
 		{name: "secret with a space", token: "123:a b"},
 		{name: "second colon", token: "123:abc:def"},
+		{name: "non-ASCII letter in the secret", token: "123:abcé"},
+		{name: "non-ASCII digits in the bot ID", token: "١٢٣:abc"},
+		{name: "trailing newline", token: "123:abc\n"},
+		{name: "every allowed secret character", token: "0:azAZ09_-", want: true},
 	}
 
 	for _, tt := range tests {

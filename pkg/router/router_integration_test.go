@@ -196,6 +196,9 @@ const (
 	// checkUnknownParams verifies that a send param that is neither a config
 	// key nor reserved fails the send.
 	checkUnknownParams = "unknown_params"
+	// checkCheckedConfig verifies that a send whose config fails the checks of
+	// reading its URL fails without a request or dial.
+	checkCheckedConfig = "checked_config"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -245,6 +248,17 @@ const (
 	failSendFailed                              // a send failed though its transport works
 	failConflictAccepted                        // a URL with one config key in two spellings was accepted
 	failUnknownParamAccepted                    // a send with an unknown param did not fail as an unknown config key
+	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
+)
+
+// Reasons for the checked_config allowlist entries.
+const (
+	// uncheckedRequest is the reason for a service whose send makes a request
+	// with a config that reading a URL would reject.
+	uncheckedRequest = "Checks its URL only when reading it, so a send with an invalid config still makes a request"
+	// uncheckedDial is the reason for a service whose send dials with a config
+	// that reading a URL would reject.
+	uncheckedDial = "Checks its URL only when reading it, so a send with an invalid config still dials"
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -502,6 +516,25 @@ var allowlist = map[string]map[string]knownFailure{
 		"generic": {"Generic sends params that are not config keys in the webhook body by design", failUnknownParamAccepted},
 		"logger":  {"The logger uses its params as data for its message template by design", failUnknownParamAccepted},
 	},
+	checkCheckedConfig: {
+		// These services check a config when they read its URL but not when they
+		// send, so a config built in code reaches the network unchecked.
+		"bark":          {uncheckedRequest, failUncheckedConfig},
+		"googlechat":    {uncheckedRequest, failUncheckedConfig},
+		"hangouts":      {uncheckedRequest, failUncheckedConfig},
+		"homeassistant": {uncheckedRequest, failUncheckedConfig},
+		"matrix":        {uncheckedRequest, failUncheckedConfig},
+		"mattermost":    {uncheckedRequest, failUncheckedConfig},
+		"mqtt":          {uncheckedDial, failUncheckedConfig},
+		"mqtts":         {uncheckedDial, failUncheckedConfig},
+		"notifiarr":     {uncheckedRequest, failUncheckedConfig},
+		"ntfy":          {uncheckedRequest, failUncheckedConfig},
+		"opsgenie":      {uncheckedRequest, failUncheckedConfig},
+		"pushover":      {uncheckedRequest, failUncheckedConfig},
+		"rocketchat":    {uncheckedRequest, failUncheckedConfig},
+		"signalgrid":    {uncheckedRequest, failUncheckedConfig},
+		"smtp":          {uncheckedDial, failUncheckedConfig},
+	},
 }
 
 var (
@@ -591,6 +624,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkLeveledLogs, runLeveledLogs},
 		{checkConflictingKeys, runConflictingKeys},
 		{checkUnknownParams, runUnknownParams},
+		{checkCheckedConfig, runCheckedConfig},
 	}
 
 	for _, check := range checks {
@@ -1630,6 +1664,65 @@ func runUnknownParams(t *testing.T, fx *fixture) failure {
 	return result
 }
 
+// runCheckedConfig verifies that a service checks the config of each send as
+// reading a service URL checks it. The service's Config is replaced with the
+// zero value of its type, as a caller building one in code would leave it.
+// When reading the zero config's own URL fails, the send must fail too. It must
+// fail without a panic and before any request or dial. The check skips a
+// service without an exported Config field or with a zero config that reads back.
+func runCheckedConfig(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	var result failure
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		field, ok := configField(service)
+		if !ok {
+			return
+		}
+
+		zero, ok := reflect.TypeAssert[types.ServiceConfig](reflect.New(field.Type().Elem()))
+		if !ok {
+			return
+		}
+
+		var readBack error
+
+		if panicMsg := recovering(func() { readBack = zero.SetURL(zero.GetURL()) }); panicMsg != "" {
+			result = fail(failPanic, "reading back a zero config %s", panicMsg)
+
+			return
+		}
+
+		if readBack == nil {
+			return
+		}
+
+		field.Set(reflect.New(field.Type().Elem()))
+
+		if result = env.send(service, nil); result.kind != failNone {
+			return
+		}
+
+		requests, dials := len(env.client.Calls), env.dials.Load()
+		if env.sendErr == nil || requests > 0 || dials > 0 {
+			result = fail(failUncheckedConfig, "a send with a zero config returned %v after %d request(s) and %d dial(s)",
+				env.sendErr, requests, dials)
+		}
+	})
+
+	return result
+}
+
 // runParamsDoNotPersist verifies that params passed to Send apply to that send
 // only: the service's exported Config is the same before and after the send.
 // Services without an exported Config field are not checked.
@@ -1688,17 +1781,8 @@ func runParamsDoNotPersist(t *testing.T, fx *fixture) failure {
 //   - []byte: the encoded configuration, or nil when there is none to check.
 //   - error: the encoding failure.
 func configSnapshot(service types.Service) ([]byte, error) {
-	value := reflect.ValueOf(service)
-	if value.Kind() == reflect.Pointer {
-		value = value.Elem()
-	}
-
-	if value.Kind() != reflect.Struct {
-		return nil, nil
-	}
-
-	field := value.FieldByName("Config")
-	if !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil() {
+	field, ok := configField(service)
+	if !ok || field.IsNil() {
 		return nil, nil
 	}
 
@@ -1972,6 +2056,29 @@ func clientField(service types.Service) (reflect.Value, bool) {
 	}
 
 	return reflect.Value{}, false
+}
+
+// configField returns a service's exported Config field, which callers can
+// read or replace in place of reading a service URL.
+//
+// Parameters:
+//   - service: the located service.
+//
+// Returns:
+//   - reflect.Value: the settable field, which may hold nil.
+//   - bool: whether the service has a Config pointer field.
+func configField(service types.Service) (reflect.Value, bool) {
+	value := reflect.ValueOf(service)
+	if value.Kind() != reflect.Pointer || value.Elem().Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+
+	field := value.Elem().FieldByName("Config")
+	if !field.IsValid() || field.Kind() != reflect.Pointer {
+		return reflect.Value{}, false
+	}
+
+	return field, true
 }
 
 // runNoSecretLeaks verifies that secrets from the service URL never appear in
@@ -2407,17 +2514,9 @@ func runSendKeepsDeadline(t *testing.T, fx *fixture) failure {
 
 		want, _ := ctx.Deadline()
 
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					result = fail(failPanic, "panicked: %v", r)
-				}
-			}()
+		if panicMsg := recovering(func() { _ = sender.SendContext(ctx, "contract message", nil) }); panicMsg != "" {
+			result = fail(failPanic, "%s", panicMsg)
 
-			_ = sender.SendContext(ctx, "contract message", nil)
-		}()
-
-		if result.kind != failNone {
 			return
 		}
 
@@ -2896,17 +2995,28 @@ func deprecatedKeyIn(configURL *url.URL, deprecatedKeys []string) string {
 func sendRecovering(service types.Service, params *types.Params) sendOutcome {
 	var outcome sendOutcome
 
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				outcome.panicMsg = fmt.Sprintf("panicked: %v", r)
-			}
-		}()
-
-		outcome.err = service.Send("contract message", params)
-	}()
+	outcome.panicMsg = recovering(func() { outcome.err = service.Send("contract message", params) })
 
 	return outcome
+}
+
+// recovering calls fn and reports a panic instead of crashing.
+//
+// Parameters:
+//   - fn: the call to make.
+//
+// Returns:
+//   - string: a description of the panic, or empty when fn returned.
+func recovering(fn func()) (panicMsg string) { //nolint:nonamedreturns // Recover sets the panic description.
+	defer func() {
+		if r := recover(); r != nil {
+			panicMsg = fmt.Sprintf("panicked: %v", r)
+		}
+	}()
+
+	fn()
+
+	return ""
 }
 
 // newEnv creates the injected dependencies for one case. The HTTP client answers
@@ -3108,16 +3218,13 @@ func (e *env) send(service types.Service, params *types.Params) failure {
 	return failure{}
 }
 
+// trySend sends a message, recording its error and any panic in the env.
+//
+// Parameters:
+//   - service: the service to send through.
+//   - params: the send params, or nil.
 func (e *env) trySend(service types.Service, params *types.Params) {
-	e.panicMsg = ""
-
-	defer func() {
-		if r := recover(); r != nil {
-			e.panicMsg = fmt.Sprintf("panicked: %v", r)
-		}
-	}()
-
-	e.sendErr = service.Send("contract message", params)
+	e.panicMsg = recovering(func() { e.sendErr = service.Send("contract message", params) })
 }
 
 func (b *syncBuffer) String() string {

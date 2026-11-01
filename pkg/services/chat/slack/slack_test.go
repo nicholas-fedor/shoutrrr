@@ -399,6 +399,17 @@ func TestSendParams(t *testing.T) {
 	assert.Len(t, *requests, 1)
 }
 
+// TestSendChecksConfig verifies that a send with a config built in code
+// without a token fails before any request, as reading a URL without one does.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testWebhookServiceURL, mocks.NewMockHTTPClient(t), io.Discard)
+	service.Config = &Config{}
+
+	require.ErrorIs(t, service.Send("Message", nil), ErrInvalidToken)
+}
+
 // TestSendContextCanceled verifies that a canceled context stops the request
 // through either path.
 func TestSendContextCanceled(t *testing.T) {

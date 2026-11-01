@@ -119,6 +119,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if err := config.validate(); err != nil {
+		return err
+	}
+
 	return sequential.Send(
 		ctx,
 		config.ToNumbers,
