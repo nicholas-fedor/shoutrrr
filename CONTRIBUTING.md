@@ -288,7 +288,8 @@ Every service follows the same rules, so services behave alike for users and for
   The linter flags any call to the deprecated `Log` and `Logf` methods.
   It also flags key/value attributes passed to `Debug`, `Info`, or `Warn`.
 - `TestIntegrationPlaceholderURL` fails a service that treats `<scheme>://dummy@dummy.com` differently from a URL of the same shape.
-- The `unknown_params` contract check fails a service that accepts a send param that is neither a config key nor reserved.
+- The `unknown_params` contract check sends a param that no service uses, and fails a service that accepts it.
+  Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.
   Generic and the logger are listed as exceptions, because their params fill a webhook body and a message template.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
