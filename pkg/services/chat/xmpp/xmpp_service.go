@@ -123,10 +123,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	config.To = compactStrings(config.To)
-	config.Rooms = compactStrings(config.Rooms)
-
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return err
 	}
 

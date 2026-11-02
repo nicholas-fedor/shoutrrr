@@ -235,6 +235,35 @@ func TestSendParams(t *testing.T) {
 	assert.Equal(t, want, *service.Config)
 }
 
+// TestSendChecksConfig verifies that a send with a config built in code fails
+// before any request when reading a URL with the same values would fail.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no devices", change: func(config *Config) { config.Devices = nil }, wantErr: ErrDevicesMissing},
+		{name: "no API key", change: func(config *Config) { config.APIKey = "" }, wantErr: ErrAPIKeyMissing},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "join://Token:apikey@join?devices=dev1")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
+}
+
 // TestSendContextErrors verifies that a send fails with ErrSendFailed for an
 // error status, wraps a transport error without the API key, and stops when
 // the caller's context is canceled.

@@ -2,7 +2,11 @@ package zulip
 
 import (
 	"fmt"
+	"net"
+	"net/netip"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
@@ -55,6 +59,9 @@ const (
 
 // Scheme is the identifying part of this service's configuration URL.
 const Scheme = "zulip"
+
+// maxLabelLength is the longest DNS label of a host name, in characters.
+const maxLabelLength = 63
 
 // Clone creates a copy of the Config.
 //
@@ -116,28 +123,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrMissingBotMail], [ErrMissingAPIKey], [ErrMissingHost], a
-//     query wrapping [util.ErrInvalidQuery], or the error of
+//   - error: a query wrapping [util.ErrInvalidQuery], or the error of
 //     [format.ApplyQuery], such as an unknown key or a read_by_sender value
-//     that is not a boolean.
+//     that is not a boolean. Otherwise the error from the config's checks,
+//     such as [ErrMissingBotMail].
 func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
-	var isSet bool
-
 	c.BotMail = serviceURL.User.Username()
-	c.BotKey, isSet = serviceURL.User.Password()
+	c.BotKey, _ = serviceURL.User.Password()
 	c.Host = serviceURL.Host
-
-	if c.BotMail == "" {
-		return ErrMissingBotMail
-	}
-
-	if !isSet {
-		return ErrMissingAPIKey
-	}
-
-	if c.Host == "" {
-		return ErrMissingHost
-	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -150,7 +143,41 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 		return fmt.Errorf("setting default props: %w", err)
 	}
 
-	return format.ApplyQuery(resolver, query)
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.validate()
+}
+
+// validate checks the bot's credentials, the host, and the message type.
+// Zulip authenticates each request with the bot's e-mail address and API key.
+// Reading a service URL and each send run it, so a config built in code or
+// changed by a param fails before a request.
+//
+// Returns:
+//   - error: [ErrMissingBotMail], [ErrMissingAPIKey], or [ErrMissingHost] for
+//     a missing field. A host that is not a host name or address with an
+//     optional port from 1 to 65535 gives [ErrInvalidHost]. An unsupported
+//     message type gives [ErrInvalidMessageType]. Otherwise nil.
+func (c *Config) validate() error {
+	if c.BotMail == "" {
+		return ErrMissingBotMail
+	}
+
+	if c.BotKey == "" {
+		return ErrMissingAPIKey
+	}
+
+	if c.Host == "" {
+		return ErrMissingHost
+	}
+
+	if !isValidHost(c.Host) {
+		return fmt.Errorf("%w: %q", ErrInvalidHost, c.Host)
+	}
+
+	return ValidateMessageType(c.Type)
 }
 
 // CreateConfigFromURL creates a new Config from a URL for use within the zulip service.
@@ -168,4 +195,86 @@ func CreateConfigFromURL(serviceURL *url.URL) (*Config, error) {
 	err := config.setURL(&resolver, serviceURL)
 
 	return &config, err
+}
+
+// isValidHost reports whether the host is a host name, an IPv4 address, or a
+// bracketed IPv6 address, with an optional port from 1 to 65535.
+//
+// Parameters:
+//   - host: the host, as in a URL authority.
+//
+// Returns:
+//   - bool: true for a valid host.
+func isValidHost(host string) bool {
+	bracketed := strings.HasPrefix(host, "[")
+	name, port, split := host, "", false
+
+	// A port follows the last colon only when no closing bracket comes after
+	// it, so a host without a port skips the split and its error.
+	if strings.LastIndexByte(host, ':') > strings.LastIndexByte(host, ']') {
+		var err error
+
+		name, port, err = net.SplitHostPort(host)
+		split = err == nil
+	}
+
+	if !split {
+		name = host
+
+		if bracketed {
+			inner, ok := strings.CutSuffix(strings.TrimPrefix(host, "["), "]")
+			if !ok {
+				return false
+			}
+
+			name = inner
+		}
+	} else if number, parseErr := strconv.ParseUint(port, 10, 16); parseErr != nil || number == 0 {
+		return false
+	}
+
+	// An IPv4 address starts with a digit and an IPv6 address holds a colon,
+	// so a host name that does neither skips the parse and its error.
+	if name != "" && ('0' <= name[0] && name[0] <= '9' || strings.Contains(name, ":")) {
+		if addr, parseErr := netip.ParseAddr(name); parseErr == nil {
+			// URLs bracket IPv6 addresses and only IPv6 addresses.
+			return addr.Is6() == bracketed
+		}
+	}
+
+	return !bracketed && isHostName(name)
+}
+
+// isHostName reports whether name is a host name of one or more DNS labels
+// separated by dots. Each label holds 1 to 63 ASCII letters, digits, and
+// hyphens, and starts and ends with a letter or digit.
+//
+// Parameters:
+//   - name: the name to check.
+//
+// Returns:
+//   - bool: true for a host name.
+func isHostName(name string) bool {
+	start := 0
+
+	for i := 0; i <= len(name); i++ {
+		if i < len(name) && name[i] != '.' {
+			switch c := name[i]; {
+			case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9', c == '-':
+			default:
+				return false
+			}
+
+			continue
+		}
+
+		label := name[start:i]
+		if label == "" || len(label) > maxLabelLength || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+
+		start = i + 1
+	}
+
+	return true
 }

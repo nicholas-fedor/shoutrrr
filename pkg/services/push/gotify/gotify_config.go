@@ -210,17 +210,8 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 		c.Path = c.Path[1:] // Remove leading slash to normalize empty path
 	}
 
-	// Set host and token from URL components. A Gotify server has no default host.
-	if serviceURL.Hostname() == "" {
-		return ErrHostMissing
-	}
-
 	c.Host = serviceURL.Host
 	c.Token = path[tokenIndex:]
-
-	if !(&DefaultValidator{}).ValidateToken(c.Token) {
-		return ErrInvalidToken
-	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -232,7 +223,7 @@ func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) e
 		return fmt.Errorf("failed to process query parameters: %w", err)
 	}
 
-	return nil
+	return c.validate()
 }
 
 // tokenPath returns the URL path of the subpath and the token, separated by a
@@ -246,4 +237,24 @@ func (c *Config) tokenPath() string {
 	}
 
 	return c.Path + "/" + c.Token
+}
+
+// validate checks the host and the token that every request needs. Reading a
+// service URL and each send run it, so a config built in code fails before a
+// request. A Gotify server has no default host.
+//
+// Returns:
+//   - error: [ErrHostMissing] for a config without a host name. Otherwise
+//     [ErrInvalidToken] for a missing token or one in neither Gotify token
+//     format, or nil.
+func (c *Config) validate() error {
+	if (&url.URL{Host: c.Host}).Hostname() == "" {
+		return ErrHostMissing
+	}
+
+	if !(&DefaultValidator{}).ValidateToken(c.Token) {
+		return ErrInvalidToken
+	}
+
+	return nil
 }

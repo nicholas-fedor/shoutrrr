@@ -70,6 +70,10 @@ type env struct {
 	panicMsg    string
 	// stop ends when the test ends, which releases held requests and dials.
 	stop <-chan struct{}
+	// dialed holds the address of each dial, guarded by dialMu.
+	dialed []string
+	// dialMu guards dialed.
+	dialMu sync.Mutex
 	// holdMarked makes marked requests and dials wait until their context ends.
 	holdMarked bool
 }
@@ -138,6 +142,35 @@ type knownFailure struct {
 	kind    failureKind
 }
 
+// configVariant is a config that a check sends with in place of the fixture's,
+// with the result of reading its own URL back.
+type configVariant struct {
+	// config is the variant's config.
+	config types.ServiceConfig
+	// readBack is the config read back from the variant's own URL, or nil when
+	// reading it back failed.
+	readBack types.ServiceConfig
+	// readBackErr is the error from reading the variant's own URL back.
+	readBackErr error
+	// name describes the variant in failure messages.
+	name string
+}
+
+// variantSend records what a send with a config variant did.
+type variantSend struct {
+	// err is the send's error.
+	err error
+	// endpoints holds the scheme, host, and path of each request through the
+	// injected client in order. The distinct addresses the send dialed follow,
+	// sorted.
+	endpoints []string
+	// requests counts requests through the injected client,
+	// http.DefaultTransport, or another transport.
+	requests int64
+	// dials counts dials through the injected dialer.
+	dials int32
+}
+
 const (
 	netHTTP netKind = iota // uses the injected types.HTTPClient
 	netTCP                 // uses the injected DialContext
@@ -199,6 +232,9 @@ const (
 	// checkCheckedConfig verifies that a send whose config fails the checks of
 	// reading its URL fails without a request or dial.
 	checkCheckedConfig = "checked_config"
+	// checkSendLikeReadBack verifies that a send with a config whose URL reads
+	// back reaches the endpoints that the read-back config reaches.
+	checkSendLikeReadBack = "send_like_read_back"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -249,6 +285,7 @@ const (
 	failConflictAccepted                        // a URL with one config key in two spellings was accepted
 	failUnknownParamAccepted                    // a send with an unknown param did not fail as an unknown config key
 	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
+	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -596,6 +633,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkConflictingKeys, runConflictingKeys},
 		{checkUnknownParams, runUnknownParams},
 		{checkCheckedConfig, runCheckedConfig},
+		{checkSendLikeReadBack, runSendLikeReadBack},
 	}
 
 	for _, check := range checks {
@@ -1636,70 +1674,80 @@ func runUnknownParams(t *testing.T, fx *fixture) failure {
 }
 
 // runCheckedConfig verifies that a service checks the config of each send as
-// reading a service URL checks it. The service's Config is replaced with the
-// zero value of its type, as a caller building one in code would leave it.
-// When reading the zero config's own URL fails, the send must fail too. It must
-// fail without a panic and before any request or dial. The check skips a
-// service without an exported Config field or with a zero config that reads back.
+// reading a service URL checks it. It sends with the zero value of the
+// service's config type, as a caller building one in code would leave it. It
+// then sends with the fixture's config with each set field cleared in turn.
+// When reading such a config's own URL back fails, the send must fail too. It
+// must fail without a panic and before any request or dial. The check skips a
+// service without an exported Config field.
 func runCheckedConfig(t *testing.T, fx *fixture) failure {
 	t.Helper()
 
-	var result failure
+	variants, result := configVariants(t, fx)
+	if result.kind != failNone {
+		return result
+	}
 
-	synctest.Test(t, func(t *testing.T) {
-		env := newEnv(t, fx, false)
-
-		service, err := env.locate(t)
-		if err != nil {
-			result = fail(failInit, "initialization failed: %v", err)
-
-			return
+	for _, variant := range variants {
+		if variant.readBackErr == nil {
+			continue
 		}
 
-		field, ok := configField(service)
-		if !ok {
-			return
+		send, result := sendVariant(t, fx, variant.config)
+		if result.kind != failNone {
+			return result
 		}
 
-		zero, ok := reflect.TypeAssert[types.ServiceConfig](reflect.New(field.Type().Elem()))
-		if !ok {
-			return
+		// A request through http.DefaultTransport or another uninjected
+		// transport counts as a request too.
+		if send.err == nil || send.requests > 0 || send.dials > 0 {
+			return fail(failUncheckedConfig,
+				"a send with %s, whose URL reads back with %v, returned %v after %d request(s) and %d dial(s)",
+				variant.name, variant.readBackErr, send.err, send.requests, send.dials)
+		}
+	}
+
+	return failure{}
+}
+
+// runSendLikeReadBack verifies that a send treats a config as reading its own
+// URL would. It uses the same configs as the checked_config check. They are the
+// zero config and the fixture's config with each set field cleared in turn.
+// When reading such a config's URL back succeeds, a send with the config must
+// make requests and dials to the same endpoints as a send with the config read
+// back. A default that reading a URL applies, such as a host or port, then
+// applies to a config built in code too.
+func runSendLikeReadBack(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	variants, result := configVariants(t, fx)
+	if result.kind != failNone {
+		return result
+	}
+
+	for _, variant := range variants {
+		if variant.readBackErr != nil {
+			continue
 		}
 
-		var readBack error
-
-		if panicMsg := recovering(func() { readBack = zero.SetURL(zero.GetURL()) }); panicMsg != "" {
-			result = fail(failPanic, "reading back a zero config %s", panicMsg)
-
-			return
+		send, result := sendVariant(t, fx, variant.config)
+		if result.kind != failNone {
+			return result
 		}
 
-		if readBack == nil {
-			return
+		readBack, result := sendVariant(t, fx, variant.readBack)
+		if result.kind != failNone {
+			return result
 		}
 
-		field.Set(reflect.New(field.Type().Elem()))
-
-		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
-
-		if result = env.send(service, nil); result.kind != failNone {
-			return
+		if !slices.Equal(send.endpoints, readBack.endpoints) {
+			return fail(failReadBackDiffers,
+				"a send with %s reached %q, but the config read back from its URL reaches %q",
+				variant.name, send.endpoints, readBack.endpoints)
 		}
+	}
 
-		// A request through http.DefaultTransport or another uninjected transport
-		// counts as a request too.
-		requests := int64(len(env.client.Calls)) +
-			defaultTransportHits.Load() - defaultBefore +
-			lookupHits.Load() - lookupBefore
-		dials := env.dials.Load()
-
-		if env.sendErr == nil || requests > 0 || dials > 0 {
-			result = fail(failUncheckedConfig, "a send with a zero config returned %v after %d request(s) and %d dial(s)",
-				env.sendErr, requests, dials)
-		}
-	})
-
-	return result
+	return failure{}
 }
 
 // runParamsDoNotPersist verifies that params passed to Send apply to that send
@@ -2058,6 +2106,129 @@ func configField(service types.Service) (reflect.Value, bool) {
 	}
 
 	return field, true
+}
+
+// configVariants returns the configs that the checked_config and
+// send_like_read_back checks send with, each with the result of reading its
+// own URL back. They are the zero config of the service's config type and the
+// fixture's config with each set exported field cleared in turn.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture.
+//
+// Returns:
+//   - []configVariant: the variants, or none for a service without an exported
+//     Config field.
+//   - failure: a failInit failure when the fixture fails to initialize, or a
+//     failPanic failure when reading a variant's URL back panics.
+func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
+	t.Helper()
+
+	service, err := locateDefault(t, fx.url, log.New(io.Discard, "", 0))
+	if err != nil {
+		return nil, fail(failInit, "initialization failed: %v", err)
+	}
+
+	field, ok := configField(service)
+	if !ok || field.IsNil() {
+		return nil, failure{}
+	}
+
+	fixtureConfig, ok := reflect.TypeAssert[types.ServiceConfig](field)
+	require.True(t, ok, "%s is not a service config", field.Type())
+
+	zero, ok := reflect.TypeAssert[types.ServiceConfig](reflect.New(field.Type().Elem()))
+	require.True(t, ok, "%s is not a service config", field.Type())
+
+	variants := []configVariant{{config: zero, name: "the zero config"}}
+
+	for structField, value := range field.Elem().Fields() {
+		if !structField.IsExported() || value.IsZero() {
+			continue
+		}
+
+		cleared := cloneConfig(t, fixtureConfig)
+		reflect.ValueOf(cleared).Elem().FieldByIndex(structField.Index).SetZero()
+
+		variants = append(variants, configVariant{config: cleared, name: "the fixture's config without " + structField.Name})
+	}
+
+	for i := range variants {
+		variant := &variants[i]
+		readBack := cloneConfig(t, variant.config)
+
+		panicMsg := recovering(func() { variant.readBackErr = readBack.SetURL(readBack.GetURL()) })
+		if panicMsg != "" {
+			return nil, fail(failPanic, "reading back %s %s", variant.name, panicMsg)
+		}
+
+		if variant.readBackErr == nil {
+			variant.readBack = readBack
+		}
+	}
+
+	return variants, failure{}
+}
+
+// sendVariant sends through a newly located fixture service whose config is
+// replaced with a copy of config.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture.
+//   - config: the config to send with.
+//
+// Returns:
+//   - variantSend: what the send did.
+//   - failure: a failInit or failPanic failure, or none.
+func sendVariant(t *testing.T, fx *fixture, config types.ServiceConfig) (variantSend, failure) {
+	t.Helper()
+
+	var (
+		send   variantSend
+		result failure
+	)
+
+	synctest.Test(t, func(t *testing.T) {
+		env := newEnv(t, fx, false)
+
+		service, err := env.locate(t)
+		if err != nil {
+			result = fail(failInit, "initialization failed: %v", err)
+
+			return
+		}
+
+		field, _ := configField(service)
+		field.Set(reflect.ValueOf(cloneConfig(t, config)))
+
+		defaultBefore, lookupBefore := defaultTransportHits.Load(), lookupHits.Load()
+
+		if result = env.send(service, nil); result.kind != failNone {
+			return
+		}
+
+		send.err = env.sendErr
+		send.requests = int64(env.httpCalls()) +
+			defaultTransportHits.Load() - defaultBefore +
+			lookupHits.Load() - lookupBefore
+		send.dials = env.dials.Load()
+
+		for i := range env.client.Calls {
+			if req, ok := env.client.Calls[i].Arguments.Get(0).(*http.Request); ok {
+				send.endpoints = append(send.endpoints, req.URL.Scheme+"://"+req.URL.Host+req.URL.Path)
+			}
+		}
+
+		env.dialMu.Lock()
+		dialed := slices.Compact(slices.Sorted(slices.Values(env.dialed)))
+		env.dialMu.Unlock()
+
+		send.endpoints = append(send.endpoints, dialed...)
+	})
+
+	return send, result
 }
 
 // runNoSecretLeaks verifies that secrets from the service URL never appear in
@@ -3101,8 +3272,12 @@ func (e *env) checkLeaks(service types.Service, initErr error) failure {
 // Returns:
 //   - net.Conn: always nil.
 //   - error: errDial, or the error from [env.holdIfMarked] when the dial was held.
-func (e *env) dial(ctx context.Context, _, _ string) (net.Conn, error) {
+func (e *env) dial(ctx context.Context, _, address string) (net.Conn, error) {
 	e.dials.Add(1)
+
+	e.dialMu.Lock()
+	e.dialed = append(e.dialed, address)
+	e.dialMu.Unlock()
 
 	if ctx.Value(contextMarker{}) == e.fx.scheme {
 		e.markedDials.Add(1)

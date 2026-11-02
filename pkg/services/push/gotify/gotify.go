@@ -32,7 +32,7 @@ type Service struct {
 	urlBuilder URLBuilder
 	// payloadBuilder builds the request body and parses the extras.
 	payloadBuilder PayloadBuilder
-	// validator checks the message, priority, date, and token.
+	// validator checks the message, priority, and date.
 	validator Validator
 	// sender sends the request and checks the response.
 	sender contextSender
@@ -148,9 +148,6 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     validation, config, or send error. A request error matches ctx's error
 //     when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	if err := s.validateInputs(message, params); err != nil {
 		return fmt.Errorf("input validation failed: %w", err)
 	}
@@ -169,6 +166,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	if config.DisableTLS {
 		s.warnings.Plaintext(ctx, s)
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	return s.sendRequest(ctx, s.sendClient(ctx, &config), postURL, request, headers)
 }
@@ -216,17 +216,12 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 //   - string: the message endpoint URL.
 //   - *MessageRequest: the request body.
 //   - http.Header: the token header for header authentication, or nil.
-//   - error: [ErrInvalidToken], or the error from building the URL.
+//   - error: the error from building the URL.
 func (s *Service) buildRequest(
 	message string,
 	config *Config,
 	extras map[string]any,
 ) (string, *MessageRequest, http.Header, error) {
-	// Validate token format before constructing URL
-	if !s.validator.ValidateToken(config.Token) {
-		return "", nil, nil, ErrInvalidToken
-	}
-
 	// Construct the complete API endpoint URL
 	postURL, err := s.urlBuilder.BuildURL(config)
 	if err != nil {
@@ -260,7 +255,8 @@ func (s *Service) buildRequest(
 // Returns:
 //   - Config: the config for this send.
 //   - map[string]any: the extras for this send.
-//   - error: a params or priority error.
+//   - error: a params error or the error from the config's checks, such as
+//     [ErrHostMissing]. Otherwise a priority error.
 func (s *Service) processConfig(ctx context.Context, params *types.Params) (Config, map[string]any, error) {
 	// Get reference to current configuration
 	config := *s.Config
@@ -277,6 +273,10 @@ func (s *Service) processConfig(ctx context.Context, params *types.Params) (Conf
 	// The extras param fills the payload, which ParseExtras reads.
 	if err := s.pkr.UpdateConfigFromParams(&config, params, extrasKey); err != nil {
 		return config, nil, fmt.Errorf("failed to update config from params: %w", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return config, nil, err
 	}
 
 	s.applyLevel(&config, params)

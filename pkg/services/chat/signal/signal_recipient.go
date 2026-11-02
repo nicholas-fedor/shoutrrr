@@ -12,9 +12,6 @@ const (
 	usernamePrefix = "u:"
 )
 
-// phoneRegex validates phone number format (with or without + prefix).
-var phoneRegex = regexp.MustCompile(`^\+?[0-9\s)(+-]+$`)
-
 // groupRegex validates group ID format.
 var groupRegex = regexp.MustCompile(`^group\.[a-zA-Z0-9_+/=-]+$`)
 
@@ -132,7 +129,9 @@ func batchRecipients(recipients []string) [][]string {
 	return append(out, batches...)
 }
 
-// isValidPhoneNumber checks if the string is a valid phone number.
+// isValidPhoneNumber checks if the string is a valid phone number. A phone
+// number holds at least one character. Each is an ASCII digit, a sign, a
+// parenthesis, or ASCII whitespace other than the vertical tab.
 //
 // Parameters:
 //   - phone: the phone number string to validate
@@ -140,7 +139,20 @@ func batchRecipients(recipients []string) [][]string {
 // Returns:
 //   - bool: true if valid, false otherwise
 func isValidPhoneNumber(phone string) bool {
-	return phoneRegex.MatchString(phone)
+	if phone == "" {
+		return false
+	}
+
+	for i := range len(phone) {
+		switch c := phone[i]; {
+		case '0' <= c && c <= '9':
+		case c == '+', c == '-', c == '(', c == ')', c == ' ', c == '\t', c == '\n', c == '\f', c == '\r':
+		default:
+			return false
+		}
+	}
+
+	return true
 }
 
 // isValidGroupID checks if the string is a valid group ID.

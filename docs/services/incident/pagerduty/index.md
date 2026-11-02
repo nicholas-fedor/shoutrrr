@@ -99,6 +99,8 @@ The PagerDuty service supports the following parameters to customize incident cr
 | `source` | string | The unique location of the affected system | No | `default` | Any string identifier |
 | `action` | string | The type of event to send | No | `trigger` | `trigger`, `acknowledge`, `resolve` |
 
+A `severity` or `action` outside its valid values is rejected when the URL is read, and a send whose params set one fails before any request.
+
 ### Additional Parameters
 
 | Parameter | Type | Description | Required | Default | Valid Values |

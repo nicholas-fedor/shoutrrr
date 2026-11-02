@@ -33,7 +33,7 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 
 // TestConfigSetURL verifies that SetURL reads the integration key from the
 // path, the host and port with the PagerDuty events host and port 443 as
-// defaults, and the event props from the query.
+// defaults, and the event props from the query, starting from their defaults.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -46,22 +46,22 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "default host and port",
 			rawURL: "pagerduty:///" + testIntegrationKey,
-			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey},
+			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Severity: "error", Source: "default", Action: "trigger"},
 		},
 		{
 			name:   "host without a port",
 			rawURL: "pagerduty://events.eu.pagerduty.com/" + testIntegrationKey,
-			want:   Config{Host: "events.eu.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey},
+			want:   Config{Host: "events.eu.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Severity: "error", Source: "default", Action: "trigger"},
 		},
 		{
 			name:   "host, port, and integration key",
 			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey,
-			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey},
+			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Severity: "error", Source: "default", Action: "trigger"},
 		},
 		{
 			name:   "uppercase integration key and port",
 			rawURL: "pagerduty://events.pagerduty.com:12345/A1B2C3D4E5F678901234567890ABCDEF",
-			want:   Config{Host: "events.pagerduty.com", Port: 12345, IntegrationKey: "A1B2C3D4E5F678901234567890ABCDEF"},
+			want:   Config{Host: "events.pagerduty.com", Port: 12345, IntegrationKey: "A1B2C3D4E5F678901234567890ABCDEF", Severity: "error", Source: "default", Action: "trigger"},
 		},
 		{
 			name: "event props",
@@ -85,7 +85,7 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "unescaped space",
 			rawURL: "pagerduty://events.pagerduty.com:443/" + testIntegrationKey + "?source=my app",
-			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Source: "my app"},
+			want:   Config{Host: "events.pagerduty.com", Port: 443, IntegrationKey: testIntegrationKey, Severity: "error", Source: "my app", Action: "trigger"},
 		},
 	}
 
@@ -122,6 +122,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "33-character key", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "a", wantErr: errInvalidIntegrationKey},
 		{name: "port out of range", rawURL: "pagerduty://events.pagerduty.com:70000/" + testIntegrationKey},
 		{name: "unknown prop", rawURL: "pagerduty://events.pagerduty.com/" + testIntegrationKey + "?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "invalid severity", rawURL: "pagerduty:///" + testIntegrationKey + "?severity=fatal", wantErr: errInvalidSeverity},
+		{name: "invalid action", rawURL: "pagerduty:///" + testIntegrationKey + "?action=snooze", wantErr: errInvalidEventAction},
 		{name: "unbracketed IPv6 host", rawURL: "pagerduty://2001:db8::1/" + testIntegrationKey, wantErr: util.ErrInvalidHost},
 	}
 

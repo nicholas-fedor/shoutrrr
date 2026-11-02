@@ -5,12 +5,8 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -113,11 +109,6 @@ const registerTimeout = 10 * time.Second
 // memory exhaustion from huge error bodies returned by the server.
 const maxErrorBodySize = 4 * 1024
 
-// hostnameValidator matches a host name of one or more DNS labels.
-var hostnameValidator = regexp.MustCompile(
-	`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`,
-)
-
 // Compile-time checks that Service implements the interfaces the router relies on.
 var (
 	_ types.Service          = (*Service)(nil)
@@ -125,50 +116,6 @@ var (
 	_ types.ContextSender    = (*Service)(nil)
 	_ types.ServiceTimeout   = (*Service)(nil)
 )
-
-// validateHost checks that the host is a host name, an IPv4 address, or a
-// bracketed IPv6 address, with an optional port from 1 to 65535.
-//
-// Parameters:
-//   - host: the host, as in a URL authority.
-//
-// Returns:
-//   - error: [ErrInvalidHost] naming the host, or nil.
-func validateHost(host string) error {
-	invalid := fmt.Errorf("%w: %q", ErrInvalidHost, host)
-	bracketed := strings.HasPrefix(host, "[")
-
-	name, port, err := net.SplitHostPort(host)
-	if err != nil {
-		name = host
-
-		if bracketed {
-			inner, ok := strings.CutSuffix(strings.TrimPrefix(host, "["), "]")
-			if !ok {
-				return invalid
-			}
-
-			name = inner
-		}
-	} else if number, parseErr := strconv.ParseUint(port, 10, 16); parseErr != nil || number == 0 {
-		return invalid
-	}
-
-	if addr, parseErr := netip.ParseAddr(name); parseErr == nil {
-		// URLs bracket IPv6 addresses and only IPv6 addresses.
-		if addr.Is6() != bracketed {
-			return invalid
-		}
-
-		return nil
-	}
-
-	if bracketed || !hostnameValidator.MatchString(name) {
-		return invalid
-	}
-
-	return nil
-}
 
 // NewDefaultHTTPClient creates an HTTP client with a timeout.
 //
@@ -276,15 +223,14 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters, applied to this send only.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the send
-//     failure, or nil on success.
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A params
+//     error or the error from the config's checks, such as [ErrMissingAPIKey],
+//     fails the send before any request. Otherwise the send failure, or nil on
+//     success.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
 	}
-
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
 
 	// Clone the config to avoid modifying the original for this send operation.
 	config := s.Config.Clone()
@@ -301,18 +247,17 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		config.Title = ""
 	}
 
-	if err := ValidateMessageType(config.Type); err != nil {
+	if err := config.validate(); err != nil {
 		return err
 	}
 
-	if err := validateHost(config.Host); err != nil {
-		return err
-	}
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	// The limits lookup and the message go through the same client.
 	httpClient := s.sendClient(ctx, config)
 
-	contentMax, topicMax := s.limits(ctx, httpClient)
+	contentMax, topicMax := s.limits(ctx, httpClient, config)
 
 	topicLength := len([]rune(config.Topic))
 	if topicLength > topicMax {
@@ -464,18 +409,15 @@ func (s *Service) doSend(ctx context.Context, httpClient types.HTTPClient, confi
 // Parameters:
 //   - ctx: bounds the request, further bounded by [registerTimeout].
 //   - httpClient: the HTTP client of the send that looks the limits up.
+//   - config: the checked configuration of the send that looks the limits up.
 //
 // Returns:
 //   - registerResponse: the limits the server reported, zero for any it did not.
 //   - bool: whether the server answered with a 200 status and a JSON body.
-func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient) (registerResponse, bool) {
+func (s *Service) fetchLimits(ctx context.Context, httpClient types.HTTPClient, config *Config) (registerResponse, bool) {
 	var reg registerResponse
 
-	if err := validateHost(s.Config.Host); err != nil {
-		return reg, false
-	}
-
-	registerURL := s.getRegisterURL()
+	registerURL := s.getRegisterURL(config)
 
 	ctx, cancel := context.WithTimeout(ctx, registerTimeout)
 	defer cancel()
@@ -529,14 +471,17 @@ func (s *Service) getAPIURL(config *Config) string {
 	}).String()
 }
 
-// getRegisterURL constructs the register API URL from the service config.
+// getRegisterURL constructs the register API URL for Zulip based on the Config.
+//
+// Parameters:
+//   - config: the configuration for this send.
 //
 // Returns:
 //   - string: the register endpoint URL, with the bot credentials as userinfo.
-func (s *Service) getRegisterURL() string {
+func (s *Service) getRegisterURL(config *Config) string {
 	return (&url.URL{
-		User:   url.UserPassword(s.Config.BotMail, s.Config.BotKey),
-		Host:   s.Config.Host,
+		User:   url.UserPassword(config.BotMail, config.BotKey),
+		Host:   config.Host,
 		Path:   "/api/v1/register",
 		Scheme: "https",
 	}).String()
@@ -551,11 +496,13 @@ func (s *Service) getRegisterURL() string {
 //   - ctx: bounds the limits request, or the wait for one in flight.
 //   - httpClient: the HTTP client of the send, used when it makes the
 //     request.
+//   - config: the checked configuration of the send, used when it makes the
+//     request.
 //
 // Returns:
 //   - contentMax: the maximum message length in characters.
 //   - topicMax: the maximum topic length in characters.
-func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
+func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient, config *Config) (contentMax, topicMax int) { //nolint:nonamedreturns // Same-type returns need names.
 	s.limitsMu.Lock()
 
 	if s.limitsFetched {
@@ -579,7 +526,7 @@ func (s *Service) limits(ctx context.Context, httpClient types.HTTPClient) (cont
 	s.limitsDone = done
 	s.limitsMu.Unlock()
 
-	reg, fetched := s.fetchLimits(ctx, httpClient)
+	reg, fetched := s.fetchLimits(ctx, httpClient, config)
 
 	s.limitsMu.Lock()
 	defer s.limitsMu.Unlock()

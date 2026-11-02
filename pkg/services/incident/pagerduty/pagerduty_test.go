@@ -345,12 +345,11 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 func TestNewEventPayloadOptionalFields(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, testServiceURL)
+	config := *newTestService(t, testServiceURL).Config
+	config.Details = `{"key":"value","count":2}`
+	config.Contexts = "link:https://example.com,text:Ignored,image:https://example.com/img.png"
 
-	payload, err := service.newEventPayload("message", &types.Params{
-		"details":  `{"key":"value","count":2}`,
-		"contexts": "link:https://example.com,text:Ignored,image:https://example.com/img.png",
-	})
+	payload, err := newEventPayload("message", &config)
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"key": "value", "count": float64(2)}, payload.Payload.CustomDetails)
@@ -366,9 +365,10 @@ func TestNewEventPayloadOptionalFields(t *testing.T) {
 func TestNewEventPayloadDetailsRepeatedKey(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, testServiceURL)
+	config := *newTestService(t, testServiceURL).Config
+	config.Details = `{"key":1,"key":"value"}`
 
-	payload, err := service.newEventPayload("message", &types.Params{"details": `{"key":1,"key":"value"}`})
+	payload, err := newEventPayload("message", &config)
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"key": "value"}, payload.Payload.CustomDetails)
@@ -491,6 +491,53 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
+}
+
+// TestSendChecksConfig verifies that a send with a config built in code fails
+// before any request when reading a URL with the same values would fail.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no integration key", change: func(config *Config) { config.IntegrationKey = "" }, wantErr: errMissingIntegrationKey},
+		{name: "short integration key", change: func(config *Config) { config.IntegrationKey = "abc" }, wantErr: errInvalidIntegrationKey},
+		{name: "no severity", change: func(config *Config) { config.Severity = "" }, wantErr: errInvalidSeverity},
+		{name: "no action", change: func(config *Config) { config.Action = "" }, wantErr: errInvalidEventAction},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("message", nil), tt.wantErr)
+		})
+	}
+}
+
+// TestSendDefaultHostAndPort verifies that a config built in code without a
+// host or port sends to the PagerDuty events host on port 443, as a URL
+// without them does.
+func TestSendDefaultHostAndPort(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRespondingClient(t, http.StatusAccepted, acceptedBody)
+	service.SetHTTPClient(client)
+	service.Config.Host = ""
+	service.Config.Port = 0
+
+	require.NoError(t, service.Send("message", nil))
+	assert.Equal(t, "https://events.pagerduty.com:443/v2/enqueue", captured.url)
 }
 
 // TestSendRedactsUnparsableURL verifies that a host that makes the events URL

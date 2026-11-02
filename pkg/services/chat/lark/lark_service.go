@@ -67,6 +67,9 @@ var (
 	// ErrLargeMessage indicates a request body larger than [maxBodySize] bytes.
 	ErrLargeMessage = fmt.Errorf("message exceeds the max request body size of %d bytes", maxBodySize)
 	// ErrMissingHost indicates a send whose configuration has no host.
+	//
+	// Deprecated: A send with a config without a host uses Lark's host, so no
+	// send returns this error. It remains for callers that match it.
 	ErrMissingHost = errors.New("host is required but not specified in the configuration")
 	// ErrSendFailed indicates a failed request, an error status, or an error
 	// code from the Lark API.
@@ -147,21 +150,17 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return ErrLargeMessage
 	}
 
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
-
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating params: %w", err)
 	}
 
-	if config.Host != larkHost && config.Host != feishuHost {
-		return ErrInvalidHost
+	if err := config.prepare(); err != nil {
+		return err
 	}
 
-	if config.Path == "" {
-		return ErrNoPath
-	}
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	return s.doSend(ctx, &config, message)
 }
@@ -191,13 +190,9 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - message: the message to send.
 //
 // Returns:
-//   - error: [ErrMissingHost], a payload error, [ErrLargeMessage] for a
-//     request body over [maxBodySize] bytes, or the send error.
+//   - error: a payload error, [ErrLargeMessage] for a request body over
+//     [maxBodySize] bytes, or the send error.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
-	if config.Host == "" {
-		return ErrMissingHost
-	}
-
 	postURL := fmt.Sprintf(apiFormat, config.Host, config.Path)
 
 	payload, err := s.preparePayload(message, config)

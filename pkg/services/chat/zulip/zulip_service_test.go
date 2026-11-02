@@ -747,8 +747,9 @@ func TestSendWaiterCancellation(t *testing.T) {
 }
 
 // TestSendValidation verifies that a send rejects an invalid message type,
-// host, or param before any request, and a missing or mixed recipient list
-// before the message request.
+// host, or param before any request, as it does a config built in code without
+// the bot's credentials. It rejects a missing or mixed recipient list before
+// the message request.
 func TestSendValidation(t *testing.T) {
 	t.Parallel()
 
@@ -756,15 +757,18 @@ func TestSendValidation(t *testing.T) {
 	rejected := []struct {
 		wantErr error
 		params  *types.Params
+		change  func(config *Config)
 		name    string
-		host    string
 	}{
 		{name: "invalid message type", params: &types.Params{"type": "group"}, wantErr: ErrInvalidMessageType},
 		{name: "unknown param", params: &types.Params{"unknown": "value"}, wantErr: format.ErrInvalidConfigKey},
 		{name: "invalid read by sender param", params: &types.Params{"read_by_sender": "maybe"}, wantErr: format.ErrInvalidBoolValue},
-		{name: "port out of range", host: testHost + ":70000", wantErr: ErrInvalidHost},
-		{name: "port zero", host: testHost + ":0", wantErr: ErrInvalidHost},
-		{name: "host with a space", host: "zulip example.com", wantErr: ErrInvalidHost},
+		{name: "port out of range", change: func(config *Config) { config.Host = testHost + ":70000" }, wantErr: ErrInvalidHost},
+		{name: "port zero", change: func(config *Config) { config.Host = testHost + ":0" }, wantErr: ErrInvalidHost},
+		{name: "host with a space", change: func(config *Config) { config.Host = "zulip example.com" }, wantErr: ErrInvalidHost},
+		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+		{name: "no bot e-mail address", change: func(config *Config) { config.BotMail = "" }, wantErr: ErrMissingBotMail},
+		{name: "no API key", change: func(config *Config) { config.BotKey = "" }, wantErr: ErrMissingAPIKey},
 	}
 
 	for _, tt := range rejected {
@@ -773,8 +777,8 @@ func TestSendValidation(t *testing.T) {
 
 			// The mock has no expectations, so a request fails the test.
 			service := newTestService(t, testServiceURL, mocks.NewMockHTTPClient(t))
-			if tt.host != "" {
-				service.Config.Host = tt.host
+			if tt.change != nil {
+				tt.change(service.Config)
 			}
 
 			require.ErrorIs(t, service.Send("Hello", tt.params), tt.wantErr)
@@ -1063,27 +1067,6 @@ func TestSetHTTPClient(t *testing.T) {
 
 			assert.Same(t, client, service.client.Prefer(service.HTTPClient))
 		})
-	}
-}
-
-// TestValidateHost verifies that a host name, IPv4 address, or bracketed IPv6
-// address with an optional port from 1 to 65535 is accepted and that other
-// values are rejected.
-func TestValidateHost(t *testing.T) {
-	t.Parallel()
-
-	for _, valid := range []string{
-		testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co", "localhost", "localhost:9991", "zulip",
-		"192.0.2.10", "192.0.2.10:8443", "[2001:db8::1]", "[2001:db8::1]:8443",
-	} {
-		require.NoError(t, validateHost(valid), valid)
-	}
-
-	for _, invalid := range []string{
-		"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", testHost + ":+80", "zulip example.com",
-		"-zulip.example.com", "zulip..example.com", "2001:db8::1", "[2001:db8::1", "[zulip.example.com]:8443", "192.0.2.10:0",
-	} {
-		require.ErrorIs(t, validateHost(invalid), ErrInvalidHost, invalid)
 	}
 }
 
