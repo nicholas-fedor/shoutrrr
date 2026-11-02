@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Errors for a URL whose authority or query does not parse.
@@ -113,6 +114,29 @@ func ParseURLPort(port string) (uint16, error) {
 	return uint16(number), nil
 }
 
+// ValidateHostToken checks a token that a service URL carries as its host as
+// written, such as an API key or a webhook ID. The token must read back
+// unchanged from the URL that [url.URL.String] writes for it. A colon or a
+// bracket would read back as a port or an IPv6 address. Other ASCII characters
+// that a URL host cannot hold, such as a slash or a space, make the URL fail to
+// parse. Characters outside ASCII are written escaped and read back unchanged.
+//
+// Parameters:
+//   - token: the token.
+//
+// Returns:
+//   - error: [ErrInvalidHost] for a token that would not read back unchanged,
+//     or nil.
+func ValidateHostToken(token string) error {
+	for i := range len(token) {
+		if c := token[i]; c < utf8.RuneSelf && !isHostTokenByte(c) {
+			return ErrInvalidHost
+		}
+	}
+
+	return nil
+}
+
 // JoinURLHost writes host and port as a URL authority. An IPv6 host is
 // enclosed in brackets whether or not a port follows it, so [SplitURLHost]
 // reads the same host and port back.
@@ -154,4 +178,24 @@ func ParseURLQuery(serviceURL *url.URL) (url.Values, error) {
 	}
 
 	return query, nil
+}
+
+// isHostTokenByte reports whether the ASCII byte c reads back unchanged from a
+// URL host. Letters, digits, and the other characters that [url.URL.String]
+// writes unescaped in a host do. So does "%", which it writes as "%25". The
+// colon and the brackets do not, since they read back as a port or an IPv6
+// address.
+//
+// Parameters:
+//   - c: an ASCII byte.
+//
+// Returns:
+//   - bool: true when c reads back unchanged.
+func isHostTokenByte(c byte) bool {
+	switch c {
+	case '-', '.', '_', '~', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=', '<', '>', '"', '%':
+		return true
+	default:
+		return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9'
+	}
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -176,6 +178,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	}
 
 	batches := createItemsFromPlain(message, send.config.SplitLines, send.config.Title)
+
+	// Splitting leaves out blank lines and chunks, so a message of only
+	// whitespace leaves nothing to post.
+	if len(batches) == 0 {
+		return ErrEmptyMessage
+	}
+
 	level := s.plainLevel(&send.config, params)
 
 	err = sequential.Send(
@@ -476,7 +485,8 @@ func batchItems(items []types.MessageItem, title string, colors [types.MessageLe
 //   - splitLines: whether to send each line as its own embed.
 //
 // Returns:
-//   - [][]types.MessageItem: the message items, grouped by request.
+//   - [][]types.MessageItem: the message items, grouped by request, or none
+//     for a message of only whitespace.
 func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 	return createItemsFromPlain(plain, splitLines, "")
 }
@@ -486,6 +496,8 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 //
 // Discord counts the title on a batch's first embed toward the same total text
 // limit as the descriptions, so each batch's budget is reduced by the title's length.
+// Discord treats text of only whitespace as empty, so blank lines and chunks are
+// left out, and a message of only whitespace gives no batches.
 //
 // Parameters:
 //   - plain: the message text.
@@ -493,7 +505,8 @@ func CreateItemsFromPlain(plain string, splitLines bool) [][]types.MessageItem {
 //   - title: the title added to the first embed of every batch.
 //
 // Returns:
-//   - [][]types.MessageItem: the message items, grouped by request.
+//   - [][]types.MessageItem: the message items, grouped by request, or none
+//     for a message of only whitespace.
 func createItemsFromPlain(plain string, splitLines bool, title string) [][]types.MessageItem {
 	var batches [][]types.MessageItem
 
@@ -506,7 +519,13 @@ func createItemsFromPlain(plain string, splitLines bool, title string) [][]types
 
 	for {
 		items, omitted := util.PartitionMessage(plain, batchLimits, MaxSearchRunes)
-		batches = append(batches, items)
+
+		items = slices.DeleteFunc(items, func(item types.MessageItem) bool {
+			return strings.TrimSpace(item.Text) == ""
+		})
+		if len(items) > 0 {
+			batches = append(batches, items)
+		}
 
 		if omitted == 0 {
 			break

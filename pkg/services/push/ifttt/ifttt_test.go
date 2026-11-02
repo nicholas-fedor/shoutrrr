@@ -19,6 +19,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -185,6 +186,16 @@ func TestSend(t *testing.T) {
 			wantURLs: []string{"https://maker.ifttt.com/trigger/other/with/key/dummy"},
 			wantBody: `{"value1":"x","value2":"","value3":"hello"}`,
 		},
+		{
+			name:   "event names escaped",
+			rawURL: "ifttt://dummy/?events=a%2Fb,c%3Fd,%25zz",
+			wantURLs: []string{
+				"https://maker.ifttt.com/trigger/a%2Fb/with/key/dummy",
+				"https://maker.ifttt.com/trigger/c%3Fd/with/key/dummy",
+				"https://maker.ifttt.com/trigger/%25zz/with/key/dummy",
+			},
+			wantBody: `{"value1":"","value2":"hello","value3":""}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -210,6 +221,37 @@ func TestSend(t *testing.T) {
 				assert.Equal(t, "application/json", request.contentType)
 				assert.JSONEq(t, tt.wantBody, request.body)
 			}
+		})
+	}
+}
+
+// TestSendChecksConfig verifies that a send with a config built in code fails
+// before any request, as reading a URL with the same values does. A missing
+// webhook ID fails, and so does one with a colon.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no webhook ID", change: func(config *Config) { config.WebHookID = "" }, wantErr: ErrMissingWebhookID},
+		{name: "webhook ID with a port", change: func(config *Config) { config.WebHookID = "id:443" }, wantErr: util.ErrInvalidHost},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ifttt://dummy/?events=event1")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
 		})
 	}
 }
@@ -323,9 +365,9 @@ func TestSendContextErrors(t *testing.T) {
 		require.ErrorIs(t, err, format.ErrInvalidConfigKey)
 	})
 
-	// valueFieldParams lists value field params that the URL would reject, with
-	// the error the send should return before any request.
-	valueFieldParams := []struct {
+	// rejectedParams lists params that the URL would reject, with the error
+	// the send should return before any request.
+	rejectedParams := []struct {
 		params  *types.Params
 		wantErr error
 		name    string
@@ -334,9 +376,11 @@ func TestSendContextErrors(t *testing.T) {
 		{name: "messagevalue zero", params: &types.Params{"messagevalue": "0"}, wantErr: ErrInvalidMessageValue},
 		{name: "titlevalue above 3", params: &types.Params{"titlevalue": "4"}, wantErr: ErrInvalidTitleValue},
 		{name: "titlevalue equals messagevalue", params: &types.Params{"titlevalue": "2"}, wantErr: ErrTitleMessageConflict},
+		{name: "events cleared", params: &types.Params{"events": ""}, wantErr: ErrMissingEvents},
+		{name: "empty event name", params: &types.Params{"events": "a,"}, wantErr: ErrEmptyEventName},
 	}
 
-	for _, tt := range valueFieldParams {
+	for _, tt := range rejectedParams {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -381,23 +425,6 @@ func TestSendContextErrors(t *testing.T) {
 
 		require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
 	})
-}
-
-// TestSendRedactsUnparsableURL verifies that an event that makes the webhook
-// URL unparsable fails the send before any request, without the webhook ID in
-// the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
-	t.Parallel()
-
-	service := newTestService(t, "ifttt://SECRETwebhookID/?events=%25zz")
-	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-
-	err := service.Send("message", nil)
-
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
-	assert.NotContains(t, err.Error(), "SECRETwebhookID")
 }
 
 // TestSendDefaultClient verifies that a send without a custom client, or with

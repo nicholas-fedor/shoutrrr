@@ -395,7 +395,9 @@ func TestFitEmbed(t *testing.T) {
 }
 
 // TestCreatePayloadFromItemsLimits verifies that no items or a single item
-// without text are rejected and that embeds are capped at MaxEmbeds.
+// without text are rejected and that embeds are capped at MaxEmbeds. A single
+// item of only whitespace counts as without text, since Discord rejects such
+// content as empty.
 func TestCreatePayloadFromItemsLimits(t *testing.T) {
 	t.Parallel()
 
@@ -409,8 +411,10 @@ func TestCreatePayloadFromItemsLimits(t *testing.T) {
 	t.Run("single item without text", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := CreatePayloadFromItems([]types.MessageItem{{Text: ""}}, "", testLevelColors)
-		require.ErrorIs(t, err, ErrEmptyMessage)
+		for _, text := range []string{"", " ", "\n\t"} {
+			_, err := CreatePayloadFromItems([]types.MessageItem{{Text: text}}, "", testLevelColors)
+			require.ErrorIs(t, err, ErrEmptyMessage, "%q", text)
+		}
 	})
 
 	t.Run("more items than embeds allow", func(t *testing.T) {

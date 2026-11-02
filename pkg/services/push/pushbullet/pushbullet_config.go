@@ -128,8 +128,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 	targets := strings.Split(path, "/")
 
-	// The token is the host as written, which cannot hold a port or brackets
-	// that url.URL.Hostname would strip.
 	if err := validateToken(serviceURL.Host); err != nil {
 		return err
 	}
@@ -152,12 +150,12 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //   - token: the access token.
 //
 // Returns:
-//   - error: an error wrapping [util.ErrInvalidHost] for a token with a colon
-//     or brackets, or [ErrTokenIncorrectSize] for a token that is not
+//   - error: an error wrapping [util.ErrInvalidHost] for a token that a URL
+//     host cannot hold, or [ErrTokenIncorrectSize] for a token that is not
 //     [ExpectedTokenLength] characters long.
 func validateToken(token string) error {
-	if strings.ContainsAny(token, ":[]") {
-		return fmt.Errorf("access token: %w", util.ErrInvalidHost)
+	if err := util.ValidateHostToken(token); err != nil {
+		return fmt.Errorf("access token: %w", err)
 	}
 
 	if len(token) != ExpectedTokenLength {

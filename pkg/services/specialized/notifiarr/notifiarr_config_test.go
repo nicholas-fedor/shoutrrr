@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // testAPIKey is the API key in the test service URLs.
@@ -189,4 +190,20 @@ func TestConfigSetURLMissingAPIKey(t *testing.T) {
 	config, resolver := DefaultConfig()
 	require.NoError(t, config.setURL(&resolver, parseTestURL(t, "notifiarr://?apikey="+testAPIKey)))
 	assert.Equal(t, testAPIKey, config.APIKey)
+}
+
+// TestConfigSetURLKeyNotAHost verifies that SetURL rejects an API key that the
+// URL GetURL writes would not read back unchanged. A colon or brackets would
+// read back as a host and port. A slash or a question mark from the apikey
+// query parameter would make that URL fail to parse.
+func TestConfigSetURLKeyNotAHost(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{
+		"notifiarr://key:443", "notifiarr://[::1]", "notifiarr://?apikey=key:443", "notifiarr://?apikey=a%2F..%2Fx%3Fq",
+	} {
+		config, resolver := DefaultConfig()
+
+		require.ErrorIs(t, config.setURL(&resolver, parseTestURL(t, rawURL)), util.ErrInvalidHost, rawURL)
+	}
 }

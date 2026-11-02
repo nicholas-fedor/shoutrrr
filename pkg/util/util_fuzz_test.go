@@ -1,6 +1,7 @@
 package util
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -12,15 +13,16 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
 
-// FuzzMessageItemsFromLines checks that batching keeps every non-empty line exactly
+// FuzzMessageItemsFromLines checks that batching keeps every line with text exactly
 // once and in order, keeps each batch within its limits, and never emits invalid
-// UTF-8. The seed corpus covers ASCII, multi-byte text, empty lines and lines longer
-// than the chunk size.
+// UTF-8. Seeds hold ASCII and multi-byte text and lines longer than the chunk
+// size. Others hold empty lines and lines of only whitespace.
 func FuzzMessageItemsFromLines(f *testing.F) {
 	for _, seed := range []string{
 		"",
 		"a\nb\nc\nd",
 		"a\n\n\nb\n\nc",
+		"a\r\n\r\n \t\nb",
 		"世界\nこんにちは\n안녕",
 		strings.Repeat("x", 50) + "\nshort",
 	} {
@@ -38,7 +40,8 @@ func FuzzMessageItemsFromLines(f *testing.F) {
 		var want []string
 
 		for line := range strings.SplitSeq(plain, "\n") {
-			if line != "" {
+			line = strings.TrimSuffix(line, "\r")
+			if strings.TrimSpace(line) != "" {
 				want = append(want, Ellipsis(line, chunkSize))
 			}
 		}
@@ -224,4 +227,29 @@ func splitStarts(runes []rune, ends []int, split bool) []int {
 
 	// An end one past the previous end repeats its separator offset.
 	return slices.Compact(starts)
+}
+
+// FuzzValidateHostToken checks that ValidateHostToken accepts a token exactly
+// when it reads back unchanged, as both the host and the host name, from the
+// URL that url.URL.String writes for it, and holds no colon or bracket. A lone
+// bracket can read back unchanged, but brackets and colons are rejected
+// everywhere, since they read back as a port or an IPv6 address in other
+// tokens. Seeds hold accepted tokens and tokens with a port or brackets. Others
+// hold characters a host cannot hold.
+func FuzzValidateHostToken(f *testing.F) {
+	for _, seed := range []string{"token", "o.abc-123_X~", "a%41", "+15551234567", "key:443", "[::1]", "a/b", "a b", "a@b", "a?b#c", "\u00e9t\xff"} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, token string) {
+		if token == "" {
+			t.Skip()
+		}
+
+		parsed, err := url.Parse((&url.URL{Scheme: "x", Host: token}).String())
+		readsBack := err == nil && parsed.Host == token && parsed.Hostname() == token
+		want := readsBack && !strings.ContainsAny(token, ":[]")
+
+		assert.Equal(t, want, ValidateHostToken(token) == nil, "%q", token)
+	})
 }

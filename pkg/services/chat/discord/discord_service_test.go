@@ -206,6 +206,7 @@ func TestSendRequestCount(t *testing.T) {
 		{name: "plain text", message: "Hello, Discord!", wantCalls: 1},
 		{name: "JSON mode", message: `{"content":"JSON message"}`, configure: func(c *Config) { c.JSON = true }, wantCalls: 1},
 		{name: "longer than one batch", message: strings.Repeat("a", TotalChunkSize+100), wantCalls: 2},
+		{name: "whitespace after a full batch", message: strings.Repeat("a", TotalChunkSize) + "\n\n\n", wantCalls: 1},
 		{name: "split lines", message: "Line 1\nLine 2\nLine 3", configure: func(c *Config) { c.SplitLines = true }, wantCalls: 1},
 	}
 
@@ -305,7 +306,8 @@ func sendPlainForTest(t *testing.T, query string, params types.Params) WebhookPa
 }
 
 // TestSendFailures verifies that an empty message is rejected without a
-// request and that a failed first batch fails the send.
+// request. So is a message of only whitespace, with or without split lines. A
+// failed first batch fails the send.
 func TestSendFailures(t *testing.T) {
 	t.Parallel()
 
@@ -313,6 +315,18 @@ func TestSendFailures(t *testing.T) {
 		t.Parallel()
 
 		require.ErrorIs(t, newTestService(t, mocks.NewMockHTTPClient(t)).Send("", &types.Params{}), ErrEmptyMessage)
+	})
+
+	t.Run("only whitespace", func(t *testing.T) {
+		t.Parallel()
+
+		// The mock has no expectations, so a request fails the test.
+		service := newTestService(t, mocks.NewMockHTTPClient(t))
+
+		for _, message := range []string{"\n\n", "\r\n\r\n", " \n\t"} {
+			require.ErrorIs(t, service.Send(message, &types.Params{"splitlines": "yes"}), ErrEmptyMessage, "split %q", message)
+			require.ErrorIs(t, service.Send(message, &types.Params{}), ErrEmptyMessage, "unsplit %q", message)
+		}
 	})
 
 	t.Run("first batch fails", func(t *testing.T) {
@@ -552,13 +566,28 @@ func TestCreateItemsFromPlain(t *testing.T) {
 		assert.Equal(t, [][]types.MessageItem{{{Text: message}}}, CreateItemsFromPlain(message, false))
 	})
 
-	t.Run("empty message", func(t *testing.T) {
+	t.Run("only whitespace", func(t *testing.T) {
 		t.Parallel()
 
-		result := CreateItemsFromPlain("", false)
+		assert.Empty(t, CreateItemsFromPlain("", false))
+		assert.Empty(t, CreateItemsFromPlain(" \n\t", false))
+	})
 
-		require.Len(t, result, 1)
-		assert.Empty(t, result[0])
+	t.Run("whitespace after a full batch", func(t *testing.T) {
+		t.Parallel()
+
+		message := strings.Repeat("a", TotalChunkSize)
+
+		assert.Equal(t,
+			CreateItemsFromPlain(message, false),
+			CreateItemsFromPlain(message+"\n\n\n", false),
+			"the whitespace left over after a full batch makes no batch of its own",
+		)
+		assert.Equal(t,
+			[][]types.MessageItem{{{Text: strings.Repeat("a", ChunkSize)}}},
+			CreateItemsFromPlain(strings.Repeat("a", ChunkSize)+"      ", false),
+			"a chunk of only whitespace is left out of its batch",
+		)
 	})
 
 	t.Run("long multi-byte message", func(t *testing.T) {

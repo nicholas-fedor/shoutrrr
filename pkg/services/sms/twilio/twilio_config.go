@@ -1,6 +1,7 @@
 package twilio
 
 import (
+	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -126,8 +127,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: the error for the first missing field, or [ErrToFromNumberSame]
-//     when a recipient is the sender's phone number. It is nil for a valid
-//     config.
+//     when a recipient is the sender's phone number. A sender that a URL host
+//     cannot hold gives an error wrapping [util.ErrInvalidHost]. It is nil for a
+//     valid config.
 func (c *Config) validate() error {
 	if c.AccountSID == "" {
 		return ErrAccountSIDMissing
@@ -139,6 +141,10 @@ func (c *Config) validate() error {
 
 	if c.FromNumber == "" {
 		return ErrFromNumberMissing
+	}
+
+	if err := util.ValidateHostToken(c.FromNumber); err != nil {
+		return fmt.Errorf("sender: %w", err)
 	}
 
 	if len(c.ToNumbers) == 0 {

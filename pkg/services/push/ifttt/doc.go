@@ -126,7 +126,7 @@
 //
 // Common error scenarios:
 //   - Missing webhook ID (required)
-//   - Missing events (required)
+//   - Missing events (required), or an empty event name such as events=a,
 //   - Invalid messagevalue (must be 1-3)
 //   - Invalid titlevalue (must be 0 or 1-3)
 //   - titlevalue and messagevalue cannot be the same

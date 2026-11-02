@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Test credentials and numbers in the formats Twilio uses.
@@ -121,6 +122,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing account SID", rawURL: "twilio://:authToken@" + testFrom + "/" + testTo, wantErr: ErrAccountSIDMissing},
 		{name: "missing auth token", rawURL: "twilio://" + testAccountSID + "@" + testFrom + "/" + testTo, wantErr: ErrAuthTokenMissing},
 		{name: "missing sender", rawURL: "twilio://" + testAccountSID + ":authToken@/" + testTo, wantErr: ErrFromNumberMissing},
+		{name: "sender with a port", rawURL: "twilio://" + testAccountSID + ":authToken@+15551234567:443/" + testTo, wantErr: util.ErrInvalidHost},
 		{name: "missing recipients", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom, wantErr: ErrToNumbersMissing},
 		{name: "recipient equals sender", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/" + testFrom, wantErr: ErrToFromNumberSame},
 		{name: "unknown prop", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "?foo=bar", wantErr: format.ErrInvalidConfigKey},

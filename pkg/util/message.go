@@ -2,6 +2,7 @@ package util
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -112,8 +113,10 @@ func Ellipsis(text string, maxLength int) string {
 // MessageItemsFromLines creates batches of MessageItem from newline-separated text.
 //
 // This function splits the input by newlines and creates batches that respect
-// the chunk count and total chunk size limits, measured in runes. Empty lines are
-// skipped, and individual lines that exceed ChunkSize are truncated with an ellipsis.
+// the chunk count and total chunk size limits, measured in runes. The "\r" that
+// a CRLF line break leaves at the end of a line is dropped. Blank lines and
+// lines of only whitespace are skipped. Lines that exceed ChunkSize are
+// truncated with an ellipsis.
 //
 // Parameters:
 //   - plain: The input text containing newline-separated lines.
@@ -130,7 +133,8 @@ func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.Me
 	)
 
 	for line := range strings.SplitSeq(plain, "\n") {
-		if line == "" {
+		line = strings.TrimSuffix(line, "\r")
+		if isBlank(line) {
 			continue
 		}
 
@@ -158,4 +162,28 @@ func MessageItemsFromLines(plain string, limits types.MessageLimit) [][]types.Me
 	}
 
 	return batches
+}
+
+// isBlank reports whether line holds only whitespace, as [strings.TrimSpace]
+// defines it. It checks ASCII bytes directly and stops at the first byte that
+// is not whitespace, so a line of non-ASCII text costs a third of what
+// [strings.TrimSpace] costs, which trims both ends.
+//
+// Parameters:
+//   - line: the line to check.
+//
+// Returns:
+//   - bool: true when line is empty or holds only whitespace.
+func isBlank(line string) bool {
+	for i := range len(line) {
+		switch c := line[i]; {
+		case c == ' ', c == '\t', c == '\n', c == '\v', c == '\f', c == '\r':
+		case c < utf8.RuneSelf:
+			return false
+		default:
+			return strings.TrimLeftFunc(line[i:], unicode.IsSpace) == ""
+		}
+	}
+
+	return true
 }

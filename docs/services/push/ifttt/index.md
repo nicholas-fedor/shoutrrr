@@ -11,3 +11,4 @@
 
 Each event in the `events` param gets its own request, in order.
 An event that fails does not stop the events after it, and the error names every event that failed.
+An empty event name, as in `events=a,`, is rejected before any request.

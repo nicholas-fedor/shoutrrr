@@ -3,7 +3,6 @@ package signalgrid
 import (
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -86,9 +85,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - An error if the query is malformed ([util.ErrInvalidQuery]), a query
-//     parameter is invalid, or the config's checks fail, such as for a channel
-//     token with a colon or brackets ([util.ErrInvalidHost]).
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query,
+//     or a query parameter error. Otherwise the error from the config's
+//     checks, such as one wrapping [util.ErrInvalidHost] for a channel token
+//     that a URL host cannot hold.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		c.ClientKey = serviceURL.User.Username()
@@ -116,8 +116,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: [ErrClientKeyMissing] or [ErrChannelMissing] for a missing
-//     field, an error wrapping [util.ErrInvalidHost] for a channel token with
-//     a colon or brackets, or nil.
+//     field. A channel token that a URL host cannot hold gives an error
+//     wrapping [util.ErrInvalidHost]. Otherwise nil.
 func (c *Config) validate() error {
 	if c.ClientKey == "" {
 		return ErrClientKeyMissing
@@ -127,10 +127,8 @@ func (c *Config) validate() error {
 		return ErrChannelMissing
 	}
 
-	// The channel token is the URL host as written, which cannot hold a port
-	// or brackets that url.URL.Hostname would strip.
-	if strings.ContainsAny(c.Channel, ":[]") {
-		return fmt.Errorf("channel token: %w", util.ErrInvalidHost)
+	if err := util.ValidateHostToken(c.Channel); err != nil {
+		return fmt.Errorf("channel token: %w", err)
 	}
 
 	return nil
