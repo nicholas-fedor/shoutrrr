@@ -206,6 +206,7 @@ func TestSendRequestCount(t *testing.T) {
 		{name: "plain text", message: "Hello, Discord!", wantCalls: 1},
 		{name: "JSON mode", message: `{"content":"JSON message"}`, configure: func(c *Config) { c.JSON = true }, wantCalls: 1},
 		{name: "longer than one batch", message: strings.Repeat("a", TotalChunkSize+100), wantCalls: 2},
+		{name: "whitespace after a full batch", message: strings.Repeat("a", TotalChunkSize) + "\n\n\n", wantCalls: 1},
 		{name: "split lines", message: "Line 1\nLine 2\nLine 3", configure: func(c *Config) { c.SplitLines = true }, wantCalls: 1},
 	}
 
@@ -565,13 +566,28 @@ func TestCreateItemsFromPlain(t *testing.T) {
 		assert.Equal(t, [][]types.MessageItem{{{Text: message}}}, CreateItemsFromPlain(message, false))
 	})
 
-	t.Run("empty message", func(t *testing.T) {
+	t.Run("only whitespace", func(t *testing.T) {
 		t.Parallel()
 
-		result := CreateItemsFromPlain("", false)
+		assert.Empty(t, CreateItemsFromPlain("", false))
+		assert.Empty(t, CreateItemsFromPlain(" \n\t", false))
+	})
 
-		require.Len(t, result, 1)
-		assert.Empty(t, result[0])
+	t.Run("whitespace after a full batch", func(t *testing.T) {
+		t.Parallel()
+
+		message := strings.Repeat("a", TotalChunkSize)
+
+		assert.Equal(t,
+			CreateItemsFromPlain(message, false),
+			CreateItemsFromPlain(message+"\n\n\n", false),
+			"the whitespace left over after a full batch makes no batch of its own",
+		)
+		assert.Equal(t,
+			[][]types.MessageItem{{{Text: strings.Repeat("a", ChunkSize)}}},
+			CreateItemsFromPlain(strings.Repeat("a", ChunkSize)+"      ", false),
+			"a chunk of only whitespace is left out of its batch",
+		)
 	})
 
 	t.Run("long multi-byte message", func(t *testing.T) {
