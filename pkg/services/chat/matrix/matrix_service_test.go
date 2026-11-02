@@ -3,6 +3,7 @@ package matrix
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log"
@@ -35,12 +36,15 @@ type fakeHomeserver struct {
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
 	releaseFlows chan struct{}
-	// mu guards tokens, hosts, schemes, and deadlines.
+	// mu guards tokens, hosts, loginAccounts, schemes, and deadlines.
 	mu sync.Mutex
 	// tokens records the Authorization header of each message sent.
 	tokens []string
 	// hosts records the URL host of each message sent.
 	hosts []string
+	// loginAccounts records the host, user, and password of each password
+	// login, separated by spaces.
+	loginAccounts []string
 	// schemes records the URL scheme of each request.
 	schemes []string
 	// deadlines records the deadline of each request's context.
@@ -66,8 +70,10 @@ const (
 //   - error: the request context's error when it ends while a login flows
 //     request is held, and nil otherwise.
 func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
+	var body []byte
+
 	if req.Body != nil {
-		_, _ = io.Copy(io.Discard, req.Body)
+		body, _ = io.ReadAll(req.Body)
 		_ = req.Body.Close()
 	}
 
@@ -99,6 +105,13 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	case req.Method == http.MethodGet && req.URL.Path == apiLogin:
 		return homeserverResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
 	case req.Method == http.MethodPost && req.URL.Path == apiLogin:
+		var login apiReqLogin
+		if err := json.Unmarshal(body, &login); err == nil && login.Identifier != nil {
+			f.mu.Lock()
+			f.loginAccounts = append(f.loginAccounts, req.URL.Host+" "+login.Identifier.User+" "+login.Password)
+			f.mu.Unlock()
+		}
+
 		// Each login issues a numbered token, so a test can tell which login a
 		// message used.
 		token := fmt.Sprintf("access-%d", f.logins.Add(1))
@@ -117,6 +130,18 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	default:
 		return homeserverResponse(http.StatusNotFound, `{"errcode":"M_NOT_FOUND","error":"not found"}`), nil
 	}
+}
+
+// loggedInAccounts returns the host, user, and password of each password login
+// so far, separated by spaces.
+//
+// Returns:
+//   - []string: the accounts, in order.
+func (f *fakeHomeserver) loggedInAccounts() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.loginAccounts...)
 }
 
 // requestDeadlines returns the deadline of each request's context so far.
@@ -433,14 +458,30 @@ func TestSessionFollowsConfig(t *testing.T) {
 	})
 
 	// changes lists config changes that name another account, each of which
-	// needs a new login.
-	changes := map[string]func(config *Config){
-		"another homeserver": func(config *Config) { config.Host = "other.example.com" },
-		"another user":       func(config *Config) { config.User = "other" },
-		"another password":   func(config *Config) { config.Password = "other-password" },
+	// needs a new login, with the account and host of the second send.
+	changes := map[string]struct {
+		change      func(config *Config)
+		wantAccount string
+		wantHost    string
+	}{
+		"another homeserver": {
+			change:      func(config *Config) { config.Host = "other.example.com" },
+			wantAccount: "other.example.com user SECRETpassword",
+			wantHost:    "other.example.com",
+		},
+		"another user": {
+			change:      func(config *Config) { config.User = "other" },
+			wantAccount: "matrix.example.com other SECRETpassword",
+			wantHost:    "matrix.example.com",
+		},
+		"another password": {
+			change:      func(config *Config) { config.Password = "other-password" },
+			wantAccount: "matrix.example.com user other-password",
+			wantHost:    "matrix.example.com",
+		},
 	}
 
-	for name, change := range changes {
+	for name, tt := range changes {
 		t.Run("password login for "+name, func(t *testing.T) {
 			t.Parallel()
 
@@ -450,11 +491,13 @@ func TestSessionFollowsConfig(t *testing.T) {
 			require.NoError(t, service.Send("first", nil))
 
 			config := *service.Config
-			change(&config)
+			tt.change(&config)
 			service.Config = &config
 
 			require.NoError(t, service.Send("second", nil))
 			assert.Equal(t, int32(2), server.logins.Load())
+			assert.Equal(t, []string{"matrix.example.com user SECRETpassword", tt.wantAccount}, server.loggedInAccounts())
+			assert.Equal(t, []string{"matrix.example.com", tt.wantHost}, server.sentHosts())
 			assert.Equal(t, []string{"Bearer access-1", "Bearer access-2"}, server.sentTokens())
 		})
 	}
