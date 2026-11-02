@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Encryption keys in the 64-character hex format the Pushover apps use.
@@ -94,6 +95,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		rawURL  string
 	}{
 		{name: "missing user", rawURL: "pushover://Token:token@", wantErr: ErrUserMissing},
+		{name: "user key with a port", rawURL: "pushover://Token:token@user:443", wantErr: util.ErrInvalidHost},
 		{name: "missing token", rawURL: "pushover://Token:@user", wantErr: ErrTokenMissing},
 		{name: "unknown prop", rawURL: "pushover://:token@user?devicey=a", wantErr: format.ErrInvalidConfigKey},
 		{name: "priority not a number", rawURL: "pushover://:token@user?priority=super-duper", wantErr: format.ErrParseIntFailed},

@@ -33,9 +33,12 @@ type Service struct {
 
 // Settings for requests to the IFTTT webhooks.
 const (
-	// apiURLFormat is the webhook URL template, formatted with the event name
-	// and the webhook key.
-	apiURLFormat = "https://maker.ifttt.com/trigger/%s/with/key/%s"
+	// triggerURLPrefix starts each webhook URL. The path-escaped event name
+	// follows it.
+	triggerURLPrefix = "https://maker.ifttt.com/trigger/"
+	// keyPathPrefix follows the event name in each webhook URL. The
+	// path-escaped webhook key follows it.
+	keyPathPrefix = "/with/key/"
 	// defaultTimeout is the part of the send budget for each event.
 	defaultTimeout = 10 * time.Second
 )
@@ -96,8 +99,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields and payload values.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
-//     payload, or send error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, or the error
+//     from [Service.SendContext].
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -114,10 +117,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields and payload values.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
-//     value field, or payload error, or the joined errors of the events that
-//     failed, each wrapping [ErrSendFailed] and naming its event, and ctx's
-//     error when it ended the send.
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A params,
+//     config, or payload error, such as [ErrMissingEvents], fails the send
+//     before any request. Otherwise it joins the errors of the events that
+//     failed and ctx's error when it ended the send. Each event error wraps
+//     [ErrSendFailed] and names its event.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -131,25 +135,27 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
+	if err := config.validate(); err != nil {
+		return err
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
 	defer cancel()
-
-	// Params can change the value fields, so they get the checks the URL gets.
-	if err := config.validateValueFields(); err != nil {
-		return fmt.Errorf("validating params: %w", err)
-	}
 
 	payload, err := createJSONToSend(config, message)
 	if err != nil {
 		return err
 	}
 
+	// The key path is the same for every event, so it is built once.
+	keyPath := keyPathPrefix + url.PathEscape(config.WebHookID)
+
 	return sequential.Send(
 		ctx,
 		config.Events,
 		sequential.PerTarget(defaultTimeout),
 		func(ctx context.Context, event string) error {
-			if err := s.doSend(ctx, payload, s.createAPIURLForEvent(event)); err != nil {
+			if err := s.doSend(ctx, payload, triggerURLPrefix+url.PathEscape(event)+keyPath); err != nil {
 				return fmt.Errorf("%w: event %q: %w", ErrSendFailed, event, err)
 			}
 
@@ -188,17 +194,6 @@ func (s *Service) ServiceTimeout(params *types.Params) time.Duration {
 //   - client: the HTTP client to use for requests, or nil for the default.
 func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.client.Set(client)
-}
-
-// createAPIURLForEvent builds an IFTTT webhook URL for a specific event.
-//
-// Parameters:
-//   - event: the event name.
-//
-// Returns:
-//   - string: the webhook URL, with the configured webhook key.
-func (s *Service) createAPIURLForEvent(event string) string {
-	return fmt.Sprintf(apiURLFormat, event, s.Config.WebHookID)
 }
 
 // doSend executes an HTTP POST request to send the payload to the IFTTT webhook.

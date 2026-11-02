@@ -200,13 +200,18 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // before a request.
 //
 // Returns:
-//   - error: [ErrAPIKeyMissing] for a config without an API key, including a
-//     port alone such as :8080, or nil.
+//   - error: [ErrAPIKeyMissing] for a config without an API key. A port
+//     alone, such as :8080, counts as no API key. A key that a URL host cannot
+//     hold gives an error wrapping [util.ErrInvalidHost]. Otherwise nil.
 func (c *Config) validate() error {
 	// The key is read from the URL host, so a port alone, as in
 	// notifiarr://:8080, is not an API key.
 	if (&url.URL{Host: c.APIKey}).Hostname() == "" {
 		return ErrAPIKeyMissing
+	}
+
+	if err := util.ValidateHostToken(c.APIKey); err != nil {
+		return fmt.Errorf("API key: %w", err)
 	}
 
 	return nil

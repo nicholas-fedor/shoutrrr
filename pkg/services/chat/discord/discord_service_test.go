@@ -305,7 +305,8 @@ func sendPlainForTest(t *testing.T, query string, params types.Params) WebhookPa
 }
 
 // TestSendFailures verifies that an empty message is rejected without a
-// request and that a failed first batch fails the send.
+// request. So is a message of only whitespace, with or without split lines. A
+// failed first batch fails the send.
 func TestSendFailures(t *testing.T) {
 	t.Parallel()
 
@@ -313,6 +314,18 @@ func TestSendFailures(t *testing.T) {
 		t.Parallel()
 
 		require.ErrorIs(t, newTestService(t, mocks.NewMockHTTPClient(t)).Send("", &types.Params{}), ErrEmptyMessage)
+	})
+
+	t.Run("only whitespace", func(t *testing.T) {
+		t.Parallel()
+
+		// The mock has no expectations, so a request fails the test.
+		service := newTestService(t, mocks.NewMockHTTPClient(t))
+
+		for _, message := range []string{"\n\n", "\r\n\r\n", " \n\t"} {
+			require.ErrorIs(t, service.Send(message, &types.Params{"splitlines": "yes"}), ErrEmptyMessage, "split %q", message)
+			require.ErrorIs(t, service.Send(message, &types.Params{}), ErrEmptyMessage, "unsplit %q", message)
+		}
 	})
 
 	t.Run("first batch fails", func(t *testing.T) {

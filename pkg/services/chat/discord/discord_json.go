@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -200,7 +201,8 @@ func processEmbedFields(
 //
 // A single plain item becomes the message content, and any other items become
 // embeds, at most [MaxEmbeds] of them. Items past that limit are left out, so
-// callers send them in further payloads.
+// callers send them in further payloads. Discord treats content of only
+// whitespace as empty, so such an item is rejected before a request.
 //
 // Parameters:
 //   - items: the message items.
@@ -209,7 +211,8 @@ func processEmbedFields(
 //
 // Returns:
 //   - WebhookPayload: the payload.
-//   - error: [ErrEmptyMessage] for no items or a single plain item without text.
+//   - error: [ErrEmptyMessage] for no items or a single plain item whose text
+//     is empty or only whitespace.
 func CreatePayloadFromItems(
 	items []types.MessageItem,
 	title string,
@@ -220,7 +223,7 @@ func CreatePayloadFromItems(
 	}
 
 	if sendsAsContent(items, title) {
-		if items[0].Text == "" {
+		if strings.TrimSpace(items[0].Text) == "" {
 			return WebhookPayload{}, ErrEmptyMessage
 		}
 

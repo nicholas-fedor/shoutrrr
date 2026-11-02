@@ -400,6 +400,12 @@ func TestMessageItemsFromLinesContent(t *testing.T) {
 			want:   [][]string{{"a", "b"}, {"c"}},
 		},
 		{
+			name:   "skips lines of only whitespace",
+			plain:  "a\r\n\r\n \t\nb",
+			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 300, ChunkCount: 2},
+			want:   [][]string{{"a", "b"}},
+		},
+		{
 			name:   "keeps multi-byte lines intact",
 			plain:  "世界\nこんにちは\n안녕",
 			limits: types.MessageLimit{ChunkSize: 100, TotalChunkSize: 7, ChunkCount: 10},
@@ -438,4 +444,20 @@ func batchTexts(batches [][]types.MessageItem) [][]string {
 	}
 
 	return texts
+}
+
+// TestIsBlank verifies that isBlank matches [strings.TrimSpace] for lines of
+// only whitespace, ASCII or not, and for lines with other characters.
+func TestIsBlank(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []string{"", " ", "\t\r\n\v\f", "\u00a0", " \u3000\u0085"} {
+		assert.True(t, isBlank(line), "%q", line)
+		assert.Empty(t, strings.TrimSpace(line), "%q", line)
+	}
+
+	for _, line := range []string{"a", "  a", "\u3000x", "\u4e16\u754c", " \xff"} {
+		assert.False(t, isBlank(line), "%q", line)
+		assert.NotEmpty(t, strings.TrimSpace(line), "%q", line)
+	}
 }

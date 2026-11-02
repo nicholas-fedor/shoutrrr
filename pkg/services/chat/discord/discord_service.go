@@ -176,6 +176,13 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	}
 
 	batches := createItemsFromPlain(message, send.config.SplitLines, send.config.Title)
+
+	// Splitting drops blank lines, so a message of only blank lines leaves
+	// nothing to post.
+	if len(batches) == 0 {
+		return ErrEmptyMessage
+	}
+
 	level := s.plainLevel(&send.config, params)
 
 	err = sequential.Send(

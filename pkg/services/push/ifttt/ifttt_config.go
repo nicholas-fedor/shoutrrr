@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -72,10 +72,14 @@ var (
 	// ErrTitleMessageConflict indicates a titlevalue that selects the same
 	// value field as messagevalue.
 	ErrTitleMessageConflict = errors.New("titlevalue cannot use the same number as messagevalue")
-	// ErrMissingEvents indicates a service URL without events.
+	// ErrMissingEvents indicates a config without events.
 	ErrMissingEvents = errors.New("events missing from config URL")
-	// ErrMissingWebhookID indicates a service URL without the webhook key.
+	// ErrMissingWebhookID indicates a config without a webhook ID.
 	ErrMissingWebhookID = errors.New("webhook ID missing from config URL")
+	// ErrEmptyEventName indicates an event list with an empty name, such as
+	// events=a, in a URL. The name is a path element of the trigger URL, so it
+	// cannot be empty.
+	ErrEmptyEventName = errors.New("event name is empty")
 )
 
 // GetURL generates a URL from the current configuration values.
@@ -133,19 +137,12 @@ func (c *Config) sendBudget() time.Duration {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - error: [util.ErrInvalidHost] for a webhook ID with a colon or brackets, an
-//     error wrapping [util.ErrInvalidQuery] for a malformed query, a query
-//     parameter error, a value field error from
-//     [Config.validateValueFields], [ErrMissingEvents], or [ErrMissingWebhookID].
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query parameter error. Otherwise the error from the config's checks,
+//     such as [ErrMissingEvents].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if c.UseMessageAsValue == DisabledValue {
 		c.UseMessageAsValue = DefaultMessageValue
-	}
-
-	// The webhook ID is the host as written, which cannot hold a port or brackets
-	// that url.URL.Hostname would strip.
-	if strings.ContainsAny(serviceURL.Host, ":[]") {
-		return fmt.Errorf("webhook ID: %w", util.ErrInvalidHost)
 	}
 
 	c.WebHookID = serviceURL.Host
@@ -159,29 +156,22 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	if err := c.validateValueFields(); err != nil {
-		return err
-	}
-
-	if len(c.Events) < MinLength {
-		return ErrMissingEvents
-	}
-
-	if len(c.WebHookID) < MinLength {
-		return ErrMissingWebhookID
-	}
-
-	return nil
+	return c.validate()
 }
 
-// validateValueFields checks the value fields that the message and title
-// are written to.
+// validate checks the value fields that the message and title are written to,
+// the events, and the webhook ID. Reading a service URL and each send run it,
+// so a config built in code or emptied by a param fails before a request.
 //
 // Returns:
-//   - error: [ErrInvalidMessageValue] when messagevalue is outside 1 to 3,
-//     [ErrInvalidTitleValue] when titlevalue is above 3, or
-//     [ErrTitleMessageConflict] when both select the same field.
-func (c *Config) validateValueFields() error {
+//   - error: the error of the first check that fails, or nil. A messagevalue
+//     outside 1 to 3 gives [ErrInvalidMessageValue]. A titlevalue above 3
+//     gives [ErrInvalidTitleValue]. Both selecting the same field gives
+//     [ErrTitleMessageConflict]. A missing field gives [ErrMissingEvents] or
+//     [ErrMissingWebhookID]. An empty event name gives [ErrEmptyEventName]. A
+//     webhook ID that a URL host cannot hold gives an error wrapping
+//     [util.ErrInvalidHost].
+func (c *Config) validate() error {
 	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
 		return ErrInvalidMessageValue
 	}
@@ -193,6 +183,22 @@ func (c *Config) validateValueFields() error {
 	if c.UseTitleAsValue != DisabledValue &&
 		c.UseTitleAsValue == c.UseMessageAsValue {
 		return ErrTitleMessageConflict
+	}
+
+	if len(c.Events) < MinLength {
+		return ErrMissingEvents
+	}
+
+	if slices.Contains(c.Events, "") {
+		return ErrEmptyEventName
+	}
+
+	if len(c.WebHookID) < MinLength {
+		return ErrMissingWebhookID
+	}
+
+	if err := util.ValidateHostToken(c.WebHookID); err != nil {
+		return fmt.Errorf("webhook ID: %w", err)
 	}
 
 	return nil

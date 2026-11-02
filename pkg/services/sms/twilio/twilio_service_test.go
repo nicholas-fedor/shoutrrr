@@ -19,6 +19,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/sms/twilio/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -206,20 +207,36 @@ func TestSend(t *testing.T) {
 	}
 }
 
-// TestSendChecksConfig verifies that a send with a config built in code
-// without recipients fails before any request, as reading a URL without them
-// does.
+// TestSendChecksConfig verifies that a send with a config built in code fails
+// before any request, as reading a URL with the same values does.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, testServiceURL)
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no recipients", change: func(config *Config) { config.ToNumbers = nil }, wantErr: ErrToNumbersMissing},
+		{name: "sender with a port", change: func(config *Config) { config.FromNumber = "+15551234567:443" }, wantErr: util.ErrInvalidHost},
+	}
 
-	config := *service.Config
-	config.ToNumbers = nil
-	service.Config = &config
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.ErrorIs(t, service.Send("Message", nil), ErrToNumbersMissing)
+			service := newTestService(t, testServiceURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+
+			config := *service.Config
+			tt.change(&config)
+			service.Config = &config
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
 }
 
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of

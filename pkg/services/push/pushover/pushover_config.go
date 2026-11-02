@@ -1,6 +1,7 @@
 package pushover
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
@@ -119,9 +120,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 // before a request.
 //
 // Returns:
-//   - error: an encryption key error, [ErrInvalidTimestamp] for a negative
-//     timestamp, [ErrUserMissing] or [ErrTokenMissing] when the user or the
-//     token is missing, or nil.
+//   - error: an encryption key error or [ErrInvalidTimestamp] for a negative
+//     timestamp. [ErrUserMissing] or [ErrTokenMissing] when the user or the
+//     token is missing. An error wrapping [util.ErrInvalidHost] for a user key
+//     that a URL host cannot hold. Otherwise nil.
 func (c *Config) validate() error {
 	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
 		return err
@@ -133,6 +135,10 @@ func (c *Config) validate() error {
 
 	if c.User == "" {
 		return ErrUserMissing
+	}
+
+	if err := util.ValidateHostToken(c.User); err != nil {
+		return fmt.Errorf("user key: %w", err)
 	}
 
 	if c.Token == "" {

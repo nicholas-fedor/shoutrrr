@@ -221,6 +221,21 @@ func TestParseURLPort(t *testing.T) {
 	}
 }
 
+// TestValidateHostToken verifies that a token is accepted unless it would not
+// read back unchanged from a URL host. A colon or a bracket reads back as a
+// port or an IPv6 address. A slash, a space, or @ makes the URL fail to parse.
+func TestValidateHostToken(t *testing.T) {
+	t.Parallel()
+
+	for _, token := range []string{"token", "abc-123_XYZ", "", "+15551234567", "o.a~b%c", "\u00e9t\u00e9"} {
+		require.NoError(t, ValidateHostToken(token), token)
+	}
+
+	for _, token := range []string{"token:443", "[token]", "a[b", "a]b", ":", "a/b", "a b", "a@b", "a?b", "a#b", "a\x00b"} {
+		require.ErrorIs(t, ValidateHostToken(token), ErrInvalidHost, token)
+	}
+}
+
 // TestJoinURLHost verifies that JoinURLHost writes a hostname and optional
 // port as a URL authority, with an IPv6 hostname in brackets whether or not a
 // port follows it, and that SplitURLHost reads the authority back.

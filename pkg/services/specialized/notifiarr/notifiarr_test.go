@@ -20,6 +20,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -419,17 +420,17 @@ func TestSendContextErrors(t *testing.T) {
 }
 
 // TestSendEscapesAPIKey verifies that the API key is sent as one escaped path
-// segment. A slash, question mark, hash, or percent sign in it then cannot
-// change the endpoint or start a query or fragment.
+// segment, so a semicolon, comma, or percent sign in it reaches the API as
+// written.
 func TestSendEscapesAPIKey(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, "notifiarr://placeholder?apikey=a%2F..%2Fx%3Fq%3D1%23f%25zz")
+	service := newTestService(t, "notifiarr://placeholder?apikey=a%3Bb%2Cc%25zz")
 	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
 	service.SetHTTPClient(client)
 
 	require.NoError(t, service.Send("Hello", nil))
-	assert.Equal(t, APIBaseURL+"/a%2F..%2Fx%3Fq=1%23f%25zz", captured.url)
+	assert.Equal(t, APIBaseURL+"/a%3Bb%2Cc%25zz", captured.url)
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
@@ -439,27 +440,29 @@ func TestSendEscapesAPIKey(t *testing.T) {
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("no API key", func(t *testing.T) {
-		t.Parallel()
+	// rejected lists config changes with the error the send must return.
+	rejected := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no API key", change: func(config *Config) { *config = Config{} }, wantErr: ErrAPIKeyMissing},
+		{name: "port alone as the API key", change: func(config *Config) { config.APIKey = ":8080" }, wantErr: ErrAPIKeyMissing},
+		{name: "API key with a port", change: func(config *Config) { config.APIKey = "key:443" }, wantErr: util.ErrInvalidHost},
+	}
 
-		service := newTestService(t, testServiceURL)
-		// The mock has no expectations, so a request fails the test.
-		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-		*service.Config = Config{}
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.ErrorIs(t, service.Send("Hello", nil), ErrAPIKeyMissing)
-	})
+			service := newTestService(t, testServiceURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
 
-	t.Run("port alone as the API key", func(t *testing.T) {
-		t.Parallel()
-
-		service := newTestService(t, testServiceURL)
-		// The mock has no expectations, so a request fails the test.
-		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-		service.Config.APIKey = ":8080"
-
-		require.ErrorIs(t, service.Send("Hello", nil), ErrAPIKeyMissing)
-	})
+			require.ErrorIs(t, service.Send("Hello", nil), tt.wantErr)
+		})
+	}
 
 	t.Run("no app name", func(t *testing.T) {
 		t.Parallel()
