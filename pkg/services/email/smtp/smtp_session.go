@@ -148,7 +148,7 @@ func (s *session) ehloName(ctx context.Context) string {
 	if err != nil {
 		s.svc.LogAttrs(ctx, slog.LevelWarn, "hostname unavailable, using localhost", slog.Any(logging.KeyError, err))
 
-		return "localhost"
+		return defaultClientHost
 	}
 
 	return hostname
@@ -198,27 +198,15 @@ func (s *session) quit(ctx context.Context, errs []error) []error {
 
 // run conducts the SMTP session: handshake, optional STARTTLS, authentication,
 // delivery, and QUIT. Pre-delivery failures close the client without sending QUIT.
-// An empty recipient list or sender fails before the handshake, so a blank
-// sender is never sent as the null reverse-path.
 //
 // Parameters:
 //   - ctx: the context of the send, passed to its log records.
 //   - message: The notification body.
 //
 // Returns:
-//   - An error if there are no recipients or no sender, or if handshake, STARTTLS, authentication, or delivery fails.
+//   - An error if the handshake, STARTTLS, authentication, or delivery fails.
 func (s *session) run(ctx context.Context, message string) error {
-	s.config.restorePlusAddresses()
-
 	defer s.closeIfOpen(ctx)
-
-	if len(s.config.ToAddresses) == 0 {
-		return fail(FailSendRecipient, ErrToAddressMissing, "")
-	}
-
-	if s.config.FromAddress == "" {
-		return fail(FailSetSender, ErrFromAddressMissing)
-	}
 
 	if err := s.client.Hello(s.ehloName(ctx)); err != nil {
 		return fail(FailHandshake, err)
@@ -261,8 +249,8 @@ func (s *session) run(ctx context.Context, message string) error {
 
 // sendMessage sends an email to a single recipient using MAIL, RCPT, and DATA.
 //
-// Sender and recipient addresses that contain CR or LF are rejected before any
-// SMTP command is issued.
+// The config's checks have rejected sender and recipient addresses with a CR
+// or LF before the connection opened.
 //
 // Parameters:
 //   - toAddress: The recipient address.
@@ -270,16 +258,8 @@ func (s *session) run(ctx context.Context, message string) error {
 //   - boundary: Multipart boundary used when HTML mail is enabled.
 //
 // Returns:
-//   - An error if an address is unsafe or any SMTP command or message write fails.
+//   - An error if any SMTP command or message write fails.
 func (s *session) sendMessage(toAddress, message, boundary string) error {
-	if strings.ContainsAny(s.config.FromAddress, "\r\n") {
-		return fail(FailSetSender, errHeaderBreak)
-	}
-
-	if strings.ContainsAny(toAddress, "\r\n") {
-		return fail(FailSetRecipient, errHeaderBreak)
-	}
-
 	if err := s.client.Mail(s.config.FromAddress); err != nil {
 		return fail(FailSetSender, err)
 	}

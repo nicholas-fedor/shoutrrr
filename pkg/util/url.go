@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -13,7 +14,8 @@ var (
 	// ErrInvalidHost indicates a URL host that is not a hostname, an IPv4
 	// address, or an IPv6 address in brackets.
 	ErrInvalidHost = errors.New("invalid URL host")
-	// ErrInvalidPort indicates a URL port that is not a decimal number.
+	// ErrInvalidPort indicates a URL port that is not a decimal number, or one
+	// outside 1 to 65535 where a port number is read.
 	ErrInvalidPort = errors.New("invalid URL port")
 	// ErrInvalidQuery indicates a URL query with a malformed escape or a
 	// semicolon separator.
@@ -86,6 +88,29 @@ func SplitURLHost(serviceURL *url.URL) (host, port string, err error) { //nolint
 	}
 
 	return host, port, nil
+}
+
+// ParseURLPort reads a URL port as a TCP port number. The port is the decimal
+// text [SplitURLHost] returns.
+//
+// Parameters:
+//   - port: the decimal port, or "" when the URL has none.
+//
+// Returns:
+//   - uint16: the port, or 0 when port is empty.
+//   - error: an error wrapping [ErrInvalidPort] for a port that is not a number
+//     from 1 to 65535.
+func ParseURLPort(port string) (uint16, error) {
+	if port == "" {
+		return 0, nil
+	}
+
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || number == 0 {
+		return 0, fmt.Errorf("%w: %q must be 1 to 65535", ErrInvalidPort, port)
+	}
+
+	return uint16(number), nil
 }
 
 // JoinURLHost writes host and port as a URL authority. An IPv6 host is

@@ -52,6 +52,8 @@ type fakeConnector struct {
 	// tlsConfigs holds the TLS settings of each connection, nil for one
 	// without TLS.
 	tlsConfigs []*tls.Config
+	// servers holds the broker host and port of each connection.
+	servers []string
 }
 
 // warningContexts records the test value of the context each warning was
@@ -266,6 +268,61 @@ func TestSendParamsDoNotChangeConfig(t *testing.T) {
 
 		require.NoError(t, service.Send("plain", nil))
 		assert.False(t, connection.lastRetain.Load())
+	})
+}
+
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. An invalid config fails before a connection is opened,
+// and fails before a publish on a connection an earlier send opened. A config
+// without a host or port connects to the defaults a URL without them uses.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("before the first connection", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+			*service.Config = Config{}
+
+			require.ErrorIs(t, service.Send("message", nil), ErrTopicRequired)
+			assert.Empty(t, connector.created())
+		})
+	})
+
+	t.Run("on an open connection", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+
+			require.NoError(t, service.Send("first", nil))
+
+			service.Config.Topic = "sensors/+"
+
+			require.ErrorIs(t, service.Send("second", nil), ErrInvalidTopic)
+			require.Len(t, connector.created(), 1)
+			assert.Equal(t, int32(1), connector.created()[0].publishes.Load())
+		})
+	})
+
+	t.Run("no host or port", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+			service.Config.Host, service.Config.Port = "", 0
+
+			require.NoError(t, service.Send("message", nil))
+
+			connector.mu.Lock()
+			defer connector.mu.Unlock()
+
+			assert.Equal(t, []string{"localhost:1883"}, connector.servers)
+		})
 	})
 }
 
@@ -775,6 +832,7 @@ func (c *fakeConnector) connect(ctx context.Context, cfg *autopaho.ClientConfig)
 
 	c.mu.Lock()
 	c.tlsConfigs = append(c.tlsConfigs, cfg.TlsCfg)
+	c.servers = append(c.servers, cfg.ServerUrls[0].Host)
 
 	if len(c.connections) == 0 {
 		connection.gate = c.gateFirst

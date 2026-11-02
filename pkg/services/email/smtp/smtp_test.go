@@ -215,11 +215,6 @@ func TestInitialize(t *testing.T) {
 			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com&timeout=30s",
 			override: func(c *Config) { c.Auth, c.Timeout = AuthNone, 30*time.Second },
 		},
-		{
-			name:     "port out of range",
-			rawURL:   "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com",
-			override: func(c *Config) { c.Auth = AuthNone },
-		},
 	}
 
 	for _, tt := range tests {
@@ -230,6 +225,7 @@ func TestInitialize(t *testing.T) {
 			require.NoError(t, service.Initialize(parseConfigURL(t, tt.rawURL), log.New(t.Output(), "", 0)))
 
 			want := *newInitialConfig()
+			want.Port, want.ClientHost = DefaultSMTPPort, "localhost"
 			want.Host, want.FromAddress, want.ToAddresses = "mail.example.com", "sender@example.com", []string{"rec@example.com"}
 			tt.override(&want)
 			assert.Equal(t, &want, service.Config)
@@ -349,6 +345,73 @@ func TestSendContextErrors(t *testing.T) {
 		})
 
 		require.ErrorIs(t, service.SendContext(ctx, "Hello", nil), context.Canceled)
+	})
+}
+
+// TestSendChecksConfig verifies that a send checks its config after applying
+// its params, as reading a URL does. A config without a host, a sender, or a
+// recipient fails before the dial. So does an address with a line break.
+// Incomplete OAuth2 refresh settings fail before any token request. An empty
+// client host uses localhost. An unknown auth method from a param is
+// inferred, as one in a URL is.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes and params with the error the send must
+	// return.
+	tests := []struct {
+		params  *types.Params
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
+		{name: "no recipients", change: func(config *Config) { config.ToAddresses = nil }, wantErr: ErrToAddressMissing},
+		{name: "blank sender param", params: &types.Params{"fromaddress": " "}, wantErr: ErrFromAddressMissing},
+		{name: "empty sender param", params: &types.Params{"fromaddress": ""}, wantErr: ErrFromAddressMissing},
+		{name: "incomplete refresh settings", change: func(config *Config) { config.RefreshToken = "refresh" }, wantErr: ErrInvalidOAuth2Refresh},
+		{name: "sender with a line break", params: &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
+		{name: "recipient with a line break", params: &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"}, wantErr: errHeaderBreak},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newFakeSMTP()
+			service := newTestService(t, testServiceURL, server)
+
+			if tt.change != nil {
+				tt.change(service.Config)
+			}
+
+			err := service.Send("Hello", tt.params)
+
+			require.ErrorIs(t, err, fail(FailApplySendParams, nil))
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Empty(t, server.received())
+			assert.Zero(t, server.closes.Load(), "no connection should be made")
+		})
+	}
+
+	t.Run("no client host", func(t *testing.T) {
+		t.Parallel()
+
+		server := newFakeSMTP()
+		service := newTestService(t, testServiceURL, server)
+		service.Config.ClientHost = ""
+
+		require.NoError(t, service.Send("Hello", nil))
+		assert.Contains(t, server.received(), "EHLO localhost")
+	})
+
+	t.Run("unknown auth param", func(t *testing.T) {
+		t.Parallel()
+
+		server := newFakeSMTP()
+
+		require.NoError(t, newTestService(t, testServiceURL, server).Send("Hello", &types.Params{"auth": "unknown"}))
+		assert.Contains(t, server.received(), testMailFrom)
 	})
 }
 

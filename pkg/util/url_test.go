@@ -183,6 +183,44 @@ func TestSplitURLHost(t *testing.T) {
 	}
 }
 
+// TestParseURLPort verifies that a URL port reads as its number and an empty
+// port as 0. A port outside 1 to 65535 or not a number is rejected.
+func TestParseURLPort(t *testing.T) {
+	t.Parallel()
+
+	// tests lists ports with the number each reads as.
+	tests := []struct {
+		port string
+		want uint16
+	}{
+		{port: "", want: 0},
+		{port: "1", want: 1},
+		{port: "8080", want: 8080},
+		{port: "65535", want: 65535},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.port, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ParseURLPort(tt.port)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	for _, port := range []string{"0", "65536", "99999", "-1", "port"} {
+		t.Run("invalid "+port, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ParseURLPort(port)
+
+			require.ErrorIs(t, err, ErrInvalidPort)
+		})
+	}
+}
+
 // TestJoinURLHost verifies that JoinURLHost writes a hostname and optional
 // port as a URL authority, with an IPv6 hostname in brackets whether or not a
 // port follows it, and that SplitURLHost reads the authority back.

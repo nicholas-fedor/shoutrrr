@@ -58,33 +58,6 @@ func TestGetID(t *testing.T) {
 	assert.Equal(t, "mqtts", SchemeTLS)
 }
 
-// TestGetDefaultPortForScheme verifies that only the exact mqtts scheme uses the
-// TLS port.
-func TestGetDefaultPortForScheme(t *testing.T) {
-	t.Parallel()
-
-	// tests lists schemes with the default port each should get.
-	tests := []struct {
-		scheme string
-		want   int
-	}{
-		{scheme: "mqtt", want: 1883},
-		{scheme: "mqtts", want: 8883},
-		{scheme: "unknown", want: 1883},
-		{scheme: "", want: 1883},
-		{scheme: "http", want: 1883},
-		{scheme: "MQTTS", want: 1883},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.scheme, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, (&Service{}).getDefaultPortForScheme(tt.scheme))
-		})
-	}
-}
-
 // TestInitialize verifies that Initialize applies the struct tag defaults, reads
 // the URL into the config, and connects lazily.
 func TestInitialize(t *testing.T) {
