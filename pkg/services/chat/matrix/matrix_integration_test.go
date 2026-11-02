@@ -528,6 +528,14 @@ func TestIntegrationSendErrors(t *testing.T) {
 			wantRequests: 1,
 		},
 		{
+			name:         "account in no room",
+			userInfo:     ":" + accessToken,
+			overrides:    map[string]apiReply{http.MethodGet + " " + joinedRoomsPath: {statusCode: http.StatusOK, body: `{"joined_rooms":[]}`}},
+			wantErr:      matrix.ErrNoJoinedRooms,
+			wantText:     []string{"sending message: "},
+			wantRequests: 1,
+		},
+		{
 			name:     "unknown room alias",
 			userInfo: ":" + accessToken,
 			query:    "&rooms=%23missing:example.com",

@@ -33,6 +33,10 @@ var (
 	// status code that was not expected by the client.
 	ErrUnexpectedStatus = errors.New("unexpected HTTP status")
 
+	// ErrNoJoinedRooms is returned when a send without configured rooms finds
+	// that the account has joined no room, so the message would reach no one.
+	ErrNoJoinedRooms = errors.New("no joined rooms to send to")
+
 	// ErrEmptyRoom is returned when a room value is empty or contains only whitespace.
 	ErrEmptyRoom = errors.New("room value is empty")
 )
