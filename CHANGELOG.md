@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Check HTTP service configs before any request by @nicholas-fedor in [#2019](https://github.com/nicholas-fedor/shoutrrr/pull/2019)
 - Check chat service configs before any request by @nicholas-fedor in [#2017](https://github.com/nicholas-fedor/shoutrrr/pull/2017)
 - Check each send's config before any request by @nicholas-fedor in [#2013](https://github.com/nicholas-fedor/shoutrrr/pull/2013)
 - Reject unknown send params in Google Chat and check every service by @nicholas-fedor in [#2011](https://github.com/nicholas-fedor/shoutrrr/pull/2011)
