@@ -100,9 +100,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, a params or
-//     payload error, the request error, or [ErrUnexpectedStatus] for a
-//     non-success status.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, a payload error, the request
+//     error, or [ErrUnexpectedStatus] for a non-success status.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -118,10 +118,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, a params or
-//     payload error, the request error, or [ErrUnexpectedStatus] for a
-//     non-success status. A request error matches ctx's error when ctx ends the
-//     request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, a payload error, the request
+//     error, or [ErrUnexpectedStatus] for a non-success status. A request
+//     error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -130,17 +130,35 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config := s.Config
+	if params == nil {
+		params = &types.Params{}
+	}
+
+	// Params apply to this send only, so they update a copy of the config.
+	config := *s.Config
+
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("updating payload fields from params: %w", err)
+	}
+
+	s.applyLevel(&config, params)
+
+	if err := config.validate(); err != nil {
+		return err
+	}
+
+	config.applyDefaults()
+
+	payload, err := newAlertPayload(message, &config)
+	if err != nil {
+		return err
+	}
+
 	serviceURL := (&url.URL{
 		Scheme: "https",
 		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
 		Path:   alertEndpointPath,
 	}).String()
-
-	payload, err := s.newAlertPayload(message, params)
-	if err != nil {
-		return err
-	}
 
 	return s.sendAlert(ctx, serviceURL, config.APIKey, &payload)
 }
@@ -180,29 +198,13 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 //
 // Parameters:
 //   - message: the notification message.
-//   - params: the send params, or nil for none.
+//   - payloadFields: the config for this send, with its params applied.
 //
 // Returns:
 //   - AlertPayload: the alert.
-//   - error: a params error, or [ErrUnexpectedEntityType] for a visibleTo entry
-//     that is not a team or user.
-func (s *Service) newAlertPayload(
-	message string,
-	params *types.Params,
-) (AlertPayload, error) {
-	if params == nil {
-		params = &types.Params{}
-	}
-
-	// Defensive copy
-	payloadFields := *s.Config
-
-	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
-		return AlertPayload{}, fmt.Errorf("updating payload fields from params: %w", err)
-	}
-
-	s.applyLevel(&payloadFields, params)
-
+//   - error: [ErrUnexpectedEntityType] for a visibleTo entry that is not a
+//     team or user.
+func newAlertPayload(message string, payloadFields *Config) (AlertPayload, error) {
 	// The Alert API accepts only teams and users in visibleTo, while responders
 	// may also be escalations and schedules.
 	for _, entity := range payloadFields.VisibleTo {

@@ -40,6 +40,9 @@ const (
 	Scheme = "notifiarr"
 	// expectedPartsAfterSplit is the expected number of parts after splitting on "/passthrough/".
 	expectedPartsAfterSplit = 2
+	// defaultName is the app name of a config without one, the default of the
+	// name key.
+	defaultName = "Shoutrrr"
 )
 
 // DefaultConfig creates a new Config with default values and its associated PropKeyResolver.
@@ -124,6 +127,19 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
+// appName returns the app name a notification carries. Notifiarr requires a
+// name, so an empty name uses Shoutrrr, the default a URL without one gets.
+//
+// Returns:
+//   - string: the config's name, or Shoutrrr when it is empty.
+func (c *Config) appName() string {
+	if c.Name == "" {
+		return defaultName
+	}
+
+	return c.Name
+}
+
 // getURL generates a service URL from the configuration using the provided resolver.
 //
 // Parameters:
@@ -165,11 +181,6 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.APIKey = serviceURL.Host
 
-	// A port alone, as in notifiarr://:8080, is not an API key.
-	if serviceURL.Hostname() == "" {
-		c.APIKey = ""
-	}
-
 	// Set config properties from query
 	serviceQuery, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -181,7 +192,20 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return fmt.Errorf("setting config properties from service URL query: %w", err)
 	}
 
-	if c.APIKey == "" {
+	return c.validate()
+}
+
+// validate checks that the config has the API key every request needs.
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
+//
+// Returns:
+//   - error: [ErrAPIKeyMissing] for a config without an API key, including a
+//     port alone such as :8080, or nil.
+func (c *Config) validate() error {
+	// The key is read from the URL host, so a port alone, as in
+	// notifiarr://:8080, is not an API key.
+	if (&url.URL{Host: c.APIKey}).Hostname() == "" {
 		return ErrAPIKeyMissing
 	}
 

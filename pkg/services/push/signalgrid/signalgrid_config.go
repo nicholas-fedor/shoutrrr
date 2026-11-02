@@ -86,20 +86,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - An error if the channel token has a colon or brackets
-//     ([util.ErrInvalidHost]), the query is malformed ([util.ErrInvalidQuery]),
-//     a query parameter is invalid, or required fields are missing.
+//   - An error if the query is malformed ([util.ErrInvalidQuery]), a query
+//     parameter is invalid, or the config's checks fail, such as for a channel
+//     token with a colon or brackets ([util.ErrInvalidHost]).
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	if serviceURL.User != nil {
 		c.ClientKey = serviceURL.User.Username()
 	} else {
 		c.ClientKey = ""
-	}
-
-	// The channel token is the host as written, which cannot hold a port or
-	// brackets that url.URL.Hostname would strip.
-	if strings.ContainsAny(serviceURL.Host, ":[]") {
-		return fmt.Errorf("channel token: %w", util.ErrInvalidHost)
 	}
 
 	c.Channel = serviceURL.Host
@@ -113,12 +107,30 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
+	return c.validate()
+}
+
+// validate checks that the config has a client key and a channel token.
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
+//
+// Returns:
+//   - error: [ErrClientKeyMissing] or [ErrChannelMissing] for a missing
+//     field, an error wrapping [util.ErrInvalidHost] for a channel token with
+//     a colon or brackets, or nil.
+func (c *Config) validate() error {
 	if c.ClientKey == "" {
 		return ErrClientKeyMissing
 	}
 
 	if c.Channel == "" {
 		return ErrChannelMissing
+	}
+
+	// The channel token is the URL host as written, which cannot hold a port
+	// or brackets that url.URL.Hostname would strip.
+	if strings.ContainsAny(c.Channel, ":[]") {
+		return fmt.Errorf("channel token: %w", util.ErrInvalidHost)
 	}
 
 	return nil

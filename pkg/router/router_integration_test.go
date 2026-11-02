@@ -251,15 +251,9 @@ const (
 	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
 )
 
-// Reasons for the checked_config allowlist entries.
-const (
-	// uncheckedRequest is the reason for a service whose send makes a request
-	// with a config that reading a URL would reject.
-	uncheckedRequest = "Checks its URL only when reading it, so a send with an invalid config still makes a request"
-	// uncheckedDial is the reason for a service whose send dials with a config
-	// that reading a URL would reject.
-	uncheckedDial = "Checks its URL only when reading it, so a send with an invalid config still dials"
-)
+// uncheckedDial is the reason for a checked_config allowlist entry whose send
+// dials with a config that reading a URL would reject.
+const uncheckedDial = "Checks its URL only when reading it, so a send with an invalid config still dials"
 
 // cancelAfter is when the context check cancels the caller's context.
 const cancelAfter = time.Second
@@ -519,16 +513,9 @@ var allowlist = map[string]map[string]knownFailure{
 	checkCheckedConfig: {
 		// These services check a config when they read its URL but not when they
 		// send, so a config built in code reaches the network unchecked.
-		"bark":          {uncheckedRequest, failUncheckedConfig},
-		"homeassistant": {uncheckedRequest, failUncheckedConfig},
-		"mqtt":          {uncheckedDial, failUncheckedConfig},
-		"mqtts":         {uncheckedDial, failUncheckedConfig},
-		"notifiarr":     {uncheckedRequest, failUncheckedConfig},
-		"ntfy":          {uncheckedRequest, failUncheckedConfig},
-		"opsgenie":      {uncheckedRequest, failUncheckedConfig},
-		"pushover":      {uncheckedRequest, failUncheckedConfig},
-		"signalgrid":    {uncheckedRequest, failUncheckedConfig},
-		"smtp":          {uncheckedDial, failUncheckedConfig},
+		"mqtt":  {uncheckedDial, failUncheckedConfig},
+		"mqtts": {uncheckedDial, failUncheckedConfig},
+		"smtp":  {uncheckedDial, failUncheckedConfig},
 	},
 }
 

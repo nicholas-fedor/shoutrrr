@@ -131,7 +131,7 @@ func (c *Config) GetAPIURL() string {
 
 	apiURL := url.URL{
 		Scheme: scheme,
-		Host:   c.Host,
+		Host:   c.serverHost(),
 		Path:   path,
 	}
 
@@ -238,6 +238,21 @@ func (c *Config) normalizeScheme() {
 	}
 }
 
+// serverHost returns the host requests go to. A host without a hostname, such
+// as an empty host or a port alone, uses [DefaultHost] with that port, as a
+// URL without a host does.
+//
+// Returns:
+//   - string: the config's host, or [DefaultHost] with the host's port.
+func (c *Config) serverHost() string {
+	host, port, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil || host != "" {
+		return c.Host
+	}
+
+	return util.JoinURLHost(DefaultHost, port)
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 //
 // A URL without a host uses [DefaultHost], keeping any port. The topic is the
@@ -269,11 +284,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
-	if host == "" {
-		host = DefaultHost
-	}
-
 	c.Host = util.JoinURLHost(host, port)
+	c.Host = c.serverHost()
 	c.Topic = strings.TrimPrefix(serviceURL.Path, "/")
 	c.Token = ""
 
@@ -302,6 +314,22 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	if hasQueryKey(query, "disabletls") {
 		c.DisableTLS = disableTLS
 		c.Scheme = schemeHTTPS
+	}
+
+	return c.validate()
+}
+
+// validate checks the host syntax and the topic. Reading a service URL and
+// each send run it, so a config built in code fails before a request.
+//
+// Returns:
+//   - error: a host error such as [util.ErrInvalidHost] for a host that is not
+//     a hostname or a bracketed IPv6 address, [ErrTopicRequired] for a
+//     missing topic, [ErrInvalidTopic] for an invalid topic name or an empty
+//     path segment, or nil.
+func (c *Config) validate() error {
+	if _, _, err := util.SplitURLHost(&url.URL{Host: c.Host}); err != nil {
+		return fmt.Errorf("parsing host: %w", err)
 	}
 
 	if c.Topic == "" {

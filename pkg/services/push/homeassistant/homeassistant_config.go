@@ -178,19 +178,6 @@ func (c *Config) impliedPort() int {
 	return defaultTLSPort
 }
 
-// isPersistent reports whether the resolved action creates a persistent notification.
-//
-// Returns:
-//   - true when the action is persistent_notification.create.
-func (c *Config) isPersistent() bool {
-	domain, service, err := c.domainService()
-	if err != nil {
-		return false
-	}
-
-	return domain == persistentDomain && service == persistentService
-}
-
 // requestPort returns the TCP port used for the API request.
 //
 // Returns:
@@ -209,7 +196,8 @@ func (c *Config) requestPort() int {
 //   - rawPort: The port string from the URL, or empty when omitted.
 //
 // Returns:
-//   - An error if the port is not a valid integer in 1–65535.
+//   - An error if the port is not an integer, or is 0. The config's checks
+//     reject a port above 65535.
 func (c *Config) setPort(rawPort string) error {
 	if rawPort == "" {
 		c.Port = 0
@@ -217,8 +205,10 @@ func (c *Config) setPort(rawPort string) error {
 		return nil
 	}
 
+	// A zero port in the config selects the default port, so a URL that
+	// writes port 0 is rejected rather than read as the default.
 	port, err := strconv.Atoi(rawPort)
-	if err != nil || port < 1 || port > 65535 {
+	if err != nil || port == 0 {
 		return fmt.Errorf("%w: %q", ErrInvalidPort, rawPort)
 	}
 
@@ -266,6 +256,18 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
+	return c.validate()
+}
+
+// validate checks that the config has a token, a host, a port in range, and a
+// valid notify service. Reading a service URL and each send run it, so a
+// config built in code fails before a request. A zero port selects the
+// default port.
+//
+// Returns:
+//   - error: [ErrTokenMissing], [ErrHostMissing], [ErrInvalidPort] for a port
+//     outside 0 to 65535, [ErrInvalidService], or nil.
+func (c *Config) validate() error {
 	if c.Token == "" {
 		return ErrTokenMissing
 	}
@@ -274,11 +276,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return ErrHostMissing
 	}
 
-	if _, _, err := c.domainService(); err != nil {
-		return err
+	if c.Port < 0 || c.Port > 65535 {
+		return fmt.Errorf("%w: %d", ErrInvalidPort, c.Port)
 	}
 
-	return nil
+	_, _, err := c.domainService()
+
+	return err
 }
 
 // normalizePath returns a leading-slash path without a trailing slash.

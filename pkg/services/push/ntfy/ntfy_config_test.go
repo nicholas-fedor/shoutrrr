@@ -290,6 +290,8 @@ func TestConfigGetAPIURL(t *testing.T) {
 		{name: "uppercase HTTP", config: Config{Scheme: "HTTP", Host: "ntfy.example.com", Topic: testTopic}, want: "http://ntfy.example.com/" + testTopic},
 		{name: "no scheme", config: Config{Host: "ntfy.sh", Topic: testTopic}, want: testEndpoint},
 		{name: "invalid scheme", config: Config{Scheme: "ftp", Host: "ntfy.sh", Topic: testTopic}, want: testEndpoint},
+		{name: "no host", config: Config{Topic: testTopic}, want: testEndpoint},
+		{name: "port without a host", config: Config{Host: ":8080", Topic: testTopic}, want: "https://ntfy.sh:8080/" + testTopic},
 	}
 
 	for _, tt := range tests {

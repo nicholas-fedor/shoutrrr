@@ -193,23 +193,14 @@ func (c *Config) normalizeScheme() {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field, a
-//     malformed query ([util.ErrInvalidQuery]), a query parameter error, or
-//     [ErrInvalidScheme].
+//   - error: a malformed query ([util.ErrInvalidQuery]), a query parameter
+//     error, [ErrInvalidScheme], or [ErrMissingDeviceKey] or [ErrMissingHost]
+//     for a missing field.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.DeviceKey = password
 	c.Host = serviceURL.Host
 	c.Path = serviceURL.Path
-
-	// Validate required fields
-	if c.DeviceKey == "" {
-		return ErrMissingDeviceKey
-	}
-
-	if c.Host == "" {
-		return ErrMissingHost
-	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -231,6 +222,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	if hasKey(query, schemeKey.Replacement) {
 		c.DisableTLS = disableTLS
 		c.Scheme = schemeHTTPS
+	}
+
+	return c.validate()
+}
+
+// validate checks that the config has the device key and the host a push
+// needs. Reading a service URL and each send run it, so a config built in code
+// fails before a request.
+//
+// Returns:
+//   - error: [ErrMissingDeviceKey] or [ErrMissingHost] for a missing field, or
+//     nil.
+func (c *Config) validate() error {
+	if c.DeviceKey == "" {
+		return ErrMissingDeviceKey
+	}
+
+	if c.Host == "" {
+		return ErrMissingHost
 	}
 
 	return nil

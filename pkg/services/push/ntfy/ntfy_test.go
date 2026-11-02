@@ -26,6 +26,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
 )
 
@@ -550,6 +551,38 @@ func TestSendErrors(t *testing.T) {
 
 		require.ErrorIs(t, service.Send("Hello", &types.Params{"unknown": "value"}), format.ErrInvalidConfigKey)
 	})
+}
+
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without a valid topic fails before any request.
+// So does a host that is not a hostname or a bracketed IPv6 address.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrTopicRequired},
+		{name: "invalid topic", change: func(config *Config) { config.Topic = "a topic" }, wantErr: ErrInvalidTopic},
+		{name: "unbracketed IPv6 host", change: func(config *Config) { config.Host = "::1" }, wantErr: util.ErrInvalidHost},
+		{name: "non-numeric port", change: func(config *Config) { config.Host = "ntfy.sh:abc" }, wantErr: util.ErrInvalidPort},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "ntfy://ntfy.sh/"+testTopic)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
 }
 
 // TestSendLeavesConfigUnchanged verifies that params and their headers apply

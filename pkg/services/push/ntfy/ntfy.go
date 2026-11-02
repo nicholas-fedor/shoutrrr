@@ -112,8 +112,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     error, the ntfy API error, or the request error.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, the ntfy API error, or the
+//     request error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -128,9 +129,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional overrides for configuration fields.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     error, the ntfy API error, or the request error, which matches ctx's
-//     error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize, the error
+//     from the params or the config's checks, the ntfy API error, or the
+//     request error, which matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -300,7 +301,8 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 //
 // Returns:
 //   - Config: the config for this send.
-//   - error: a params error, or [ErrInvalidScheme].
+//   - error: a params error, [ErrInvalidScheme], or the error from the
+//     config's checks, such as [ErrTopicRequired].
 func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config, error) {
 	config := *s.Config
 
@@ -355,6 +357,10 @@ func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config,
 	}
 
 	s.applyLevel(&config, params)
+
+	if err := config.validate(); err != nil {
+		return config, err
+	}
 
 	return config, nil
 }

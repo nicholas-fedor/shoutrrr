@@ -329,6 +329,38 @@ func TestSendEncrypted(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without a user or a token fails before any
+// request. So do an invalid encryption key and a negative timestamp.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrUserMissing},
+		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrTokenMissing},
+		{name: "invalid encryption key", change: func(config *Config) { config.EncryptionKey = "short" }, wantErr: ErrInvalidEncryptionKey},
+		{name: "negative timestamp", change: func(config *Config) { config.Timestamp = -1 }, wantErr: ErrInvalidTimestamp},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "pushover://:apptoken@usertoken")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the stored config and the next send keep the
 // configured values.

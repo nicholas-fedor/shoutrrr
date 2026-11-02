@@ -328,6 +328,37 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without an API key fails before any request,
+// and one without a host or port posts to the default API.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no API key", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		*service.Config = Config{}
+
+		require.ErrorIs(t, service.Send("Message", nil), ErrAPIKeyMissing)
+	})
+
+	t.Run("no host or port", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "opsgenie://api.opsgenie.com/"+testAPIKey)
+		client, captured := newRespondingClient(t, http.StatusAccepted, "")
+		service.SetHTTPClient(client)
+		service.Config.Host = ""
+		service.Config.Port = 0
+
+		require.NoError(t, service.Send("Message", nil))
+		assert.Equal(t, "https://api.opsgenie.com:443/v2/alerts", captured.url)
+	})
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the next send uses the configured props.
 func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
