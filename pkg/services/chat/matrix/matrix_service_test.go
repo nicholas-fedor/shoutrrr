@@ -3,6 +3,7 @@ package matrix
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"maps"
@@ -34,10 +35,12 @@ type fakeHomeserver struct {
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
 	releaseFlows chan struct{}
-	// mu guards tokens, schemes, and deadlines.
+	// mu guards tokens, hosts, schemes, and deadlines.
 	mu sync.Mutex
 	// tokens records the Authorization header of each message sent.
 	tokens []string
+	// hosts records the URL host of each message sent.
+	hosts []string
 	// schemes records the URL scheme of each request.
 	schemes []string
 	// deadlines records the deadline of each request's context.
@@ -96,15 +99,18 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 	case req.Method == http.MethodGet && req.URL.Path == apiLogin:
 		return homeserverResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
 	case req.Method == http.MethodPost && req.URL.Path == apiLogin:
-		f.logins.Add(1)
+		// Each login issues a numbered token, so a test can tell which login a
+		// message used.
+		token := fmt.Sprintf("access-%d", f.logins.Add(1))
 
-		return homeserverResponse(http.StatusOK, `{"access_token":"access"}`), nil
+		return homeserverResponse(http.StatusOK, `{"access_token":"`+token+`"}`), nil
 	case req.Method == http.MethodGet && req.URL.Path == apiJoinedRooms:
 		return homeserverResponse(http.StatusOK,
 			`{"joined_rooms":["!a:example.com","!b:example.com"]}`), nil
 	case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/send/"):
 		f.mu.Lock()
 		f.tokens = append(f.tokens, req.Header.Get("Authorization"))
+		f.hosts = append(f.hosts, req.URL.Host)
 		f.mu.Unlock()
 
 		return homeserverResponse(http.StatusOK, `{"event_id":"$event"}`), nil
@@ -137,6 +143,17 @@ func (f *fakeHomeserver) requestSchemes() []string {
 	f.schemes = nil
 
 	return schemes
+}
+
+// sentHosts returns the URL host of each message sent so far.
+//
+// Returns:
+//   - []string: the hosts, in order.
+func (f *fakeHomeserver) sentHosts() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.hosts...)
 }
 
 // sentTokens returns the Authorization header of each message sent so far.
@@ -293,7 +310,7 @@ func TestFirstSendLogsIn(t *testing.T) {
 	require.NoError(t, service.Send("second", nil))
 
 	assert.Equal(t, int32(1), server.logins.Load())
-	assert.Equal(t, []string{"Bearer access", "Bearer access"}, server.sentTokens())
+	assert.Equal(t, []string{"Bearer access-1", "Bearer access-1"}, server.sentTokens())
 }
 
 // TestConcurrentSendsLogInOnce verifies that concurrent first sends share a
@@ -388,6 +405,75 @@ func TestAccessTokenSkipsLogin(t *testing.T) {
 	require.NoError(t, service.Send("message", nil))
 	assert.Zero(t, server.logins.Load())
 	assert.Equal(t, []string{"Bearer token"}, server.sentTokens())
+}
+
+// TestSessionFollowsConfig verifies that a send authenticates for the account
+// its config names. A config replaced in code after Initialize sends its own
+// access token. With a password, it logs in again for another homeserver,
+// user, or password. The token of the earlier account never reaches the new
+// one.
+func TestSessionFollowsConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("access token for another homeserver", func(t *testing.T) {
+		t.Parallel()
+
+		server := &fakeHomeserver{}
+		service, _ := newHomeserverService(t, server)
+		require.NoError(t, service.Initialize(parseTestURL(t, tokenURL), nil))
+		require.NoError(t, service.Send("first", nil))
+
+		config := *service.Config
+		config.Host, config.Password = "other.example.com", "other-token"
+		service.Config = &config
+
+		require.NoError(t, service.Send("second", nil))
+		assert.Equal(t, []string{"matrix.example.com", "other.example.com"}, server.sentHosts())
+		assert.Equal(t, []string{"Bearer token", "Bearer other-token"}, server.sentTokens())
+	})
+
+	// changes lists config changes that name another account, each of which
+	// needs a new login.
+	changes := map[string]func(config *Config){
+		"another homeserver": func(config *Config) { config.Host = "other.example.com" },
+		"another user":       func(config *Config) { config.User = "other" },
+		"another password":   func(config *Config) { config.Password = "other-password" },
+	}
+
+	for name, change := range changes {
+		t.Run("password login for "+name, func(t *testing.T) {
+			t.Parallel()
+
+			server := &fakeHomeserver{}
+			service, _ := newHomeserverService(t, server)
+			require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+			require.NoError(t, service.Send("first", nil))
+
+			config := *service.Config
+			change(&config)
+			service.Config = &config
+
+			require.NoError(t, service.Send("second", nil))
+			assert.Equal(t, int32(2), server.logins.Load())
+			assert.Equal(t, []string{"Bearer access-1", "Bearer access-2"}, server.sentTokens())
+		})
+	}
+}
+
+// TestInitializeEndsSession verifies that Initialize drops the token of the
+// earlier login, so the next send logs in again even for the same account.
+func TestInitializeEndsSession(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+
+	for range 2 {
+		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+		require.NoError(t, service.Send("message", nil))
+	}
+
+	assert.Equal(t, int32(2), server.logins.Load())
 }
 
 // TestSendWithoutClient verifies that a service without a homeserver to send
@@ -620,7 +706,7 @@ func TestSendAppliesDisableTLSParam(t *testing.T) {
 
 			assert.Equal(t, []string{tt.laterScheme}, server.requestSchemes())
 			assert.Equal(t, int32(1), server.logins.Load())
-			assert.Equal(t, []string{"Bearer access", "Bearer access"}, server.sentTokens())
+			assert.Equal(t, []string{"Bearer access-1", "Bearer access-1"}, server.sentTokens())
 		})
 	}
 }
@@ -687,7 +773,7 @@ func TestSendSkipTLSVerify(t *testing.T) {
 
 		require.NoError(t, service.Send("first", &types.Params{"skiptlsverify": "yes"}))
 		require.Error(t, service.Send("second", nil))
-		assert.Equal(t, []string{"Bearer access"}, homeserver.sentTokens())
+		assert.Equal(t, []string{"Bearer access-1"}, homeserver.sentTokens())
 	})
 }
 
