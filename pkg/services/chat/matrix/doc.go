@@ -134,6 +134,7 @@
 //   - ErrMissingHost: No Matrix server host provided
 //   - ErrMissingCredentials: No password or access token provided
 //   - ErrClientNotInitialized: No homeserver to send to
+//   - ErrNoJoinedRooms: No rooms configured and none joined
 //   - ErrUnsupportedLoginFlows: Server doesn't support password login
 //   - ErrLoginReplyWithoutToken: A login reply held no access token
 //   - ErrUnexpectedStatus: Unexpected HTTP response from server

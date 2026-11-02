@@ -101,6 +101,7 @@ The Matrix service now supports the `title` parameter. When provided, the title 
 ## Rooms
 
 If `rooms` are *not* specified, the service will send the message to all the rooms that the user has currently joined.
+When the user has joined no room, the send fails.
 
 Otherwise, the service will only send the message to the specified rooms.
 If the user is *not* in any of those rooms, but has been invited to any of those rooms, it will automatically accept that invite.

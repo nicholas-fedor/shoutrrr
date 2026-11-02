@@ -922,19 +922,24 @@ func TestSendToExplicitRoomsContextEnded(t *testing.T) {
 }
 
 // TestSendToJoinedRooms verifies that the message goes to every joined room and
-// that one error is reported for a failed lookup or each failed room.
+// that one error is reported for a failed lookup, each failed room, or an
+// account in no room.
 func TestSendToJoinedRooms(t *testing.T) {
 	t.Parallel()
 
 	sent := ok(`{"event_id":"$eventid"}`)
 
-	// tests lists replies with the number of errors the send should produce.
+	// tests lists replies with the number of errors the send should produce,
+	// and the error it should match when one is named.
 	tests := []struct {
+		wantErr  error
 		name     string
 		replies  []reply
 		wantErrs int
 	}{
 		{name: "lookup fails", replies: []reply{failed("mock error")}, wantErrs: 1},
+		{name: "no joined rooms", replies: []reply{ok(`{"joined_rooms":[]}`)}, wantErrs: 1, wantErr: ErrNoJoinedRooms},
+		{name: "reply without the list", replies: []reply{ok(`{}`)}, wantErrs: 1, wantErr: ErrNoJoinedRooms},
 		{name: "one room", replies: []reply{ok(`{"joined_rooms":["!room1:matrix.example.com"]}`), sent}},
 		{name: "send fails", replies: []reply{ok(`{"joined_rooms":["!room1:matrix.example.com"]}`), failed("send error")}, wantErrs: 1},
 		{
@@ -949,7 +954,13 @@ func TestSendToJoinedRooms(t *testing.T) {
 			t.Parallel()
 
 			c, _ := newScriptedClient(t, tt.replies...)
-			assert.Equal(t, tt.wantErrs, errorCount(c.sendToJoinedRooms(t.Context(), "test message")))
+			err := c.sendToJoinedRooms(t.Context(), "test message")
+
+			assert.Equal(t, tt.wantErrs, errorCount(err))
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
 		})
 	}
 }

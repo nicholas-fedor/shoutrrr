@@ -432,7 +432,7 @@ func (c *client) send(ctx context.Context, method, path string, body []byte, res
 // Returns:
 //   - error: the errors of the rooms the message could not reach and ctx's
 //     error when it ended the send, joined. A failed lookup of the joined rooms
-//     returns its own error.
+//     returns its own error. An account in no room returns [ErrNoJoinedRooms].
 func (c *client) sendMessage(ctx context.Context, message string, rooms []string) error {
 	if len(rooms) >= minSliceLength {
 		return c.sendToExplicitRooms(ctx, rooms, message)
@@ -524,11 +524,15 @@ func (c *client) sendToExplicitRooms(ctx context.Context, rooms []string, messag
 // Returns:
 //   - error: the errors of the rooms the message could not reach and ctx's
 //     error when it ended the send, joined. A failed lookup of the joined rooms
-//     returns its own error.
+//     returns its own error. An account in no room returns [ErrNoJoinedRooms].
 func (c *client) sendToJoinedRooms(ctx context.Context, message string) error {
 	joinedRooms, err := c.getJoinedRooms(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get joined rooms: %w", err)
+	}
+
+	if len(joinedRooms) == 0 {
+		return ErrNoJoinedRooms
 	}
 
 	return sequential.Send(ctx, joinedRooms, sequential.PerTarget(defaultHTTPTimeout),
