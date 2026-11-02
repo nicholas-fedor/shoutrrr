@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Check every config field before a send by @nicholas-fedor in [#2035](https://github.com/nicholas-fedor/shoutrrr/pull/2035)
 - Fail IFTTT and Discord sends that deliver nothing by @nicholas-fedor in [#2031](https://github.com/nicholas-fedor/shoutrrr/pull/2031)
 - Fail a send that reaches no joined room by @nicholas-fedor in [#2029](https://github.com/nicholas-fedor/shoutrrr/pull/2029)
 - Reject a login reply without an access token by @nicholas-fedor in [#2027](https://github.com/nicholas-fedor/shoutrrr/pull/2027)
