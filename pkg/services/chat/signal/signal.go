@@ -96,9 +96,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: optional configuration overrides including title and attachments.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, a params
-//     error, [ErrNoRecipients], or the joined errors of the failed requests. A
-//     request error matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A params
+//     error or the error from the config's checks, such as [ErrNoRecipients],
+//     fails the send before any request. Otherwise the joined errors of the
+//     failed requests. A request error matches ctx's error when ctx ends the
+//     request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -107,6 +109,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := config.prepare(); err != nil {
+		return err
 	}
 
 	ctx, cancel := httpclient.BoundContext(ctx, config.sendBudget())
@@ -163,19 +169,9 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - config: the service configuration.
 //
 // Returns:
-//   - error: [ErrNoRecipients], [ErrInvalidRecipient], or the joined errors of
-//     the failed requests. When ctx ends, the remaining batches are skipped
-//     and ctx's error is included.
+//   - error: the joined errors of the failed requests. When ctx ends, the
+//     remaining batches are skipped and ctx's error is included.
 func (s *Service) sendMessage(ctx context.Context, message string, config *Config) error {
-	if len(config.Recipients) == 0 {
-		return ErrNoRecipients
-	}
-
-	// Params set recipients without the URL's validation.
-	if err := validateRecipients(config.Recipients); err != nil {
-		return err
-	}
-
 	return sequential.Send(
 		ctx,
 		batchRecipients(config.Recipients),

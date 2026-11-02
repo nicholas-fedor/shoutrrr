@@ -31,6 +31,8 @@ To use Shoutrrr with Zulip, you need to create a bot in your Zulip organization:
 6. Copy the bot's __email__ and __API key__
 
 Use the bot email as the `botmail` and the API key as the `botkey` in your service URL.
+Zulip authenticates every request with both, so a URL that leaves out either one is rejected.
+So is a URL with an empty API key.
 
 ## Stream and Topic
 

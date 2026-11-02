@@ -413,18 +413,35 @@ func TestSendValidation(t *testing.T) {
 	}
 }
 
-// TestSendInvalidToken verifies that a send fails before any request when the
-// config's token is invalid, as a config changed after Initialize can be.
-func TestSendInvalidToken(t *testing.T) {
+// TestSendChecksConfig verifies that a send fails before any request when its
+// config fails the checks of reading a URL, as a config built in code or
+// changed after Initialize can.
+func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
-	for _, token := range []string{"", "Aaa"} {
-		service := newTestService(t, testServiceURL)
-		// The mock has no expectations, so a request fails the test.
-		service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
-		service.Config.Token = token
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrHostMissing},
+		{name: "port without a host", change: func(config *Config) { config.Host = ":8080" }, wantErr: ErrHostMissing},
+		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrInvalidToken},
+		{name: "short token", change: func(config *Config) { config.Token = "Aaa" }, wantErr: ErrInvalidToken},
+	}
 
-		require.ErrorIs(t, service.Send("Hello", nil), ErrInvalidToken, token)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, testServiceURL)
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mockTypes.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Hello", nil), tt.wantErr)
+		})
 	}
 }
 

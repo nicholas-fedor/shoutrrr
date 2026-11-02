@@ -225,6 +225,8 @@ Every service follows the same rules, so services behave alike for users and for
 - Apply a send's params once, at the start of the send, and use that config for every request and branch of the send.
 - Check a send's config after applying its params, with the same checks that reading a service URL runs.
   A config built in code then fails before any request or dial, as a bad URL does.
+- Apply the defaults that reading a URL fills in, such as a default host, to each send's config too.
+  Use one method for both, so a config built in code reaches the endpoint its URL would.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
@@ -293,8 +295,10 @@ Every service follows the same rules, so services behave alike for users and for
 - The `unknown_params` contract check sends a param that no service uses, and fails a service that accepts it.
   Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.
   Generic and the logger are listed as exceptions, because their params fill a webhook body and a message template.
-- The `checked_config` contract check sends with the zero config when reading that config's own URL fails.
-  A service passes when that send returns an error before any request or dial.
+- The `checked_config` contract check sends with the zero config, and with the fixture's config with each set field cleared in turn.
+  When reading such a config's own URL fails, a service passes only if the send returns an error before any request or dial.
+- The `send_like_read_back` contract check sends with the same configs when their URLs read back.
+  A service passes when the send reaches the same endpoints as a send with the config read back from its URL.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

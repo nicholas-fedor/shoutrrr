@@ -54,6 +54,10 @@ const (
 	Scheme = "signal"
 	// DefaultHost is the Signal REST API host a URL without a host uses.
 	DefaultHost = "localhost"
+	// defaultPort is the Signal REST API port a URL without a port uses.
+	defaultPort = 8080
+	// maxPort is the highest TCP port number.
+	maxPort = 65535
 	// minPathParts is the minimum number of path parts required (source + at least one recipient).
 	minPathParts = 2
 )
@@ -143,7 +147,7 @@ func (c *Config) parseAuth(serviceURL *url.URL) {
 }
 
 // parseHostPort extracts host and port from the URL. An IPv6 host must be in
-// brackets.
+// brackets. A URL without a port leaves the port unset.
 //
 // Parameters:
 //   - serviceURL: the URL to extract host and port from
@@ -159,9 +163,10 @@ func (c *Config) parseHostPort(serviceURL *url.URL) error {
 	}
 
 	c.Host = host
+	c.Port = 0
 
 	if portStr == "" {
-		portStr = "8080"
+		return nil
 	}
 
 	port, err := strconv.ParseUint(portStr, 10, 16)
@@ -222,6 +227,26 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 	return format.ApplyQuery(resolver, query)
 }
 
+// prepare sets [DefaultHost] for a config without a host, and port 8080 for one
+// without a port, then runs the config's checks. The host and port may come
+// from the URL or their query params, and neither is required. Reading a
+// service URL and each send run it, so a config built in code reaches the
+// server its URL would and fails as its URL would.
+//
+// Returns:
+//   - error: the error from the config's checks, such as [ErrNoRecipients].
+func (c *Config) prepare() error {
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = defaultPort
+	}
+
+	return c.validate()
+}
+
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
 // for a config with the send's params applied.
 //
@@ -233,8 +258,8 @@ func (c *Config) sendBudget() time.Duration {
 
 // setURL updates the Config from a URL using the provided resolver. A URL
 // without a host, from its authority or the host query param, uses
-// [DefaultHost]. The source and recipients are validated whether they come
-// from the path or the query.
+// [DefaultHost], and one without a port uses port 8080. The source and
+// recipients are validated whether they come from the path or the query.
 //
 // Parameters:
 //   - resolver: the configuration query resolver
@@ -259,14 +284,25 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	// The host may come from the URL or the host query param, and neither is
-	// required.
-	if c.Host == "" {
-		c.Host = DefaultHost
-	}
-
 	// The source and recipients query params replace the path's values, so the
 	// final values are validated once the query is applied.
+	return c.prepare()
+}
+
+// validate checks the port, the source, and the recipients that every message
+// needs. Reading a service URL and each send run it, so a config built in code,
+// or one whose port or recipients a param changed, fails before a request.
+//
+// Returns:
+//   - error: [util.ErrInvalidPort] for a port outside 1 to 65535, or
+//     [ErrInvalidPhoneNumber] for an invalid source. Otherwise
+//     [ErrNoRecipients] or [ErrInvalidRecipient] for missing or invalid
+//     recipients, or nil.
+func (c *Config) validate() error {
+	if c.Port < 1 || c.Port > maxPort {
+		return fmt.Errorf("%w: %d", util.ErrInvalidPort, c.Port)
+	}
+
 	if !isValidPhoneNumber(c.Source) {
 		return fmt.Errorf("%w: %s", ErrInvalidPhoneNumber, c.Source)
 	}

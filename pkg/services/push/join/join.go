@@ -100,16 +100,15 @@ func (s *Service) Send(message string, params *types.Params) error {
 //     and devices. Any other key is an error.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params
-//     error, [ErrDevicesMissing] when the params leave no devices, or the send
-//     error, which matches ctx's error when ctx ends the request.
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A params
+//     error or the error from the config's checks, such as [ErrDevicesMissing]
+//     when the params leave no devices, fails the send before any request.
+//     Otherwise the send error, which matches ctx's error when ctx ends the
+//     request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
 	}
-
-	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
-	defer cancel()
 
 	// Params apply to this send only, so they update a copy of the service
 	// config.
@@ -121,10 +120,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	// An empty devices param clears the devices, which the URL cannot do.
-	if len(config.Devices) == 0 {
-		return fmt.Errorf("updating config from params: %w", ErrDevicesMissing)
+	if err := config.validate(); err != nil {
+		return err
 	}
+
+	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
+	defer cancel()
 
 	return s.sendToDevices(ctx, config, message)
 }

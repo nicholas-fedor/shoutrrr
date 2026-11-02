@@ -183,6 +183,24 @@ func (c *Config) mucNick() string {
 	return local
 }
 
+// prepare drops empty recipient and room entries and sets the default port of
+// the scheme for a config without a port, then runs the config's checks.
+// Reading a service URL and each send run it, so a config built in code dials
+// the port its URL would and fails as its URL would.
+//
+// Returns:
+//   - error: the error from the config's checks, such as [ErrMissingHost].
+func (c *Config) prepare() error {
+	c.To = compactStrings(c.To)
+	c.Rooms = compactStrings(c.Rooms)
+
+	if c.Port == 0 {
+		c.Port = defaultPort(c.scheme)
+	}
+
+	return c.validate()
+}
+
 // setURL updates the configuration from a URL representation.
 //
 // Parameters:
@@ -224,7 +242,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 
 		c.Port = uint16(parsed)
 	} else {
-		c.Port = defaultPort(c.scheme)
+		c.Port = 0
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -236,10 +254,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	c.To = compactStrings(c.To)
-	c.Rooms = compactStrings(c.Rooms)
-
-	return c.validate()
+	return c.prepare()
 }
 
 // useTLS reports whether the session should encrypt the stream.

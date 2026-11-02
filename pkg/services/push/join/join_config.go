@@ -80,9 +80,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
-//     query prop error, or [ErrDevicesMissing] or [ErrAPIKeyMissing] when the
-//     devices or the API key are missing.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query prop error. Otherwise the error from the config's checks, such
+//     as [ErrAPIKeyMissing].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.APIKey = password
@@ -96,6 +96,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
+	return c.validate()
+}
+
+// validate checks the devices and the API key that every push needs. Reading
+// a service URL and each send run it, so a config built in code, or one whose
+// devices a param cleared, fails before a request.
+//
+// Returns:
+//   - error: [ErrDevicesMissing] or [ErrAPIKeyMissing] for a missing field, or
+//     nil.
+func (c *Config) validate() error {
 	if len(c.Devices) < 1 {
 		return ErrDevicesMissing
 	}

@@ -3,8 +3,8 @@ package pagerduty
 import (
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -50,11 +50,10 @@ const (
 	defaultHost = "events.pagerduty.com"
 	// defaultPort is the HTTPS port used when the URL has no port.
 	defaultPort = 443
+	// integrationKeyLength is the length of an integration key, in hexadecimal
+	// characters.
+	integrationKeyLength = 32
 )
-
-// integrationKeyPattern matches an integration key, which is 32 hexadecimal
-// characters.
-var integrationKeyPattern = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
 
 // Enums returns an empty map because the PagerDuty service doesn't use Enums.
 //
@@ -112,29 +111,42 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare sets the PagerDuty events host for a config without a host, and
+// port 443 for one without a port, then runs the config's checks. Reading a
+// service URL and each send run it, so a config built in code reaches the
+// endpoint its URL would and fails as its URL would.
+//
+// Returns:
+//   - error: the error from the config's checks, such as an invalid severity.
+func (c *Config) prepare() error {
+	if c.Host == "" {
+		c.Host = defaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = defaultPort
+	}
+
+	return c.validate()
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 //
 // A URL without a host uses the PagerDuty events host, and a URL without a
-// port uses port 443.
+// port uses port 443. The query props start from their defaults, so a prop the
+// URL leaves out does not keep the value an earlier URL set.
 //
 // Parameters:
 //   - resolver: Resolver used to apply the query props.
 //   - serviceURL: The service URL to parse.
 //
 // Returns:
-//   - error: A missing or invalid integration key, a host that is not a
-//     hostname or a bracketed IPv6 address ([util.ErrInvalidHost]), an invalid
-//     port, a malformed query ([util.ErrInvalidQuery]), or a query prop error.
-func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	if len(serviceURL.Path) <= 1 {
-		return errMissingIntegrationKey
-	}
-
-	c.IntegrationKey = serviceURL.Path[1:]
-
-	if !integrationKeyPattern.MatchString(c.IntegrationKey) {
-		return errInvalidIntegrationKey
-	}
+//   - error: a host that is not a hostname or a bracketed IPv6 address
+//     ([util.ErrInvalidHost]), an invalid port, a malformed query
+//     ([util.ErrInvalidQuery]), or a query prop error. Otherwise the error from
+//     the config's checks, such as a missing integration key.
+func (c *Config) setURL(resolver *format.PropKeyResolver, serviceURL *url.URL) error {
+	c.IntegrationKey = strings.TrimPrefix(serviceURL.Path, "/")
 
 	host, port, err := util.SplitURLHost(serviceURL)
 	if err != nil {
@@ -142,11 +154,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	c.Host = host
-	if c.Host == "" {
-		c.Host = defaultHost
-	}
-
-	c.Port = defaultPort
+	c.Port = 0
 
 	if port != "" {
 		portNumber, err := strconv.ParseUint(port, 10, 16)
@@ -162,5 +170,61 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return format.ApplyQuery(resolver, query)
+	if err := resolver.SetDefaultProps(c); err != nil {
+		return fmt.Errorf("setting default props: %w", err)
+	}
+
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.prepare()
+}
+
+// validate checks the integration key, the severity, and the event action of
+// every event. Reading a service URL and each send run it, so a config built in
+// code or changed by a param fails before a request.
+//
+// Returns:
+//   - error: an error for a missing integration key or one that is not 32
+//     hexadecimal characters. Otherwise an error for a severity or event
+//     action that PagerDuty does not accept, or nil.
+func (c *Config) validate() error {
+	if c.IntegrationKey == "" {
+		return errMissingIntegrationKey
+	}
+
+	if !isIntegrationKey(c.IntegrationKey) {
+		return errInvalidIntegrationKey
+	}
+
+	if err := validateSeverity(c.Severity); err != nil {
+		return err
+	}
+
+	return validateEventAction(c.Action)
+}
+
+// isIntegrationKey reports whether key is an integration key, which is 32
+// hexadecimal characters in either case.
+//
+// Parameters:
+//   - key: the key to check.
+//
+// Returns:
+//   - bool: true for an integration key.
+func isIntegrationKey(key string) bool {
+	if len(key) != integrationKeyLength {
+		return false
+	}
+
+	for i := range len(key) {
+		switch c := key[i]; {
+		case '0' <= c && c <= '9', 'a' <= c && c <= 'f', 'A' <= c && c <= 'F':
+		default:
+			return false
+		}
+	}
+
+	return true
 }

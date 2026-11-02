@@ -118,11 +118,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":8443",
 			want:   Config{BotMail: testBotMail, BotKey: testBotKey, Host: testHost + ":8443"},
 		},
-		{
-			name:   "empty API key",
-			rawURL: "zulip://" + testBotMail + ":@" + testHost,
-			want:   Config{BotMail: testBotMail, Host: testHost},
-		},
 	}
 
 	for _, tt := range tests {
@@ -153,6 +148,9 @@ func TestConfigSetURLErrors(t *testing.T) {
 	}{
 		{name: "no bot e-mail address", rawURL: "zulip://:" + testBotKey + "@" + testHost, wantErr: ErrMissingBotMail},
 		{name: "no API key", rawURL: "zulip://" + testBotMail + "@" + testHost, wantErr: ErrMissingAPIKey},
+		{name: "empty API key", rawURL: "zulip://" + testBotMail + ":@" + testHost, wantErr: ErrMissingAPIKey},
+		{name: "port zero", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + ":0", wantErr: ErrInvalidHost},
+		{name: "invalid message type", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@" + testHost + "?type=group", wantErr: ErrInvalidMessageType},
 		{name: "no host", rawURL: "zulip://" + testBotMail + ":" + testBotKey + "@", wantErr: ErrMissingHost},
 		{
 			name:    "invalid read_by_sender",
@@ -242,4 +240,25 @@ func TestConfigQueryResolver(t *testing.T) {
 	assert.Equal(t,
 		[]string{"read_by_sender", "skiptlsverify", "stream", "title", "to", "topic", "type"},
 		format.GetConfigQueryResolver(config).QueryFields())
+}
+
+// TestIsValidHost verifies that a host name, IPv4 address, or bracketed IPv6
+// address with an optional port from 1 to 65535 is accepted and that other
+// values are rejected.
+func TestIsValidHost(t *testing.T) {
+	t.Parallel()
+
+	for _, valid := range []string{
+		testHost, testHost + ":1", testHost + ":65535", "chat.zulip-cloud.example.co", "localhost", "localhost:9991", "zulip",
+		"192.0.2.10", "192.0.2.10:8443", "[2001:db8::1]", "[2001:db8::1]:8443",
+	} {
+		assert.True(t, isValidHost(valid), valid)
+	}
+
+	for _, invalid := range []string{
+		"", testHost + ":0", testHost + ":65536", testHost + ":", testHost + ":http", testHost + ":+80", "zulip example.com",
+		"-zulip.example.com", "zulip..example.com", "2001:db8::1", "[2001:db8::1", "[zulip.example.com]:8443", "192.0.2.10:0",
+	} {
+		assert.False(t, isValidHost(invalid), invalid)
+	}
 }

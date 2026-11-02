@@ -90,10 +90,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.Config = &Config{}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	if err := s.setDefaults(); err != nil {
-		return err
-	}
-
 	return s.Config.setURL(&s.pkr, serviceURL)
 }
 
@@ -122,7 +118,9 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: per-send parameters for the event.
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the payload or
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A params
+//     error or the error from the config's checks, such as an invalid
+//     severity, fails the send before any request. Otherwise the payload or
 //     request failure, or nil on success.
 func (s *Service) SendContext(
 	ctx context.Context,
@@ -133,20 +131,32 @@ func (s *Service) SendContext(
 		return types.ErrServiceNotInitialized
 	}
 
+	// Params apply to this send only, so they update a copy of the service
+	// config.
+	config := *s.Config
+	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
+		return fmt.Errorf("failed to update config from params: %w", err)
+	}
+
+	s.applyLevel(&config, params)
+
+	if err := config.prepare(); err != nil {
+		return err
+	}
+
+	payload, err := newEventPayload(message, &config)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := httpclient.BoundContext(ctx, s.ServiceTimeout(params))
 	defer cancel()
 
-	config := s.Config
 	endpointURL := (&url.URL{
 		Scheme: "https",
 		Host:   util.JoinURLHost(config.Host, strconv.FormatUint(uint64(config.Port), 10)),
 		Path:   eventEndpointPath,
 	}).String()
-
-	payload, err := s.newEventPayload(message, params)
-	if err != nil {
-		return err
-	}
 
 	return s.sendAlert(ctx, endpointURL, &payload)
 }
@@ -192,8 +202,12 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //
 // Parameters:
 //   - config: the config for this send, with params already applied.
-//   - params: the send params, which are never nil here.
+//   - params: the send params, or nil.
 func (s *Service) applyLevel(config *Config, params *types.Params) {
+	if params == nil {
+		return
+	}
+
 	level, ok := params.Level()
 	if !ok {
 		return
@@ -204,47 +218,20 @@ func (s *Service) applyLevel(config *Config, params *types.Params) {
 	}
 }
 
-// newEventPayload builds an Events API v2 event from the message, the config,
-// and the send params, which apply to this event only.
+// newEventPayload builds an Events API v2 event from the message and the
+// config of one send.
 //
 // The summary is cut to 1024 characters. The details prop becomes the custom
 // details, and the contexts prop becomes the links and images.
 //
 // Parameters:
 //   - message: the event summary.
-//   - params: the send params, or nil for none.
+//   - payloadFields: the send's config, with its params applied and checked.
 //
 // Returns:
 //   - EventPayload: the event.
-//   - error: a params error, an invalid severity or action, details that are not
-//     a JSON object, or invalid contexts.
-func (s *Service) newEventPayload(
-	message string,
-	params *types.Params,
-) (EventPayload, error) {
-	if params == nil {
-		params = &types.Params{}
-	}
-
-	// Defensive copy
-	payloadFields := *s.Config
-
-	if err := s.pkr.UpdateConfigFromParams(&payloadFields, params); err != nil {
-		return EventPayload{}, fmt.Errorf("failed to update config from params: %w", err)
-	}
-
-	s.applyLevel(&payloadFields, params)
-
-	// Validate severity
-	if err := validateSeverity(payloadFields.Severity); err != nil {
-		return EventPayload{}, err
-	}
-
-	// Validate event action
-	if err := validateEventAction(payloadFields.Action); err != nil {
-		return EventPayload{}, err
-	}
-
+//   - error: details that are not a JSON object, or invalid contexts.
+func newEventPayload(message string, payloadFields *Config) (EventPayload, error) {
 	// The maximum permitted length of this property is 1024 characters.
 	runes := []rune(message)
 	if len(runes) > maxMessageLength {
@@ -369,18 +356,6 @@ func (s *Service) sendAlert(ctx context.Context, endpoint string, payload *Event
 		}
 
 		return fmt.Errorf("%w: %s", errPagerDutyNotificationFailed, errorMsg)
-	}
-
-	return nil
-}
-
-// setDefaults applies the default props to the service config.
-//
-// Returns:
-//   - error: the error from applying a default prop.
-func (s *Service) setDefaults() error {
-	if err := s.pkr.SetDefaultProps(s.Config); err != nil {
-		return fmt.Errorf("failed to set default props: %w", err)
 	}
 
 	return nil
@@ -523,18 +498,12 @@ func linksAndImages(contexts []PagerDutyContext) ([]Link, []Image) {
 //   - error: [errInvalidSeverity] for a value other than critical, error,
 //     warning, or info.
 func validateSeverity(severity string) error {
-	validSeverities := map[string]bool{
-		"critical": true,
-		"error":    true,
-		"warning":  true,
-		"info":     true,
-	}
-
-	if !validSeverities[severity] {
+	switch severity {
+	case "critical", "error", "warning", "info":
+		return nil
+	default:
 		return errInvalidSeverity
 	}
-
-	return nil
 }
 
 // validateEventAction checks if the provided event action is one of the allowed values.
@@ -546,15 +515,10 @@ func validateSeverity(severity string) error {
 //   - error: [errInvalidEventAction] for a value other than trigger,
 //     acknowledge, or resolve.
 func validateEventAction(action string) error {
-	validActions := map[string]bool{
-		"trigger":     true,
-		"acknowledge": true,
-		"resolve":     true,
-	}
-
-	if !validActions[action] {
+	switch action {
+	case "trigger", "acknowledge", "resolve":
+		return nil
+	default:
 		return errInvalidEventAction
 	}
-
-	return nil
 }

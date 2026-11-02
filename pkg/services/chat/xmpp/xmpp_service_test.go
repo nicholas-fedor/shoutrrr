@@ -272,32 +272,50 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 }
 
 // TestSendDialsConfiguredAddress verifies that a send dials TCP to the
-// configured host and port.
+// configured host and port. A config built in code without a port dials the
+// scheme's default port, as a URL without one does.
 func TestSendDialsConfiguredAddress(t *testing.T) {
 	t.Parallel()
 
-	var (
-		mu      sync.Mutex
-		network string
-		addr    string
-	)
+	// tests lists config changes with the address the send should dial.
+	tests := []struct {
+		change   func(config *Config)
+		name     string
+		wantAddr string
+	}{
+		{name: "configured port", change: func(*Config) {}, wantAddr: "xmpp.example.com:5225"},
+		{name: "no port", change: func(config *Config) { config.Port = 0 }, wantAddr: "xmpp.example.com:5222"},
+	}
 
-	service := newTestService(t, "xmpp://alice:secret@xmpp.example.com:5225/?to=bob@example.com", &recordingSession{})
-	service.SetDialContext(func(ctx context.Context, gotNetwork, gotAddr string) (net.Conn, error) {
-		mu.Lock()
-		network, addr = gotNetwork, gotAddr
-		mu.Unlock()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		return pipeDialer()(ctx, gotNetwork, gotAddr)
-	})
+			var (
+				mu      sync.Mutex
+				network string
+				addr    string
+			)
 
-	require.NoError(t, service.Send("hello", nil))
+			service := newTestService(t, "xmpp://alice:secret@xmpp.example.com:5225/?to=bob@example.com", &recordingSession{})
+			service.SetDialContext(func(ctx context.Context, gotNetwork, gotAddr string) (net.Conn, error) {
+				mu.Lock()
+				network, addr = gotNetwork, gotAddr
+				mu.Unlock()
 
-	mu.Lock()
-	defer mu.Unlock()
+				return pipeDialer()(ctx, gotNetwork, gotAddr)
+			})
+			tt.change(service.Config)
 
-	assert.Equal(t, "tcp", network)
-	assert.Equal(t, "xmpp.example.com:5225", addr)
+			require.NoError(t, service.Send("hello", nil))
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			assert.Equal(t, "tcp", network)
+			assert.Equal(t, tt.wantAddr, addr)
+		})
+	}
 }
 
 // TestSendContextErrors verifies that a send reports a dial or session error,

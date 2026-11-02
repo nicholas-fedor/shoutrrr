@@ -79,6 +79,20 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare sets Lark's host for a config without one, then runs the config's
+// checks. Reading a service URL and each send run it, so a config built in
+// code reaches the host its URL would and fails as its URL would.
+//
+// Returns:
+//   - error: the error from the config's checks, such as [ErrInvalidHost].
+func (c *Config) prepare() error {
+	if c.Host == "" {
+		c.Host = larkHost
+	}
+
+	return c.validate()
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 // It sets the host, path, and query parameters, validating host and path, and
 // returns an error if parsing or validation fails.
@@ -88,27 +102,40 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: the service URL.
 //
 // Returns:
-//   - error: [ErrInvalidHost] for a host other than Lark or Feishu, [ErrNoPath]
-//     for a missing path, an error wrapping [util.ErrInvalidQuery] for a
-//     malformed query, or a query prop error.
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query or
+//     a query prop error. Otherwise the error from the config's checks, such
+//     as [ErrInvalidHost].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
-	// A URL without a host uses Lark's host.
-	if c.Host == "" {
-		c.Host = larkHost
-	} else if c.Host != larkHost && c.Host != feishuHost {
-		return ErrInvalidHost
-	}
-
 	c.Path = strings.Trim(serviceURL.Path, "/")
-	if c.Path == "" {
-		return ErrNoPath
-	}
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
 		return err
 	}
 
-	return format.ApplyQuery(resolver, query)
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.prepare()
+}
+
+// validate checks the host and the bot token that every request needs.
+// Reading a service URL and each send run it, so a config built in code or
+// changed by a param fails before a request.
+//
+// Returns:
+//   - error: [ErrInvalidHost] for a host other than Lark or Feishu, [ErrNoPath]
+//     for a missing bot token, or nil.
+func (c *Config) validate() error {
+	if c.Host != larkHost && c.Host != feishuHost {
+		return ErrInvalidHost
+	}
+
+	if c.Path == "" {
+		return ErrNoPath
+	}
+
+	return nil
 }

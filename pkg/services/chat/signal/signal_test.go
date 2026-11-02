@@ -26,6 +26,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -412,6 +413,22 @@ func TestSendEndpointAndAuthentication(t *testing.T) {
 	}
 }
 
+// TestSendDefaultHostAndPort verifies that a config built in code without a
+// host or port sends to localhost on port 8080, as a URL without them does.
+func TestSendDefaultHostAndPort(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, testServiceURL)
+	client, captured := newRecordingClient(t, accepted)
+	service.SetHTTPClient(client)
+	service.Config.Host = ""
+	service.Config.Port = 0
+
+	require.NoError(t, service.Send("Hello", nil))
+	require.Len(t, *captured, 1)
+	assert.Equal(t, testEndpoint, (*captured)[0].url)
+}
+
 // TestSendSplitsRecipientTypes verifies that a send makes one request for the
 // phone numbers, one for the usernames, and one per group, because the REST
 // API rejects mixed recipient types and several groups in one request.
@@ -459,10 +476,11 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 	assert.JSONEq(t, `{"message":"Hello","number":"+15550000000","recipients":["+15551234567"]}`, (*captured)[1].body)
 }
 
-// TestSendErrors verifies that a send rejects invalid params, including
-// recipients that are not phone numbers, group IDs, or usernames, and a config
-// or params without recipients before any request, and reports error statuses
-// and transport errors.
+// TestSendErrors verifies that a send rejects invalid params before any
+// request. They include recipients that are not phone numbers, group IDs, or
+// usernames. A config without a source or recipients fails the same way, as do
+// params without recipients. So does a port param outside 1 to 65535. The test
+// also covers error statuses and transport errors.
 func TestSendErrors(t *testing.T) {
 	t.Parallel()
 
@@ -478,10 +496,17 @@ func TestSendErrors(t *testing.T) {
 		{name: "invalid recipient param", params: &types.Params{"recipients": "alice"}, wantErr: ErrInvalidRecipient},
 		{name: "invalid to param", params: &types.Params{"to": testRecipient + ",group.AB!"}, wantErr: ErrInvalidRecipient},
 		{name: "empty recipients param", params: &types.Params{"recipients": ""}, wantErr: ErrNoRecipients},
+		{name: "port param out of range", params: &types.Params{"port": "65536"}, wantErr: util.ErrInvalidPort},
+		{name: "negative port param", params: &types.Params{"port": "-1"}, wantErr: util.ErrInvalidPort},
 		{
 			name:    "no recipients",
 			config:  &Config{Host: "localhost", Port: 8080, Source: testSource, Recipients: []string{}},
 			wantErr: ErrNoRecipients,
+		},
+		{
+			name:    "no source",
+			config:  &Config{Host: "localhost", Port: 8080, Recipients: []string{testRecipient}},
+			wantErr: ErrInvalidPhoneNumber,
 		},
 	}
 

@@ -307,6 +307,20 @@ func TestServiceSendRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+// TestServiceSendDefaultHost verifies that a config built in code without a
+// host sends to Lark's host, as a URL without one does.
+func TestServiceSendDefaultHost(t *testing.T) {
+	t.Parallel()
+
+	config := Config{Path: "token"}
+	service := &Service{Config: &config, pkr: format.NewPropKeyResolver(&config)}
+	client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
+	service.SetHTTPClient(client)
+
+	require.NoError(t, service.Send("message", nil))
+	assert.Equal(t, testWebhookURL, captured.url)
+}
+
 // TestServiceSendBodySizeLimit verifies that Lark's 20 KB limit applies to the
 // encoded request body, so the title, the link, and JSON escapes count toward
 // it, and that a body of exactly the limit is sent.
@@ -661,18 +675,6 @@ func TestServiceSendContextCanceled(t *testing.T) {
 	service.SetHTTPClient(client)
 
 	require.ErrorIs(t, service.SendContext(ctx, "message", nil), context.Canceled)
-}
-
-// TestServiceDoSendMissingHost verifies that doSend rejects a config without a
-// host. SendContext checks the host first, so doSend is called directly.
-func TestServiceDoSendMissingHost(t *testing.T) {
-	t.Parallel()
-
-	service := &Service{}
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
-
-	err := service.doSend(t.Context(), &Config{Path: "token"}, "message")
-	require.ErrorIs(t, err, ErrMissingHost)
 }
 
 // TestServiceSendRequestInvalidURL verifies that sendRequest returns the
