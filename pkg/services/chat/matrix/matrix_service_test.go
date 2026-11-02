@@ -32,6 +32,8 @@ type fakeHomeserver struct {
 	logins atomic.Int32
 	// failFlows makes the next login flows request fail with a server error.
 	failFlows atomic.Bool
+	// omitToken makes the next login reply leave out the access token.
+	omitToken atomic.Bool
 	// flowsStarted, when set, receives a value as each login flows request arrives.
 	flowsStarted chan struct{}
 	// releaseFlows, when set, holds each login flows request until it is closed.
@@ -106,7 +108,7 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		return homeserverResponse(http.StatusOK, `{"flows":[{"type":"m.login.password"}]}`), nil
 	case req.Method == http.MethodPost && req.URL.Path == apiLogin:
 		var login apiReqLogin
-		if err := json.Unmarshal(body, &login); err == nil && login.Identifier != nil {
+		if err := json.Unmarshal(body, &login); err == nil && login.Identifier.User != "" {
 			f.mu.Lock()
 			f.loginAccounts = append(f.loginAccounts, req.URL.Host+" "+login.Identifier.User+" "+login.Password)
 			f.mu.Unlock()
@@ -115,6 +117,9 @@ func (f *fakeHomeserver) Do(req *http.Request) (*http.Response, error) {
 		// Each login issues a numbered token, so a test can tell which login a
 		// message used.
 		token := fmt.Sprintf("access-%d", f.logins.Add(1))
+		if f.omitToken.CompareAndSwap(true, false) {
+			return homeserverResponse(http.StatusOK, `{"home_server":"matrix.example.com"}`), nil
+		}
 
 		return homeserverResponse(http.StatusOK, `{"access_token":"`+token+`"}`), nil
 	case req.Method == http.MethodGet && req.URL.Path == apiJoinedRooms:
@@ -376,6 +381,24 @@ func TestFailedLoginIsRetried(t *testing.T) {
 
 	require.NoError(t, service.Send("second", nil))
 	assert.Equal(t, int32(1), server.logins.Load())
+}
+
+// TestLoginWithoutTokenIsRetried verifies that a login reply without an access
+// token fails the send and stores no session. The next send logs in again and
+// sends with the new token, instead of sending without authentication.
+func TestLoginWithoutTokenIsRetried(t *testing.T) {
+	t.Parallel()
+
+	server := &fakeHomeserver{}
+	service, _ := newHomeserverService(t, server)
+	require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+
+	server.omitToken.Store(true)
+
+	require.ErrorIs(t, service.Send("first", nil), ErrLoginReplyWithoutToken)
+	require.NoError(t, service.Send("second", nil))
+	assert.Equal(t, int32(2), server.logins.Load())
+	assert.Equal(t, []string{"Bearer access-2"}, server.sentTokens())
 }
 
 // TestLoginWaitEndsWithContext verifies that a send waiting for another send's

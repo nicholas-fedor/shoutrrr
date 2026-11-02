@@ -707,8 +707,9 @@ func TestLoginLog(t *testing.T) {
 	assert.NotContains(t, output.String(), "myt")
 }
 
-// TestLogin verifies that login reports a failed flows request and unsupported
-// flows, and logs in with a token when no user is given.
+// TestLogin verifies that login reports a failed flows request, and reports
+// unsupported flows when the homeserver offers no password flow. It logs in
+// through the password flow when the homeserver offers one.
 func TestLogin(t *testing.T) {
 	t.Parallel()
 
@@ -729,22 +730,30 @@ func TestLogin(t *testing.T) {
 		require.ErrorIs(t, c.login(t.Context(), "user", "password"), ErrUnsupportedLoginFlows)
 	})
 
-	t.Run("token login without a user", func(t *testing.T) {
+	t.Run("token flow only", func(t *testing.T) {
+		t.Parallel()
+
+		c, _ := newScriptedClient(t, ok(`{"flows":[{"type":"m.login.token"}]}`))
+		require.ErrorIs(t, c.login(t.Context(), "user", "password"), ErrUnsupportedLoginFlows)
+	})
+
+	t.Run("password flow", func(t *testing.T) {
 		t.Parallel()
 
 		c, _ := newScriptedClient(t,
-			ok(`{"flows":[{"type":"m.login.token"}]}`),
-			ok(`{"access_token":"testtoken123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`),
+			ok(`{"flows":[{"type":"m.login.token"},{"type":"m.login.password"}]}`),
+			ok(`{"access_token":"mytoken123","home_server":"matrix.example.com"}`),
 		)
 
-		require.NoError(t, c.login(t.Context(), "", "testtoken123"))
-		assert.Equal(t, "testtoken123", c.accessToken)
+		require.NoError(t, c.login(t.Context(), "user", "password"))
+		assert.Equal(t, "mytoken123", c.accessToken)
 	})
 }
 
 // TestLoginPassword verifies that a password login sends the user, password,
-// and device ID, stores the access token, for plain and fully qualified user
-// names, and reports a failed request.
+// and device ID and stores the access token, for plain and fully qualified
+// user names. A failed request or a reply without a token fails the login and
+// stores no token.
 func TestLoginPassword(t *testing.T) {
 	t.Parallel()
 
@@ -767,7 +776,7 @@ func TestLoginPassword(t *testing.T) {
 			assert.Equal(t, "mytoken123", c.accessToken)
 			assert.Equal(t, apiReqLogin{
 				Type:       flowLoginPassword,
-				Identifier: newUserIdentifier(tt.user),
+				Identifier: identifier{Type: idTypeUser, User: tt.user},
 				Password:   "password",
 				DeviceID:   generateDeviceID(tt.user, "matrix.example.com"),
 			}, loginRequest(t, httpClient))
@@ -781,31 +790,13 @@ func TestLoginPassword(t *testing.T) {
 		require.Error(t, c.loginPassword(t.Context(), "user", "password"))
 		assert.Empty(t, c.accessToken)
 	})
-}
 
-// TestLoginToken verifies that a token login sends the token and device ID,
-// stores the access token, and reports a failed request.
-func TestLoginToken(t *testing.T) {
-	t.Parallel()
-
-	t.Run("success", func(t *testing.T) {
+	t.Run("reply without a token", func(t *testing.T) {
 		t.Parallel()
 
-		c, httpClient := newScriptedClient(t, ok(`{"access_token":"token123","home_server":"matrix.example.com","user_id":"@user:matrix.example.com"}`))
-		require.NoError(t, c.loginToken(t.Context(), "token123"))
-		assert.Equal(t, "token123", c.accessToken)
-		assert.Equal(t, apiReqLogin{
-			Type:     flowLoginToken,
-			Token:    "token123",
-			DeviceID: generateDeviceID("", "matrix.example.com"),
-		}, loginRequest(t, httpClient))
-	})
-
-	t.Run("request fails", func(t *testing.T) {
-		t.Parallel()
-
-		c, _ := newScriptedClient(t, failed("mock error"))
-		require.Error(t, c.loginToken(t.Context(), "token"))
+		c, _ := newScriptedClient(t, ok(`{"home_server":"matrix.example.com","device_id":"TESTDEVICE"}`))
+		require.ErrorIs(t, c.loginPassword(t.Context(), "user", "password"), ErrLoginReplyWithoutToken)
+		assert.Empty(t, c.accessToken)
 	})
 }
 

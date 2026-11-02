@@ -30,16 +30,3 @@ func TestAPIResErrorMessage(t *testing.T) {
 		})
 	}
 }
-
-// TestNewUserIdentifier verifies that a user identifier carries the user and
-// the user identifier type.
-func TestNewUserIdentifier(t *testing.T) {
-	t.Parallel()
-
-	for _, user := range []string{"testuser", ""} {
-		id := newUserIdentifier(user)
-
-		assert.Equal(t, user, id.User)
-		assert.Equal(t, idTypeUser, id.Type)
-	}
-}
