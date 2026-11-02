@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -263,17 +264,16 @@ func (c *client) joinRoom(ctx context.Context, room string) (string, error) {
 
 // login authenticates the client using a username and password.
 //
-// It asks the homeserver for its login flows and uses the password flow when
-// a user is set, or the token flow with password as the token when none is.
+// It asks the homeserver for its login flows and uses the password flow.
 //
 // Parameters:
 //   - ctx: bounds the requests.
-//   - user: the user name, or empty for a token login.
-//   - password: the password, or the login token when user is empty.
+//   - user: the user name or full Matrix ID.
+//   - password: the password.
 //
 // Returns:
-//   - error: the request error, the API's error, or [ErrUnsupportedLoginFlows]
-//     when the homeserver offers no flow that fits.
+//   - error: the error of the flows request or the password login, or
+//     [ErrUnsupportedLoginFlows] when the homeserver offers no password flow.
 func (c *client) login(ctx context.Context, user, password string) error {
 	c.apiURL.RawQuery = ""
 
@@ -282,23 +282,13 @@ func (c *client) login(ctx context.Context, user, password string) error {
 		return fmt.Errorf("failed to get login flows: %w", err)
 	}
 
+	if slices.ContainsFunc(resLogin.Flows, func(offered flow) bool { return offered.Type == flowLoginPassword }) {
+		return c.loginPassword(ctx, user, password)
+	}
+
 	flows := make([]string, 0, len(resLogin.Flows))
-	for _, flow := range resLogin.Flows {
-		flows = append(flows, string(flow.Type))
-
-		// Prefer password login when a user is configured
-		if flow.Type == flowLoginPassword && user != "" {
-			c.logger.LogAttrs(ctx, slog.LevelDebug, "using login flow", slog.String(logging.KeyFlow, string(flow.Type)))
-
-			return c.loginPassword(ctx, user, password)
-		}
-
-		// Only use token login when no user is configured
-		if flow.Type == flowLoginToken && user == "" {
-			c.logger.LogAttrs(ctx, slog.LevelDebug, "using login flow", slog.String(logging.KeyFlow, string(flow.Type)))
-
-			return c.loginToken(ctx, password)
-		}
+	for _, offered := range resLogin.Flows {
+		flows = append(flows, string(offered.Type))
 	}
 
 	return fmt.Errorf(
@@ -316,13 +306,13 @@ func (c *client) login(ctx context.Context, user, password string) error {
 //   - password: the password.
 //
 // Returns:
-//   - error: the request error or the API's error.
+//   - error: the request or API error, or [ErrLoginReplyWithoutToken] for a
+//     reply without a token.
 func (c *client) loginPassword(ctx context.Context, user, password string) error {
 	response := apiResLogin{}
 
 	deviceID := generateDeviceID(user, c.apiURL.Host)
 
-	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
 	err := c.apiDo(
 		ctx,
 		http.MethodPost,
@@ -330,7 +320,7 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 		apiReqLogin{
 			Type:       flowLoginPassword,
 			Password:   password,
-			Identifier: newUserIdentifier(user),
+			Identifier: identifier{Type: idTypeUser, User: user},
 			DeviceID:   deviceID,
 		},
 		&response,
@@ -339,44 +329,10 @@ func (c *client) loginPassword(ctx context.Context, user, password string) error
 		return fmt.Errorf("failed to log in: %w", err)
 	}
 
-	c.accessToken = response.AccessToken
-
-	// The access token is a credential, so the record leaves it out.
-	c.logger.LogAttrs(ctx, slog.LevelDebug, "logged in",
-		slog.String(logging.KeyHomeserver, response.HomeServer), slog.String(logging.KeyDevice, response.DeviceID))
-
-	return nil
-}
-
-// loginToken performs a token-based login to the Matrix server.
-//
-// Parameters:
-//   - ctx: bounds the request.
-//   - token: the login token.
-//
-// Returns:
-//   - error: the request error or the API's error.
-func (c *client) loginToken(ctx context.Context, token string) error {
-	response := apiResLogin{}
-
-	// For token-based login, use an empty user string in the device ID hash.
-	// This ensures all token-based logins to the same host reuse the same device.
-	deviceID := generateDeviceID("", c.apiURL.Host)
-
-	//nolint:exhaustruct_v5 // Intentional zero-value initialization for apiReqLogin
-	err := c.apiDo(
-		ctx,
-		http.MethodPost,
-		apiLogin,
-		apiReqLogin{
-			Type:     flowLoginToken,
-			Token:    token,
-			DeviceID: deviceID,
-		},
-		&response,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to log in with token: %w", err)
+	// A reply without a token is not stored, so the next send logs in again
+	// instead of sending without authentication.
+	if response.AccessToken == "" {
+		return ErrLoginReplyWithoutToken
 	}
 
 	c.accessToken = response.AccessToken
@@ -630,7 +586,7 @@ func generateTransactionID() string {
 // to prevent device churn when ports are omitted or explicitly included.
 //
 // Parameters:
-//   - user: the user name, or empty for a token login.
+//   - user: the user name or full Matrix ID.
 //   - host: the homeserver host, with an optional port.
 //
 // Returns:

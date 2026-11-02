@@ -46,8 +46,6 @@ const (
 	KeyError = "error"
 	// KeyField names a config field.
 	KeyField = "field"
-	// KeyFlow names a login flow.
-	KeyFlow = "flow"
 	// KeyHomeserver names the server that a login reported.
 	KeyHomeserver = "homeserver"
 	// KeyKey names a config key in a URL or in params.

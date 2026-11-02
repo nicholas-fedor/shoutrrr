@@ -18,15 +18,13 @@ type apiResLoginFlows struct {
 
 // apiReqLogin represents a login request to the Matrix API.
 type apiReqLogin struct {
-	// Type is the login flow, password or token.
+	// Type is the login flow.
 	Type flowType `json:"type"`
-	// Identifier identifies the user for a password login.
-	Identifier *identifier `json:"identifier"`
+	// Identifier identifies the user.
+	Identifier identifier `json:"identifier"`
 
-	// Password is the user's password, left out for a token login.
-	Password string `json:"password,omitempty"`
-	// Token is the login token, left out for a password login.
-	Token string `json:"token,omitempty"`
+	// Password is the user's password.
+	Password string `json:"password"`
 	// DeviceID reuses this device ID, so repeated logins do not add devices,
 	// and is left out when empty.
 	DeviceID string `json:"device_id,omitempty"`
@@ -92,8 +90,8 @@ type flow struct {
 type identifier struct {
 	// Type is the identifier type, m.id.user for a user name.
 	Type identifierType `json:"type"`
-	// User is the user name or full Matrix ID, left out when empty.
-	User string `json:"user,omitempty"`
+	// User is the user name or full Matrix ID.
+	User string `json:"user"`
 }
 
 // Matrix client-server API paths, request settings, and protocol values.
@@ -116,9 +114,6 @@ const (
 	msgTypeText messageType = "m.text"
 	// flowLoginPassword is the Matrix login flow type for password authentication.
 	flowLoginPassword flowType = "m.login.password"
-	// flowLoginToken is the Matrix login flow type for token authentication.
-	//nolint:gosec // This is a Matrix API constant, not a hardcoded credential
-	flowLoginToken flowType = "m.login.token"
 	// idTypeUser is the Matrix identifier type for username-based authentication.
 	idTypeUser identifierType = "m.id.user"
 )
@@ -129,18 +124,4 @@ const (
 //   - string: the message.
 func (e *apiResError) Error() string {
 	return e.Message
-}
-
-// newUserIdentifier creates a new Matrix user identifier for authentication.
-//
-// Parameters:
-//   - user: the user name or full Matrix ID.
-//
-// Returns:
-//   - *identifier: the m.id.user identifier.
-func newUserIdentifier(user string) *identifier {
-	return &identifier{
-		Type: idTypeUser,
-		User: user,
-	}
 }
