@@ -139,6 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update matrixdotorg/synapse:latest docker digest to 1909bcc by @renovate[bot] in [#2038](https://github.com/nicholas-fedor/shoutrrr/pull/2038)
+- Update binwiederhier/ntfy:latest docker digest to a1dde1f by @renovate[bot] in [#2037](https://github.com/nicholas-fedor/shoutrrr/pull/2037)
 - Update binwiederhier/ntfy:latest docker digest to 3176f6f by @renovate[bot] in [#2033](https://github.com/nicholas-fedor/shoutrrr/pull/2033)
 - Update dependency mkdocs-git-revision-date-localized-plugin to v1.6.3 by @renovate[bot] in [#2025](https://github.com/nicholas-fedor/shoutrrr/pull/2025)
 - Update dependency platformdirs to v4.14.3 by @renovate[bot] in [#2015](https://github.com/nicholas-fedor/shoutrrr/pull/2015)
