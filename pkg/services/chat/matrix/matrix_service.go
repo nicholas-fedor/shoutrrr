@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -28,20 +29,28 @@ type Service struct {
 
 	// Config holds the homeserver, the credentials, and the rooms.
 	Config *Config
-	// accessToken authenticates the room requests. It is the configured
-	// access token, or the token of the password login once a send has
-	// logged in.
-	accessToken string
 	// loginGate holds one token while a send runs the password login, so only one
 	// login runs at a time and waiting sends can give up when their context ends.
 	loginGate chan struct{}
+	// session holds the token of the latest password login and the account it
+	// was made for, or nil before a login succeeds. Sends read it without the
+	// login gate, and only a send holding the gate replaces it.
+	session atomic.Pointer[loginSession]
 	// pkr reads and writes the config props by their query keys.
 	pkr format.PropKeyResolver
-	// loggedIn reports whether accessToken holds the token of a password login.
-	loggedIn bool
 	// ready reports whether the last Initialize succeeded, so a homeserver is
 	// configured to send to.
 	ready bool
+}
+
+// loginSession is the access token of a password login and the account it was
+// made for. A homeserver accepts only the tokens it issued, so the token is
+// reused only for the same account. A session is not changed once stored.
+type loginSession struct {
+	// key identifies the account the login was made for.
+	key loginKey
+	// token is the access token the homeserver issued.
+	token string
 }
 
 // Scheme identifies this service in configuration URLs.
@@ -77,7 +86,7 @@ func (s *Service) GetID() string {
 }
 
 // Initialize configures the service with a URL and logger. It performs no network
-// I/O: a password login runs on the first send, through the HTTP client and
+// I/O. A password login runs on a later send, through the HTTP client and
 // context in effect at that time.
 //
 // Parameters:
@@ -102,10 +111,9 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 	s.pkr = format.NewPropKeyResolver(s.Config)
 
-	// The earlier session ends before the URL is read, so a URL that fails to
-	// read leaves no session to send with.
-	s.accessToken = ""
-	s.loggedIn = false
+	// Initialize drops the token of the earlier login, so the next send logs in
+	// again. The homeserver still accepts that token until it expires.
+	s.session.Store(nil)
 	s.ready = false
 	s.loginGate = make(chan struct{}, 1)
 
@@ -114,10 +122,6 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	}
 
 	s.ready = true
-
-	if s.Config.User == "" {
-		s.accessToken = s.Config.Password
-	}
 
 	s.LogAttrs(context.Background(), slog.LevelDebug, "using server", slog.String(logging.KeyServer, s.Config.Host))
 
@@ -140,10 +144,10 @@ func (s *Service) Send(message string, params *types.Params) error {
 
 // SendContext delivers a notification message to Matrix rooms. The router calls it
 // with its send deadline, and a context without a deadline is bounded by the
-// budget that [Service.ServiceTimeout] reports. The first send logs in when a
-// user is configured. The first send without TLS logs a warning, and so does
-// the first send that skips certificate verification through the default
-// client.
+// budget that [Service.ServiceTimeout] reports. With a user configured, a send
+// logs in unless an earlier login was made for the same homeserver, user, and
+// password. The first send without TLS logs a warning, and so does the first
+// send that skips certificate verification through the default client.
 //
 // Parameters:
 //   - ctx: bounds the login and the room requests.
@@ -187,7 +191,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	// and the room requests.
 	api := newClient(cfg.Host, cfg.apiScheme(), s.sendClient(ctx, &cfg), &s.Logger)
 
-	if err := s.ensureLogin(ctx, api); err != nil {
+	if err := s.ensureLogin(ctx, api, &cfg); err != nil {
 		return err
 	}
 
@@ -257,20 +261,35 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 	s.httpClient.Set(client)
 }
 
-// ensureLogin gives api the access token for the send. With a user
-// configured, the first send logs in with the user and password through api. A
-// failed login is retried on the next send. A send that waits for another
-// send's login stops waiting when ctx ends.
+// ensureLogin gives api the access token for the send. Without a user, the
+// config's password is the access token. With a user, the send reuses the
+// token of an earlier login for the same homeserver, user, and password.
+// Otherwise it logs in through api. So a token never goes to a homeserver or
+// account other than the one it was issued for. A failed login is retried on
+// the next send. A send that waits for another send's login stops waiting when
+// ctx ends.
 //
 // Parameters:
 //   - ctx: cancellation for waiting on and running the login.
 //   - api: the API client of the send, which the login uses too.
+//   - config: the config of the send, which names the homeserver and the
+//     credentials.
 //
 // Returns:
 //   - error: the login failure or ctx's error, or nil when api holds the token.
-func (s *Service) ensureLogin(ctx context.Context, api *client) error {
-	if s.Config.User == "" {
-		api.accessToken = s.accessToken
+func (s *Service) ensureLogin(ctx context.Context, api *client, config *Config) error {
+	if config.User == "" {
+		api.accessToken = config.Password
+
+		return nil
+	}
+
+	key := config.loginKey()
+
+	// A send for the account of the latest login reuses its token without
+	// waiting for the gate.
+	if token, ok := s.sessionToken(key); ok {
+		api.accessToken = token
 
 		return nil
 	}
@@ -283,18 +302,19 @@ func (s *Service) ensureLogin(ctx context.Context, api *client) error {
 
 	defer func() { <-s.loginGate }()
 
-	if s.loggedIn {
-		api.accessToken = s.accessToken
+	// Another send may have logged in to the same account while this one
+	// waited for the gate.
+	if token, ok := s.sessionToken(key); ok {
+		api.accessToken = token
 
 		return nil
 	}
 
-	if err := api.login(ctx, s.Config.User, s.Config.Password); err != nil {
+	if err := api.login(ctx, config.User, config.Password); err != nil {
 		return fmt.Errorf("logging in to Matrix: %w", err)
 	}
 
-	s.accessToken = api.accessToken
-	s.loggedIn = true
+	s.session.Store(&loginSession{key: key, token: api.accessToken})
 
 	return nil
 }
@@ -317,6 +337,24 @@ func (s *Service) sendClient(ctx context.Context, config *Config) types.HTTPClie
 	}
 
 	return s.httpClient.Client()
+}
+
+// sessionToken returns the token of the latest login when it was made for the
+// account key names.
+//
+// Parameters:
+//   - key: the account of the send.
+//
+// Returns:
+//   - string: the access token, or empty.
+//   - bool: whether the latest login was made for that account.
+func (s *Service) sessionToken(key loginKey) (string, bool) {
+	session := s.session.Load()
+	if session == nil || session.key != key {
+		return "", false
+	}
+
+	return session.token, true
 }
 
 // createMessage creates the full message body by prepending the title if provided.

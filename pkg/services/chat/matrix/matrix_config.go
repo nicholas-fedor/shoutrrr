@@ -36,6 +36,18 @@ type Config struct {
 	SkipTLSVerify bool `default:"No" desc:"Skip TLS certificate verification" key:"skiptlsverify"`
 }
 
+// loginKey identifies the account a password login is made for. Two configs
+// with the same key log in to the same account, so they can share its access
+// token.
+type loginKey struct {
+	// host is the homeserver.
+	host string
+	// user is the user that logs in.
+	user string
+	// password is the password the login uses.
+	password string
+}
+
 // GetURL returns a URL representation of it's current field values.
 //
 // Returns:
@@ -87,6 +99,14 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 		ForceQuery: true,
 		RawQuery:   format.BuildQuery(resolver),
 	}
+}
+
+// loginKey returns the account a password login with this config is made for.
+//
+// Returns:
+//   - loginKey: the homeserver, user, and password.
+func (c *Config) loginKey() loginKey {
+	return loginKey{host: c.Host, user: c.User, password: c.Password}
 }
 
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,

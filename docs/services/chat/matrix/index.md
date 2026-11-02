@@ -33,6 +33,9 @@ Simply omit the `user` parameter and provide your access token as the `password`
 ### Password Login
 
 If a `user` and `password` are both supplied, the service will attempt to authenticate using the `m.login.password` flow (if supported by your server).
+The first send logs in.
+Later sends reuse that login while the homeserver, user, and password stay the same.
+When code changes the service's config to another homeserver or account, the next send logs in again, so an access token only goes to the homeserver that issued it.
 
 ## Matrix API v3 Compliance
 
@@ -125,7 +128,7 @@ You can use either `rooms` (for multiple rooms) or `room` (for a single room) - 
 
 If you do not have TLS enabled on the server you can disable it by providing `disabletls=yes`.
 This will effectively use `http` instead of `https` for the API calls.
-A `disabletls` send param applies to that send only, including the login on the first send.
+A `disabletls` send param applies to that send only, including a login the send makes.
 The first send without TLS logs a warning.
 
 !!! Warning "Security Risk"
@@ -134,7 +137,7 @@ The first send without TLS logs a warning.
 
 Set `skiptlsverify=yes` when the homeserver's certificate cannot be verified, such as a self-signed one on its reverse proxy.
 The connection stays encrypted, but Shoutrrr does not check which server it talks to.
-A `skiptlsverify` send param also applies to that send only, including the login on the first send.
+A `skiptlsverify` send param also applies to that send only, including a login the send makes.
 A custom HTTP client set through `SetHTTPClient` keeps its own TLS settings, so `skiptlsverify` does not change it.
 The first send that skips certificate verification through Shoutrrr's own client logs a warning.
 
