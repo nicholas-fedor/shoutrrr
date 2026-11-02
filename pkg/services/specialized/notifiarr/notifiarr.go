@@ -301,8 +301,8 @@ func (s *Service) ParseMentions(message string) []string {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrEmptyMessage], the params failure, a payload error, or
-//     [ErrSendFailed] wrapping the send error.
+//     [ErrEmptyMessage], the params failure, the error from the config's
+//     checks, a payload error, or [ErrSendFailed] wrapping the send error.
 func (s *Service) Send(message string, paramsPtr *types.Params) error {
 	return s.SendContext(context.Background(), message, paramsPtr)
 }
@@ -319,9 +319,9 @@ func (s *Service) Send(message string, paramsPtr *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrEmptyMessage], the params failure, a payload error, or
-//     [ErrSendFailed] wrapping the send error. A request error matches ctx's
-//     error when ctx ends the request.
+//     [ErrEmptyMessage], the params failure, the error from the config's
+//     checks, a payload error, or [ErrSendFailed] wrapping the send error. A
+//     request error matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -350,6 +350,10 @@ func (s *Service) SendContext(ctx context.Context, message string, paramsPtr *ty
 	if err := s.pkr.UpdateConfigFromParams(&config, paramsPtr,
 		iconParam, contentParam, footerParam, fieldsParam, updateParam, idParam); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return err
 	}
 
 	// Create the payload
@@ -529,8 +533,9 @@ func (s *Service) createPayload(
 //   - error: the request error, [ErrAuthenticationFailed] for a 401 status, or
 //     [ErrUnexpectedStatus] for another non-success status.
 func (s *Service) doSend(ctx context.Context, config *Config, payload []byte) error {
-	// Build the API URL with API key
-	apiURL := fmt.Sprintf("%s/%s", APIBaseURL, config.APIKey)
+	// The API key is escaped as one path segment. A slash, question mark, or
+	// hash in it then cannot change the endpoint or start a query or fragment.
+	apiURL := APIBaseURL + "/" + url.PathEscape(config.APIKey)
 
 	// Create HTTP request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBuffer(payload))
@@ -634,7 +639,7 @@ func ParseUpdateFlag(params types.Params) *bool {
 func buildNotificationData(updatePtr *bool, config *Config, params types.Params) NotificationData {
 	return NotificationData{
 		Update: updatePtr,
-		Name:   config.Name,
+		Name:   config.appName(),
 		Event:  params[idParam],
 	}
 }

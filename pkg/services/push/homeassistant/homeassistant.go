@@ -102,7 +102,8 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrMessageEmpty], a params error, or the send error.
+//     [ErrMessageEmpty], the error from the params or the config's checks, or
+//     the send error.
 func (s *Service) Send(message string, params *types.Params) error {
 	return s.SendContext(context.Background(), message, params)
 }
@@ -119,8 +120,8 @@ func (s *Service) Send(message string, params *types.Params) error {
 //
 // Returns:
 //   - error: [types.ErrServiceNotInitialized] before Initialize,
-//     [ErrMessageEmpty], a params error, or the send error, which matches ctx's
-//     error when ctx ends the request.
+//     [ErrMessageEmpty], the error from the params or the config's checks, or
+//     the send error, which matches ctx's error when ctx ends the request.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -136,6 +137,10 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 	config := *s.Config
 	if err := s.pkr.UpdateConfigFromParams(&config, params); err != nil {
 		return fmt.Errorf("updating config from params: %w", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return err
 	}
 
 	// Plain HTTP applies to an injected client too, because the URL decides it.
@@ -236,7 +241,7 @@ func buildRequest(message string, config *Config) (requestPayload, string, error
 		payload.Title = config.Title
 	}
 
-	if config.isPersistent() {
+	if domain == persistentDomain && service == persistentService {
 		if config.Nid != "" {
 			payload.NotificationID = config.Nid
 		}

@@ -105,6 +105,19 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
+// applyDefaults sets [DefaultHost] and port 443 when the config has no host or
+// port, as reading a URL without them does. A config built in code then
+// reaches the same API.
+func (c *Config) applyDefaults() {
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = defaultPort
+	}
+}
+
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
 // Parameters:
@@ -139,9 +152,9 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 // Returns:
 //   - error: [util.ErrInvalidHost] for a host that is not a hostname or a
 //     bracketed IPv6 address, [util.ErrInvalidPort] for a port that is not a
-//     number, [ErrAPIKeyMissing] for a missing or empty API key,
-//     [ErrInvalidPort] for a port outside 1 to 65535, an error wrapping
-//     [util.ErrInvalidQuery] for a malformed query, or a query prop error.
+//     number, [ErrInvalidPort] for a port outside 1 to 65535, an error
+//     wrapping [util.ErrInvalidQuery] for a malformed query, a query prop
+//     error, or [ErrAPIKeyMissing] for a missing or empty API key.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	host, port, err := util.SplitURLHost(serviceURL)
 	if err != nil {
@@ -149,15 +162,8 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	}
 
 	c.Host = host
-
 	c.APIKey = strings.TrimPrefix(serviceURL.Path, "/")
-	if c.APIKey == "" {
-		return ErrAPIKeyMissing
-	}
-
-	if c.Host == "" {
-		c.Host = DefaultHost
-	}
+	c.Port = 0
 
 	if port != "" {
 		portNumber, err := strconv.ParseUint(port, 10, 16)
@@ -170,14 +176,32 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		}
 
 		c.Port = uint16(portNumber)
-	} else {
-		c.Port = defaultPort
 	}
+
+	c.applyDefaults()
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
 		return err
 	}
 
-	return format.ApplyQuery(resolver, query)
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.validate()
+}
+
+// validate checks that the config has the API key every alert request needs.
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
+//
+// Returns:
+//   - error: [ErrAPIKeyMissing] for a config without an API key, or nil.
+func (c *Config) validate() error {
+	if c.APIKey == "" {
+		return ErrAPIKeyMissing
+	}
+
+	return nil
 }

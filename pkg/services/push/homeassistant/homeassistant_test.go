@@ -294,6 +294,39 @@ func TestSendOversizedBody(t *testing.T) {
 	})
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without a token or a host fails before any
+// request. So do a port out of range and an invalid notify service.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrTokenMissing},
+		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrHostMissing},
+		{name: "negative port", change: func(config *Config) { config.Port = -1 }, wantErr: ErrInvalidPort},
+		{name: "port above 65535", change: func(config *Config) { config.Port = 65536 }, wantErr: ErrInvalidPort},
+		{name: "invalid service", change: func(config *Config) { config.Service = "not a service" }, wantErr: ErrInvalidService},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "homeassistant://token@ha.example.com")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the stored config and the next send keep the
 // configured values.

@@ -221,6 +221,36 @@ func TestSend(t *testing.T) {
 	}
 }
 
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does, so a config without a device key or a host fails before
+// any request.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrMissingDeviceKey},
+		{name: "no host", change: func(config *Config) { config.Host = "" }, wantErr: ErrMissingHost},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "bark://:devicekey@hostname")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
+		})
+	}
+}
+
 // TestSendParamsLeaveConfigUnchanged verifies that params apply to a copy of
 // the config for one send, so the stored config and the next send keep the
 // configured values.

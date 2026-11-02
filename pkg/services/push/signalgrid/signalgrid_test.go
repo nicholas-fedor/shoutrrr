@@ -18,6 +18,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -195,6 +196,37 @@ func TestSend(t *testing.T) {
 			assert.Equal(t, contentType, captured.contentType)
 			assert.Equal(t, meta.UserAgent(), captured.userAgent)
 			assert.Equal(t, tt.wantForm, captured.form)
+		})
+	}
+}
+
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does. A config without a client key or a channel token fails
+// before any request. So does a channel token with a colon or brackets.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	// tests lists config changes with the error the send must return.
+	tests := []struct {
+		change  func(config *Config)
+		wantErr error
+		name    string
+	}{
+		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrClientKeyMissing},
+		{name: "no channel", change: func(config *Config) { config.Channel = "" }, wantErr: ErrChannelMissing},
+		{name: "channel with a port", change: func(config *Config) { config.Channel = "channel:443" }, wantErr: util.ErrInvalidHost},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestService(t, "signalgrid://key@channel")
+			// The mock has no expectations, so a request fails the test.
+			service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+			tt.change(service.Config)
+
+			require.ErrorIs(t, service.Send("Message", nil), tt.wantErr)
 		})
 	}
 }

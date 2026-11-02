@@ -95,9 +95,8 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // Returns:
 //   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
-//     query prop error, an encryption key error, [ErrInvalidTimestamp] for a
-//     negative timestamp, or [ErrUserMissing] or [ErrTokenMissing] when the
-//     user or the token is missing.
+//     query prop error, or the error from the config's checks, such as
+//     [ErrUserMissing].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.User = serviceURL.Host
@@ -112,6 +111,18 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
+	return c.validate()
+}
+
+// validate checks the encryption key, the timestamp, the user, and the token.
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
+//
+// Returns:
+//   - error: an encryption key error, [ErrInvalidTimestamp] for a negative
+//     timestamp, [ErrUserMissing] or [ErrTokenMissing] when the user or the
+//     token is missing, or nil.
+func (c *Config) validate() error {
 	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
 		return err
 	}
@@ -120,11 +131,11 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return ErrInvalidTimestamp
 	}
 
-	if len(c.User) < 1 {
+	if c.User == "" {
 		return ErrUserMissing
 	}
 
-	if len(c.Token) < 1 {
+	if c.Token == "" {
 		return ErrTokenMissing
 	}
 

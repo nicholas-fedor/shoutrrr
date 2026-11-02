@@ -418,21 +418,60 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestSendRedactsUnparsableURL verifies that an API key that makes the
-// request URL unparsable fails before any request, without the key in the
-// error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendEscapesAPIKey verifies that the API key is sent as one escaped path
+// segment. A slash, question mark, hash, or percent sign in it then cannot
+// change the endpoint or start a query or fragment.
+func TestSendEscapesAPIKey(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, "notifiarr://placeholder?apikey=SECRETapikey%25zz")
-	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	service := newTestService(t, "notifiarr://placeholder?apikey=a%2F..%2Fx%3Fq%3D1%23f%25zz")
+	client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+	service.SetHTTPClient(client)
 
-	err := service.Send("Hello", nil)
+	require.NoError(t, service.Send("Hello", nil))
+	assert.Equal(t, APIBaseURL+"/a%2F..%2Fx%3Fq=1%23f%25zz", captured.url)
+}
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
-	assert.NotContains(t, err.Error(), "SECRETapikey")
+// TestSendChecksConfig verifies that a send checks a config built in code as
+// reading a URL does, so a config without an API key fails before any request.
+// A config without an app name sends Shoutrrr, the name a URL without one
+// gets.
+func TestSendChecksConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no API key", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		*service.Config = Config{}
+
+		require.ErrorIs(t, service.Send("Hello", nil), ErrAPIKeyMissing)
+	})
+
+	t.Run("port alone as the API key", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		// The mock has no expectations, so a request fails the test.
+		service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+		service.Config.APIKey = ":8080"
+
+		require.ErrorIs(t, service.Send("Hello", nil), ErrAPIKeyMissing)
+	})
+
+	t.Run("no app name", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL)
+		client, captured := newRespondingClient(t, "200 OK", http.StatusOK)
+		service.SetHTTPClient(client)
+		service.Config.Name = ""
+
+		require.NoError(t, service.Send("Hello", nil))
+		assert.Contains(t, captured.body, `"name":"Shoutrrr"`)
+	})
 }
 
 // TestSendDefaultClient verifies that a send without a custom client, or with

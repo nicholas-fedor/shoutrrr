@@ -196,24 +196,22 @@ func TestConfigGetURL(t *testing.T) {
 func TestConfigDomainService(t *testing.T) {
 	t.Parallel()
 
-	// tests lists service props with the domain, action, and persistence each
-	// should resolve to.
+	// tests lists service props with the domain and action each should
+	// resolve to.
 	tests := []struct {
-		name           string
-		service        string
-		wantDomain     string
-		wantService    string
-		wantPersistent bool
+		name        string
+		service     string
+		wantDomain  string
+		wantService string
 	}{
-		{name: "empty", service: "", wantDomain: persistentDomain, wantService: persistentService, wantPersistent: true},
+		{name: "empty", service: "", wantDomain: persistentDomain, wantService: persistentService},
 		{name: "bare name", service: "mobile_app_phone", wantDomain: notifyDomain, wantService: "mobile_app_phone"},
 		{name: "domain and action", service: "notify.mobile_app_phone", wantDomain: "notify", wantService: "mobile_app_phone"},
 		{
-			name:           "explicit persistent notification",
-			service:        "persistent_notification.create",
-			wantDomain:     persistentDomain,
-			wantService:    persistentService,
-			wantPersistent: true,
+			name:        "explicit persistent notification",
+			service:     "persistent_notification.create",
+			wantDomain:  persistentDomain,
+			wantService: persistentService,
 		},
 	}
 
@@ -227,7 +225,6 @@ func TestConfigDomainService(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDomain, domain)
 			assert.Equal(t, tt.wantService, service)
-			assert.Equal(t, tt.wantPersistent, config.isPersistent())
 		})
 	}
 
@@ -238,7 +235,6 @@ func TestConfigDomainService(t *testing.T) {
 		_, _, err := config.domainService()
 
 		require.ErrorIs(t, err, ErrInvalidService)
-		assert.False(t, config.isPersistent())
 	})
 }
 
