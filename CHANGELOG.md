@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fail a send that reaches no joined room by @nicholas-fedor in [#2029](https://github.com/nicholas-fedor/shoutrrr/pull/2029)
 - Reject a login reply without an access token by @nicholas-fedor in [#2027](https://github.com/nicholas-fedor/shoutrrr/pull/2027)
 - Send an access token only to the account that owns it by @nicholas-fedor in [#2023](https://github.com/nicholas-fedor/shoutrrr/pull/2023)
 - Check MQTT and SMTP configs before dialing by @nicholas-fedor in [#2021](https://github.com/nicholas-fedor/shoutrrr/pull/2021)
