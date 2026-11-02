@@ -740,13 +740,28 @@ func TestLogin(t *testing.T) {
 	t.Run("password flow", func(t *testing.T) {
 		t.Parallel()
 
-		c, _ := newScriptedClient(t,
+		c, httpClient := newScriptedClient(t,
 			ok(`{"flows":[{"type":"m.login.token"},{"type":"m.login.password"}]}`),
 			ok(`{"access_token":"mytoken123","home_server":"matrix.example.com"}`),
 		)
 
 		require.NoError(t, c.login(t.Context(), "user", "password"))
 		assert.Equal(t, "mytoken123", c.accessToken)
+
+		// The flows lookup comes first, then the password login.
+		require.Len(t, httpClient.requests, 2)
+		assert.Equal(t, http.MethodGet, httpClient.requests[0].Method)
+		assert.Equal(t, http.MethodPost, httpClient.requests[1].Method)
+		assert.Equal(t, apiLogin, httpClient.requests[1].URL.Path)
+
+		var request apiReqLogin
+		require.NoError(t, json.Unmarshal([]byte(httpClient.bodies[1]), &request))
+		assert.Equal(t, apiReqLogin{
+			Type:       flowLoginPassword,
+			Identifier: identifier{Type: idTypeUser, User: "user"},
+			Password:   "password",
+			DeviceID:   generateDeviceID("user", "matrix.example.com"),
+		}, request)
 	})
 }
 
