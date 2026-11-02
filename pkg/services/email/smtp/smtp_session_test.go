@@ -448,27 +448,6 @@ func TestSessionRunErrors(t *testing.T) {
 			want:     []string{"EHLO localhost", "STARTTLS"},
 		},
 		{
-			name:      "blank sender param",
-			rawURL:    testServiceURL,
-			params:    &types.Params{"fromaddress": " "},
-			wantFail:  failureIDs{FailSetSender},
-			wantCause: ErrFromAddressMissing,
-		},
-		{
-			name:      "empty sender param",
-			rawURL:    testServiceURL,
-			params:    &types.Params{"fromaddress": ""},
-			wantFail:  failureIDs{FailSetSender},
-			wantCause: ErrFromAddressMissing,
-		},
-		{
-			name:     "authentication method unknown",
-			rawURL:   testServiceURL,
-			params:   &types.Params{"auth": "unknown"},
-			wantFail: failureIDs{FailAuthType},
-			want:     []string{"EHLO localhost"},
-		},
-		{
 			name:     "PLAIN rejected",
 			server:   withReplies(map[string][]string{"AUTH": {"535 5.7.8 Authentication credentials invalid"}}),
 			rawURL:   "smtp://user:pass@localhost:2525/?fromaddress=sender@example.com&toaddresses=rec@example.com&usestarttls=no",
@@ -524,22 +503,6 @@ func TestSessionRunErrors(t *testing.T) {
 			rawURL:   testServiceURL,
 			wantFail: failureIDs{FailSendRecipient, FailCloseDataStream},
 			want:     []string{"EHLO localhost", testMailFrom, testRcptTo, "DATA", "QUIT"},
-		},
-		{
-			name:      "sender with a line break",
-			rawURL:    testServiceURL,
-			params:    &types.Params{"fromaddress": "sender@example.com\r\nBcc: victim@example.com"},
-			wantFail:  failureIDs{FailSendRecipient, FailSetSender},
-			wantCause: errHeaderBreak,
-			want:      []string{"EHLO localhost", "QUIT"},
-		},
-		{
-			name:      "recipient with a line break",
-			rawURL:    testServiceURL,
-			params:    &types.Params{"toaddresses": "rec@example.com\nBcc: victim@example.com"},
-			wantFail:  failureIDs{FailSendRecipient, FailSetRecipient},
-			wantCause: errHeaderBreak,
-			want:      []string{"EHLO localhost", "QUIT"},
 		},
 		{
 			name:     "QUIT rejected",
@@ -695,23 +658,6 @@ func TestSessionQuit(t *testing.T) {
 			assert.NotContains(t, logs.String(), reply)
 		})
 	}
-}
-
-// TestSessionWithoutRecipients verifies that a session without recipients
-// fails before the greeting.
-func TestSessionWithoutRecipients(t *testing.T) {
-	t.Parallel()
-
-	server := newFakeSMTP()
-	config := newInitialConfig()
-	config.Host, config.FromAddress = "localhost", "sender@example.com"
-
-	err := newTestSession(t, server, config).run(t.Context(), "Hello")
-
-	require.ErrorIs(t, err, fail(FailSendRecipient, nil))
-	require.ErrorIs(t, err, ErrToAddressMissing)
-	assert.Empty(t, server.received())
-	assert.Equal(t, int32(1), server.closes.Load())
 }
 
 // TestSessionAuth verifies that no authentication sends no AUTH command.

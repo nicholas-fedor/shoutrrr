@@ -45,11 +45,9 @@ func parseConfigURL(t *testing.T, rawURL string) *url.URL {
 //   - *Config: the config.
 func newInitialConfig() *Config {
 	return &Config{
-		Port:        DefaultSMTPPort,
 		Auth:        AuthUnknown,
 		UseStartTLS: true,
 		Encryption:  EncAuto,
-		ClientHost:  "localhost",
 		Timeout:     defaultTimeout,
 	}
 }
@@ -117,9 +115,11 @@ func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
 	// base returns the config a URL with only the addresses produces from the
-	// initial config, with the given overrides applied.
+	// initial config, with the given overrides applied. A URL without a user
+	// or a refresh token infers no authentication.
 	base := func(override func(*Config)) Config {
 		config := *newInitialConfig()
+		config.Auth, config.Port, config.ClientHost = AuthTypes.None, DefaultSMTPPort, "localhost"
 		config.Host = "mail.example.com"
 		config.FromAddress = "sender@example.com"
 		config.ToAddresses = []string{"rec@example.com"}
@@ -158,7 +158,7 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:     "password with @ and spaces",
 			rawURL:   "smtp://user:p%40ss%20word@mail.example.com:587/?fromaddress=sender@example.com&toaddresses=rec@example.com",
-			override: func(c *Config) { c.Username, c.Password, c.Port = "user", "p@ss word", 587 },
+			override: func(c *Config) { c.Username, c.Password, c.Port, c.Auth = "user", "p@ss word", 587, AuthTypes.Plain },
 		},
 		{
 			name:     "IPv6 host",
@@ -206,11 +206,6 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL:   "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=rec@example.com&skiptlsverify=no",
 			override: func(*Config) {},
 		},
-		{
-			name:     "port out of range keeps the previous port",
-			rawURL:   "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com",
-			override: func(c *Config) { c.Port = DefaultSMTPPort },
-		},
 	}
 
 	for _, tt := range tests {
@@ -224,6 +219,36 @@ func TestConfigSetURL(t *testing.T) {
 			assert.Equal(t, want, *config)
 		})
 	}
+}
+
+// TestConfigGetURLZeroPort verifies that a config built in code without a port
+// writes a URL without one, which reads back with the default port.
+func TestConfigGetURLZeroPort(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{Host: "mail.example.com", FromAddress: "sender@example.com", ToAddresses: []string{"rec@example.com"}}
+
+	configURL := config.GetURL()
+	assert.Equal(t, "mail.example.com", configURL.Host)
+
+	restored := &Config{}
+	require.NoError(t, restored.SetURL(configURL))
+	assert.Equal(t, uint16(DefaultSMTPPort), restored.Port)
+}
+
+// TestConfigSetURLResetsPort verifies that a URL without a port uses the
+// default port, even after an earlier URL set another one.
+func TestConfigSetURLResetsPort(t *testing.T) {
+	t.Parallel()
+
+	const addresses = "/?fromaddress=sender@example.com&toaddresses=rec@example.com"
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseConfigURL(t, "smtp://mail.example.com:587"+addresses)))
+	require.Equal(t, uint16(587), config.Port)
+
+	require.NoError(t, config.SetURL(parseConfigURL(t, "smtp://mail.example.com"+addresses)))
+	assert.Equal(t, uint16(DefaultSMTPPort), config.Port)
 }
 
 // TestConfigSetURLErrors verifies that SetURL requires the sender and the
@@ -245,6 +270,8 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "blank sender", rawURL: "smtp://mail.example.com/?fromaddress=%20&toaddresses=rec@example.com", wantErr: ErrFromAddressMissing},
 		{name: "blank recipients", rawURL: "smtp://mail.example.com/?fromaddress=sender@example.com&toaddresses=%20,", wantErr: ErrToAddressMissing},
 		{name: "unknown key", rawURL: "smtp://mail.example.com/?foo=bar", wantErr: format.ErrInvalidConfigKey},
+		{name: "port out of range", rawURL: "smtp://mail.example.com:99999/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: util.ErrInvalidPort},
+		{name: "port zero", rawURL: "smtp://mail.example.com:0/?fromaddress=sender@example.com&toaddresses=rec@example.com", wantErr: util.ErrInvalidPort},
 		{
 			name:    "unbracketed IPv6 host",
 			rawURL:  "smtp://2001:db8::1/?fromaddress=sender@example.com&toaddresses=rec@example.com",

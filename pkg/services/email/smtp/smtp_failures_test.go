@@ -38,7 +38,7 @@ func TestFail(t *testing.T) {
 		{id: FailCloseDataStream, want: "error closing message stream"},
 		{id: FailConnectToServer, want: "error connecting to server"},
 		{id: FailCreateSMTPClient, want: "error creating smtp client"},
-		{id: FailApplySendParams, want: "error applying params to send config"},
+		{id: FailApplySendParams, want: "error preparing the send config"},
 		{id: FailHandshake, want: "server did not accept the handshake"},
 		{id: FailResetSession, want: "error resetting session between recipients"},
 		{id: failures.FailureID(999), want: "an unknown error occurred"},

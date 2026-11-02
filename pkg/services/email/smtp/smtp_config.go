@@ -3,7 +3,6 @@ package smtp
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/url"
 	"slices"
 	"strconv"
@@ -113,6 +112,33 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
+// applyDefaults fills in the settings a config needs to connect. A zero port
+// uses [DefaultSMTPPort] and an empty client host uses localhost. An unknown
+// auth method is inferred as follows.
+//   - [AuthOAuth2] when a refresh token is set.
+//   - [AuthPlain] when a username is present.
+//   - [AuthNone] otherwise.
+func (c *Config) applyDefaults() {
+	if c.Port == 0 {
+		c.Port = DefaultSMTPPort
+	}
+
+	if c.ClientHost == "" {
+		c.ClientHost = defaultClientHost
+	}
+
+	if c.Auth == AuthTypes.Unknown {
+		switch {
+		case c.usesTokenRefresh():
+			c.Auth = AuthTypes.OAuth2
+		case c.Username != "":
+			c.Auth = AuthTypes.Plain
+		default:
+			c.Auth = AuthTypes.None
+		}
+	}
+}
+
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
 // [Config.RequireStartTLS] and [Config.SkipTLSVerify] are included only when
@@ -124,9 +150,16 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 // Returns:
 //   - A smtp:// URL encoding the current configuration.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
+	// A zero port selects the default port. The URL leaves it out, and a URL
+	// without a port reads back as port 0.
+	port := ""
+	if c.Port != 0 {
+		port = strconv.FormatUint(uint64(c.Port), 10)
+	}
+
 	serviceURL := &url.URL{
 		User:       util.URLUserPassword(c.Username, c.Password),
-		Host:       net.JoinHostPort(c.Host, strconv.FormatUint(uint64(c.Port), 10)),
+		Host:       util.JoinURLHost(c.Host, port),
 		Path:       "/",
 		Scheme:     Scheme,
 		ForceQuery: true,
@@ -177,6 +210,19 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	serviceURL.RawQuery = strings.Join(queryParts, "&")
 
 	return serviceURL
+}
+
+// prepare readies a config for a send. It normalizes the addresses and fills
+// in the defaults, then checks the result. Reading a service URL and each send
+// run it, so a config built in code fails before the token request or the dial.
+//
+// Returns:
+//   - error: the error from the config's checks, such as [ErrHostMissing].
+func (c *Config) prepare() error {
+	c.restorePlusAddresses()
+	c.applyDefaults()
+
+	return c.validate()
 }
 
 // restorePlusAddresses trims each address and replaces parsed spaces in e-mail
@@ -242,6 +288,12 @@ func restorePlusInAddrSpec(spec string) string {
 		return strings.ReplaceAll(spec, " ", "+")
 	}
 
+	// An addr-spec without a space in its local part is returned as it is, so
+	// a send does not build a copy of each address.
+	if !strings.Contains(local, " ") {
+		return spec
+	}
+
 	return strings.ReplaceAll(local, " ", "+") + "@" + domain
 }
 
@@ -255,10 +307,12 @@ func restorePlusInAddrSpec(spec string) string {
 //   - serviceURL: The SMTP configuration URL to parse.
 //
 // Returns:
-//   - An error if the host is missing ([ErrHostMissing]) or is not a hostname
-//     or a bracketed IPv6 address ([util.ErrInvalidHost]), the query is
-//     malformed ([util.ErrInvalidQuery]), a query parameter is invalid, or
-//     required addresses are missing.
+//   - An error wrapping [util.ErrInvalidHost] for a host that is not a
+//     hostname or a bracketed IPv6 address. A port outside 1 to 65535 returns
+//     an error wrapping [util.ErrInvalidPort]. A malformed query returns
+//     [util.ErrInvalidQuery], and an invalid query parameter returns its
+//     error. A config that fails its checks returns their error, such as
+//     [ErrHostMissing] for a missing host.
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	password, _ := serviceURL.User.Password()
 	c.Username = serviceURL.User.Username()
@@ -269,15 +323,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
-	// An SMTP server has no default host.
-	if host == "" {
-		return ErrHostMissing
-	}
-
 	c.Host = host
 
-	if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
-		c.Port = uint16(port)
+	// A URL without a port reads as port 0, which the defaults turn into the
+	// default port.
+	c.Port, err = util.ParseURLPort(portStr)
+	if err != nil {
+		return fmt.Errorf("parsing port: %w", err)
 	}
 
 	query, err := util.ParseURLQuery(serviceURL)
@@ -289,17 +341,43 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	c.restorePlusAddresses()
+	return c.prepare()
+}
 
-	if len(c.FromAddress) < 1 {
+// validate checks that the config has a server host, a sender, and a
+// recipient. No address may hold a CR or LF, which would break the SMTP
+// commands and headers. It also checks that the OAuth2 refresh settings are
+// complete.
+//
+// Returns:
+//   - error: [ErrHostMissing], [ErrFromAddressMissing], [ErrToAddressMissing],
+//     an error for an address with a line break, [ErrInvalidOAuth2Refresh] for
+//     invalid refresh settings, or nil.
+func (c *Config) validate() error {
+	// An SMTP server has no default host.
+	if c.Host == "" {
+		return ErrHostMissing
+	}
+
+	if c.FromAddress == "" {
 		return ErrFromAddressMissing
 	}
 
-	if len(c.ToAddresses) < 1 {
+	if len(c.ToAddresses) == 0 {
 		return ErrToAddressMissing
 	}
 
-	return nil
+	if strings.ContainsAny(c.FromAddress, "\r\n") {
+		return fmt.Errorf("sender: %w", errHeaderBreak)
+	}
+
+	for _, address := range c.ToAddresses {
+		if strings.ContainsAny(address, "\r\n") {
+			return fmt.Errorf("recipient: %w", errHeaderBreak)
+		}
+	}
+
+	return validateOAuth2Refresh(c)
 }
 
 // newTLSConfig builds the [tls.Config] used for implicit TLS and STARTTLS from

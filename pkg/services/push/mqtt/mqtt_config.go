@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
@@ -111,6 +112,10 @@ const SchemeTLS = "mqtts"
 
 // DefaultHost is the broker host a URL without a host uses.
 const DefaultHost = "localhost"
+
+// maxTopicLength is the longest topic name in bytes. MQTT encodes a topic name
+// as a UTF-8 string with a two-byte length prefix.
+const maxTopicLength = 65535
 
 // DefaultPort is the standard MQTT port (1883).
 const DefaultPort = 1883
@@ -238,6 +243,35 @@ func (c *Config) ValidateCredentials() error {
 	return nil
 }
 
+// applyDefaults sets the host and port that a URL without them uses, so a
+// config built in code reaches the same broker. The host is [DefaultHost]. The
+// port is [DefaultTLSPort] for mqtts and [DefaultPort] otherwise.
+func (c *Config) applyDefaults() {
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = DefaultPort
+		if c.brokerScheme() == SchemeTLS {
+			c.Port = DefaultTLSPort
+		}
+	}
+}
+
+// brokerScheme returns the scheme the connection uses. A config read from an
+// mqtts URL uses mqtts, and any other config uses mqtt.
+//
+// Returns:
+//   - string: [SchemeTLS] or [Scheme].
+func (c *Config) brokerScheme() string {
+	if c.scheme == SchemeTLS {
+		return SchemeTLS
+	}
+
+	return Scheme
+}
+
 // getURL is the internal implementation of GetURL that accepts a resolver interface.
 // This allows for easier testing and decoupling from the concrete resolver type.
 //
@@ -247,15 +281,16 @@ func (c *Config) ValidateCredentials() error {
 // Returns:
 //   - *url.URL: the URL representing the current configuration.
 func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
-	// Build the base URL with scheme, host:port, and topic path
-	scheme := Scheme
-	if c.scheme == SchemeTLS {
-		scheme = SchemeTLS
+	// A zero port selects the default port for the scheme. The URL leaves it
+	// out, and a URL without a port reads back as port 0.
+	port := ""
+	if c.Port != 0 {
+		port = strconv.Itoa(c.Port)
 	}
 
 	result := &url.URL{
-		Scheme:     scheme,
-		Host:       util.JoinURLHost(c.Host, strconv.Itoa(c.Port)),
+		Scheme:     c.brokerScheme(),
+		Host:       util.JoinURLHost(c.Host, port),
 		ForceQuery: true, // Always include the query string separator (?)
 		// SetURL strips the path's first slash, so a topic's own leading slash,
 		// which makes it a distinct MQTT topic, follows the path's slash.
@@ -287,10 +322,13 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //   - serviceURL: The configuration URL to parse
 //
 // Returns:
-//   - error: a host error such as [util.ErrInvalidHost], a port error, a
-//     malformed query ([util.ErrInvalidQuery]) or query parameter error,
-//     [ErrTopicRequired], [ErrInvalidTopic] for a topic with a wildcard or a
-//     null character or a URL with a fragment, or [ErrInvalidQoS].
+//   - error: an error wrapping a host error such as [util.ErrInvalidHost] for
+//     a host the URL cannot hold. A port that is not 1
+//     to 65535 returns an error wrapping [util.ErrInvalidPort]. A URL with a
+//     fragment returns [ErrInvalidTopic]. A malformed query returns
+//     [util.ErrInvalidQuery], and an invalid query parameter returns its error.
+//     A config that fails its checks returns their error, such as
+//     [ErrTopicRequired].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.scheme = serviceURL.Scheme
 
@@ -312,29 +350,16 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return fmt.Errorf("parsing host: %w", err)
 	}
 
-	if host == "" {
-		host = DefaultHost
-	}
-
 	c.Host = host
 
-	if port != "" {
-		// Parse the port string to an integer
-		parsedPort, err := strconv.Atoi(port)
-		if err != nil {
-			return fmt.Errorf("parsing port: %w", err)
-		}
-
-		c.Port = parsedPort
-	} else {
-		// Apply default ports based on URL scheme when no port is specified
-		switch serviceURL.Scheme {
-		case SchemeTLS:
-			c.Port = DefaultTLSPort
-		case Scheme:
-			c.Port = DefaultPort
-		}
+	// A URL without a port reads as port 0, which the defaults turn into the
+	// port for the scheme.
+	parsedPort, err := util.ParseURLPort(port)
+	if err != nil {
+		return fmt.Errorf("parsing port: %w", err)
 	}
+
+	c.Port = int(parsedPort)
 
 	// Extract topic from URL path, removing the leading slash
 	// Example: "/notifications/alerts" becomes "notifications/alerts"
@@ -343,7 +368,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// An unescaped # starts the URL fragment, which would cut the intended topic
 	// short. A # in a topic is a wildcard, which a topic name must not contain.
 	if serviceURL.Fragment != "" {
-		return fmt.Errorf("%w: %q", ErrInvalidTopic, c.Topic+"#"+serviceURL.Fragment)
+		return fmt.Errorf("%w: %q must not contain #", ErrInvalidTopic, c.Topic+"#"+serviceURL.Fragment)
 	}
 
 	// Process all query parameters through the resolver
@@ -357,6 +382,21 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
+	c.applyDefaults()
+
+	return c.validate()
+}
+
+// validate checks the topic, the QoS, and the port of a config with its
+// defaults applied. Reading a service URL and each send run it, so a config
+// built in code fails before the connection is opened or a message is
+// published.
+//
+// Returns:
+//   - error: [ErrTopicRequired] for an empty topic, [ErrInvalidTopic] for a
+//     topic an MQTT topic name cannot be, [ErrInvalidQoS], an error wrapping
+//     [util.ErrInvalidPort] for a port outside 1 to 65535, or nil.
+func (c *Config) validate() error {
 	if c.Topic == "" {
 		return ErrTopicRequired
 	}
@@ -364,12 +404,26 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	// MQTT forbids wildcards and the null character in the topic name of a
 	// PUBLISH packet, so a broker would reject every message to such a topic.
 	if strings.ContainsAny(c.Topic, "+#\x00") {
-		return fmt.Errorf("%w: %q", ErrInvalidTopic, c.Topic)
+		return fmt.Errorf("%w: %q must not contain +, #, or a null character", ErrInvalidTopic, c.Topic)
+	}
+
+	// A topic name is a UTF-8 string with a two-byte length prefix
+	// ([MQTT-3.3.2-1]).
+	if !utf8.ValidString(c.Topic) {
+		return fmt.Errorf("%w: %q is not valid UTF-8", ErrInvalidTopic, c.Topic)
+	}
+
+	if len(c.Topic) > maxTopicLength {
+		return fmt.Errorf("%w: %d bytes is longer than %d", ErrInvalidTopic, len(c.Topic), maxTopicLength)
 	}
 
 	// Validate QoS value is within MQTT protocol range (0-2)
 	if !c.QoS.IsValid() {
 		return fmt.Errorf("validating QoS value %d: %w", c.QoS, ErrInvalidQoS)
+	}
+
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("%w: %d must be 1 to 65535", util.ErrInvalidPort, c.Port)
 	}
 
 	return nil

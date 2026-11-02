@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,39 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	require.NoError(t, err)
 
 	return parsed
+}
+
+// TestConfigApplyDefaults verifies that a config without a host or port gets
+// the defaults a URL without them gets. That is localhost, and the TLS port only
+// for a config read from an mqtts URL. A set host and port are kept.
+func TestConfigApplyDefaults(t *testing.T) {
+	t.Parallel()
+
+	// tests lists configs with the host and port each should end with.
+	tests := []struct {
+		name     string
+		config   Config
+		wantHost string
+		wantPort int
+	}{
+		{name: "zero config", config: Config{}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "mqtt scheme", config: Config{scheme: Scheme}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "mqtts scheme", config: Config{scheme: SchemeTLS}, wantHost: DefaultHost, wantPort: DefaultTLSPort},
+		{name: "other scheme", config: Config{scheme: "MQTTS"}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "set host and port", config: Config{scheme: SchemeTLS, Host: "broker", Port: 1884}, wantHost: "broker", wantPort: 1884},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := tt.config
+			config.applyDefaults()
+
+			assert.Equal(t, tt.wantHost, config.Host)
+			assert.Equal(t, tt.wantPort, config.Port)
+		})
+	}
 }
 
 // TestConfigGetURL verifies that GetURL encodes every field in the URL, omits
@@ -265,10 +299,51 @@ func TestConfigSetURL(t *testing.T) {
 	}
 }
 
-// TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic,
-// rejects a topic with a wildcard or a null character, which MQTT forbids in a
-// topic name, rejects a URL whose unescaped # starts a fragment, and rejects
-// QoS values outside the enum.
+// TestConfigSetURLResetsPort verifies that a URL without a port uses the
+// default port, even after an earlier URL set another one.
+func TestConfigSetURLResetsPort(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "mqtt://broker.example.com:1884/test/topic")))
+	require.Equal(t, 1884, config.Port)
+
+	require.NoError(t, config.SetURL(parseTestURL(t, "mqtt://broker.example.com/test/topic")))
+	assert.Equal(t, DefaultPort, config.Port)
+}
+
+// TestConfigValidatePort verifies that the config's checks reject a port set in
+// code outside 1 to 65535, such as a negative one.
+func TestConfigValidatePort(t *testing.T) {
+	t.Parallel()
+
+	for _, port := range []int{-1, 65536} {
+		config := &Config{Topic: "test/topic", Port: port}
+
+		require.ErrorIs(t, config.validate(), util.ErrInvalidPort, port)
+	}
+}
+
+// TestConfigGetURLZeroPort verifies that a config built in code without a port
+// writes a URL without one, which reads back with the default port.
+func TestConfigGetURLZeroPort(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{Host: "broker.example.com", Topic: "test/topic"}
+
+	configURL := config.GetURL()
+	assert.Equal(t, "broker.example.com", configURL.Host)
+
+	restored := &Config{}
+	require.NoError(t, restored.SetURL(configURL))
+	assert.Equal(t, DefaultPort, restored.Port)
+}
+
+// TestConfigSetURLRejectsInvalidValues verifies that SetURL requires a topic
+// and rejects one with a wildcard or a null character. So are a topic that is
+// not valid UTF-8 and one longer than 65535 bytes. A URL whose unescaped #
+// starts a fragment is rejected too. So are a port above 65535 and a QoS value
+// outside the enum.
 func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 
@@ -278,7 +353,7 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:1883/")), ErrTopicRequired)
 	})
 
-	for _, path := range []string{"/+", "/sensors/+/temperature", "/%23", "/home/%23", "/sensor%00/temperature"} {
+	for _, path := range []string{"/+", "/sensors/+/temperature", "/%23", "/home/%23", "/sensor%00/temperature", "/sensor%FF"} {
 		t.Run("topic "+path, func(t *testing.T) {
 			t.Parallel()
 
@@ -299,6 +374,20 @@ func TestConfigSetURLRejectsInvalidValues(t *testing.T) {
 			require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), ErrInvalidTopic)
 		})
 	}
+
+	t.Run("topic longer than 65535 bytes", func(t *testing.T) {
+		t.Parallel()
+
+		rawURL := "mqtt://broker.example.com:1883/" + strings.Repeat("a", 65536)
+
+		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, rawURL)), ErrInvalidTopic)
+	})
+
+	t.Run("port above 65535", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, (&Config{}).SetURL(parseTestURL(t, "mqtt://broker.example.com:70000/test/topic")), util.ErrInvalidPort)
+	})
 
 	t.Run("unbracketed IPv6 host", func(t *testing.T) {
 		t.Parallel()

@@ -251,10 +251,6 @@ const (
 	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
 )
 
-// uncheckedDial is the reason for a checked_config allowlist entry whose send
-// dials with a config that reading a URL would reject.
-const uncheckedDial = "Checks its URL only when reading it, so a send with an invalid config still dials"
-
 // cancelAfter is when the context check cancels the caller's context.
 const cancelAfter = time.Second
 
@@ -509,13 +505,6 @@ var allowlist = map[string]map[string]knownFailure{
 		// webhook body, and the logger uses its params as template data.
 		"generic": {"Generic sends params that are not config keys in the webhook body by design", failUnknownParamAccepted},
 		"logger":  {"The logger uses its params as data for its message template by design", failUnknownParamAccepted},
-	},
-	checkCheckedConfig: {
-		// These services check a config when they read its URL but not when they
-		// send, so a config built in code reaches the network unchecked.
-		"mqtt":  {uncheckedDial, failUncheckedConfig},
-		"mqtts": {uncheckedDial, failUncheckedConfig},
-		"smtp":  {uncheckedDial, failUncheckedConfig},
 	},
 }
 

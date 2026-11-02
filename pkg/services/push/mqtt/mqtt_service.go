@@ -215,9 +215,11 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime parameters to override config settings
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, or the
-//     params, connection, or publish error, which matches ctx's error when
-//     ctx ends the wait.
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A param that
+//     does not apply returns its error. A config that fails its checks
+//     returns their error, such as [ErrTopicRequired]. A failed connection or
+//     publish returns its error, which matches ctx's error when ctx ends the
+//     wait.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
 		return types.ErrServiceNotInitialized
@@ -241,13 +243,12 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	// Validate QoS value is within MQTT protocol range (0-2)
-	if !config.QoS.IsValid() {
-		return fmt.Errorf(
-			"validating QoS value %d: %w",
-			config.QoS,
-			ErrInvalidQoS,
-		)
+	config.applyDefaults()
+
+	// The check runs before the connection is opened or reused, so an invalid
+	// config neither dials nor publishes.
+	if err := config.validate(); err != nil {
+		return err
 	}
 
 	manager, sends, err := s.acquireConnection(ctx, &config)
@@ -513,30 +514,11 @@ func (s *Service) detachConnectionLocked() (ConnectionManager, context.CancelFun
 	return manager, cancel, sends
 }
 
-// getDefaultPortForScheme returns the standard port number for a given MQTT scheme.
-// This is used for automatic scheme detection when the port matches a known default.
-//
-// Parameters:
-//   - scheme: The MQTT scheme ("mqtt" or "mqtts")
-//
-// Returns:
-//   - int: [DefaultTLSPort] (8883) for mqtts, otherwise [DefaultPort] (1883).
-func (s *Service) getDefaultPortForScheme(scheme string) int {
-	switch scheme {
-	case SchemeTLS:
-		// Return the secure MQTT port for mqtts scheme
-		return DefaultTLSPort
-	default:
-		// Return the standard MQTT port for all other schemes
-		return DefaultPort
-	}
-}
-
 // openConnectionLocked creates a connection manager for config. The caller holds
 // clientMutex.
 //
 // The connection is configured with:
-//   - Broker URL (with automatic scheme detection based on TLS settings)
+//   - Broker URL from the config's scheme, host, and port
 //   - Authentication credentials if provided
 //   - Connection timeout and callbacks for logging
 //   - TLS configuration for secure connections
@@ -544,30 +526,17 @@ func (s *Service) getDefaultPortForScheme(scheme string) int {
 // Parameters:
 //   - ctx: the context of the send that opens the connection, passed to its
 //     warnings. The connection's lifetime does not derive from it.
-//   - config: the configuration of the send that opens the connection.
+//   - config: the configuration of the send that opens the connection, with
+//     its defaults applied and its checks passed.
 //
 // Returns:
 //   - error: the failure to create the connection manager.
 //
 //nolint:contextcheck // The connection outlives the send, so its lifetime starts from the background context.
 func (s *Service) openConnectionLocked(ctx context.Context, config *Config) error {
-	// Determine the connection scheme based on URL scheme and port configuration.
-	// The URL scheme is the primary determinant, with port-based defaults as fallback.
-	// User-specified port overrides the default; scheme determines TLS handling.
-	scheme := config.scheme
+	// The scheme decides TLS. The port is the configured or default port.
+	scheme := config.brokerScheme()
 	port := config.Port
-
-	// Apply default scheme if URL scheme is not set or is invalid
-	if scheme == "" {
-		scheme = Scheme
-	}
-
-	// Apply default port based on scheme if user didn't specify one
-	// Default: 1883 for mqtt, 8883 for mqtts
-	defaultPort := s.getDefaultPortForScheme(scheme)
-	if port == 0 {
-		port = defaultPort
-	}
 
 	// Handle scheme/port mismatches with warnings (but don't change the scheme).
 	// Each is logged once, since reconnecting after an idle teardown opens the
@@ -592,19 +561,7 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 		s.warnings.Plaintext(ctx, s)
 	}
 
-	// Build the broker URL
-	server := util.JoinURLHost(config.Host, strconv.Itoa(port))
-	brokerURL := (&url.URL{Scheme: scheme, Host: server}).String()
-
-	// Parse the broker URL for autopaho
-	serverURL, err := url.Parse(brokerURL)
-	if err != nil {
-		return fmt.Errorf(
-			"parsing broker URL %q: %w",
-			brokerURL,
-			err,
-		)
-	}
+	serverURL := &url.URL{Scheme: scheme, Host: util.JoinURLHost(config.Host, strconv.Itoa(port))}
 
 	// The connection lives until Close, an idle teardown, or a replacement after
 	// it ends, so its lifetime does not derive from the send's context. Its
@@ -625,7 +582,7 @@ func (s *Service) openConnectionLocked(ctx context.Context, config *Config) erro
 				slog.Uint64(logging.KeyCode, uint64(disconnect.ReasonCode)))
 		},
 		OnConnectionUp: func(_ *autopaho.ConnectionManager, _ *paho.Connack) {
-			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, server))
+			s.LogAttrs(lifetime, slog.LevelDebug, "connected", slog.String(logging.KeyServer, serverURL.Host))
 		},
 		// A send that cannot connect returns only its context's error, so this
 		// warning is the only report of why, such as a broker rejecting the

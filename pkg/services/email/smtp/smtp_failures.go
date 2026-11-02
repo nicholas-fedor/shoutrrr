@@ -44,7 +44,8 @@ const (
 	FailConnectToServer
 	// FailCreateSMTPClient is returned when SMTP client initialization failed.
 	FailCreateSMTPClient
-	// FailApplySendParams is returned when updating the send [Config] failed.
+	// FailApplySendParams is returned when the send [Config] could not be built
+	// from its params or failed its checks, before any connection.
 	FailApplySendParams
 	// FailHandshake is returned when the initial HELLO handshake returned an error.
 	FailHandshake
@@ -109,7 +110,7 @@ func fail(failureID failures.FailureID, err error, args ...any) failures.Failure
 	case FailCloseDataStream:
 		msg = "error closing message stream"
 	case FailApplySendParams:
-		msg = "error applying params to send config"
+		msg = "error preparing the send config"
 	case FailHandshake:
 		msg = "server did not accept the handshake"
 	case FailResetSession:

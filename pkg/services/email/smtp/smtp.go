@@ -50,6 +50,9 @@ type Service struct {
 const (
 	// DefaultSMTPPort is the standard port for SMTP communication.
 	DefaultSMTPPort = 25
+	// defaultClientHost is the hostname sent in the EHLO handshake when the
+	// config names none.
+	defaultClientHost = "localhost"
 	// defaultTimeout is the default SMTP timeout.
 	defaultTimeout = 10 * time.Second
 )
@@ -73,9 +76,8 @@ func (s *Service) GetID() string {
 
 // Initialize loads [Config] from serviceURL and sets logger for this [Service].
 //
-// It applies SMTP defaults, parses the configuration URL, and infers Auth when
-// it is [AuthUnknown]: [AuthOAuth2] when a refresh token is set, [AuthPlain]
-// when a username is present, and [AuthNone] otherwise. It then checks the
+// It starts from the SMTP defaults and reads the configuration URL. Reading the
+// URL infers an [AuthUnknown] method and checks the result, including the
 // OAuth2 refresh settings.
 //
 // Parameters:
@@ -89,35 +91,18 @@ func (s *Service) Initialize(serviceURL *url.URL, logger types.StdLogger) error 
 	s.SetLogger(logger)
 	s.warnings.Reset()
 	s.Config = &Config{
-		Port:        DefaultSMTPPort,
 		ToAddresses: nil,
 		Subject:     "",
 		Auth:        AuthTypes.Unknown,
 		UseStartTLS: true,
 		UseHTML:     false,
 		Encryption:  EncMethods.Auto,
-		ClientHost:  "localhost",
 		Timeout:     defaultTimeout,
 	}
 
 	pkr := format.NewPropKeyResolver(s.Config)
 
 	if err := s.Config.setURL(&pkr, serviceURL); err != nil {
-		return err
-	}
-
-	if s.Config.Auth == AuthTypes.Unknown {
-		switch {
-		case s.Config.usesTokenRefresh():
-			s.Config.Auth = AuthTypes.OAuth2
-		case s.Config.Username != "":
-			s.Config.Auth = AuthTypes.Plain
-		default:
-			s.Config.Auth = AuthTypes.None
-		}
-	}
-
-	if err := validateOAuth2Refresh(s.Config); err != nil {
 		return err
 	}
 
@@ -158,10 +143,12 @@ func (s *Service) Send(message string, params *types.Params) error {
 //   - params: Optional runtime overrides for configuration fields ([types.Params]).
 //
 // Returns:
-//   - error: [types.ErrServiceNotInitialized] before Initialize, the params,
-//     connection, or delivery error, a [FailTokenRefresh] failure when no
-//     access token could be obtained, or [ErrInvalidOAuth2Refresh] for invalid
-//     refresh settings in params. When ctx ends the session, the error also
+//   - error: [types.ErrServiceNotInitialized] before Initialize. A param that
+//     does not apply or a config that fails its checks returns a
+//     [FailApplySendParams] failure, such as one for [ErrFromAddressMissing]
+//     or [ErrInvalidOAuth2Refresh]. A failed connection or delivery returns
+//     its error. A send that obtains no access token returns a
+//     [FailTokenRefresh] failure. When ctx ends the session, the error also
 //     matches ctx's error.
 func (s *Service) SendContext(ctx context.Context, message string, params *types.Params) error {
 	if s.Config == nil {
@@ -173,7 +160,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fail(FailApplySendParams, err)
 	}
 
-	if err := validateOAuth2Refresh(&config); err != nil {
+	// The checks run before the token request and the dial, so an invalid
+	// config makes no connection.
+	if err := config.prepare(); err != nil {
 		return fail(FailApplySendParams, err)
 	}
 
