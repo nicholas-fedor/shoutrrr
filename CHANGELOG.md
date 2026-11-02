@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Send an access token only to the account that owns it by @nicholas-fedor in [#2023](https://github.com/nicholas-fedor/shoutrrr/pull/2023)
 - Check MQTT and SMTP configs before dialing by @nicholas-fedor in [#2021](https://github.com/nicholas-fedor/shoutrrr/pull/2021)
 - Check HTTP service configs before any request by @nicholas-fedor in [#2019](https://github.com/nicholas-fedor/shoutrrr/pull/2019)
 - Check chat service configs before any request by @nicholas-fedor in [#2017](https://github.com/nicholas-fedor/shoutrrr/pull/2017)
