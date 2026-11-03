@@ -10,7 +10,7 @@ Send notifications to Lark using a custom bot webhook.
 --8<-- "docs/services/chat/lark/config.md"
 
 - `host`: The bot API host (`open.larksuite.com` for Lark, `open.feishu.cn` for Feishu).
-- `token`: The bot webhook token (required).
+- `token`: The bot webhook token (required), the last segment of the webhook URL. It must be one path segment, so a token with a slash, or a token of `.` or `..`, is rejected.
 - `secret`: Optional bot secret for signed requests.
 - `title`: Optional message title (switches to post format if set).
 - `link`: Optional URL to include as a clickable link in the message.

@@ -220,6 +220,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "no recipients", change: func(config *Config) { config.ToNumbers = nil }, wantErr: ErrToNumbersMissing},
 		{name: "sender with a port", change: func(config *Config) { config.FromNumber = "+15551234567:443" }, wantErr: util.ErrInvalidHost},
+		{name: "account SID with a question mark", change: func(config *Config) { config.AccountSID = "AC?" + config.AccountSID[3:] }, wantErr: ErrInvalidAccountSID},
 	}
 
 	for _, tt := range tests {

@@ -26,6 +26,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request the mock HTTP client received.
@@ -291,6 +292,12 @@ func TestServiceSendRejectsInvalidInput(t *testing.T) {
 			message: "test message",
 			wantErr: ErrNoPath,
 		},
+		{
+			name:    "path that walks up",
+			config:  Config{Host: larkHost, Path: "../../x"},
+			message: "test message",
+			wantErr: util.ErrInvalidPathSegment,
+		},
 	}
 
 	for _, tt := range tests {
@@ -308,11 +315,12 @@ func TestServiceSendRejectsInvalidInput(t *testing.T) {
 }
 
 // TestServiceSendDefaultHost verifies that a config built in code without a
-// host sends to Lark's host, as a URL without one does.
+// host sends to Lark's host, and that slashes around its token are dropped, as
+// a URL's are.
 func TestServiceSendDefaultHost(t *testing.T) {
 	t.Parallel()
 
-	config := Config{Path: "token"}
+	config := Config{Path: "/token/"}
 	service := &Service{Config: &config, pkr: format.NewPropKeyResolver(&config)}
 	client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
 	service.SetHTTPClient(client)
@@ -692,18 +700,33 @@ func TestServiceSendRequestInvalidURL(t *testing.T) {
 	assert.ErrorContains(t, err, "creating HTTP request")
 }
 
-// TestServiceSendRedactsUnparsableURL verifies that a token that makes the
-// webhook URL unparsable fails the send without the token in the error.
-func TestServiceSendRedactsUnparsableURL(t *testing.T) {
+// TestServiceSendEscapesToken verifies that the bot token is sent as one
+// escaped path segment. A percent sign in it stays a character instead of
+// starting an escape. A question mark or hash stays in the path instead of
+// starting a query or fragment.
+func TestServiceSendEscapesToken(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, "lark://open.larksuite.com/SECRETtoken%25zz")
-	// The mock has no expectations, so a request fails the test.
-	service.SetHTTPClient(mocks.NewMockHTTPClient(t))
+	// tests lists tokens with the webhook URL each should reach.
+	tests := []struct {
+		rawURL  string
+		wantURL string
+	}{
+		{rawURL: "lark://open.larksuite.com/token%25zz", wantURL: "https://open.larksuite.com/open-apis/bot/v2/hook/token%25zz"},
+		{rawURL: "lark://open.larksuite.com/a%3Fb", wantURL: "https://open.larksuite.com/open-apis/bot/v2/hook/a%3Fb"},
+		{rawURL: "lark://open.larksuite.com/a%23b", wantURL: "https://open.larksuite.com/open-apis/bot/v2/hook/a%23b"},
+	}
 
-	err := service.Send("message", nil)
+	for _, tt := range tests {
+		t.Run(tt.rawURL, func(t *testing.T) {
+			t.Parallel()
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
-	assert.NotContains(t, err.Error(), "SECRETtoken")
+			service := newTestService(t, tt.rawURL)
+			client, captured := newRespondingClient(t, http.StatusOK, `{"code":0,"msg":"success"}`)
+			service.SetHTTPClient(client)
+
+			require.NoError(t, service.Send("message", nil))
+			assert.Equal(t, tt.wantURL, captured.url)
+		})
+	}
 }

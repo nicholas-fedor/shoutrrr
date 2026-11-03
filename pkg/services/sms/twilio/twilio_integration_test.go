@@ -49,7 +49,7 @@ type apiReply struct {
 // Credentials, numbers, and endpoints in the formats Twilio uses.
 const (
 	// testAccountSID is an account SID.
-	testAccountSID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	testAccountSID = "AC0123456789abcdef0123456789ABCDEF"
 	// testMessagingServiceSID is a Messaging Service SID.
 	testMessagingServiceSID = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 	// testFrom is a sender number in E.164 format.

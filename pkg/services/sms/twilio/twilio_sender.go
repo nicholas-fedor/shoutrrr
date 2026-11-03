@@ -79,7 +79,7 @@ func (s *Service) sendToRecipient(ctx context.Context, config *Config, toNumber,
 		body = config.Title + "\n" + message
 	}
 
-	apiURL := fmt.Sprintf("%s/%s/Messages.json", apiBaseURL, config.AccountSID)
+	apiURL := apiBaseURL + "/" + config.AccountSID + "/Messages.json"
 
 	data := url.Values{}
 	data.Set("To", toNumber)

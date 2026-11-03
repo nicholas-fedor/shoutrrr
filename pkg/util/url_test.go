@@ -221,6 +221,21 @@ func TestParseURLPort(t *testing.T) {
 	}
 }
 
+// TestValidatePathSegment verifies that a value is accepted as one path
+// segment unless it is empty, holds a slash, or is "." or "..". Characters that
+// escaping keeps in the segment, such as a question mark, are accepted.
+func TestValidatePathSegment(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"token", "a?b", "a#b", "a%zz", "...", ".a"} {
+		require.NoError(t, ValidatePathSegment(value), value)
+	}
+
+	for _, value := range []string{"", ".", "..", "a/b", "/", "../x"} {
+		require.ErrorIs(t, ValidatePathSegment(value), ErrInvalidPathSegment, value)
+	}
+}
+
 // TestValidateHostToken verifies that a token is accepted unless it would not
 // read back unchanged from a URL host. A colon or a bracket reads back as a
 // port or an IPv6 address. A slash, a space, or @ makes the URL fail to parse.
