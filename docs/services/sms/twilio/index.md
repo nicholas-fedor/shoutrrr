@@ -31,7 +31,7 @@ automatically stripped, so `+1 (555) 123-4567` and `+1.555.123.4567` are also ac
 You can send the same message to multiple recipients by adding additional phone numbers to the URL path:
 
 ```uri
-twilio://ACXX...XX:token@+15551234567/+15559876543/+15551111111/+15552222222
+twilio://AC0123456789abcdef0123456789abcdef:token@+15551234567/+15559876543/+15551111111/+15552222222
 ```
 
 Each recipient receives an independent API call. If delivery fails for one
@@ -43,7 +43,7 @@ returned together.
 Instead of a phone number, you can use a [Twilio Messaging Service SID](https://www.twilio.com/docs/messaging/services) as the sender. Messaging Service SIDs start with `MG`:
 
 ```uri
-twilio://ACXX...XX:token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
+twilio://AC0123456789abcdef0123456789abcdef:token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
 ```
 
 This is useful when you want Twilio to manage sender selection, opt-out handling,
@@ -51,24 +51,27 @@ or when sending from a pool of numbers.
 
 ## Examples
 
+The examples use a sample Account SID, which has the format the service checks.
+Replace it and the auth token with the values from your Twilio Console.
+
 !!! example "Basic SMS"
     ```uri
-    twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:your_auth_token@+15551234567/+15559876543
+    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543
     ```
 
 !!! example "Multiple recipients"
     ```uri
-    twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:your_auth_token@+15551234567/+15559876543/+15551111111
+    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543/+15551111111
     ```
 
 !!! example "Using a Messaging Service SID"
     ```uri
-    twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:your_auth_token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
+    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/+15559876543
     ```
 
 !!! example "SMS with title"
     ```uri
-    twilio://ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:your_auth_token@+15551234567/+15559876543?title=Server+Alert
+    twilio://AC0123456789abcdef0123456789abcdef:your_auth_token@+15551234567/+15559876543?title=Server+Alert
     ```
 
 ## Optional Parameters
