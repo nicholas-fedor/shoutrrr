@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep Twilio and Lark requests on their webhook path by @nicholas-fedor in [#2041](https://github.com/nicholas-fedor/shoutrrr/pull/2041)
 - Check every config field before a send by @nicholas-fedor in [#2035](https://github.com/nicholas-fedor/shoutrrr/pull/2035)
 - Fail IFTTT and Discord sends that deliver nothing by @nicholas-fedor in [#2031](https://github.com/nicholas-fedor/shoutrrr/pull/2031)
 - Fail a send that reaches no joined room by @nicholas-fedor in [#2029](https://github.com/nicholas-fedor/shoutrrr/pull/2029)
