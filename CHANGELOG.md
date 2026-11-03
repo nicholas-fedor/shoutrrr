@@ -139,6 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update dependency backrefs to v8.2 by @renovate[bot] in [#2043](https://github.com/nicholas-fedor/shoutrrr/pull/2043)
+- Update github/codeql-action action to v4.39.2 by @renovate[bot] in [#2042](https://github.com/nicholas-fedor/shoutrrr/pull/2042)
 - Update matrixdotorg/synapse:latest docker digest to 1909bcc by @renovate[bot] in [#2038](https://github.com/nicholas-fedor/shoutrrr/pull/2038)
 - Update binwiederhier/ntfy:latest docker digest to a1dde1f by @renovate[bot] in [#2037](https://github.com/nicholas-fedor/shoutrrr/pull/2037)
 - Update binwiederhier/ntfy:latest docker digest to 3176f6f by @renovate[bot] in [#2033](https://github.com/nicholas-fedor/shoutrrr/pull/2033)
