@@ -194,7 +194,7 @@ func (c *Config) validate() error {
 		return errMissingIntegrationKey
 	}
 
-	if !isIntegrationKey(c.IntegrationKey) {
+	if len(c.IntegrationKey) != integrationKeyLength || !util.IsHex(c.IntegrationKey) {
 		return errInvalidIntegrationKey
 	}
 
@@ -203,28 +203,4 @@ func (c *Config) validate() error {
 	}
 
 	return validateEventAction(c.Action)
-}
-
-// isIntegrationKey reports whether key is an integration key, which is 32
-// hexadecimal characters in either case.
-//
-// Parameters:
-//   - key: the key to check.
-//
-// Returns:
-//   - bool: true for an integration key.
-func isIntegrationKey(key string) bool {
-	if len(key) != integrationKeyLength {
-		return false
-	}
-
-	for i := range len(key) {
-		switch c := key[i]; {
-		case '0' <= c && c <= '9', 'a' <= c && c <= 'f', 'A' <= c && c <= 'F':
-		default:
-			return false
-		}
-	}
-
-	return true
 }

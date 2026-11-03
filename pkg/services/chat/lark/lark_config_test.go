@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // fullURL is a service URL with a host, a token path, and a secret.
@@ -104,6 +105,10 @@ func TestConfigSetURLRejectsInvalidURLs(t *testing.T) {
 	}{
 		{name: "invalid host", rawURL: "lark://invalid.com/token", wantErr: ErrInvalidHost},
 		{name: "no path", rawURL: "lark://open.larksuite.com", wantErr: ErrNoPath},
+		{name: "path with two segments", rawURL: "lark://open.larksuite.com/a/b", wantErr: util.ErrInvalidPathSegment},
+		{name: "path that walks up", rawURL: "lark://open.larksuite.com/../../x", wantErr: util.ErrInvalidPathSegment},
+		{name: "dot path", rawURL: "lark://open.larksuite.com/.", wantErr: util.ErrInvalidPathSegment},
+		{name: "dot-dot path", rawURL: "lark://open.larksuite.com/..", wantErr: util.ErrInvalidPathSegment},
 		{name: "user named dummy on an invalid host", rawURL: "lark://dummy@invalid.com/token", wantErr: ErrInvalidHost},
 		{name: "user named dummy without a path", rawURL: "lark://dummy@open.larksuite.com", wantErr: ErrNoPath},
 		{name: "unknown query key", rawURL: "lark://open.larksuite.com/token?secret=sss&foo=bar", wantErr: format.ErrInvalidConfigKey},

@@ -10,7 +10,8 @@ import (
 	"unicode/utf8"
 )
 
-// Errors for a URL whose authority or query does not parse.
+// Errors for a URL whose authority, path, or query does not parse, or for a
+// value that does not fit its part of a URL.
 var (
 	// ErrInvalidHost indicates a URL host that is not a hostname, an IPv4
 	// address, or an IPv6 address in brackets.
@@ -21,6 +22,10 @@ var (
 	// ErrInvalidQuery indicates a URL query with a malformed escape or a
 	// semicolon separator.
 	ErrInvalidQuery = errors.New("invalid URL query")
+	// ErrInvalidPathSegment indicates a value that a request path cannot carry
+	// as one segment. Such a value is empty or holds a slash. The values "."
+	// and ".." are invalid too.
+	ErrInvalidPathSegment = errors.New("invalid URL path segment")
 )
 
 // URLUserPassword creates a url.Userinfo from user and password strings.
@@ -115,11 +120,13 @@ func ParseURLPort(port string) (uint16, error) {
 }
 
 // ValidateHostToken checks a token that a service URL carries as its host as
-// written, such as an API key or a webhook ID. The token must read back
-// unchanged from the URL that [url.URL.String] writes for it. A colon or a
-// bracket would read back as a port or an IPv6 address. Other ASCII characters
-// that a URL host cannot hold, such as a slash or a space, make the URL fail to
-// parse. Characters outside ASCII are written escaped and read back unchanged.
+// written, such as an API key or a webhook ID.
+//
+// The token must read back unchanged from the URL that [url.URL.String] writes
+// for it. A colon or a bracket would read back as a port or an IPv6 address.
+// Other ASCII characters that a URL host cannot hold, such as a slash or a
+// space, make the URL fail to parse. Characters outside ASCII are written
+// escaped and read back unchanged.
 //
 // Parameters:
 //   - token: the token.
@@ -137,9 +144,32 @@ func ValidateHostToken(token string) error {
 	return nil
 }
 
-// JoinURLHost writes host and port as a URL authority. An IPv6 host is
-// enclosed in brackets whether or not a port follows it, so [SplitURLHost]
-// reads the same host and port back.
+// ValidatePathSegment checks a value that a service sends as one segment of a
+// request path, such as a webhook token.
+//
+// Escaping the value with [url.PathEscape] keeps a slash, question mark, or hash
+// in the segment, but "." and ".." need no escape and would walk the path.
+// A value with a slash is rejected too, since it fills two segments of the
+// service URL it came from.
+//
+// Parameters:
+//   - value: the value.
+//
+// Returns:
+//   - error: [ErrInvalidPathSegment] for a value that is not one segment, or
+//     nil.
+func ValidatePathSegment(value string) error {
+	if value == "" || value == "." || value == ".." || strings.IndexByte(value, '/') >= 0 {
+		return ErrInvalidPathSegment
+	}
+
+	return nil
+}
+
+// JoinURLHost writes host and port as a URL authority.
+//
+// An IPv6 host is enclosed in brackets whether or not a port follows it, so
+// [SplitURLHost] reads the same host and port back.
 //
 // Parameters:
 //   - host: the hostname or IP address, without brackets.
@@ -181,10 +211,11 @@ func ParseURLQuery(serviceURL *url.URL) (url.Values, error) {
 }
 
 // isHostTokenByte reports whether the ASCII byte c reads back unchanged from a
-// URL host. Letters, digits, and the other characters that [url.URL.String]
-// writes unescaped in a host do. So does "%", which it writes as "%25". The
-// colon and the brackets do not, since they read back as a port or an IPv6
-// address.
+// URL host.
+//
+// Letters, digits, and the other characters that [url.URL.String] writes
+// unescaped in a host do. So does "%", which it writes as "%25". The colon and
+// the brackets do not, since they read back as a port or an IPv6 address.
 //
 // Parameters:
 //   - c: an ASCII byte.

@@ -29,3 +29,27 @@ func StripNumberPrefix(input string) (string, int) {
 
 	return input, 0
 }
+
+// IsHex reports whether value holds at least one character and only hexadecimal
+// digits, in either case.
+//
+// Parameters:
+//   - value: the string to check.
+//
+// Returns:
+//   - bool: true for a string of hexadecimal digits.
+func IsHex(value string) bool {
+	if value == "" {
+		return false
+	}
+
+	for i := range len(value) {
+		switch c := value[i]; {
+		case '0' <= c && c <= '9', 'a' <= c && c <= 'f', 'A' <= c && c <= 'F':
+		default:
+			return false
+		}
+	}
+
+	return true
+}

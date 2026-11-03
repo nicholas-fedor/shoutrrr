@@ -99,3 +99,17 @@ func TestStripNumberPrefix(t *testing.T) {
 		})
 	}
 }
+
+// TestIsHex verifies that a string of hexadecimal digits in either case is
+// accepted, and that an empty string or one with another character is not.
+func TestIsHex(t *testing.T) {
+	t.Parallel()
+
+	for _, s := range []string{"0", "0123456789abcdef", "ABCDEF", "eb243592faa24ba2a5511afdf565c889"} {
+		assert.True(t, IsHex(s), s)
+	}
+
+	for _, s := range []string{"", "g", "0x1f", "ab cd", "ab/cd", "\u00e9"} {
+		assert.False(t, IsHex(s), s)
+	}
+}

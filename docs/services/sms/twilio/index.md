@@ -18,6 +18,8 @@ To use the Twilio SMS service, you need a Twilio account. You can sign up at [tw
 3. **From Number** — A Twilio phone number **or** Messaging Service SID from your account
 4. **To Number(s)** — One or more recipient phone numbers in [E.164 format](https://www.twilio.com/docs/glossary/what-e164)
 
+An Account SID is `AC` followed by 32 hexadecimal characters, and a URL with any other value is rejected.
+
 ### Phone Number Format
 
 Phone numbers should be in [E.164 format](https://www.twilio.com/docs/glossary/what-e164) (e.g. `+15551234567`).

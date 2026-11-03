@@ -1,6 +1,7 @@
 package lark
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -79,9 +80,10 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-// prepare sets Lark's host for a config without one, then runs the config's
-// checks. Reading a service URL and each send run it, so a config built in
-// code reaches the host its URL would and fails as its URL would.
+// prepare sets Lark's host for a config without one and drops the slashes
+// around the bot token, then runs the config's checks. Reading a service URL
+// and each send run it, so a config built in code reaches the webhook its URL
+// would and fails as its URL would.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrInvalidHost].
@@ -89,6 +91,8 @@ func (c *Config) prepare() error {
 	if c.Host == "" {
 		c.Host = larkHost
 	}
+
+	c.Path = strings.Trim(c.Path, "/")
 
 	return c.validate()
 }
@@ -107,7 +111,7 @@ func (c *Config) prepare() error {
 //     as [ErrInvalidHost].
 func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
 	c.Host = serviceURL.Host
-	c.Path = strings.Trim(serviceURL.Path, "/")
+	c.Path = serviceURL.Path
 
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
@@ -122,12 +126,15 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks the host and the bot token that every request needs.
+//
 // Reading a service URL and each send run it, so a config built in code or
 // changed by a param fails before a request.
 //
 // Returns:
-//   - error: [ErrInvalidHost] for a host other than Lark or Feishu, [ErrNoPath]
-//     for a missing bot token, or nil.
+//   - error: [ErrInvalidHost] for a host other than Lark or Feishu, and
+//     [ErrNoPath] for a missing bot token. A bot token that is not one path
+//     segment gives an error wrapping [util.ErrInvalidPathSegment]. It is nil
+//     for a valid config.
 func (c *Config) validate() error {
 	if c.Host != larkHost && c.Host != feishuHost {
 		return ErrInvalidHost
@@ -135,6 +142,11 @@ func (c *Config) validate() error {
 
 	if c.Path == "" {
 		return ErrNoPath
+	}
+
+	// The token is the last segment of the webhook URL.
+	if err := util.ValidatePathSegment(c.Path); err != nil {
+		return fmt.Errorf("bot token: %w", err)
 	}
 
 	return nil

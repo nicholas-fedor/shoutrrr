@@ -2,6 +2,7 @@ package twilio
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ import (
 // Test credentials and numbers in the formats Twilio uses.
 const (
 	// testAccountSID is an account SID.
-	testAccountSID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	testAccountSID = "AC0123456789abcdef0123456789ABCDEF"
 	// testMessagingServiceSID is a Messaging Service SID.
 	testMessagingServiceSID = "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 	// testFrom is a sender number in E.164 format.
@@ -122,6 +123,12 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "missing account SID", rawURL: "twilio://:authToken@" + testFrom + "/" + testTo, wantErr: ErrAccountSIDMissing},
 		{name: "missing auth token", rawURL: "twilio://" + testAccountSID + "@" + testFrom + "/" + testTo, wantErr: ErrAuthTokenMissing},
 		{name: "missing sender", rawURL: "twilio://" + testAccountSID + ":authToken@/" + testTo, wantErr: ErrFromNumberMissing},
+		{name: "account SID that is not an account SID", rawURL: "twilio://bob:authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "account SID with a question mark", rawURL: "twilio://AC%3F" + testAccountSID[3:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "account SID with a slash", rawURL: "twilio://AC%2F" + testAccountSID[3:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "account SID one character short", rawURL: "twilio://" + testAccountSID[:33] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "account SID that is not hexadecimal", rawURL: "twilio://AC" + strings.Repeat("g", 32) + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
+		{name: "API key SID", rawURL: "twilio://SK" + testAccountSID[2:] + ":authToken@" + testFrom + "/" + testTo, wantErr: ErrInvalidAccountSID},
 		{name: "sender with a port", rawURL: "twilio://" + testAccountSID + ":authToken@+15551234567:443/" + testTo, wantErr: util.ErrInvalidHost},
 		{name: "missing recipients", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom, wantErr: ErrToNumbersMissing},
 		{name: "recipient equals sender", rawURL: "twilio://" + testAccountSID + ":authToken@" + testFrom + "/" + testTo + "/" + testFrom, wantErr: ErrToFromNumberSame},

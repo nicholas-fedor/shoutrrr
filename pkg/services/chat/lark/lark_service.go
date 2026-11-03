@@ -39,9 +39,9 @@ type Service struct {
 
 // Constants for the Lark service configuration and limits.
 const (
-	// apiFormat is the webhook endpoint, formatted with the host and the bot
-	// token.
-	apiFormat = "https://%s/open-apis/bot/v2/hook/%s"
+	// hookPath is the path of the webhook endpoints. The escaped bot token
+	// follows it.
+	hookPath = "/open-apis/bot/v2/hook/"
 	// maxBodySize is the most bytes a custom bot request body can hold, 20 KB.
 	maxBodySize = 20 * 1024
 	// defaultTime is the send budget of Lark.
@@ -193,7 +193,7 @@ func (s *Service) SetHTTPClient(client types.HTTPClient) {
 //   - error: a payload error, [ErrLargeMessage] for a request body over
 //     [maxBodySize] bytes, or the send error.
 func (s *Service) doSend(ctx context.Context, config *Config, message string) error {
-	postURL := fmt.Sprintf(apiFormat, config.Host, config.Path)
+	postURL := "https://" + config.Host + hookPath + url.PathEscape(config.Path)
 
 	payload, err := s.preparePayload(message, config)
 	if err != nil {

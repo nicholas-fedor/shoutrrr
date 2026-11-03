@@ -29,8 +29,16 @@ type Config struct {
 	ToNumbers []string `desc:"Recipient phone number(s)" required:"" url:"path"`
 }
 
-// Scheme is the identifying part of this service's configuration URL.
-const Scheme = "twilio"
+// Service identity and account SID format.
+const (
+	// Scheme is the identifying part of this service's configuration URL.
+	Scheme = "twilio"
+	// accountSIDPrefix starts every account SID.
+	accountSIDPrefix = "AC"
+	// accountSIDLength is the length of an account SID, the prefix and 32
+	// hexadecimal characters.
+	accountSIDLength = 34
+)
 
 // phoneReplacer strips common formatting characters from phone numbers.
 var phoneReplacer = strings.NewReplacer(
@@ -127,12 +135,20 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: the error for the first missing field, or [ErrToFromNumberSame]
-//     when a recipient is the sender's phone number. A sender that a URL host
-//     cannot hold gives an error wrapping [util.ErrInvalidHost]. It is nil for a
-//     valid config.
+//     when a recipient is the sender's phone number. An account SID in another
+//     format gives [ErrInvalidAccountSID]. A sender that a URL host cannot hold
+//     gives an error wrapping [util.ErrInvalidHost]. It is nil for a valid
+//     config.
 func (c *Config) validate() error {
 	if c.AccountSID == "" {
 		return ErrAccountSIDMissing
+	}
+
+	// The account SID is a segment of the request path, so its format also
+	// keeps the request on the account's endpoint.
+	if len(c.AccountSID) != accountSIDLength || !strings.HasPrefix(c.AccountSID, accountSIDPrefix) ||
+		!util.IsHex(c.AccountSID[len(accountSIDPrefix):]) {
+		return ErrInvalidAccountSID
 	}
 
 	if c.AuthToken == "" {

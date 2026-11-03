@@ -12,6 +12,9 @@ var (
 var (
 	// ErrAccountSIDMissing indicates that the config URL has no account SID.
 	ErrAccountSIDMissing = errors.New("account SID missing from config URL")
+	// ErrInvalidAccountSID indicates an account SID other than AC followed by
+	// 32 hexadecimal characters, the format of every Twilio account SID.
+	ErrInvalidAccountSID = errors.New("account SID must be AC followed by 32 hexadecimal characters")
 	// ErrAuthTokenMissing indicates that the config URL has no auth token.
 	ErrAuthTokenMissing = errors.New("auth token missing from config URL")
 	// ErrFromNumberMissing indicates that the config URL has no sender phone
