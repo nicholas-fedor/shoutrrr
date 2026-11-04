@@ -16,11 +16,11 @@ When a URL or the send params hold both a deprecated query key and its replaceme
 | --- | --- | --- | --- |
 | `date` query key | Gotify | None. Gotify stamps each message with the server time, so the key has no effect. | v0.22.1 |
 | `hangouts://` scheme | Google Chat | `googlechat://` | Inherited from containrrr/shoutrrr |
-| `insecureskipverify` query key | Gotify | `skiptlsverify` | Unreleased |
-| `disabletlsverification` query key | ntfy | `skiptlsverify` | Unreleased |
-| `scheme` query key | ntfy | `disabletls`. A `scheme` of `http` turns TLS off. | Unreleased |
-| `scheme` query key | Bark | `disabletls`. A `scheme` of `http` turns TLS off. | Unreleased |
-| `disabletlsverification` query key | MQTT | `skiptlsverify` | Unreleased |
+| `insecureskipverify` query key | Gotify | `skiptlsverify` | v0.23.0 |
+| `disabletlsverification` query key | ntfy | `skiptlsverify` | v0.23.0 |
+| `scheme` query key | ntfy | `disabletls`. A `scheme` of `http` turns TLS off. | v0.23.0 |
+| `scheme` query key | Bark | `disabletls`. A `scheme` of `http` turns TLS off. | v0.23.0 |
+| `disabletlsverification` query key | MQTT | `skiptlsverify` | v0.23.0 |
 
 ## Go Package
 
@@ -53,36 +53,36 @@ A deprecated client field on a service and `Service.SetHTTPClient` both set the 
 | `MessageRequest.Date` | `pkg/services/push/gotify` | None. The date is not sent. | v0.22.1 |
 | `Config.ValidateCredentials` | `pkg/services/push/mqtt` | None. MQTT v5 allows a password without a username. | v0.22.1 |
 | `ErrPasswordWithoutUsername` | `pkg/services/push/mqtt` | None. MQTT v5 allows a password without a username. | v0.22.1 |
-| `HTTPClientManager` | `pkg/services/push/gotify` | `Service.SetHTTPClient` | Unreleased |
-| `DefaultHTTPClientManager` | `pkg/services/push/gotify` | `Service.SetHTTPClient` | Unreleased |
-| `HTTPClient` | `pkg/services/chat/matrix` | `types.HTTPClient` | Unreleased |
-| `DefaultHTTPClient` | `pkg/services/chat/matrix` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | Unreleased |
-| `Service.Client` | `pkg/services/chat/rocketchat` | `Service.SetHTTPClient` | Unreleased |
-| `ErrInvalidURLScheme` | `pkg/services/chat/rocketchat` | None. No function returns it, and `disabletls` sends over HTTP. | Unreleased |
-| `ErrMissingHost` | `pkg/services/chat/lark` | None. No function returns it, because a config without a host uses Lark's host. | Unreleased |
-| `Service.Client` | `pkg/services/push/pushover` | `Service.SetHTTPClient` | Unreleased |
-| `HTTPClient` | `pkg/services/chat/discord` | `types.HTTPClient` | Unreleased |
-| `DefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `NewDefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `Service.HTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` | Unreleased |
-| `HTTPClient` | `pkg/services/chat/zulip` | `types.HTTPClient` | Unreleased |
-| `DefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `NewDefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `Service.HTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` | Unreleased |
-| `HTTPClient` | `pkg/services/sms/twilio` | `types.HTTPClient` | Unreleased |
-| `DefaultHTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `Service.HTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` | Unreleased |
-| `HTTPClient` | `pkg/services/push/bark` | `types.HTTPClient` | Unreleased |
-| `DefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `NewDefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | Unreleased |
-| `Service.HTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` | Unreleased |
-| `Config.Scheme` | `pkg/services/push/bark` | `Config.DisableTLS` | Unreleased |
-| `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | Unreleased |
-| `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
-| `Config.DisableTLSVerification` | `pkg/services/push/ntfy` | `Config.SkipTLSVerify` | Unreleased |
-| `Config.Scheme` | `pkg/services/push/ntfy` | `Config.DisableTLS` | Unreleased |
-| `HTTPTimeout` | `pkg/services/push/ntfy` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | Unreleased |
-| `Config.DisableTLSVerification` | `pkg/services/push/mqtt` | `Config.SkipTLSVerify` | Unreleased |
-| `Logger.Log` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | Unreleased |
-| `Logger.Logf` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | Unreleased |
+| `HTTPClientManager` | `pkg/services/push/gotify` | `Service.SetHTTPClient` | v0.23.0 |
+| `DefaultHTTPClientManager` | `pkg/services/push/gotify` | `Service.SetHTTPClient` | v0.23.0 |
+| `HTTPClient` | `pkg/services/chat/matrix` | `types.HTTPClient` | v0.23.0 |
+| `DefaultHTTPClient` | `pkg/services/chat/matrix` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `HTTPClient` | `pkg/services/chat/teams` | `types.HTTPClient` | v0.23.0 |
+| `Service.Client` | `pkg/services/chat/rocketchat` | `Service.SetHTTPClient` | v0.23.0 |
+| `ErrInvalidURLScheme` | `pkg/services/chat/rocketchat` | None. No function returns it, and `disabletls` sends over HTTP. | v0.23.0 |
+| `ErrMissingHost` | `pkg/services/chat/lark` | None. No function returns it, because a config without a host uses Lark's host. | v0.23.0 |
+| `Service.Client` | `pkg/services/push/pushover` | `Service.SetHTTPClient` | v0.23.0 |
+| `HTTPClient` | `pkg/services/chat/discord` | `types.HTTPClient` | v0.23.0 |
+| `DefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `NewDefaultHTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `Service.HTTPClient` | `pkg/services/chat/discord` | `Service.SetHTTPClient` | v0.23.0 |
+| `HTTPClient` | `pkg/services/chat/zulip` | `types.HTTPClient` | v0.23.0 |
+| `DefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `NewDefaultHTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `Service.HTTPClient` | `pkg/services/chat/zulip` | `Service.SetHTTPClient` | v0.23.0 |
+| `HTTPClient` | `pkg/services/sms/twilio` | `types.HTTPClient` | v0.23.0 |
+| `DefaultHTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `Service.HTTPClient` | `pkg/services/sms/twilio` | `Service.SetHTTPClient` | v0.23.0 |
+| `HTTPClient` | `pkg/services/push/bark` | `types.HTTPClient` | v0.23.0 |
+| `DefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `NewDefaultHTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` with an `*http.Client` | v0.23.0 |
+| `Service.HTTPClient` | `pkg/services/push/bark` | `Service.SetHTTPClient` | v0.23.0 |
+| `Config.Scheme` | `pkg/services/push/bark` | `Config.DisableTLS` | v0.23.0 |
+| `Config.InsecureSkipVerify` | `pkg/services/push/gotify` | `Config.SkipTLSVerify` | v0.23.0 |
+| `HTTPTimeout` | `pkg/services/push/gotify` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | v0.23.0 |
+| `Config.DisableTLSVerification` | `pkg/services/push/ntfy` | `Config.SkipTLSVerify` | v0.23.0 |
+| `Config.Scheme` | `pkg/services/push/ntfy` | `Config.DisableTLS` | v0.23.0 |
+| `HTTPTimeout` | `pkg/services/push/ntfy` | None. A send is bounded by the budget that `Service.ServiceTimeout` reports. | v0.23.0 |
+| `Config.DisableTLSVerification` | `pkg/services/push/mqtt` | `Config.SkipTLSVerify` | v0.23.0 |
+| `Logger.Log` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | v0.23.0 |
+| `Logger.Logf` | `pkg/services/standard` | `Logger.Debug`, `Logger.Info`, or `Logger.Warn` | v0.23.0 |
