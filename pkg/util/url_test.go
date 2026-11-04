@@ -162,6 +162,7 @@ func TestSplitURLHost(t *testing.T) {
 		{name: "bracketed IPv6 with a VLAN zone", host: "[fe80::1%eth0.10]", wantHost: "fe80::1%eth0.10"},
 		{name: "bracketed IPv6 with a space in its zone", host: "[fe80::1%Ethernet 2]:80", wantHost: "fe80::1%Ethernet 2", wantPort: "80"},
 		{name: "bracketed IPv6 with a slash in its zone", host: "[fe80::1%a/b]:80", wantErr: ErrInvalidHost},
+		{name: "bracketed IPv6 with a bracket in its zone", host: "[fe80::1%a]b]:80", wantErr: ErrInvalidHost},
 		{name: "bracketed IPv6 with a non-ASCII zone", host: "[fe80::1%\u00fc]", wantErr: ErrInvalidHost},
 		{name: "unbracketed IPv6", host: "::1", wantErr: ErrInvalidHost},
 		{name: "unbracketed IPv6 and port", host: "2001:db8::1:8443", wantErr: ErrInvalidHost},
@@ -201,19 +202,36 @@ func TestSplitURLHost(t *testing.T) {
 }
 
 // TestSplitURLHostEscapedZone verifies that SplitURLHost accepts an IPv6 zone
-// with a space read from a URL, where it is written as %20.
+// read from a URL that wrote one of its characters escaped.
 //
-// Windows interface names hold spaces, and url.Parse decodes the escape.
+// Windows interface names hold spaces, written as %20, and an interface alias
+// holds a colon, which may be written as %3A. url.Parse decodes both.
 func TestSplitURLHostEscapedZone(t *testing.T) {
 	t.Parallel()
 
-	serviceURL, err := url.Parse("svc://[fe80::1%25Ethernet%202]:80/")
-	require.NoError(t, err)
+	// tests lists service URLs with the hostname SplitURLHost should return.
+	tests := []struct {
+		name     string
+		rawURL   string
+		wantHost string
+	}{
+		{name: "space", rawURL: "svc://[fe80::1%25Ethernet%202]:80/", wantHost: "fe80::1%Ethernet 2"},
+		{name: "colon", rawURL: "svc://[fe80::1%25eth%3A0]:80/", wantHost: "fe80::1%eth:0"},
+	}
 
-	host, port, err := SplitURLHost(serviceURL)
-	require.NoError(t, err)
-	assert.Equal(t, "fe80::1%Ethernet 2", host)
-	assert.Equal(t, "80", port)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serviceURL, err := url.Parse(tt.rawURL)
+			require.NoError(t, err)
+
+			host, port, err := SplitURLHost(serviceURL)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHost, host)
+			assert.Equal(t, "80", port)
+		})
+	}
 }
 
 // TestSplitURLHostPort verifies that SplitURLHostPort reads a URL's authority
@@ -268,7 +286,7 @@ func TestSplitURLHostPort(t *testing.T) {
 func TestValidateHostName(t *testing.T) {
 	t.Parallel()
 
-	for _, host := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "fe80::1%en0", "fe80::1%eth0.10", "fe80::1%Ethernet 2"} {
+	for _, host := range []string{"", "srv.example", "192.0.2.1", "2001:db8::1", "fe80::1%en0", "fe80::1%eth0.10", "fe80::1%Ethernet 2", "fe80::1%eth0:1"} {
 		require.NoError(t, ValidateHostName(host), host)
 	}
 

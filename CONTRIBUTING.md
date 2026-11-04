@@ -247,6 +247,7 @@ Every service follows the same rules, so services behave alike for users and for
 - Check the host of a config built in code before each send, with the rule that reading its URL applies.
   Split a host that holds its port with `util.SplitURLHost`, and check that a hostname remains.
   Check a host that the config keeps apart from its port with `util.ValidateHostName`.
+  It accepts an empty hostname, so first reject a missing host or apply the service's default host.
 - Name only parts of a URL in a `url` tag, such as `user`, `password`, `host`, `port`, `path`, or `path2`.
   The tag tells the docs, the CLI, and the Playground where the field appears in the service URL.
   A misspelled name falls back to the query, so they show the field as a query prop instead of its part of the URL.
