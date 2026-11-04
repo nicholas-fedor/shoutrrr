@@ -233,15 +233,20 @@ func (c *Config) parseQuery(resolver types.ConfigQueryResolver, serviceURL *url.
 	return format.ApplyQuery(resolver, query)
 }
 
-// prepare sets [DefaultHost] for a config without a host, and port 8080 for one
-// without a port, then runs the config's checks. The host and port may come
-// from the URL or their query params, and neither is required. Reading a
-// service URL and each send run it, so a config built in code reaches the
-// server its URL would and fails as its URL would.
+// prepare normalizes the config and checks it.
+//
+// It drops the empty recipients, as reading a list setting does. It sets
+// [DefaultHost] for a config without a host, and port 8080 for one without a
+// port. The host and port may come from the URL or their query params, and
+// neither is required. Reading a service URL and each send run it, so a config
+// built in code reaches the server and recipients its URL would and fails as
+// its URL would.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrNoRecipients].
 func (c *Config) prepare() error {
+	c.Recipients = util.NonEmpty(c.Recipients)
+
 	if c.Host == "" {
 		c.Host = DefaultHost
 	}
@@ -259,7 +264,7 @@ func (c *Config) prepare() error {
 // Returns:
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
-	return batchBudget * time.Duration(max(1, len(batchRecipients(c.Recipients))))
+	return batchBudget * time.Duration(max(1, len(batchRecipients(util.NonEmpty(c.Recipients)))))
 }
 
 // setURL updates the Config from a URL using the provided resolver. A URL

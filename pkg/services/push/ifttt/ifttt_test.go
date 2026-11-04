@@ -377,7 +377,7 @@ func TestSendContextErrors(t *testing.T) {
 		{name: "titlevalue above 3", params: &types.Params{"titlevalue": "4"}, wantErr: ErrInvalidTitleValue},
 		{name: "titlevalue equals messagevalue", params: &types.Params{"titlevalue": "2"}, wantErr: ErrTitleMessageConflict},
 		{name: "events cleared", params: &types.Params{"events": ""}, wantErr: ErrMissingEvents},
-		{name: "empty event name", params: &types.Params{"events": "a,"}, wantErr: ErrEmptyEventName},
+		{name: "only empty event names", params: &types.Params{"events": ","}, wantErr: ErrMissingEvents},
 		{name: "dot-dot event name", params: &types.Params{"events": ".."}, wantErr: util.ErrInvalidPathSegment},
 	}
 
@@ -510,8 +510,11 @@ func TestSendSharesFromParams(t *testing.T) {
 	})
 }
 
-// TestServiceTimeout verifies that the send budget is [defaultTimeout] for
-// each event, counting events set by params, and at least [defaultTimeout].
+// TestServiceTimeout verifies that the send budget is [defaultTimeout] for each
+// event, counting events set by params, and at least [defaultTimeout].
+//
+// Empty event names in a config built in code do not count, since the send
+// drops them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -541,6 +544,15 @@ func TestServiceTimeout(t *testing.T) {
 		t.Parallel()
 
 		assert.Equal(t, defaultTimeout, (&Service{}).ServiceTimeout(nil))
+	})
+
+	t.Run("empty event names", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "ifttt://webhookid/?events=a")
+		service.Config.Events = []string{"", "a", ""}
+
+		assert.Equal(t, defaultTimeout, service.ServiceTimeout(nil))
 	})
 }
 

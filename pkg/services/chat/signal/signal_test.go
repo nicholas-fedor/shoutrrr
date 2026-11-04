@@ -816,9 +816,11 @@ func TestSendSharesFromParams(t *testing.T) {
 }
 
 // TestServiceTimeout verifies that the send budget is one batch budget per
-// recipient batch, counting recipients set by params. The stored recipients
-// count when a param is invalid, and one batch budget applies before
-// Initialize.
+// recipient batch, counting recipients set by params.
+//
+// The stored recipients count when a param is invalid, and one batch budget
+// applies before Initialize. Empty recipients in a config built in code do not
+// count, since the send drops them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -854,6 +856,15 @@ func TestServiceTimeout(t *testing.T) {
 			assert.Equal(t, batchBudget*time.Duration(tt.want), service.ServiceTimeout(tt.params))
 		})
 	}
+
+	t.Run("empty recipients", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, testServiceURL+"/group.Z3JvdXAx")
+		service.Config.Recipients = []string{"", "group.Z3JvdXAx", ""}
+
+		assert.Equal(t, batchBudget, service.ServiceTimeout(nil))
+	})
 
 	t.Run("before Initialize", func(t *testing.T) {
 		t.Parallel()

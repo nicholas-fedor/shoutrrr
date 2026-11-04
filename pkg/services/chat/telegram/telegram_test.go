@@ -600,6 +600,9 @@ func TestSetHTTPClient(t *testing.T) {
 
 // TestServiceTimeout verifies that the send budget is one client timeout for
 // each chat, using the chats from params when they are valid.
+//
+// Empty chats in a config built in code do not count, since the send drops
+// them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -624,6 +627,15 @@ func TestServiceTimeout(t *testing.T) {
 			assert.Equal(t, tt.want, service.ServiceTimeout(tt.params))
 		})
 	}
+
+	t.Run("empty chats", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestService(t, "telegram://12345:mock-token@telegram/?chats=a")
+		service.Config.Chats = []string{"", "a", ""}
+
+		assert.Equal(t, defaultHTTPTimeout, service.ServiceTimeout(nil))
+	})
 }
 
 // TestSendUsesAPIURL verifies that a send posts to the configured Bot API

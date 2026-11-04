@@ -53,10 +53,13 @@ func TestConfigGetURL(t *testing.T) {
 	})
 }
 
-// TestConfigPrepare verifies that prepare trims each room and starts a room
-// without a sigil with #. Sends run it on a copy of the stored config, so its
-// subtest checks that the copy's changed rooms leave the stored rooms as they
-// were.
+// TestConfigPrepare verifies that prepare drops the empty rooms and trims each
+// other room.
+//
+// A room without a sigil starts with #. A blank room stays empty after
+// trimming, for the send to reject. Sends run prepare on a copy of the stored
+// config, so its subtest checks that the copy's changed rooms leave the stored
+// rooms as they were.
 func TestConfigPrepare(t *testing.T) {
 	t.Parallel()
 
@@ -72,7 +75,9 @@ func TestConfigPrepare(t *testing.T) {
 		{name: "room ID", rooms: []string{"!ops:example.com"}, want: []string{"!ops:example.com"}},
 		{name: "surrounding spaces", rooms: []string{"  !ops:example.com  ", " general "}, want: []string{"!ops:example.com", "#general"}},
 		{name: "dot segments", rooms: []string{".", ".."}, want: []string{"#.", "#.."}},
-		{name: "empty and blank rooms", rooms: []string{"", "   "}, want: []string{"", ""}},
+		{name: "empty rooms", rooms: []string{"", "!ops:example.com", ""}, want: []string{"!ops:example.com"}},
+		{name: "only empty rooms", rooms: []string{"", ""}, want: nil},
+		{name: "blank room", rooms: []string{"   "}, want: []string{""}},
 	}
 
 	for _, tt := range tests {

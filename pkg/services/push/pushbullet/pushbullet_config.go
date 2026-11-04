@@ -90,13 +90,28 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare drops the empty targets and checks the access token.
+//
+// A trailing slash leaves an empty target, which reading a list setting drops
+// too. Reading a service URL and each send run it, so a config built in code
+// pushes to the targets its URL would, and fails before a request as its URL
+// would.
+//
+// Returns:
+//   - error: the access token error, such as [ErrTokenIncorrectSize].
+func (c *Config) prepare() error {
+	c.Targets = util.NonEmpty(c.Targets)
+
+	return validateToken(c.Token)
+}
+
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
 // for a config with the send's params applied.
 //
 // Returns:
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
-	return defaultHTTPTimeout * time.Duration(len(c.sendTargets()))
+	return defaultHTTPTimeout * time.Duration(max(1, len(util.NonEmpty(c.Targets))))
 }
 
 // sendTargets returns the targets a send pushes to. A config without targets
@@ -144,11 +159,14 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return format.ApplyQuery(resolver, query)
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.prepare()
 }
 
-// validateToken checks the access token. Reading a service URL and each send
-// run it, so a config built in code fails before a request.
+// validateToken checks the access token.
 //
 // Parameters:
 //   - token: the access token.

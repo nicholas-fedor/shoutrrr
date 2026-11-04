@@ -554,6 +554,9 @@ func TestSendWithoutClient(t *testing.T) {
 
 // TestServiceTimeout verifies that the budget covers the login and a join and
 // message per room, uses rooms from valid params, and has a two-request floor.
+//
+// Empty rooms in a config built in code do not count, since the send drops
+// them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -584,6 +587,16 @@ func TestServiceTimeout(t *testing.T) {
 			assert.Equal(t, defaultHTTPTimeout*time.Duration(tt.want), service.ServiceTimeout(tt.params))
 		})
 	}
+
+	t.Run("empty rooms", func(t *testing.T) {
+		t.Parallel()
+
+		service := &Service{}
+		require.NoError(t, service.Initialize(parseTestURL(t, passwordURL), nil))
+		service.Config.Rooms = []string{"", "!ops:example.com", ""}
+
+		assert.Equal(t, 4*defaultHTTPTimeout, service.ServiceTimeout(nil))
+	})
 }
 
 // TestSendShares verifies that each room's requests may use an equal share of

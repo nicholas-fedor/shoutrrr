@@ -239,10 +239,7 @@ func (c *Config) restorePlusAddresses() {
 		c.ToAddresses[i] = restorePlusAddress(adr)
 	}
 
-	c.ToAddresses = slices.DeleteFunc(c.ToAddresses, func(adr string) bool { return adr == "" })
-	if len(c.ToAddresses) == 0 {
-		c.ToAddresses = nil
-	}
+	c.ToAddresses = util.NonEmpty(c.ToAddresses)
 }
 
 // restorePlusAddress restores plus tags in a mailbox string.

@@ -32,8 +32,11 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 }
 
 // TestConfigSetURL verifies that SetURL reads the token from the host, the
-// targets from the path, a channel target from the fragment, and the title
-// from the query.
+// targets from the path, a channel target from the fragment, and the title from
+// the query.
+//
+// Empty path segments name no target, so a URL without targets pushes to all
+// devices.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +49,12 @@ func TestConfigSetURL(t *testing.T) {
 		{
 			name:   "token only",
 			rawURL: "pushbullet://" + testToken,
-			want:   Config{Token: testToken, Targets: []string{""}},
+			want:   Config{Token: testToken},
+		},
+		{
+			name:   "empty path segments",
+			rawURL: "pushbullet://" + testToken + "//test//other/",
+			want:   Config{Token: testToken, Targets: []string{"test", "other"}},
 		},
 		{
 			name:   "device",

@@ -11,6 +11,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/services/standard"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // Service provides the Twilio SMS notification service.
@@ -119,7 +120,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return err
 	}
 
@@ -152,7 +153,7 @@ func (s *Service) ServiceTimeout(_ *types.Params) time.Duration {
 		return defaultHTTPTimeout
 	}
 
-	return defaultHTTPTimeout * time.Duration(max(1, len(s.Config.ToNumbers)))
+	return defaultHTTPTimeout * time.Duration(max(1, len(util.NonEmpty(s.Config.ToNumbers))))
 }
 
 // SetHTTPClient sets a custom HTTP client for the service. A nil client,

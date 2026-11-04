@@ -103,37 +103,11 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
-// setURL updates the Config from a URL using the provided resolver.
+// prepare drops the empty recipients, as reading the URL path does, then checks
+// that all required Config fields are present and consistent.
 //
-// Parameters:
-//   - resolver: the resolver that sets the config props from the query.
-//   - serviceURL: the service URL.
-//
-// Returns:
-//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
-//     query prop error, or a validation error from [Config.validate].
-func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
-	c.AccountSID = serviceURL.User.Username()
-
-	password, _ := serviceURL.User.Password()
-	c.AuthToken = password
-
-	c.FromNumber = normalizePhoneNumber(serviceURL.Host)
-	c.ToNumbers = parseToNumbers(serviceURL.EscapedPath())
-
-	query, err := util.ParseURLQuery(serviceURL)
-	if err != nil {
-		return err
-	}
-
-	if err := format.ApplyQuery(resolver, query); err != nil {
-		return err
-	}
-
-	return c.validate()
-}
-
-// validate checks that all required Config fields are present and consistent.
+// Reading a service URL and each send run it, so a config built in code texts
+// the recipients its URL would, and fails before a request as its URL would.
 //
 // Returns:
 //   - error: the error for the first missing field, or [ErrToFromNumberSame]
@@ -141,7 +115,9 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //     format gives [ErrInvalidAccountSID]. A sender that a URL host cannot hold
 //     gives an error wrapping [util.ErrInvalidHost]. It is nil for a valid
 //     config.
-func (c *Config) validate() error {
+func (c *Config) prepare() error {
+	c.ToNumbers = util.NonEmpty(c.ToNumbers)
+
 	if c.AccountSID == "" {
 		return ErrAccountSIDMissing
 	}
@@ -177,6 +153,37 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+// setURL updates the Config from a URL using the provided resolver.
+//
+// Parameters:
+//   - resolver: the resolver that sets the config props from the query.
+//   - serviceURL: the service URL.
+//
+// Returns:
+//   - error: an error wrapping [util.ErrInvalidQuery] for a malformed query, a
+//     query prop error, or the error from the config's checks, such as
+//     [ErrToNumbersMissing].
+func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL) error {
+	c.AccountSID = serviceURL.User.Username()
+
+	password, _ := serviceURL.User.Password()
+	c.AuthToken = password
+
+	c.FromNumber = normalizePhoneNumber(serviceURL.Host)
+	c.ToNumbers = parseToNumbers(serviceURL.EscapedPath())
+
+	query, err := util.ParseURLQuery(serviceURL)
+	if err != nil {
+		return err
+	}
+
+	if err := format.ApplyQuery(resolver, query); err != nil {
+		return err
+	}
+
+	return c.prepare()
 }
 
 // normalizePhoneNumber strips common formatting characters (spaces, dashes,

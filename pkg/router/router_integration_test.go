@@ -75,8 +75,16 @@ type env struct {
 	dialed []string
 	// dialMu guards dialed.
 	dialMu sync.Mutex
+	// sent holds each request through the injected client as its method, URL,
+	// headers, and body, in order, when recordSent is set.
+	sent []string
+	// sentMu guards sent.
+	sentMu sync.Mutex
 	// holdMarked makes marked requests and dials wait until their context ends.
 	holdMarked bool
+	// recordSent makes requests through the injected client add themselves to
+	// sent.
+	recordSent bool
 }
 
 // syncBuffer is a goroutine-safe log sink.
@@ -182,6 +190,9 @@ type variantSend struct {
 	// urls holds the URL of each request through the injected client, in
 	// order.
 	urls []*url.URL
+	// sent holds the method, URL, headers, and body of each request through the
+	// injected client, in order.
+	sent []string
 	// requests counts requests through the injected client,
 	// http.DefaultTransport, or another transport.
 	requests int64
@@ -256,6 +267,9 @@ const (
 	// checkPathSegments verifies that a config value stays in its segments of
 	// each request path, whatever slashes, dots, or URL delimiters it holds.
 	checkPathSegments = "path_segments"
+	// checkEmptyListElements verifies that a list setting with an empty
+	// element reads back and sends as the list without it.
+	checkEmptyListElements = "empty_list_elements"
 )
 
 // Checks that run against the services that let users skip TLS certificate
@@ -308,6 +322,7 @@ const (
 	failUncheckedConfig                         // a send with an invalid config succeeded or made a request or dial
 	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
 	failPathSegmentLeft                         // a config value left its segment of a request path
+	failEmptyElementKept                        // a list with an empty element read back or sent unlike the list without it
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -321,6 +336,10 @@ const oversizedBodySize = 8 * httpbody.MaxSize
 // string config field to. It is distinct, so the check can find it in a
 // request URL.
 const pathSegmentMarker = "pathsegx"
+
+// sampleText is the text the contract checks set a string field, or the
+// element of a string-list field, to when they need a value of their own.
+const sampleText = "contract"
 
 // pathSegmentSuffixes follow a field's plain value in the values the
 // path_segments check sends. Each would leave its segment of a request path
@@ -607,6 +626,11 @@ var (
 	// standardKeys are the key names a TLS option may use. Deprecated keys are
 	// listed apart from Keys by the format package, so they are not checked.
 	standardKeys = []string{"skiptlsverify", "disabletls", "usestarttls", "starttls", "requirestarttls"}
+	// wordPattern matches the words that the empty_list_elements check compares
+	// requests by.
+	//
+	// A word is a run of letters and digits, or a run of other characters.
+	wordPattern = regexp.MustCompile(`[[:alnum:]]+|[^[:alnum:]]+`)
 )
 
 // TestMain blocks every path to the real network for this package. Requests through
@@ -675,6 +699,7 @@ func TestIntegrationContract(t *testing.T) {
 		{checkCheckedConfig, runCheckedConfig},
 		{checkSendLikeReadBack, runSendLikeReadBack},
 		{checkPathSegments, runPathSegments},
+		{checkEmptyListElements, runEmptyListElements},
 	}
 
 	for _, check := range checks {
@@ -1927,14 +1952,32 @@ func pathBaseline(t *testing.T, fx *fixture, config types.ServiceConfig, index [
 func withText(t *testing.T, config types.ServiceConfig, index []int, text string) types.ServiceConfig {
 	t.Helper()
 
+	if reflect.ValueOf(config).Elem().FieldByIndex(index).Kind() != reflect.String {
+		return withList(t, config, index, []string{text})
+	}
+
+	changed := cloneConfig(t, config)
+	reflect.ValueOf(changed).Elem().FieldByIndex(index).SetString(text)
+
+	return changed
+}
+
+// withList returns a copy of config whose string-list field holds list.
+//
+// Parameters:
+//   - t: the test.
+//   - config: the config to copy.
+//   - index: the index of the string-list field to set.
+//   - list: the elements.
+//
+// Returns:
+//   - types.ServiceConfig: the copy.
+func withList(t *testing.T, config types.ServiceConfig, index []int, list []string) types.ServiceConfig {
+	t.Helper()
+
 	changed := cloneConfig(t, config)
 	value := reflect.ValueOf(changed).Elem().FieldByIndex(index)
-
-	if value.Kind() == reflect.String {
-		value.SetString(text)
-	} else {
-		value.Set(reflect.ValueOf([]string{text}).Convert(value.Type()))
-	}
+	value.Set(reflect.ValueOf(list).Convert(value.Type()))
 
 	return changed
 }
@@ -1995,6 +2038,216 @@ func (r *pathReference) leftSegment(requestURL *url.URL) string {
 //   - []string: the keys.
 func sortedQueryKeys(requestURL *url.URL) []string {
 	return slices.Sorted(maps.Keys(requestURL.Query()))
+}
+
+// runEmptyListElements verifies that a list setting with an empty element works
+// as the list without it.
+//
+// For each exported string-list field of the fixture's config, the baseline
+// config holds the field's own elements, or [sampleText] when the fixture
+// leaves it empty. The variant appends an empty element. Reading the variant's
+// URL back must give the result of reading the baseline's URL back. A send with
+// the variant must make the same requests and dials as a send with the
+// baseline, with the same headers and bodies. It must also return the same
+// error. When the two sends differ, the baseline is sent again, and words that
+// differ between the two baseline sends, such as a random transaction ID, are
+// left out of the comparison.
+func runEmptyListElements(t *testing.T, fx *fixture) failure {
+	t.Helper()
+
+	config, result := fixtureConfig(t, fx.url)
+	if result.kind != failNone || config == nil {
+		return result
+	}
+
+	for structField, value := range reflect.ValueOf(config).Elem().Fields() {
+		if !structField.IsExported() || value.Kind() != reflect.Slice || value.Type().Elem().Kind() != reflect.String {
+			continue
+		}
+
+		list, _ := reflect.TypeAssert[[]string](value.Convert(reflect.TypeFor[[]string]()))
+		if len(list) == 0 {
+			list = []string{sampleText}
+		}
+
+		baseline := configVariant{
+			config: withList(t, config, structField.Index, list),
+			name:   structField.Name + " without an empty element",
+		}
+		variant := configVariant{
+			config: withList(t, config, structField.Index, append(slices.Clone(list), "")),
+			name:   structField.Name + " with an empty element",
+		}
+
+		for _, readVariant := range []*configVariant{&baseline, &variant} {
+			if result := readVariant.readOwnURL(t); result.kind != failNone {
+				return result
+			}
+		}
+
+		if variant.readBackText() != baseline.readBackText() {
+			return fail(failEmptyElementKept, "%s reads back as %q, but %s as %q",
+				variant.name, variant.readBackText(), baseline.name, baseline.readBackText())
+		}
+
+		if result := compareEmptyElementSends(t, fx, baseline, variant); result.kind != failNone {
+			return result
+		}
+	}
+
+	return failure{}
+}
+
+// compareEmptyElementSends sends with the baseline and the variant of the
+// empty_list_elements check, and reports a variant send that differs from the
+// baseline send.
+//
+// When the two differ, the baseline is sent again, and a word that differs
+// between the two baseline sends may hold anything in the variant send.
+//
+// Parameters:
+//   - t: the test.
+//   - fx: the fixture.
+//   - baseline: the config with the list as it is.
+//   - variant: the config with an empty element appended to the list.
+//
+// Returns:
+//   - failure: a failEmptyElementKept failure when the sends differ, a
+//     failInit or failPanic failure from a send, or none.
+func compareEmptyElementSends(t *testing.T, fx *fixture, baseline, variant configVariant) failure {
+	t.Helper()
+
+	want, result := sendVariant(t, fx, baseline.config)
+	if result.kind != failNone {
+		return result
+	}
+
+	got, result := sendVariant(t, fx, variant.config)
+	if result.kind != failNone {
+		return result
+	}
+
+	same := fmt.Sprint(got.err) == fmt.Sprint(want.err)
+	if same && (!slices.Equal(got.sent, want.sent) || !slices.Equal(got.endpoints, want.endpoints)) {
+		again, result := sendVariant(t, fx, baseline.config)
+		if result.kind != failNone {
+			return result
+		}
+
+		same = matchAll(t, got.sent, want.sent, again.sent) && matchAll(t, got.endpoints, want.endpoints, again.endpoints)
+	}
+
+	if !same {
+		return fail(failEmptyElementKept, "a send with %s made %q to %q and returned %v, but %s made %q to %q and %v",
+			variant.name, got.sent, got.endpoints, got.err, baseline.name, want.sent, want.endpoints, want.err)
+	}
+
+	return failure{}
+}
+
+// matchAll reports whether each of got matches the text at its index in want,
+// as [matchWords] judges it with again.
+//
+// Parameters:
+//   - t: the test.
+//   - got: the texts to check.
+//   - want: the texts of one baseline send.
+//   - again: the texts of a second baseline send.
+//
+// Returns:
+//   - bool: whether got has as many texts as want and each matches.
+func matchAll(t *testing.T, got, want, again []string) bool {
+	t.Helper()
+
+	if len(got) != len(want) || len(again) != len(want) {
+		return false
+	}
+
+	for i := range want {
+		if !matchWords(t, got[i], want[i], again[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchWords reports whether got equals want in every word where want and again
+// agree.
+//
+// A word is a run of letters and digits, or a run of other characters. again is
+// the same text from a second send with the same config, so a word that differs
+// between them, such as a random transaction ID, may hold anything in got.
+// Baseline texts that split into different numbers of words, as random base64
+// can, cannot be compared word by word, so they stop the test.
+//
+// Parameters:
+//   - t: the test.
+//   - got: the text to check.
+//   - want: the text of one baseline send.
+//   - again: the text of a second baseline send.
+//
+// Returns:
+//   - bool: whether got matches.
+func matchWords(t *testing.T, got, want, again string) bool {
+	t.Helper()
+
+	gotWords := wordPattern.FindAllString(got, -1)
+	wantWords := wordPattern.FindAllString(want, -1)
+	againWords := wordPattern.FindAllString(again, -1)
+
+	if len(againWords) != len(wantWords) {
+		t.Fatalf("two sends with the same config differ in their words, so they cannot be compared: %q and %q", want, again)
+	}
+
+	if len(gotWords) != len(wantWords) {
+		return false
+	}
+
+	for i := range wantWords {
+		if wantWords[i] == againWords[i] && gotWords[i] != wantWords[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// readBackText describes the result of reading the variant's own URL back.
+//
+// Returns:
+//   - string: the URL of the config read back, or the error.
+func (v *configVariant) readBackText() string {
+	if v.readBackErr != nil {
+		return "error: " + v.readBackErr.Error()
+	}
+
+	return v.readBack.GetURL().String()
+}
+
+// readOwnURL reads the variant's own URL into a copy of its config.
+//
+// It records the copy in readBack, or the error in readBackErr.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - failure: a failPanic failure when reading the URL panics, or none.
+func (v *configVariant) readOwnURL(t *testing.T) failure {
+	t.Helper()
+
+	readBack := cloneConfig(t, v.config)
+
+	if panicMsg := recovering(func() { v.readBackErr = readBack.SetURL(readBack.GetURL()) }); panicMsg != "" {
+		return fail(failPanic, "reading back %s %s", v.name, panicMsg)
+	}
+
+	if v.readBackErr == nil {
+		v.readBack = readBack
+	}
+
+	return failure{}
 }
 
 // runParamsDoNotPersist verifies that params passed to Send apply to that send
@@ -2402,16 +2655,8 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 	}
 
 	for i := range variants {
-		variant := &variants[i]
-		readBack := cloneConfig(t, variant.config)
-
-		panicMsg := recovering(func() { variant.readBackErr = readBack.SetURL(readBack.GetURL()) })
-		if panicMsg != "" {
-			return nil, fail(failPanic, "reading back %s %s", variant.name, panicMsg)
-		}
-
-		if variant.readBackErr == nil {
-			variant.readBack = readBack
+		if result := variants[i].readOwnURL(t); result.kind != failNone {
+			return nil, result
 		}
 	}
 
@@ -2439,6 +2684,7 @@ func sendVariant(t *testing.T, fx *fixture, config types.ServiceConfig) (variant
 
 	synctest.Test(t, func(t *testing.T) {
 		env := newEnv(t, fx, false)
+		env.recordSent = true
 
 		service, err := env.locate(t)
 		if err != nil {
@@ -2461,6 +2707,10 @@ func sendVariant(t *testing.T, fx *fixture, config types.ServiceConfig) (variant
 			defaultTransportHits.Load() - defaultBefore +
 			lookupHits.Load() - lookupBefore
 		send.dials = env.dials.Load()
+
+		env.sentMu.Lock()
+		send.sent = env.sent
+		env.sentMu.Unlock()
 
 		for i := range env.client.Calls {
 			if req, ok := env.client.Calls[i].Arguments.Get(0).(*http.Request); ok {
@@ -3320,7 +3570,7 @@ func sampleValue(fieldType reflect.Type) (reflect.Value, bool) {
 	case reflect.Bool:
 		return reflect.ValueOf(true).Convert(fieldType), true
 	case reflect.String:
-		return reflect.ValueOf("contract").Convert(fieldType), true
+		return reflect.ValueOf(sampleText).Convert(fieldType), true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return reflect.ValueOf(1).Convert(fieldType), true
@@ -3438,6 +3688,10 @@ func newEnv(t *testing.T, fx *fixture, failTransport bool) *env {
 	e.client.EXPECT().Do(mock.Anything).RunAndReturn(func(req *http.Request) (*http.Response, error) {
 		if err := e.holdIfMarked(req.Context()); err != nil {
 			return nil, err
+		}
+
+		if e.recordSent {
+			e.record(req)
 		}
 
 		return answer(req)
@@ -3607,6 +3861,37 @@ func (e *env) locateWithDefaultClient(t *testing.T) (types.Service, error) {
 	t.Helper()
 
 	return e.locateWith(t, types.SenderOptions{DialContext: e.dial})
+}
+
+// record adds a request to sent as its method, URL, headers sorted by name, and
+// body.
+//
+// It replaces the request's body with a copy, so the answer can still drain it.
+//
+// Parameters:
+//   - req: a request through the injected client.
+func (e *env) record(req *http.Request) {
+	var body []byte
+
+	if req.Body != nil {
+		body, _ = io.ReadAll(req.Body)
+		_ = req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
+	var text strings.Builder
+
+	text.WriteString(req.Method + " " + req.URL.String() + "\n")
+
+	for _, name := range slices.Sorted(maps.Keys(req.Header)) {
+		text.WriteString(name + ": " + strings.Join(req.Header[name], ", ") + "\n")
+	}
+
+	text.Write(body)
+
+	e.sentMu.Lock()
+	e.sent = append(e.sent, text.String())
+	e.sentMu.Unlock()
 }
 
 // send sends a message and returns a failPanic failure if Send panicked.

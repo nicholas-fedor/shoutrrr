@@ -178,6 +178,44 @@ func (c *Config) impliedPort() int {
 	return defaultTLSPort
 }
 
+// prepare drops the empty targets, as reading a list setting does, then checks
+// that the config has a token, a host, a port in range, and a valid notify
+// service.
+//
+// A zero port selects the default port. Reading a service URL and each send run
+// it, so a config built in code notifies the targets its URL would, and fails
+// before a request as its URL would.
+//
+// Returns:
+//   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field.
+//     [ErrInvalidPort] for a port outside 0 to 65535. An error wrapping
+//     [util.ErrInvalidPathSegment] for a path prefix with a "." or ".."
+//     segment. [ErrInvalidService] for an invalid notify service. Otherwise
+//     nil.
+func (c *Config) prepare() error {
+	c.Targets = util.NonEmpty(c.Targets)
+
+	if c.Token == "" {
+		return ErrTokenMissing
+	}
+
+	if c.Host == "" {
+		return ErrHostMissing
+	}
+
+	if c.Port < 0 || c.Port > 65535 {
+		return fmt.Errorf("%w: %d", ErrInvalidPort, c.Port)
+	}
+
+	if err := util.ValidatePathSegments(c.Path); err != nil {
+		return fmt.Errorf("path prefix: %w", err)
+	}
+
+	_, _, err := c.domainService()
+
+	return err
+}
+
 // requestPort returns the TCP port used for the API request.
 //
 // Returns:
@@ -256,40 +294,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.validate()
-}
-
-// validate checks that the config has a token, a host, a port in range, and a
-// valid notify service. Reading a service URL and each send run it, so a
-// config built in code fails before a request. A zero port selects the
-// default port.
-//
-// Returns:
-//   - error: [ErrTokenMissing] or [ErrHostMissing] for a missing field.
-//     [ErrInvalidPort] for a port outside 0 to 65535. An error wrapping
-//     [util.ErrInvalidPathSegment] for a path prefix with a "." or ".."
-//     segment. [ErrInvalidService] for an invalid notify service. Otherwise
-//     nil.
-func (c *Config) validate() error {
-	if c.Token == "" {
-		return ErrTokenMissing
-	}
-
-	if c.Host == "" {
-		return ErrHostMissing
-	}
-
-	if c.Port < 0 || c.Port > 65535 {
-		return fmt.Errorf("%w: %d", ErrInvalidPort, c.Port)
-	}
-
-	if err := util.ValidatePathSegments(c.Path); err != nil {
-		return fmt.Errorf("path prefix: %w", err)
-	}
-
-	_, _, err := c.domainService()
-
-	return err
+	return c.prepare()
 }
 
 // normalizePath returns a leading-slash path without a trailing slash.

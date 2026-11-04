@@ -513,6 +513,9 @@ func TestSendShares(t *testing.T) {
 
 // TestServiceTimeout verifies that the send budget is [defaultHTTPTimeout] for
 // each target, and at least [defaultHTTPTimeout].
+//
+// Empty targets in a config built in code do not count, since the send drops
+// them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -526,6 +529,7 @@ func TestServiceTimeout(t *testing.T) {
 		{name: "uninitialized service", service: &Service{}, want: defaultHTTPTimeout},
 		{name: "no targets", service: newServiceWithConfig(&Config{}), want: defaultHTTPTimeout},
 		{name: "one target", service: newTestService(t, "pushbullet://"+testToken+"/dev1"), want: defaultHTTPTimeout},
+		{name: "empty targets", service: newServiceWithConfig(&Config{Targets: []string{"", "dev1", ""}}), want: defaultHTTPTimeout},
 		{
 			name:    "three targets",
 			service: newTestService(t, "pushbullet://"+testToken+"/dev1/dev2/dev3"),

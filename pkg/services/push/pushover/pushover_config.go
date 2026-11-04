@@ -88,6 +88,43 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare drops the empty devices and checks the config.
+//
+// The checks cover the encryption key, the timestamp, the user, and the token.
+// Reading a service URL and each send run it, so a config built in code sends
+// to the devices its URL would, and fails before a request as its URL would.
+//
+// Returns:
+//   - error: an encryption key error or [ErrInvalidTimestamp] for a negative
+//     timestamp. [ErrUserMissing] or [ErrTokenMissing] when the user or the
+//     token is missing. An error wrapping [util.ErrInvalidHost] for a user key
+//     that a URL host cannot hold. Otherwise nil.
+func (c *Config) prepare() error {
+	c.Devices = util.NonEmpty(c.Devices)
+
+	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
+		return err
+	}
+
+	if c.Timestamp < 0 {
+		return ErrInvalidTimestamp
+	}
+
+	if c.User == "" {
+		return ErrUserMissing
+	}
+
+	if err := util.ValidateHostToken(c.User); err != nil {
+		return fmt.Errorf("user key: %w", err)
+	}
+
+	if c.Token == "" {
+		return ErrTokenMissing
+	}
+
+	return nil
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 //
 // Parameters:
@@ -112,40 +149,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.validate()
-}
-
-// validate checks the encryption key, the timestamp, the user, and the token.
-// Reading a service URL and each send run it, so a config built in code fails
-// before a request.
-//
-// Returns:
-//   - error: an encryption key error or [ErrInvalidTimestamp] for a negative
-//     timestamp. [ErrUserMissing] or [ErrTokenMissing] when the user or the
-//     token is missing. An error wrapping [util.ErrInvalidHost] for a user key
-//     that a URL host cannot hold. Otherwise nil.
-func (c *Config) validate() error {
-	if _, err := parseEncryptionKey(c.EncryptionKey); err != nil {
-		return err
-	}
-
-	if c.Timestamp < 0 {
-		return ErrInvalidTimestamp
-	}
-
-	if c.User == "" {
-		return ErrUserMissing
-	}
-
-	if err := util.ValidateHostToken(c.User); err != nil {
-		return fmt.Errorf("user key: %w", err)
-	}
-
-	if c.Token == "" {
-		return ErrTokenMissing
-	}
-
-	return nil
+	return c.prepare()
 }
 
 // MaskURL redacts the API token in URL userinfo and sensitive query parameters.

@@ -183,16 +183,18 @@ func (c *Config) mucNick() string {
 	return local
 }
 
-// prepare drops empty recipient and room entries and sets the default port of
-// the scheme for a config without a port, then runs the config's checks.
-// Reading a service URL and each send run it, so a config built in code dials
-// the port its URL would and fails as its URL would.
+// prepare normalizes the config and checks it.
+//
+// It drops the empty recipients and rooms, as reading a list setting does. It
+// sets the default port of the scheme for a config without a port. Reading a
+// service URL and each send run it, so a config built in code dials the port
+// its URL would and fails as its URL would.
 //
 // Returns:
 //   - error: the error from the config's checks, such as [ErrMissingHost].
 func (c *Config) prepare() error {
-	c.To = compactStrings(c.To)
-	c.Rooms = compactStrings(c.Rooms)
+	c.To = util.NonEmpty(c.To)
+	c.Rooms = util.NonEmpty(c.Rooms)
 
 	if c.Port == 0 {
 		c.Port = defaultPort(c.scheme)
@@ -311,22 +313,6 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// compactStrings removes empty entries from values.
-//
-// Parameters:
-//   - values: The slice to compact.
-//
-// Returns:
-//   - []string: a slice with empty strings removed, or nil when none remain.
-func compactStrings(values []string) []string {
-	values = slices.DeleteFunc(values, isEmpty)
-	if len(values) == 0 {
-		return nil
-	}
-
-	return values
-}
-
 // composeMessage prepends title to message when title is set.
 //
 // Parameters:
@@ -360,17 +346,6 @@ func defaultPort(scheme string) uint16 {
 	}
 
 	return DefaultPort
-}
-
-// isEmpty reports whether value is the empty string.
-//
-// Parameters:
-//   - value: The string to inspect.
-//
-// Returns:
-//   - bool: true if value has length zero.
-func isEmpty(value string) bool {
-	return value == ""
 }
 
 // splitJID splits value into localpart and domainpart.

@@ -31,6 +31,8 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 // TestConfigSetURL verifies that SetURL reads the webhook ID from the host and
 // the events, values, and value field choices from the query, defaulting the
 // message to the second value.
+//
+// Empty event names are left out.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +46,11 @@ func TestConfigSetURL(t *testing.T) {
 			name:   "one event",
 			rawURL: "ifttt://dummyID/?events=event1",
 			want:   Config{WebHookID: "dummyID", Events: []string{"event1"}, UseMessageAsValue: DefaultMessageValue},
+		},
+		{
+			name:   "empty event names",
+			rawURL: "ifttt://dummyID/?events=a,,b,",
+			want:   Config{WebHookID: "dummyID", Events: []string{"a", "b"}, UseMessageAsValue: DefaultMessageValue},
 		},
 		{
 			name:   "events, values, and value fields",
@@ -91,7 +98,7 @@ func TestConfigSetURLErrors(t *testing.T) {
 		{name: "webhook ID in brackets", rawURL: "ifttt://[::1]/?events=event1", wantErr: util.ErrInvalidHost},
 		{name: "missing events", rawURL: "ifttt://dummyID", wantErr: ErrMissingEvents},
 		{name: "empty events", rawURL: "ifttt://dummyID/?events=", wantErr: ErrMissingEvents},
-		{name: "empty event name", rawURL: "ifttt://dummyID/?events=a,,b", wantErr: ErrEmptyEventName},
+		{name: "only empty event names", rawURL: "ifttt://dummyID/?events=,", wantErr: ErrMissingEvents},
 		{name: "dot-dot event name", rawURL: "ifttt://dummyID/?events=a,..", wantErr: util.ErrInvalidPathSegment},
 		{name: "event name with a slash", rawURL: "ifttt://dummyID/?events=a%2Fb", wantErr: util.ErrInvalidPathSegment},
 		{name: "dot-dot webhook ID", rawURL: "ifttt://../?events=event1", wantErr: util.ErrInvalidPathSegment},

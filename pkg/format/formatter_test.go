@@ -143,6 +143,49 @@ func TestSetConfigField(t *testing.T) {
 	}
 }
 
+// TestSetConfigFieldEmptyItems verifies that a slice leaves out the empty items
+// of its value, such as the one a trailing separator leaves.
+//
+// A value of only empty items clears it. An array keeps its empty items, since
+// each one fills an element.
+func TestSetConfigFieldEmptyItems(t *testing.T) {
+	t.Parallel()
+
+	// tests lists fields and values with the value each field should hold and
+	// the string it should read back as.
+	tests := []struct {
+		want  any
+		field string
+		value string
+		read  string
+	}{
+		{field: "StrSlice", value: "one,", want: []string{"one"}, read: "one"},
+		{field: "StrSlice", value: ",one,,two,", want: []string{"one", "two"}, read: "one,two"},
+		{field: "StrSlice", value: ",,", want: []string(nil), read: ""},
+		{field: "StrSlice", value: "one, ", want: []string{"one", " "}, read: "one, "},
+		{field: "SubPropSlice", value: "@be,", want: []subPropStruct{{Value: "be"}}, read: "@be"},
+		{field: "SubPropPtrSlice", value: ",@diet", want: []*subPropStruct{{Value: "diet"}}, read: "@diet"},
+		{field: "StrArray", value: "one,,three", want: [3]string{"one", "", "three"}, read: "one,,three"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.field+"="+tt.value, func(t *testing.T) {
+			t.Parallel()
+
+			value, fields := newFieldTarget[testStruct](t)
+
+			valid, err := SetConfigField(value, fields[tt.field], tt.value)
+			require.NoError(t, err)
+			assert.True(t, valid)
+			assert.Equal(t, tt.want, value.FieldByName(tt.field).Interface())
+
+			formatted, err := GetConfigFieldString(value, fields[tt.field])
+			require.NoError(t, err)
+			assert.Equal(t, tt.read, formatted)
+		})
+	}
+}
+
 // TestSetConfigFieldBase verifies that a field with a number base reads
 // digits in that base, with or without a hex prefix, and writes them back in
 // it.
