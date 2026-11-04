@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject undefined enum values in configs built in code by @nicholas-fedor in [#2060](https://github.com/nicholas-fedor/shoutrrr/pull/2060)
 - Drop empty elements from list settings by @nicholas-fedor in [#2058](https://github.com/nicholas-fedor/shoutrrr/pull/2058)
 - Keep slashes inside path values that services write one per segment by @nicholas-fedor in [#2054](https://github.com/nicholas-fedor/shoutrrr/pull/2054)
 - Keep config values in their request path segments by @nicholas-fedor in [#2052](https://github.com/nicholas-fedor/shoutrrr/pull/2052)
