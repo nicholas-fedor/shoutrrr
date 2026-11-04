@@ -29,10 +29,12 @@ func parseTestURL(t *testing.T, rawURL string) *url.URL {
 	return parsed
 }
 
-// TestConfigApplyDefaults verifies that a config without a host or port gets
-// the defaults a URL without them gets. That is localhost, and the TLS port only
-// for a config read from an mqtts URL. A set host and port are kept.
-func TestConfigApplyDefaults(t *testing.T) {
+// TestConfigPrepareDefaults verifies that prepare gives a config without a
+// host or port the defaults a URL without them gets.
+//
+// That is localhost, and the TLS port only for a config read from an mqtts URL.
+// A set host and port are kept.
+func TestConfigPrepareDefaults(t *testing.T) {
 	t.Parallel()
 
 	// tests lists configs with the host and port each should end with.
@@ -42,11 +44,11 @@ func TestConfigApplyDefaults(t *testing.T) {
 		wantHost string
 		wantPort int
 	}{
-		{name: "zero config", config: Config{}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "mqtt scheme", config: Config{scheme: Scheme}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "mqtts scheme", config: Config{scheme: SchemeTLS}, wantHost: DefaultHost, wantPort: DefaultTLSPort},
-		{name: "other scheme", config: Config{scheme: "MQTTS"}, wantHost: DefaultHost, wantPort: DefaultPort},
-		{name: "set host and port", config: Config{scheme: SchemeTLS, Host: "broker", Port: 1884}, wantHost: "broker", wantPort: 1884},
+		{name: "topic only", config: Config{Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "mqtt scheme", config: Config{scheme: Scheme, Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "mqtts scheme", config: Config{scheme: SchemeTLS, Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultTLSPort},
+		{name: "other scheme", config: Config{scheme: "MQTTS", Topic: "t"}, wantHost: DefaultHost, wantPort: DefaultPort},
+		{name: "set host and port", config: Config{scheme: SchemeTLS, Topic: "t", Host: "broker", Port: 1884}, wantHost: "broker", wantPort: 1884},
 	}
 
 	for _, tt := range tests {
@@ -54,7 +56,7 @@ func TestConfigApplyDefaults(t *testing.T) {
 			t.Parallel()
 
 			config := tt.config
-			config.applyDefaults()
+			require.NoError(t, config.prepare())
 
 			assert.Equal(t, tt.wantHost, config.Host)
 			assert.Equal(t, tt.wantPort, config.Port)
@@ -312,15 +314,15 @@ func TestConfigSetURLResetsPort(t *testing.T) {
 	assert.Equal(t, DefaultPort, config.Port)
 }
 
-// TestConfigValidatePort verifies that the config's checks reject a port set in
-// code outside 1 to 65535, such as a negative one.
-func TestConfigValidatePort(t *testing.T) {
+// TestConfigPreparePort verifies that prepare rejects a port set in code
+// outside 1 to 65535, such as a negative one.
+func TestConfigPreparePort(t *testing.T) {
 	t.Parallel()
 
 	for _, port := range []int{-1, 65536} {
 		config := &Config{Topic: "test/topic", Port: port}
 
-		require.ErrorIs(t, config.validate(), util.ErrInvalidPort, port)
+		require.ErrorIs(t, config.prepare(), util.ErrInvalidPort, port)
 	}
 }
 

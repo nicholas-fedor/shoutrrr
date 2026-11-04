@@ -243,22 +243,6 @@ func (c *Config) ValidateCredentials() error {
 	return nil
 }
 
-// applyDefaults sets the host and port that a URL without them uses, so a
-// config built in code reaches the same broker. The host is [DefaultHost]. The
-// port is [DefaultTLSPort] for mqtts and [DefaultPort] otherwise.
-func (c *Config) applyDefaults() {
-	if c.Host == "" {
-		c.Host = DefaultHost
-	}
-
-	if c.Port == 0 {
-		c.Port = DefaultPort
-		if c.brokerScheme() == SchemeTLS {
-			c.Port = DefaultTLSPort
-		}
-	}
-}
-
 // brokerScheme returns the scheme the connection uses. A config read from an
 // mqtts URL uses mqtts, and any other config uses mqtt.
 //
@@ -307,6 +291,64 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
+}
+
+// prepare applies the defaults and checks the config.
+//
+// A config without a host gets [DefaultHost], and one without a port gets
+// [DefaultTLSPort] for mqtts and [DefaultPort] otherwise, as a URL without them
+// does. The checks then cover the topic, the QoS, and the port. Reading a
+// service URL and each send run it, so a config built in code reaches the
+// broker its URL would, and fails before the connection is opened or a message
+// is published.
+//
+// Returns:
+//   - error: [ErrTopicRequired] for an empty topic, [ErrInvalidTopic] for a
+//     topic an MQTT topic name cannot be. [ErrInvalidQoS], also wrapping
+//     [format.ErrInvalidEnumValue], for a QoS that is not one of its values.
+//     An error wrapping [util.ErrInvalidPort] for a port outside 1 to 65535.
+//     Otherwise nil.
+func (c *Config) prepare() error {
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = DefaultPort
+		if c.brokerScheme() == SchemeTLS {
+			c.Port = DefaultTLSPort
+		}
+	}
+
+	if c.Topic == "" {
+		return ErrTopicRequired
+	}
+
+	// MQTT forbids wildcards and the null character in the topic name of a
+	// PUBLISH packet, so a broker would reject every message to such a topic.
+	if strings.ContainsAny(c.Topic, "+#\x00") {
+		return fmt.Errorf("%w: %q must not contain +, #, or a null character", ErrInvalidTopic, c.Topic)
+	}
+
+	// A topic name is a UTF-8 string with a two-byte length prefix
+	// ([MQTT-3.3.2-1]).
+	if !utf8.ValidString(c.Topic) {
+		return fmt.Errorf("%w: %q is not valid UTF-8", ErrInvalidTopic, c.Topic)
+	}
+
+	if len(c.Topic) > maxTopicLength {
+		return fmt.Errorf("%w: %d bytes is longer than %d", ErrInvalidTopic, len(c.Topic), maxTopicLength)
+	}
+
+	if err := format.CheckEnumValue(QoSValues.Enum, int(c.QoS)); err != nil {
+		return fmt.Errorf("QoS: %w: %w", ErrInvalidQoS, err)
+	}
+
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("%w: %d must be 1 to 65535", util.ErrInvalidPort, c.Port)
+	}
+
+	return nil
 }
 
 // setURL is the internal implementation of SetURL that accepts a resolver interface.
@@ -382,52 +424,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	c.applyDefaults()
-
-	return c.validate()
-}
-
-// validate checks the topic, the QoS, and the port of a config with its
-// defaults applied. Reading a service URL and each send run it, so a config
-// built in code fails before the connection is opened or a message is
-// published.
-//
-// Returns:
-//   - error: [ErrTopicRequired] for an empty topic, [ErrInvalidTopic] for a
-//     topic an MQTT topic name cannot be. [ErrInvalidQoS], also wrapping
-//     [format.ErrInvalidEnumValue], for a QoS that is not one of its values.
-//     An error wrapping [util.ErrInvalidPort] for a port outside 1 to 65535.
-//     Otherwise nil.
-func (c *Config) validate() error {
-	if c.Topic == "" {
-		return ErrTopicRequired
-	}
-
-	// MQTT forbids wildcards and the null character in the topic name of a
-	// PUBLISH packet, so a broker would reject every message to such a topic.
-	if strings.ContainsAny(c.Topic, "+#\x00") {
-		return fmt.Errorf("%w: %q must not contain +, #, or a null character", ErrInvalidTopic, c.Topic)
-	}
-
-	// A topic name is a UTF-8 string with a two-byte length prefix
-	// ([MQTT-3.3.2-1]).
-	if !utf8.ValidString(c.Topic) {
-		return fmt.Errorf("%w: %q is not valid UTF-8", ErrInvalidTopic, c.Topic)
-	}
-
-	if len(c.Topic) > maxTopicLength {
-		return fmt.Errorf("%w: %d bytes is longer than %d", ErrInvalidTopic, len(c.Topic), maxTopicLength)
-	}
-
-	if err := format.CheckEnumValue(QoSValues.Enum, int(c.QoS)); err != nil {
-		return fmt.Errorf("QoS: %w: %w", ErrInvalidQoS, err)
-	}
-
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("%w: %d must be 1 to 65535", util.ErrInvalidPort, c.Port)
-	}
-
-	return nil
+	return c.prepare()
 }
 
 // IsValid reports whether the QoS value is one of the MQTT QoS levels.
