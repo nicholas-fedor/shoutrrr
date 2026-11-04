@@ -276,8 +276,9 @@ func setStructField(configField reflect.Value, field *FieldInfo, inputValue stri
 
 // setSliceOrArrayField sets a slice or array field from its separated items.
 //
-// An empty value clears a slice, while an array still needs one item for each
-// element.
+// A slice leaves out empty items, such as the one a trailing separator leaves,
+// so a value of only empty items clears it. An array still needs one item for
+// each element.
 //
 // Parameters:
 //   - configField: the field to set.
@@ -312,7 +313,15 @@ func setSliceOrArrayField(
 	}
 
 	values := strings.Split(inputValue, string(field.ItemSeparator))
-	if field.Type.Kind() == reflect.Array && len(values) != field.Type.Len() {
+
+	if field.Type.Kind() == reflect.Slice {
+		values = util.NonEmpty(values)
+		if len(values) == 0 {
+			configField.SetZero()
+
+			return true, nil
+		}
+	} else if len(values) != field.Type.Len() {
 		return false, fmt.Errorf("%w: needs to be %d", ErrInvalidFieldCount, field.Type.Len())
 	}
 

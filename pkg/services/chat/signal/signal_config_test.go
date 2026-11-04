@@ -50,6 +50,8 @@ func newDefaultConfig(t *testing.T) *Config {
 // TestConfigSetURL verifies that SetURL reads the host, port, and credentials
 // from the URL authority, the source and recipients from the path, and the
 // other settings from the query.
+//
+// Empty path segments name no recipient and end no group ID.
 func TestConfigSetURL(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +125,13 @@ func TestConfigSetURL(t *testing.T) {
 			rawURL: testServiceURL + "/group.AB%2F%2BCD/" + testRecipient,
 			want: defaults(func(c *Config) {
 				c.Recipients = []string{testRecipient, "group.AB/+CD", testRecipient}
+			}),
+		},
+		{
+			name:   "empty path segments",
+			rawURL: "signal://localhost:8080/" + testSource + "//" + testRecipient + "/group.ABCD//EFGH=/",
+			want: defaults(func(c *Config) {
+				c.Recipients = []string{testRecipient, "group.ABCD/EFGH="}
 			}),
 		},
 		{

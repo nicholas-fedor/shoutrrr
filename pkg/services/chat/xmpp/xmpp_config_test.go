@@ -281,12 +281,26 @@ func TestComposeMessage(t *testing.T) {
 	assert.Equal(t, "Alert", composeMessage("Alert", ""))
 }
 
-// TestCompactStrings verifies that empty entries are dropped and that a list
-// with none left becomes nil.
-func TestCompactStrings(t *testing.T) {
+// TestConfigPrepareDropsEmptyEntries verifies that prepare drops the empty
+// recipients and rooms of a config built in code, so a list with none left
+// becomes nil.
+//
+// The lists it was given stay as they were, since a send's config copy shares
+// them with the stored config.
+func TestConfigPrepareDropsEmptyEntries(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, []string{"a", "b"}, compactStrings([]string{"", "a", "", "b"}))
-	assert.Nil(t, compactStrings([]string{"", ""}))
-	assert.Nil(t, compactStrings(nil))
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com")))
+
+	to := []string{"", "bob@example.com", ""}
+	rooms := []string{"", ""}
+	config.To = to
+	config.Rooms = rooms
+
+	require.NoError(t, config.prepare())
+	assert.Equal(t, []string{"bob@example.com"}, config.To)
+	assert.Nil(t, config.Rooms)
+	assert.Equal(t, []string{"", "bob@example.com", ""}, to)
+	assert.Equal(t, []string{"", ""}, rooms)
 }

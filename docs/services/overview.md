@@ -66,3 +66,9 @@ Click on the service for a more thorough explanation.
 | [Generic Webhook](./specialized/generic/index.md) | Sends notifications directly to a webhook                    |
 | [Logger](./specialized/logger/index.md)           | Writes a notification to a configured Go `log.Logger`        |
 | [Notifiarr](./specialized/notifiarr/index.md)     | Sends notifications to Notifiarr for media server management |
+
+## Lists
+
+Settings that take a list, such as Telegram's `chats` or the recipients in a Signal or Twilio URL path, leave out empty entries.
+A trailing comma, a doubled comma, or an empty path segment adds nothing, so `chats=@alerts,` sends to `@alerts` alone.
+A list whose entries are all empty counts as left out.

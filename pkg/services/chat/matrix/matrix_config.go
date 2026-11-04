@@ -111,17 +111,21 @@ func (c *Config) loginKey() loginKey {
 	return loginKey{host: c.Host, user: c.User, password: c.Password}
 }
 
-// prepare trims each room and starts a room without a # or ! sigil with #, so
-// it names an alias. It then checks the config. Reading a service URL and
-// each send run it, so a send reaches the rooms that its URL names. A config
-// built in code also fails its checks before the login or any request. A
-// changed room goes into a new slice, so a send never writes to the rooms of
-// the config it was copied from.
+// prepare normalizes the rooms and checks the config.
+//
+// It drops the empty rooms, as reading a list setting does. It trims each other
+// room and starts a room without a # or ! sigil with #, so it names an alias.
+// Reading a service URL and each send run it, so a send reaches the rooms that
+// its URL names. A config built in code also fails its checks before the login
+// or any request. A changed room goes into a new slice, so a send never writes
+// to the rooms of the config it was copied from.
 //
 // Returns:
 //   - error: the error from the config's checks, such as
 //     [ErrMissingCredentials].
 func (c *Config) prepare() error {
+	c.Rooms = util.NonEmpty(c.Rooms)
+
 	var rooms []string
 
 	for index, room := range c.Rooms {
@@ -152,8 +156,8 @@ func (c *Config) prepare() error {
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
 	requests := minRequestsPerSend
-	if len(c.Rooms) > 0 {
-		requests = requestsPerRoom * len(c.Rooms)
+	if rooms := len(util.NonEmpty(c.Rooms)); rooms > 0 {
+		requests = requestsPerRoom * rooms
 	}
 
 	if c.User != "" {

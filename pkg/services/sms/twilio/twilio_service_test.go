@@ -365,8 +365,11 @@ func TestSendContextErrors(t *testing.T) {
 	})
 }
 
-// TestServiceTimeout verifies that the router budget is one request timeout
-// for each recipient, and at least one timeout.
+// TestServiceTimeout verifies that the router budget is one request timeout for
+// each recipient, and at least one timeout.
+//
+// Empty recipients in a config built in code do not count, since the send drops
+// them.
 func TestServiceTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -379,6 +382,7 @@ func TestServiceTimeout(t *testing.T) {
 		{name: "uninitialized service", service: &Service{}, want: 1},
 		{name: "two recipients", service: newTestService(t, testServiceURL), want: 2},
 		{name: "no recipients", service: &Service{Config: &Config{}}, want: 1},
+		{name: "empty recipients", service: &Service{Config: &Config{ToNumbers: []string{"", testTo, ""}}}, want: 1},
 	}
 
 	for _, tt := range tests {

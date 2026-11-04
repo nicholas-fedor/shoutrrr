@@ -358,7 +358,7 @@ func (s *Service) sendConfig(ctx context.Context, params *types.Params) (Config,
 
 	s.applyLevel(&config, params)
 
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return config, err
 	}
 

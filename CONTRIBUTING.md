@@ -227,6 +227,10 @@ Every service follows the same rules, so services behave alike for users and for
   A config built in code then fails before any request or dial, as a bad URL does.
 - Apply the defaults that reading a URL fills in, such as a default host, to each send's config too.
   Use one method for both, so a config built in code reaches the endpoint its URL would.
+- Drop the empty elements of each list setting from each send's config with `util.NonEmpty`, in that same method.
+  Reading a URL leaves them out, so `chats=a,` means `a` alone.
+  A config built in code must send to the same list.
+  `util.NonEmpty` never writes to the list, so a send's copy of the config cannot change the stored one.
 - Escape a config value that fills one segment of a request path, such as with `url.PathEscape` or through `url.URL`, and check it with `util.ValidatePathSegment`.
   Escaping keeps `?` and `#` in the segment, but `.` and `..` pass through it unchanged and would walk the path.
   `url.URL` also keeps a slash as a separator, so the check rejects a slash too.
@@ -312,6 +316,12 @@ Every service follows the same rules, so services behave alike for users and for
   Each request must keep the host and query keys of a send with the plain value, and must add no fragment.
   Its path must hold no `.` or `..` segment, written as is or percent-encoded.
   The path must also keep its number of segments, unless the check's list of server subpath fields names the field.
+- The `empty_list_elements` contract check puts an empty element at each position of each string-list config field.
+  The field holds its fixture value, or a sample element when the fixture leaves it empty.
+  The sample must read back, so a field that rejects the default sample needs its own in the check's list of samples.
+  A field holding only an empty element must also work as an empty field.
+  Reading the config's URL back must give the result for the list without the empty element.
+  A send must make the same requests, with the same headers and bodies, and return the same error.
 - A service that fails a check is listed in that file's allowlist with the reason.
 - When a listed service starts to pass, its check fails until the entry is removed.
 

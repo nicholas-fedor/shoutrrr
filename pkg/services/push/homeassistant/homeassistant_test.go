@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -352,14 +353,16 @@ func TestSendParamsLeaveConfigUnchanged(t *testing.T) {
 	assert.JSONEq(t, `{"message":"second"}`, captured.body)
 }
 
-// TestSendLeavesConfiguredTargetsUnchanged verifies that dropping empty
-// targets from a payload does not modify the stored targets.
+// TestSendLeavesConfiguredTargetsUnchanged verifies that a send drops the empty
+// targets of a config built in code, as reading its URL would.
+//
+// The stored targets stay as they were.
 func TestSendLeavesConfiguredTargetsUnchanged(t *testing.T) {
 	t.Parallel()
 
-	service := newTestService(t, "homeassistant://s3cret@ha.example.com?service=notify.notify&targets=,device1,,device2")
+	service := newTestService(t, "homeassistant://s3cret@ha.example.com?service=notify.notify")
 	want := []string{"", "device1", "", "device2"}
-	require.Equal(t, want, service.Config.Targets)
+	service.Config.Targets = slices.Clone(want)
 
 	client, captured := newRespondingClient(t, "200 OK", http.StatusOK, "[]")
 	service.SetHTTPClient(client)

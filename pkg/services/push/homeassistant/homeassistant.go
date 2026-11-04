@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/httpclient"
@@ -139,7 +138,7 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 		return fmt.Errorf("updating config from params: %w", err)
 	}
 
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return err
 	}
 
@@ -245,25 +244,11 @@ func buildRequest(message string, config *Config) (requestPayload, string, error
 		if config.Nid != "" {
 			payload.NotificationID = config.Nid
 		}
-	} else if targets := nonEmptyTargets(config.Targets); len(targets) > 0 {
-		payload.Targets = targets
+	} else {
+		payload.Targets = config.Targets
 	}
 
 	return payload, config.apiURL(domain, service), nil
-}
-
-// nonEmptyTargets returns the targets without empty entries, such as the one
-// an empty targets prop or a trailing comma produces.
-//
-// Parameters:
-//   - targets: The configured targets, which the result does not modify.
-//
-// Returns:
-//   - []string: A new slice with the non-empty targets in order.
-func nonEmptyTargets(targets []string) []string {
-	return slices.DeleteFunc(slices.Clone(targets), func(target string) bool {
-		return target == ""
-	})
 }
 
 // sendClient returns the client for a send. A send that skips certificate

@@ -300,6 +300,29 @@ func TestSendContext(t *testing.T) {
 	assert.Contains(t, server.message(t, 0), "Subject: Backup\n")
 }
 
+// TestSendDropsEmptyRecipients verifies that a send drops the empty recipients
+// of a config built in code, as reading its URL would, so the server gets one
+// RCPT command for the one address.
+//
+// The stored recipients stay as they were.
+func TestSendDropsEmptyRecipients(t *testing.T) {
+	t.Parallel()
+
+	server := newFakeSMTP()
+	service := newTestService(t, testServiceURL, server)
+
+	want := []string{"", "rec@example.com", ""}
+	service.Config.ToAddresses = slices.Clone(want)
+
+	require.NoError(t, service.SendContext(t.Context(), "Hello", nil))
+
+	recipients := slices.DeleteFunc(server.received(), func(line string) bool {
+		return !strings.HasPrefix(line, "RCPT")
+	})
+	assert.Equal(t, []string{testRcptTo}, recipients)
+	assert.Equal(t, want, service.Config.ToAddresses)
+}
+
 // TestSendContextErrors verifies that a send fails with [FailApplySendParams]
 // for an invalid param, and with [FailGetSMTPClient] when the dialer fails or
 // the caller's context has already ended, before any SMTP command.

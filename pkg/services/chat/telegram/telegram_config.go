@@ -123,13 +123,36 @@ func (c *Config) plaintextAPI() bool {
 	return len(c.APIURL) >= len("http:") && strings.EqualFold(c.APIURL[:len("http:")], "http:")
 }
 
+// prepare drops the empty chats, as reading a list setting does, then checks
+// the bot token, the chats, and the API URL.
+//
+// Reading a service URL and each send run it, so a config built in code sends
+// to the chats its URL would, and fails before a request as its URL would.
+//
+// Returns:
+//   - error: [ErrInvalidToken] for an invalid bot token, [ErrNoChannelsDefined]
+//     when no chats are set, or [ErrInvalidAPIURL]. Otherwise nil.
+func (c *Config) prepare() error {
+	c.Chats = util.NonEmpty(c.Chats)
+
+	if !IsTokenValid(c.Token) {
+		return ErrInvalidToken
+	}
+
+	if len(c.Chats) < 1 {
+		return ErrNoChannelsDefined
+	}
+
+	return validateAPIURL(c.APIURL)
+}
+
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
 // for a config with the send's params applied.
 //
 // Returns:
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
-	return defaultHTTPTimeout * time.Duration(max(1, len(c.Chats)))
+	return defaultHTTPTimeout * time.Duration(max(1, len(util.NonEmpty(c.Chats))))
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -166,31 +189,13 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	read := *c
 	read.Token = token
 
-	if err := read.validate(); err != nil {
+	if err := read.prepare(); err != nil {
 		return err
 	}
 
-	c.Token = token
+	*c = read
 
 	return nil
-}
-
-// validate checks the bot token, the chats, and the API URL. Reading a service
-// URL and each send run it, so a config built in code fails before a request.
-//
-// Returns:
-//   - error: [ErrInvalidToken] for an invalid bot token, [ErrNoChannelsDefined]
-//     when no chats are set, or [ErrInvalidAPIURL]. Otherwise nil.
-func (c *Config) validate() error {
-	if !IsTokenValid(c.Token) {
-		return ErrInvalidToken
-	}
-
-	if len(c.Chats) < 1 {
-		return ErrNoChannelsDefined
-	}
-
-	return validateAPIURL(c.APIURL)
 }
 
 // validateAPIURL checks that an API URL is an http or https URL with a host

@@ -78,3 +78,29 @@ func BenchmarkEllipsis(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkNonEmpty measures dropping the empty elements of a list setting, as
+// each send of a service with one does.
+//
+// Most lists hold no empty element, so that case must not allocate.
+func BenchmarkNonEmpty(b *testing.B) {
+	// lists holds three chats without an empty element, and the same chats
+	// with the one a trailing comma leaves.
+	lists := []struct {
+		name   string
+		values []string
+	}{
+		{name: "none empty", values: []string{"@alerts", "123456789", "@ops"}},
+		{name: "trailing empty", values: []string{"@alerts", "123456789", "@ops", ""}},
+	}
+
+	for _, list := range lists {
+		b.Run(list.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				_ = NonEmpty(list.values)
+			}
+		})
+	}
+}

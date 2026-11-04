@@ -237,6 +237,34 @@ func (c *Config) normalizeScheme() {
 	}
 }
 
+// prepare drops the empty tags and actions, as reading a list setting does,
+// then checks the host syntax and the topic.
+//
+// Reading a service URL and each send run it, so a config built in code sends
+// the tags and actions its URL would, and fails before a request as its URL
+// would.
+//
+// Returns:
+//   - error: a host error such as [util.ErrInvalidHost] for a host that is not
+//     a hostname or a bracketed IPv6 address. [ErrTopicRequired] for a missing
+//     topic. [ErrInvalidTopic] for an invalid topic name or an empty path
+//     segment. An error wrapping [util.ErrInvalidPathSegment] for a base path
+//     with a "." or ".." segment. Otherwise nil.
+func (c *Config) prepare() error {
+	c.Tags = util.NonEmpty(c.Tags)
+	c.Actions = util.NonEmpty(c.Actions)
+
+	if _, _, err := util.SplitURLHost(&url.URL{Host: c.Host}); err != nil {
+		return fmt.Errorf("parsing host: %w", err)
+	}
+
+	if c.Topic == "" {
+		return ErrTopicRequired
+	}
+
+	return validateTopicPath(c.Topic)
+}
+
 // serverHost returns the host requests go to. A host without a hostname, such
 // as an empty host or a port alone, uses [DefaultHost] with that port, as a
 // URL without a host does.
@@ -316,28 +344,7 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Scheme = schemeHTTPS
 	}
 
-	return c.validate()
-}
-
-// validate checks the host syntax and the topic. Reading a service URL and
-// each send run it, so a config built in code fails before a request.
-//
-// Returns:
-//   - error: a host error such as [util.ErrInvalidHost] for a host that is not
-//     a hostname or a bracketed IPv6 address. [ErrTopicRequired] for a missing
-//     topic. [ErrInvalidTopic] for an invalid topic name or an empty path
-//     segment. An error wrapping [util.ErrInvalidPathSegment] for a base path
-//     with a "." or ".." segment. Otherwise nil.
-func (c *Config) validate() error {
-	if _, _, err := util.SplitURLHost(&url.URL{Host: c.Host}); err != nil {
-		return fmt.Errorf("parsing host: %w", err)
-	}
-
-	if c.Topic == "" {
-		return ErrTopicRequired
-	}
-
-	return validateTopicPath(c.Topic)
+	return c.prepare()
 }
 
 // hasQueryKey reports whether query sets key, matched case-insensitively as

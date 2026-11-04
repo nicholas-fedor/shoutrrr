@@ -75,10 +75,6 @@ var (
 	ErrMissingEvents = errors.New("events missing from config URL")
 	// ErrMissingWebhookID indicates a config without a webhook ID.
 	ErrMissingWebhookID = errors.New("webhook ID missing from config URL")
-	// ErrEmptyEventName indicates an event list with an empty name, such as
-	// events=a, in a URL. The name is a path element of the trigger URL, so it
-	// cannot be empty.
-	ErrEmptyEventName = errors.New("event name is empty")
 )
 
 // GetURL generates a URL from the current configuration values.
@@ -120,13 +116,70 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare drops the empty event names and checks the config.
+//
+// The checks cover the value fields that the message and title are written to,
+// the events, and the webhook ID. Reading a service URL and each send run it,
+// so a config built in code triggers the events its URL would. A config built
+// in code or emptied by a param fails before a request.
+//
+// Returns:
+//   - error: the error of the first check that fails, or nil. A messagevalue
+//     outside 1 to 3 gives [ErrInvalidMessageValue]. A titlevalue above 3
+//     gives [ErrInvalidTitleValue]. Both selecting the same field gives
+//     [ErrTitleMessageConflict]. A missing field gives [ErrMissingEvents] or
+//     [ErrMissingWebhookID]. A webhook ID that a URL host cannot hold gives
+//     an error wrapping [util.ErrInvalidHost]. An event name or webhook ID
+//     that is not one segment of the trigger URL's path gives an error
+//     wrapping [util.ErrInvalidPathSegment].
+func (c *Config) prepare() error {
+	c.Events = util.NonEmpty(c.Events)
+
+	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
+		return ErrInvalidMessageValue
+	}
+
+	if c.UseTitleAsValue > MaxValueField {
+		return ErrInvalidTitleValue
+	}
+
+	if c.UseTitleAsValue != DisabledValue &&
+		c.UseTitleAsValue == c.UseMessageAsValue {
+		return ErrTitleMessageConflict
+	}
+
+	if len(c.Events) < MinLength {
+		return ErrMissingEvents
+	}
+
+	for _, event := range c.Events {
+		if err := util.ValidatePathSegment(event); err != nil {
+			return fmt.Errorf("event name: %w", err)
+		}
+	}
+
+	if len(c.WebHookID) < MinLength {
+		return ErrMissingWebhookID
+	}
+
+	if err := util.ValidateHostToken(c.WebHookID); err != nil {
+		return fmt.Errorf("webhook ID: %w", err)
+	}
+
+	if err := util.ValidatePathSegment(c.WebHookID); err != nil {
+		return fmt.Errorf("webhook ID: %w", err)
+	}
+
+	return nil
+}
+
 // sendBudget returns the send budget that [Service.ServiceTimeout] describes,
 // for a config with the send's params applied.
 //
 // Returns:
 //   - time.Duration: the budget for the send.
 func (c *Config) sendBudget() time.Duration {
-	return defaultTimeout * time.Duration(max(1, len(c.Events)))
+	return defaultTimeout * time.Duration(max(1, len(util.NonEmpty(c.Events))))
 }
 
 // setURL updates the config from a service URL and validates it.
@@ -155,62 +208,5 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.validate()
-}
-
-// validate checks the value fields that the message and title are written to,
-// the events, and the webhook ID. Reading a service URL and each send run it,
-// so a config built in code or emptied by a param fails before a request.
-//
-// Returns:
-//   - error: the error of the first check that fails, or nil. A messagevalue
-//     outside 1 to 3 gives [ErrInvalidMessageValue]. A titlevalue above 3
-//     gives [ErrInvalidTitleValue]. Both selecting the same field gives
-//     [ErrTitleMessageConflict]. A missing field gives [ErrMissingEvents] or
-//     [ErrMissingWebhookID]. An empty event name gives [ErrEmptyEventName]. A
-//     webhook ID that a URL host cannot hold gives an error wrapping
-//     [util.ErrInvalidHost]. An event name or webhook ID that is not one
-//     segment of the trigger URL's path gives an error wrapping
-//     [util.ErrInvalidPathSegment].
-func (c *Config) validate() error {
-	if c.UseMessageAsValue > MaxValueField || c.UseMessageAsValue < MinValueField {
-		return ErrInvalidMessageValue
-	}
-
-	if c.UseTitleAsValue > MaxValueField {
-		return ErrInvalidTitleValue
-	}
-
-	if c.UseTitleAsValue != DisabledValue &&
-		c.UseTitleAsValue == c.UseMessageAsValue {
-		return ErrTitleMessageConflict
-	}
-
-	if len(c.Events) < MinLength {
-		return ErrMissingEvents
-	}
-
-	for _, event := range c.Events {
-		if event == "" {
-			return ErrEmptyEventName
-		}
-
-		if err := util.ValidatePathSegment(event); err != nil {
-			return fmt.Errorf("event name: %w", err)
-		}
-	}
-
-	if len(c.WebHookID) < MinLength {
-		return ErrMissingWebhookID
-	}
-
-	if err := util.ValidateHostToken(c.WebHookID); err != nil {
-		return fmt.Errorf("webhook ID: %w", err)
-	}
-
-	if err := util.ValidatePathSegment(c.WebHookID); err != nil {
-		return fmt.Errorf("webhook ID: %w", err)
-	}
-
-	return nil
+	return c.prepare()
 }

@@ -143,11 +143,9 @@ func (s *Service) SendContext(ctx context.Context, message string, params *types
 
 	s.applyLevel(&config, params)
 
-	if err := config.validate(); err != nil {
+	if err := config.prepare(); err != nil {
 		return err
 	}
-
-	config.applyDefaults()
 
 	payload, err := newAlertPayload(message, &config)
 	if err != nil {

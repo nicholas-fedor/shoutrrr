@@ -73,6 +73,30 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 }
 
+// prepare drops the empty devices, as reading a list setting does, then checks
+// the devices and the API key that every push needs.
+//
+// Reading a service URL and each send run it, so a config built in code sends
+// to the devices its URL would. A config built in code, or one whose devices a
+// param cleared, fails before a request.
+//
+// Returns:
+//   - error: [ErrDevicesMissing] or [ErrAPIKeyMissing] for a missing field, or
+//     nil.
+func (c *Config) prepare() error {
+	c.Devices = util.NonEmpty(c.Devices)
+
+	if len(c.Devices) < 1 {
+		return ErrDevicesMissing
+	}
+
+	if len(c.APIKey) < 1 {
+		return ErrAPIKeyMissing
+	}
+
+	return nil
+}
+
 // setURL updates the Config from a URL using the provided resolver.
 //
 // Parameters:
@@ -96,24 +120,5 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.validate()
-}
-
-// validate checks the devices and the API key that every push needs. Reading
-// a service URL and each send run it, so a config built in code, or one whose
-// devices a param cleared, fails before a request.
-//
-// Returns:
-//   - error: [ErrDevicesMissing] or [ErrAPIKeyMissing] for a missing field, or
-//     nil.
-func (c *Config) validate() error {
-	if len(c.Devices) < 1 {
-		return ErrDevicesMissing
-	}
-
-	if len(c.APIKey) < 1 {
-		return ErrAPIKeyMissing
-	}
-
-	return nil
+	return c.prepare()
 }

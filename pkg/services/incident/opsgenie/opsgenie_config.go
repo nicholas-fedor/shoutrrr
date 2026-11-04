@@ -105,19 +105,6 @@ func (c *Config) SetURL(serviceURL *url.URL) error {
 	return c.setURL(&resolver, serviceURL)
 }
 
-// applyDefaults sets [DefaultHost] and port 443 when the config has no host or
-// port, as reading a URL without them does. A config built in code then
-// reaches the same API.
-func (c *Config) applyDefaults() {
-	if c.Host == "" {
-		c.Host = DefaultHost
-	}
-
-	if c.Port == 0 {
-		c.Port = defaultPort
-	}
-}
-
 // getURL constructs a URL from the Config's fields using the provided resolver.
 //
 // Parameters:
@@ -139,6 +126,31 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 	}
 
 	return result
+}
+
+// prepare normalizes the config and checks it.
+//
+// It drops the empty actions and tags, as reading a list setting does. It sets
+// [DefaultHost] and port 443 for a config without a host or port. Reading a
+// service URL and each send run it, so a config built in code reaches the API
+// and sends the actions and tags its URL would. It also fails before a request
+// as its URL would.
+//
+// Returns:
+//   - error: the error from the config's checks, such as [ErrAPIKeyMissing].
+func (c *Config) prepare() error {
+	c.Actions = util.NonEmpty(c.Actions)
+	c.Tags = util.NonEmpty(c.Tags)
+
+	if c.Host == "" {
+		c.Host = DefaultHost
+	}
+
+	if c.Port == 0 {
+		c.Port = defaultPort
+	}
+
+	return c.validate()
 }
 
 // setURL updates the Config from a URL using the provided resolver.
@@ -178,8 +190,6 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		c.Port = uint16(portNumber)
 	}
 
-	c.applyDefaults()
-
 	query, err := util.ParseURLQuery(serviceURL)
 	if err != nil {
 		return err
@@ -189,12 +199,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 		return err
 	}
 
-	return c.validate()
+	return c.prepare()
 }
 
 // validate checks that the config has the API key every alert request needs.
-// Reading a service URL and each send run it, so a config built in code fails
-// before a request.
 //
 // Returns:
 //   - error: [ErrAPIKeyMissing] for a config without an API key, or nil.
