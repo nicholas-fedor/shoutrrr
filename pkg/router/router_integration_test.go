@@ -2134,9 +2134,11 @@ func runEmptyListElements(t *testing.T, fx *fixture) failure {
 // Reading the variant's URL back must give the result of reading the
 // baseline's URL back. A send with the variant must make the same requests and
 // dials as a send with the baseline, with the same headers and bodies. It must
-// also return the same error. When the two sends differ, the baseline is sent
-// again, and a word that differs between the two baseline sends, such as a
-// random transaction ID, may hold anything in the variant send.
+// also make as many requests and dials, counting requests outside the injected
+// client and repeated dials. Its error must match too. When the two sends
+// differ, the baseline is sent again, and a word that differs between the two
+// baseline sends, such as a random transaction ID, may hold anything in the
+// variant send.
 //
 // Parameters:
 //   - t: the test.
@@ -2169,19 +2171,24 @@ func compareEmptyElement(t *testing.T, fx *fixture, baseline, variant *configVar
 		return result
 	}
 
+	sameCounts := got.requests == want.requests && got.dials == want.dials
+
 	same := fmt.Sprint(got.err) == fmt.Sprint(want.err)
-	if same && (!slices.Equal(got.sent, want.sent) || !slices.Equal(got.endpoints, want.endpoints)) {
+	if same && (!sameCounts || !slices.Equal(got.sent, want.sent) || !slices.Equal(got.endpoints, want.endpoints)) {
 		again, result := sendVariant(t, fx, baseline.config)
 		if result.kind != failNone {
 			return result
 		}
 
-		same = matchAll(t, got.sent, want.sent, again.sent) && matchAll(t, got.endpoints, want.endpoints, again.endpoints)
+		same = sameCounts && matchAll(t, got.sent, want.sent, again.sent) &&
+			matchAll(t, got.endpoints, want.endpoints, again.endpoints)
 	}
 
 	if !same {
-		return fail(failEmptyElementKept, "a send with %s made %q to %q and returned %v, but %s made %q to %q and %v",
-			variant.name, got.sent, got.endpoints, got.err, baseline.name, want.sent, want.endpoints, want.err)
+		return fail(failEmptyElementKept,
+			"a send with %s made %q to %q (%d requests, %d dials) and returned %v, but %s made %q to %q (%d requests, %d dials) and %v",
+			variant.name, got.sent, got.endpoints, got.requests, got.dials, got.err,
+			baseline.name, want.sent, want.endpoints, want.requests, want.dials, want.err)
 	}
 
 	return failure{}
