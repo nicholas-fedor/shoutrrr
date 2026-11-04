@@ -5,7 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 )
+
+// otherEnumFormatter wraps a formatter as an implementation of
+// [types.EnumFormatter] other than the one this package creates.
+type otherEnumFormatter struct {
+	types.EnumFormatter
+}
 
 // TestCreateEnumFormatter verifies that leading empty names are left out of
 // the listed names but keep their indexes.
@@ -77,4 +85,74 @@ func TestEnumFormatterPrint(t *testing.T) {
 	assert.Equal(t, "Bar", testEnum.Print(2))
 	assert.Equal(t, "Invalid", testEnum.Print(3))
 	assert.Equal(t, "Invalid", testEnum.Print(EnumInvalid))
+}
+
+// TestCheckEnumValue verifies that a value passes when a URL can hold it and
+// fails with ErrInvalidEnumValue otherwise.
+//
+// A URL holds a value as its name, so a value with a name passes. Value 0 also
+// passes for an enum whose names start empty, since an empty value reads back
+// as 0. A negative value fails, and so does one past the last name or one whose
+// name is empty. So does a value past the last name of an enum with a name of
+// Invalid, which Print returns for it, and a name that an earlier name matches
+// in any case. Each case runs with the formatter this package creates and with
+// another implementation of the formatter interface, which is judged by parsing
+// the names it prints.
+func TestCheckEnumValue(t *testing.T) {
+	t.Parallel()
+
+	// leadingEmpty has no name for 0 or 1, as an enum whose values start at 2.
+	leadingEmpty := CreateEnumFormatter([]string{"", "", "Low", "High"})
+	// invalidNamed has a name of Invalid, which Print also returns past the
+	// last value. That value prints a listed name but reads back as 0.
+	invalidNamed := CreateEnumFormatter([]string{"Invalid", "Valid"})
+	// caseTwins has two names that match in any case, so the second reads
+	// back as the first.
+	caseTwins := CreateEnumFormatter([]string{"Low", "LOW", "High"})
+
+	// tests lists formatters and values with whether each should pass.
+	tests := []struct {
+		formatter types.EnumFormatter
+		name      string
+		value     int
+		valid     bool
+	}{
+		{name: "first name", formatter: testEnum, value: 0, valid: true},
+		{name: "last name", formatter: testEnum, value: 2, valid: true},
+		{name: "past the last name", formatter: testEnum, value: 3},
+		{name: "negative", formatter: testEnum, value: EnumInvalid},
+		{name: "zero without a name", formatter: leadingEmpty, value: 0, valid: true},
+		{name: "empty name past zero", formatter: leadingEmpty, value: 1},
+		{name: "name after empty names", formatter: leadingEmpty, value: 3, valid: true},
+		{name: "name of Invalid", formatter: invalidNamed, value: 0, valid: true},
+		{name: "past a name of Invalid", formatter: invalidNamed, value: 2},
+		{name: "first of names matching in any case", formatter: caseTwins, value: 0, valid: true},
+		{name: "later of names matching in any case", formatter: caseTwins, value: 1},
+		{name: "name after names matching in any case", formatter: caseTwins, value: 2, valid: true},
+	}
+
+	for _, tt := range tests {
+		// formatters holds the formatter itself and the same enum behind
+		// another implementation of the interface.
+		formatters := map[string]types.EnumFormatter{
+			"created": tt.formatter,
+			"other":   otherEnumFormatter{EnumFormatter: tt.formatter},
+		}
+
+		for kind, formatter := range formatters {
+			t.Run(tt.name+"/"+kind, func(t *testing.T) {
+				t.Parallel()
+
+				err := CheckEnumValue(formatter, tt.value)
+				if tt.valid {
+					require.NoError(t, err)
+
+					return
+				}
+
+				require.ErrorIs(t, err, ErrInvalidEnumValue)
+				assert.Contains(t, err.Error(), "accepted values are")
+			})
+		}
+	}
 }

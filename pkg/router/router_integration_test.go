@@ -363,6 +363,12 @@ var subpathFields = map[string][]string{
 	"ntfy":          {"Topic"},
 }
 
+// undefinedEnumValues are values that no enum of a service defines, which the
+// checked_config check gives each enum field in turn.
+//
+// One lies below every enum and one past the last value of each.
+var undefinedEnumValues = []int64{-1, 99}
+
 // listSamples gives, by scheme and field, the element the empty_list_elements
 // check gives a string-list field that the fixture leaves empty and that does
 // not accept [sampleText].
@@ -1755,6 +1761,7 @@ func runUnknownParams(t *testing.T, fx *fixture) failure {
 // reading a service URL checks it. It sends with the zero value of the
 // service's config type, as a caller building one in code would leave it. It
 // then sends with the fixture's config with each set field cleared in turn.
+// Last come copies of that config with an enum field outside its enum.
 // When reading such a config's own URL back fails, the send must fail too. It
 // must fail without a panic and before any request or dial. The check skips a
 // service without an exported Config field.
@@ -1789,8 +1796,7 @@ func runCheckedConfig(t *testing.T, fx *fixture) failure {
 }
 
 // runSendLikeReadBack verifies that a send treats a config as reading its own
-// URL would. It uses the same configs as the checked_config check. They are the
-// zero config and the fixture's config with each set field cleared in turn.
+// URL would. It uses the same configs as the checked_config check.
 // When reading such a config's URL back succeeds, a send with the config must
 // make requests and dials to the same endpoints as a send with the config read
 // back. A default that reading a URL applies, such as a host or port, then
@@ -2659,8 +2665,11 @@ func configField(service types.Service) (reflect.Value, bool) {
 
 // configVariants returns the configs that the checked_config and
 // send_like_read_back checks send with, each with the result of reading its
-// own URL back. They are the zero config of the service's config type and the
-// fixture's config with each set exported field cleared in turn.
+// own URL back.
+//
+// They are the zero config of the service's config type and the fixture's
+// config with each set exported field cleared in turn. Then come the fixture's
+// config with each enum field set to each of [undefinedEnumValues].
 //
 // Parameters:
 //   - t: the test.
@@ -2703,6 +2712,8 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 		variants = append(variants, configVariant{config: cleared, name: "the fixture's config without " + structField.Name})
 	}
 
+	variants = append(variants, enumVariants(t, fixtureConfig)...)
+
 	for i := range variants {
 		if result := variants[i].readOwnURL(t); result.kind != failNone {
 			return nil, result
@@ -2710,6 +2721,37 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 	}
 
 	return variants, failure{}
+}
+
+// enumVariants returns copies of a config with each enum field set to each of
+// [undefinedEnumValues], in field name order.
+//
+// Parameters:
+//   - t: the test.
+//   - config: the config to copy.
+//
+// Returns:
+//   - []configVariant: the variants, not yet read back.
+func enumVariants(t *testing.T, config types.ServiceConfig) []configVariant {
+	t.Helper()
+
+	enums := config.Enums()
+	variants := make([]configVariant, 0, len(enums)*len(undefinedEnumValues))
+
+	for _, name := range slices.Sorted(maps.Keys(enums)) {
+		for _, undefined := range undefinedEnumValues {
+			// The format package reads only int fields as enums.
+			changed := cloneConfig(t, config)
+			reflect.ValueOf(changed).Elem().FieldByName(name).SetInt(undefined)
+
+			variants = append(variants, configVariant{
+				config: changed,
+				name:   fmt.Sprintf("the fixture's config with %s set to %d", name, undefined),
+			})
+		}
+	}
+
+	return variants
 }
 
 // sendVariant sends through a newly located fixture service whose config is

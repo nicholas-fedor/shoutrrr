@@ -477,10 +477,13 @@ func TestSendLeavesConfigUnchanged(t *testing.T) {
 }
 
 // TestSendErrors verifies that a send rejects invalid params before any
-// request. They include recipients that are not phone numbers, group IDs, or
-// usernames. A config without a source or recipients fails the same way, as do
-// params without recipients. So does a port param outside 1 to 65535. The test
-// also covers error statuses and transport errors.
+// request.
+//
+// They include recipients that are not phone numbers, group IDs, or usernames.
+// A config without a source or recipients fails the same way, as do params
+// without recipients. So does a port param outside 1 to 65535, and a config
+// built in code whose text mode is not one of its values. The test also covers
+// error statuses and transport errors.
 func TestSendErrors(t *testing.T) {
 	t.Parallel()
 
@@ -507,6 +510,11 @@ func TestSendErrors(t *testing.T) {
 			name:    "no source",
 			config:  &Config{Host: "localhost", Port: 8080, Recipients: []string{testRecipient}},
 			wantErr: ErrInvalidPhoneNumber,
+		},
+		{
+			name:    "undefined text mode",
+			config:  &Config{Host: "localhost", Port: 8080, Source: testSource, Recipients: []string{testRecipient}, TextMode: 99},
+			wantErr: format.ErrInvalidEnumValue,
 		},
 	}
 

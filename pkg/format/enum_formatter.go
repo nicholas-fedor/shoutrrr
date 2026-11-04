@@ -1,6 +1,7 @@
 package format
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -65,6 +66,49 @@ func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.Enu
 	}
 }
 
+// CheckEnumValue checks that a value belongs to an enum, so a service URL can
+// hold it.
+//
+// A URL holds an enum value as its name, and reading the URL parses the name
+// back. A value counts when its name parses back to the same value. That
+// includes 0 with an empty name, since reading an empty value gives 0. Reading
+// any other value's URL fails or gives another value, so a service checks the
+// enum fields of a config built in code with it before a send.
+//
+// Parameters:
+//   - formatter: the enum's formatter.
+//   - value: the value to check.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidEnumValue] that lists the accepted
+//     names, or nil for a value of the enum.
+func CheckEnumValue(formatter types.EnumFormatter, value int) error {
+	// The formatter this package creates answers by index, without the
+	// allocation and scan of a parse. Another formatter parses its printed
+	// name, as reading a URL does.
+	if enum, ok := formatter.(*EnumFormatter); ok {
+		if enum.defines(value) {
+			return nil
+		}
+	} else if value != EnumInvalid && formatter.Parse(formatter.Print(value)) == value {
+		return nil
+	}
+
+	return fmt.Errorf("value %d: %w", value, invalidEnumValue(formatter))
+}
+
+// invalidEnumValue returns the error for a value outside an enum, which lists
+// the enum's names.
+//
+// Parameters:
+//   - formatter: the enum's formatter.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidEnumValue].
+func invalidEnumValue(formatter types.EnumFormatter) error {
+	return fmt.Errorf("%w: accepted values are %v", ErrInvalidEnumValue, formatter.Names())
+}
+
 // Names is the list of the valid Enum string values.
 func (ef EnumFormatter) Names() []string {
 	return ef.names[ef.firstOffset:]
@@ -105,4 +149,36 @@ func (ef EnumFormatter) Print(e int) string {
 	}
 
 	return ef.names[e]
+}
+
+// defines reports whether the enum has a value whose name parses back to it,
+// as [CheckEnumValue] describes.
+//
+// That is 0 with an empty name, or a value whose name no earlier name matches
+// in any case.
+//
+// Parameters:
+//   - value: the value to check.
+//
+// Returns:
+//   - bool: whether the enum has the value.
+func (ef EnumFormatter) defines(value int) bool {
+	if value < 0 || value >= len(ef.names) {
+		return false
+	}
+
+	name := ef.names[value]
+	if name == "" {
+		return value == 0
+	}
+
+	// Parse returns the first name that matches in any case, so a later name
+	// that matches an earlier one reads back as the earlier value.
+	for _, earlier := range ef.names[:value] {
+		if strings.EqualFold(earlier, name) {
+			return false
+		}
+	}
+
+	return true
 }

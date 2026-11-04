@@ -394,8 +394,10 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 //
 // Returns:
 //   - error: [ErrTopicRequired] for an empty topic, [ErrInvalidTopic] for a
-//     topic an MQTT topic name cannot be, [ErrInvalidQoS], an error wrapping
-//     [util.ErrInvalidPort] for a port outside 1 to 65535, or nil.
+//     topic an MQTT topic name cannot be. [ErrInvalidQoS], also wrapping
+//     [format.ErrInvalidEnumValue], for a QoS that is not one of its values.
+//     An error wrapping [util.ErrInvalidPort] for a port outside 1 to 65535.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	if c.Topic == "" {
 		return ErrTopicRequired
@@ -417,9 +419,8 @@ func (c *Config) validate() error {
 		return fmt.Errorf("%w: %d bytes is longer than %d", ErrInvalidTopic, len(c.Topic), maxTopicLength)
 	}
 
-	// Validate QoS value is within MQTT protocol range (0-2)
-	if !c.QoS.IsValid() {
-		return fmt.Errorf("validating QoS value %d: %w", c.QoS, ErrInvalidQoS)
+	if err := format.CheckEnumValue(QoSValues.Enum, int(c.QoS)); err != nil {
+		return fmt.Errorf("QoS: %w: %w", ErrInvalidQoS, err)
 	}
 
 	if c.Port < 1 || c.Port > 65535 {
@@ -429,15 +430,17 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// IsValid reports whether the QoS value is within the valid MQTT range.
-// MQTT protocol only supports QoS levels 0 (at most once), 1 (at least once),
-// and 2 (exactly once). Any value outside this range is invalid.
+// IsValid reports whether the QoS value is one of the MQTT QoS levels.
+//
+// MQTT supports QoS levels 0 (at most once), 1 (at least once), and 2 (exactly
+// once), the values [QoSValues] names. Any other value is invalid, and reading
+// a service URL rejects it.
 //
 // Returns:
 //   - bool: true if q is between QoSAtMostOnce (0) and QoSExactlyOnce (2)
 //     inclusive.
 func (q QoS) IsValid() bool {
-	return q >= QoSAtMostOnce && q <= QoSExactlyOnce
+	return format.CheckEnumValue(QoSValues.Enum, int(q)) == nil
 }
 
 // String returns the human-readable name of the QoS level.

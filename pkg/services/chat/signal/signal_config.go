@@ -303,14 +303,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks the port, the source, and the recipients that every message
-// needs. Reading a service URL and each send run it, so a config built in code,
-// or one whose port or recipients a param changed, fails before a request.
+// needs, and the text mode.
+//
+// Reading a service URL and each send run it, so a config built in code, or
+// one whose port or recipients a param changed, fails before a request.
 //
 // Returns:
 //   - error: [util.ErrInvalidPort] for a port outside 1 to 65535, or
-//     [ErrInvalidPhoneNumber] for an invalid source. Otherwise
-//     [ErrNoRecipients] or [ErrInvalidRecipient] for missing or invalid
-//     recipients, or nil.
+//     [ErrInvalidPhoneNumber] for an invalid source. [ErrNoRecipients] or
+//     [ErrInvalidRecipient] for missing or invalid recipients. An error
+//     wrapping [format.ErrInvalidEnumValue] for a text mode that is not one
+//     of its values. Otherwise nil.
 func (c *Config) validate() error {
 	if c.Port < 1 || c.Port > maxPort {
 		return fmt.Errorf("%w: %d", util.ErrInvalidPort, c.Port)
@@ -322,6 +325,10 @@ func (c *Config) validate() error {
 
 	if len(c.Recipients) == 0 {
 		return ErrNoRecipients
+	}
+
+	if err := format.CheckEnumValue(TextModes.Enum, int(c.TextMode)); err != nil {
+		return fmt.Errorf("text mode: %w", err)
 	}
 
 	return validateRecipients(c.Recipients)

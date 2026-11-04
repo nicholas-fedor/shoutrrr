@@ -225,6 +225,7 @@ Every service follows the same rules, so services behave alike for users and for
 - Apply a send's params once, at the start of the send, and use that config for every request and branch of the send.
 - Check a send's config after applying its params, with the same checks that reading a service URL runs.
   A config built in code then fails before any request or dial, as a bad URL does.
+  Check each enum field with `format.CheckEnumValue`, because reading a URL rejects a value outside the enum.
 - Apply the defaults that reading a URL fills in, such as a default host, to each send's config too.
   Use one method for both, so a config built in code reaches the endpoint its URL would.
 - Drop the empty elements of each list setting from each send's config with `util.NonEmpty`, in that same method.
@@ -306,6 +307,7 @@ Every service follows the same rules, so services behave alike for users and for
   Payload params that a service names, such as Mattermost's `username`, are not unknown, so the check leaves them alone.
   Generic and the logger are listed as exceptions, because their params fill a webhook body and a message template.
 - The `checked_config` contract check sends with the zero config, and with the fixture's config with each set field cleared in turn.
+  It also sends with the fixture's config with each enum field set to a value outside its enum.
   When reading such a config's own URL fails, a service passes only if the send returns an error before any request or dial.
 - The `send_like_read_back` contract check sends with the same configs when their URLs read back.
   A service passes when the send reaches the same endpoints as a send with the config read back from its URL.

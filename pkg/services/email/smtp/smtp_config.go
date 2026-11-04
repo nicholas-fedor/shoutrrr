@@ -342,14 +342,17 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks that the config has a server host, a sender, and a
-// recipient. No address may hold a CR or LF, which would break the SMTP
-// commands and headers. It also checks that the OAuth2 refresh settings are
-// complete.
+// recipient.
+//
+// No address may hold a CR or LF, which would break the SMTP commands and
+// headers. The authentication and encryption methods must be defined ones. It
+// also checks that the OAuth2 refresh settings are complete.
 //
 // Returns:
 //   - error: [ErrHostMissing], [ErrFromAddressMissing], [ErrToAddressMissing],
-//     an error for an address with a line break, [ErrInvalidOAuth2Refresh] for
-//     invalid refresh settings, or nil.
+//     an error for an address with a line break, an error wrapping
+//     [format.ErrInvalidEnumValue] for an undefined method,
+//     [ErrInvalidOAuth2Refresh] for invalid refresh settings, or nil.
 func (c *Config) validate() error {
 	// An SMTP server has no default host.
 	if c.Host == "" {
@@ -372,6 +375,14 @@ func (c *Config) validate() error {
 		if strings.ContainsAny(address, "\r\n") {
 			return fmt.Errorf("recipient: %w", errHeaderBreak)
 		}
+	}
+
+	if err := format.CheckEnumValue(AuthTypes.Enum, int(c.Auth)); err != nil {
+		return fmt.Errorf("auth: %w", err)
+	}
+
+	if err := format.CheckEnumValue(EncMethods.Enum, int(c.Encryption)); err != nil {
+		return fmt.Errorf("encryption: %w", err)
 	}
 
 	return validateOAuth2Refresh(c)

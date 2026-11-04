@@ -381,11 +381,7 @@ func setSliceOrArrayValues(
 func setEnumField(configField reflect.Value, field *FieldInfo, inputValue string) (bool, error) {
 	value := field.EnumFormatter.Parse(inputValue)
 	if value == EnumInvalid {
-		return false, fmt.Errorf(
-			"%w: accepted values are %v",
-			ErrInvalidEnumValue,
-			field.EnumFormatter.Names(),
-		)
+		return false, invalidEnumValue(field.EnumFormatter)
 	}
 
 	configField.SetInt(int64(value))

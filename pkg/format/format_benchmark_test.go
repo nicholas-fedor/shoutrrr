@@ -106,3 +106,32 @@ func benchConfig(b *testing.B) *ntfy.Config {
 
 	return config
 }
+
+// BenchmarkCheckEnumValue measures checking an enum field of a config, as
+// each send of a service with one does.
+//
+// A defined value must not allocate.
+func BenchmarkCheckEnumValue(b *testing.B) {
+	// modes is an enum with three names, as Signal's text modes have.
+	modes := format.CreateEnumFormatter([]string{"None", "Normal", "Styled"})
+
+	// values lists the first and last values of the enum, and one past its last.
+	values := []struct {
+		name  string
+		value int
+	}{
+		{name: "first", value: 0},
+		{name: "last", value: 2},
+		{name: "undefined", value: 3},
+	}
+
+	for _, value := range values {
+		b.Run(value.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for b.Loop() {
+				_ = format.CheckEnumValue(modes, value.value)
+			}
+		})
+	}
+}

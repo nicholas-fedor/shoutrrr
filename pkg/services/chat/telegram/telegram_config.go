@@ -124,14 +124,16 @@ func (c *Config) plaintextAPI() bool {
 }
 
 // prepare drops the empty chats, as reading a list setting does, then checks
-// the bot token, the chats, and the API URL.
+// the bot token, the chats, the parse mode, and the API URL.
 //
 // Reading a service URL and each send run it, so a config built in code sends
 // to the chats its URL would, and fails before a request as its URL would.
 //
 // Returns:
 //   - error: [ErrInvalidToken] for an invalid bot token, [ErrNoChannelsDefined]
-//     when no chats are set, or [ErrInvalidAPIURL]. Otherwise nil.
+//     when no chats are set, an error wrapping [format.ErrInvalidEnumValue]
+//     for a parse mode that is not one of its values, or [ErrInvalidAPIURL].
+//     Otherwise nil.
 func (c *Config) prepare() error {
 	c.Chats = util.NonEmpty(c.Chats)
 
@@ -141,6 +143,10 @@ func (c *Config) prepare() error {
 
 	if len(c.Chats) < 1 {
 		return ErrNoChannelsDefined
+	}
+
+	if err := format.CheckEnumValue(ParseModes.Enum, int(c.ParseMode)); err != nil {
+		return fmt.Errorf("parse mode: %w", err)
 	}
 
 	return validateAPIURL(c.APIURL)

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	typesmocks "github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
 	"github.com/nicholas-fedor/shoutrrr/pkg/util/jsonclient"
@@ -318,8 +319,10 @@ func TestSendUsesChatsFromParams(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks its config after applying
-// its params, as reading a service URL does. An invalid config then fails
-// before any request.
+// its params, as reading a service URL does.
+//
+// An invalid config then fails before any request, an undefined parse mode
+// included.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -335,6 +338,7 @@ func TestSendChecksConfig(t *testing.T) {
 		{name: "no chats", change: func(config *Config) { config.Chats = nil }, wantErr: ErrNoChannelsDefined},
 		{name: "chats cleared by a param", params: &types.Params{"chats": ""}, wantErr: ErrNoChannelsDefined},
 		{name: "invalid API URL", change: func(config *Config) { config.APIURL = "ftp://bot.example" }, wantErr: ErrInvalidAPIURL},
+		{name: "undefined parse mode", change: func(config *Config) { config.ParseMode = 99 }, wantErr: format.ErrInvalidEnumValue},
 	}
 
 	for _, tt := range tests {
