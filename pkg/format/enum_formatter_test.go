@@ -94,10 +94,12 @@ func TestEnumFormatterPrint(t *testing.T) {
 // passes for an enum whose names start empty, since an empty value reads back
 // as 0. A negative value fails, and so does one past the last name or one whose
 // name is empty. So does a value past the last name of an enum with a name of
-// Invalid, which Print returns for it, and a name that an earlier name matches
-// in any case. Each case runs with the formatter this package creates and with
-// another implementation of the formatter interface, which is judged by parsing
-// the names it prints.
+// Invalid, which Print returns for it. A name fails when an earlier name
+// matches it in any case, or when it does not parse back at all.
+//
+// Each case runs with the formatter this package creates and with another
+// implementation of the formatter interface, which is judged by parsing the
+// names it prints.
 func TestCheckEnumValue(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +111,9 @@ func TestCheckEnumValue(t *testing.T) {
 	// caseTwins has two names that match in any case, so the second reads
 	// back as the first.
 	caseTwins := CreateEnumFormatter([]string{"Low", "LOW", "High"})
+	// dottedCapital has a name that does not parse back, because lowercasing
+	// İ gives i and a combining dot, which no longer matches it in any case.
+	dottedCapital := CreateEnumFormatter([]string{"İ", "Plain"})
 
 	// tests lists formatters and values with whether each should pass.
 	tests := []struct {
@@ -129,6 +134,8 @@ func TestCheckEnumValue(t *testing.T) {
 		{name: "first of names matching in any case", formatter: caseTwins, value: 0, valid: true},
 		{name: "later of names matching in any case", formatter: caseTwins, value: 1},
 		{name: "name after names matching in any case", formatter: caseTwins, value: 2, valid: true},
+		{name: "name that does not parse back", formatter: dottedCapital, value: 0},
+		{name: "name after one that does not parse back", formatter: dottedCapital, value: 1, valid: true},
 	}
 
 	for _, tt := range tests {

@@ -15,7 +15,10 @@ type EnumFormatter struct {
 	// foldedAliases maps each lowercased alias to its value.
 	foldedAliases map[string]int
 	names         []string
-	firstOffset   int
+	// defined holds, by value, whether the value's name parses back to it, or
+	// the value is 0 with an empty name.
+	defined     []bool
+	firstOffset int
 }
 
 // EnumInvalid is the constant value that an enum gets assigned when it could not be parsed.
@@ -58,12 +61,20 @@ func CreateEnumFormatter(names []string, optAliases ...map[string]int) types.Enu
 		}
 	}
 
-	return &EnumFormatter{
+	enum := &EnumFormatter{
 		names:         names,
+		defined:       make([]bool, len(names)),
 		firstOffset:   firstOffset,
 		aliases:       aliases,
 		foldedAliases: foldedAliases,
 	}
+
+	// Each name is parsed once here, so a check of a value needs no parse.
+	for value, name := range names {
+		enum.defined[value] = name == "" && value == 0 || name != "" && enum.Parse(name) == value
+	}
+
+	return enum
 }
 
 // CheckEnumValue checks that a value belongs to an enum, so a service URL can
@@ -154,31 +165,11 @@ func (ef EnumFormatter) Print(e int) string {
 // defines reports whether the enum has a value whose name parses back to it,
 // as [CheckEnumValue] describes.
 //
-// That is 0 with an empty name, or a value whose name no earlier name matches
-// in any case.
-//
 // Parameters:
 //   - value: the value to check.
 //
 // Returns:
 //   - bool: whether the enum has the value.
 func (ef EnumFormatter) defines(value int) bool {
-	if value < 0 || value >= len(ef.names) {
-		return false
-	}
-
-	name := ef.names[value]
-	if name == "" {
-		return value == 0
-	}
-
-	// Parse returns the first name that matches in any case, so a later name
-	// that matches an earlier one reads back as the earlier value.
-	for _, earlier := range ef.names[:value] {
-		if strings.EqualFold(earlier, name) {
-			return false
-		}
-	}
-
-	return true
+	return value >= 0 && value < len(ef.defined) && ef.defined[value]
 }
