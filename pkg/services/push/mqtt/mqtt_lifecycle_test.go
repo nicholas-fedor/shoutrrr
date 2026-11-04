@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // fakeConnection is a connection manager whose lifetime ends with its context or
@@ -272,9 +273,12 @@ func TestSendParamsDoNotChangeConfig(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does. An invalid config fails before a connection is opened,
-// and fails before a publish on a connection an earlier send opened. A config
-// without a host or port connects to the defaults a URL without them uses.
+// reading a URL does.
+//
+// An invalid config fails before a connection is opened, a host that holds a
+// port included. It also fails before a publish on a connection an earlier
+// send opened. A config without a host or port connects to the defaults a URL
+// without them uses.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -287,6 +291,19 @@ func TestSendChecksConfig(t *testing.T) {
 			*service.Config = Config{}
 
 			require.ErrorIs(t, service.Send("message", nil), ErrTopicRequired)
+			assert.Empty(t, connector.created())
+		})
+	})
+
+	t.Run("host with a port", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			connector := &fakeConnector{}
+			service := newLifecycleService(t, connector)
+			service.Config.Host = "broker.example.com:1883"
+
+			require.ErrorIs(t, service.Send("message", nil), util.ErrInvalidHost)
 			assert.Empty(t, connector.created())
 		})
 	})

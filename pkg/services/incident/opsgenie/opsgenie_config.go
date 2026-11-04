@@ -185,13 +185,20 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 	return c.prepare()
 }
 
-// validate checks that the config has the API key every alert request needs.
+// validate checks that the config has the API key every alert request needs,
+// and a host without a port.
 //
 // Returns:
-//   - error: [ErrAPIKeyMissing] for a config without an API key, or nil.
+//   - error: [ErrAPIKeyMissing] for a config without an API key. An error
+//     wrapping [util.ErrInvalidHost] for a host that holds a port or brackets.
+//     Otherwise nil.
 func (c *Config) validate() error {
 	if c.APIKey == "" {
 		return ErrAPIKeyMissing
+	}
+
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
 	}
 
 	return nil

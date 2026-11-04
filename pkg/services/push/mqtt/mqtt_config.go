@@ -291,15 +291,17 @@ func (c *Config) getURL(resolver types.ConfigQueryResolver) *url.URL {
 //
 // A config without a host gets [DefaultHost], and one without a port gets
 // [DefaultTLSPort] for mqtts and [DefaultPort] otherwise, as a URL without them
-// does. The checks then cover the topic, the QoS, and the port. Reading a
-// service URL and each send run it, so a config built in code reaches the
-// broker its URL would, and fails before the connection is opened or a message
-// is published.
+// does. The checks then cover the host, the topic, the QoS, and the port.
+// Reading a service URL and each send run it, so a config built in code
+// reaches the broker its URL would, and fails before the connection is opened
+// or a message is published.
 //
 // Returns:
-//   - error: [ErrTopicRequired] for an empty topic, [ErrInvalidTopic] for a
-//     topic an MQTT topic name cannot be. [ErrInvalidQoS], also wrapping
-//     [format.ErrInvalidEnumValue], for a QoS that is not one of its values.
+//   - error: an error wrapping [util.ErrInvalidHost] for a host that holds a
+//     port or brackets. [ErrTopicRequired] for an empty topic, and
+//     [ErrInvalidTopic] for a topic an MQTT topic name cannot be.
+//     [ErrInvalidQoS], also wrapping [format.ErrInvalidEnumValue], for a QoS
+//     that is not one of its values.
 //     An error wrapping [util.ErrInvalidPort] for a port outside 1 to 65535.
 //     Otherwise nil.
 func (c *Config) prepare() error {
@@ -312,6 +314,10 @@ func (c *Config) prepare() error {
 		if c.brokerScheme() == SchemeTLS {
 			c.Port = DefaultTLSPort
 		}
+	}
+
+	if err := util.ValidateHostName(c.Host); err != nil {
+		return fmt.Errorf("host: %w", err)
 	}
 
 	if c.Topic == "" {

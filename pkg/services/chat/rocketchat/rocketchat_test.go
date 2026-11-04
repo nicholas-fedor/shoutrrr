@@ -314,9 +314,7 @@ func TestSendErrors(t *testing.T) {
 		service.SetHTTPClient(client)
 
 		err := service.Send("test message", nil)
-		_, ok := errors.AsType[*url.Error](err)
-		require.True(t, ok, "expected a *url.Error, got %v", err)
-		assert.True(t, strings.HasPrefix(err.Error(), "creating request: "), err.Error())
+		require.ErrorIs(t, err, util.ErrInvalidHost)
 	})
 }
 
@@ -410,8 +408,9 @@ func TestSendUnknownParam(t *testing.T) {
 // reading a URL does.
 //
 // A config without a host, an integration ID, or a token fails before any
-// request. So does a port outside 1 to 65535. An integration ID or token that
-// is not one path segment fails too, as does a channel with a slash.
+// request. So does a host that holds a port, and a port outside 1 to 65535. An
+// integration ID or token that is not one path segment fails too, as does a
+// channel with a slash.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -423,6 +422,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
 		{name: "port out of range", change: func(config *Config) { config.Port = "99999" }, wantErr: util.ErrInvalidPort},
+		{name: "host with a port", change: func(config *Config) { config.Host = "chat.example.com:3000" }, wantErr: util.ErrInvalidHost},
 		{name: "port 0", change: func(config *Config) { config.Port = "0" }, wantErr: util.ErrInvalidPort},
 		{name: "no integration ID", change: func(config *Config) { config.TokenA = "" }, wantErr: ErrNotEnoughArguments},
 		{name: "no token", change: func(config *Config) { config.TokenB = "" }, wantErr: ErrNotEnoughArguments},
@@ -688,9 +688,9 @@ func TestBuildURL(t *testing.T) {
 	}
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
-// unparsable fails the send without either token in the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without either token in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, nil)
@@ -702,8 +702,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETtokenA")
 	assert.NotContains(t, err.Error(), "SECRETtokenB")
 }

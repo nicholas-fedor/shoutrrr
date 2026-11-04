@@ -117,15 +117,18 @@ func (c *Config) setURL(_ types.ConfigQueryResolver, serviceURL *url.URL) error 
 	return c.validate()
 }
 
-// validate checks that the config names a webhook. A Google Chat webhook URL
-// always carries a space path, a key, and a token. Reading a service URL and
-// each send run this check, so a config built in code fails before a request.
+// validate checks that the config names a webhook.
+//
+// A Google Chat webhook URL always carries a space path, a key, and a token.
+// Reading a service URL and each send run this check, so a config built in code
+// fails before a request.
 //
 // Returns:
 //   - error: [ErrMissingKey] or [ErrMissingToken] for an empty key or token.
-//     [ErrMissingPath] for a path without a segment. An error wrapping
-//     [util.ErrInvalidPathSegment] for a path with a "." or ".." segment.
-//     Otherwise nil.
+//     An error wrapping [util.ErrInvalidHost] or [util.ErrInvalidPort] for a
+//     host that a URL cannot hold, such as a port alone. [ErrMissingPath] for
+//     a path without a segment. An error wrapping [util.ErrInvalidPathSegment]
+//     for a path with a "." or ".." segment. Otherwise nil.
 func (c *Config) validate() error {
 	if c.Key == "" {
 		return ErrMissingKey
@@ -133,6 +136,17 @@ func (c *Config) validate() error {
 
 	if c.Token == "" {
 		return ErrMissingToken
+	}
+
+	// A config without a host uses the default host, but a port alone names
+	// no host.
+	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" && c.Host != "" {
+		return fmt.Errorf("host: %w", util.ErrInvalidHost)
 	}
 
 	if strings.Trim(c.Path, "/") == "" {

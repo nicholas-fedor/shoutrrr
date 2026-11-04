@@ -18,6 +18,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/format"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // capturedRequest records the parts of a request that an HTTP client received.
@@ -506,6 +507,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "no integration key", change: func(config *Config) { config.IntegrationKey = "" }, wantErr: errMissingIntegrationKey},
 		{name: "short integration key", change: func(config *Config) { config.IntegrationKey = "abc" }, wantErr: errInvalidIntegrationKey},
+		{name: "host with a port", change: func(config *Config) { config.Host = "events.pagerduty.com:443" }, wantErr: util.ErrInvalidHost},
 		{name: "no severity", change: func(config *Config) { config.Severity = "" }, wantErr: errInvalidSeverity},
 		{name: "no action", change: func(config *Config) { config.Action = "" }, wantErr: errInvalidEventAction},
 	}
@@ -540,10 +542,9 @@ func TestSendDefaultHostAndPort(t *testing.T) {
 	assert.Equal(t, "https://events.pagerduty.com:443/v2/enqueue", captured.url)
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the events URL
-// unparsable fails the send before any request, without the host in the
-// error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without the host in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, testServiceURL)
@@ -553,8 +554,7 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRET")
 }
 

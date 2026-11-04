@@ -273,6 +273,19 @@ func TestComposeMessage(t *testing.T) {
 	assert.Equal(t, "Alert", composeMessage("Alert", ""))
 }
 
+// TestConfigPrepareRejectsHostWithPort verifies that prepare rejects a host
+// built in code that holds a port, which the config keeps in its own field.
+func TestConfigPrepareRejectsHostWithPort(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{}
+	require.NoError(t, config.SetURL(parseTestURL(t, "xmpp://alice:secret@xmpp.example.com/?to=bob@example.com")))
+
+	config.Host = "xmpp.example.com:5222"
+
+	require.ErrorIs(t, config.prepare(), util.ErrInvalidHost)
+}
+
 // TestConfigPrepareDropsEmptyEntries verifies that prepare drops the empty
 // recipients and rooms of a config built in code, so a list with none left
 // becomes nil.

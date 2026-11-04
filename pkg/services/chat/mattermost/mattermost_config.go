@@ -159,17 +159,27 @@ func (c *Config) setURL(resolver types.ConfigQueryResolver, serviceURL *url.URL)
 }
 
 // validate checks that the config names a webhook, which needs a server host
-// and a token. Reading a service URL and each send run it, so a config built
-// in code fails before a request.
+// and a token.
+//
+// Reading a service URL and each send run it, so a config built in code fails
+// before a request.
 //
 // Returns:
 //   - error: [ErrHostMissing] for a host without a hostname, such as an empty
-//     host or a port alone. [ErrNotEnoughArguments] for a config without a
-//     token. An error wrapping [util.ErrInvalidPathSegment] for a token that
-//     is not one segment of the webhook path. Otherwise nil.
+//     host or a port alone. An error wrapping [util.ErrInvalidHost] or
+//     [util.ErrInvalidPort] for a host that a URL cannot hold.
+//     [ErrNotEnoughArguments] for a config without a token. An error wrapping
+//     [util.ErrInvalidPathSegment] for a token that is not one segment of the
+//     webhook path. Otherwise nil.
 func (c *Config) validate() error {
 	// A Mattermost server has no default host.
-	if (&url.URL{Host: c.Host}).Hostname() == "" {
+	// The host may carry a port, so a port alone names no host.
+	host, _, err := util.SplitURLHost(&url.URL{Host: c.Host})
+	if err != nil {
+		return fmt.Errorf("host: %w", err)
+	}
+
+	if host == "" {
 		return ErrHostMissing
 	}
 

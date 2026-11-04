@@ -512,6 +512,11 @@ func TestSendErrors(t *testing.T) {
 			wantErr: ErrInvalidPhoneNumber,
 		},
 		{
+			name:    "host with a port",
+			config:  &Config{Host: "localhost:8080", Port: 8080, Source: testSource, Recipients: []string{testRecipient}},
+			wantErr: util.ErrInvalidHost,
+		},
+		{
 			name:    "undefined text mode",
 			config:  &Config{Host: "localhost", Port: 8080, Source: testSource, Recipients: []string{testRecipient}, TextMode: 99},
 			wantErr: format.ErrInvalidEnumValue,

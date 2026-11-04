@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -271,8 +270,10 @@ func TestSend(t *testing.T) {
 }
 
 // TestSendChecksConfig verifies that a send checks a config built in code as
-// reading a URL does, so a config without a server host or a token fails
-// before any request. So does a token that is not one path segment.
+// reading a URL does.
+//
+// A config without a server host or a token fails before any request. So does
+// an IPv6 host without brackets, and a token that is not one path segment.
 func TestSendChecksConfig(t *testing.T) {
 	t.Parallel()
 
@@ -284,6 +285,7 @@ func TestSendChecksConfig(t *testing.T) {
 	}{
 		{name: "zero config", change: func(config *Config) { *config = Config{} }, wantErr: ErrHostMissing},
 		{name: "port without a host", change: func(config *Config) { config.Host = ":8065" }, wantErr: ErrHostMissing},
+		{name: "IPv6 host without brackets", change: func(config *Config) { config.Host = "2001:db8::1" }, wantErr: util.ErrInvalidHost},
 		{name: "no token", change: func(config *Config) { config.Token = "" }, wantErr: ErrNotEnoughArguments},
 		{name: "dot-dot token", change: func(config *Config) { config.Token = ".." }, wantErr: util.ErrInvalidPathSegment},
 		{name: "token with slashes", change: func(config *Config) { config.Token = "x/../../evil" }, wantErr: util.ErrInvalidPathSegment},
@@ -553,9 +555,9 @@ func TestSetHTTPClientBeforeInitialize(t *testing.T) {
 	assert.Equal(t, http.MethodPost, captured.method)
 }
 
-// TestSendRedactsUnparsableURL verifies that a host that makes the webhook URL
-// unparsable fails the send without the token in the error.
-func TestSendRedactsUnparsableURL(t *testing.T) {
+// TestSendRejectsInvalidHost verifies that a host a URL cannot hold fails the
+// send before any request, without the token in the error.
+func TestSendRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	service := newTestService(t, "mattermost://mattermost.example.com/SECRETtoken")
@@ -565,7 +567,6 @@ func TestSendRedactsUnparsableURL(t *testing.T) {
 
 	err := service.Send("message", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "SECRETtoken")
 }

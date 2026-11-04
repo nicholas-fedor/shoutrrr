@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -20,9 +19,9 @@ import (
 
 	"github.com/nicholas-fedor/shoutrrr/internal/httpbody"
 	"github.com/nicholas-fedor/shoutrrr/internal/meta"
-	"github.com/nicholas-fedor/shoutrrr/internal/redact"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types/mocks"
+	"github.com/nicholas-fedor/shoutrrr/pkg/util"
 )
 
 // TestBuildAPIURL verifies that the send endpoint uses HTTPS unless TLS is
@@ -74,9 +73,8 @@ func TestCreateRequest(t *testing.T) {
 	assert.JSONEq(t, `{"message":"Hello","number":"+15550000000","recipients":["+15551234567"]}`, string(body))
 }
 
-// TestSendInvalidHost verifies that a host that makes the endpoint
-// unparsable fails that request with a redacted URL error, without sending
-// it.
+// TestSendInvalidHost verifies that a host a URL cannot hold fails the send
+// before any request, without the host in the error.
 func TestSendInvalidHost(t *testing.T) {
 	t.Parallel()
 
@@ -87,9 +85,7 @@ func TestSendInvalidHost(t *testing.T) {
 
 	err := service.SendContext(t.Context(), "Hello", nil)
 
-	_, isURLErr := errors.AsType[*url.Error](err)
-	require.True(t, isURLErr, "error %v is not a *url.Error", err)
-	require.ErrorIs(t, err, redact.ErrInvalidURL)
+	require.ErrorIs(t, err, util.ErrInvalidHost)
 	assert.NotContains(t, err.Error(), "bad host")
 }
 

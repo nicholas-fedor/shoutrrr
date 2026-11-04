@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -58,7 +59,8 @@ func URLUserPassword(user, password string) *url.Userinfo {
 // SplitURLHost splits the authority of serviceURL into its hostname and port.
 //
 // An IPv6 address must be enclosed in brackets, which the returned hostname
-// leaves out. [url.Parse] accepts an unbracketed IPv6 address such as ::1 but
+// leaves out, and brackets may enclose only an IPv6 address, as [url.Parse]
+// requires. [url.Parse] accepts an unbracketed IPv6 address such as ::1 but
 // splits it at its last colon, and [url.URL.Hostname] and [url.URL.Port] keep a
 // non-numeric port of a hand-built URL in the hostname, so both are rejected
 // here rather than read as a different host.
@@ -74,8 +76,9 @@ func URLUserPassword(user, password string) *url.Userinfo {
 //   - host: the hostname, without brackets, or "" when the URL has none.
 //   - port: the decimal port, or "" when the URL has none.
 //   - err: [ErrInvalidHost] for an unbracketed host with several colons or a
-//     malformed bracket, or an error wrapping [ErrInvalidPort] for a port that
-//     is not a number from 1 to 65535.
+//     character a URL host cannot hold, a malformed bracket, or brackets
+//     around anything but an IPv6 address. An error wrapping [ErrInvalidPort]
+//     for a port that is not a number from 1 to 65535.
 func SplitURLHost(serviceURL *url.URL) (host, port string, err error) { //nolint:nonamedreturns // Same-type returns need names.
 	host, port, err = splitAuthority(serviceURL.Host)
 	if err != nil {
@@ -331,6 +334,30 @@ func JoinURLHost(host, port string) string {
 	return host
 }
 
+// ValidateHostName checks a hostname that a config keeps apart from its port.
+//
+// Such a hostname is written into a URL with its port by [JoinURLHost], which
+// brackets any host holding a colon. So the hostname is an IPv6 address, or a
+// name that reads back unchanged as a URL host, as [ValidateHostToken]
+// describes. Any other hostname would name another host and port, or fail to
+// parse. An empty hostname passes, for the config's own check of a missing
+// host.
+//
+// Parameters:
+//   - host: the hostname, without brackets.
+//
+// Returns:
+//   - error: [ErrInvalidHost] for a hostname with a bracket, a colon outside
+//     an IPv6 address, or another character a URL host cannot hold.
+//     Otherwise nil.
+func ValidateHostName(host string) error {
+	if isIPv6(host) {
+		return nil
+	}
+
+	return ValidateHostToken(host)
+}
+
 // JoinURLHostPort writes host and a port number as a URL authority, as
 // [JoinURLHost] does.
 //
@@ -403,11 +430,18 @@ func isHostTokenByte(c byte) bool {
 //   - host: the hostname, without brackets.
 //   - port: the text after the port colon, or "".
 //   - err: [ErrInvalidHost] for an unbracketed host with several colons or a
-//     malformed bracket.
+//     character a URL host cannot hold, a malformed bracket, or brackets
+//     around anything but an IPv6 address.
 func splitAuthority(authority string) (host, port string, err error) { //nolint:nonamedreturns // Same-type returns need names.
 	if rest, bracketed := strings.CutPrefix(authority, "["); bracketed {
 		var found bool
 		if host, rest, found = strings.Cut(rest, "]"); !found {
+			return "", "", ErrInvalidHost
+		}
+
+		// RFC 3986 brackets only an IP literal, and url.Parse accepts only an
+		// IPv6 address there, so a host built in code is held to the same rule.
+		if !isIPv6(host) {
 			return "", "", ErrInvalidHost
 		}
 
@@ -426,5 +460,40 @@ func splitAuthority(authority string) (host, port string, err error) { //nolint:
 
 	host, port, _ = strings.Cut(authority, ":")
 
+	// url.Parse never puts a slash, an at sign, or a space in a host, so a host
+	// built in code is held to the same rule.
+	if err := ValidateHostToken(host); err != nil {
+		return "", "", err
+	}
+
 	return host, port, nil
+}
+
+// isIPv6 reports whether host is an IPv6 address, with an optional zone, that
+// a URL host can hold between brackets.
+//
+// Parameters:
+//   - host: the host, without brackets.
+//
+// Returns:
+//   - bool: whether host is such an IPv6 address.
+func isIPv6(host string) bool {
+	addr, err := netip.ParseAddr(host)
+	if err != nil || !addr.Is6() {
+		return false
+	}
+
+	// netip accepts any text as a zone, but url.Parse reads back only a zone of
+	// ASCII characters that a host holds unescaped. Those include colons, as in
+	// an interface alias such as eth0:1. Spaces read back too, since Windows
+	// interface names hold them. A zone with a slash, a bracket, or a character
+	// outside ASCII makes the URL fail to parse, or ends the brackets early.
+	zone := addr.Zone()
+	for i := range len(zone) {
+		if c := zone[i]; c >= utf8.RuneSelf || c != ' ' && c != ':' && !isHostTokenByte(c) {
+			return false
+		}
+	}
+
+	return true
 }

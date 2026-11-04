@@ -272,10 +272,6 @@ const (
 	checkEmptyListElements = "empty_list_elements"
 )
 
-// checkURLPortRange verifies that a service whose URL host is its server
-// rejects a URL port outside 1 to 65535.
-const checkURLPortRange = "url_port_range"
-
 // Checks that run against the services that let users skip TLS certificate
 // verification over HTTP.
 const (
@@ -327,7 +323,6 @@ const (
 	failReadBackDiffers                         // a send reached other endpoints than the config read back from its URL
 	failPathSegmentLeft                         // a config value left its segment of a request path
 	failEmptyElementKept                        // a list with an empty element read back or sent unlike the list without it
-	failPortAccepted                            // a URL port outside 1 to 65535 was read, or rejected without util.ErrInvalidPort
 )
 
 // cancelAfter is when the context check cancels the caller's context.
@@ -368,6 +363,14 @@ var subpathFields = map[string][]string{
 	"ntfy":          {"Topic"},
 }
 
+// invalidHosts are hosts that no service URL can hold, which the
+// checked_config check gives a config's Host field in turn.
+//
+// Brackets may enclose only an IPv6 address, and a port must be 1 to 65535. A
+// host name cannot hold a space. Each is invalid whether the field holds the
+// port or the config keeps it apart.
+var invalidHosts = []string{"[srv.example]", "srv.example:99999", "srv example"}
+
 // undefinedEnumValues are values that no enum of a service defines, which the
 // checked_config check gives each enum field in turn.
 //
@@ -380,6 +383,13 @@ var undefinedEnumValues = []int64{-1, 99}
 var listSamples = map[string]map[string]string{
 	"xmpp":  {"Rooms": roomJIDSample},
 	"xmpps": {"Rooms": roomJIDSample},
+}
+
+// serverHostSchemes lists the schemes whose URL host is the server they connect
+// to, which the host and port tests read with other hosts and ports.
+var serverHostSchemes = []string{
+	"bark", "generic", "googlechat", "gotify", "hangouts", "homeassistant", "matrix", "mattermost", "mqtt",
+	"mqtts", "ntfy", "opsgenie", "pagerduty", "rocketchat", "signal", "smtp", "xmpp", "xmpps", "zulip",
 }
 
 // fixtures covers every scheme returned by router.SupportedSchemas.
@@ -591,15 +601,6 @@ var fixtures = []fixture{
 // its audit finding. Fixing a failure must remove its entry, because
 // TestIntegrationContract fails if an allowlisted case passes.
 var allowlist = map[string]map[string]knownFailure{
-	checkURLPortRange: {
-		"bark":       {"Bark reads its URL host as written", failPortAccepted},
-		"generic":    {"Generic reads its URL host as written", failPortAccepted},
-		"googlechat": {"Google Chat reads its URL host as written", failPortAccepted},
-		"gotify":     {"Gotify reads its URL host as written", failPortAccepted},
-		"hangouts":   {"Google Chat reads its URL host as written", failPortAccepted},
-		"matrix":     {"Matrix reads its URL host as written", failPortAccepted},
-		"mattermost": {"Mattermost reads its URL host as written", failPortAccepted},
-	},
 	checkSendUsesContext: {
 		// MQTT keeps one connection across sends, so its dials use the connection's
 		// lifetime context by design.
@@ -756,12 +757,7 @@ func TestIntegrationContract(t *testing.T) {
 func TestIntegrationIPv6Hosts(t *testing.T) {
 	t.Parallel()
 
-	// ipv6Schemes lists the schemes whose URL host is the server they connect to.
-	ipv6Schemes := []string{
-		"homeassistant", "mqtt", "mqtts", "opsgenie", "pagerduty", "rocketchat", "signal", "smtp", "xmpp", "xmpps",
-	}
-
-	for _, scheme := range ipv6Schemes {
+	for _, scheme := range serverHostSchemes {
 		fixtureURL := fixtureURLFor(t, scheme)
 
 		for _, host := range []string{"[2001:db8::1]", "[2001:db8::1]:8443"} {
@@ -808,17 +804,9 @@ func TestIntegrationIPv6Hosts(t *testing.T) {
 //
 // Port 0 is reserved and a port is a 16-bit number, so no such URL can reach a
 // server. Ports 0 and 65536 must each fail with [util.ErrInvalidPort], and a
-// port inside the range must still read. Known failures are listed in
-// [allowlist], as in [TestIntegrationContract].
+// port inside the range must still read.
 func TestIntegrationURLPortRange(t *testing.T) {
 	t.Parallel()
-
-	// serverHostSchemes lists the schemes whose URL host is the server they
-	// connect to, including those that read their host as written.
-	serverHostSchemes := []string{
-		"bark", "generic", "googlechat", "gotify", "hangouts", "homeassistant", "matrix", "mattermost", "mqtt",
-		"mqtts", "ntfy", "opsgenie", "pagerduty", "rocketchat", "signal", "smtp", "xmpp", "xmpps", "zulip",
-	}
 
 	for _, scheme := range serverHostSchemes {
 		t.Run(scheme, func(t *testing.T) {
@@ -838,15 +826,9 @@ func TestIntegrationURLPortRange(t *testing.T) {
 
 			require.NoError(t, locate("8443"))
 
-			var result failure
-
 			for _, port := range []string{"0", "65536"} {
-				if err := locate(port); !errors.Is(err, util.ErrInvalidPort) {
-					result = fail(failPortAccepted, "port %s read with error %v, want util.ErrInvalidPort", port, err)
-				}
+				assert.ErrorIs(t, locate(port), util.ErrInvalidPort, "port %s", port)
 			}
-
-			assertContract(t, checkURLPortRange, scheme, result)
 		})
 	}
 }
@@ -2731,7 +2713,8 @@ func configField(service types.Service) (reflect.Value, bool) {
 //
 // They are the zero config of the service's config type and the fixture's
 // config with each set exported field cleared in turn. Then come the fixture's
-// config with each enum field set to each of [undefinedEnumValues].
+// config with each enum field set to each of [undefinedEnumValues], and with
+// its Host field set to each of [invalidHosts].
 //
 // Parameters:
 //   - t: the test.
@@ -2775,6 +2758,7 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 	}
 
 	variants = append(variants, enumVariants(t, fixtureConfig)...)
+	variants = append(variants, hostVariants(t, fixtureConfig)...)
 
 	for i := range variants {
 		if result := variants[i].readOwnURL(t); result.kind != failNone {
@@ -2783,6 +2767,35 @@ func configVariants(t *testing.T, fx *fixture) ([]configVariant, failure) {
 	}
 
 	return variants, failure{}
+}
+
+// hostVariants returns copies of a config with its Host field set to each of
+// [invalidHosts], or none for a config without a string Host field.
+//
+// Parameters:
+//   - t: the test.
+//   - config: the config to copy.
+//
+// Returns:
+//   - []configVariant: the variants, not yet read back.
+func hostVariants(t *testing.T, config types.ServiceConfig) []configVariant {
+	t.Helper()
+
+	field, ok := reflect.TypeOf(config).Elem().FieldByName("Host")
+	if !ok || field.Type.Kind() != reflect.String {
+		return nil
+	}
+
+	variants := make([]configVariant, 0, len(invalidHosts))
+
+	for _, host := range invalidHosts {
+		variants = append(variants, configVariant{
+			config: withText(t, config, field.Index, host),
+			name:   fmt.Sprintf("the fixture's config with Host set to %q", host),
+		})
+	}
+
+	return variants
 }
 
 // enumVariants returns copies of a config with each enum field set to each of
